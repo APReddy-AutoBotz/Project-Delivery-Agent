@@ -1,0 +1,8 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+includes:
+- traceability/acceptance-truth-and-foundation.yaml
+- traceability/acceptance-engagement-and-action.yaml
+- traceability/acceptance-experience-and-operations.yaml
+- traceability/stories.yaml

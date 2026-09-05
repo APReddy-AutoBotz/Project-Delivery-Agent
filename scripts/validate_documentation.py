@@ -53,7 +53,32 @@ def main() -> int:
     req_doc = load_yaml(req_path)
     trace_doc = load_yaml(trace_path)
 
+    trace_includes = trace_doc.get("includes", [])
+    if trace_includes:
+        merged_trace: dict[str, Any] = {"acceptance_criteria": [], "stories": []}
+        for rel_path in trace_includes:
+            include_path = trace_path.parent / rel_path
+            if not include_path.exists():
+                errors.append(f"Missing traceability catalog: {include_path.relative_to(ROOT)}")
+                continue
+            include_doc = load_yaml(include_path)
+            merged_trace["acceptance_criteria"].extend(include_doc.get("acceptance_criteria", []))
+            merged_trace["stories"].extend(include_doc.get("stories", []))
+        trace_doc = merged_trace
+
     requirements = req_doc.get("requirements", [])
+    includes = req_doc.get("includes", [])
+    if includes:
+        if requirements:
+            errors.append("requirements.yaml must use either inline requirements or includes, not both")
+        requirements = []
+        for rel_path in includes:
+            include_path = req_path.parent / rel_path
+            if not include_path.exists():
+                errors.append(f"Missing requirement catalog: {include_path.relative_to(ROOT)}")
+                continue
+            include_doc = load_yaml(include_path)
+            requirements.extend(include_doc.get("requirements", []))
     criteria = trace_doc.get("acceptance_criteria", [])
     stories = trace_doc.get("stories", [])
 

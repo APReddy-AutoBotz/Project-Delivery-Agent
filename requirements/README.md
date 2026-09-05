@@ -6,8 +6,10 @@ This directory contains the structured requirement and traceability controls use
 
 | File | Purpose |
 |---|---|
-| `requirements.yaml` | Canonical structured register of business, product, functional, technical, and non-functional requirements. |
-| `traceability.yaml` | Links requirements to acceptance criteria, planned tests, stories, and implementation references. |
+| `requirements.yaml` | Canonical manifest that lists the versioned requirement catalog files. |
+| `catalog/*.yaml` | Full business, product, functional, technical, and non-functional requirement records, split by domain for maintainability. |
+| `traceability.yaml` | Canonical manifest for the traceability catalogs. |
+| `traceability/*.yaml` | Acceptance-criteria and story mappings, split for maintainability. |
 | `glossary.yaml` | Controlled terms used by validation and future tooling. |
 
 ## Stable identifiers
