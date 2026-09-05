@@ -1,0 +1,269 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+acceptance_criteria:
+- id: AC-UPD-001
+  title: Create contextual request
+  criterion: When an update becomes due, the request names the project, current known position and specific missing information.
+  requirements:
+  - FR-UPD-001
+  - FR-UPD-002
+  priority: P0
+  tests:
+  - E2E-UPD-001
+- id: AC-UPD-002
+  title: Send to responsible recipient
+  criterion: The initial request is sent only to the configured responsible owner unless policy names additional recipients.
+  requirements:
+  - FR-UPD-003
+  priority: P0
+  tests:
+  - INT-UPD-002
+- id: AC-UPD-003
+  title: Secure response access
+  criterion: An expired, invalid or unauthorized response link cannot submit or reveal project information.
+  requirements:
+  - FR-UPD-004
+  - NFR-SEC-001
+  priority: P0
+  tests:
+  - SEC-UPD-003
+- id: AC-UPD-004
+  title: Extract structured response
+  criterion: A valid free-text reply produces schema-valid proposed facts and does not directly write to Jira.
+  requirements:
+  - FR-UPD-006
+  - FR-UPD-007
+  - NFR-AI-001
+  priority: P0
+  tests:
+  - AI-UPD-004
+  - E2E-UPD-004
+- id: AC-UPD-005
+  title: Clarify ambiguous response
+  criterion: An ambiguous response creates a focused clarification request and no material fact or write proposal is approved
+    automatically.
+  requirements:
+  - FR-UPD-009
+  priority: P0
+  tests:
+  - AI-UPD-005
+  - GOLDEN-005
+- id: AC-UPD-006
+  title: Stop reminders
+  criterion: A response satisfying the obligation cancels pending reminder and escalation jobs.
+  requirements:
+  - FR-UPD-010
+  - FR-ESC-006
+  priority: P0
+  tests:
+  - INT-UPD-006
+- id: AC-UPD-007
+  title: Respect quiet hours
+  criterion: A reminder becoming due during quiet hours is deferred to the next allowed time and the reason is recorded.
+  requirements:
+  - FR-UPD-012
+  priority: P0
+  tests:
+  - UNIT-UPD-007
+- id: AC-UPD-008
+  title: Escalate with context
+  criterion: After the configured unanswered stages, the PM receives the original request, reminder history, missing facts
+    and project impact.
+  requirements:
+  - FR-ESC-001
+  - FR-ESC-003
+  - FR-ESC-005
+  priority: P0
+  tests:
+  - E2E-ESC-008
+- id: AC-ADV-001
+  title: Recommendation has rationale
+  criterion: A recommendation contains the triggering facts, rule, urgency, suggested action and expected outcome.
+  requirements:
+  - FR-ADV-001
+  - FR-ADV-007
+  priority: P0
+  tests:
+  - UNIT-ADV-001
+  - AI-ADV-001
+- id: AC-ADV-002
+  title: PM action queue
+  criterion: The PM action queue ranks pending approvals, stale updates and critical interventions for assigned projects.
+  requirements:
+  - FR-ADV-002
+  - FR-RPT-002
+  priority: P0
+  tests:
+  - E2E-ADV-002
+- id: AC-ADV-003
+  title: Role-specific wording
+  criterion: The same underlying concern is expressed as an operational action for the PM and as a decision/intervention need
+    for leadership.
+  requirements:
+  - FR-ADV-002
+  - FR-ADV-006
+  priority: P0
+  tests:
+  - AI-ADV-003
+- id: AC-ADV-004
+  title: No unsupported blame
+  criterion: The recommendation does not label a person as underperforming or personally at fault based only on response time
+    or activity.
+  requirements:
+  - FR-ADV-008
+  - BR-013
+  priority: P0
+  tests:
+  - AI-SAFE-004
+- id: AC-ADV-005
+  title: Deterministic trigger
+  criterion: Disabling the AI provider does not remove the underlying recommendation trigger from the action queue.
+  requirements:
+  - FR-ADV-001
+  - NFR-REL-003
+  priority: P0
+  tests:
+  - UNIT-ADV-005
+- id: AC-APP-001
+  title: Show complete approval diff
+  criterion: A material Jira proposal displays target, current value, proposed value, source response, evidence, side effects
+    and required approver.
+  requirements:
+  - FR-APP-001
+  - FR-APP-002
+  priority: P0
+  tests:
+  - E2E-APP-001
+- id: AC-APP-002
+  title: Enforce approver
+  criterion: A user with read access but without approval authority cannot approve the proposal.
+  requirements:
+  - FR-APP-005
+  - NFR-SEC-001
+  priority: P0
+  tests:
+  - SEC-APP-002
+- id: AC-APP-003
+  title: Edit before approval
+  criterion: An authorized reviewer can edit the proposed text or allowlisted value and the approved revision is retained.
+  requirements:
+  - FR-APP-003
+  - FR-APP-004
+  priority: P0
+  tests:
+  - E2E-APP-003
+- id: AC-APP-004
+  title: Block stale approval
+  criterion: An expired proposal cannot execute without a new review or approval.
+  requirements:
+  - FR-APP-006
+  priority: P0
+  tests:
+  - UNIT-APP-004
+- id: AC-APP-005
+  title: Recheck source
+  criterion: If Jira changes between approval and execution, execution stops and a new diff is required.
+  requirements:
+  - FR-APP-007
+  - FR-APP-008
+  priority: P0
+  tests:
+  - INT-APP-005
+- id: AC-APP-006
+  title: Shadow mode prevents side effect
+  criterion: In shadow mode, an approved-looking proposal never calls the external write endpoint.
+  requirements:
+  - FR-APP-010
+  - FR-CON-012
+  priority: P0
+  tests:
+  - INT-APP-006
+- id: AC-APP-007
+  title: Create one write
+  criterion: Retrying an already successful write does not create a duplicate comment or field change.
+  requirements:
+  - FR-WRB-004
+  - NFR-REL-001
+  priority: P0
+  tests:
+  - INT-WRB-007
+- id: AC-APP-008
+  title: Complete action receipt
+  criterion: Every write attempt records proposal, approver, execution identity, result, correlation ID and external revision
+    or error class.
+  requirements:
+  - FR-WRB-007
+  - FR-AUD-002
+  priority: P0
+  tests:
+  - INT-AUD-008
+- id: AC-QA-001
+  title: Answer authorized delay question
+  criterion: An authorized leader can ask why a project is delayed and receive baseline, forecast, verified cause, action
+    and uncertainty.
+  requirements:
+  - FR-QA-001
+  - FR-QA-009
+  priority: P0
+  tests:
+  - E2E-QA-001
+  - GOLDEN-001
+- id: AC-QA-002
+  title: Cite material claims
+  criterion: Every material date, number, cause and current-state claim has at least one authorized evidence reference.
+  requirements:
+  - FR-QA-004
+  - NFR-AI-002
+  priority: P0
+  tests:
+  - AI-QA-002
+- id: AC-QA-003
+  title: Label inference
+  criterion: An inferred conclusion is explicitly labelled and is not presented as SYSTEM_VERIFIED or HUMAN_CONFIRMED.
+  requirements:
+  - FR-QA-005
+  priority: P0
+  tests:
+  - AI-QA-003
+- id: AC-QA-004
+  title: Disclose stale update
+  criterion: The answer states when the latest project update is stale and identifies the active clarification request.
+  requirements:
+  - FR-QA-006
+  priority: P0
+  tests:
+  - GOLDEN-004
+- id: AC-QA-005
+  title: Disclose conflict
+  criterion: The answer describes both conflicting values and does not silently choose one.
+  requirements:
+  - FR-QA-007
+  priority: P0
+  tests:
+  - GOLDEN-003
+- id: AC-QA-006
+  title: Admit unknown cause
+  criterion: When delay is verified but cause is not, the answer states that the cause is unknown and can create a clarification
+    request.
+  requirements:
+  - FR-QA-008
+  priority: P0
+  tests:
+  - GOLDEN-005
+- id: AC-QA-007
+  title: No cross-project leakage
+  criterion: A user authorized for Project A receives no fact, title, person or evidence from Project B in answers or citations.
+  requirements:
+  - FR-QA-012
+  priority: P0
+  tests:
+  - SEC-QA-007
+- id: AC-QA-008
+  title: Change summary uses snapshot
+  criterion: A 'what changed' answer compares the current fact set with the selected prior snapshot or time point.
+  requirements:
+  - FR-QA-010
+  priority: P0
+  tests:
+  - INT-QA-008
