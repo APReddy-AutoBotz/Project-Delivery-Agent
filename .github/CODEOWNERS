@@ -1,0 +1,11 @@
+# Default owner for all repository content
+* @APReddy-AutoBotz
+
+# Product, requirements, architecture, security, and commercial baselines
+/docs/ @APReddy-AutoBotz
+/requirements/ @APReddy-AutoBotz
+/AGENTS.md @APReddy-AutoBotz
+/PLANS.md @APReddy-AutoBotz
+/OPEN_SOURCE_POLICY.md @APReddy-AutoBotz
+/SECURITY.md @APReddy-AutoBotz
+/LICENSE.md @APReddy-AutoBotz

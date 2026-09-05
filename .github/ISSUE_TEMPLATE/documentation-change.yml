@@ -1,0 +1,48 @@
+name: Documentation or requirement change
+description: Propose a controlled change to the approved product baseline
+title: "[DOC] "
+labels:
+  - documentation
+body:
+  - type: textarea
+    id: reason
+    attributes:
+      label: Change reason
+    validations:
+      required: true
+
+  - type: input
+    id: affected
+    attributes:
+      label: Affected requirement IDs
+      placeholder: BR-001, FR-UPD-001
+    validations:
+      required: true
+
+  - type: textarea
+    id: documents
+    attributes:
+      label: Affected documents
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Release, security, data and test impact
+    validations:
+      required: true
+
+  - type: dropdown
+    id: class
+    attributes:
+      label: Change class
+      options:
+        - Editorial
+        - Clarification
+        - Functional
+        - Security or autonomy
+        - Architectural
+        - Commercial
+    validations:
+      required: true

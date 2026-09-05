@@ -1,0 +1,73 @@
+name: Implementation work
+description: Implement an approved requirement or story
+title: "[R1][REQ-ID] "
+labels:
+  - implementation
+body:
+  - type: input
+    id: requirements
+    attributes:
+      label: Requirement IDs
+      description: List all approved requirement IDs.
+      placeholder: FR-UPD-001, NFR-REL-002
+    validations:
+      required: true
+
+  - type: input
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: AC-UPD-001, AC-UPD-006
+    validations:
+      required: true
+
+  - type: input
+    id: architecture
+    attributes:
+      label: Architecture and ADR references
+      placeholder: ADR-003, WORKFLOW_ARCHITECTURE.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User or business outcome
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: In scope
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: Test and failure plan
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: plan
+    attributes:
+      label: ExecPlan
+      options:
+        - label: An ExecPlan is attached or this issue is small enough not to require one.
+
+  - type: checkboxes
+    id: done
+    attributes:
+      label: Definition of Done
+      options:
+        - label: I will follow docs/05-quality/DEFINITION_OF_DONE.md.
+          required: true
