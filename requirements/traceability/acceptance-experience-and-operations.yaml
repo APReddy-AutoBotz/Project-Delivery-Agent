@@ -1,0 +1,160 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+acceptance_criteria:
+- id: AC-RPT-001
+  title: Same fact set across channels
+  criterion: A dashboard snapshot, email preview and PowerPoint generated for one report run share the same fact-set revision.
+  requirements:
+  - FR-RPT-001
+  - FR-RPT-004
+  - FR-RPT-005
+  - FR-RPT-010
+  priority: P0
+  tests:
+  - INT-RPT-001
+- id: AC-RPT-002
+  title: PowerPoint metadata
+  criterion: Generated PowerPoint contains reporting period, generation time, approval state, freshness and snapshot ID.
+  requirements:
+  - FR-RPT-005
+  - FR-RPT-007
+  priority: P0
+  tests:
+  - INT-RPT-002
+- id: AC-RPT-003
+  title: Role queue authorization
+  criterion: A user sees only action-queue items from authorized projects.
+  requirements:
+  - FR-RPT-002
+  - NFR-SEC-001
+  priority: P0
+  tests:
+  - SEC-RPT-003
+- id: AC-RPT-004
+  title: Historical snapshot remains stable
+  criterion: A finalized snapshot does not change when live source data changes later.
+  requirements:
+  - FR-RPT-009
+  - FR-RPT-010
+  priority: P0
+  tests:
+  - INT-RPT-004
+- id: AC-RPT-005
+  title: Accessible health display
+  criterion: Health uses labels and explanation rather than color alone.
+  requirements:
+  - NFR-ACC-001
+  priority: P0
+  tests:
+  - E2E-ACC-005
+- id: AC-ADM-001
+  title: Configure OIDC and roles
+  criterion: An administrator can configure OIDC metadata and map an identity group to an application role without code changes.
+  requirements:
+  - FR-ADM-001
+  - FR-ADM-002
+  priority: P0
+  tests:
+  - INT-ADM-001
+- id: AC-ADM-002
+  title: Configure cadence
+  criterion: An administrator can configure due time, reminders, escalation recipient and quiet hours and preview the resulting
+    schedule.
+  requirements:
+  - FR-ADM-004
+  - FR-ESC-002
+  priority: P0
+  tests:
+  - E2E-ADM-002
+- id: AC-ADM-003
+  title: Configure source authority
+  criterion: Changing an authority rule affects subsequent fact resolution while preserving prior fact history.
+  requirements:
+  - FR-ADM-005
+  - FR-EVD-004
+  priority: P0
+  tests:
+  - INT-ADM-003
+- id: AC-ADM-004
+  title: Configure model endpoint
+  criterion: An administrator can select an approved provider or OpenAI-compatible private endpoint and test it without exposing
+    the secret.
+  requirements:
+  - FR-ADM-007
+  - TR-AI-001
+  priority: P0
+  tests:
+  - INT-ADM-004
+  - SEC-ADM-004
+- id: AC-DEP-001
+  title: Start reference deployment
+  criterion: The documented container composition starts web/API, worker and PostgreSQL and passes readiness checks.
+  requirements:
+  - TR-DEP-001
+  - NFR-AVL-001
+  priority: P0
+  tests:
+  - DEP-001
+- id: AC-DEP-002
+  title: Use external PostgreSQL
+  criterion: The same application can connect to a supported external PostgreSQL instance without product-code changes.
+  requirements:
+  - NFR-PORT-002
+  priority: P0
+  tests:
+  - DEP-002
+- id: AC-DEP-003
+  title: Backup and restore
+  criterion: A documented backup can be restored into a clean deployment with fact, workflow and audit consistency checks
+    passing.
+  requirements:
+  - TR-DEP-004
+  - NFR-AVL-002
+  priority: P0
+  tests:
+  - DEP-003
+- id: AC-DEP-004
+  title: Run without external AI
+  criterion: The reference deployment supports a no-AI mode in which synchronization, freshness, health and manual reporting
+    remain available.
+  requirements:
+  - BR-014
+  - NFR-REL-003
+  priority: P0
+  tests:
+  - E2E-DEP-004
+- id: AC-MNT-001
+  title: No customer fork required
+  criterion: A second synthetic customer configuration with different fields and cadence runs on the same build.
+  requirements:
+  - NFR-MNT-003
+  - PR-013
+  priority: P0
+  tests:
+  - E2E-MNT-001
+- id: AC-MNT-002
+  title: CI validation
+  criterion: A pull request fails CI when lint, type checking, tests, build or documentation validation fails.
+  requirements:
+  - NFR-MNT-004
+  priority: P0
+  tests:
+  - CI-MNT-002
+- id: AC-MNT-003
+  title: Connector contract
+  criterion: The Jira connector passes the shared connector contract test suite.
+  requirements:
+  - TR-TEST-003
+  priority: P0
+  tests:
+  - INT-MNT-003
+- id: AC-MNT-004
+  title: Dependency registered
+  criterion: A new runtime dependency not added to the open-source adoption register fails documentation validation or review
+    policy.
+  requirements:
+  - OPEN_SOURCE_POLICY
+  priority: P1
+  tests:
+  - CI-MNT-004
