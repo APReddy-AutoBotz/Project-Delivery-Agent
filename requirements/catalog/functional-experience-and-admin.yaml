@@ -1,0 +1,384 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+requirements:
+- id: FR-QA-001
+  type: functional
+  title: Authorized question
+  statement: A user must be able to ask a natural-language question across projects they are authorized to access.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-002
+  type: functional
+  title: Intent and scope resolution
+  statement: The system must resolve the requested project, portfolio, time period and question type without broadening access.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-003
+  type: functional
+  title: Current facts retrieval
+  statement: The system must retrieve structured current facts before unstructured evidence.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-004
+  type: functional
+  title: Evidence-backed claims
+  statement: Each material factual claim in an answer must be linked to supporting evidence.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-005
+  type: functional
+  title: Fact versus inference
+  statement: The answer must distinguish verified facts, human confirmations and agent inferences.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-006
+  type: functional
+  title: Freshness display
+  statement: The answer must state relevant data freshness and unresolved update requests.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-007
+  type: functional
+  title: Conflict disclosure
+  statement: The answer must disclose material source conflicts and avoid presenting either value as settled without authority.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-008
+  type: functional
+  title: Insufficient evidence response
+  statement: When evidence is insufficient, the system must say what is unknown and may initiate an approved clarification
+    request.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-009
+  type: functional
+  title: Delay explanation
+  statement: The system must answer why a project is delayed using baseline, forecast, causal evidence, actions and uncertainty.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-010
+  type: functional
+  title: Change summary
+  statement: The system must answer what changed since a selected prior time or snapshot.
+  priority: Should
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-011
+  type: functional
+  title: Decision summary
+  statement: The system must identify decisions awaiting the user or their role.
+  priority: Should
+  release: R1
+  status: draft
+  parent: PR-010
+  source_doc: FRD.md
+- id: FR-QA-012
+  type: functional
+  title: No cross-project leakage
+  statement: Answer generation must enforce row- and evidence-level authorization.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
+- id: FR-RPT-001
+  type: functional
+  title: Live project dashboard
+  statement: The system must provide a live project view based on the current approved fact set.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-011
+  source_doc: FRD.md
+- id: FR-RPT-002
+  type: functional
+  title: Role action queues
+  statement: The system must provide role-specific prioritized action queues.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-008
+  source_doc: FRD.md
+- id: FR-RPT-003
+  type: functional
+  title: Portfolio freshness view
+  statement: The PMO view must show update freshness, missing updates and conflicts.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-011
+  source_doc: FRD.md
+- id: FR-RPT-004
+  type: functional
+  title: Email digest preview
+  statement: The system must generate an email digest preview from the approved fact set.
+  priority: Should
+  release: R1
+  status: draft
+  parent: PR-011
+  source_doc: FRD.md
+- id: FR-RPT-005
+  type: functional
+  title: PowerPoint snapshot
+  statement: The system must generate a timestamped PowerPoint management snapshot.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-011
+  source_doc: FRD.md
+- id: FR-RPT-006
+  type: functional
+  title: PDF snapshot
+  statement: The system should generate a PDF snapshot from an approved template.
+  priority: Should
+  release: R1
+  status: draft
+  parent: PR-011
+  source_doc: FRD.md
+- id: FR-RPT-007
+  type: functional
+  title: Approval status
+  statement: A final report must show reporting period, generated time, source freshness and approval state.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-011
+  source_doc: FRD.md
+- id: FR-RPT-008
+  type: functional
+  title: Audience templates
+  statement: The reporting engine must support different approved templates for leadership, PMO and customer audiences.
+  priority: Should
+  release: R2
+  status: draft
+  parent: PR-011
+  source_doc: FRD.md
+- id: FR-RPT-009
+  type: functional
+  title: Historical snapshots
+  statement: The system must retain metadata and references for generated final snapshots.
+  priority: Should
+  release: R1
+  status: draft
+  parent: PR-011
+  source_doc: FRD.md
+- id: FR-RPT-010
+  type: functional
+  title: Single fact set
+  statement: All output channels must use the same versioned approved fact set for the reporting run.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-011
+  source_doc: FRD.md
+- id: FR-ADM-001
+  type: functional
+  title: OIDC configuration
+  statement: An administrator must be able to configure an approved OpenID Connect identity provider.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
+- id: FR-ADM-002
+  type: functional
+  title: Role mapping
+  statement: The system must map identity-provider users or groups to application roles.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
+- id: FR-ADM-003
+  type: functional
+  title: Project access
+  statement: Administrators must be able to grant portfolio- and project-level access.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
+- id: FR-ADM-004
+  type: functional
+  title: Cadence configuration
+  statement: Administrators must be able to configure update obligations, due times, reminders and escalations.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-013
+  source_doc: FRD.md
+- id: FR-ADM-005
+  type: functional
+  title: Source authority configuration
+  statement: Administrators must be able to configure source authority by fact type or field.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-004
+  source_doc: FRD.md
+- id: FR-ADM-006
+  type: functional
+  title: Health rule configuration
+  statement: Administrators must be able to enable and tune approved health rules.
+  priority: Should
+  release: R1
+  status: draft
+  parent: PR-013
+  source_doc: FRD.md
+- id: FR-ADM-007
+  type: functional
+  title: AI provider configuration
+  statement: Administrators must be able to configure an approved AI provider, endpoint, model and secret reference.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
+- id: FR-ADM-008
+  type: functional
+  title: Data policy configuration
+  statement: Administrators must be able to configure retention, redaction and AI data-routing restrictions.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
+- id: FR-ADM-009
+  type: functional
+  title: Shadow-mode configuration
+  statement: Administrators must be able to enable shadow mode globally or by connector/action class.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-014
+  source_doc: FRD.md
+- id: FR-ADM-010
+  type: functional
+  title: Connector scopes display
+  statement: The system must display configured connector permissions and expected scopes.
+  priority: Should
+  release: R1
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
+- id: FR-ADM-011
+  type: functional
+  title: Branding configuration
+  statement: Administrators should be able to configure approved logo, terminology and report branding.
+  priority: Could
+  release: R2
+  status: draft
+  parent: PR-013
+  source_doc: FRD.md
+- id: FR-ADM-012
+  type: functional
+  title: Configuration export
+  statement: The system should support secure export of non-secret customer configuration for backup or migration.
+  priority: Should
+  release: R2
+  status: draft
+  parent: PR-013
+  source_doc: FRD.md
+- id: FR-AUD-001
+  type: functional
+  title: Audit event
+  statement: The system must record material authentication, configuration, agent, approval and connector actions.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-009
+  source_doc: FRD.md
+- id: FR-AUD-002
+  type: functional
+  title: Action receipt
+  statement: Every attempted external write must create an action receipt with proposal, approval, execution and outcome.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-009
+  source_doc: FRD.md
+- id: FR-AUD-003
+  type: functional
+  title: Actor identity
+  statement: Audit records must distinguish human user, service account, scheduled worker and AI-assisted action.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-009
+  source_doc: FRD.md
+- id: FR-AUD-004
+  type: functional
+  title: Prompt metadata
+  statement: The system must record AI purpose, provider, model, prompt version, source IDs and outcome without logging unnecessary
+    secrets.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-003
+  source_doc: FRD.md
+- id: FR-AUD-005
+  type: functional
+  title: Immutable history
+  statement: Material audit records must not be editable through normal application functions.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-009
+  source_doc: FRD.md
+- id: FR-AUD-006
+  type: functional
+  title: Audit search
+  statement: Authorized administrators must be able to search audit records by project, actor, action and time.
+  priority: Should
+  release: R1
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
+- id: FR-AUD-007
+  type: functional
+  title: Retention
+  statement: Audit retention must follow configured policy and legal requirements.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
+- id: FR-AUD-008
+  type: functional
+  title: Export
+  statement: Authorized administrators should be able to export selected audit records.
+  priority: Should
+  release: R2
+  status: draft
+  parent: PR-012
+  source_doc: FRD.md
