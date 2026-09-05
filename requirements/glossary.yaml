@@ -1,0 +1,26 @@
+schema_version: '1.0'
+terms:
+- term: action_receipt
+  display: Action receipt
+  definition: Immutable record of a material action, approval, execution and outcome.
+- term: approval_diff
+  display: Approval diff
+  definition: Comparison between current source state and a proposed material change.
+- term: canonical_project_model
+  display: Canonical Project Model
+  definition: Tool-neutral project and delivery data model.
+- term: evidence_ledger
+  display: Evidence ledger
+  definition: Versioned project facts, evidence, classification, freshness and confirmation.
+- term: fact_classification
+  display: Fact classification
+  definition: SYSTEM_VERIFIED, HUMAN_CONFIRMED, AGENT_INFERENCE, CONFLICTING, STALE or UNKNOWN.
+- term: shadow_mode
+  display: Shadow mode
+  definition: Observe and draft without external messages or writes.
+- term: source_authority
+  display: Source authority
+  definition: Rule defining which source governs a particular fact or field.
+- term: update_obligation
+  display: Update obligation
+  definition: Scheduled requirement for a responsible person or source to provide current project information.
