@@ -1,0 +1,274 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+requirements:
+- id: BR-001
+  type: business
+  title: Reduce update administration
+  statement: The product must reduce manual effort spent collecting and consolidating project updates.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-002
+  type: business
+  title: Improve information freshness
+  statement: The product must improve the freshness and completeness of project information.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-003
+  type: business
+  title: Detect delivery risk earlier
+  statement: The product must identify delivery risk and delay signals before formal reporting where evidence allows.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-004
+  type: business
+  title: Evidence-backed management information
+  statement: Leadership answers and reports must be traceable to approved sources.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-005
+  type: business
+  title: Preserve existing tools
+  statement: The product must work with existing project and collaboration tools rather than requiring their replacement.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-006
+  type: business
+  title: Customer-controlled deployment and AI
+  statement: The product must support customer-hosted deployment and customer-controlled AI-provider configuration.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-007
+  type: business
+  title: Govern external changes
+  statement: Material changes to external systems must remain governed, permission-aware and auditable.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-008
+  type: business
+  title: Configurable PMO policies
+  statement: Update cadence, escalation, health rules, terminology and report formats must be configurable.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-009
+  type: business
+  title: Role-relevant support
+  statement: The product must provide role-relevant support to PMs, scrum masters, team leads, PMO and leadership.
+  priority: Should
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-010
+  type: business
+  title: Maintain one common product
+  statement: The product must be maintainable as one common product without customer-specific branches.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-011
+  type: business
+  title: Gradual adoption
+  statement: The product must support read-only and shadow modes.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-012
+  type: business
+  title: Measurable value
+  statement: The product must measure operational and business value during pilots.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-013
+  type: business
+  title: No employee performance scoring
+  statement: The product must avoid employee-performance scoring and unsupported blame attribution.
+  priority: Must
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-014
+  type: business
+  title: Useful without AI
+  statement: Deterministic monitoring and reporting must remain useful when AI is unavailable or disabled.
+  priority: Should
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: BR-015
+  type: business
+  title: Live and snapshot reporting
+  statement: The product must support both a current live view and formal timestamped report snapshots.
+  priority: Should
+  release: R1
+  status: draft
+  parent: null
+  source_doc: BRD.md
+- id: PR-001
+  type: product
+  title: Operate above existing tools
+  statement: The product must provide assurance and coordination without replacing the customer's project systems.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-005
+  source_doc: PRD.md
+- id: PR-002
+  type: product
+  title: Canonical Project Model
+  statement: The product must normalize approved source data into a tool-neutral project model.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-005
+  source_doc: PRD.md
+- id: PR-003
+  type: product
+  title: Evidence ledger
+  statement: The product must retain versioned facts, provenance, freshness and classification.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-004
+  source_doc: PRD.md
+- id: PR-004
+  type: product
+  title: Source authority
+  statement: The product must apply field-level source-authority rules and expose conflicts.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-004
+  source_doc: PRD.md
+- id: PR-005
+  type: product
+  title: Continuous monitoring
+  statement: The product must monitor update freshness, completeness and selected delivery signals.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-002
+  source_doc: PRD.md
+- id: PR-006
+  type: product
+  title: Contextual engagement
+  statement: The product must ask responsible people focused questions using known project context.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-001
+  source_doc: PRD.md
+- id: PR-007
+  type: product
+  title: Cadence and escalation
+  statement: The product must follow configurable reminder and escalation policies.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-008
+  source_doc: PRD.md
+- id: PR-008
+  type: product
+  title: Role-based advice
+  statement: The product must recommend practical follow-up based on role and approved delivery rules.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-009
+  source_doc: PRD.md
+- id: PR-009
+  type: product
+  title: Controlled action
+  statement: The product must turn confirmed information into permission-checked, approved source-system changes.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: PRD.md
+- id: PR-010
+  type: product
+  title: Leadership Q&A
+  statement: The product must answer authorized leadership questions using current evidence and explicit uncertainty.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-004
+  source_doc: PRD.md
+- id: PR-011
+  type: product
+  title: Unified publishing
+  statement: The same approved fact set must power dashboards, email and formal snapshots.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-015
+  source_doc: PRD.md
+- id: PR-012
+  type: product
+  title: Customer control
+  statement: The product must support single-tenant customer hosting, SSO and configurable AI endpoints.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: PRD.md
+- id: PR-013
+  type: product
+  title: Configuration-first product
+  statement: Customer variation must be handled through configuration and extension interfaces.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: PRD.md
+- id: PR-014
+  type: product
+  title: Shadow mode
+  statement: The product must support observation and drafted actions without external side effects.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-011
+  source_doc: PRD.md
+- id: PR-015
+  type: product
+  title: Product analytics
+  statement: The product must capture metrics needed to measure pilot and operational value without scoring employees.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-012
+  source_doc: PRD.md

@@ -1,0 +1,12 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+baseline_status: draft
+baseline_date: '2026-09-05'
+includes:
+- catalog/business-product.yaml
+- catalog/functional-truth-and-health.yaml
+- catalog/functional-engagement-and-action.yaml
+- catalog/functional-experience-and-admin.yaml
+- catalog/non-functional.yaml
+- catalog/technical.yaml
