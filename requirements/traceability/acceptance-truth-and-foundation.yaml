@@ -1,0 +1,219 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+acceptance_criteria:
+- id: AC-CON-001
+  title: Connect Jira read-only
+  criterion: Given valid Jira credentials and approved scopes, the administrator can connect a site and receive a successful
+    connection test without enabling writes.
+  requirements:
+  - FR-CON-001
+  - FR-CON-009
+  - FR-CON-012
+  priority: P0
+  tests:
+  - INT-CON-001
+  - E2E-CON-001
+- id: AC-CON-002
+  title: Permission-limited discovery
+  criterion: A Jira project not visible to the integration identity is not listed, synchronized or queryable.
+  requirements:
+  - FR-CON-002
+  - NFR-SEC-002
+  priority: P0
+  tests:
+  - INT-CON-002
+- id: AC-CON-003
+  title: Ingest Jira project data
+  criterion: Configured issue, sprint, comment, changelog, link and selected custom-field data is normalized with source IDs
+    and revisions.
+  requirements:
+  - FR-CON-003
+  - FR-MOD-007
+  - FR-EVD-011
+  priority: P0
+  tests:
+  - INT-CON-003
+- id: AC-CON-004
+  title: Idempotent webhook
+  criterion: Submitting the same webhook event twice produces one source observation and no duplicate downstream obligation.
+  requirements:
+  - FR-CON-004
+  - FR-CON-010
+  - NFR-REL-001
+  priority: P0
+  tests:
+  - INT-CON-004
+- id: AC-CON-005
+  title: Spreadsheet dry-run
+  criterion: An Excel or CSV import previews mappings, invalid rows and planned changes before any facts are committed.
+  requirements:
+  - FR-CON-006
+  - FR-CON-007
+  priority: P0
+  tests:
+  - E2E-CON-005
+- id: AC-CON-006
+  title: Connector failure visible
+  criterion: Expired credentials change connector health to failed or degraded and show a safe administrator-facing reason
+    without exposing the secret.
+  requirements:
+  - FR-CON-009
+  - NFR-REL-004
+  - NFR-SEC-005
+  priority: P0
+  tests:
+  - INT-CON-006
+  - SEC-CON-001
+- id: AC-EVD-001
+  title: Create versioned fact
+  criterion: A changed source value creates a new fact version and preserves the previous value, source and timestamps.
+  requirements:
+  - FR-EVD-001
+  - FR-EVD-002
+  - FR-EVD-004
+  priority: P0
+  tests:
+  - INT-EVD-001
+- id: AC-EVD-002
+  title: Classify fact
+  criterion: Every material fact returned by the API includes a valid fact classification.
+  requirements:
+  - FR-EVD-003
+  priority: P0
+  tests:
+  - UNIT-EVD-002
+- id: AC-EVD-003
+  title: Mark stale fact
+  criterion: A fact outside its configured validity period is marked STALE and cannot be presented as current without warning.
+  requirements:
+  - FR-EVD-006
+  - FR-EVD-010
+  priority: P0
+  tests:
+  - UNIT-EVD-003
+  - E2E-EVD-003
+- id: AC-EVD-004
+  title: Preserve conflict
+  criterion: When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING.
+  requirements:
+  - FR-EVD-007
+  - FR-EVD-012
+  - FR-ADM-005
+  priority: P0
+  tests:
+  - INT-EVD-004
+  - GOLDEN-003
+- id: AC-EVD-005
+  title: Evidence authorization
+  criterion: A user without access to the source project cannot open or retrieve its evidence, even through a copied evidence
+    URL.
+  requirements:
+  - FR-EVD-009
+  - FR-QA-012
+  - NFR-SEC-001
+  priority: P0
+  tests:
+  - SEC-EVD-005
+- id: AC-EVD-006
+  title: Human confirmation attribution
+  criterion: A confirmed response records the confirming user, timestamp, original response and linked evidence.
+  requirements:
+  - FR-EVD-005
+  - FR-UPD-008
+  priority: P0
+  tests:
+  - INT-EVD-006
+- id: AC-HLT-001
+  title: Detect stale project update
+  criterion: A project whose required update is older than policy is shown as stale and creates the configured obligation.
+  requirements:
+  - FR-HLT-001
+  - FR-UPD-001
+  priority: P0
+  tests:
+  - UNIT-HLT-001
+  - E2E-UPD-001
+- id: AC-HLT-002
+  title: Detect missing required facts
+  criterion: The completeness check lists the exact required facts that are missing or unconfirmed.
+  requirements:
+  - FR-HLT-002
+  priority: P0
+  tests:
+  - UNIT-HLT-002
+- id: AC-HLT-003
+  title: Calculate blocker age
+  criterion: Blocker age is calculated from source dates and the applied threshold is visible.
+  requirements:
+  - FR-HLT-004
+  - FR-HLT-009
+  - FR-HLT-011
+  priority: P0
+  tests:
+  - UNIT-HLT-003
+- id: AC-HLT-004
+  title: Separate reported and calculated health
+  criterion: A reported GREEN value remains visible while a RED calculated signal is shown separately with rationale.
+  requirements:
+  - FR-HLT-007
+  - FR-HLT-008
+  priority: P0
+  tests:
+  - E2E-HLT-004
+  - GOLDEN-002
+- id: AC-HLT-005
+  title: Detect configured contradiction
+  criterion: A completed milestone with mandatory open linked issues creates a contradiction signal and a PM reconciliation
+    action.
+  requirements:
+  - FR-HLT-008
+  - FR-HLT-009
+  priority: P0
+  tests:
+  - INT-HLT-005
+  - GOLDEN-003
+- id: AC-HLT-006
+  title: No model-only health
+  criterion: The health result is reproducible with the AI provider disabled.
+  requirements:
+  - FR-HLT-011
+  - NFR-REL-003
+  priority: P0
+  tests:
+  - UNIT-HLT-006
+- id: AC-FND-001
+  title: Initialize TypeScript workspace
+  criterion: The repository contains a pnpm TypeScript workspace with buildable web, API and worker applications and shared
+    package boundaries.
+  requirements:
+  - TR-STACK-001
+  - TR-STACK-002
+  - TR-STACK-003
+  priority: P0
+  tests:
+  - CI-FND-001
+- id: AC-DATA-001
+  title: Apply foundational migration
+  criterion: A clean PostgreSQL database can apply the initial versioned migration and create customer, identity, project,
+    connector and audit foundations.
+  requirements:
+  - TR-STACK-004
+  - TR-STACK-005
+  - NFR-MNT-005
+  priority: P0
+  tests:
+  - INT-DATA-001
+- id: AC-MOD-001
+  title: Represent canonical project
+  criterion: The API can create and retrieve a canonical project with hierarchy, roles, baseline/forecast dates, reported
+    health and external source mappings.
+  requirements:
+  - FR-MOD-001
+  - FR-MOD-002
+  - FR-MOD-004
+  - FR-MOD-005
+  - FR-MOD-007
+  priority: P0
+  tests:
+  - INT-MOD-001
