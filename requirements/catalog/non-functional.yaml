@@ -1,0 +1,421 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+requirements:
+- id: NFR-SEC-001
+  type: nonfunctional
+  title: Server-side authorization
+  statement: Every data access and action must be authorized on the server for the user, role, project and portfolio.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: NFR.md
+- id: NFR-SEC-002
+  type: nonfunctional
+  title: Least privilege
+  statement: Connectors, service accounts and application roles must use minimum required permissions.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: NFR.md
+- id: NFR-SEC-003
+  type: nonfunctional
+  title: Encryption in transit
+  statement: All external and user-facing network traffic must use approved TLS.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-SEC-004
+  type: nonfunctional
+  title: Encryption at rest
+  statement: Secrets and sensitive stored data must be encrypted using customer-approved controls.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-SEC-005
+  type: nonfunctional
+  title: Secret handling
+  statement: Secrets must not be committed to source control, exposed in logs or returned to the browser.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-SEC-006
+  type: nonfunctional
+  title: Webhook protection
+  statement: Inbound webhooks must use authenticity validation, replay protection and idempotency controls where supported.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: NFR.md
+- id: NFR-SEC-007
+  type: nonfunctional
+  title: Bounded AI tools
+  statement: The language model must not receive unrestricted database or connector access.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: NFR.md
+- id: NFR-SEC-008
+  type: nonfunctional
+  title: Prompt-injection defense
+  statement: Content from external systems must be treated as untrusted data and must not override system policies or tool
+    permissions.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: NFR.md
+- id: NFR-SEC-009
+  type: nonfunctional
+  title: Auditability
+  statement: Material actions must be attributable and reviewable.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: NFR.md
+- id: NFR-SEC-010
+  type: nonfunctional
+  title: Dependency security
+  statement: Runtime dependencies and container images must be scanned before release.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-PRV-001
+  type: nonfunctional
+  title: Data minimization
+  statement: Only information required for the selected use case may be processed or sent to an AI provider.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-PRV-002
+  type: nonfunctional
+  title: Customer data control
+  statement: Customer data must remain within customer-controlled storage except approved external API calls.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-PRV-003
+  type: nonfunctional
+  title: AI routing policy
+  statement: The customer must control which AI provider or private endpoint receives which data classifications.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-PRV-004
+  type: nonfunctional
+  title: Retention policy
+  statement: Operational, evidence, AI and audit data must support configurable retention.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-PRV-005
+  type: nonfunctional
+  title: No vendor training assumption
+  statement: The product must not claim that customer data is excluded from provider training unless the configured provider
+    agreement supports it.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-REL-001
+  type: nonfunctional
+  title: Idempotent processing
+  statement: Duplicate events, retries and worker restarts must not create duplicate material actions.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: NFR.md
+- id: NFR-REL-002
+  type: nonfunctional
+  title: Durable workflows
+  statement: Update obligations, reminders, approvals and writes must recover after process restart.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-001
+  source_doc: NFR.md
+- id: NFR-REL-003
+  type: nonfunctional
+  title: Safe degradation
+  statement: Deterministic monitoring must continue when the AI provider is unavailable.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-014
+  source_doc: NFR.md
+- id: NFR-REL-004
+  type: nonfunctional
+  title: Explicit failure
+  statement: The system must expose failed synchronization, generation and write operations rather than silently discarding
+    them.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-004
+  source_doc: NFR.md
+- id: NFR-REL-005
+  type: nonfunctional
+  title: Retry policy
+  statement: Retries must be bounded, classified and observable.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: NFR.md
+- id: NFR-PERF-001
+  type: nonfunctional
+  title: Interactive response
+  statement: Normal dashboard pages should load core data within three seconds under the Release 1 reference load.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-009
+  source_doc: NFR.md
+- id: NFR-PERF-002
+  type: nonfunctional
+  title: Question acknowledgement
+  statement: Leadership Q&A must acknowledge a request promptly and stream or return progress for longer answers.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-004
+  source_doc: NFR.md
+- id: NFR-PERF-003
+  type: nonfunctional
+  title: Background isolation
+  statement: Report generation and synchronization must not block interactive application requests.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-SCL-001
+  type: nonfunctional
+  title: Reference scale
+  statement: Release 1 must support at least 200 projects, 20,000 work items and 200 active users in one customer deployment.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-SCL-002
+  type: nonfunctional
+  title: Horizontal worker option
+  statement: Background workers should be horizontally scalable without changing business workflow state.
+  priority: Should
+  release: R2
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-AVL-001
+  type: nonfunctional
+  title: Deployment availability
+  statement: The default deployment must support health checks and restart-safe services.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-AVL-002
+  type: nonfunctional
+  title: Planned maintenance
+  statement: Upgrade procedures must document expected downtime and rollback.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-MNT-001
+  type: nonfunctional
+  title: Single language
+  statement: The core web, API, worker and connector implementation should use TypeScript.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-MNT-002
+  type: nonfunctional
+  title: Modular boundaries
+  statement: Domain modules must have clear public interfaces and must not create circular dependencies.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-MNT-003
+  type: nonfunctional
+  title: Configuration over forks
+  statement: Customer variation must be implemented through configuration or extension points.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-MNT-004
+  type: nonfunctional
+  title: Automated validation
+  statement: Linting, type checking, tests, builds and documentation validation must run in CI.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-MNT-005
+  type: nonfunctional
+  title: Migration discipline
+  statement: Database changes must be versioned, repeatable and tested.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-PORT-001
+  type: nonfunctional
+  title: OCI deployment
+  statement: The application must be distributable as OCI-compatible container images.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-PORT-002
+  type: nonfunctional
+  title: PostgreSQL portability
+  statement: The product must support standard PostgreSQL without mandatory Supabase-specific runtime features.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-PORT-003
+  type: nonfunctional
+  title: Provider portability
+  statement: The AI layer must support replacement of the configured provider without changing domain logic.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-PORT-004
+  type: nonfunctional
+  title: Infrastructure independence
+  statement: The core product must not require a mandatory vendor-operated control plane.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-ACC-001
+  type: nonfunctional
+  title: Accessibility
+  statement: Core user journeys must target WCAG 2.2 AA practices.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-009
+  source_doc: NFR.md
+- id: NFR-ACC-002
+  type: nonfunctional
+  title: Keyboard operation
+  statement: Core dashboards, chat, forms and approvals must be operable by keyboard.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-009
+  source_doc: NFR.md
+- id: NFR-OBS-001
+  type: nonfunctional
+  title: Structured logs
+  statement: Services must emit structured logs with correlation IDs and without secrets.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-OBS-002
+  type: nonfunctional
+  title: Operational metrics
+  statement: Services must expose health, queue, connector, latency and failure metrics.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-OBS-003
+  type: nonfunctional
+  title: Distributed tracing
+  statement: The architecture must support OpenTelemetry-compatible tracing.
+  priority: Should
+  release: R2
+  status: draft
+  parent: BR-010
+  source_doc: NFR.md
+- id: NFR-AI-001
+  type: nonfunctional
+  title: Structured outputs
+  statement: AI extraction used for action proposals must conform to a validated schema.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-007
+  source_doc: NFR.md
+- id: NFR-AI-002
+  type: nonfunctional
+  title: Evidence coverage
+  statement: Material answer claims must have evidence or be clearly labelled as inference or unknown.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-004
+  source_doc: NFR.md
+- id: NFR-AI-003
+  type: nonfunctional
+  title: Model-independent tests
+  statement: Golden scenarios must be rerunnable across supported model providers.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-AI-004
+  type: nonfunctional
+  title: Cost controls
+  statement: Administrators must be able to set provider, model and usage limits.
+  priority: Should
+  release: R1
+  status: draft
+  parent: BR-006
+  source_doc: NFR.md
+- id: NFR-AI-005
+  type: nonfunctional
+  title: No hidden reasoning requirement
+  statement: The product must retain decision inputs, tool calls and result summaries without depending on private model chain-of-thought.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-004
+  source_doc: NFR.md
