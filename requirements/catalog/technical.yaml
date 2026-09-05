@@ -1,0 +1,324 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+requirements:
+- id: TR-STACK-001
+  type: technical
+  title: TypeScript runtime
+  statement: The web application, API, worker and first-party connectors must use TypeScript on Node.js 24 LTS unless an approved
+    ADR states otherwise.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-MNT-001
+  source_doc: TRD.md
+- id: TR-STACK-002
+  type: technical
+  title: Web stack
+  statement: The web application must use React, Vite, Tailwind CSS and an approved accessible component layer.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-MNT-001
+  source_doc: TRD.md
+- id: TR-STACK-003
+  type: technical
+  title: API stack
+  statement: The API must use NestJS with REST endpoints and generated OpenAPI documentation.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-MNT-002
+  source_doc: TRD.md
+- id: TR-STACK-004
+  type: technical
+  title: Database
+  statement: The operational database must be PostgreSQL with pgvector available for approved semantic retrieval.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-PORT-002
+  source_doc: TRD.md
+- id: TR-STACK-005
+  type: technical
+  title: ORM and migration
+  statement: Database access must use Prisma or an approved alternative behind repository interfaces, with versioned migrations.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-MNT-005
+  source_doc: TRD.md
+- id: TR-STACK-006
+  type: technical
+  title: Background work
+  statement: Scheduled and background workflows must use Graphile Worker in Release 1.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-REL-002
+  source_doc: TRD.md
+- id: TR-STACK-007
+  type: technical
+  title: AI SDK
+  statement: The initial provider abstraction must use the Vercel AI SDK or a thinner approved adapter and validated Zod schemas.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-PORT-003
+  source_doc: TRD.md
+- id: TR-STACK-008
+  type: technical
+  title: Report libraries
+  statement: PowerPoint and spreadsheet generation must use approved server-side libraries that do not require Microsoft Office
+    installation.
+  priority: Must
+  release: R1
+  status: draft
+  parent: BR-015
+  source_doc: TRD.md
+- id: TR-API-001
+  type: technical
+  title: OpenAPI contract
+  statement: REST endpoints must publish and validate an OpenAPI contract.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-MNT-002
+  source_doc: TRD.md
+- id: TR-API-002
+  type: technical
+  title: Streaming
+  statement: Conversational responses should use Server-Sent Events in Release 1.
+  priority: Should
+  release: R1
+  status: draft
+  parent: NFR-PERF-002
+  source_doc: TRD.md
+- id: TR-API-003
+  type: technical
+  title: Correlation
+  statement: Inbound requests, worker jobs, AI runs and connector calls must share correlation identifiers.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-OBS-001
+  source_doc: TRD.md
+- id: TR-DATA-001
+  type: technical
+  title: Transactional outbox
+  statement: Material domain events and external actions must use a transactional outbox or equivalent atomic pattern.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-REL-001
+  source_doc: TRD.md
+- id: TR-DATA-002
+  type: technical
+  title: Audit immutability
+  statement: Audit and action-receipt records must be append-only through normal application APIs.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-SEC-009
+  source_doc: TRD.md
+- id: TR-DATA-003
+  type: technical
+  title: Row access enforcement
+  statement: Project and portfolio authorization must be enforced in service and query boundaries; optional database policies
+    may provide defense in depth.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-SEC-001
+  source_doc: TRD.md
+- id: TR-DATA-004
+  type: technical
+  title: Vector boundaries
+  statement: Embeddings must never replace structured authoritative fields.
+  priority: Must
+  release: R1
+  status: draft
+  parent: PR-003
+  source_doc: TRD.md
+- id: TR-AUTH-001
+  type: technical
+  title: OIDC
+  statement: Production authentication must support OpenID Connect and customer identity providers.
+  priority: Must
+  release: R1
+  status: draft
+  parent: FR-ADM-001
+  source_doc: TRD.md
+- id: TR-AUTH-002
+  type: technical
+  title: Local demo login
+  statement: A local development or demo login may exist but must be disabled by default in production.
+  priority: Should
+  release: R1
+  status: draft
+  parent: NFR-SEC-001
+  source_doc: TRD.md
+- id: TR-AUTH-003
+  type: technical
+  title: Session protection
+  statement: Sessions and tokens must use secure cookie or bearer-token practices appropriate to the deployment.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-SEC-001
+  source_doc: TRD.md
+- id: TR-JIRA-001
+  type: technical
+  title: Jira client
+  statement: The Jira connector should use `jira.js` behind a first-party connector interface.
+  priority: Should
+  release: R1
+  status: draft
+  parent: FR-CON-011
+  source_doc: TRD.md
+- id: TR-JIRA-002
+  type: technical
+  title: OAuth token rotation
+  statement: Jira OAuth refresh-token rotation must be persisted atomically and encrypted.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-SEC-005
+  source_doc: TRD.md
+- id: TR-JIRA-003
+  type: technical
+  title: Jira write allowlist
+  statement: Jira write-back must use an administrator-configured operation and field allowlist.
+  priority: Must
+  release: R1
+  status: draft
+  parent: FR-WRB-003
+  source_doc: TRD.md
+- id: TR-MSG-001
+  type: technical
+  title: Email channel
+  statement: Release 1 must support an email notification adapter and secure web response route.
+  priority: Must
+  release: R1
+  status: draft
+  parent: FR-UPD-004
+  source_doc: TRD.md
+- id: TR-MSG-002
+  type: technical
+  title: Microsoft Graph extension
+  statement: The channel abstraction must allow later Microsoft Graph email and Teams adapters.
+  priority: Should
+  release: R1
+  status: draft
+  parent: PR-013
+  source_doc: TRD.md
+- id: TR-AI-001
+  type: technical
+  title: Customer model configuration
+  statement: The AI configuration must support provider type, endpoint, model, secret reference, embedding model and policy
+    restrictions.
+  priority: Must
+  release: R1
+  status: draft
+  parent: FR-ADM-007
+  source_doc: TRD.md
+- id: TR-AI-002
+  type: technical
+  title: Tool registry
+  statement: AI tools must be registered with explicit schemas, permission checks, read/write classification and audit behavior.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-SEC-007
+  source_doc: TRD.md
+- id: TR-AI-003
+  type: technical
+  title: Claim composer
+  statement: Leadership answers must be assembled from claim objects containing text, classification, evidence IDs and freshness.
+  priority: Must
+  release: R1
+  status: draft
+  parent: FR-QA-004
+  source_doc: TRD.md
+- id: TR-AI-004
+  type: technical
+  title: Prompt versioning
+  statement: System prompts and extraction schemas must be versioned in source control and recorded with AI runs.
+  priority: Must
+  release: R1
+  status: draft
+  parent: FR-AUD-004
+  source_doc: TRD.md
+- id: TR-DEP-001
+  type: technical
+  title: Container composition
+  statement: The default deployment must include web/API, worker, PostgreSQL or an external database option, reverse proxy
+    and backup job.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-PORT-001
+  source_doc: TRD.md
+- id: TR-DEP-002
+  type: technical
+  title: Podman compatibility
+  statement: Container images should run on standard OCI runtimes including Podman where practical.
+  priority: Should
+  release: R1
+  status: draft
+  parent: NFR-PORT-001
+  source_doc: TRD.md
+- id: TR-DEP-003
+  type: technical
+  title: Configuration
+  statement: Deployment configuration must separate secrets from non-secret customer settings.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-SEC-005
+  source_doc: TRD.md
+- id: TR-DEP-004
+  type: technical
+  title: Upgrade package
+  statement: Each release must include migrations, release notes, backup guidance and rollback or recovery instructions.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-AVL-002
+  source_doc: TRD.md
+- id: TR-TEST-001
+  type: technical
+  title: Unit framework
+  statement: TypeScript unit and integration tests must use Vitest or Jest consistently.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-MNT-004
+  source_doc: TRD.md
+- id: TR-TEST-002
+  type: technical
+  title: Browser framework
+  statement: End-to-end browser tests must use Playwright.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-MNT-004
+  source_doc: TRD.md
+- id: TR-TEST-003
+  type: technical
+  title: Connector contract tests
+  statement: Each connector must pass shared contract tests for identity, sync, idempotency, permission failure and rate limiting.
+  priority: Must
+  release: R1
+  status: draft
+  parent: FR-CON-011
+  source_doc: TRD.md
+- id: TR-TEST-004
+  type: technical
+  title: AI fixture tests
+  statement: AI-dependent functions must support deterministic fixtures or mocks for most CI tests.
+  priority: Must
+  release: R1
+  status: draft
+  parent: NFR-REL-003
+  source_doc: TRD.md
