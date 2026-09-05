@@ -1,0 +1,450 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+stories:
+- id: STORY-001
+  epic: EPIC-01
+  title: Initialize TypeScript monorepo
+  description: Create pnpm workspace with web, API, worker and shared packages.
+  priority: P0
+  requirements:
+  - TR-STACK-001
+  - TR-STACK-002
+  - TR-STACK-003
+  acceptance_criteria:
+  - AC-FND-001
+- id: STORY-002
+  epic: EPIC-01
+  title: Create PostgreSQL schema foundation
+  description: Create customer, identity, project, connector and audit foundations with migrations.
+  priority: P0
+  requirements:
+  - TR-STACK-004
+  - TR-STACK-005
+  - NFR-MNT-005
+  acceptance_criteria:
+  - AC-DATA-001
+- id: STORY-003
+  epic: EPIC-01
+  title: Create containerized local environment
+  description: Provide reference Docker Compose, health checks and synthetic seed.
+  priority: P0
+  requirements:
+  - TR-DEP-001
+  - AC-DEP-001
+  acceptance_criteria:
+  - AC-DEP-001
+- id: STORY-004
+  epic: EPIC-01
+  title: Establish CI and documentation validation
+  description: Run lint, typecheck, tests, build and requirements validation.
+  priority: P0
+  requirements:
+  - NFR-MNT-004
+  - AC-MNT-002
+  acceptance_criteria:
+  - AC-MNT-002
+- id: STORY-005
+  epic: EPIC-01
+  title: Implement authorization skeleton
+  description: Create OIDC abstraction, local demo mode and project-scope authorization.
+  priority: P0
+  requirements:
+  - FR-ADM-001
+  - FR-ADM-002
+  - FR-ADM-003
+  acceptance_criteria:
+  - AC-ADM-001
+- id: STORY-006
+  epic: EPIC-02
+  title: Implement connector contract
+  description: Define source read, health, cursor, write proposal and execution interfaces.
+  priority: P0
+  requirements:
+  - FR-CON-011
+  - TR-TEST-003
+  acceptance_criteria:
+  - AC-MNT-003
+- id: STORY-007
+  epic: EPIC-02
+  title: Implement Jira read connector
+  description: Use jira.js to connect, discover and synchronize configured Jira data.
+  priority: P0
+  requirements:
+  - FR-CON-001
+  - FR-CON-002
+  - FR-CON-003
+  acceptance_criteria:
+  - AC-CON-001
+  - AC-CON-002
+  - AC-CON-003
+- id: STORY-008
+  epic: EPIC-02
+  title: Implement Jira webhook and reconciliation
+  description: Ingest events idempotently and run scheduled recovery sync.
+  priority: P0
+  requirements:
+  - FR-CON-004
+  - FR-CON-005
+  - FR-CON-010
+  acceptance_criteria:
+  - AC-CON-004
+- id: STORY-009
+  epic: EPIC-02
+  title: Implement spreadsheet mapping and import
+  description: Support Excel/CSV dry-run, validation and canonical mapping.
+  priority: P0
+  requirements:
+  - FR-CON-006
+  - FR-CON-007
+  acceptance_criteria:
+  - AC-CON-005
+- id: STORY-010
+  epic: EPIC-03
+  title: Implement canonical project model
+  description: Represent projects, milestones, work items, roles, RAID and dates.
+  priority: P0
+  requirements:
+  - FR-MOD-001
+  - FR-MOD-002
+  - FR-MOD-004
+  - FR-MOD-005
+  acceptance_criteria:
+  - AC-MOD-001
+- id: STORY-011
+  epic: EPIC-03
+  title: Implement fact and evidence versioning
+  description: Persist fact versions, source evidence, classifications and human confirmation.
+  priority: P0
+  requirements:
+  - FR-EVD-001
+  - FR-EVD-002
+  - FR-EVD-003
+  - FR-EVD-004
+  acceptance_criteria:
+  - AC-ADM-003
+  - AC-EVD-001
+  - AC-EVD-002
+- id: STORY-012
+  epic: EPIC-03
+  title: Implement source authority and conflict resolution
+  description: Apply configured authority and retain unresolved conflicts.
+  priority: P0
+  requirements:
+  - FR-EVD-006
+  - FR-EVD-007
+  - FR-EVD-012
+  - FR-ADM-005
+  acceptance_criteria:
+  - AC-ADM-003
+  - AC-EVD-003
+  - AC-EVD-004
+- id: STORY-013
+  epic: EPIC-04
+  title: Implement freshness and completeness rules
+  description: Detect overdue updates and missing required facts.
+  priority: P0
+  requirements:
+  - FR-HLT-001
+  - FR-HLT-002
+  acceptance_criteria:
+  - AC-HLT-001
+  - AC-HLT-002
+- id: STORY-014
+  epic: EPIC-04
+  title: Implement blocker and overdue signals
+  description: Calculate blocker age, overdue work and explain inputs.
+  priority: P0
+  requirements:
+  - FR-HLT-003
+  - FR-HLT-004
+  - FR-HLT-009
+  acceptance_criteria:
+  - AC-HLT-003
+  - AC-HLT-005
+- id: STORY-015
+  epic: EPIC-04
+  title: Implement first contradiction rules
+  description: Detect GREEN-versus-critical-signal and completed-milestone-versus-open-work contradictions.
+  priority: P0
+  requirements:
+  - FR-HLT-007
+  - FR-HLT-008
+  acceptance_criteria:
+  - AC-HLT-004
+  - AC-HLT-005
+- id: STORY-016
+  epic: EPIC-05
+  title: Implement update-obligation state machine
+  description: Create durable due, request, reminder, escalation, response and closure state.
+  priority: P0
+  requirements:
+  - FR-UPD-001
+  - FR-ESC-001
+  - NFR-REL-002
+  acceptance_criteria:
+  - AC-HLT-001
+  - AC-UPD-001
+  - AC-UPD-008
+- id: STORY-017
+  epic: EPIC-05
+  title: Implement contextual request generator
+  description: Build focused messages from current facts and missing information.
+  priority: P0
+  requirements:
+  - FR-UPD-002
+  - FR-UPD-003
+  acceptance_criteria:
+  - AC-UPD-001
+  - AC-UPD-002
+- id: STORY-018
+  epic: EPIC-05
+  title: Implement secure response page
+  description: Allow authenticated or tokenized response, structured choices and free text.
+  priority: P0
+  requirements:
+  - FR-UPD-004
+  - FR-UPD-005
+  - FR-UPD-006
+  acceptance_criteria:
+  - AC-UPD-003
+  - AC-UPD-004
+- id: STORY-019
+  epic: EPIC-05
+  title: Implement reminder and escalation jobs
+  description: Use Graphile Worker, quiet hours, duplicate suppression and PM escalation.
+  priority: P0
+  requirements:
+  - FR-UPD-010
+  - FR-UPD-012
+  - FR-ESC-003
+  - FR-ESC-006
+  acceptance_criteria:
+  - AC-UPD-006
+  - AC-UPD-007
+  - AC-UPD-008
+- id: STORY-020
+  epic: EPIC-06
+  title: Implement AI response extraction
+  description: Use provider abstraction and Zod schema to create proposed facts.
+  priority: P0
+  requirements:
+  - FR-UPD-007
+  - NFR-AI-001
+  - TR-AI-001
+  acceptance_criteria:
+  - AC-ADM-004
+  - AC-UPD-004
+- id: STORY-021
+  epic: EPIC-06
+  title: Implement clarification and interpretation confirmation
+  description: Ask focused clarification and allow user correction.
+  priority: P0
+  requirements:
+  - FR-UPD-008
+  - FR-UPD-009
+  acceptance_criteria:
+  - AC-EVD-006
+  - AC-UPD-005
+- id: STORY-022
+  epic: EPIC-06
+  title: Implement approval diff and authority
+  description: Show consequences and enforce project-specific approver.
+  priority: P0
+  requirements:
+  - FR-APP-001
+  - FR-APP-002
+  - FR-APP-005
+  acceptance_criteria:
+  - AC-APP-001
+  - AC-APP-002
+- id: STORY-023
+  epic: EPIC-06
+  title: Implement Jira comment write-back
+  description: Preflight, execute approved comment, retry safely and create receipt.
+  priority: P0
+  requirements:
+  - FR-WRB-001
+  - FR-WRB-004
+  - FR-WRB-007
+  - FR-AUD-002
+  acceptance_criteria:
+  - AC-APP-007
+  - AC-APP-008
+- id: STORY-024
+  epic: EPIC-06
+  title: Implement source-change conflict
+  description: Block execution when Jira changes after approval.
+  priority: P0
+  requirements:
+  - FR-APP-007
+  - FR-APP-008
+  acceptance_criteria:
+  - AC-APP-005
+- id: STORY-025
+  epic: EPIC-07
+  title: Implement recommendation framework
+  description: Create deterministic triggers and explainable role-specific recommendation objects.
+  priority: P0
+  requirements:
+  - FR-ADV-001
+  - FR-ADV-007
+  acceptance_criteria:
+  - AC-ADV-001
+  - AC-ADV-005
+- id: STORY-026
+  epic: EPIC-07
+  title: Implement PM action queue
+  description: Rank approvals, updates, blockers and interventions for assigned projects.
+  priority: P0
+  requirements:
+  - FR-ADV-002
+  - FR-RPT-002
+  acceptance_criteria:
+  - AC-ADV-002
+  - AC-ADV-003
+  - AC-RPT-003
+- id: STORY-027
+  epic: EPIC-08
+  title: Implement authorized Q&A scope
+  description: Resolve project/time scope and enforce access before retrieval.
+  priority: P0
+  requirements:
+  - FR-QA-001
+  - FR-QA-002
+  - FR-QA-012
+  acceptance_criteria:
+  - AC-EVD-005
+  - AC-QA-001
+  - AC-QA-007
+- id: STORY-028
+  epic: EPIC-08
+  title: Implement claim and citation composer
+  description: Construct evidence-backed claims and validate model output.
+  priority: P0
+  requirements:
+  - FR-QA-003
+  - FR-QA-004
+  - TR-AI-003
+  acceptance_criteria:
+  - AC-QA-002
+- id: STORY-029
+  epic: EPIC-08
+  title: Implement delay explanation
+  description: Answer baseline, forecast, cause, actions and uncertainty.
+  priority: P0
+  requirements:
+  - FR-QA-005
+  - FR-QA-006
+  - FR-QA-007
+  - FR-QA-008
+  - FR-QA-009
+  acceptance_criteria:
+  - AC-QA-001
+  - AC-QA-003
+  - AC-QA-004
+  - AC-QA-005
+  - AC-QA-006
+- id: STORY-030
+  epic: EPIC-09
+  title: Implement live project and portfolio views
+  description: Show facts, signals, freshness, conflicts and action queues.
+  priority: P0
+  requirements:
+  - FR-RPT-001
+  - FR-RPT-002
+  - FR-RPT-003
+  acceptance_criteria:
+  - AC-ADV-002
+  - AC-RPT-001
+  - AC-RPT-003
+- id: STORY-031
+  epic: EPIC-09
+  title: Implement report-run fact set
+  description: Freeze a reporting revision used by all output channels.
+  priority: P0
+  requirements:
+  - FR-RPT-010
+  acceptance_criteria:
+  - AC-RPT-001
+  - AC-RPT-004
+- id: STORY-032
+  epic: EPIC-09
+  title: Implement PowerPoint snapshot
+  description: Generate editable management slides with metadata and approval state.
+  priority: P0
+  requirements:
+  - FR-RPT-005
+  - FR-RPT-007
+  acceptance_criteria:
+  - AC-RPT-001
+  - AC-RPT-002
+- id: STORY-033
+  epic: EPIC-09
+  title: Implement email digest preview
+  description: Draft material changes and decision needs with an authenticated link.
+  priority: P1
+  requirements:
+  - FR-RPT-004
+  acceptance_criteria:
+  - AC-RPT-001
+- id: STORY-034
+  epic: EPIC-10
+  title: Implement audit and action-receipt search
+  description: Create append-only events and authorized search.
+  priority: P0
+  requirements:
+  - FR-AUD-001
+  - FR-AUD-002
+  - FR-AUD-005
+  acceptance_criteria:
+  - AC-APP-008
+- id: STORY-035
+  epic: EPIC-10
+  title: Implement shadow mode
+  description: Suppress all configured external side effects while retaining proposals and logs.
+  priority: P0
+  requirements:
+  - FR-APP-010
+  - FR-ADM-009
+  acceptance_criteria:
+  - AC-APP-006
+- id: STORY-036
+  epic: EPIC-10
+  title: Implement backup, restore and upgrade runbook
+  description: Package migrations, backup, restore and recovery validation.
+  priority: P0
+  requirements:
+  - TR-DEP-004
+  - AC-DEP-003
+  acceptance_criteria:
+  - AC-DEP-003
+- id: STORY-037
+  epic: EPIC-10
+  title: Run security and failure gates
+  description: Complete authorization, prompt injection, duplicate event and unknown-outcome tests.
+  priority: P0
+  requirements:
+  - NFR-SEC-008
+  - NFR-REL-001
+  - NFR-REL-004
+  acceptance_criteria:
+  - AC-APP-007
+  - AC-CON-004
+  - AC-CON-006
+- id: STORY-038
+  epic: EPIC-10
+  title: Prepare synthetic event demo
+  description: Seed portfolio, scripted delay, update interaction, approval and leadership Q&A.
+  priority: P0
+  requirements:
+  - FR-UPD-001
+  - FR-UPD-002
+  - FR-QA-009
+  - FR-RPT-005
+  acceptance_criteria:
+  - AC-HLT-001
+  - AC-QA-001
+  - AC-RPT-001
+  - AC-RPT-002
+  - AC-UPD-001
