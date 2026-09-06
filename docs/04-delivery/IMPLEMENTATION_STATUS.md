@@ -30,6 +30,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Executable foundation contracts | [#18](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/18) | `56e4fbd` | `5829e23` |
 | Foundation release operations | [#20](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/20) | `6cd425e` | `2d854d2` |
 | Customer composition acceptance | [#22](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/22) | `c669e95` | `27bc174` |
+| Distribution evidence collection | [#24](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/24) | `a720ec5` | `438cc13` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -76,9 +77,18 @@ in [CUSTOMER_COMPOSITION_VALIDATION.md](../05-quality/CUSTOMER_COMPOSITION_VALID
 
 ## Remaining work and next coherent increment
 
+PR #24 adds immutable image/browser SBOMs, notices and unfiltered vulnerability
+reports after production acceptance. Its 37-file bundle was downloaded and verified
+against the reviewed source tree and accepted images. All required checks and
+subsequent main CI passed; details are in
+[DISTRIBUTION_EVIDENCE_VALIDATION.md](../05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md).
+Scanner findings and attribution gaps remain unresolved. The next increment
+removes unused runtime package managers and adds explicit distributed-layer
+evidence while preserving original Node notices. STORY-004 remains open.
+
 | Story | Remaining completion work |
 |---|---|
-| STORY-004 | Full transitive and OS license/notices review, SBOM and final image vulnerability gates |
+| STORY-004 | Runtime remediation, full adoption/license/notices and layer review, vulnerability dispositions and signing |
 | STORY-005 | Remaining identity negatives, complete disclosure checks and customer-specific interoperability |
 
 Continue [EXEC-003](exec-plans/EXEC-003-customer-hosted-foundation.md) with complete

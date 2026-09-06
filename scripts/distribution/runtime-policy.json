@@ -1,0 +1,10 @@
+{
+  "nodeVersion": "24.19.0",
+  "nodeNoticeSha256": "148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5",
+  "nodeNoticeSource": "https://raw.githubusercontent.com/nodejs/node/cdc1b38d40cb567b7ad0b39c86addf830a0af0ae/LICENSE",
+  "nodeNoticePaths": {
+    "api": "/usr/local/LICENSE",
+    "worker": "/usr/local/LICENSE",
+    "operations": "/usr/local/share/doc/node/LICENSE"
+  }
+}

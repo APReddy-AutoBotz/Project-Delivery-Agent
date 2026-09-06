@@ -31,7 +31,32 @@ collection never constitutes commercial approval. A separate release-readiness
 check must refuse an incomplete review. STORY-004 remains open until AC-MNT-004's
 complete rejection and release-review contract is independently proven.
 
-## Consequences
+## 2026-09-07 amendment: runtime tools and distributed layers
+
+PR #24 established evidence from the accepted runtime filesystems. Retain that
+scope for current application/browser reconciliation and add independent
+`all-layers` native/SPDX/Grype reports for every customer image. Validate each
+tool's reported scope and immutable source, and retain file IDs and supplying
+layer IDs for original notices and finding package locations. Schema version 2
+requires both report sets; older evidence cannot satisfy the expanded gate.
+
+The API/worker use the same pinned Node filesystem with unused global npm,
+Corepack and Yarn payloads/commands removed in a preparation stage. Copy that
+clean filesystem into a fresh `scratch` stage so removed bytes are absent from
+its distributed graph. Explicitly retain PATH, Node version, production mode,
+the node user/group, working directory and entrypoint. Keep OS package metadata
+and original notices. The operations image receives the unchanged Node bundled
+notice alongside its existing copied binary. Require exact Node version/notice
+hash and absence of package-manager records, payloads and commands in both scopes.
+
+This follows the publisher's [package-manager-free runtime guidance](https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md#smaller-images-without-npmyarn)
+and [Docker stage isolation](https://docs.docker.com/build/building/multi-stage/).
+It adds no new OS image or runtime version. Full packaged acceptance must prove
+execution, TLS, permissions, shutdown and recovery on the resulting image IDs.
+All-layer scanner coverage remains distinct from complete attribution review;
+legal approval, unresolved findings and trusted signing continue to block release.
+
+## Original consequences
 
 This adds build and review tooling, not a runtime service or new connector. Existing
 Debian/Alpine images contain components requiring explicit review under

@@ -19,6 +19,7 @@ import {
   validateImageReports,
   requireCompleteTargets,
   reconcileApplicationPackages,
+  validateRuntimeTooling,
 } from "./distribution/evidence.mjs";
 import { browserEvidence } from "./distribution/browser.mjs";
 
@@ -119,6 +120,11 @@ const lockPackages = Object.entries(lock.packages).map(
   },
 );
 const locked = new Map(lockPackages.map((p) => [p.coordinate, p.integrity]));
+const runtimePolicyBytes = readFileSync(
+  join(root, "scripts/distribution/runtime-policy.json"),
+);
+const runtimePolicy = JSON.parse(runtimePolicyBytes);
+writeFileSync(join(output, "runtime-policy.json"), runtimePolicyBytes);
 writeFileSync(join(output, "pnpm-lock.yaml"), lockBytes);
 writeFileSync(
   join(output, "lock-inventory.json"),
@@ -126,7 +132,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -137,15 +143,53 @@ const record = {
   tools: toolPins,
   blockers: [],
   distributionAccepted: false,
-  layerScope: "squashed",
+  layerScopes: ["squashed", "all-layers"],
   coverageLimits: [
-    "Deleted contents in lower distributed layers require additional review",
+    "Runtime and all-layer scanner inventories require review; unrecognized binary contents are not certified",
     "Binary-bundled components and notices require reconciliation, including Node, pgvector and Caddy",
     "Scanner findings require human triage; none are waived",
   ],
 };
 const write = (name, value) =>
   writeFileSync(join(output, name), JSON.stringify(value, null, 2) + "\n");
+function collectImageReports(target, scope, inspection) {
+  const stem = target + (scope === "all-layers" ? ".layers" : "");
+  const sbomFile = join(output, stem + ".syft.json");
+  run(tools.syft, [
+    "scan",
+    "docker:" + inspection.Id,
+    "--config",
+    join(root, "scripts/distribution/syft.yaml"),
+    "--scope",
+    scope,
+    "-o",
+    "syft-json=" + sbomFile,
+    "-o",
+    "spdx-json@2.3=" + join(output, stem + ".spdx.json"),
+  ]);
+  run(tools.grype, [
+    "sbom:" + sbomFile,
+    "--config",
+    join(root, "scripts/distribution/grype.yaml"),
+    "--scope",
+    scope,
+    "-o",
+    "json",
+    "--file",
+    join(output, stem + ".grype.json"),
+  ]);
+  const sbom = JSON.parse(readFileSync(sbomFile, "utf8"));
+  const image = validateImageReports({
+    inspection,
+    sbom,
+    scope,
+    spdx: JSON.parse(readFileSync(join(output, stem + ".spdx.json"))),
+    scan: JSON.parse(readFileSync(join(output, stem + ".grype.json"))),
+    pins: toolPins,
+  });
+  validateRuntimeTooling(target, sbom, runtimePolicy);
+  return { sbom, image };
+}
 try {
   for (const target of customerTargets) {
     console.log(
@@ -164,34 +208,7 @@ try {
       Architecture: inspection.Architecture,
       RootFS: inspection.RootFS,
     });
-    const sbomFile = join(output, target + ".syft.json");
-    run(tools.syft, [
-      "scan",
-      "docker:" + id,
-      "--config",
-      join(root, "scripts/distribution/syft.yaml"),
-      "-o",
-      "syft-json=" + sbomFile,
-      "-o",
-      "spdx-json@2.3=" + join(output, target + ".spdx.json"),
-    ]);
-    run(tools.grype, [
-      "sbom:" + sbomFile,
-      "--config",
-      join(root, "scripts/distribution/grype.yaml"),
-      "-o",
-      "json",
-      "--file",
-      join(output, target + ".grype.json"),
-    ]);
-    const sbom = JSON.parse(readFileSync(sbomFile, "utf8"));
-    const image = validateImageReports({
-      inspection,
-      sbom,
-      spdx: JSON.parse(readFileSync(join(output, target + ".spdx.json"))),
-      scan: JSON.parse(readFileSync(join(output, target + ".grype.json"))),
-      pins: toolPins,
-    });
+    const { sbom, image } = collectImageReports(target, "squashed", inspection);
     const appPackages = sbom.artifacts.filter(
       (p) =>
         p.type === "npm" && p.locations.some((l) => l.path.startsWith("/app/")),
@@ -249,6 +266,16 @@ try {
       });
     write(target + ".notices.json", image.notices);
     delete image.notices;
+    console.log(`Collecting ${target} distributed lower-layer evidence`);
+    const { image: allLayers } = collectImageReports(
+      target,
+      "all-layers",
+      inspection,
+    );
+    write(target + ".layers.notices.json", allLayers.notices);
+    delete allLayers.notices;
+    write(target + ".layers.review.json", allLayers);
+    image.allLayers = allLayers;
     write(target + ".review.json", image);
     record.images[target] = image;
   }
@@ -272,7 +299,7 @@ try {
     {
       code: "distributed-layer-review",
       detail:
-        "Current SBOMs cover the runtime filesystem; deleted lower-layer material is not certified",
+        "Runtime and all-layer inventories, notices and findings require review; scanner coverage is not complete attribution approval",
     },
     {
       code: "trusted-release-signing",

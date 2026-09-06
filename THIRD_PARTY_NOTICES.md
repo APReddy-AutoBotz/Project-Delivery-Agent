@@ -43,3 +43,9 @@ Published packages are used without modification. Their original license and cop
 PostgreSQL is used as a separate service under the PostgreSQL License. No enterprise-only code, source repositories or copyleft application dependencies have been vendored.
 
 Browser builds now include original component license files in `THIRD_PARTY_NOTICES.txt` with a corresponding `third-party-components.json` inventory. CI retains observed image notice bytes in its distribution-review evidence. These artifacts supplement this direct development inventory; complete OS/binary/transitive legal review remains required before distribution. See `docs/05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md`.
+
+Node 24.19.0's original bundled notice remains at `/usr/local/LICENSE` in API/worker
+and is copied unchanged to `/usr/local/share/doc/node/LICENSE` in operations.
+Its exact publisher source and checksum are recorded in the foundation image
+register and enforced by the distribution runtime policy. npm/Corepack/Yarn are
+development tools and are removed from the API/worker distribution layer graph.

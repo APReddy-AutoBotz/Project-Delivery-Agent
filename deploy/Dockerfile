@@ -21,10 +21,22 @@ COPY scripts/inspect-runtime.mjs ./scripts/inspect-runtime.mjs
 RUN node scripts/inspect-runtime.mjs /out/api && node scripts/inspect-runtime.mjs /out/worker
 RUN node scripts/inspect-runtime.mjs /out/operations
 
-FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS runtime
+FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS runtime-files
+# These package managers are build tools. Keep Node's /usr/local/LICENSE intact.
+RUN rm -rf /usr/local/lib/node_modules /opt/yarn-v1.22.22 && \
+    rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+          /usr/local/bin/yarn /usr/local/bin/yarnpkg /usr/local/bin/pnpm /usr/local/bin/pnpx
+
+# Copy the cleaned filesystem into a new layer graph: removed tools must not
+# remain in inherited lower layers of the customer API/worker images.
+FROM scratch AS runtime
+COPY --from=runtime-files / /
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV NODE_VERSION=24.19.0
 ENV NODE_ENV=production
 USER node
 WORKDIR /app
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 FROM runtime AS api
 COPY --from=build --chown=node:node /out/api ./
@@ -39,6 +51,7 @@ CMD ["node", "dist/main.js"]
 # Reuse pinned Node and PostgreSQL clients without Prisma CLI/Studio or new npm tools.
 FROM pgvector/pgvector:0.8.6-pg17-bookworm@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f AS operations
 COPY --from=runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=runtime /usr/local/LICENSE /usr/local/share/doc/node/LICENSE
 WORKDIR /app
 COPY --from=build --chown=1000:1000 /out/operations ./
 COPY --chown=1000:1000 packages/data/prisma/migrations ./migrations

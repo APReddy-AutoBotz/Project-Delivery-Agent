@@ -15,6 +15,7 @@ import {
   assertReleaseReady,
   reconcileApplicationPackages,
   verifyEvidenceFiles,
+  validateRuntimeTooling,
 } from "../scripts/distribution/evidence.mjs";
 import {
   validateBrowserInventory,
@@ -42,7 +43,11 @@ function fixture() {
       RootFS: { Layers: layers },
     },
     sbom: {
-      descriptor: { name: "syft", version: pins.syft.version },
+      descriptor: {
+        name: "syft",
+        version: pins.syft.version,
+        configuration: { search: { scope: "squashed" } },
+      },
       source: {
         type: "image",
         metadata: {
@@ -59,14 +64,23 @@ function fixture() {
           version: "1",
           type: "deb",
           licenses: [{ spdxExpression: "GPL-2.0-only" }],
+          locations: [{ path: "/var/lib/dpkg/status", layerID: layers[0] }],
         },
       ],
       files: [
         {
-          location: { path: "/usr/share/doc/fixture-os/copyright" },
+          id: "notice1",
+          location: {
+            path: "/usr/share/doc/fixture-os/copyright",
+            layerID: layers[0],
+          },
           contents: Buffer.from("Original fixture license").toString("base64"),
         },
-      ],
+      ] as {
+        id?: string;
+        location: { path: string; layerID?: string };
+        contents: string;
+      }[],
     },
     spdx: {
       spdxVersion: "SPDX-2.3",
@@ -86,6 +100,7 @@ function fixture() {
           },
         },
         configuration: {
+          search: { scope: "squashed" },
           "only-fixed": false,
           "only-notfixed": false,
           "ignore-wontfix": "",
@@ -150,6 +165,18 @@ describe("immutable distribution evidence", () => {
     expect(report.notices[0].sha256).toBe(hash("Original fixture license"));
   });
   it.each([
+    [
+      "incorrect Syft scope",
+      (f: ReturnType<typeof fixture>) => {
+        f.sbom.descriptor.configuration.search.scope = "all-layers";
+      },
+    ],
+    [
+      "incorrect Grype scope",
+      (f: ReturnType<typeof fixture>) => {
+        f.scan.descriptor.configuration.search.scope = "all-layers";
+      },
+    ],
     [
       "substituted source",
       (f: ReturnType<typeof fixture>) => {
@@ -307,6 +334,154 @@ function browserFixture() {
     },
   };
 }
+
+describe("distributed layer evidence", () => {
+  function layered() {
+    const f = fixture();
+    f.sbom.descriptor.configuration.search.scope = "all-layers";
+    f.scan.descriptor.configuration.search.scope = "all-layers";
+    return { ...f, scope: "all-layers" };
+  }
+  it("retains overwritten notices and finding package locations by layer", () => {
+    const f = layered();
+    const layer = "sha256:" + "d".repeat(64);
+    f.inspection.RootFS.Layers.push(layer);
+    const config = JSON.parse(
+      Buffer.from(f.sbom.source.metadata.config, "base64").toString(),
+    );
+    config.rootfs.diff_ids = f.inspection.RootFS.Layers;
+    const bytes = JSON.stringify(config);
+    f.sbom.source.metadata.config = Buffer.from(bytes).toString("base64");
+    f.sbom.source.metadata.imageID = "sha256:" + hash(bytes);
+    f.scan.source.target.imageID = f.sbom.source.metadata.imageID;
+    f.sbom.files.push({
+      id: "notice2",
+      location: { path: f.sbom.files[0]!.location.path, layerID: layer },
+      contents: Buffer.from("Changed notice").toString("base64"),
+    });
+    const result = validateImageReports(f);
+    expect(result.notices).toHaveLength(2);
+    expect(result.notices.map((n: { fileId: string }) => n.fileId)).toEqual([
+      "notice1",
+      "notice2",
+    ]);
+    expect(result.notices[0].sha256).not.toBe(result.notices[1].sha256);
+    expect(result.findings[0].locations).toEqual(
+      f.sbom.artifacts[0]!.locations,
+    );
+  });
+  it("rejects substituted scope and unbound historical file/package locations", () => {
+    const f = layered();
+    f.sbom.descriptor.configuration.search.scope = "squashed";
+    expect(() => validateImageReports(f)).toThrow(/Syft scope/);
+    f.sbom.descriptor.configuration.search.scope = "all-layers";
+    f.scan.descriptor.configuration.search.scope = "squashed";
+    expect(() => validateImageReports(f)).toThrow(/Grype scope/);
+    f.scan.descriptor.configuration.search.scope = "all-layers";
+    f.sbom.files[0]!.location.layerID = "unknown";
+    expect(() => validateImageReports(f)).toThrow(/File layer/);
+    f.sbom.files[0]!.location.layerID = f.inspection.RootFS.Layers[0];
+    f.sbom.artifacts[0]!.locations[0]!.layerID = "unknown";
+    expect(() => validateImageReports(f)).toThrow(/unknown layer/);
+  });
+});
+
+describe("runtime tooling and Node attribution", () => {
+  const policy = {
+    nodeVersion: "24.19.0",
+    nodeNoticeSha256: hash("Original Node notice"),
+    nodeNoticePaths: {
+      api: "/usr/local/LICENSE",
+      worker: "/usr/local/LICENSE",
+      operations: "/usr/local/share/doc/node/LICENSE",
+    },
+  };
+  function runtime(path = "/usr/local/LICENSE") {
+    return {
+      artifacts: [{ name: "node", version: "24.19.0", type: "binary" }],
+      files: [
+        {
+          location: { path },
+          contents: Buffer.from("Original Node notice").toString("base64"),
+        },
+      ],
+    };
+  }
+  it("rejects removed or empty protected-target policy and missing version/digest pins", () => {
+    for (const target of ["api", "worker", "operations"] as const) {
+      const paths: Record<string, string> = { ...policy.nodeNoticePaths };
+      delete paths[target];
+      expect(() =>
+        validateRuntimeTooling(target, runtime(), {
+          ...policy,
+          nodeNoticePaths: paths,
+        }),
+      ).toThrow(/policy targets/);
+      expect(() =>
+        validateRuntimeTooling(target, runtime(), {
+          ...policy,
+          nodeNoticePaths: { ...policy.nodeNoticePaths, [target]: "" },
+        }),
+      ).toThrow(/notice path/);
+    }
+    expect(() =>
+      validateRuntimeTooling("api", runtime(), { ...policy, nodeVersion: "" }),
+    ).toThrow(/version missing/);
+    expect(() =>
+      validateRuntimeTooling("api", runtime(), {
+        ...policy,
+        nodeNoticeSha256: "",
+      }),
+    ).toThrow(/digest missing/);
+  });
+  it("preserves the original notice for both runtime and copied operations Node", () => {
+    expect(() =>
+      validateRuntimeTooling("api", runtime(), policy),
+    ).not.toThrow();
+    expect(() =>
+      validateRuntimeTooling(
+        "operations",
+        runtime(policy.nodeNoticePaths.operations),
+        policy,
+      ),
+    ).not.toThrow();
+    const wrong = runtime();
+    wrong.files[0]!.contents = Buffer.from("Changed notice").toString("base64");
+    expect(() => validateRuntimeTooling("worker", wrong, policy)).toThrow(
+      /notice differs/,
+    );
+    expect(() =>
+      validateRuntimeTooling("operations", runtime(), policy),
+    ).toThrow(/notice missing/);
+    const changed = runtime();
+    changed.artifacts[0]!.version = "24.0.0";
+    expect(() => validateRuntimeTooling("api", changed, policy)).toThrow(
+      /Node binary/,
+    );
+  });
+  it.each([
+    "/usr/local/lib/node_modules/npm/node_modules/tar/package.json",
+    "/usr/local/lib/node_modules/corepack/dist/corepack.js",
+    "/opt/yarn-v1.22.22/lib/cli.js",
+    "/usr/local/bin/npm",
+    "/usr/local/bin/npx",
+    "/usr/local/bin/yarn",
+    "/usr/local/bin/corepack",
+  ])("rejects retained payloads or command links at %s", (path) => {
+    const f = runtime();
+    f.files.push({ location: { path }, contents: "" });
+    expect(() => validateRuntimeTooling("api", f, policy)).toThrow(
+      /payload or command/,
+    );
+  });
+  it("rejects relocated package manager packages even without a known global path", () => {
+    const f = runtime();
+    f.artifacts.push({ name: "npm", version: "11.0.0", type: "npm" });
+    expect(() => validateRuntimeTooling("worker", f, policy)).toThrow(
+      /package manager/,
+    );
+  });
+});
 describe("browser bundle evidence", () => {
   it("rejects missing, substituted and non-SPDX browser conversion output", () => {
     const packages = [{ name: "fixture", version: "1.0.0" }];
@@ -425,10 +600,15 @@ it("rejects changed or missing files in a complete evidence bundle", () => {
     const images = Object.fromEntries(
       ["api", "worker", "web", "operations", "database"].map((key, i) => [
         key,
-        { imageId: String(i) },
+        {
+          imageId: String(i),
+          scope: "squashed",
+          allLayers: { imageId: String(i), scope: "all-layers" },
+        },
       ]),
     );
     const names = [
+      "runtime-policy.json",
       "pnpm-lock.yaml",
       "lock-inventory.json",
       "production-acceptance.json",
@@ -445,15 +625,29 @@ it("rejects changed or missing files in a complete evidence bundle", () => {
         ".grype.json",
         ".notices.json",
         ".review.json",
+        ".layers.syft.json",
+        ".layers.spdx.json",
+        ".layers.grype.json",
+        ".layers.notices.json",
+        ".layers.review.json",
       ])
         names.push(target + suffix);
     for (const name of names) writeFileSync(join(directory, name), name);
     const report = {
+      schemaVersion: 2,
       status: "complete",
       images,
       files: Object.fromEntries(names.map((n) => [n, hash(n)])),
     };
     expect(() => verifyEvidenceFiles(directory, report)).not.toThrow();
+    expect(() =>
+      verifyEvidenceFiles(directory, { ...report, schemaVersion: 1 }),
+    ).toThrow(/schema/);
+    images.api!.allLayers.scope = "squashed";
+    expect(() => verifyEvidenceFiles(directory, report)).toThrow(
+      /layer evidence/,
+    );
+    images.api!.allLayers.scope = "all-layers";
     writeFileSync(join(directory, "api.grype.json"), "changed");
     expect(() => verifyEvidenceFiles(directory, report)).toThrow(/changed/);
     writeFileSync(join(directory, "api.grype.json"), "api.grype.json");
