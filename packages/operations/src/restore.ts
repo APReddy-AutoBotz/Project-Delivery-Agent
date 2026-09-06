@@ -20,6 +20,7 @@ async function restoreOwners(client: Awaited<ReturnType<typeof connect>>) {
     FOR item IN SELECT c.relname,n.nspname,c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname IN ('public','graphile_worker') AND c.relkind IN ('r','p','v','m','S')
       AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e')
+      ORDER BY (c.relkind='S'),n.nspname,c.relname
     LOOP
       owner_name := CASE WHEN item.nspname='public' THEN 'pdaa_migrate' ELSE 'pdaa_worker' END;
       EXECUTE format('ALTER %s %I.%I OWNER TO %I',CASE item.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW' ELSE 'TABLE' END,item.nspname,item.relname,owner_name);
