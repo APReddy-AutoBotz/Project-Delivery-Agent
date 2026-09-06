@@ -340,6 +340,18 @@ try {
       "capture",
     ),
   );
+  docker(compose("stop", "-t", "20", "worker"), "worker-clean-stop");
+  assert.equal(
+    docker(
+      ["inspect", "--format", "{{.State.ExitCode}}", workerId],
+      "worker-clean-exit",
+      "capture",
+    ),
+    "0",
+    "Requested shutdown must finish cleanup and exit successfully",
+  );
+  docker(compose("start", "worker"), "worker-clean-start");
+  fixtureStep("recovered");
   try {
     docker(
       compose(

@@ -7,7 +7,7 @@ import {
   installFatalHandlers,
 } from "@pdaa/platform";
 import { createTasks } from "./tasks.js";
-import { setInterval } from "node:timers";
+import { setInterval, clearInterval } from "node:timers";
 installFatalHandlers("worker");
 let stage = "configuration";
 try {
@@ -51,15 +51,21 @@ try {
   });
   operationalLog("worker.started");
   stage = "running";
+  let shutdown: Promise<void> | undefined;
   for (const signal of ["SIGINT", "SIGTERM"] as const)
-    process.once(signal, async () => {
-      await runner.stop();
-      await db.$disconnect();
-      await pool.end();
-      process.exit(0);
+    process.once(signal, () => {
+      if (shutdown) return;
+      clearInterval(watchdog);
+      shutdown = (async () => {
+        await runner.stop();
+        await db.$disconnect();
+        await pool.end();
+      })();
     });
   await runner.promise;
-  throw new Error("Worker ended without a shutdown signal");
+  if (!shutdown) throw new Error("Worker ended without a shutdown signal");
+  await shutdown;
+  process.exit(0);
 } catch (error) {
   // Fixed categories only: database errors can otherwise disclose credentials/SQL.
   const code =
