@@ -111,3 +111,11 @@ These actions require an audit record and may require approval.
 - Deduplicate overlapping obligations.
 - Allow PMO override.
 - Preserve the complete request and response history.
+
+## Partial responses and reassignment
+
+Receiving a reply alone does not satisfy the obligation. Confirmation suppresses
+reminders for satisfied facts immediately, independently of optional write-back.
+Unresolved facts retain due clarification/reminder actions. Delegation cancels
+old-owner dispatches and transfers the outstanding obligation to an authorized
+delegate; it never silently abandons the obligation.

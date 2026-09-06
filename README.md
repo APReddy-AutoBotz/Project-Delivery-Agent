@@ -9,7 +9,7 @@
 
 **Working product name:** Project Delivery Agent  
 **Product category:** Agentic Digital PMO / Project Delivery Assurance  
-**Repository baseline:** v0.1 Draft  
+**Repository baseline:** v0.1 Approved candidate (effective after Issue #1 review PR merge)
 **Baseline date:** 5 September 2026
 
 ## Why this product exists
@@ -271,3 +271,10 @@ See [Product Roadmap](docs/04-delivery/PRODUCT_ROADMAP.md).
 The core product, original documentation, reusable connectors, generic templates, rule framework, evidence model, implementation, and product intellectual property are proprietary. Customers own their data and deployment environment and receive only the rights defined by the applicable commercial agreement.
 
 See [LICENSE.md](LICENSE.md), [Source Access Licensing](docs/06-commercial-deployment/SOURCE_ACCESS_LICENSING.md), and [Third-Party Notices](THIRD_PARTY_NOTICES.md).
+
+## Implementation control
+
+Use [Implementation Controller](docs/04-delivery/IMPLEMENTATION_CONTROLLER.md)
+and [Astra Baseline Review](docs/07-research/ASTRA_BASELINE_REVIEW.md). Approved
+requirements describe the contract; implementation status and executed evidence
+are recorded separately. Never count planned test specifications as passing tests.

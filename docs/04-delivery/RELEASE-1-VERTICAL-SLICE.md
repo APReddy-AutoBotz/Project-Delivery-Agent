@@ -88,7 +88,7 @@ Scrum-master and team-lead views may reuse the PM action framework but are not r
 - containers
 - database
 - seed
-- auth skeleton
+- enforced identity, scoped authorization and encrypted secrets
 
 ### M2 Project truth
 
@@ -144,3 +144,14 @@ Release 1 is not complete if only the dashboard or report generator works. The c
 - Predictive delivery dates
 - Automatic baseline or customer communication
 - General workflow builder
+
+## Approved R1 scope decisions (2026-09-06)
+
+- External project writes: approved Jira comments only; non-baseline field writes move to R2.
+- Q&A: one explicitly resolved authorized project per answer; multi-project/portfolio analysis remains R3. Portfolio dashboards may list authorized projects.
+- Reporting: editable PowerPoint required; PDF is optional and cannot substitute for PowerPoint.
+- Cadence: weekday calculations, IANA time zones and quiet hours in R1; customer holiday calendars in R2.
+- Health: stale/missing updates, blocker age, overdue work, GREEN-versus-critical-signal and completed-milestone-versus-open-work rules in R1; advanced propagation later.
+- Basic OIDC user/group role mapping and enforced scope are foundation work; later enterprise administration extends them.
+
+These decisions resolve OD-003/006/007/008 and conflicting earlier release wording.

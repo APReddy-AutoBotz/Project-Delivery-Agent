@@ -19,8 +19,8 @@
 | Send routine update request | A1 | Automatic when cadence activated |
 | Send PM escalation | A1/A2 | Policy-controlled |
 | Add confirmed Jira comment | A2 | PM or configured approver |
-| Update configured non-baseline field | A2 | PM or configured approver |
-| Change forecast date | A2/A3 | PM approval; customer policy |
+| Update configured non-baseline field | A2 | Deferred to R2 |
+| Change source-system forecast date | A2/A3 | Deferred from R1; internal confirmed forecast facts remain supported |
 | Change baseline date | A3 | Not automated |
 | Send customer-facing status | A3 | Not automated in R1 |
 | Change budget | A3 | Not automated |
@@ -63,7 +63,12 @@ stateDiagram-v2
     Executing --> Succeeded
     Executing --> Failed
     Failed --> RetryPending: safe retry
-    RetryPending --> Executing
+    RetryPending --> PreflightCheck
+    Executing --> UnknownOutcome: response lost
+    UnknownOutcome --> Reconciling
+    Reconciling --> Succeeded: matching remote action found
+    Reconciling --> RetryPending: definitively absent and safe
+    Reconciling --> ManualRecovery: cannot establish outcome
     Failed --> ManualRecovery: unsafe or exhausted
 ```
 
@@ -105,7 +110,7 @@ Every attempt must record:
 
 - Authentication or permission failure: stop and notify administrator.
 - Rate limit: retry after the source-provided interval.
-- Network or safe server failure: bounded retry.
+- Network or server failure after possible dispatch: unknown outcome until reconciled. Only definitively unexecuted safe failures may retry, through preflight again.
 - Validation failure: return to reviewer.
 - Source changed: block and generate a new diff.
 - Unknown outcome: reconcile before retrying.
@@ -119,3 +124,22 @@ Every attempt must record:
 - No baseline or financial change in Release 1.
 - No automatic issue completion in Release 1.
 - No action that exceeds the user’s or service policy’s scope.
+
+## R1 comment execution contract
+
+Only an approved Jira comment may be written in R1. Proposal approval binds the
+exact target site/project/issue, comment text, payload digest and stable action
+marker. It also binds the current issue updated timestamp and a digest of the
+source fields/evidence on which the comment depends. Preflight reloads that base
+before every attempt, including retries, and blocks if it changed or cannot be
+verified. Revalidate current approver and connector authority, expiry and mode.
+
+Persist an append-only attempt-start event before network dispatch and atomically
+claim the proposal so only one worker executes it. Embed the stable action marker
+in the approved comment payload and preserve the returned remote identifier.
+Reconcile lost responses on the exact issue using the marker and payload digest.
+An absent marker in one incomplete or stale page is not proof of nonexecution.
+Uncertainty remains blocked for manual recovery; do not promise remote exactly-once
+execution. A source read followed by a comment POST is not atomic conditional
+update; comments do not change source fields and must disclose their as-of base.
+Selected-field writes require a later ADR proving connector concurrency support.

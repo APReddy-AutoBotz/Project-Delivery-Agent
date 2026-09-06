@@ -4,8 +4,8 @@ baseline: '0.1'
 acceptance_criteria:
 - id: AC-CON-001
   title: Connect Jira read-only
-  criterion: Given valid Jira credentials and approved scopes, the administrator can connect a site and receive a successful
-    connection test without enabling writes.
+  criterion: Given valid Jira credentials and approved scopes, the administrator can connect a site and receive
+    a successful connection test without enabling writes.
   requirements:
   - FR-CON-001
   - FR-CON-009
@@ -25,8 +25,8 @@ acceptance_criteria:
   - INT-CON-002
 - id: AC-CON-003
   title: Ingest Jira project data
-  criterion: Configured issue, sprint, comment, changelog, link and selected custom-field data is normalized with source IDs
-    and revisions.
+  criterion: Configured issue, sprint, comment, changelog, link and selected custom-field data is normalized with
+    source IDs and revisions.
   requirements:
   - FR-CON-003
   - FR-MOD-007
@@ -36,7 +36,8 @@ acceptance_criteria:
   - INT-CON-003
 - id: AC-CON-004
   title: Idempotent webhook
-  criterion: Submitting the same webhook event twice produces one source observation and no duplicate downstream obligation.
+  criterion: Submitting the same webhook event twice produces one source observation and no duplicate downstream
+    obligation.
   requirements:
   - FR-CON-004
   - FR-CON-010
@@ -53,10 +54,11 @@ acceptance_criteria:
   priority: P0
   tests:
   - E2E-CON-005
+  - FAIL-006
 - id: AC-CON-006
   title: Connector failure visible
-  criterion: Expired credentials change connector health to failed or degraded and show a safe administrator-facing reason
-    without exposing the secret.
+  criterion: Expired credentials change connector health to failed or degraded and show a safe administrator-facing
+    reason without exposing the secret.
   requirements:
   - FR-CON-009
   - NFR-REL-004
@@ -65,6 +67,8 @@ acceptance_criteria:
   tests:
   - INT-CON-006
   - SEC-CON-001
+  - FAIL-001
+  - FAIL-002
 - id: AC-EVD-001
   title: Create versioned fact
   criterion: A changed source value creates a new fact version and preserves the previous value, source and timestamps.
@@ -77,15 +81,22 @@ acceptance_criteria:
   - INT-EVD-001
 - id: AC-EVD-002
   title: Classify fact
-  criterion: Every material fact returned by the API includes a valid fact classification.
+  criterion: A human-confirmed fact that expires and conflicts retains HUMAN_CONFIRMED provenance with STALE freshness
+    and CONFLICTING state. API/display expose all dimensions, derive labels deterministically, and preserve a previously
+    frozen snapshot assessment.
   requirements:
   - FR-EVD-003
+  - FR-EVD-006
+  - FR-EVD-007
   priority: P0
   tests:
   - UNIT-EVD-002
+  - GOLDEN-013
+  - FAIL-028
 - id: AC-EVD-003
   title: Mark stale fact
-  criterion: A fact outside its configured validity period is marked STALE and cannot be presented as current without warning.
+  criterion: A fact outside its configured validity period is marked STALE and cannot be presented as current without
+    warning.
   requirements:
   - FR-EVD-006
   - FR-EVD-010
@@ -104,10 +115,11 @@ acceptance_criteria:
   tests:
   - INT-EVD-004
   - GOLDEN-003
+  - FAIL-009
 - id: AC-EVD-005
   title: Evidence authorization
-  criterion: A user without access to the source project cannot open or retrieve its evidence, even through a copied evidence
-    URL.
+  criterion: A user without access to the source project cannot open or retrieve its evidence, even through a copied
+    evidence URL.
   requirements:
   - FR-EVD-009
   - FR-QA-012
@@ -115,6 +127,7 @@ acceptance_criteria:
   priority: P0
   tests:
   - SEC-EVD-005
+  - FAIL-018
 - id: AC-EVD-006
   title: Human confirmation attribution
   criterion: A confirmed response records the confirming user, timestamp, original response and linked evidence.
@@ -154,10 +167,12 @@ acceptance_criteria:
   - UNIT-HLT-003
 - id: AC-HLT-004
   title: Separate reported and calculated health
-  criterion: A reported GREEN value remains visible while a RED calculated signal is shown separately with rationale.
+  criterion: Reported GREEN and independently calculated RED are stored and displayed separately with reproducible
+    input facts, rule revision and rationale.
   requirements:
   - FR-HLT-007
   - FR-HLT-008
+  - FR-MOD-006
   priority: P0
   tests:
   - E2E-HLT-004
@@ -184,19 +199,22 @@ acceptance_criteria:
   - UNIT-HLT-006
 - id: AC-FND-001
   title: Initialize TypeScript workspace
-  criterion: The repository contains a pnpm TypeScript workspace with buildable web, API and worker applications and shared
-    package boundaries.
+  criterion: The pnpm TypeScript workspace builds web, NestJS API and worker applications; domain package boundaries
+    have no cycles or external SDK leakage, and API routes publish a generated, runtime-validated OpenAPI contract.
   requirements:
   - TR-STACK-001
   - TR-STACK-002
   - TR-STACK-003
+  - NFR-MNT-001
+  - NFR-MNT-002
+  - TR-API-001
   priority: P0
   tests:
   - CI-FND-001
 - id: AC-DATA-001
   title: Apply foundational migration
-  criterion: A clean PostgreSQL database can apply the initial versioned migration and create customer, identity, project,
-    connector and audit foundations.
+  criterion: A clean PostgreSQL database can apply the initial versioned migration and create customer, identity,
+    project, connector and audit foundations.
   requirements:
   - TR-STACK-004
   - TR-STACK-005
@@ -206,8 +224,8 @@ acceptance_criteria:
   - INT-DATA-001
 - id: AC-MOD-001
   title: Represent canonical project
-  criterion: The API can create and retrieve a canonical project with hierarchy, roles, baseline/forecast dates, reported
-    health and external source mappings.
+  criterion: The API can create and retrieve a canonical project with hierarchy, roles, baseline/forecast dates,
+    reported health and external source mappings.
   requirements:
   - FR-MOD-001
   - FR-MOD-002

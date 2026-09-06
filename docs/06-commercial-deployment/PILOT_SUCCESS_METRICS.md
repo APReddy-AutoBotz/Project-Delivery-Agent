@@ -44,3 +44,12 @@ Targets must be agreed per customer and should not be represented as guaranteed 
 - Did leadership trust the evidence?
 - Which steps still required manual PMO work?
 - Which configuration was difficult?
+
+## Measurement evidence
+
+Before a pilot, the customer PMO owner records the agreed observation windows,
+included projects, exclusions, metric denominators and baseline collection method.
+Compare chasing/reporting effort, fresh required updates and risk-detection timing
+over the agreed windows. Validate aggregate calculations with synthetic fixtures;
+do not claim commercial improvement until observed pilot results support it. Do
+not rank employees from response time or activity counts.

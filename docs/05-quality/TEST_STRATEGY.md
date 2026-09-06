@@ -163,3 +163,18 @@ Pull requests must link:
 - Screenshots or report samples for UI/output
 - Manual verification where automation is not feasible
 - Security or failure scenarios added
+
+## Structured gate inventory
+
+`requirements/traceability/tests.yaml` registers the behavior, release, owning
+acceptance criteria and evidence for each planned test. Planned entries never
+count as passing. An implemented result must identify its file/procedure, command,
+candidate SHA and actual outcome. All P0 criteria need a story owner; each story
+requirement must be covered by its own criteria. Approved R1 Must requirements
+must have direct acceptance coverage, including business outcomes evaluated at pilot.
+
+Foundation gates cover identity denial, scoped authorization and encrypted secrets
+before real-data ingestion. Release recovery includes every FAIL-001 through
+FAIL-028 scenario. GOLDEN-011 remains a later-release scenario and is excluded from
+the R1 denominator. Evaluation evidence identifies provider, model, prompt/schema
+versions and the exact eligible scenario set; tests are never inferred from prose.

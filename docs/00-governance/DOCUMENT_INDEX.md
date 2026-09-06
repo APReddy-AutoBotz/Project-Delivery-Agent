@@ -1,6 +1,6 @@
 # Documentation Index
 
-**Baseline:** v0.1 Draft  
+**Baseline:** v0.1 Approved candidate (effective after Issue #1 review PR merge)
 **Baseline date:** 2026-09-05  
 **Product:** Project Delivery Assurance Agent  
 **Approval authority:** Product Owner
@@ -125,3 +125,18 @@
 - `requirements/traceability.yaml` maps requirements to acceptance criteria and planned tests.
 - `requirements/glossary.yaml` contains terms intended for validation and tooling.
 - `scripts/validate_documentation.py` validates IDs, references and indexed files.
+
+## Implementation-control additions
+
+- `docs/04-delivery/IMPLEMENTATION_CONTROLLER.md`: corrected authorized controller.
+- `docs/04-delivery/exec-plans/EXEC-001-baseline-review.md`: review execution/evidence.
+- `docs/03-architecture/adr/ADR-009-ORTHOGONAL-FACT-STATE.md`: fact dimensions.
+- `docs/03-architecture/adr/ADR-010-FOUNDATION-AND-R1-GATES.md`: security and scope.
+- `requirements/traceability/acceptance-baseline-gates.yaml`: missing behavioral gates.
+- `requirements/traceability/tests.yaml`: planned test inventory, distinct from executed evidence.
+
+- `docs/07-research/ASTRA_BASELINE_REVIEW.md`: findings and conditional implementation recommendation.
+
+The original register rows above record the 2026-09-05 draft baseline. The R0/R1
+implementation contract is superseded by the 2026-09-06 approval record in
+DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.

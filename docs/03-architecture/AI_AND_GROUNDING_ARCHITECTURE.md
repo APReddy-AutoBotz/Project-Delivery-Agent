@@ -51,7 +51,11 @@ flowchart LR
 ```json
 {
   "claimText": "Integration testing started nine days late.",
+  "provenance": "SYSTEM_VERIFIED",
+  "conflict": "NONE",
   "classification": "SYSTEM_VERIFIED",
+  "assessedAt": "2026-08-28T12:00:00Z",
+  "policyRevision": "authority-v1",
   "factIds": ["fact-version-id"],
   "evidenceIds": ["evidence-id"],
   "freshness": "CURRENT",
@@ -167,3 +171,10 @@ See:
 
 - `docs/05-quality/AGENT_EVALUATION_STRATEGY.md`
 - `docs/05-quality/GOLDEN_TEST_SCENARIOS.md`
+
+## Claim release boundary
+
+Claim provenance, freshness, conflict and derived display classification follow
+ADR-009. The model cannot select them. SSE may emit progress before validation;
+material claims stream only after current authorization, evidence and grounding
+validation. Snapshots preserve their assessed state without granting future access.

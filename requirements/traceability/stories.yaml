@@ -11,8 +11,13 @@ stories:
   - TR-STACK-001
   - TR-STACK-002
   - TR-STACK-003
+  - NFR-MNT-001
+  - NFR-MNT-002
+  - TR-API-001
   acceptance_criteria:
   - AC-FND-001
+  status: planned
+  release: R0
 - id: STORY-002
   epic: EPIC-01
   title: Create PostgreSQL schema foundation
@@ -24,6 +29,8 @@ stories:
   - NFR-MNT-005
   acceptance_criteria:
   - AC-DATA-001
+  status: planned
+  release: R0
 - id: STORY-003
   epic: EPIC-01
   title: Create containerized local environment
@@ -31,9 +38,17 @@ stories:
   priority: P0
   requirements:
   - TR-DEP-001
-  - AC-DEP-001
+  - NFR-AVL-001
+  - NFR-PORT-001
+  - NFR-PORT-004
+  - NFR-SEC-003
+  - NFR-PORT-002
   acceptance_criteria:
   - AC-DEP-001
+  - AC-SEC-002
+  - AC-DEP-002
+  status: planned
+  release: R0
 - id: STORY-004
   epic: EPIC-01
   title: Establish CI and documentation validation
@@ -41,20 +56,42 @@ stories:
   priority: P0
   requirements:
   - NFR-MNT-004
-  - AC-MNT-002
+  - TR-TEST-001
+  - TR-TEST-002
+  - NFR-SEC-010
   acceptance_criteria:
   - AC-MNT-002
+  - AC-MNT-004
+  status: planned
+  release: R0
 - id: STORY-005
   epic: EPIC-01
-  title: Implement authorization skeleton
-  description: Create OIDC abstraction, local demo mode and project-scope authorization.
+  title: Implement foundation security controls
+  description: Enforce production OIDC validation, scoped grants/revocation and encrypted secrets before real data;
+    constrain local identity to synthetic development.
   priority: P0
   requirements:
   - FR-ADM-001
   - FR-ADM-002
   - FR-ADM-003
+  - TR-AUTH-001
+  - TR-AUTH-002
+  - TR-AUTH-003
+  - NFR-SEC-001
+  - TR-DATA-003
+  - NFR-SEC-004
+  - NFR-SEC-005
+  - TR-DEP-003
+  - FR-APP-010
+  - FR-ADM-009
   acceptance_criteria:
   - AC-ADM-001
+  - AC-AUTH-001
+  - AC-AUTH-002
+  - AC-SEC-001
+  - AC-SEC-003
+  status: planned
+  release: R0
 - id: STORY-006
   epic: EPIC-02
   title: Implement connector contract
@@ -65,6 +102,8 @@ stories:
   - TR-TEST-003
   acceptance_criteria:
   - AC-MNT-003
+  status: planned
+  release: R1
 - id: STORY-007
   epic: EPIC-02
   title: Implement Jira read connector
@@ -74,10 +113,20 @@ stories:
   - FR-CON-001
   - FR-CON-002
   - FR-CON-003
+  - FR-CON-009
+  - FR-CON-012
+  - NFR-SEC-002
+  - FR-MOD-007
+  - FR-EVD-011
+  - TR-JIRA-002
+  - NFR-SEC-004
   acceptance_criteria:
   - AC-CON-001
   - AC-CON-002
   - AC-CON-003
+  - AC-CON-008
+  status: planned
+  release: R1
 - id: STORY-008
   epic: EPIC-02
   title: Implement Jira webhook and reconciliation
@@ -87,8 +136,13 @@ stories:
   - FR-CON-004
   - FR-CON-005
   - FR-CON-010
+  - NFR-REL-001
+  - NFR-SEC-006
   acceptance_criteria:
   - AC-CON-004
+  - AC-CON-007
+  status: planned
+  release: R1
 - id: STORY-009
   epic: EPIC-02
   title: Implement spreadsheet mapping and import
@@ -99,6 +153,8 @@ stories:
   - FR-CON-007
   acceptance_criteria:
   - AC-CON-005
+  status: planned
+  release: R1
 - id: STORY-010
   epic: EPIC-03
   title: Implement canonical project model
@@ -109,8 +165,11 @@ stories:
   - FR-MOD-002
   - FR-MOD-004
   - FR-MOD-005
+  - FR-MOD-007
   acceptance_criteria:
   - AC-MOD-001
+  status: planned
+  release: R1
 - id: STORY-011
   epic: EPIC-03
   title: Implement fact and evidence versioning
@@ -121,10 +180,15 @@ stories:
   - FR-EVD-002
   - FR-EVD-003
   - FR-EVD-004
+  - FR-ADM-005
+  - FR-EVD-006
+  - FR-EVD-007
   acceptance_criteria:
   - AC-ADM-003
   - AC-EVD-001
   - AC-EVD-002
+  status: planned
+  release: R1
 - id: STORY-012
   epic: EPIC-03
   title: Implement source authority and conflict resolution
@@ -135,10 +199,14 @@ stories:
   - FR-EVD-007
   - FR-EVD-012
   - FR-ADM-005
+  - FR-EVD-004
+  - FR-EVD-010
   acceptance_criteria:
   - AC-ADM-003
   - AC-EVD-003
   - AC-EVD-004
+  status: planned
+  release: R1
 - id: STORY-013
   epic: EPIC-04
   title: Implement freshness and completeness rules
@@ -147,9 +215,12 @@ stories:
   requirements:
   - FR-HLT-001
   - FR-HLT-002
+  - FR-UPD-001
   acceptance_criteria:
   - AC-HLT-001
   - AC-HLT-002
+  status: planned
+  release: R1
 - id: STORY-014
   epic: EPIC-04
   title: Implement blocker and overdue signals
@@ -159,9 +230,18 @@ stories:
   - FR-HLT-003
   - FR-HLT-004
   - FR-HLT-009
+  - FR-HLT-011
+  - FR-HLT-008
+  - PR-005
+  - BR-003
+  - NFR-REL-003
   acceptance_criteria:
   - AC-HLT-003
   - AC-HLT-005
+  - AC-HLT-007
+  - AC-HLT-006
+  status: planned
+  release: R1
 - id: STORY-015
   epic: EPIC-04
   title: Implement first contradiction rules
@@ -170,9 +250,13 @@ stories:
   requirements:
   - FR-HLT-007
   - FR-HLT-008
+  - FR-MOD-006
+  - FR-HLT-009
   acceptance_criteria:
   - AC-HLT-004
   - AC-HLT-005
+  status: planned
+  release: R1
 - id: STORY-016
   epic: EPIC-05
   title: Implement update-obligation state machine
@@ -182,10 +266,19 @@ stories:
   - FR-UPD-001
   - FR-ESC-001
   - NFR-REL-002
+  - FR-HLT-001
+  - FR-UPD-002
+  - FR-ESC-003
+  - FR-ESC-005
+  - TR-DATA-001
+  - TR-STACK-006
   acceptance_criteria:
   - AC-HLT-001
   - AC-UPD-001
   - AC-UPD-008
+  - AC-WFL-001
+  status: planned
+  release: R1
 - id: STORY-017
   epic: EPIC-05
   title: Implement contextual request generator
@@ -194,9 +287,12 @@ stories:
   requirements:
   - FR-UPD-002
   - FR-UPD-003
+  - FR-UPD-001
   acceptance_criteria:
   - AC-UPD-001
   - AC-UPD-002
+  status: planned
+  release: R1
 - id: STORY-018
   epic: EPIC-05
   title: Implement secure response page
@@ -206,9 +302,17 @@ stories:
   - FR-UPD-004
   - FR-UPD-005
   - FR-UPD-006
+  - NFR-SEC-001
+  - FR-UPD-007
+  - NFR-AI-001
+  - FR-UPD-008
+  - TR-MSG-001
   acceptance_criteria:
   - AC-UPD-003
   - AC-UPD-004
+  - AC-UPD-009
+  status: planned
+  release: R1
 - id: STORY-019
   epic: EPIC-05
   title: Implement reminder and escalation jobs
@@ -219,10 +323,20 @@ stories:
   - FR-UPD-012
   - FR-ESC-003
   - FR-ESC-006
+  - NFR-REL-002
+  - FR-ESC-001
+  - FR-ESC-005
+  - FR-ESC-002
+  - PR-007
+  - FR-ADM-004
   acceptance_criteria:
   - AC-UPD-006
   - AC-UPD-007
   - AC-UPD-008
+  - AC-UPD-010
+  - AC-ADM-002
+  status: planned
+  release: R1
 - id: STORY-020
   epic: EPIC-06
   title: Implement AI response extraction
@@ -232,9 +346,30 @@ stories:
   - FR-UPD-007
   - NFR-AI-001
   - TR-AI-001
+  - FR-ADM-007
+  - FR-UPD-006
+  - NFR-SEC-007
+  - NFR-SEC-008
+  - TR-AI-002
+  - FR-WRB-003
+  - FR-APP-004
+  - FR-APP-005
+  - FR-ADM-008
+  - NFR-PRV-001
+  - NFR-PRV-002
+  - NFR-PRV-003
+  - NFR-PRV-005
+  - NFR-PORT-003
+  - TR-STACK-007
+  - TR-TEST-004
   acceptance_criteria:
   - AC-ADM-004
   - AC-UPD-004
+  - AC-AI-001
+  - AC-PRV-001
+  - AC-AI-002
+  status: planned
+  release: R1
 - id: STORY-021
   epic: EPIC-06
   title: Implement clarification and interpretation confirmation
@@ -243,9 +378,12 @@ stories:
   requirements:
   - FR-UPD-008
   - FR-UPD-009
+  - FR-EVD-005
   acceptance_criteria:
   - AC-EVD-006
   - AC-UPD-005
+  status: planned
+  release: R1
 - id: STORY-022
   epic: EPIC-06
   title: Implement approval diff and authority
@@ -255,9 +393,17 @@ stories:
   - FR-APP-001
   - FR-APP-002
   - FR-APP-005
+  - NFR-SEC-001
+  - FR-APP-003
+  - FR-APP-004
+  - FR-APP-006
   acceptance_criteria:
   - AC-APP-001
   - AC-APP-002
+  - AC-APP-003
+  - AC-APP-004
+  status: planned
+  release: R1
 - id: STORY-023
   epic: EPIC-06
   title: Implement Jira comment write-back
@@ -268,9 +414,26 @@ stories:
   - FR-WRB-004
   - FR-WRB-007
   - FR-AUD-002
+  - NFR-REL-001
+  - FR-WRB-003
+  - FR-WRB-005
+  - FR-WRB-009
+  - FR-WRB-010
+  - FR-APP-009
+  - TR-JIRA-003
+  - BR-007
+  - PR-009
+  - FR-WRB-008
+  - NFR-REL-005
+  - FR-APP-007
+  - FR-APP-008
   acceptance_criteria:
   - AC-APP-007
   - AC-APP-008
+  - AC-WRB-001
+  - AC-WRB-002
+  status: planned
+  release: R1
 - id: STORY-024
   epic: EPIC-06
   title: Implement source-change conflict
@@ -281,6 +444,8 @@ stories:
   - FR-APP-008
   acceptance_criteria:
   - AC-APP-005
+  status: planned
+  release: R1
 - id: STORY-025
   epic: EPIC-07
   title: Implement recommendation framework
@@ -289,9 +454,15 @@ stories:
   requirements:
   - FR-ADV-001
   - FR-ADV-007
+  - NFR-REL-003
+  - FR-ADV-008
+  - BR-013
   acceptance_criteria:
   - AC-ADV-001
   - AC-ADV-005
+  - AC-ADV-004
+  status: planned
+  release: R1
 - id: STORY-026
   epic: EPIC-07
   title: Implement PM action queue
@@ -300,10 +471,14 @@ stories:
   requirements:
   - FR-ADV-002
   - FR-RPT-002
+  - FR-ADV-006
+  - NFR-SEC-001
   acceptance_criteria:
   - AC-ADV-002
   - AC-ADV-003
   - AC-RPT-003
+  status: planned
+  release: R1
 - id: STORY-027
   epic: EPIC-08
   title: Implement authorized Q&A scope
@@ -313,10 +488,18 @@ stories:
   - FR-QA-001
   - FR-QA-002
   - FR-QA-012
+  - FR-EVD-009
+  - NFR-SEC-001
+  - FR-QA-009
+  - FR-QA-003
+  - TR-DATA-004
   acceptance_criteria:
   - AC-EVD-005
   - AC-QA-001
   - AC-QA-007
+  - AC-QA-009
+  status: planned
+  release: R1
 - id: STORY-028
   epic: EPIC-08
   title: Implement claim and citation composer
@@ -326,8 +509,14 @@ stories:
   - FR-QA-003
   - FR-QA-004
   - TR-AI-003
+  - NFR-AI-002
+  - PR-010
+  - BR-004
   acceptance_criteria:
   - AC-QA-002
+  - AC-QA-009
+  status: planned
+  release: R1
 - id: STORY-029
   epic: EPIC-08
   title: Implement delay explanation
@@ -339,12 +528,17 @@ stories:
   - FR-QA-007
   - FR-QA-008
   - FR-QA-009
+  - FR-QA-001
+  - FR-QA-010
   acceptance_criteria:
   - AC-QA-001
   - AC-QA-003
   - AC-QA-004
   - AC-QA-005
   - AC-QA-006
+  - AC-QA-008
+  status: planned
+  release: R1
 - id: STORY-030
   epic: EPIC-09
   title: Implement live project and portfolio views
@@ -354,10 +548,21 @@ stories:
   - FR-RPT-001
   - FR-RPT-002
   - FR-RPT-003
+  - FR-ADV-002
+  - FR-RPT-004
+  - FR-RPT-005
+  - FR-RPT-010
+  - NFR-SEC-001
+  - NFR-PERF-003
+  - NFR-PERF-001
   acceptance_criteria:
   - AC-ADV-002
   - AC-RPT-001
   - AC-RPT-003
+  - AC-RPT-006
+  - AC-PERF-001
+  status: planned
+  release: R1
 - id: STORY-031
   epic: EPIC-09
   title: Implement report-run fact set
@@ -365,9 +570,15 @@ stories:
   priority: P0
   requirements:
   - FR-RPT-010
+  - FR-RPT-001
+  - FR-RPT-004
+  - FR-RPT-005
+  - FR-RPT-009
   acceptance_criteria:
   - AC-RPT-001
   - AC-RPT-004
+  status: planned
+  release: R1
 - id: STORY-032
   epic: EPIC-09
   title: Implement PowerPoint snapshot
@@ -376,9 +587,17 @@ stories:
   requirements:
   - FR-RPT-005
   - FR-RPT-007
+  - FR-RPT-001
+  - FR-RPT-004
+  - FR-RPT-010
+  - TR-STACK-008
+  - NFR-ACC-001
   acceptance_criteria:
   - AC-RPT-001
   - AC-RPT-002
+  - AC-RPT-005
+  status: planned
+  release: R1
 - id: STORY-033
   epic: EPIC-09
   title: Implement email digest preview
@@ -386,8 +605,13 @@ stories:
   priority: P1
   requirements:
   - FR-RPT-004
+  - FR-RPT-001
+  - FR-RPT-005
+  - FR-RPT-010
   acceptance_criteria:
   - AC-RPT-001
+  status: planned
+  release: R1
 - id: STORY-034
   epic: EPIC-10
   title: Implement audit and action-receipt search
@@ -397,18 +621,40 @@ stories:
   - FR-AUD-001
   - FR-AUD-002
   - FR-AUD-005
+  - FR-WRB-007
+  - NFR-PRV-004
+  - FR-AUD-007
+  - FR-ADM-008
+  - FR-AUD-003
+  - FR-AUD-004
+  - NFR-SEC-009
+  - NFR-OBS-001
+  - NFR-AI-005
+  - TR-DATA-002
+  - TR-API-003
+  - TR-AI-004
   acceptance_criteria:
   - AC-APP-008
+  - AC-PRV-002
+  - AC-AUD-001
+  status: planned
+  release: R1
 - id: STORY-035
   epic: EPIC-10
   title: Implement shadow mode
-  description: Suppress all configured external side effects while retaining proposals and logs.
+  description: Verify and extend the foundation outbound guard with global, connector and action-class shadow administration
+    and full workflow tests.
   priority: P0
   requirements:
   - FR-APP-010
   - FR-ADM-009
+  - FR-CON-012
+  - BR-011
+  - PR-014
   acceptance_criteria:
   - AC-APP-006
+  status: planned
+  release: R1
 - id: STORY-036
   epic: EPIC-10
   title: Implement backup, restore and upgrade runbook
@@ -416,9 +662,20 @@ stories:
   priority: P0
   requirements:
   - TR-DEP-004
-  - AC-DEP-003
+  - NFR-AVL-002
+  - NFR-REL-001
+  - FR-WRB-004
+  - BR-006
+  - PR-012
+  - NFR-PORT-003
+  - BR-014
+  - NFR-REL-003
   acceptance_criteria:
   - AC-DEP-003
+  - AC-PRO-002
+  - AC-DEP-004
+  status: planned
+  release: R1
 - id: STORY-037
   epic: EPIC-10
   title: Run security and failure gates
@@ -428,10 +685,23 @@ stories:
   - NFR-SEC-008
   - NFR-REL-001
   - NFR-REL-004
+  - FR-WRB-004
+  - FR-CON-004
+  - FR-CON-010
+  - FR-CON-009
+  - NFR-SEC-005
+  - NFR-SEC-007
+  - TR-AI-002
+  - FR-WRB-003
+  - FR-APP-004
+  - FR-APP-005
   acceptance_criteria:
   - AC-APP-007
   - AC-CON-004
   - AC-CON-006
+  - AC-AI-001
+  status: planned
+  release: R1
 - id: STORY-038
   epic: EPIC-10
   title: Prepare synthetic event demo
@@ -442,9 +712,39 @@ stories:
   - FR-UPD-002
   - FR-QA-009
   - FR-RPT-005
+  - FR-HLT-001
+  - FR-QA-001
+  - FR-RPT-001
+  - FR-RPT-004
+  - FR-RPT-010
+  - FR-RPT-007
+  - TR-STACK-008
+  - BR-001
+  - BR-002
+  - BR-003
+  - BR-012
+  - PR-015
+  - BR-013
+  - BR-004
+  - BR-005
+  - PR-001
+  - PR-002
+  - PR-003
+  - PR-004
+  - PR-005
+  - PR-006
+  - NFR-MNT-003
+  - PR-013
+  - BR-008
+  - BR-010
   acceptance_criteria:
   - AC-HLT-001
   - AC-QA-001
   - AC-RPT-001
   - AC-RPT-002
   - AC-UPD-001
+  - AC-PIL-001
+  - AC-PRO-001
+  - AC-MNT-001
+  status: planned
+  release: R1

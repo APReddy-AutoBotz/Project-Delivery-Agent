@@ -64,7 +64,7 @@ Read:
 Write:
 
 - Approved comment
-- Approved allowlisted non-baseline fields
+- Allowlisted non-baseline field writes deferred to R2
 - No automatic completion
 - No automatic baseline change
 
@@ -164,3 +164,10 @@ MCP may expose controlled product capabilities such as:
 - `get_missing_updates`
 
 MCP must call application services. It must not become a direct bypass to Jira or the database.
+
+## R1 side-effect recovery contract
+
+The comment marker, comparison base, append-only attempt events, atomic execution
+claim and unknown-outcome handling are defined in APPROVAL_AND_WRITEBACK.md.
+Adapters must not treat a timeout as safe to retry. All retries return through
+preflight. Comment append is not a field-level compare-and-swap operation.

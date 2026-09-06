@@ -6,7 +6,7 @@
 |---|---|
 | Product | Project Delivery Assurance Agent |
 | Baseline version | 0.1 |
-| State | Draft |
+| State | Approved candidate; effective after Issue #1 review PR merge |
 | Baseline date | 2026-09-05 |
 | Product owner | AP |
 | Intended repository | `APReddy-AutoBotz/Project-Delivery-Agent` |
@@ -36,7 +36,7 @@ A document may move to **Approved** only when:
 3. Conflicts with other documents are resolved.
 4. Acceptance criteria exist for Release 1 requirements.
 5. Security and autonomy implications are documented.
-6. The Product Owner approves the baseline.
+6. The Product Owner or explicitly delegated implementation controller approves the baseline under the gate below.
 
 ## Change history
 
@@ -57,3 +57,30 @@ A document may move to **Approved** only when:
 | Commercial | Licensing, deployment and support reviewer |
 
 A single person may cover more than one perspective during early product development, but the review outcome must still address each area.
+
+## Delegated approval and merge gate
+
+On 2026-09-06 the Product Owner instructed the implementation controller to apply
+the five reviewed corrections and start implementation, following the supplied
+autonomous controller authorization. This delegates routine baseline and ADR
+approval to the root controller after specialist review and validation. It does
+not delegate material commercial/legal choices, unavailable credentials, or
+irreversible effects outside the repository/development environment.
+
+Approval is conditional on the corrected candidate: no unresolved P0 or blocking
+R1 P1 finding, direct R1 Must acceptance coverage, registered planned tests,
+coherent story scope, accepted implementation ADRs, a separate non-author review
+of the exact candidate SHA and passing checks for that SHA. An approved document
+is an implementation contract, not evidence that the product is implemented.
+Issue #1 stays open until its review PR is merged and every gate item is evidenced.
+The controller may prepare independent local work during an access outage, but
+must not represent remote approval, review, checks or merge as complete.
+
+## 2026-09-06 approval record
+
+The controller accepts the corrected R0/R1 implementation contract under the
+Product Owner delegation. This candidate's approval becomes effective only after
+its independent review, passing remote checks and review PR merge. R1 structured
+requirements are approved as contracts; future-release requirements remain draft.
+Commercial/legal documents remain planning positions. See ASTRA_BASELINE_REVIEW
+and the linked PR for findings, exact review SHA and validation evidence.

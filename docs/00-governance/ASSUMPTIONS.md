@@ -51,3 +51,11 @@
 | ASM-005 | Leadership values evidence-backed Q&A enough to use it regularly. | Pilot usage and interview data |
 | ASM-006 | Role-specific recommendations are useful without being intrusive. | PM, scrum master and team lead testing |
 | ASM-007 | Customer-specific field mappings can be handled through configuration. | Two or more pilot configurations |
+
+## Verified implementation starting state
+
+On 2026-09-06 the GitHub connector reported the intended repository as public.
+The local supplied bundle was older than live main; source review uses fetched
+main affdbaedadac9f16b49c00c37b4117552bad2902. Keep customer data and secrets out of
+the repository. Routine product/architecture defaults are disposed in OPEN_DECISIONS;
+no legal or commercial agreement is inferred from implementation authorization.

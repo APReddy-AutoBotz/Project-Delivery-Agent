@@ -11,14 +11,14 @@
 | UC-007 | Extract structured facts and proposed changes from the reply | Agent | R1 |
 | UC-008 | Review and correct the extracted interpretation | Contributor or PM | R1 |
 | UC-009 | Approve a material Jira update through an approval diff | PM | R1 |
-| UC-010 | Write an approved comment or safe field change to Jira | System | R1 |
+| UC-010 | Write an approved comment to Jira | System | R1 |
 | UC-011 | Create an action receipt for the external write | System | R1 |
 | UC-012 | Detect a stale blocker or overdue critical item | System | R1 |
 | UC-013 | Recommend an intervention to the PM | Agent | R1 |
 | UC-014 | Ask why a project is delayed | Leadership | R1 |
 | UC-015 | Answer using verified facts, uncertainty and evidence links | Agent | R1 |
 | UC-016 | View portfolio freshness and missing updates | PMO | R1 |
-| UC-017 | Generate a leadership PowerPoint or PDF snapshot | PMO | R1 |
+| UC-017 | Generate a leadership PowerPoint snapshot (PDF optional) | PMO | R1 |
 | UC-018 | Run all monitoring in shadow mode | Administrator | R1 |
 | UC-019 | Detect a source conflict and request reconciliation | System, PM | R1 |
 | UC-020 | Restrict a user to authorized projects and portfolios | System | R1 |
@@ -26,7 +26,7 @@
 | UC-022 | Send and receive updates through Microsoft Teams | Agent, user | R2 |
 | UC-023 | Retrieve approved evidence from SharePoint or OneDrive | System | R2 |
 | UC-024 | Detect a cross-project dependency slip | System | R3 |
-| UC-025 | Detect green status that conflicts with delivery signals | System | R3 |
+| UC-025 | Detect the two configured R1 status/evidence contradictions | System | R1 |
 | UC-026 | Identify a risk discussed informally but absent from RAID | System | R3 |
 | UC-027 | Provide a portfolio-level intervention briefing | PMO, Leadership | R3 |
 | UC-028 | Connect ClickUp, Trello, monday.com or Asana | Administrator | R4 |
@@ -49,7 +49,7 @@ A project status update is overdue, and Jira shows an unresolved blocker near a 
 6. AI extracts a proposed blocker update and revised forecast.
 7. The owner or PM reviews and corrects the interpretation.
 8. The product creates an approval diff.
-9. The PM approves a Jira comment and selected field change.
+9. The PM approves a Jira comment; selected-field writes remain deferred to R2.
 10. The product re-checks the source record and performs the write.
 11. It records an action receipt.
 12. The health engine recalculates the project signal.

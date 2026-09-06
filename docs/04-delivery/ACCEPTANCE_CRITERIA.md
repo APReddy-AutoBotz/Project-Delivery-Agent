@@ -1,140 +1,97 @@
 # Acceptance Criteria
 
-The machine-readable traceability register is under `requirements/traceability.yaml`.
-
-## Foundation
+Canonical definitions are in `requirements/traceability.yaml`. These criteria and registered test specifications are planned; catalog presence is not evidence of an executed or passing test. Implementation evidence must identify the executable/manual procedure, result and candidate SHA.
 
 | ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
-| AC-FND-001 | The repository contains a pnpm TypeScript workspace with buildable web, API and worker applications and shared package boundaries. | P0 | TR-STACK-001, TR-STACK-002, TR-STACK-003 | CI-FND-001 |
-
-## Data foundation
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
-| AC-DATA-001 | A clean PostgreSQL database can apply the initial versioned migration and create customer, identity, project, connector and audit foundations. | P0 | TR-STACK-004, TR-STACK-005, NFR-MNT-005 | INT-DATA-001 |
-
-## Canonical model
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
-| AC-MOD-001 | The API can create and retrieve a canonical project with hierarchy, roles, baseline/forecast dates, reported health and external source mappings. | P0 | FR-MOD-001, FR-MOD-002, FR-MOD-004, FR-MOD-005, FR-MOD-007 | INT-MOD-001 |
-
-## Connectors
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
+|---|---|---|---|---|
 | AC-CON-001 | Given valid Jira credentials and approved scopes, the administrator can connect a site and receive a successful connection test without enabling writes. | P0 | FR-CON-001, FR-CON-009, FR-CON-012 | INT-CON-001, E2E-CON-001 |
 | AC-CON-002 | A Jira project not visible to the integration identity is not listed, synchronized or queryable. | P0 | FR-CON-002, NFR-SEC-002 | INT-CON-002 |
 | AC-CON-003 | Configured issue, sprint, comment, changelog, link and selected custom-field data is normalized with source IDs and revisions. | P0 | FR-CON-003, FR-MOD-007, FR-EVD-011 | INT-CON-003 |
 | AC-CON-004 | Submitting the same webhook event twice produces one source observation and no duplicate downstream obligation. | P0 | FR-CON-004, FR-CON-010, NFR-REL-001 | INT-CON-004 |
-| AC-CON-005 | An Excel or CSV import previews mappings, invalid rows and planned changes before any facts are committed. | P0 | FR-CON-006, FR-CON-007 | E2E-CON-005 |
-| AC-CON-006 | Expired credentials change connector health to failed or degraded and show a safe administrator-facing reason without exposing the secret. | P0 | FR-CON-009, NFR-REL-004, NFR-SEC-005 | INT-CON-006, SEC-CON-001 |
-
-## Evidence
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
+| AC-CON-005 | An Excel or CSV import previews mappings, invalid rows and planned changes before any facts are committed. | P0 | FR-CON-006, FR-CON-007 | E2E-CON-005, FAIL-006 |
+| AC-CON-006 | Expired credentials change connector health to failed or degraded and show a safe administrator-facing reason without exposing the secret. | P0 | FR-CON-009, NFR-REL-004, NFR-SEC-005 | INT-CON-006, SEC-CON-001, FAIL-001, FAIL-002 |
 | AC-EVD-001 | A changed source value creates a new fact version and preserves the previous value, source and timestamps. | P0 | FR-EVD-001, FR-EVD-002, FR-EVD-004 | INT-EVD-001 |
-| AC-EVD-002 | Every material fact returned by the API includes a valid fact classification. | P0 | FR-EVD-003 | UNIT-EVD-002 |
+| AC-EVD-002 | A human-confirmed fact that expires and conflicts retains HUMAN_CONFIRMED provenance with STALE freshness and CONFLICTING state. API/display expose all dimensions, derive labels deterministically, and preserve a previously frozen snapshot assessment. | P0 | FR-EVD-003, FR-EVD-006, FR-EVD-007 | UNIT-EVD-002, GOLDEN-013, FAIL-028 |
 | AC-EVD-003 | A fact outside its configured validity period is marked STALE and cannot be presented as current without warning. | P0 | FR-EVD-006, FR-EVD-010 | UNIT-EVD-003, E2E-EVD-003 |
-| AC-EVD-004 | When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING. | P0 | FR-EVD-007, FR-EVD-012, FR-ADM-005 | INT-EVD-004, GOLDEN-003 |
-| AC-EVD-005 | A user without access to the source project cannot open or retrieve its evidence, even through a copied evidence URL. | P0 | FR-EVD-009, FR-QA-012, NFR-SEC-001 | SEC-EVD-005 |
+| AC-EVD-004 | When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING. | P0 | FR-EVD-007, FR-EVD-012, FR-ADM-005 | INT-EVD-004, GOLDEN-003, FAIL-009 |
+| AC-EVD-005 | A user without access to the source project cannot open or retrieve its evidence, even through a copied evidence URL. | P0 | FR-EVD-009, FR-QA-012, NFR-SEC-001 | SEC-EVD-005, FAIL-018 |
 | AC-EVD-006 | A confirmed response records the confirming user, timestamp, original response and linked evidence. | P0 | FR-EVD-005, FR-UPD-008 | INT-EVD-006 |
-
-## Health and contradiction
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
 | AC-HLT-001 | A project whose required update is older than policy is shown as stale and creates the configured obligation. | P0 | FR-HLT-001, FR-UPD-001 | UNIT-HLT-001, E2E-UPD-001 |
 | AC-HLT-002 | The completeness check lists the exact required facts that are missing or unconfirmed. | P0 | FR-HLT-002 | UNIT-HLT-002 |
 | AC-HLT-003 | Blocker age is calculated from source dates and the applied threshold is visible. | P0 | FR-HLT-004, FR-HLT-009, FR-HLT-011 | UNIT-HLT-003 |
-| AC-HLT-004 | A reported GREEN value remains visible while a RED calculated signal is shown separately with rationale. | P0 | FR-HLT-007, FR-HLT-008 | E2E-HLT-004, GOLDEN-002 |
+| AC-HLT-004 | Reported GREEN and independently calculated RED are stored and displayed separately with reproducible input facts, rule revision and rationale. | P0 | FR-HLT-007, FR-HLT-008, FR-MOD-006 | E2E-HLT-004, GOLDEN-002 |
 | AC-HLT-005 | A completed milestone with mandatory open linked issues creates a contradiction signal and a PM reconciliation action. | P0 | FR-HLT-008, FR-HLT-009 | INT-HLT-005, GOLDEN-003 |
 | AC-HLT-006 | The health result is reproducible with the AI provider disabled. | P0 | FR-HLT-011, NFR-REL-003 | UNIT-HLT-006 |
-
-## Update and escalation
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
+| AC-FND-001 | The pnpm TypeScript workspace builds web, NestJS API and worker applications; domain package boundaries have no cycles or external SDK leakage, and API routes publish a generated, runtime-validated OpenAPI contract. | P0 | TR-STACK-001, TR-STACK-002, TR-STACK-003, NFR-MNT-001, NFR-MNT-002, TR-API-001 | CI-FND-001 |
+| AC-DATA-001 | A clean PostgreSQL database can apply the initial versioned migration and create customer, identity, project, connector and audit foundations. | P0 | TR-STACK-004, TR-STACK-005, NFR-MNT-005 | INT-DATA-001 |
+| AC-MOD-001 | The API can create and retrieve a canonical project with hierarchy, roles, baseline/forecast dates, reported health and external source mappings. | P0 | FR-MOD-001, FR-MOD-002, FR-MOD-004, FR-MOD-005, FR-MOD-007 | INT-MOD-001 |
 | AC-UPD-001 | When an update becomes due, the request names the project, current known position and specific missing information. | P0 | FR-UPD-001, FR-UPD-002 | E2E-UPD-001 |
 | AC-UPD-002 | The initial request is sent only to the configured responsible owner unless policy names additional recipients. | P0 | FR-UPD-003 | INT-UPD-002 |
 | AC-UPD-003 | An expired, invalid or unauthorized response link cannot submit or reveal project information. | P0 | FR-UPD-004, NFR-SEC-001 | SEC-UPD-003 |
 | AC-UPD-004 | A valid free-text reply produces schema-valid proposed facts and does not directly write to Jira. | P0 | FR-UPD-006, FR-UPD-007, NFR-AI-001 | AI-UPD-004, E2E-UPD-004 |
-| AC-UPD-005 | An ambiguous response creates a focused clarification request and no material fact or write proposal is approved automatically. | P0 | FR-UPD-009 | AI-UPD-005, GOLDEN-005 |
-| AC-UPD-006 | A response satisfying the obligation cancels pending reminder and escalation jobs. | P0 | FR-UPD-010, FR-ESC-006 | INT-UPD-006 |
+| AC-UPD-005 | An ambiguous response creates a focused clarification request and no material fact or write proposal is approved automatically. | P0 | FR-UPD-009 | AI-UPD-005, GOLDEN-006, FAIL-010 |
+| AC-UPD-006 | Confirmation commits satisfied fact state and reminder suppression atomically, independent of delayed or failed optional Jira write-back. Workers recheck current state before sending; unresolved facts retain clarification actions. | P0 | FR-UPD-010, FR-ESC-006, NFR-REL-002 | INT-UPD-006, FAIL-027 |
 | AC-UPD-007 | A reminder becoming due during quiet hours is deferred to the next allowed time and the reason is recorded. | P0 | FR-UPD-012 | UNIT-UPD-007 |
 | AC-UPD-008 | After the configured unanswered stages, the PM receives the original request, reminder history, missing facts and project impact. | P0 | FR-ESC-001, FR-ESC-003, FR-ESC-005 | E2E-ESC-008 |
-
-## Advice
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
 | AC-ADV-001 | A recommendation contains the triggering facts, rule, urgency, suggested action and expected outcome. | P0 | FR-ADV-001, FR-ADV-007 | UNIT-ADV-001, AI-ADV-001 |
 | AC-ADV-002 | The PM action queue ranks pending approvals, stale updates and critical interventions for assigned projects. | P0 | FR-ADV-002, FR-RPT-002 | E2E-ADV-002 |
-| AC-ADV-003 | The same underlying concern is expressed as an operational action for the PM and as a decision/intervention need for leadership. | P0 | FR-ADV-002, FR-ADV-006 | AI-ADV-003 |
+| AC-ADV-003 | The same underlying concern is expressed as an operational action for the PM and as a decision/intervention need for leadership. | P0 | FR-ADV-002, FR-ADV-006 | AI-ADV-003, GOLDEN-012 |
 | AC-ADV-004 | The recommendation does not label a person as underperforming or personally at fault based only on response time or activity. | P0 | FR-ADV-008, BR-013 | AI-SAFE-004 |
 | AC-ADV-005 | Disabling the AI provider does not remove the underlying recommendation trigger from the action queue. | P0 | FR-ADV-001, NFR-REL-003 | UNIT-ADV-005 |
-
-## Approval and write-back
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
 | AC-APP-001 | A material Jira proposal displays target, current value, proposed value, source response, evidence, side effects and required approver. | P0 | FR-APP-001, FR-APP-002 | E2E-APP-001 |
 | AC-APP-002 | A user with read access but without approval authority cannot approve the proposal. | P0 | FR-APP-005, NFR-SEC-001 | SEC-APP-002 |
 | AC-APP-003 | An authorized reviewer can edit the proposed text or allowlisted value and the approved revision is retained. | P0 | FR-APP-003, FR-APP-004 | E2E-APP-003 |
 | AC-APP-004 | An expired proposal cannot execute without a new review or approval. | P0 | FR-APP-006 | UNIT-APP-004 |
-| AC-APP-005 | If Jira changes between approval and execution, execution stops and a new diff is required. | P0 | FR-APP-007, FR-APP-008 | INT-APP-005 |
-| AC-APP-006 | In shadow mode, an approved-looking proposal never calls the external write endpoint. | P0 | FR-APP-010, FR-CON-012 | INT-APP-006 |
+| AC-APP-005 | If Jira changes between approval and execution, execution stops and a new diff is required. | P0 | FR-APP-007, FR-APP-008 | INT-APP-005, GOLDEN-009 |
+| AC-APP-006 | Global, connector and action-class shadow controls suppress every affected outbound message/write while retaining proposals and audit; read-only onboarding never writes to source systems. | P0 | FR-APP-010, FR-CON-012, FR-ADM-009, BR-011, PR-014 | INT-APP-006 |
 | AC-APP-007 | Retrying an already successful write does not create a duplicate comment or field change. | P0 | FR-WRB-004, NFR-REL-001 | INT-WRB-007 |
 | AC-APP-008 | Every write attempt records proposal, approver, execution identity, result, correlation ID and external revision or error class. | P0 | FR-WRB-007, FR-AUD-002 | INT-AUD-008 |
-
-## Leadership Q&A
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
 | AC-QA-001 | An authorized leader can ask why a project is delayed and receive baseline, forecast, verified cause, action and uncertainty. | P0 | FR-QA-001, FR-QA-009 | E2E-QA-001, GOLDEN-001 |
-| AC-QA-002 | Every material date, number, cause and current-state claim has at least one authorized evidence reference. | P0 | FR-QA-004, NFR-AI-002 | AI-QA-002 |
+| AC-QA-002 | Every material factual sentence maps to an authorized claim object with fact/evidence IDs, immutable provenance, assessed freshness/conflict and as-of time; unsupported claims are blocked before streaming and uncertainty is disclosed. | P0 | FR-QA-004, NFR-AI-002, TR-AI-003, PR-010, BR-004 | AI-QA-002 |
 | AC-QA-003 | An inferred conclusion is explicitly labelled and is not presented as SYSTEM_VERIFIED or HUMAN_CONFIRMED. | P0 | FR-QA-005 | AI-QA-003 |
 | AC-QA-004 | The answer states when the latest project update is stale and identifies the active clarification request. | P0 | FR-QA-006 | GOLDEN-004 |
 | AC-QA-005 | The answer describes both conflicting values and does not silently choose one. | P0 | FR-QA-007 | GOLDEN-003 |
 | AC-QA-006 | When delay is verified but cause is not, the answer states that the cause is unknown and can create a clarification request. | P0 | FR-QA-008 | GOLDEN-005 |
 | AC-QA-007 | A user authorized for Project A receives no fact, title, person or evidence from Project B in answers or citations. | P0 | FR-QA-012 | SEC-QA-007 |
 | AC-QA-008 | A 'what changed' answer compares the current fact set with the selected prior snapshot or time point. | P0 | FR-QA-010 | INT-QA-008 |
-
-## Reporting
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
 | AC-RPT-001 | A dashboard snapshot, email preview and PowerPoint generated for one report run share the same fact-set revision. | P0 | FR-RPT-001, FR-RPT-004, FR-RPT-005, FR-RPT-010 | INT-RPT-001 |
-| AC-RPT-002 | Generated PowerPoint contains reporting period, generation time, approval state, freshness and snapshot ID. | P0 | FR-RPT-005, FR-RPT-007 | INT-RPT-002 |
+| AC-RPT-002 | A timestamped editable PowerPoint is generated on a clean host without Microsoft Office using approved server-side libraries, with report period, source freshness and approval state. | P0 | FR-RPT-005, FR-RPT-007, TR-STACK-008 | INT-RPT-002, FAIL-016 |
 | AC-RPT-003 | A user sees only action-queue items from authorized projects. | P0 | FR-RPT-002, NFR-SEC-001 | SEC-RPT-003 |
 | AC-RPT-004 | A finalized snapshot does not change when live source data changes later. | P0 | FR-RPT-009, FR-RPT-010 | INT-RPT-004 |
 | AC-RPT-005 | Health uses labels and explanation rather than color alone. | P0 | NFR-ACC-001 | E2E-ACC-005 |
-
-## Administration
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
 | AC-ADM-001 | An administrator can configure OIDC metadata and map an identity group to an application role without code changes. | P0 | FR-ADM-001, FR-ADM-002 | INT-ADM-001 |
 | AC-ADM-002 | An administrator can configure due time, reminders, escalation recipient and quiet hours and preview the resulting schedule. | P0 | FR-ADM-004, FR-ESC-002 | E2E-ADM-002 |
 | AC-ADM-003 | Changing an authority rule affects subsequent fact resolution while preserving prior fact history. | P0 | FR-ADM-005, FR-EVD-004 | INT-ADM-003 |
 | AC-ADM-004 | An administrator can select an approved provider or OpenAI-compatible private endpoint and test it without exposing the secret. | P0 | FR-ADM-007, TR-AI-001 | INT-ADM-004, SEC-ADM-004 |
-
-## Deployment
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
-| AC-DEP-001 | The documented container composition starts web/API, worker and PostgreSQL and passes readiness checks. | P0 | TR-DEP-001, NFR-AVL-001 | DEP-001 |
+| AC-DEP-001 | The documented OCI container composition starts web/API, worker and PostgreSQL and passes readiness checks without a mandatory vendor-operated service or control plane. | P0 | TR-DEP-001, NFR-AVL-001, NFR-PORT-001, NFR-PORT-004 | DEP-001 |
 | AC-DEP-002 | The same application can connect to a supported external PostgreSQL instance without product-code changes. | P0 | NFR-PORT-002 | DEP-002 |
-| AC-DEP-003 | A documented backup can be restored into a clean deployment with fact, workflow and audit consistency checks passing. | P0 | TR-DEP-004, NFR-AVL-002 | DEP-003 |
+| AC-DEP-003 | A backup restores into a clean deployment with fact, workflow and audit consistency. Restores start outbound-disabled; a comment completed after the backup is reconciled by marker and never replayed. Failed migration stops upgrade and exercises documented recovery before resuming. | P0 | TR-DEP-004, NFR-AVL-002, NFR-REL-001, FR-WRB-004 | DEP-003, FAIL-017, FAIL-024, FAIL-026 |
 | AC-DEP-004 | The reference deployment supports a no-AI mode in which synchronization, freshness, health and manual reporting remain available. | P0 | BR-014, NFR-REL-003 | E2E-DEP-004 |
-
-## Maintainability
-
-| ID | Criterion | Priority | Requirements | Planned tests |
-|---|---|---:|---|---|
-| AC-MNT-001 | A second synthetic customer configuration with different fields and cadence runs on the same build. | P0 | NFR-MNT-003, PR-013 | E2E-MNT-001 |
-| AC-MNT-002 | A pull request fails CI when lint, type checking, tests, build or documentation validation fails. | P0 | NFR-MNT-004 | CI-MNT-002 |
-| AC-MNT-003 | The Jira connector passes the shared connector contract test suite. | P0 | TR-TEST-003 | INT-MNT-003 |
-| AC-MNT-004 | A new runtime dependency not added to the open-source adoption register fails documentation validation or review policy. | P1 | OPEN_SOURCE_POLICY | CI-MNT-004 |
+| AC-MNT-001 | Two synthetic customer configurations with different mappings, terminology, cadence/escalation, health thresholds and report configuration run on the identical build with no customer branch or code edits; invalid configuration is rejected. | P0 | NFR-MNT-003, PR-013, BR-008, BR-010 | E2E-MNT-001 |
+| AC-MNT-002 | A PR fails CI for failed lint, typecheck, the chosen Vitest suite, build or documentation validation; critical implemented browser journeys run through Playwright and also gate the PR. | P0 | NFR-MNT-004, TR-TEST-001, TR-TEST-002 | CI-MNT-002 |
+| AC-MNT-003 | The Jira adapter passes the common identity, sync, cursor, duplicate, permission, throttling and unknown-outcome connector contract; a boundary check rejects external SDK types in domain modules. | P0 | TR-TEST-003, FR-CON-011 | INT-MNT-003 |
+| AC-MNT-004 | CI/release review rejects unregistered runtime packages, incompatible or unknown licenses, missing exact lockfile inventory or notices, and missing dependency/container vulnerability scans; a release includes SBOM and documented vulnerability dispositions. | P1 | OPEN_SOURCE_POLICY, NFR-SEC-010 | CI-MNT-004 |
+| AC-AUTH-001 | Trusted OIDC identity succeeds with configured user/group mapping; invalid signature, issuer, audience and expired tokens/sessions are denied. Development login is disabled in production and constrained to synthetic local data. | P0 | TR-AUTH-001, TR-AUTH-002, TR-AUTH-003, FR-ADM-001, FR-ADM-002 | SEC-AUTH-001 |
+| AC-AUTH-002 | An authorized administrator can grant/revoke portfolio and project access. Direct API/service/query access denies cross-project reads/writes, revoked memberships and operational administrators without explicit business scope. | P0 | FR-ADM-003, NFR-SEC-001, TR-DATA-003 | SEC-AUTH-002 |
+| AC-SEC-001 | Credential storage contains authenticated ciphertext or approved secret references; missing/wrong keys and modified ciphertext fail closed. Logs, API errors, browser responses and nonsecret configuration exports reveal no secret. Secrets and nonsecrets are configured separately. | P0 | NFR-SEC-004, NFR-SEC-005, TR-DEP-003 | SEC-SECRET-001 |
+| AC-SEC-002 | The customer deployment terminates browser TLS at approved ingress and verifies external certificate chains; invalid certificates fail closed. Local loopback HTTP is documented as synthetic-development-only. | P0 | NFR-SEC-003 | SEC-TLS-001 |
+| AC-CON-007 | Invalid authenticity/replay evidence has no domain effect. Supported valid webhooks are idempotent; scheduled reconciliation with persisted cursor recovers a deliberately missed update and safe connector-health detail records failures. | P0 | FR-CON-005, FR-CON-004, FR-CON-010, NFR-SEC-006 | INT-CON-007, FAIL-004, FAIL-005 |
+| AC-CON-008 | Concurrent OAuth refresh attempts serialize rotation; the new encrypted refresh token and revision persist atomically, survive restart, and an invalid/revoked token stops access with a redacted admin action. | P0 | TR-JIRA-002, NFR-SEC-004 | INT-CON-008, FAIL-001, FAIL-002 |
+| AC-HLT-007 | Configured work-item/milestone due dates and thresholds produce reproducible overdue signals at boundary times across time zones, identifying exact source dates and rule inputs. | P0 | FR-HLT-003, FR-HLT-009, PR-005, BR-003 | UNIT-HLT-007 |
+| AC-WRB-001 | A human-approved allowlisted Jira comment posts with receipt; removed app/connector authority, unapproved revision, bulk material approval, arbitrary field writes, baseline/budget/contract changes or automatic issue completion are rejected before dispatch. | P0 | FR-WRB-001, FR-WRB-003, FR-WRB-005, FR-WRB-009, FR-WRB-010, FR-APP-009, TR-JIRA-003, BR-007, PR-009 | SEC-WRB-001 |
+| AC-WRB-002 | Lose the acknowledgement after the source commits a marked comment. Reconcile the exact target/marker/digest without duplication; incomplete lookup remains manual recovery. Known-safe failures use bounded classified retries; every attempt repeats expiry, authority, source, allowlist and mode checks. | P0 | FR-WRB-004, FR-WRB-007, FR-WRB-008, FR-AUD-002, NFR-REL-001, NFR-REL-005, FR-APP-007, FR-APP-008 | INT-WRB-002, FAIL-003, FAIL-014, FAIL-015, FAIL-025 |
+| AC-WFL-001 | Crash before/after domain-plus-outbox commit and dispatch, then restart Graphile Worker. Obligation, approval and attempt history recover consistently, with atomic claims and no duplicate material action; waiting for humans holds no process. | P0 | NFR-REL-002, TR-DATA-001, TR-STACK-006 | INT-WFL-001, FAIL-012, FAIL-013 |
+| AC-QA-009 | Resolve exactly one authorized project and reporting time or request clarification. A contradictory semantic match cannot replace authoritative structured dates/status. Multi-project aggregation is deferred and inaccessible project names or evidence are never disclosed. | P0 | FR-QA-001, FR-QA-002, FR-QA-003, TR-DATA-004 | SEC-QA-009, GOLDEN-008 |
+| AC-RPT-006 | The PMO dashboard lists only authorized portfolio projects, displaying exact missing obligations, stale facts and unresolved conflicts from the current projection. | P0 | FR-RPT-003 | E2E-RPT-006 |
+| AC-AI-001 | Validate schema, scope, action class and audit policy on every model tool invocation. Malicious Jira text cannot call arbitrary SQL/URLs/connectors/email, expand scope, or approve a proposal even under a PM session; approval is absent from the model registry. | P0 | NFR-SEC-007, NFR-SEC-008, TR-AI-002, FR-WRB-003, FR-APP-004, FR-APP-005 | SEC-AI-001, GOLDEN-007, GOLDEN-014, FAIL-019 |
+| AC-PRV-001 | An administrator configures redaction and data-routing restrictions; captured adapter requests contain only necessary permitted content, disallowed provider/class routes are blocked, and operational storage remains customer-controlled. Provider no-training statements require recorded agreement evidence. | P0 | FR-ADM-008, NFR-PRV-001, NFR-PRV-002, NFR-PRV-003, NFR-PRV-005 | SEC-PRV-001 |
+| AC-PRV-002 | Configured expiry for operational, evidence, AI and audit data applies by class with an auditable retention job; normal APIs cannot edit/delete retained material audit. Source removal triggers claim revalidation and no unauthorized content reappears from embeddings. | P0 | NFR-PRV-004, FR-AUD-007, FR-ADM-008 | INT-PRV-002 |
+| AC-AUD-001 | Authentication/configuration/agent/approval/connector events distinguish human, service and worker actors and correlate request/job/model/connector activity. Reject normal API audit edits/deletes. Record provider/model/prompt/schema versions, evidence IDs and structured input/tool/result summaries with redaction and without private chain-of-thought. | P0 | FR-AUD-001, FR-AUD-003, FR-AUD-004, FR-AUD-005, NFR-SEC-009, NFR-OBS-001, NFR-AI-005, TR-DATA-002, TR-API-003, TR-AI-004 | INT-AUD-001 |
+| AC-PERF-001 | During scheduled synchronization and report generation at the documented reference load, interactive requests remain responsive; measure core dashboard response against the three-second target while jobs run outside the request process. | P0 | NFR-PERF-003, NFR-PERF-001 | PERF-001 |
+| AC-AI-002 | The same validated extraction/claim contract runs through mock and approved alternate provider adapters without domain changes. Invalid schema/timeouts preserve responses for manual structuring. Pin and record provider/prompt/schema versions; deterministic CI fixtures require no live keys. | P0 | NFR-PORT-003, TR-STACK-007, TR-TEST-004 | AI-PROVIDER-002, FAIL-007, FAIL-008, GOLDEN-010 |
+| AC-UPD-009 | A configured PM, lead or contributor owner can submit/correct their own free-text or configured-choice response through recipient-bound authenticated access. Another user or expired link is denied. Approved email notification includes the secure route; shadow suppresses sends and ambiguous delivery outcomes require safe recovery. | P0 | FR-UPD-004, FR-UPD-005, FR-UPD-006, FR-UPD-008, TR-MSG-001 | E2E-UPD-009, FAIL-020, FAIL-021, FAIL-022 |
+| AC-UPD-010 | An authorized administrator sets stage delays/recipients/channels; weekday and quiet-hour scheduling uses valid IANA time zones. A response after escalation suppresses future satisfied-fact reminders; invalid time zones are rejected. | P0 | FR-ESC-002, FR-UPD-012, PR-007 | UNIT-UPD-010, FAIL-011, FAIL-023 |
+| AC-PIL-001 | Record agreed baseline and observation windows, denominators, exclusions and PMO measurement owner. Synthetic fixtures verify aggregate chasing/reporting effort, fresh/completed updates and risk-detection lead time. Demonstrate improvement only from observed pilot results; never infer employee performance from response/activity counts. | P0 | BR-001, BR-002, BR-003, BR-012, PR-015, BR-013 | PILOT-001 |
+| AC-PRO-001 | The synthetic hero workflow retains Jira and the spreadsheet as source systems, normalizes a tool-neutral project, versions facts/evidence and applies field authority, detects missing/stale information, asks the correct owner a contextual question, and presents an evidence-backed answer without replacing project-management tools. | P0 | BR-004, BR-005, PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 | E2E-HERO-001 |
+| AC-PRO-002 | A single-tenant customer-hosted install uses its configured OIDC and approved AI endpoint, owns its data/secrets and operates without vendor control-plane credentials. Swap the approved endpoint without domain-code changes; no-AI mode remains useful. | P0 | BR-006, PR-012, NFR-PORT-003 | DEP-CONTROL-001 |
+| AC-SEC-003 | The shared dispatcher defaults to shadow mode and blocks every external action unless an explicit current policy permits it. Invalid configuration and production development identity fail closed; callers cannot bypass the guard through a model tool. Foundation denial tests use a recording adapter and prove zero dispatches while blocked. | P0 | FR-APP-010, FR-ADM-009, NFR-SEC-001 | SEC-OUTBOUND-003 |

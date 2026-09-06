@@ -178,3 +178,13 @@ Enterprise:
 | Product defects | Vendor under support |
 | Customer-specific configuration | Joint during implementation, customer after handover |
 | Backups | Customer, unless managed service contracted |
+
+## Restore quarantine
+
+Restored deployments start with outbound notifications and writes disabled,
+regardless of the saved configuration. A backup may predate an external action
+that has already succeeded. Reconcile pending/uncertain proposals against exact
+remote targets and stable markers before enabling execution. Suppress completed
+actions and route unprovable outcomes to manual recovery. A restore drill must
+include a comment completed after backup and prove it is not replayed. Resume
+requires an authorized operator's recorded review of reconciliation results.

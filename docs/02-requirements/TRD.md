@@ -143,3 +143,14 @@ Provide a customer-hostable, maintainable and secure product with one primary la
 - Centralized logging and monitoring.
 - Optional horizontal workers.
 - Optional source access or escrow under contract.
+
+## Foundation security gate
+
+EPIC-01 must deliver production OIDC validation, configurable user/group mappings,
+server-enforced project/portfolio scope, service-identity separation, encrypted
+credential storage, configuration validation and redacted audit/log output.
+Negative tests must deny invalid/expired identities, cross-project direct API
+access, revoked scope and production development login. Synthetic demo identity
+is explicitly enabled only for local synthetic data. Shadow mode starts enabled.
+Real-data ingestion, messaging and write-back depend on this gate. EPIC-10 performs
+release verification and hardening of controls already present in every increment.

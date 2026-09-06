@@ -33,12 +33,13 @@ flowchart TD
     Clarify --> Response
     Response -- Complete --> Confirm[Confirm interpretation]
     Confirm --> Facts[Create confirmed facts]
+    Facts --> Satisfy[Satisfy confirmed facts and suppress their reminders]
     Facts --> Proposal{External change needed?}
-    Proposal -- No --> Satisfy[Satisfy obligation]
+    Proposal -- No --> NoWrite[No external action]
     Proposal -- Yes --> Approval[Create approval diff]
     Approval --> Write[Execute approved write]
     Write --> Receipt[Create action receipt]
-    Receipt --> Satisfy
+    Receipt --> ActionComplete[Complete external action independently]
 ```
 
 ## Monitoring workflow
@@ -116,3 +117,12 @@ Temporal or another durable workflow engine may be considered only when:
 - Replay, compensation or multi-region needs justify the cost
 
 The decision requires a new ADR and measured evidence.
+
+## Independent satisfaction and dispatch
+
+Commit confirmed facts, satisfied obligation state and reminder suppression in
+one transaction. An optional external proposal has an independent lifecycle;
+approval delays or connector failures do not keep chasing an already satisfied
+information request. Partial/ambiguous replies retain a due clarification action
+for unresolved facts. Before dispatch every reminder worker rechecks current
+obligation state, owner, policy, quiet hours and shadow mode.

@@ -108,3 +108,11 @@ A change is not complete merely because it works on the happy path. Review must 
 - failure recovery;
 - customer-hosted deployment impact; and
 - backward compatibility or migration.
+
+## Independent candidate review
+
+The root author inspects the entire diff, then assigns a separate non-author
+reviewer agent the base and candidate commit SHAs. Findings and dispositions
+must identify the reviewed SHA. Changed content invalidates the previous review
+for those changes. Merge only the reviewed candidate after its required remote
+checks pass; use an expected-head condition. A self-review alone is insufficient.

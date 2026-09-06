@@ -5,7 +5,8 @@ on:
     paths:
       - "docs/**"
       - "requirements/**"
-      - "scripts/validate_documentation.py"
+      - "scripts/**"
+      - "requirements-dev.txt"
       - "AGENTS.md"
       - "PLANS.md"
       - "OPEN_SOURCE_POLICY.md"
@@ -32,3 +33,6 @@ jobs:
 
       - name: Validate documentation
         run: python scripts/validate_documentation.py
+
+      - name: Test documentation approval gates
+        run: python -m unittest discover -s scripts -p 'test_*.py'

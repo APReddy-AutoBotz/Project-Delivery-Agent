@@ -40,7 +40,7 @@ Legend: `R` read, `C` create, `U` update, `A` approve, `X` execute, `-` no defau
 | Configure field mapping | - | C/U | C/U | Limited | - | - | - | - | R |
 | Configure cadence | - | C/U | C/U | Project | - | - | - | - | R |
 | Send manual update request | - | C | C | C | C | C | - | - | R |
-| Respond to own request | - | - | - | R | R | R | C/U | - | R |
+| Respond to own request | Assigned | Assigned | Assigned | Assigned | Assigned | Assigned | Assigned | Assigned | Assigned |
 | Approve project narrative | - | A | A | A | Limited | - | - | - | R |
 | Approve Jira comment | - | A | A | A | Configured | Configured | - | - | R |
 | Approve forecast change | - | A | A | A | - | - | - | - | R |
@@ -104,3 +104,11 @@ Evidence access must be checked independently from answer access. If a user may 
 ## Administration without business access
 
 System administrators may manage deployment health, connectors and secrets without automatically receiving access to project content. Operational logs must be redacted accordingly.
+
+## Assigned-owner response capability
+
+`Assigned` permits the configured responsible owner or authorized delegate to
+submit and correct only their own request, independently of business role. It
+requires current recipient binding and permitted project context; it grants no
+broader project/evidence access or approval authority. A PM owner may respond
+without an additional Contributor role. A different project's user is denied.

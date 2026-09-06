@@ -1,7 +1,7 @@
 schema_version: '1.0'
 product: Project Delivery Assurance Agent
 baseline: '0.1'
-baseline_status: draft
+baseline_status: approved
 baseline_date: '2026-09-05'
 includes:
 - catalog/business-product.yaml
@@ -10,3 +10,7 @@ includes:
 - catalog/functional-experience-and-admin.yaml
 - catalog/non-functional.yaml
 - catalog/technical.yaml
+approval:
+  authority: Product Owner delegation to implementation controller, 2026-09-06
+  effective_when: 'Issue #1 review PR is independently reviewed, checks pass and merged'
+  record: docs/00-governance/DOCUMENT_CONTROL.md

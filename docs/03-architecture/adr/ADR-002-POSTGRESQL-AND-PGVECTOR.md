@@ -1,6 +1,6 @@
 # ADR-002: Use PostgreSQL and pgvector
 
-Status: Proposed baseline  
+Status: Accepted
 Date: 2026-09-05
 
 ## Context
