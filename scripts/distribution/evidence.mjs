@@ -35,12 +35,27 @@ export function validateImageReports({
   spdx,
   scan,
   pins,
+  scope = "squashed",
   now = Date.now(),
 }) {
   assert(digest.test(inspection.Id), "Missing immutable Docker image identity");
   assert.equal(inspection.Os, "linux");
   assert.equal(inspection.Architecture, "amd64");
   assert.equal(sbom.descriptor?.name, "syft");
+  assert(
+    ["squashed", "all-layers"].includes(scope),
+    "Unsupported evidence scope",
+  );
+  assert.equal(
+    sbom.descriptor.configuration?.search?.scope,
+    scope,
+    "Syft scope differs",
+  );
+  assert.equal(
+    scan.descriptor?.configuration?.search?.scope,
+    scope,
+    "Grype scope differs",
+  );
   assert.equal(
     sbom.descriptor.version,
     pins.syft.version,
@@ -117,6 +132,26 @@ export function validateImageReports({
     "Scan manifest differs from SBOM",
   );
   const { findings, db } = validateScan(scan, packageIds, pins, now);
+  if (scope === "all-layers") {
+    const layers = new Set(inspection.RootFS.Layers);
+    for (const file of sbom.files ?? [])
+      assert(
+        file.id && layers.has(file.location?.layerID),
+        "File layer attribution missing or invalid",
+      );
+    for (const p of sbom.artifacts) {
+      assert(p.locations?.length > 0, "Package layer attribution missing");
+      for (const location of p.locations)
+        assert(
+          layers.has(location.layerID),
+          "Package belongs to an unknown layer",
+        );
+    }
+    for (const finding of findings) {
+      const p = sbom.artifacts.find((p) => p.id === finding.packageId);
+      finding.locations = p.locations;
+    }
+  }
   const licenseReview = sbom.artifacts
     .filter(
       (p) =>
@@ -142,6 +177,8 @@ export function validateImageReports({
           f.location.path === "/srv/THIRD_PARTY_NOTICES.txt"),
     )
     .map((f) => ({
+      fileId: f.id,
+      layerID: f.location.layerID,
       path: f.location.path,
       sha256: hash(Buffer.from(f.contents, "base64")),
       contents: f.contents,
@@ -150,6 +187,7 @@ export function validateImageReports({
   return {
     imageId: inspection.Id,
     imageConfigId: source.imageID,
+    scope,
     packages: sbom.artifacts.length,
     findings,
     licenseReview,
@@ -254,6 +292,72 @@ export function requireCompleteTargets(images) {
   );
 }
 
+export function validateRuntimeTooling(target, sbom, policy) {
+  assert(customerTargets.includes(target), "Unknown customer target");
+  const nodeTargets = ["api", "worker", "operations"];
+  if (!nodeTargets.includes(target)) return;
+  assert(
+    /^\d+\.\d+\.\d+$/.test(policy.nodeVersion ?? ""),
+    "Pinned Node version missing",
+  );
+  assert(
+    /^[a-f0-9]{64}$/.test(policy.nodeNoticeSha256 ?? ""),
+    "Pinned Node notice digest missing",
+  );
+  assert.deepEqual(
+    Object.keys(policy.nodeNoticePaths ?? {}).sort(),
+    [...nodeTargets].sort(),
+    "Required runtime policy targets missing",
+  );
+  for (const path of Object.values(policy.nodeNoticePaths))
+    assert(
+      typeof path === "string" &&
+        path.startsWith("/") &&
+        !path.includes("..") &&
+        !path.includes("\\"),
+      "Required runtime notice path missing",
+    );
+  const noticePath = policy.nodeNoticePaths[target];
+  const nodes = sbom.artifacts.filter(
+    (p) => p.type === "binary" && p.name === "node",
+  );
+  assert(
+    nodes.length > 0 && nodes.every((p) => p.version === policy.nodeVersion),
+    "Expected Node binary/version absent",
+  );
+  const notices = sbom.files.filter((f) => f.location.path === noticePath);
+  assert(notices.length > 0, "Original bundled Node notice missing");
+  for (const notice of notices)
+    assert.equal(
+      hash(Buffer.from(notice.contents ?? "", "base64")),
+      policy.nodeNoticeSha256,
+      "Original bundled Node notice differs",
+    );
+  const tools = new Set([
+    "npm",
+    "npx",
+    "yarn",
+    "yarnpkg",
+    "pnpm",
+    "pnpx",
+    "corepack",
+  ]);
+  for (const p of sbom.artifacts)
+    assert(
+      !(p.type === "npm" && tools.has(p.name)),
+      "Build package manager remains in customer image: " + p.name,
+    );
+  for (const f of sbom.files) {
+    const path = f.location.path;
+    assert(
+      !/^\/usr\/local\/lib\/node_modules(?:\/|$)/.test(path) &&
+        !/^\/opt\/yarn(?:-|\/|$)/.test(path) &&
+        !(/^\/usr\/local\/bin\//.test(path) && tools.has(posix.basename(path))),
+      "Package manager payload or command remains in customer image: " + path,
+    );
+  }
+}
+
 export function reconcileApplicationPackages(packages, expected, locked) {
   assert(
     expected.packages?.length > 0,
@@ -352,6 +456,7 @@ export function assertReleaseReady(report) {
 }
 
 export function verifyEvidenceFiles(directory, report) {
+  assert.equal(report.schemaVersion, 2, "Dual-scope evidence schema required");
   assert.equal(report.status, "complete", "Distribution evidence incomplete");
   requireCompleteTargets(report.images);
   assert(
@@ -359,6 +464,7 @@ export function verifyEvidenceFiles(directory, report) {
     "Evidence file manifest missing",
   );
   const required = [
+    "runtime-policy.json",
     "pnpm-lock.yaml",
     "lock-inventory.json",
     "production-acceptance.json",
@@ -375,8 +481,26 @@ export function verifyEvidenceFiles(directory, report) {
       ".grype.json",
       ".notices.json",
       ".review.json",
+      ".layers.syft.json",
+      ".layers.spdx.json",
+      ".layers.grype.json",
+      ".layers.notices.json",
+      ".layers.review.json",
     ])
       required.push(target + suffix);
+  for (const entry of Object.values(report.images)) {
+    assert.equal(entry.scope, "squashed", "Runtime evidence scope absent");
+    assert.equal(
+      entry.allLayers?.scope,
+      "all-layers",
+      "Distributed layer evidence absent",
+    );
+    assert.equal(
+      entry.allLayers.imageId,
+      entry.imageId,
+      "Distributed layer image differs",
+    );
+  }
   for (const name of required)
     assert(
       Object.hasOwn(report.files, name),

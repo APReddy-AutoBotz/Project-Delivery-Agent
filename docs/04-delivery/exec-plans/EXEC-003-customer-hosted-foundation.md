@@ -5,7 +5,7 @@ Owner: Implementation controller
 Requirement IDs: TR-STACK-001, TR-STACK-002, TR-STACK-004, TR-DEP-001, TR-DEP-003, TR-AUTH-001, TR-AUTH-002, TR-AUTH-003, FR-ADM-001, FR-ADM-002, FR-ADM-003, NFR-SEC-001, NFR-SEC-003, NFR-SEC-004, NFR-SEC-005, NFR-SEC-010, NFR-MNT-004, NFR-MNT-005, NFR-PORT-001, NFR-PORT-002, NFR-PORT-004
 GitHub issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
 Target release: R0
-Last updated: 2026-09-06
+Last updated: 2026-09-07
 
 ## Objective
 
@@ -29,8 +29,8 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `27bc174` contains the reviewed production boundary, executable foundation
-contracts, release operations and customer composition acceptance. STORY-001/002/003
+Main `438cc13` contains the reviewed production boundary, executable foundation
+contracts, release operations, customer composition acceptance and distribution evidence collector. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
 findings were resolved in PR #16.
@@ -105,6 +105,21 @@ are verified. Revert code through review; restore backups into a separate target
 with outbound disabled and the separately retained encryption key.
 
 ## Progress log
+
+- 2026-09-07: Start runtime distribution hardening from `438cc13`. PR #24's
+  exact reviewed tree passed all checks, collected 37 verified files for five
+  images and eight browser components; main CI also passed (34052815887/34052815843).
+  The observed npm closure contains 18 scanner matches per API/worker image,
+  including one Critical and seven High matches; this is not exploit validation.
+  Remove unused package managers in a preparation stage and copy its clean
+  filesystem into a fresh image graph, preserving Node configuration and original
+  notices. Copy Node's original bundled notice beside the operations binary.
+  Keep runtime reconciliation on squashed reports and add separate all-layer
+  SBOM/SPDX/scans with file/layer attribution, scope-denial tests and tooling
+  absence checks. Compare exact accepted images and retain legal, vulnerability,
+  complete attribution and signing blockers. Root owns edits/Git; independent
+  review and complete packaged CI are required. No OS/base pin, Node version,
+  database schema, permission policy, connector scope or release approval changes.
 
 - 2026-09-06: Start STORY-004 evidence increment from main `4ae6986` on
   `feature/distribution-evidence`. ADR-014 defines checksum-pinned SBOM/scanning

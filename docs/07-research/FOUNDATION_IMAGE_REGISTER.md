@@ -53,3 +53,24 @@ the reviewed SQL migration set and excludes Prisma CLI/Studio. Complete OS and
 transitive distribution review still applies to this additional target.
 
 The next evidence collector is described in [DISTRIBUTION_EVIDENCE_VALIDATION.md](../05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md). It binds native/SPDX SBOMs, complete scanner findings, observed notice bytes and browser bundle records to accepted immutable images. Evidence collection does not close the distribution gates above.
+
+## Runtime package-manager removal and Node attribution
+
+The 2026-09-07 increment retains the exact image pins above. API/worker copy the
+prepared Node filesystem into a fresh layer graph after removing unused npm,
+Corepack and Yarn payloads and command links. The build and acceptance stages
+retain their development tools. Both runtime and all-layer scans enforce the
+customer tooling boundary; the full customer acceptance suite remains required.
+
+Node's original `/usr/local/LICENSE` is preserved in API/worker and copied to
+`/usr/local/share/doc/node/LICENSE` in operations. Its 157606 bytes and SHA-256
+`148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5` match the
+[publisher's v24.19.0 source notice](https://raw.githubusercontent.com/nodejs/node/cdc1b38d40cb567b7ad0b39c86addf830a0af0ae/LICENSE).
+The machine-readable runtime policy enforces this hash and version. Preserving
+the complete notice does not certify complete binary component reconciliation or
+resolve the separate OS/transitive legal review.
+
+PR #24's reported npm closure matches include [undici](https://github.com/nodejs/undici/security/advisories/GHSA-vxpw-j846-p89q)
+and [node-tar](https://github.com/isaacs/node-tar/security/advisories/GHSA-r292-9mhp-454m).
+Removing unused package-manager copies narrows the shipped inventory; Node's
+own embedded libraries and all remaining scanner matches stay subject to review.
