@@ -108,21 +108,33 @@ tests:
   evidence: []
 - id: DEP-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-DEP-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The documented OCI container composition starts web/API, worker and PostgreSQL and passes readiness
     checks without a mandatory vendor-operated service or control plane.
-  evidence: []
+  evidence:
+  - scripts/test-production.mjs
+  - scripts/acceptance/customer-host.mjs
+  - scripts/acceptance/customer.mjs
+  - deploy/customer/compose.yaml
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/CUSTOMER_COMPOSITION_VALIDATION.md
 - id: DEP-002
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-DEP-002
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The same application can connect to a supported external PostgreSQL instance without product-code changes.
-  evidence: []
+  evidence:
+  - scripts/test-production.mjs
+  - scripts/acceptance/customer-host.mjs
+  - scripts/acceptance/customer.mjs
+  - deploy/customer/compose.yaml
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/CUSTOMER_COMPOSITION_VALIDATION.md
 - id: DEP-003
   release: R1
   status: planned
@@ -1143,13 +1155,22 @@ tests:
   evidence: []
 - id: SEC-TLS-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-SEC-002
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The customer deployment terminates browser TLS at approved ingress and verifies external certificate
     chains; invalid certificates fail closed. Local loopback HTTP is documented as synthetic-development-only.
-  evidence: []
+  evidence:
+  - scripts/test-production.mjs
+  - scripts/acceptance/customer-host.mjs
+  - scripts/acceptance/customer.mjs
+  - deploy/customer/compose.yaml
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/CUSTOMER_COMPOSITION_VALIDATION.md
+  - scripts/acceptance/run.mjs
+  - tests/production-config.test.ts
+  - docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md
 - id: SEC-UPD-003
   release: R1
   status: planned

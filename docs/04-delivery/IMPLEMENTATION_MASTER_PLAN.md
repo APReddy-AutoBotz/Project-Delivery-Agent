@@ -1,7 +1,7 @@
 # Release 1 Implementation Master Plan
 
 Status: Approved and merged through PR #3 on 2026-09-06; foundation increments
-merged through PR #18. STORY-001/002 accepted; remaining stories and release gated.
+merged through PR #22. STORY-001/002/003 accepted; remaining stories and release gated.
 Owner: Implementation controller
 Baseline: `5f37c657293e41627b4e8fe1caf93c52b50bce17`
 
@@ -19,7 +19,8 @@ local work proceeded with synthetic data under the user's implementation
 instruction. Publication is now complete; real sources, messaging, writes and
 product acceptance retain their own security and release gates. STORY-001/002
 are accepted after PR #18's complete contract evidence, independent review,
-passing checks and merge. STORY-003/004/005 remain in progress.
+passing checks and merge. STORY-003 is accepted after PR #22 direct customer
+composition/TLS/external-database evidence; STORY-004/005 remain in progress.
 See IMPLEMENTATION_STATUS.md and PUBLICATION_RECORD.md.
 
 ## Approved product scope

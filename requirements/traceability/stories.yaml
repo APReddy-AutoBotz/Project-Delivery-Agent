@@ -65,15 +65,19 @@ stories:
   - AC-DEP-001
   - AC-SEC-002
   - AC-DEP-002
-  status: in_progress
+  status: accepted
   release: R0
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
   pull_requests:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/20
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/22
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
   - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md
+  - docs/05-quality/FOUNDATION_OPERATIONS_VALIDATION.md
+  - docs/05-quality/CUSTOMER_COMPOSITION_VALIDATION.md
 - id: STORY-004
   epic: EPIC-01
   title: Establish CI and documentation validation

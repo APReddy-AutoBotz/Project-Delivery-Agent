@@ -191,3 +191,47 @@ was bypassed. Issue #5 remains open. STORY-003 customer composition acceptance,
 STORY-004 distribution and STORY-005 identity gates remain; R0 is 2/5 (40%) and
 R1 is 0/33 (0%). Branch `docs/foundation-operations-evidence` reconciles these
 observed results without changing application behavior or accepting a release.
+
+## Customer composition and STORY-003 acceptance, 2026-09-06
+
+[PR #22](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/22) merged
+independently reviewed `c669e950312025df10e7c1bed591d41d176a8a5c` as
+`27bc174a0ba59553f60a26d53a3cec37c2de8873` at 2026-09-06T17:03:34Z.
+[Application/production CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34046645663)
+and [documentation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34046645695)
+passed. Evidence run `pdaa-acceptance-1788713340023-00402c5c` completed after all
+teardown at 2026-09-06T17:02:06.999Z, with 13 packaged groups and both complete
+customer profiles. Its clean source `775f8329d89e1cbbce597c57bd9e7417d9ed4d1e`
+and reviewed candidate share tree `ee569146f85b774c6c0d142204c6e099015cdb6c`.
+The saved artifact is `artifacts/pr-22-c669e95/production-acceptance.json`; the CI
+run retains `production-boundary-evidence` with five immutable image IDs and
+`distributionAccepted: false`. Both customer profiles used identical application IDs.
+
+Native CI passes 33 unit tests, nine database/API tests and seven browser workflows
+(49 native), seven builds, lint, typecheck, architecture/contracts/dependency gates,
+audit, migration and recovery. Documentation validation and 13 validator regressions
+pass. Review corrected a heartbeat cutoff taken before shutdown: the accepted test
+requires a new heartbeat after replacement-runtime verification begins.
+
+DEP-001/002 now have complete direct composition evidence. SEC-TLS-001 combines
+these shipped-ingress positive paths with the same run's browser hostname denial,
+wrong CA/hostname/plaintext database denials, migration TLS and untrusted JWKS-host
+denial, plus the documented synthetic-only loopback HTTP boundary. The controller
+accepts STORY-003 and AC-DEP-001/002 / AC-SEC-002 under delegated authority after
+review, matching checks and merge. R0 is 3/5 (60%); R1 remains 0/33 (0%). Issue #5,
+STORY-004/005 and customer/commercial release remain open.
+
+The local packaged build failed before starting acceptance containers because its
+host drive filled and Docker reported an I/O error. That run is failed evidence;
+CI supplies the successful immutable verification. Cache cleanup recovered 333 MB
+without removing databases. Docker restart timed out and local database readiness
+remains unavailable; local data integrity must be checked after the host recovers.
+This host incident does not replace or invalidate the independent CI result.
+
+Files changed span additive acceptance fixtures, host/container test scripts,
+operator runbook and validation/ExecPlan records. No business schema, runtime
+permission, dependency or connector scope changed. Branch
+`docs/customer-composition-acceptance` records the accepted evidence through
+independent review and required checks. Revert tests/docs for code rollback;
+operational recovery retains reviewed images and matching backups in fresh
+quarantined targets with separately held keys.
