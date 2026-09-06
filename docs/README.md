@@ -2,7 +2,7 @@
 
 This directory is the authoritative human-readable baseline for the Project Delivery Assurance Agent.
 
-**Baseline:** v0.1 Approved candidate (effective after Issue #1 review PR merge)  
+**Baseline:** v0.1 Approved candidate (effective after Issue #1 review PR merge)
 **Product:** Project Delivery Assurance Agent  
 **Approval authority:** Product Owner
 

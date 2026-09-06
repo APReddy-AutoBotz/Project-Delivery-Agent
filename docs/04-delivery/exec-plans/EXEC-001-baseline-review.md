@@ -89,5 +89,5 @@ In progress; Issue #1 remains open.
 ## Candidate validation update
 
 - All nine specialist perspectives complete; findings/corrections recorded in ASTRA_BASELINE_REVIEW.md.
-- Corrected catalogs: 245 requirements, 90 criteria, 38 stories, 132 explicitly planned tests; no R1 Must direct acceptance gaps.
-- Twelve validator regression tests pass; candidate validation and exact-commit independent review/remote checks follow before merge.
+- Corrected catalogs: 245 requirements, 91 criteria, 38 stories, 135 explicitly planned tests; no R1 Must direct acceptance gaps.
+- Thirteen validator regression tests pass; candidate validation and exact-commit independent review/remote checks follow before merge.

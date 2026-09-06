@@ -9,7 +9,7 @@
 
 **Working product name:** Project Delivery Agent  
 **Product category:** Agentic Digital PMO / Project Delivery Assurance  
-**Repository baseline:** v0.1 Approved candidate (effective after Issue #1 review PR merge)  
+**Repository baseline:** v0.1 Approved candidate (effective after Issue #1 review PR merge)
 **Baseline date:** 5 September 2026
 
 ## Why this product exists

@@ -1,6 +1,7 @@
 """Negative regression cases for the implementation approval gate."""
 import copy
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from validate_documentation import validate
 
@@ -64,6 +65,11 @@ class ApprovalGateTests(unittest.TestCase):
     def test_missing_source_document_fails(self):
         self.req['requirements'][0]['source_doc'] = 'missing.md'
         self.assertTrue(any('missing or ambiguous source document' in e for e in self.errors()))
+
+    def test_missing_mandatory_baseline_file_fails(self):
+        original = Path.is_file
+        with patch.object(Path, 'is_file', lambda p: False if p.name == 'AGENTS.md' else original(p)):
+            self.assertTrue(any('Missing mandatory baseline file: AGENTS.md' in e for e in self.errors()))
 
     def test_cyclic_ancestry_fails(self):
         self.req['requirements'][0]['parent'] = 'R-1'

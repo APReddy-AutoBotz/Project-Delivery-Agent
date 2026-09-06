@@ -655,6 +655,14 @@ tests:
     semantic match cannot replace authoritative structured dates/status. Multi-project aggregation is deferred and
     inaccessible project names or evidence are never disclosed.
   evidence: []
+- id: GOLDEN-009
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-APP-005
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: If Jira changes between approval and execution, execution stops and a new diff is required.
+  evidence: []
 - id: GOLDEN-010
   release: R1
   status: planned
@@ -664,6 +672,15 @@ tests:
   behavior: The same validated extraction/claim contract runs through mock and approved alternate provider adapters
     without domain changes. Invalid schema/timeouts preserve responses for manual structuring. Pin and record provider/prompt/schema
     versions; deterministic CI fixtures require no live keys.
+  evidence: []
+- id: GOLDEN-012
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADV-003
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: The same underlying concern is expressed as an operational action for the PM and as a decision/intervention
+    need for leadership.
   evidence: []
 - id: GOLDEN-013
   release: R1
@@ -1046,6 +1063,17 @@ tests:
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A user without access to the source project cannot open or retrieve its evidence, even through a copied
     evidence URL.
+  evidence: []
+- id: SEC-OUTBOUND-003
+  release: R0
+  status: planned
+  acceptance_criteria:
+  - AC-SEC-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The shared dispatcher defaults to shadow mode and blocks every external action unless an explicit current
+    policy permits it. Invalid configuration and production development identity fail closed; callers cannot bypass
+    the guard through a model tool. Foundation denial tests use a recording adapter and prove zero dispatches while
+    blocked.
   evidence: []
 - id: SEC-PRV-001
   release: R1

@@ -11,6 +11,17 @@ except ImportError as exc:
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTERNAL_REFS = {'OPEN_SOURCE_POLICY'}
+REQUIRED_FILES = (
+    'README.md', 'AGENTS.md', 'PLANS.md', 'CONTRIBUTING.md', 'OPEN_SOURCE_POLICY.md',
+    'SECURITY.md', 'docs/README.md', 'docs/00-governance/DOCUMENT_INDEX.md',
+    'docs/00-governance/DOCUMENT_CONTROL.md', 'docs/01-business-product/BRD.md',
+    'docs/01-business-product/PRD.md', 'docs/02-requirements/FRD.md',
+    'docs/02-requirements/NFR.md', 'docs/02-requirements/TRD.md',
+    'docs/03-architecture/SOLUTION_ARCHITECTURE.md',
+    'docs/04-delivery/RELEASE-1-VERTICAL-SLICE.md',
+    'docs/05-quality/DEFINITION_OF_DONE.md',
+    'docs/07-research/OPEN_SOURCE_ADOPTION_REGISTER.md',
+)
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -84,6 +95,10 @@ def validate(req_doc: dict[str, Any], trace: dict[str, Any], root: Path) -> tupl
             return False
         path = (root / value).resolve()
         return path.is_relative_to(root.resolve()) and path.is_file()
+
+    for file in REQUIRED_FILES:
+        if not existing_file(file):
+            errors.append(f'Missing mandatory baseline file: {file}')
 
     statuses = {'draft', 'reviewed', 'approved'}
     baseline = req_doc.get('baseline_status')

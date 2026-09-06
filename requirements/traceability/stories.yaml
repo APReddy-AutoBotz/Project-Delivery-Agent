@@ -82,11 +82,14 @@ stories:
   - NFR-SEC-004
   - NFR-SEC-005
   - TR-DEP-003
+  - FR-APP-010
+  - FR-ADM-009
   acceptance_criteria:
   - AC-ADM-001
   - AC-AUTH-001
   - AC-AUTH-002
   - AC-SEC-001
+  - AC-SEC-003
   status: planned
   release: R0
 - id: STORY-006
@@ -639,7 +642,8 @@ stories:
 - id: STORY-035
   epic: EPIC-10
   title: Implement shadow mode
-  description: Suppress all configured external side effects while retaining proposals and logs.
+  description: Verify and extend the foundation outbound guard with global, connector and action-class shadow administration
+    and full workflow tests.
   priority: P0
   requirements:
   - FR-APP-010

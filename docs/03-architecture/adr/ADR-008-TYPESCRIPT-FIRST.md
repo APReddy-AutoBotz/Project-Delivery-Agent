@@ -1,6 +1,6 @@
 # ADR-008: TypeScript-First Product
 
-Status: Accepted  
+Status: Accepted
 Date: 2026-09-05
 
 ## Context

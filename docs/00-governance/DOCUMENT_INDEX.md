@@ -1,6 +1,6 @@
 # Documentation Index
 
-**Baseline:** v0.1 Approved candidate (effective after Issue #1 review PR merge)  
+**Baseline:** v0.1 Approved candidate (effective after Issue #1 review PR merge)
 **Baseline date:** 2026-09-05  
 **Product:** Project Delivery Assurance Agent  
 **Approval authority:** Product Owner

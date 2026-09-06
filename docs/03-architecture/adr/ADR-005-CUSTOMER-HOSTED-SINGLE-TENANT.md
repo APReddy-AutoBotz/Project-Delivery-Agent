@@ -1,6 +1,6 @@
 # ADR-005: Customer-Hosted, Single-Tenant First
 
-Status: Accepted  
+Status: Accepted
 Date: 2026-09-05
 
 ## Context

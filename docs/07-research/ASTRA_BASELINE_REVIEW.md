@@ -31,10 +31,10 @@ the existing pinned PyYAML 6.0.2 installed locally, unchanged baseline validatio
 exited 0: `Validated 245 requirements, 67 acceptance criteria and 38 stories.`
 It warned that 87 R1 Must requirements lacked direct acceptance criteria.
 
-Corrected catalogs contain 245 requirements, 90 acceptance criteria, 38 stories
-and 132 planned test specifications, with no R1 Must direct-coverage gap. The
+Corrected catalogs contain 245 requirements, 91 acceptance criteria, 38 stories
+and 135 planned test specifications, with no R1 Must direct-coverage gap. The
 validator now checks approved status, source files, ancestry, test references,
-bidirectional ownership and each story's own requirement coverage. Twelve
+bidirectional ownership and each story's own requirement coverage. Thirteen
 negative/positive validator regression tests pass. Remote review/check evidence
 must be recorded on the PR for its final SHA, rather than inferred from this text.
 
@@ -72,8 +72,8 @@ behavior must still pass the linked acceptance tests during implementation.
 | ASTRA-010 | P1 | DEPLOYMENT_AND_OPERATIONS; TR-DEP-004; NFR-REL-001 | Restoring an old backup can replay a Jira action whose receipt occurred after backup. | Start outbound-disabled, reconcile remote markers, suppress completed actions and review uncertain cases. | Yes | Operations | Resolved in restore quarantine, AC-DEP-003 and FAIL-026. |
 | ASTRA-011 | P1 | RBAC_AND_PERMISSIONS; FR-UPD-004/006/008 | PM/lead owner has read-only response permission and cannot satisfy their assigned request. | Request-scoped submit/correct capability for authorized owner/delegate, independent of broad role. | Yes | Product / security | Resolved in permission matrix and AC-UPD-009. |
 | ASTRA-012 | P1 | PRD; FRD; scope; roadmap; OD-003/006/007/008 | R1 differs on write fields, Q&A scope, PowerPoint, calendar and contradiction rules. | Comment-only writes, one-project Q&A, required editable PPT, weekday/quiet-hour cadence and two deterministic contradictions; advanced features deferred. | Yes | Product / architecture | Resolved across catalogs, prose, use cases, golden scenarios and ADR-010. |
-| ASTRA-013 | P1 | Requirements/traceability; all R1 Must; STORY-001..038 | 87 Must requirements lack direct criteria; ten P0 criteria have no story owner; recovery tests are outside structured gates. | Add coherent behavioral criteria, story ownership and explicit planned-test inventory including all 28 recovery scenarios. | Yes | BA / QA | Resolved: 90 criteria, 132 test specifications, zero direct Must gaps. No product test claimed executed. |
-| ASTRA-014 | P1 | validate_documentation.py; NFR-MNT-004 | Validator allows approved coverage gaps and ignores missing tests, source files and mismatched story coverage. | Enforce approval-sensitive checks and regression cases. | Yes | QA / tooling | Resolved with 12 validator tests and CI invocation. |
+| ASTRA-013 | P1 | Requirements/traceability; all R1 Must; STORY-001..038 | 87 Must requirements lack direct criteria; ten P0 criteria have no story owner; recovery tests are outside structured gates. | Add coherent behavioral criteria, story ownership and explicit planned-test inventory including all 28 recovery scenarios. | Yes | BA / QA | Resolved: 91 criteria, 135 test specifications, zero direct Must gaps. No product test claimed executed. |
+| ASTRA-014 | P1 | validate_documentation.py; NFR-MNT-004 | Validator allows approved coverage gaps and ignores missing tests, source files and mismatched story coverage. | Enforce approval-sensitive checks and regression cases. | Yes | QA / tooling | Resolved with 13 validator tests and CI invocation. |
 | ASTRA-015 | P2 | AC-UPD-005; GOLDEN-005/006/011 | Ambiguous reply maps to wrong scenario; later-release scenario can distort R1 denominator. | Map GOLDEN-006, register eligible tests and exclude later GOLDEN-011. | No | AI QA | Resolved in traceability and test strategy. |
 | ASTRA-016 | P2 | BR-001/002/003/012; PR-015; pilot metrics | Pilot value lacks explicit measurement ownership/windows/denominators. | Define aggregate calculation fixtures and customer-agreed observation evidence. | No | Product / PMO | Resolved in AC-PIL-001 and pilot metrics; commercial improvement remains unproven until a pilot. |
 
@@ -108,3 +108,18 @@ unmeasured confidence and are intentionally not used.
 Merge the reviewed baseline, complete Issue #1 with evidence, merge the R0/R1
 master plan and grouped implementation issues, then implement EPIC-01 in a focused
 branch with meaningful API, database, identity and browser validation.
+
+## Separate candidate review dispositions
+
+Non-author `review_baseline_candidate` reviewed base affdbae through candidate
+26cadc6bb8daf27a7b4b1bf777335895b41a85c7 and requested three corrections:
+
+1. Foundation outbound guard ownership: added AC-SEC-003 to STORY-005; STORY-035 verifies/extends that existing control.
+2. Missing eligible golden tests: registered GOLDEN-009 and GOLDEN-012 against source-change and role-advice criteria.
+3. Mandatory baseline files: restored checks and added a negative regression case.
+
+All three are corrected in this candidate. The changed commit requires reviewer
+confirmation before merge. Final totals are 245 requirements, 91 criteria,
+38 stories and 135 planned test specifications; 13 validator tests pass.
+Public publishing is separately pending explicit user approval after automatic
+approval review rejected the push to the public repository. No PR/merge is claimed.

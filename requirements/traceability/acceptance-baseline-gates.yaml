@@ -330,3 +330,16 @@ acceptance_criteria:
   priority: P0
   tests:
   - DEP-CONTROL-001
+- id: AC-SEC-003
+  title: Foundation outbound action guard
+  criterion: The shared dispatcher defaults to shadow mode and blocks every external action unless an explicit current
+    policy permits it. Invalid configuration and production development identity fail closed; callers cannot bypass
+    the guard through a model tool. Foundation denial tests use a recording adapter and prove zero dispatches while
+    blocked.
+  requirements:
+  - FR-APP-010
+  - FR-ADM-009
+  - NFR-SEC-001
+  priority: P0
+  tests:
+  - SEC-OUTBOUND-003

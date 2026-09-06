@@ -114,6 +114,7 @@ acceptance_criteria:
   priority: P0
   tests:
   - AI-ADV-003
+  - GOLDEN-012
 - id: AC-ADV-004
   title: No unsupported blame
   criterion: The recommendation does not label a person as underperforming or personally at fault based only on
@@ -179,6 +180,7 @@ acceptance_criteria:
   priority: P0
   tests:
   - INT-APP-005
+  - GOLDEN-009
 - id: AC-APP-006
   title: Shadow mode prevents side effect
   criterion: Global, connector and action-class shadow controls suppress every affected outbound message/write while
