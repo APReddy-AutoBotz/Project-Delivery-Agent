@@ -1,10 +1,8 @@
 name: Foundation validation
 on:
   pull_request:
-    paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**', '*.json', '*.yaml', '*.ts', '*.mjs', '.github/workflows/foundation-validation.yml']
   push:
     branches: [main]
-    paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**', '*.json', '*.yaml', '*.ts', '*.mjs', '.github/workflows/foundation-validation.yml']
 permissions:
   contents: read
 jobs:
@@ -24,6 +22,7 @@ jobs:
       - run: docker compose up -d --wait
       - run: pnpm build
       - run: pnpm lint && pnpm typecheck && pnpm test
+      - run: node scripts/check-dependencies.mjs
       - run: pnpm audit --audit-level high
       - run: pnpm db:migrate && pnpm db:seed
       - run: pnpm test:integration
@@ -37,3 +36,19 @@ jobs:
           pnpm test:e2e
       - if: always()
         run: docker compose down
+  production-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Isolated production TLS, OIDC and packaged runtime acceptance
+        run: node scripts/test-production.mjs
+      - name: Publish successful acceptance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-boundary-evidence
+          path: artifacts/production-acceptance.json
+          if-no-files-found: error

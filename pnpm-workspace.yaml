@@ -11,3 +11,9 @@ allowBuilds:
   'prisma@7.10.0': true
 minimumReleaseAgeExclude:
   - jose@6.2.12
+
+autoInstallPeers: false
+resolvePeersFromWorkspaceRoot: false
+injectWorkspacePackages: true
+syncInjectedDepsAfterScripts:
+  - build

@@ -130,6 +130,22 @@
       "replacementPath": "Replace behind first-party module boundary"
     },
     {
+      "name": "@tailwindcss/vite",
+      "version": "4.3.3",
+      "runtime": false,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "MIT",
+      "repository": "https://github.com/tailwindlabs/tailwindcss.git",
+      "source": "https://registry.npmjs.org/%40tailwindcss%2Fvite/4.3.3",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
       "name": "@tanstack/react-query",
       "version": "5.102.8",
       "runtime": true,
@@ -166,6 +182,7 @@
       "version": "8.23.1",
       "runtime": false,
       "consumers": [
+        "@pdaa/worker",
         "@pdaa/data"
       ],
       "license": "MIT",
@@ -292,6 +309,22 @@
       "replacementPath": "Replace behind first-party module boundary"
     },
     {
+      "name": "js-yaml",
+      "version": "5.3.0",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/nodeca/js-yaml.git",
+      "source": "https://registry.npmjs.org/js-yaml/5.3.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
       "name": "mysql2",
       "version": "3.23.1",
       "reason": "Prisma CLI optional database tooling: GHSA-3f6p-5ww8-9rcr and GHSA-rgwj-5xj2-c3m3",
@@ -329,6 +362,7 @@
       "version": "8.23.0",
       "runtime": true,
       "consumers": [
+        "@pdaa/worker",
         "@pdaa/data"
       ],
       "license": "MIT",
@@ -361,7 +395,7 @@
       "version": "7.10.0",
       "runtime": false,
       "consumers": [
-        "@pdaa/data"
+        "project-delivery-assurance-agent"
       ],
       "license": "Apache-2.0",
       "repository": "https://github.com/prisma/prisma.git",
@@ -435,6 +469,22 @@
       "approvedBy": "Delegated architecture review; permissive published package",
       "reviewDate": "2026-09-06",
       "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "tailwindcss",
+      "version": "4.3.3",
+      "runtime": false,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "MIT",
+      "repository": "https://github.com/tailwindlabs/tailwindcss.git",
+      "source": "https://registry.npmjs.org/tailwindcss/4.3.3",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
     },
     {
       "name": "typescript",

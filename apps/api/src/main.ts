@@ -3,7 +3,7 @@ import { loadConfig, operationalLog } from "@pdaa/platform";
 import { createApp } from "./app.js";
 try {
   const config = loadConfig(process.env);
-  const db = createDatabase(config.PDAA_DATABASE_URL);
+  const db = createDatabase(config.database);
   const { app } = await createApp(config, new DatabaseProjectRepository(db));
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

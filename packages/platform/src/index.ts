@@ -7,85 +7,16 @@ import {
 } from "jose";
 import { z } from "zod";
 import { roleSchema, type Actor, type Role } from "@pdaa/domain";
-import { assertSyntheticDatabaseUrl } from "./database-target.js";
+import type { Config } from "./config.js";
+export {
+  loadConfig,
+  loadDatabaseConfig,
+  readSecretFile,
+  migrationDatabaseUrl,
+  type Config,
+  type DatabaseTransport,
+} from "./config.js";
 export { assertSyntheticDatabaseUrl } from "./database-target.js";
-
-const schema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
-  AUTH_MODE: z.enum(["oidc", "development"]).default("oidc"),
-  DATA_MODE: z.enum(["synthetic", "customer"]).default("customer"),
-  CUSTOMER_ID: z.uuid(),
-  PDAA_DATABASE_URL: z.string().min(1),
-  API_PORT: z.coerce.number().int().min(0).max(65535).default(3001),
-  API_HOST: z.string().default("127.0.0.1"),
-  APP_ORIGIN: z.url().default("http://localhost:5173"),
-  ENCRYPTION_KEY: z.string().regex(/^[A-Za-z0-9+/]{43}=$/),
-  SESSION_SECRET: z.string().min(43),
-  SHADOW_MODE: z.enum(["true", "false"]).default("true"),
-  OIDC_ISSUER: z.url().optional(),
-  OIDC_JWKS_URI: z.url().optional(),
-  OIDC_AUDIENCE: z.string().min(1).optional(),
-  OIDC_CLIENT_ID: z.string().min(1).optional(),
-  OIDC_GROUP_ROLE_MAP: z.string().default("{}"),
-});
-export type Config = z.infer<typeof schema> & {
-  groupRoles: Record<string, Role[]>;
-};
-export function loadConfig(env: NodeJS.ProcessEnv): Config {
-  const parsed = schema.safeParse(env);
-  if (!parsed.success)
-    throw new Error(
-      "Invalid configuration keys: " +
-        [...new Set(parsed.error.issues.map((i) => i.path.join(".")))].join(
-          ", ",
-        ),
-    );
-  const c = parsed.data;
-  let database: URL;
-  try {
-    database = new URL(c.PDAA_DATABASE_URL);
-  } catch {
-    throw new Error("Invalid database configuration");
-  }
-  if (!["postgres:", "postgresql:"].includes(database.protocol))
-    throw new Error("Database requires PostgreSQL");
-  if (c.DATA_MODE === "synthetic")
-    assertSyntheticDatabaseUrl(c.PDAA_DATABASE_URL);
-  if (Buffer.from(c.ENCRYPTION_KEY, "base64").length !== 32)
-    throw new Error("Invalid encryption key");
-  if (
-    c.AUTH_MODE === "development" &&
-    (c.NODE_ENV === "production" || c.DATA_MODE !== "synthetic")
-  )
-    throw new Error(
-      "Development identity requires non-production synthetic data",
-    );
-  if (
-    c.AUTH_MODE === "oidc" &&
-    (!c.OIDC_ISSUER ||
-      !c.OIDC_JWKS_URI ||
-      !c.OIDC_AUDIENCE ||
-      !c.OIDC_CLIENT_ID)
-  )
-    throw new Error("OIDC configuration is incomplete");
-  for (const url of [c.OIDC_ISSUER, c.OIDC_JWKS_URI])
-    if (url && new URL(url).protocol !== "https:")
-      throw new Error("OIDC endpoints require HTTPS");
-  if (
-    c.NODE_ENV === "production" &&
-    new URL(c.APP_ORIGIN).protocol !== "https:"
-  )
-    throw new Error("Production origin requires HTTPS");
-  let groupRoles: Record<string, Role[]>;
-  try {
-    groupRoles = z
-      .record(z.string(), z.array(roleSchema))
-      .parse(JSON.parse(c.OIDC_GROUP_ROLE_MAP));
-  } catch {
-    throw new Error("Invalid OIDC group-role mapping");
-  }
-  return { ...c, groupRoles };
-}
 
 export class IdentityService {
   private readonly key: Uint8Array;
@@ -94,7 +25,7 @@ export class IdentityService {
     private readonly config: Config,
     verificationKey?: JWTVerifyGetKey,
   ) {
-    this.key = new TextEncoder().encode(config.SESSION_SECRET);
+    this.key = new TextEncoder().encode(config.SESSION_SECRET ?? "");
     this.jwks =
       verificationKey ??
       (config.OIDC_JWKS_URI

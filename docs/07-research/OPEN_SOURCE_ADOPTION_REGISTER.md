@@ -65,6 +65,7 @@ Exact direct dependencies verified against publisher metadata on 2026-09-06. Run
 | [@playwright/test](https://registry.npmjs.org/%40playwright%2Ftest/1.63.0) | 1.63.0 | Apache-2.0 | Development |
 | [@prisma/adapter-pg](https://registry.npmjs.org/%40prisma%2Fadapter-pg/7.10.0) | 7.10.0 | Apache-2.0 | Runtime |
 | [@prisma/client](https://registry.npmjs.org/%40prisma%2Fclient/7.10.0) | 7.10.0 | Apache-2.0 | Runtime |
+| [@tailwindcss/vite](https://registry.npmjs.org/%40tailwindcss%2Fvite/4.3.3) | 4.3.3 | MIT | Development |
 | [@tanstack/react-query](https://registry.npmjs.org/%40tanstack%2Freact-query/5.102.8) | 5.102.8 | MIT | Runtime |
 | [@types/node](https://registry.npmjs.org/%40types%2Fnode/24.0.0) | 24.0.0 | MIT | Development |
 | [@types/pg](https://registry.npmjs.org/%40types%2Fpg/8.23.1) | 8.23.1 | MIT | Development |
@@ -75,6 +76,7 @@ Exact direct dependencies verified against publisher metadata on 2026-09-06. Run
 | [eslint](https://registry.npmjs.org/eslint/10.10.0) | 10.10.0 | MIT | Development |
 | [graphile-worker](https://registry.npmjs.org/graphile-worker/0.17.3) | 0.17.3 | MIT | Runtime |
 | [jose](https://registry.npmjs.org/jose/6.2.12) | 6.2.12 | MIT | Runtime |
+| [js-yaml](https://registry.npmjs.org/js-yaml/5.3.0) | 5.3.0 | MIT | Development |
 | [mysql2](https://registry.npmjs.org/mysql2/3.23.1) | 3.23.1 | MIT | Development |
 | [oidc-client-ts](https://registry.npmjs.org/oidc-client-ts/3.5.0) | 3.5.0 | Apache-2.0 | Runtime |
 | [pg](https://registry.npmjs.org/pg/8.23.0) | 8.23.0 | MIT | Runtime |
@@ -84,6 +86,7 @@ Exact direct dependencies verified against publisher metadata on 2026-09-06. Run
 | [react-dom](https://registry.npmjs.org/react-dom/19.2.8) | 19.2.8 | MIT | Runtime |
 | [reflect-metadata](https://registry.npmjs.org/reflect-metadata/0.2.2) | 0.2.2 | Apache-2.0 | Runtime |
 | [rxjs](https://registry.npmjs.org/rxjs/7.8.2) | 7.8.2 | Apache-2.0 | Runtime |
+| [tailwindcss](https://registry.npmjs.org/tailwindcss/4.3.3) | 4.3.3 | MIT | Development |
 | [typescript](https://registry.npmjs.org/typescript/5.9.3) | 5.9.3 | Apache-2.0 | Development |
 | [typescript-eslint](https://registry.npmjs.org/typescript-eslint/8.69.0) | 8.69.0 | MIT | Development |
 | [vite](https://registry.npmjs.org/vite/7.3.6) | 7.3.6 | MIT | Development |

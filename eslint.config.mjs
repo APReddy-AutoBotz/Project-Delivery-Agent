@@ -28,6 +28,7 @@ export default tseslint.config(
         document: "readonly",
         sessionStorage: "readonly",
         AbortController: "readonly",
+        AbortSignal: "readonly",
         performance: "readonly",
       },
     },

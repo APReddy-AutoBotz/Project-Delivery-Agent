@@ -48,11 +48,27 @@ close a complete story contract. [Issue #5](https://github.com/APReddy-AutoBotz/
 
 | Story | Remaining completion work |
 |---|---|
-| STORY-001 | Required Tailwind/component layer and registered boundary/OpenAPI contract evidence |
-| STORY-002 | Resolve and verify pgvector availability under TR-STACK-004; register the demonstrated migration evidence |
-| STORY-003 | Web/API/worker OCI composition, external PostgreSQL compatibility, ingress TLS and invalid-certificate denial |
+| STORY-001 | Candidate adds Tailwind/component layer; registered architecture/OpenAPI boundary evidence remains |
+| STORY-002 | Candidate verifies pgvector and restricted migrations; register merged evidence before acceptance |
+| STORY-003 | Candidate adds controlled OCI/TLS/external-DB acceptance; supported customer deployment and operations artifact remains |
 | STORY-004 | Enforced license/inventory/notices gates, SBOM and distribution-image scans |
-| STORY-005 | Customer OIDC/browser/API-scope interoperability, separated production secrets and complete disclosure checks |
+| STORY-005 | Candidate verifies controlled OIDC/browser/API scopes and file secrets; remaining negative cases, complete disclosure checks and customer-specific validation remain |
+
+## Customer-hosted boundary candidate
+
+EXEC-003 adds native Tailwind controls, file-based production secrets, shared
+verified database TLS, configured OIDC scopes/logout, separate application images
+and isolated Keycloak acceptance. The precommit run passed all eight production
+check groups after initialization/repeat migration of both TLS databases. Native
+validation passes 20 unit/security/policy tests, seven database/API tests and seven
+browser workflows, plus migration/recovery, build, lint, typecheck and audit.
+
+The direct dependency register is now enforced and physical runtime packaging
+rejects CLI/Studio/TypeScript build dependencies. Complete notices, transitive/OS
+license review, SBOM and final image vulnerability gates remain open. No additional
+story is accepted. See [PRODUCTION_BOUNDARY_VALIDATION.md](../05-quality/PRODUCTION_BOUNDARY_VALIDATION.md)
+for the exact scope and artifact contract. Candidate publication/review/checks are
+still pending; earlier merged work above remains the accepted published state.
 
 ## Gates and next coherent increment
 
@@ -64,7 +80,7 @@ the identity/deployment boundary with a controlled IdP before any real source is
 enabled. Customer-specific interoperability needs the customer's IdP registration
 and policy. Synthetic fixtures remain available without those credentials.
 
-Follow [EXEC-002](exec-plans/EXEC-002-platform-foundation.md). Real Jira/AI/email,
+Follow [EXEC-003](exec-plans/EXEC-003-customer-hosted-foundation.md). Real Jira/AI/email,
 source writes and reports remain unimplemented. No new connector scopes were
 requested or enabled. Once the foundation gate is accepted, proceed to the
 canonical model and evidence ledger in [Issue #6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6).

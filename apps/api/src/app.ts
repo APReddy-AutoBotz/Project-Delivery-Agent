@@ -88,6 +88,8 @@ class FoundationController {
       issuer: this.config.OIDC_ISSUER,
       clientId: this.config.OIDC_CLIENT_ID,
       audience: this.config.OIDC_AUDIENCE,
+      scope: this.config.OIDC_SCOPE,
+      resource: this.config.OIDC_RESOURCE,
     };
   }
   @Post("auth/development")

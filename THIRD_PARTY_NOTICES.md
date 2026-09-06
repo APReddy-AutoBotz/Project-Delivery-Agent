@@ -10,6 +10,7 @@ Published packages are used without modification. Their original license and cop
 - **@playwright/test 1.63.0** — Apache-2.0; [publisher metadata](https://registry.npmjs.org/%40playwright%2Ftest/1.63.0); source: git+https://github.com/microsoft/playwright.git.
 - **@prisma/adapter-pg 7.10.0** — Apache-2.0; [publisher metadata](https://registry.npmjs.org/%40prisma%2Fadapter-pg/7.10.0); source: https://github.com/prisma/prisma.git.
 - **@prisma/client 7.10.0** — Apache-2.0; [publisher metadata](https://registry.npmjs.org/%40prisma%2Fclient/7.10.0); source: https://github.com/prisma/prisma.git.
+- **@tailwindcss/vite 4.3.3** — MIT; [publisher metadata](https://registry.npmjs.org/%40tailwindcss%2Fvite/4.3.3); source: https://github.com/tailwindlabs/tailwindcss.git.
 - **@tanstack/react-query 5.102.8** — MIT; [publisher metadata](https://registry.npmjs.org/%40tanstack%2Freact-query/5.102.8); source: git+https://github.com/TanStack/query.git.
 - **@types/node 24.0.0** — MIT; [publisher metadata](https://registry.npmjs.org/%40types%2Fnode/24.0.0); source: https://github.com/DefinitelyTyped/DefinitelyTyped.git.
 - **@types/pg 8.23.1** — MIT; [publisher metadata](https://registry.npmjs.org/%40types%2Fpg/8.23.1); source: https://github.com/DefinitelyTyped/DefinitelyTyped.git.
@@ -20,6 +21,7 @@ Published packages are used without modification. Their original license and cop
 - **eslint 10.10.0** — MIT; [publisher metadata](https://registry.npmjs.org/eslint/10.10.0); source: git+https://github.com/eslint/eslint.git.
 - **graphile-worker 0.17.3** — MIT; [publisher metadata](https://registry.npmjs.org/graphile-worker/0.17.3); source: git+ssh://git@github.com/graphile/worker.git.
 - **jose 6.2.12** — MIT; [publisher metadata](https://registry.npmjs.org/jose/6.2.12); source: git+https://github.com/panva/jose.git.
+- **js-yaml 5.3.0** — MIT; [publisher metadata](https://registry.npmjs.org/js-yaml/5.3.0); source: git+https://github.com/nodeca/js-yaml.git.
 - **mysql2 3.23.1** — MIT; [publisher metadata](https://registry.npmjs.org/mysql2/3.23.1); source: git+https://github.com/sidorares/node-mysql2.git.
 - **oidc-client-ts 3.5.0** — Apache-2.0; [publisher metadata](https://registry.npmjs.org/oidc-client-ts/3.5.0); source: git+https://github.com/authts/oidc-client-ts.git.
 - **pg 8.23.0** — MIT; [publisher metadata](https://registry.npmjs.org/pg/8.23.0); source: git://github.com/brianc/node-postgres.git.
@@ -29,6 +31,7 @@ Published packages are used without modification. Their original license and cop
 - **react-dom 19.2.8** — MIT; [publisher metadata](https://registry.npmjs.org/react-dom/19.2.8); source: git+https://github.com/react/react.git.
 - **reflect-metadata 0.2.2** — Apache-2.0; [publisher metadata](https://registry.npmjs.org/reflect-metadata/0.2.2); source: git+https://github.com/rbuckton/reflect-metadata.git.
 - **rxjs 7.8.2** — Apache-2.0; [publisher metadata](https://registry.npmjs.org/rxjs/7.8.2); source: git+https://github.com/reactivex/rxjs.git.
+- **tailwindcss 4.3.3** — MIT; [publisher metadata](https://registry.npmjs.org/tailwindcss/4.3.3); source: https://github.com/tailwindlabs/tailwindcss.git.
 - **typescript 5.9.3** — Apache-2.0; [publisher metadata](https://registry.npmjs.org/typescript/5.9.3); source: git+https://github.com/microsoft/TypeScript.git.
 - **typescript-eslint 8.69.0** — MIT; [publisher metadata](https://registry.npmjs.org/typescript-eslint/8.69.0); source: https://github.com/typescript-eslint/typescript-eslint.git.
 - **vite 7.3.6** — MIT; [publisher metadata](https://registry.npmjs.org/vite/7.3.6); source: git+https://github.com/vitejs/vite.git.

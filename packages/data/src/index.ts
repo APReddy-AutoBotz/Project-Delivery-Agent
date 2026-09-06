@@ -2,10 +2,14 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
 import type { Actor, Grant, ProjectRepository } from "@pdaa/domain";
 
-export function createDatabase(url: string) {
+export function createDatabase(
+  connection: string | import("@pdaa/platform").DatabaseTransport,
+) {
   return new PrismaClient({
     adapter: new PrismaPg({
-      connectionString: url,
+      ...(typeof connection === "string"
+        ? { connectionString: connection }
+        : connection),
       max: 5,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 10000,

@@ -7,6 +7,7 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 import { UserManager, WebStorageStateStore } from "oidc-client-ts";
+import { Button, TextField, SelectField, Message } from "./components.js";
 import "./style.css";
 
 type AuthConfig = {
@@ -14,6 +15,8 @@ type AuthConfig = {
   dataMode: string;
   issuer?: string;
   clientId?: string;
+  scope: string;
+  resource?: string;
 };
 type Actor = { subject: string; roles: string[] };
 type Project = {
@@ -38,6 +41,7 @@ const client = new QueryClient({
 });
 // Tokens live only in memory. OIDC redirect state uses session storage and is removed by the callback.
 let accessToken: string | undefined;
+let idToken: string | undefined;
 let oidc: UserManager | undefined;
 let expireSession: (() => void) | undefined;
 function useProtectedQuery<T>(options: UseQueryOptions<T>) {
@@ -81,7 +85,8 @@ function manager(config: AuthConfig) {
     redirect_uri: window.location.origin + "/auth/callback",
     post_logout_redirect_uri: window.location.origin,
     response_type: "code",
-    scope: "openid profile",
+    scope: config.scope,
+    resource: config.resource,
     automaticSilentRenew: false,
     userStore: new WebStorageStateStore({
       store: {
@@ -111,6 +116,7 @@ function App() {
   React.useEffect(() => {
     expireSession = () => {
       accessToken = undefined;
+      idToken = undefined;
       setSignedIn(false);
       setSelected(null);
       setView("projects");
@@ -174,6 +180,7 @@ function App() {
       .then((user) => {
         if (active) {
           accessToken = user.access_token;
+          idToken = user.id_token;
           window.history.replaceState({}, "", "/");
           setSignedIn(true);
         }
@@ -187,14 +194,22 @@ function App() {
     };
   }, [auth.data]);
   async function logout() {
+    const logoutHint = idToken;
+    idToken = undefined;
     accessToken = undefined;
     setSignedIn(false);
     setSelected(null);
     setView("projects");
     client.clear();
     if (auth.data?.mode === "oidc" && oidc) {
-      await oidc.removeUser();
-      await oidc.signoutRedirect();
+      try {
+        await oidc.removeUser();
+        await oidc.signoutRedirect({ id_token_hint: logoutHint });
+      } catch {
+        setError(
+          "You are signed out of this application. Identity-provider sign-out could not be completed.",
+        );
+      }
     }
   }
   const displayName =
@@ -251,39 +266,39 @@ function App() {
             <p role="status">Connecting to your workspace…</p>
           ) : auth.data?.mode === "development" ? (
             <div className="personas">
-              <button disabled={busy} onClick={() => login("pm-atlas")}>
+              <Button disabled={busy} onClick={() => login("pm-atlas")}>
                 <span>
                   <strong>Project manager</strong>
                   <small>View the Atlas project workspace</small>
                 </span>
                 <span aria-hidden="true">↗</span>
-              </button>
-              <button disabled={busy} onClick={() => login("leader-atlas")}>
+              </Button>
+              <Button disabled={busy} onClick={() => login("leader-atlas")}>
                 <span>
                   <strong>Leadership</strong>
                   <small>Review projects shared with you</small>
                 </span>
                 <span aria-hidden="true">↗</span>
-              </button>
-              <button disabled={busy} onClick={() => login("operator")}>
+              </Button>
+              <Button disabled={busy} onClick={() => login("operator")}>
                 <span>
                   <strong>Platform operator</strong>
                   <small>Manage access and check service health</small>
                 </span>
                 <span aria-hidden="true">↗</span>
-              </button>
+              </Button>
             </div>
           ) : (
-            <button
+            <Button
               className="primary"
               disabled={!auth.data || busy}
               onClick={() => login()}
             >
               Sign in with your organization
-            </button>
+            </Button>
           )}
           <p className="login-note">
-            {auth.data?.dataMode === "synthetic"
+            {auth.data?.mode === "development"
               ? "Preview access is limited to this local development environment."
               : "Access follows your organization’s project and portfolio permissions."}
           </p>
@@ -303,7 +318,7 @@ function App() {
         </div>
         <span className="nav-label">WORKSPACE</span>
         <nav aria-label="Main navigation">
-          <button
+          <Button
             className={view === "projects" ? "active" : ""}
             onClick={() => {
               setView("projects");
@@ -311,14 +326,14 @@ function App() {
             }}
           >
             <span aria-hidden="true">▦</span> Projects
-          </button>
+          </Button>
           {admin && (
-            <button
+            <Button
               className={view === "platform" ? "active" : ""}
               onClick={() => setView("platform")}
             >
               <span aria-hidden="true">⚙</span> Platform & access
-            </button>
+            </Button>
           )}
         </nav>
         <div className="sidebar-bottom">
@@ -338,9 +353,9 @@ function App() {
                 ? "Synthetic data"
                 : "Customer data"}
             </span>
-            <button className="text-button" onClick={logout}>
+            <Button className="text-button" onClick={logout}>
               Sign out
-            </button>
+            </Button>
           </div>
         </header>
         <main className="main">
@@ -379,12 +394,12 @@ function App() {
             <PlatformView />
           ) : selected ? (
             <>
-              <button
+              <Button
                 className="back text-button"
                 onClick={() => setSelected(null)}
               >
                 ← All projects
-              </button>
+              </Button>
               {project.error ? (
                 <p role="alert" className="error">
                   {project.error.message}
@@ -427,7 +442,7 @@ function App() {
               ) : projects.data?.length ? (
                 <div className="project-grid">
                   {projects.data.map((p) => (
-                    <button
+                    <Button
                       key={p.id}
                       className="project-card"
                       onClick={() => setSelected(p.id)}
@@ -442,7 +457,7 @@ function App() {
                         <span>Open project workspace</span>
                         <span aria-hidden="true">↗</span>
                       </div>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               ) : (
@@ -558,11 +573,13 @@ function PlatformView() {
   const [scopeType, setScopeType] = useState("project");
   const [role, setRole] = useState("contributor");
   const [message, setMessage] = useState("");
+  const [messageError, setMessageError] = useState(false);
   const [busy, setBusy] = useState(false);
   async function update(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setMessage("");
+    setMessageError(false);
     const action = (event.nativeEvent as SubmitEvent).submitter?.getAttribute(
       "value",
     );
@@ -583,6 +600,7 @@ function PlatformView() {
       );
       await client.invalidateQueries();
     } catch (e) {
+      setMessageError(true);
       setMessage((e as Error).message);
     } finally {
       setBusy(false);
@@ -627,63 +645,68 @@ function PlatformView() {
             change is recorded.
           </p>
           <form onSubmit={update}>
-            <label>
-              Account subject
-              <input
-                required
-                maxLength={200}
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Identity provider subject"
-              />
-            </label>
+            <TextField
+              label="Account subject"
+              required
+              maxLength={200}
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Identity provider subject"
+            />
             <div className="form-row">
-              <label>
-                Scope
-                <select
-                  value={scopeType}
-                  onChange={(e) => setScopeType(e.target.value)}
-                >
-                  <option value="project">Project</option>
-                  <option value="portfolio">Portfolio</option>
-                </select>
-              </label>
-              <label>
-                Role
-                <select value={role} onChange={(e) => setRole(e.target.value)}>
-                  {[
-                    "contributor",
-                    "project_manager",
-                    "leadership",
-                    "pmo_admin",
-                    "system_admin",
-                  ].map((r) => (
-                    <option key={r} value={r}>
-                      {r.replaceAll("_", " ")}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SelectField
+                label="Scope"
+                value={scopeType}
+                onChange={(e) => setScopeType(e.target.value)}
+              >
+                <option value="project">Project</option>
+                <option value="portfolio">Portfolio</option>
+              </SelectField>
+              <SelectField
+                label="Role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              >
+                {[
+                  "contributor",
+                  "project_manager",
+                  "leadership",
+                  "pmo_admin",
+                  "system_admin",
+                ].map((r) => (
+                  <option key={r} value={r}>
+                    {r.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </SelectField>
             </div>
-            <label>
-              Scope identifier
-              <input
-                required
-                value={scopeId}
-                onChange={(e) => setScopeId(e.target.value)}
-                placeholder="Project or portfolio UUID"
-                pattern="[0-9a-fA-F-]{36}"
-              />
-            </label>
+            <TextField
+              label="Scope identifier"
+              required
+              value={scopeId}
+              onChange={(e) => setScopeId(e.target.value)}
+              placeholder="Project or portfolio UUID"
+              pattern="[0-9a-fA-F-]{36}"
+            />
             <div className="actions">
-              <button className="primary" value="grant" disabled={busy}>
+              <Button
+                type="submit"
+                className="primary"
+                value="grant"
+                disabled={busy}
+              >
                 Grant access
-              </button>
-              <button className="secondary" value="revoke" disabled={busy}>
+              </Button>
+              <Button
+                type="submit"
+                className="secondary"
+                value="revoke"
+                disabled={busy}
+              >
                 Revoke access
-              </button>
+              </Button>
             </div>
-            {message && <p role="status">{message}</p>}
+            {message && <Message error={messageError}>{message}</Message>}
           </form>
         </section>
         <section className="panel">

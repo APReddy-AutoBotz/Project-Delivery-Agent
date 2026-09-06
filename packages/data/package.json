@@ -10,9 +10,9 @@
     }
   },
   "scripts": {
-    "generate": "prisma generate",
-    "migrate": "prisma migrate deploy",
-    "build": "prisma generate && tsc -p tsconfig.json",
+    "generate": "node ../../node_modules/prisma/build/index.js generate",
+    "migrate": "node ../../node_modules/prisma/build/index.js migrate deploy",
+    "build": "node ../../node_modules/prisma/build/index.js generate && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -23,7 +23,10 @@
     "pg": "8.23.0"
   },
   "devDependencies": {
-    "prisma": "7.10.0",
     "@types/pg": "8.23.1"
-  }
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ]
 }

@@ -1,0 +1,132 @@
+name: pdaa-acceptance
+x-environment: &environment
+  NODE_ENV: production
+  DEPLOYMENT_MODE: customer
+  DATA_MODE: synthetic
+  AUTH_MODE: oidc
+  CUSTOMER_ID: 10000000-0000-4000-8000-000000000001
+  APP_ORIGIN: https://gateway:8443
+  API_HOST: 0.0.0.0
+  PDAA_DB_HOST: database
+  PDAA_DB_NAME: pdaa
+  PDAA_DB_CA_FILE: /run/secrets/ca.crt
+  ENCRYPTION_KEY_FILE: /run/secrets/encryption-key
+  NODE_EXTRA_CA_CERTS: /run/secrets/ca.crt
+  OIDC_ISSUER: https://gateway:8443/identity/realms/pdaa
+  OIDC_JWKS_URI: https://gateway:8443/identity/realms/pdaa/protocol/openid-connect/certs
+  OIDC_CLIENT_ID: pdaa-web
+  OIDC_AUDIENCE: pdaa-api
+  OIDC_SCOPE: openid pdaa.read
+  OIDC_GROUP_ROLE_MAP: '{"project-managers":["project_manager"],"leadership":["leadership"],"operators":["system_admin"]}'
+  SHADOW_MODE: 'true'
+x-database: &database
+  image: pgvector/pgvector:0.8.6-pg17-bookworm@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
+  environment:
+    POSTGRES_USER: fixture_admin
+    POSTGRES_DB: pdaa
+    POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
+  entrypoint: [sh, /etc/pdaa/postgres.sh]
+  volumes:
+    - ${PDAA_ACCEPTANCE_DIR:?}:/run/secrets:ro
+    - ./postgres.sh:/etc/pdaa/postgres.sh:ro
+    - ./pg_hba.conf:/etc/pdaa/pg_hba.conf:ro
+  tmpfs: [/var/lib/postgresql/data, /var/lib/postgresql/tls]
+  healthcheck:
+    test: [CMD-SHELL, pg_isready -U fixture_admin -d pdaa]
+    interval: 3s
+    timeout: 3s
+    retries: 30
+services:
+  database:
+    <<: *database
+    networks:
+      default:
+        aliases: [database-alias]
+  external-database:
+    <<: *database
+  identity:
+    image: quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54
+    command: [start-dev, --import-realm, --hostname=https://gateway:8443/identity, --hostname-strict=true, --http-relative-path=/identity, --http-port=8080, --proxy-headers=xforwarded]
+    volumes: ["${PDAA_ACCEPTANCE_DIR:?}/realm:/opt/keycloak/data/import:ro"]
+    mem_limit: 1g
+  initialize:
+    image: ${PDAA_ACCEPTANCE_IMAGE:?}
+    environment:
+      <<: *environment
+      PDAA_ACCEPTANCE: isolated
+      PDAA_ACCEPTANCE_RUN_ID: ${PDAA_ACCEPTANCE_RUN_ID:?}
+      PDAA_ARTIFACT_DIR: ${PDAA_ARTIFACT_DIR:?}
+      PDAA_DB_USER: pdaa_migrate
+      PDAA_DB_PASSWORD_FILE: /run/secrets/migration-password
+    volumes:
+      - ${PDAA_ACCEPTANCE_DIR:?}:/run/secrets:ro
+    command: [node, scripts/acceptance/initialize.mjs]
+    depends_on:
+      database: {condition: service_healthy}
+      external-database: {condition: service_healthy}
+  api:
+    image: ${PDAA_API_IMAGE:?}
+    environment:
+      <<: *environment
+      PDAA_DB_USER: pdaa_api
+      PDAA_DB_PASSWORD_FILE: /run/secrets/api-password
+    secrets: [ca.crt, encryption-key, api-password]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    tmpfs: [/tmp]
+    depends_on:
+      initialize: {condition: service_completed_successfully}
+  worker:
+    image: ${PDAA_WORKER_IMAGE:?}
+    environment:
+      <<: *environment
+      PDAA_DB_USER: pdaa_worker
+      PDAA_DB_PASSWORD_FILE: /run/secrets/worker-password
+    secrets: [ca.crt, encryption-key, worker-password]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    tmpfs: [/tmp]
+    depends_on:
+      initialize: {condition: service_completed_successfully}
+  gateway:
+    image: ${PDAA_WEB_IMAGE:?}
+    networks:
+      default:
+        aliases: [gateway-alias]
+    user: '1000:1000'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp, /config, /data]
+    secrets: [server.crt, server.key]
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8081/healthz]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    depends_on: [api, identity]
+  verify:
+    image: ${PDAA_ACCEPTANCE_IMAGE:?}
+    profiles: [test]
+    environment:
+      <<: *environment
+      PDAA_ACCEPTANCE: isolated
+      PDAA_ACCEPTANCE_RUN_ID: ${PDAA_ACCEPTANCE_RUN_ID:?}
+      PDAA_ARTIFACT_DIR: ${PDAA_ARTIFACT_DIR:?}
+      PDAA_DB_USER: pdaa_migrate
+      PDAA_DB_PASSWORD_FILE: /run/secrets/migration-password
+    volumes:
+      - ${PDAA_ACCEPTANCE_DIR:?}:/run/secrets:ro
+      - ../../artifacts:/workspace/artifacts
+    command: [node, scripts/acceptance/run.mjs]
+secrets:
+  ca.crt: {file: "${PDAA_ACCEPTANCE_DIR:?}/ca.crt"}
+  server.crt: {file: "${PDAA_ACCEPTANCE_DIR:?}/server.crt"}
+  server.key: {file: "${PDAA_ACCEPTANCE_DIR:?}/server.key"}
+  encryption-key: {file: "${PDAA_ACCEPTANCE_DIR:?}/encryption-key"}
+  api-password: {file: "${PDAA_ACCEPTANCE_DIR:?}/api-password"}
+  worker-password: {file: "${PDAA_ACCEPTANCE_DIR:?}/worker-password"}

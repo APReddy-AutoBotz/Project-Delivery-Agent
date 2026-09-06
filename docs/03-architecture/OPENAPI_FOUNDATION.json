@@ -96,11 +96,18 @@
                     },
                     "audience": {
                       "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "resource": {
+                      "type": "string"
                     }
                   },
                   "required": [
                     "mode",
-                    "dataMode"
+                    "dataMode",
+                    "scope"
                   ],
                   "additionalProperties": false
                 }
