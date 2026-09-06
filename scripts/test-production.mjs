@@ -13,6 +13,7 @@ import {
 import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { customerProfiles } from "./acceptance/customer-host.mjs";
 const root = resolve(import.meta.dirname, "..");
 const project =
   "pdaa-acceptance-" + Date.now() + "-" + randomUUID().slice(0, 8);
@@ -391,6 +392,21 @@ try {
   );
   checks.passed.push(
     "Database blackhole readiness deadline, persistent database restart and independently supervised worker recovery with advancing heartbeat",
+  );
+  // Release the earlier fixture before starting the customer composition profiles.
+  docker(compose("down", "--remove-orphans", "--volumes"), "production-stop");
+  started = false;
+  record.customerProfiles = await customerProfiles({
+    docker,
+    env,
+    root,
+    output,
+    project,
+    record,
+  });
+  checks.passed.push(
+    "DEP-001: unchanged shipped bundled customer composition, empty install, operator OIDC, backup, current-release upgrade and quarantined restore",
+    "DEP-002: identical application images with external PostgreSQL configured through the customer env file; install, operator access, upgrade and restore",
   );
 } catch (error) {
   failure = error;

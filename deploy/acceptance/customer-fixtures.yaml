@@ -1,0 +1,78 @@
+# Additive test services. All paths resolve against deploy/customer/compose.yaml.
+# Product API/worker/web/operations/backup and bundled database are never overridden.
+services:
+  identity:
+    image: quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54
+    command:
+      [
+        start-dev,
+        --import-realm,
+        --hostname=https://identity-ingress:8443/identity,
+        --hostname-strict=true,
+        --http-relative-path=/identity,
+        --http-port=8080,
+        --proxy-headers=xforwarded,
+      ]
+    volumes: ["${PDAA_SECRET_DIR:?}/realm:/opt/keycloak/data/import:ro"]
+    mem_limit: 1g
+  identity-ingress:
+    image: ${PDAA_WEB_IMAGE:?}
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp, /config, /data]
+    volumes: ["../acceptance/identity.Caddyfile:/etc/caddy/Caddyfile:ro"]
+    secrets: [server.crt, server.key]
+    depends_on: [identity]
+  external-database:
+    profiles: [external]
+    image: pgvector/pgvector:0.8.6-pg17-bookworm@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: pdaa
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
+    entrypoint: [sh, /etc/pdaa/postgres.sh]
+    secrets:
+      - admin-password
+      - { source: fixture-database.crt, target: database.crt }
+      - { source: fixture-database.key, target: database.key }
+    volumes:
+      - external-data:/var/lib/postgresql/data
+      - ./postgres.sh:/etc/pdaa/postgres.sh:ro
+      - ./pg_hba.conf:/etc/pdaa/pg_hba.conf:ro
+    tmpfs: [/var/lib/postgresql/tls]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d pdaa]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  verify:
+    profiles: [test]
+    image: ${PDAA_ACCEPTANCE_IMAGE:?}
+    environment:
+      NODE_ENV: production
+      DEPLOYMENT_MODE: customer
+      DATA_MODE: customer
+      PDAA_ACCEPTANCE: customer-composition
+      PDAA_ACCEPTANCE_RUN_ID: ${PDAA_ACCEPTANCE_RUN_ID:?}
+      PDAA_CUSTOMER_PROFILE: ${PDAA_CUSTOMER_PROFILE:?}
+      PDAA_ARTIFACT_DIR: ${PDAA_ARTIFACT_DIR:?}
+      CUSTOMER_ID: ${CUSTOMER_ID:?}
+      CUSTOMER_NAME: ${CUSTOMER_NAME:?}
+      PDAA_DB_HOST: ${PDAA_DB_HOST:?}
+      PDAA_DB_NAME: pdaa
+      PDAA_DB_USER: postgres
+      PDAA_DB_PASSWORD_FILE: /run/secrets/admin-password
+      PDAA_DB_CA_FILE: /run/secrets/database-ca.crt
+      NODE_EXTRA_CA_CERTS: /run/secrets/identity-ca.crt
+    volumes:
+      - ${PDAA_SECRET_DIR:?}:/run/secrets:ro
+      - ../../artifacts:/workspace/artifacts
+    command: [node, scripts/acceptance/customer.mjs]
+volumes:
+  external-data:
+secrets:
+  fixture-database.crt:
+    file: "${PDAA_SECRET_DIR:?}/database.crt"
+  fixture-database.key: { file: "${PDAA_SECRET_DIR:?}/database.key" }
