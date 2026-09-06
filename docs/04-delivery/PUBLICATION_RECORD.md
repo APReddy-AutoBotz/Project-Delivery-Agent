@@ -31,6 +31,7 @@ P0/P1/P2 finding remains within the reviewed partial foundation scope.
 | [#2](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/2) | `docs/astra-baseline-review-v0.1` | `5f37c657293e41627b4e8fe1caf93c52b50bce17` | `70378ed816958ef24c0576e3c1a4dd45b73d9e34` | [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34024786300) |
 | [#3](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/3) | `plan/release-1-master-plan` | `3a7ead53dd15165b81250eac9abf0d17d9ec1fef` | `e153d1bd4c3fe52baafef65e5bb58246123ca614` | [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34024861372) |
 | [#4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4) | `feature/platform-foundation` | `6cec7f05ab5f6d4b14b4c24460985791c5863160` | `e29b9842b9d4d8db8ec32bf91409a71e869e160a` | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34025145071), [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34025145004) |
+| [#16](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16) | `feature/customer-hosted-foundation` | `9e7ed74e5d9f7a42f9b3d20e4d60293ed51d3e07` | `7ea6452c936d3b629bc3e4ff2914f81d73a99978` | [Foundation and production](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34033085773), [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34033085720) |
 
 Logical author commits are `26cadc6`, `5f37c65`, `3a7ead5`, `aca4a2e`, and
 `6cec7f0`. The follow-up `docs/foundation-publication-evidence` branch reconciles
@@ -80,7 +81,7 @@ PR diffs are the exact file inventory.
 
 The foundation provides scoped synthetic sign-in/projects, access administration,
 audit, worker health, encrypted credential primitives and default outbound denial.
-Local and Ubuntu CI results: 13 unit/security tests, seven database/API tests and
+Initial PR #4 local and Ubuntu CI results: 13 unit/security tests, seven database/API tests and
 five browser workflows passed (25 total); clean/repeat migration, restore, six
 workspace builds, lint/typecheck, frozen install and dependency audit passed.
 Documentation validation covered 245 requirements, 91 criteria, 38 stories and
@@ -105,11 +106,20 @@ A separate backlog rejection was resolved by verifying the user's original
 milestone/issue instructions and the identical already-public draft blob
 `206e7088586acdb1f5a0e854a831bdfbbca69083`; the reviewed retry was approved.
 
+PR #16 adds verified production TLS/file secrets, controlled OIDC code/PKCE and
+logout, native Tailwind controls, separate runtime images, restricted database
+roles, and actual-workspace dependency checks. The corrected candidate passed
+20 unit/security/policy tests, seven database/API tests, seven browser workflows,
+eight production groups and 13 documentation regressions. The independent
+reviewer approved its exact SHA after the override drift finding was fixed.
+The saved clean CI merge snapshot has the same Git tree as that reviewed head.
+See [PRODUCTION_BOUNDARY_VALIDATION.md](../05-quality/PRODUCTION_BOUNDARY_VALIDATION.md)
+for run IDs, source equality, diagnostics, limitations and recovery.
+
 The next coherent task is the remaining customer-hosted foundation under
-[Issue #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5): required component stack and contract evidence,
-pgvector availability, application containers/external DB/TLS, distribution
-license and scan gates, and production identity/secret configuration. Customer
-IdP registration/policy is needed for customer-specific interoperability; a
-controlled synthetic IdP can support development meanwhile. Keep real sources
-disabled until this foundation gate is satisfied. Then proceed to the canonical
+[Issue #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5): registered architecture/OpenAPI contracts,
+release migration/backup/provisioning artifacts, transitive and OS notice/license
+review, SBOM/image scans, remaining identity negatives and formal story evidence.
+Customer IdP registration/policy is needed for customer-specific interoperability.
+Keep real sources disabled until this foundation gate is satisfied. Then proceed to the canonical
 model/evidence ledger in [Issue #6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6).

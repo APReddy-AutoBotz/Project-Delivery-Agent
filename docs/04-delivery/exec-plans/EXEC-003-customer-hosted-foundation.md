@@ -123,8 +123,10 @@ Independent candidate review identified an override-register drift bypass. The
 gate now parses actual workspace YAML and tests independent changes, additions
 and removals. The immutable-image rerun also exposed a worker startup failure;
 fixed diagnostic categories and a post-revocation schema/startup check retain
-least privilege while this acceptance failure is investigated. Merge remains
-conditional on a successful complete run and review of the corrected SHA.
+least privilege. Corrected local and immutable CI runs passed all eight groups
+and teardown. The original startup failure did not recur and its root cause was
+not established. PR #16 merged as `7ea6452` after independent approval of exact
+`9e7ed74` and passing documentation, application and production checks.
 
 Customer credentials are not needed to test generic production code against a
 controlled provider. Customer-specific activation remains a separate gate. No
@@ -140,10 +142,11 @@ controls and existing UX stable while introducing the required CSS toolchain.
 
 See PRODUCTION_BOUNDARY_VALIDATION.md for this increment's native results and the
 production acceptance artifact contract. Prior evidence remains in
-FOUNDATION_VALIDATION.md. Final exact-candidate review and remote checks are pending.
+FOUNDATION_VALIDATION.md. Exact-candidate review and required remote checks passed;
+the production evidence document records the CI source tree and run identity.
 
 ## Completion summary
 
-Production boundary increment implemented; final acceptance/review in progress.
+Production boundary increment implemented, validated, independently reviewed and merged.
 Release migration/backup, complete boundary contracts and distribution gates stay
 in this ExecPlan for the next increment. No additional story is yet accepted.
