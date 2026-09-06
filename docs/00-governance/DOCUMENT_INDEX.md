@@ -160,3 +160,4 @@ DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.
 
 - `docs/06-commercial-deployment/FOUNDATION_OPERATIONS.md`: reference composition, release jobs, backup/restore and recovery limits.
 - `docs/05-quality/FOUNDATION_OPERATIONS_VALIDATION.md`: operations increment scope, validation and remaining acceptance gates.
+- `docs/05-quality/CUSTOMER_COMPOSITION_VALIDATION.md`: direct shipped customer composition, operator and upgrade/restore acceptance.

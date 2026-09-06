@@ -106,6 +106,16 @@ with outbound disabled and the separately retained encryption key.
 
 ## Progress log
 
+- 2026-09-06: Customer composition increment starts from reviewed main `736b507`.
+  Run the shipped customer Compose base and optional bundled database overlay
+  directly, with additive controlled IdP/test services only. Verify resolved product
+  services are unchanged by the fixture overlay. Exercise empty install, real
+  operator login/grant/revoke, backup, stop/migrate/recreate and quarantined restore
+  on bundled and external PostgreSQL using identical application image IDs.
+  Current-release redeployment is the available upgrade rehearsal; no future schema
+  or customer-specific IdP compatibility is implied. Preserve the existing preview.
+  Root owns implementation/Git; an independent agent reviews the exact candidate.
+
 - 2026-09-06: PR #20 merged as `2d854d2` after independent approval of exact
   `6cd425e` and all three CI jobs. The clean matching-tree artifact records 11
   production groups; native checks cover 49 tests, seven builds and 13 documentation

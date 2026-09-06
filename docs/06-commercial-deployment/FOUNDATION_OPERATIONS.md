@@ -93,6 +93,49 @@ complete SQL file transactionally. Nontransactional migrations require a separat
 approved recovery design. Current schema is unchanged by this increment; the first
 release migration is packaged exactly as before. There is no automatic SQL down path.
 
+Use explicit `run -e` options for the migration account; assigning `PDAA_DB_USER`
+in the host shell does not override the service's configured administrator. For
+the external database profile, the concrete maintenance sequence is:
+
+```sh
+docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml run --rm --no-deps backup
+docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml stop -t 20 api worker
+docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml run --rm --no-deps \
+  -e PDAA_DB_USER=pdaa_migrate -e PDAA_DB_PASSWORD_FILE=/run/secrets/migration-password operations migrate
+```
+
+Check each exit status before continuing. If backup fails, stop the procedure
+before stopping services. If migration fails, keep API/worker stopped, inspect
+the fixed diagnostic and follow the recovery procedure. A failed one-shot job
+does not restart the runtime. After successful migration, start the reviewed
+release and require healthy services and advancing worker progress:
+
+```sh
+docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml up -d --wait --wait-timeout 120 api worker web
+docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml ps
+```
+
+Add `-f deploy/customer/bundled-database.yaml` to every command for the bundled
+profile. Keep the same project name, env file and database volume. API requests
+are unavailable while API/worker are stopped; the static web shell can remain
+available. Plan the downtime from the actual migration duration and reference
+load; the acceptance timeout is not a customer SLA.
+
+An initial customer installation contains its customer record and operational
+schema, with no demonstration portfolios, projects or access grants. Sign in using
+the configured OIDC operator group to view platform settings. Operators have no
+implicit project access; grant business scopes only to the intended user. Business
+project ingestion/setup belongs to subsequent product increments. Keep secrets
+in their files and use the nonsecret env file with `--env-file`, not shell `source`.
+
+The controlled customer-composition acceptance uses these shipped files unchanged
+with separate fixture identity services and identical application images in both
+database profiles. It rehearses the current release's stop/migrate/recreate path,
+including failed target confirmation, data/history preservation, audited grants
+and revocation, encrypted backup and quarantined restore. A future release with
+new migrations must supply its own upgrade evidence. See
+CUSTOMER_COMPOSITION_VALIDATION.md under `docs/05-quality/` for scope and evidence.
+
 ## Restore drill and recovery
 
 Stop any clients of the restore target. On the same dedicated cluster, create a new
