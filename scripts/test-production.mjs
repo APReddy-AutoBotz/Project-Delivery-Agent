@@ -119,6 +119,7 @@ const operation = (command, patch = {}, extra = []) =>
   compose(
     "run",
     "--rm",
+    "--no-deps",
     ...Object.entries(patch).flatMap(([key, value]) => [
       "-e",
       key + "=" + value,
@@ -199,7 +200,11 @@ try {
     compose("up", "-d", "--wait", "--wait-timeout", "120", "gateway", "worker"),
     "production-start",
   );
-  docker(compose("run", "--rm", "verify"), "production-tests", "inherit");
+  docker(
+    compose("run", "--rm", "--no-deps", "verify"),
+    "production-tests",
+    "inherit",
+  );
   checks = JSON.parse(readFileSync(join(output, "checks.json"), "utf8"));
   assert.equal(
     checks.runId,
@@ -283,6 +288,7 @@ try {
       "run",
       "-d",
       "--rm",
+      "--no-deps",
       "verify",
       "node",
       "scripts/acceptance/operations.mjs",
@@ -353,29 +359,32 @@ try {
       "capture",
     ),
   );
-  try {
-    docker(
-      compose(
-        "exec",
-        "-T",
-        "worker",
-        "node",
-        "-e",
-        "process.kill(1,'SIGKILL')",
-      ),
-      "worker-failure",
-    );
-  } catch {
-    /* PID 1 failure can terminate docker exec too. Assert actual restart below. */
-  }
-  fixtureStep("recovered");
-  const afterRestart = Number(
-    docker(
-      ["inspect", "--format", "{{.RestartCount}}", workerId],
-      "restart-count-after",
-      "capture",
-    ),
+  // PID 1 ignores an in-namespace SIGKILL; docker kill suppresses restart.
+  // Hold a real dependency outage until the worker's fatal/progress guard exits.
+  docker(compose("pause", "database"), "worker-fault-database-pause");
+  paused = true;
+  console.log(
+    "Waiting for automatic worker restart during a sustained database outage",
   );
+  const failureDeadline = Date.now() + 240000;
+  let afterRestart = beforeRestart;
+  while (afterRestart <= beforeRestart) {
+    assert(
+      Date.now() < failureDeadline,
+      "Worker must exit and restart when dependency failure prevents progress",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    afterRestart = Number(
+      docker(
+        ["inspect", "--format", "{{.RestartCount}}", workerId],
+        "restart-count-after",
+        "capture",
+      ),
+    );
+  }
+  docker(compose("unpause", "database"), "worker-fault-database-unpause");
+  paused = false;
+  fixtureStep("recovered");
   assert(
     afterRestart > beforeRestart,
     "Worker restart policy must recover an unexpected process exit",
