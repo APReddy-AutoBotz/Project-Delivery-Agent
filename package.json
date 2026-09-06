@@ -1,0 +1,34 @@
+{
+  "name": "project-delivery-assurance-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": { "node": ">=24.0.0 <25" },
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint": "eslint apps packages scripts --ignore-pattern '**/generated/**'",
+    "typecheck": "pnpm --filter @pdaa/domain --filter @pdaa/data --filter @pdaa/platform build && pnpm -r typecheck",
+    "test": "vitest run --exclude '**/*.integration.test.ts'",
+    "test:integration": "node scripts/local.mjs scripts/test-database.mjs",
+    "test:recovery": "node scripts/local.mjs scripts/rehearse-recovery.mjs",
+    "test:e2e": "playwright test",
+    "dev": "node scripts/local.mjs scripts/dev.mjs",
+    "db:generate": "pnpm --filter @pdaa/data generate",
+    "db:migrate": "node scripts/local.mjs scripts/migrate.mjs",
+    "db:seed": "node scripts/local.mjs packages/data/dist/seed.js",
+    "setup:local": "node scripts/setup-local.mjs",
+    "docs:validate": "python scripts/validate_documentation.py"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.0.0",
+    "jose": "6.2.12",
+    "prettier": "3.6.2",
+    "eslint": "10.10.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.69.0",
+    "vitest": "4.1.11"
+  }
+}

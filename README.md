@@ -1,7 +1,7 @@
 # Project Delivery Assurance Agent
 
-[![Status](https://img.shields.io/badge/status-documentation%20baseline-1f6feb)](#current-status)
-[![Baseline](https://img.shields.io/badge/baseline-v0.1%20draft-orange)](docs/00-governance/DOCUMENT_CONTROL.md)
+[![Status](https://img.shields.io/badge/status-local%20foundation-1f6feb)](#current-status)
+[![Baseline](https://img.shields.io/badge/baseline-reviewed%20candidate-orange)](docs/00-governance/DOCUMENT_CONTROL.md)
 [![Deployment](https://img.shields.io/badge/deployment-customer--hosted-2ea44f)](docs/06-commercial-deployment/CUSTOMER_HOSTING_MODEL.md)
 [![Licence](https://img.shields.io/badge/licence-proprietary-red)](LICENSE.md)
 
@@ -94,7 +94,7 @@ Release 1 proves one complete, production-shaped closed loop:
 5. Capture and interpret a free-text response.
 6. Present the proposed structured change with current value, new value, source, reason, and affected system.
 7. Obtain the required PM approval for a material change.
-8. Write an approved comment or safe field update to Jira.
+8. Write an approved comment to Jira; structured field updates are deferred to R2.
 9. Create an immutable action receipt and evidence trail.
 10. Recommend the next delivery intervention.
 11. Answer a leadership question with linked evidence and uncertainty labels.
@@ -105,22 +105,22 @@ See [Release 1 Vertical Slice](docs/04-delivery/RELEASE-1-VERTICAL-SLICE.md) and
 
 ## Current status
 
-This repository currently contains the **documentation and implementation-control baseline**. It does not yet contain production application code.
+This repository contains a reviewed documentation candidate and a runnable **local synthetic foundation**: web/API/worker, database, identity validation, scoped access, encrypted credential primitives and audit protection. It is not a production release. Publication and merged acceptance remain pending.
 
 | Area | Status |
 |---|---|
-| Business and product definition | Drafted |
-| Functional, technical, and non-functional requirements | Drafted |
-| Solution, data, integration, AI, workflow, security, and deployment architecture | Drafted |
-| Release 1 epics, stories, acceptance criteria, and dependency map | Drafted |
+| Business and product definition | Reviewed local candidate |
+| Functional, technical, and non-functional requirements | Reviewed local candidate |
+| Solution, data, integration, AI, workflow, security, and deployment architecture | Reviewed local candidate |
+| Release 1 epics, stories, acceptance criteria, and dependency map | Master plan and grouped issue drafts prepared |
 | Test strategy, golden scenarios, threat model, and Definition of Done | Drafted |
 | Commercial, customer-hosting, support, and source-access models | Drafted |
 | Machine-readable requirements and traceability | Available |
-| Documentation validation | Passing, with known draft coverage warning |
-| Astra independent baseline review | Pending |
-| Production implementation | Not started |
+| Documentation validation | 245 requirements, 91 criteria, no Must coverage gap |
+| Independent baseline review | Local candidate approved; remote merge pending |
+| Application implementation | Local foundation prepared; see validation evidence |
 
-Production implementation must not begin until the Release 1 baseline has been reviewed, P0 findings have been resolved, and the Product Owner records approval.
+See [local setup](docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md), [implementation status](docs/04-delivery/IMPLEMENTATION_STATUS.md), and [foundation evidence](docs/05-quality/FOUNDATION_VALIDATION.md). Customer deployment and real-data integrations remain gated by the approved baseline and required review evidence.
 
 ## Planned technical architecture
 

@@ -1,0 +1,522 @@
+{
+  "reviewDate": "2026-09-06",
+  "entries": [
+    {
+      "name": "@eslint/js",
+      "version": "10.0.1",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/eslint/eslint.git",
+      "source": "https://registry.npmjs.org/%40eslint%2Fjs/10.0.1",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "@nestjs/common",
+      "version": "11.2.3",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/api"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/nestjs/nest.git",
+      "source": "https://registry.npmjs.org/%40nestjs%2Fcommon/11.2.3",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "@nestjs/core",
+      "version": "11.2.3",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/api"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/nestjs/nest.git",
+      "source": "https://registry.npmjs.org/%40nestjs%2Fcore/11.2.3",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "@nestjs/platform-express",
+      "version": "11.2.3",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/api"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/nestjs/nest.git",
+      "source": "https://registry.npmjs.org/%40nestjs%2Fplatform-express/11.2.3",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "@nestjs/swagger",
+      "version": "11.4.7",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/api"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/nestjs/swagger.git",
+      "source": "https://registry.npmjs.org/%40nestjs%2Fswagger/11.4.7",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "@playwright/test",
+      "version": "1.63.0",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "Apache-2.0",
+      "repository": "git+https://github.com/microsoft/playwright.git",
+      "source": "https://registry.npmjs.org/%40playwright%2Ftest/1.63.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "@prisma/adapter-pg",
+      "version": "7.10.0",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/data"
+      ],
+      "license": "Apache-2.0",
+      "repository": "https://github.com/prisma/prisma.git",
+      "source": "https://registry.npmjs.org/%40prisma%2Fadapter-pg/7.10.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "@prisma/client",
+      "version": "7.10.0",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/data"
+      ],
+      "license": "Apache-2.0",
+      "repository": "https://github.com/prisma/prisma.git",
+      "source": "https://registry.npmjs.org/%40prisma%2Fclient/7.10.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "@tanstack/react-query",
+      "version": "5.102.8",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/TanStack/query.git",
+      "source": "https://registry.npmjs.org/%40tanstack%2Freact-query/5.102.8",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "@types/node",
+      "version": "24.0.0",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "MIT",
+      "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "source": "https://registry.npmjs.org/%40types%2Fnode/24.0.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "@types/pg",
+      "version": "8.23.1",
+      "runtime": false,
+      "consumers": [
+        "@pdaa/data"
+      ],
+      "license": "MIT",
+      "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "source": "https://registry.npmjs.org/%40types%2Fpg/8.23.1",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "@types/react",
+      "version": "19.2.18",
+      "runtime": false,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "MIT",
+      "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "source": "https://registry.npmjs.org/%40types%2Freact/19.2.18",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "@types/react-dom",
+      "version": "19.2.7",
+      "runtime": false,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "MIT",
+      "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "source": "https://registry.npmjs.org/%40types%2Freact-dom/19.2.7",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "@vitejs/plugin-react",
+      "version": "5.2.0",
+      "runtime": false,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/vitejs/vite-plugin-react.git",
+      "source": "https://registry.npmjs.org/%40vitejs%2Fplugin-react/5.2.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "deepmerge-ts",
+      "version": "8.0.0",
+      "reason": "Prisma CLI configuration dependency: GHSA-ggr8-5vv4-36mx",
+      "runtime": false,
+      "consumers": [
+        "prisma tooling"
+      ],
+      "license": "BSD-3-Clause",
+      "repository": "git+https://github.com/RebeccaStevens/deepmerge-ts.git",
+      "source": "https://registry.npmjs.org/deepmerge-ts/8.0.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "eslint",
+      "version": "10.10.0",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/eslint/eslint.git",
+      "source": "https://registry.npmjs.org/eslint/10.10.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "graphile-worker",
+      "version": "0.17.3",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/worker"
+      ],
+      "license": "MIT",
+      "repository": "git+ssh://git@github.com/graphile/worker.git",
+      "source": "https://registry.npmjs.org/graphile-worker/0.17.3",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "jose",
+      "version": "6.2.12",
+      "runtime": true,
+      "consumers": [
+        "project-delivery-assurance-agent",
+        "@pdaa/platform"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/panva/jose.git",
+      "source": "https://registry.npmjs.org/jose/6.2.12",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "mysql2",
+      "version": "3.23.1",
+      "reason": "Prisma CLI optional database tooling: GHSA-3f6p-5ww8-9rcr and GHSA-rgwj-5xj2-c3m3",
+      "runtime": false,
+      "consumers": [
+        "prisma tooling"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/sidorares/node-mysql2.git",
+      "source": "https://registry.npmjs.org/mysql2/3.23.1",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "oidc-client-ts",
+      "version": "3.5.0",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "Apache-2.0",
+      "repository": "git+https://github.com/authts/oidc-client-ts.git",
+      "source": "https://registry.npmjs.org/oidc-client-ts/3.5.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "pg",
+      "version": "8.23.0",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/data"
+      ],
+      "license": "MIT",
+      "repository": "git://github.com/brianc/node-postgres.git",
+      "source": "https://registry.npmjs.org/pg/8.23.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "prettier",
+      "version": "3.6.2",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/prettier/prettier.git",
+      "source": "https://registry.npmjs.org/prettier/3.6.2",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "prisma",
+      "version": "7.10.0",
+      "runtime": false,
+      "consumers": [
+        "@pdaa/data"
+      ],
+      "license": "Apache-2.0",
+      "repository": "https://github.com/prisma/prisma.git",
+      "source": "https://registry.npmjs.org/prisma/7.10.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "react",
+      "version": "19.2.8",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/react/react.git",
+      "source": "https://registry.npmjs.org/react/19.2.8",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "react-dom",
+      "version": "19.2.8",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/react/react.git",
+      "source": "https://registry.npmjs.org/react-dom/19.2.8",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "reflect-metadata",
+      "version": "0.2.2",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/api"
+      ],
+      "license": "Apache-2.0",
+      "repository": "git+https://github.com/rbuckton/reflect-metadata.git",
+      "source": "https://registry.npmjs.org/reflect-metadata/0.2.2",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "rxjs",
+      "version": "7.8.2",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/api"
+      ],
+      "license": "Apache-2.0",
+      "repository": "git+https://github.com/reactivex/rxjs.git",
+      "source": "https://registry.npmjs.org/rxjs/7.8.2",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    },
+    {
+      "name": "typescript",
+      "version": "5.9.3",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "Apache-2.0",
+      "repository": "git+https://github.com/microsoft/TypeScript.git",
+      "source": "https://registry.npmjs.org/typescript/5.9.3",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "typescript-eslint",
+      "version": "8.69.0",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "MIT",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint.git",
+      "source": "https://registry.npmjs.org/typescript-eslint/8.69.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "vite",
+      "version": "7.3.6",
+      "runtime": false,
+      "consumers": [
+        "@pdaa/web"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/vitejs/vite.git",
+      "source": "https://registry.npmjs.org/vite/7.3.6",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "vitest",
+      "version": "4.1.11",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/vitest-dev/vitest.git",
+      "source": "https://registry.npmjs.org/vitest/4.1.11",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
+      "name": "zod",
+      "version": "4.5.4",
+      "runtime": true,
+      "consumers": [
+        "@pdaa/api",
+        "@pdaa/domain",
+        "@pdaa/platform"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/colinhacks/zod.git",
+      "source": "https://registry.npmjs.org/zod/4.5.4",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace behind first-party module boundary"
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+datasource db {
+  provider = "postgresql"
+}
+model Customer {
+  id String @id @db.Uuid
+  name String
+  portfolios Portfolio[]
+  projects Project[]
+  grants AccessGrant[]
+  audits AuditEvent[]
+  credentials ConnectorCredential[]
+}
+model Portfolio {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  name String
+  customer Customer @relation(fields: [customerId], references: [id])
+  projects Project[]
+  @@unique([customerId, id])
+}
+model Project {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  portfolioId String @db.Uuid
+  code String
+  name String
+  description String
+  reportedStatus String
+  customer Customer @relation(fields: [customerId], references: [id])
+  portfolio Portfolio @relation(fields: [customerId, portfolioId], references: [customerId, id])
+  @@unique([customerId, code])
+  @@unique([customerId, id])
+}
+model AccessGrant {
+  id String @id @default(uuid()) @db.Uuid
+  customerId String @db.Uuid
+  subject String
+  scopeType String
+  scopeId String @db.Uuid
+  role String
+  customer Customer @relation(fields: [customerId], references: [id])
+  @@unique([customerId, subject, scopeType, scopeId])
+  @@index([customerId, subject])
+}
+model AuditEvent {
+  id String @id @default(uuid()) @db.Uuid
+  customerId String @db.Uuid
+  actor String
+  event String
+  correlationId String
+  detail Json
+  occurredAt DateTime @default(now())
+  customer Customer @relation(fields: [customerId], references: [id])
+  @@index([customerId, occurredAt])
+}
+model ConnectorCredential {
+  id String @id @default(uuid()) @db.Uuid
+  customerId String @db.Uuid
+  name String
+  envelope String
+  keyId String
+  revision Int @default(1)
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+model ServiceHeartbeat {
+  id String @id
+  occurredAt DateTime
+}

@@ -1,0 +1,39 @@
+name: Foundation validation
+on:
+  pull_request:
+    paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**', '*.json', '*.yaml', '*.ts', '*.mjs', '.github/workflows/foundation-validation.yml']
+  push:
+    branches: [main]
+    paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**', '*.json', '*.yaml', '*.ts', '*.mjs', '.github/workflows/foundation-validation.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm setup:local
+      - run: docker compose up -d --wait
+      - run: pnpm build
+      - run: pnpm lint && pnpm typecheck && pnpm test
+      - run: pnpm audit --audit-level high
+      - run: pnpm db:migrate && pnpm db:seed
+      - run: pnpm test:integration
+      - run: pnpm test:recovery
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Browser workflows
+        run: |
+          mkdir -p artifacts
+          node scripts/local.mjs scripts/dev.mjs > artifacts/dev.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://localhost:5173 >/dev/null && break; sleep 1; done
+          pnpm test:e2e
+      - if: always()
+        run: docker compose down

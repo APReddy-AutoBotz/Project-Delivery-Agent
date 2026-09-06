@@ -17,3 +17,7 @@ temp/
 __pycache__/
 *.pyc
 artifacts/
+packages/data/src/generated/
+.pnpm-store/
+playwright-report/
+test-results/

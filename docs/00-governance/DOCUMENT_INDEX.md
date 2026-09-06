@@ -128,6 +128,14 @@
 
 ## Implementation-control additions
 
+- `docs/04-delivery/IMPLEMENTATION_MASTER_PLAN.md`: approved local preparation sequence.
+- `docs/04-delivery/IMPLEMENTATION_STATUS.md`: local progress versus accepted work.
+- `docs/04-delivery/exec-plans/EXEC-002-platform-foundation.md`: foundation scope and evidence.
+- `docs/05-quality/FOUNDATION_VALIDATION.md`: executed checks, boundaries and review fixes.
+- `docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md`: reproducible synthetic setup and recovery.
+- `docs/03-architecture/OPENAPI_FOUNDATION.json`: generated REST contract.
+- `docs/07-research/DEPENDENCIES.json`: exact adopted package inventory.
+
 - `docs/04-delivery/IMPLEMENTATION_CONTROLLER.md`: corrected authorized controller.
 - `docs/04-delivery/exec-plans/EXEC-001-baseline-review.md`: review execution/evidence.
 - `docs/03-architecture/adr/ADR-009-ORTHOGONAL-FACT-STATE.md`: fact dimensions.
