@@ -41,3 +41,5 @@ Published packages are used without modification. Their original license and cop
 - **zod 4.5.4** — MIT; [publisher metadata](https://registry.npmjs.org/zod/4.5.4); source: git+https://github.com/colinhacks/zod.git.
 
 PostgreSQL is used as a separate service under the PostgreSQL License. No enterprise-only code, source repositories or copyleft application dependencies have been vendored.
+
+Browser builds now include original component license files in `THIRD_PARTY_NOTICES.txt` with a corresponding `third-party-components.json` inventory. CI retains observed image notice bytes in its distribution-review evidence. These artifacts supplement this direct development inventory; complete OS/binary/transitive legal review remains required before distribution. See `docs/05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md`.

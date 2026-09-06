@@ -23,7 +23,9 @@
     "docs:validate": "python scripts/validate_documentation.py",
     "test:production": "node scripts/test-production.mjs",
     "check:architecture": "node scripts/check-architecture.mjs",
-    "check:contracts": "node scripts/local.mjs scripts/export-openapi.mjs --check"
+    "check:contracts": "node scripts/local.mjs scripts/export-openapi.mjs --check",
+    "distribution:collect": "node scripts/collect-distribution.mjs",
+    "distribution:check": "node scripts/check-distribution.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

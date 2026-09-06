@@ -37,6 +37,7 @@ function git(args) {
 const record = {
   runId: project,
   sourceRevision: git(["rev-parse", "HEAD"]),
+  sourceTree: git(["rev-parse", "HEAD^{tree}"]),
   workingTreeDirty: Boolean(git(["status", "--porcelain"])),
   startedAt: new Date().toISOString(),
   status: "running",
@@ -201,6 +202,10 @@ try {
     compose("up", "-d", "--wait", "--wait-timeout", "120", "gateway", "worker"),
     "production-start",
   );
+  const acceptedDatabase = docker(compose("ps", "-q", "database"), "accepted-database-container", "capture");
+  record.databaseImage = docker(["inspect", acceptedDatabase, "--format", "{{.Image}}"], "accepted-database-image", "capture");
+  assert(/^sha256:[a-f0-9]{64}$/.test(record.databaseImage), "Accepted database image identity missing");
+  save();
   docker(
     compose("run", "--rm", "--no-deps", "verify"),
     "production-tests",
