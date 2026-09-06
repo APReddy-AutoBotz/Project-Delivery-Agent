@@ -29,9 +29,9 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `2d854d2` contains the reviewed production boundary, executable foundation
-contracts and release operations increment. STORY-001/002 are accepted after exact review, current CI and PR #18
-merge; STORY-003/004/005 remain in progress. The user authorized continued
+Main `27bc174` contains the reviewed production boundary, executable foundation
+contracts, release operations and customer composition acceptance. STORY-001/002/003
+are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
 findings were resolved in PR #16.
 
@@ -105,6 +105,13 @@ are verified. Revert code through review; restore backups into a separate target
 with outbound disabled and the separately retained encryption key.
 
 ## Progress log
+
+- 2026-09-06: PR #22 merged as `27bc174` after exact `c669e95` review and all
+  matching checks. Both unchanged shipped customer profiles pass install, operator
+  access, upgrade and restore; existing transport denials complete SEC-TLS-001.
+  Accept STORY-003; R0 3/5 (60%), R1 0/33. Next: STORY-004 distribution gates,
+  then remaining STORY-005 identity tests. Local Docker recovery is pending host
+  storage; successful CI evidence is in CUSTOMER_COMPOSITION_VALIDATION.md.
 
 - 2026-09-06: Customer composition increment starts from reviewed main `736b507`.
   Run the shipped customer Compose base and optional bundled database overlay
@@ -191,5 +198,6 @@ Production boundary and executable contracts are implemented, validated,
 independently reviewed and merged. STORY-001/002 are accepted with evidence in
 FOUNDATION_CONTRACT_VALIDATION.md. Release operations and isolated recovery are
 merged with evidence in FOUNDATION_OPERATIONS_VALIDATION.md. Direct customer
-composition acceptance, full distribution gates and remaining identity/deployment
-validation stay in this ExecPlan. R0 release and Issue #5 remain open.
+composition and TLS/external-database acceptance are now verified in PR #22;
+STORY-003 is accepted. Full distribution gates and remaining identity validation
+stay in this ExecPlan. R0 release and Issue #5 remain open.
