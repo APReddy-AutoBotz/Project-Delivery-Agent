@@ -343,7 +343,8 @@ try {
     "0",
     "Requested shutdown must finish cleanup and exit successfully",
   );
-  docker(compose("start", "worker"), "worker-clean-start");
+  // Start this verified existing container without restarting one-shot provision/seed dependencies.
+  docker(["start", workerId], "worker-clean-start");
   fixtureStep("recovered");
   const beforeRestart = Number(
     docker(
