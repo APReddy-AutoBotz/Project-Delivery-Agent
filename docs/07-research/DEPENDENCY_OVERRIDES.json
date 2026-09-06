@@ -1,0 +1,4 @@
+[
+  {"name":"deepmerge-ts","version":"8.0.0","reason":"Prisma CLI configuration dependency: GHSA-ggr8-5vv4-36mx","runtime":false,"consumers":["prisma tooling"]},
+  {"name":"mysql2","version":"3.23.1","reason":"Prisma CLI optional database tooling: GHSA-3f6p-5ww8-9rcr and GHSA-rgwj-5xj2-c3m3","runtime":false,"consumers":["prisma tooling"]}
+]

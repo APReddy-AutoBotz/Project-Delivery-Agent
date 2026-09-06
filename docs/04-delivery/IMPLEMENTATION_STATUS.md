@@ -8,7 +8,15 @@ Updated: 2026-09-06
 - Applied five controller fixes and specialist baseline corrections.
 - Independent review approved baseline candidate `5f37c657293e41627b4e8fe1caf93c52b50bce17`.
 - Documentation validation: 245 requirements, 91 acceptance criteria, 38 stories, 135 planned test specifications; no Must coverage gap.
-- Validator regression tests: 13 passed. Planned product tests have not run.
+- Validator regression tests: 13 passed.
+- Local foundation implemented: web/API/worker, PostgreSQL schema and seed,
+  OIDC validation, scoped grants, encrypted credential primitives and immutable audit.
+- Application validation: 13 unit/security/health tests, 6 real database/API tests,
+  and 3 Chromium workflows passed; clean/repeat migration and full restore passed.
+- Dependency audit after patch overrides: zero known advisories across the lockfile.
+- Desktop/mobile screenshots inspected; synthetic preview at http://localhost:5173.
+- Two identity test specifications now have implementation evidence; 133 remain planned.
+- Full foundation candidate review and final completion record pending below.
 
 ## Accepted implementation completion
 
@@ -28,7 +36,7 @@ at affdbae; they do not validate the new local candidate.
 
 ## Next coherent increment
 
-Prepare and test EPIC-01 locally with synthetic data. When public publishing is
+Finish independent review of the prepared EPIC-01 foundation candidate. When public publishing is
 approved, publish/review/merge the baseline and master plan in order, create the
 grouped implementation issues/milestones, then submit the independently reviewed
 foundation candidate. Keep real integrations and external actions disabled.

@@ -1,0 +1,634 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/health/live": {
+      "get": {
+        "operationId": "FoundationController_live",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "operationId": "FoundationController_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable"
+          }
+        },
+        "security": [],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    },
+    "/api/auth/config": {
+      "get": {
+        "operationId": "FoundationController_authConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "oidc",
+                        "development"
+                      ]
+                    },
+                    "dataMode": {
+                      "type": "string"
+                    },
+                    "issuer": {
+                      "type": "string"
+                    },
+                    "clientId": {
+                      "type": "string"
+                    },
+                    "audience": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "dataMode"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    },
+    "/api/auth/development": {
+      "post": {
+        "operationId": "FoundationController_development",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "persona"
+                ],
+                "properties": {
+                  "persona": {
+                    "type": "string",
+                    "enum": [
+                      "pm-atlas",
+                      "leader-atlas",
+                      "operator"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid persona"
+          },
+          "404": {
+            "description": "Development sign-in unavailable"
+          }
+        },
+        "security": [],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "FoundationController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "customerId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "subject",
+                    "roles",
+                    "customerId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Identity required"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "operationId": "FoundationController_projects",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "portfolioId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "reportedStatus": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "portfolioId",
+                      "code",
+                      "name",
+                      "description",
+                      "reportedStatus"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Identity required"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    },
+    "/api/projects/{id}": {
+      "get": {
+        "operationId": "FoundationController_project",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "portfolioId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "reportedStatus": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "portfolioId",
+                    "code",
+                    "name",
+                    "description",
+                    "reportedStatus"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Identity required"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    },
+    "/api/platform": {
+      "get": {
+        "operationId": "FoundationController_platform",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "database": {
+                      "type": "string"
+                    },
+                    "worker": {
+                      "type": "string"
+                    },
+                    "heartbeat": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "shadowMode": {
+                      "type": "boolean"
+                    },
+                    "identityMode": {
+                      "type": "string"
+                    },
+                    "dataMode": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "database",
+                    "worker",
+                    "heartbeat",
+                    "shadowMode",
+                    "identityMode",
+                    "dataMode"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Identity required"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    },
+    "/api/audit": {
+      "get": {
+        "operationId": "FoundationController_audit",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "event": {
+                        "type": "string"
+                      },
+                      "actor": {
+                        "type": "string"
+                      },
+                      "occurredAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "event",
+                      "actor",
+                      "occurredAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Identity required"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Resource unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    },
+    "/api/access-grants": {
+      "post": {
+        "operationId": "FoundationController_grant",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subject",
+                  "scopeType",
+                  "scopeId",
+                  "role"
+                ],
+                "properties": {
+                  "subject": {
+                    "type": "string"
+                  },
+                  "scopeType": {
+                    "type": "string",
+                    "enum": [
+                      "project",
+                      "portfolio"
+                    ]
+                  },
+                  "scopeId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "leadership",
+                      "project_manager",
+                      "contributor",
+                      "pmo_admin",
+                      "system_admin"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Foundation"
+        ]
+      },
+      "delete": {
+        "operationId": "FoundationController_revoke",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subject",
+                  "scopeType",
+                  "scopeId"
+                ],
+                "properties": {
+                  "subject": {
+                    "type": "string"
+                  },
+                  "scopeType": {
+                    "type": "string",
+                    "enum": [
+                      "project",
+                      "portfolio"
+                    ]
+                  },
+                  "scopeId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Foundation"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Delivery Assurance Foundation",
+    "description": "",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {}
+  }
+}

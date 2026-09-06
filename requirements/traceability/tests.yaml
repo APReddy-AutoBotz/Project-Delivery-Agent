@@ -1028,24 +1028,30 @@ tests:
   evidence: []
 - id: SEC-AUTH-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-AUTH-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Trusted OIDC identity succeeds with configured user/group mapping; invalid signature, issuer, audience
     and expired tokens/sessions are denied. Development login is disabled in production and constrained to synthetic
     local data.
-  evidence: []
+  evidence:
+  - tests/security.test.ts
+  - tests/identity-boundary.test.ts
+  - docs/05-quality/FOUNDATION_VALIDATION.md
 - id: SEC-AUTH-002
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-AUTH-002
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: An authorized administrator can grant/revoke portfolio and project access. Direct API/service/query
     access denies cross-project reads/writes, revoked memberships and operational administrators without explicit
     business scope.
-  evidence: []
+  evidence:
+  - tests/database.integration.test.ts
+  - tests/e2e/foundation.spec.ts
+  - docs/05-quality/FOUNDATION_VALIDATION.md
 - id: SEC-CON-001
   release: R1
   status: planned
