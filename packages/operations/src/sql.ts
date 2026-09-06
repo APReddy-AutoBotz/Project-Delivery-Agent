@@ -4,8 +4,8 @@ export function validateMigrationSql(sql: string) {
   let commands = "";
   for (let i = 0; i < sql.length; ) {
     if (sql.startsWith("--", i)) {
-      const end = sql.indexOf("\n", i + 2);
-      i = end < 0 ? sql.length : end;
+      const end = sql.slice(i + 2).search(/[\r\n]/);
+      i = end < 0 ? sql.length : i + 2 + end;
       commands += " ";
       continue;
     }
@@ -51,7 +51,17 @@ export function validateMigrationSql(sql: string) {
       commands += " literal ";
       continue;
     }
-    const dollar = sql.slice(i).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/)?.[0];
+    // PostgreSQL permits dollar signs and non-ASCII bytes inside identifiers.
+    // An embedded $tag$ is not a string opener.
+    if (/[A-Za-z_\u0080-\uffff]/.test(sql[i]!)) {
+      const start = i++;
+      while (i < sql.length && /[A-Za-z0-9_$\u0080-\uffff]/.test(sql[i]!)) i++;
+      commands += sql.slice(start, i);
+      continue;
+    }
+    const dollar = sql
+      .slice(i)
+      .match(/^\$(?:[A-Za-z_\u0080-\uffff][A-Za-z0-9_\u0080-\uffff]*)?\$/)?.[0];
     if (dollar) {
       const end = sql.indexOf(dollar, i + dollar.length);
       if (end < 0) throw new Error("Unterminated migration body");

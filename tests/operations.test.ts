@@ -9,12 +9,13 @@ import {
   rmSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { spawnSync } from "node:child_process";
 import {
   readMigrations,
   validateHistory,
+  migrateDatabase,
 } from "../packages/operations/src/migrations.js";
 import { loadOperationsConfig } from "../packages/operations/src/config.js";
 import { pgEnvironment } from "../packages/operations/src/backup.js";
@@ -47,7 +48,7 @@ const metadata: BackupMetadata = {
   graphileVersion: 19,
   migrations: migrations.map(({ name, checksum }) => ({ name, checksum })),
 };
-it("DEP-001: preserves complete SQL and rejects divergent or incomplete migration history", () => {
+it("DEP-001: preserves complete SQL and rejects divergent or incomplete migration history", async () => {
   expect(migrations[0]!.sql).toContain(
     "CREATE FUNCTION reject_audit_mutation()",
   );
@@ -84,9 +85,33 @@ it("DEP-001: preserves complete SQL and rejects divergent or incomplete migratio
     "PREPARE TRANSACTION 'bad';",
     "-- $$\nABORT;\n-- $$\nCREATE TABLE escaped(id int);",
     "/* outer /* nested */ $$ */ ABORT; /* $$ */",
+    "CREATE TABLE foo$tag$ (id integer); ABORT; -- $tag$\nCREATE TABLE escaped(id int);",
+    "CREATE TABLE café$tag$ (id integer); ABORT; -- $tag$\nCREATE TABLE escaped(id int);",
+    "-- comment\rABORT;\rCREATE TABLE escaped(id int);",
   ]) {
     writeFileSync(join(migrationDir, "migration.sql"), sql);
     expect(() => readMigrations(dir)).toThrow();
+    await expect(
+      migrateDatabase(
+        {
+          host: "unused.invalid",
+          port: 5432,
+          user: "unused",
+          password: "unused",
+          database: "unused",
+          ssl: false,
+        },
+        [
+          {
+            name: "202609060002_invalid",
+            sql,
+            checksum: createHash("sha256").update(sql).digest("hex"),
+          },
+        ],
+      ),
+    ).rejects.toThrow(
+      "Migration needs a separately reviewed execution strategy",
+    );
   }
 });
 it("DEP-001: encrypts archives, authenticates metadata and rejects corruption before plaintext is retained", async () => {
