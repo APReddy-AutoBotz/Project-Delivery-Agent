@@ -1,0 +1,35 @@
+check-for-app-update: false
+scope: squashed
+parallelism: 2
+license:
+  content: all
+file:
+  metadata:
+    selection: all
+    digests: [sha256]
+  content:
+    skip-files-above-size: 5242880
+    globs:
+      - '/**/LICENSE*'
+      - '/**/License*'
+      - '/**/license*'
+      - '/**/LICENCE*'
+      - '/**/licence*'
+      - '/**/NOTICE*'
+      - '/**/Notice*'
+      - '/**/notice*'
+      - '/**/COPYRIGHT*'
+      - '/**/Copyright*'
+      - '/**/copyright*'
+      - '/usr/share/common-licenses/**'
+      - '/srv/third-party-components.json'
+      - '/srv/THIRD_PARTY_NOTICES.txt'
+      - '/app/runtime-inventory.json'
+enrich: []
+exclude: []
+golang:
+  search-local-mod-cache-licenses: false
+  search-local-vendor-licenses: false
+  search-remote-licenses: false
+javascript:
+  search-remote-licenses: false

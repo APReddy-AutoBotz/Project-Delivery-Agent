@@ -106,6 +106,16 @@ with outbound disabled and the separately retained encryption key.
 
 ## Progress log
 
+- 2026-09-06: Start STORY-004 evidence increment from main `4ae6986` on
+  `feature/distribution-evidence`. ADR-014 defines checksum-pinned SBOM/scanning
+  tooling, exact final-image evidence, static-browser component notices and
+  fail-closed evidence validation. Collect actual blockers before requesting any
+  legal/product decision; commercial approval and signing are not inferred.
+  Root owns implementation/Git; an independent agent reviews the immutable SHA.
+  Local Docker recovery has passed full database reads and seven browser tests;
+  the existing database volume is retained. Use CI for the full packaged rebuild
+  after the prior host-storage failure.
+
 - 2026-09-06: PR #22 merged as `27bc174` after exact `c669e95` review and all
   matching checks. Both unchanged shipped customer profiles pass install, operator
   access, upgrade and restore; existing transport denials complete SEC-TLS-001.

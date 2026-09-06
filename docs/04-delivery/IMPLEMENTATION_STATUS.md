@@ -99,6 +99,8 @@ The operations package reuses existing approved dependency versions. Complete
 commercial distribution approval is still required. Revert the application
 increment through review to roll back; no data rollback is needed. The guarded
 restore rehearsal retains source data and starts no application on the restore
-target. The local web/API liveness endpoints respond, but database readiness is unavailable
-after host-drive exhaustion and Docker restart timeout. No database volume was
-removed; verify local data after storage/Docker recovery. Remote CI passed.
+target. Local Docker and the existing database volume recovered after the user freed host
+storage. Full database reads, migration/audit-trigger checks, fresh worker progress
+and seven browser workflows passed; web/API readiness is healthy. No pre-incident
+full database snapshot was available for an exact comparison. Issue #5 records the
+recovery evidence and successful merged-main CI.

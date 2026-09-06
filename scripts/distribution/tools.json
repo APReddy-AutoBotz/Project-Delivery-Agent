@@ -1,0 +1,16 @@
+{
+  "syft": {
+    "version": "1.51.1",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/anchore/syft",
+    "linux": "8fcb33017a0dc1058298c923c436d19dfa68ae93968e0b423248542e3afb9fc3",
+    "win32": "5e4bc3e6b6344b4625de0f7aa5351aaa72856d11d78462972de0a101ee2c1c8f"
+  },
+  "grype": {
+    "version": "0.118.0",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/anchore/grype",
+    "linux": "1d444c5e7360471815f7158f71935fcecc68a3c417d85c7344f770854300bba2",
+    "win32": "82fb07f246e61526e8f2bf187fc6bb29ed23c7450cda6e9d1868a60fb942fc98"
+  }
+}

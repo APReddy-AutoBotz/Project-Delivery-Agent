@@ -53,6 +53,11 @@ Review date:
 - Git submodules used to bypass normal dependency review
 ## Foundation package adoption
 
+Development-only image evidence tooling is recorded in
+[DISTRIBUTION_TOOL_REGISTER.md](DISTRIBUTION_TOOL_REGISTER.md). Syft 1.51.1 and
+Grype 0.118.0 are checksum-pinned Apache-2.0 publisher executables; neither is a
+runtime dependency or a shipped customer component.
+
 Exact direct dependencies verified against publisher metadata on 2026-09-06. Runtime entries are approved for local foundation implementation under the delegated permissive-license policy. Full transitive notices, image inventory and vulnerability disposition remain release gates. No upstream source was copied or modified. The machine-readable record [DEPENDENCIES.json](DEPENDENCIES.json) includes consumers, owners and replacement paths.
 
 | Published package | Version | License | Use |

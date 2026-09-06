@@ -51,3 +51,5 @@ image. The operations target now reuses the pinned PostgreSQL/pgvector image and
 binary, plus the existing approved pg/Graphile/platform dependencies. It packages
 the reviewed SQL migration set and excludes Prisma CLI/Studio. Complete OS and
 transitive distribution review still applies to this additional target.
+
+The next evidence collector is described in [DISTRIBUTION_EVIDENCE_VALIDATION.md](../05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md). It binds native/SPDX SBOMs, complete scanner findings, observed notice bytes and browser bundle records to accepted immutable images. Evidence collection does not close the distribution gates above.

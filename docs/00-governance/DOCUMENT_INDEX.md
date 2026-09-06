@@ -161,3 +161,6 @@ DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.
 - `docs/06-commercial-deployment/FOUNDATION_OPERATIONS.md`: reference composition, release jobs, backup/restore and recovery limits.
 - `docs/05-quality/FOUNDATION_OPERATIONS_VALIDATION.md`: operations increment scope, validation and remaining acceptance gates.
 - `docs/05-quality/CUSTOMER_COMPOSITION_VALIDATION.md`: direct shipped customer composition, operator and upgrade/restore acceptance.
+- `docs/03-architecture/adr/ADR-014-DISTRIBUTION-EVIDENCE.md`: immutable image SBOM, vulnerability and notice evidence with explicit release blockers.
+- `docs/07-research/DISTRIBUTION_TOOL_REGISTER.md`: exact development scanner versions, publisher checksums and replacement boundary.
+- `docs/05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md`: complete evidence collection checks, static browser coverage and remaining release review.

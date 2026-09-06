@@ -219,7 +219,9 @@ export async function customerProfiles({
           assert.equal(actual.HostConfig.RestartPolicy.Name, "unless-stopped");
           productIds[target] = actual.Id;
         }
-        const databaseId = container(dbHost).Id;
+        const acceptedDatabase = container(dbHost);
+        const databaseId = acceptedDatabase.Id;
+        assert.equal(acceptedDatabase.Image, record.databaseImage, "Customer database differs from accepted database image");
         check("installed");
         check("before-upgrade");
         const backupOutput = run(service("backup"), "backup", "capture");
@@ -298,6 +300,7 @@ export async function customerProfiles({
           profile,
           project: name,
           status: "passed",
+          databaseImage: acceptedDatabase.Image,
           images: {
             api: record.images.api,
             worker: record.images.worker,

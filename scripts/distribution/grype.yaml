@@ -1,0 +1,15 @@
+check-for-app-update: false
+only-fixed: false
+only-notfixed: false
+match-upstream-kernel-headers: true
+ignore: []
+exclude: []
+vex-documents: []
+external-sources:
+  enable: false
+db:
+  auto-update: true
+  validate-by-hash-on-start: true
+  validate-age: true
+  max-allowed-built-age: 120h
+  require-update-check: true

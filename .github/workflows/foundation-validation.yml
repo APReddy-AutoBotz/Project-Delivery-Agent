@@ -45,7 +45,7 @@ jobs:
         run: docker compose down
   production-boundary:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -58,4 +58,20 @@ jobs:
         with:
           name: production-boundary-evidence
           path: artifacts/production-acceptance.json
+          if-no-files-found: error
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+      - run: pnpm install --frozen-lockfile
+      - name: Collect immutable image SBOM, notices and vulnerability evidence
+        run: node scripts/collect-distribution.mjs
+      - name: Verify complete evidence file manifest
+        run: node scripts/check-distribution.mjs --evidence-only
+      - name: Publish distribution evidence and unresolved review gates
+        uses: actions/upload-artifact@v4
+        with:
+          name: distribution-review-evidence
+          path: |
+            artifacts/distribution-evidence.json
+            artifacts/pdaa-distribution-*/
           if-no-files-found: error
