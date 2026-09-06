@@ -1,0 +1,114 @@
+# TR-DEP-001/003/004. Reference configuration; use reviewed immutable release images.
+x-environment: &environment
+  NODE_ENV: production
+  DEPLOYMENT_MODE: customer
+  DATA_MODE: customer
+  AUTH_MODE: oidc
+  SHADOW_MODE: 'true'
+  CUSTOMER_ID: ${CUSTOMER_ID:?}
+  CUSTOMER_NAME: ${CUSTOMER_NAME:?}
+  APP_ORIGIN: ${APP_ORIGIN:?}
+  API_HOST: 0.0.0.0
+  PDAA_DB_HOST: ${PDAA_DB_HOST:?}
+  PDAA_DB_PORT: ${PDAA_DB_PORT:-5432}
+  PDAA_DB_NAME: ${PDAA_DB_NAME:?}
+  PDAA_DB_CA_FILE: /run/secrets/database-ca.crt
+  ENCRYPTION_KEY_FILE: /run/secrets/encryption-key
+  NODE_EXTRA_CA_CERTS: /run/secrets/identity-ca.crt
+  OIDC_ISSUER: ${OIDC_ISSUER:?}
+  OIDC_JWKS_URI: ${OIDC_JWKS_URI:?}
+  OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?}
+  OIDC_AUDIENCE: ${OIDC_AUDIENCE:?}
+  OIDC_SCOPE: ${OIDC_SCOPE:?}
+  OIDC_GROUP_ROLE_MAP: ${OIDC_GROUP_ROLE_MAP:?}
+x-runtime: &runtime
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  tmpfs: [/tmp]
+services:
+  api:
+    <<: *runtime
+    image: ${PDAA_API_IMAGE:?}
+    environment:
+      <<: *environment
+      PDAA_DB_USER: pdaa_api
+      PDAA_DB_PASSWORD_FILE: /run/secrets/api-password
+    secrets: [database-ca.crt, identity-ca.crt, encryption-key, api-password]
+  worker:
+    <<: *runtime
+    image: ${PDAA_WORKER_IMAGE:?}
+    environment:
+      <<: *environment
+      PDAA_DB_USER: pdaa_worker
+      PDAA_DB_PASSWORD_FILE: /run/secrets/worker-password
+    secrets: [database-ca.crt, identity-ca.crt, encryption-key, worker-password]
+  web:
+    <<: *runtime
+    image: ${PDAA_WEB_IMAGE:?}
+    user: '1000:1000'
+    ports: ["${PDAA_HTTPS_BIND:-127.0.0.1}:${PDAA_HTTPS_PORT:-8443}:8443"]
+    tmpfs: [/tmp, /config, /data]
+    secrets: [server.crt, server.key]
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8081/healthz]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on: [api]
+  operations:
+    image: ${PDAA_OPERATIONS_IMAGE:?}
+    profiles: [operations]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    environment:
+      <<: *environment
+      PDAA_DB_USER: ${PDAA_ADMIN_USER:?}
+      PDAA_DB_PASSWORD_FILE: /run/secrets/admin-password
+      PDAA_OPS_TARGET: ${PDAA_OPS_TARGET:?}
+      PDAA_MIGRATION_PASSWORD_FILE: /run/secrets/migration-password
+      PDAA_API_PASSWORD_FILE: /run/secrets/api-password
+      PDAA_WORKER_PASSWORD_FILE: /run/secrets/worker-password
+      PDAA_BACKUP_PASSWORD_FILE: /run/secrets/backup-password
+      PDAA_BACKUP_KEY_FILE: /run/secrets/backup-key
+    secrets: [database-ca.crt, identity-ca.crt, admin-password, migration-password, api-password, worker-password, backup-password, backup-key]
+    volumes: ["${PDAA_BACKUP_DIR:?}:/backups"]
+  backup:
+    image: ${PDAA_OPERATIONS_IMAGE:?}
+    profiles: [operations]
+    command: [backup]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    environment:
+      NODE_ENV: production
+      DEPLOYMENT_MODE: customer
+      CUSTOMER_ID: ${CUSTOMER_ID:?}
+      CUSTOMER_NAME: ${CUSTOMER_NAME:?}
+      PDAA_DB_HOST: ${PDAA_DB_HOST:?}
+      PDAA_DB_PORT: ${PDAA_DB_PORT:-5432}
+      PDAA_DB_NAME: ${PDAA_DB_NAME:?}
+      PDAA_DB_USER: pdaa_backup
+      PDAA_DB_PASSWORD_FILE: /run/secrets/backup-password
+      PDAA_DB_CA_FILE: /run/secrets/database-ca.crt
+      PDAA_OPS_TARGET: ${PDAA_OPS_TARGET:?}
+      PDAA_BACKUP_KEY_FILE: /run/secrets/backup-key
+    secrets: [database-ca.crt, backup-password, backup-key]
+    volumes: ["${PDAA_BACKUP_DIR:?}:/backups"]
+secrets:
+  database-ca.crt: {file: "${PDAA_SECRET_DIR:?}/database-ca.crt"}
+  identity-ca.crt: {file: "${PDAA_SECRET_DIR:?}/identity-ca.crt"}
+  server.crt: {file: "${PDAA_SECRET_DIR:?}/server.crt"}
+  server.key: {file: "${PDAA_SECRET_DIR:?}/server.key"}
+  admin-password: {file: "${PDAA_SECRET_DIR:?}/admin-password"}
+  migration-password: {file: "${PDAA_SECRET_DIR:?}/migration-password"}
+  api-password: {file: "${PDAA_SECRET_DIR:?}/api-password"}
+  worker-password: {file: "${PDAA_SECRET_DIR:?}/worker-password"}
+  backup-password: {file: "${PDAA_SECRET_DIR:?}/backup-password"}
+  encryption-key: {file: "${PDAA_SECRET_DIR:?}/encryption-key"}
+  backup-key: {file: "${PDAA_SECRET_DIR:?}/backup-key"}

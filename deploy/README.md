@@ -4,16 +4,17 @@ Requirement IDs: TR-DEP-001, TR-DEP-003, TR-AUTH-001/002/003, NFR-SEC-003/005/01
 
 Run `pnpm test:production` from the repository after installing Node 24/pnpm and
 starting local Docker. The runner builds API, worker, web and development acceptance
-targets, generates random synthetic credentials and a two-day certificate authority,
+and operations targets, generates random synthetic credentials and a two-day certificate authority,
 then starts a unique Compose project. It publishes no host ports, changes no host
-certificate trust, uses ephemeral database storage and stops only that generated
+certificate trust, uses run-owned disposable database storage and stops only that generated
 project. The original `pdaa-foundation` database and preview remain available.
 
 The fixture tests the same production configuration path used by application
 containers. Keycloak is an isolated test provider; it is not a customer registration.
 The `acceptance/compose.yaml` file is intentionally a development acceptance fixture.
-It is not an approved customer installation or backup configuration. Complete
-release packaging, notices, image scans, operations/recovery and customer-specific
+It is not an approved customer installation or backup configuration. See the customer reference composition in `customer/compose.yaml` and
+[operations runbook](../docs/06-commercial-deployment/FOUNDATION_OPERATIONS.md). Complete
+release notices, image scans and customer-specific
 identity registration remain open in Issue #5 and EXEC-003.
 
 ## Production configuration contract
@@ -56,7 +57,7 @@ continue to verify local forward migration, repeat deployment and full restore.
 
 The acceptance database grants API CRUD access without table ownership and denies
 audit update/delete/truncate/alter. The worker owns its Graphile schema and can
-update only its business-schema heartbeat. These fixture grants establish the
+update only its business-schema heartbeat. The packaged operations job establishes the
 boundary; future tables need explicit, reviewed grants in release provisioning.
 The migration role can create schemas within the fixture database; it cannot
 create databases or roles. Graphile's schema is provisioned separately, and its

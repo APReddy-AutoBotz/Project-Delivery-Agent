@@ -1,22 +1,38 @@
 import { spawn } from "node:child_process";
-const children = [
-  "apps/api/dist/main.js",
-  "apps/worker/dist/main.js",
-  "apps/web/node_modules/vite/bin/vite.js",
-].map((file, index) =>
-  spawn(
-    process.execPath,
-    [file, ...(index === 2 ? ["apps/web", "--host", "127.0.0.1"] : [])],
-    { stdio: "inherit", env: process.env },
-  ),
-);
+const children = new Set();
+let stopping = false;
+let retry;
+function start(file, args = [], restart = false) {
+  const child = spawn(process.execPath, [file, ...args], {
+    stdio: "inherit",
+    env: process.env,
+  });
+  children.add(child);
+  child.on("exit", (code) => {
+    children.delete(child);
+    if (stopping) return;
+    if (restart) retry = setTimeout(() => start(file, args, true), 1000);
+    else {
+      stop();
+      process.exitCode = code ?? 1;
+    }
+  });
+  child.on("error", () => {
+    stop();
+    process.exitCode = 1;
+  });
+}
 function stop() {
+  stopping = true;
+  clearTimeout(retry);
   for (const child of children) child.kill();
 }
-for (const child of children)
-  child.on("exit", (code) => {
-    stop();
-    process.exit(code ?? 1);
-  });
+start("apps/api/dist/main.js");
+start("apps/worker/dist/main.js", [], true);
+start("apps/web/node_modules/vite/bin/vite.js", [
+  "apps/web",
+  "--host",
+  "127.0.0.1",
+]);
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);

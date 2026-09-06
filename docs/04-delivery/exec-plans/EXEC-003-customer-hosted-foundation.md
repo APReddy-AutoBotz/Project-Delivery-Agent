@@ -106,6 +106,13 @@ with outbound disabled and the separately retained encryption key.
 
 ## Progress log
 
+- 2026-09-06: Operations increment starts from clean merged `e1e8680` on
+  `feature/foundation-operations`. Implement ADR-013's operations package,
+  customer reference configuration and isolated migration/backup/restore and
+  connection-loss tests. Preserve the existing local database and preview.
+  Root owns edits/Git; specialists review requirements/tooling and exact candidate.
+  Existing OS/distribution gates and STORY-036 action reconciliation are not waived.
+
 - 2026-09-06: PR #18 merged exact reviewed `56e4fbd` as `5829e23` after all
   three CI jobs passed. Registered CI-FND-001/INT-DATA-001 have complete evidence;
   accept STORY-001/002 (R0 2/5, R1 0/33). Review's missing parser 413/415 errors

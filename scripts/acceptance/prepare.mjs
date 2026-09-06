@@ -9,14 +9,21 @@ if (existsSync(dir + "/ready"))
   throw new Error("Existing fixture must not be overwritten");
 const write = (name, value) =>
   writeFileSync(`${dir}/${name}`, value, { mode: 0o644 });
+// The nonroot operations job mounts this private directory as a whole.
+execFileSync("chown", ["1000:1000", dir]);
 for (const name of [
   "admin-password",
   "api-password",
   "worker-password",
   "migration-password",
+  "backup-password",
   "login-password",
 ])
   write(name, randomBytes(32).toString("base64url") + "%40%25");
+mkdirSync(dir + "/backups", { recursive: true });
+execFileSync("chown", ["1000:1000", dir + "/backups"]);
+write("backup-key", randomBytes(32).toString("base64"));
+write("wrong-backup-key", randomBytes(32).toString("base64"));
 write("encryption-key", randomBytes(32).toString("base64"));
 const openssl = (...args) =>
   execFileSync("openssl", args, { cwd: dir, stdio: "pipe" });

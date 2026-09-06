@@ -154,3 +154,14 @@ export function operationalLog(
     JSON.stringify({ timestamp: new Date().toISOString(), event, ...fields }),
   );
 }
+
+// Fatal process boundaries disclose no rejected value, SQL, token or stack trace.
+// A supervisor restarts the process; execution never continues after this handler.
+export function installFatalHandlers(service: "api" | "worker" | "operations") {
+  const fatal = () => {
+    operationalLog(`${service}.fatal`);
+    process.exit(1);
+  };
+  process.once("uncaughtException", fatal);
+  process.once("unhandledRejection", fatal);
+}

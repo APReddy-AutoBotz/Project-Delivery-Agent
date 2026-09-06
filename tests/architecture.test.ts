@@ -10,7 +10,7 @@ type Fixture = {
 };
 
 it("CI-FND-001: actual package and source boundaries are acyclic and expose public interfaces", () => {
-  expect(checkArchitecture(loadWorkspace(process.cwd())).packages).toBe(6);
+  expect(checkArchitecture(loadWorkspace(process.cwd())).packages).toBe(7);
 });
 it("CI-FND-001: rejects dependency cycles, SDK leakage, private imports and alias bypasses", () => {
   const domain = (): Fixture => ({

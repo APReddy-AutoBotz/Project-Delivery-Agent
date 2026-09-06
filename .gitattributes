@@ -1,0 +1,2 @@
+# POSIX entrypoints are mounted directly even from Windows checkouts.
+*.sh text eol=lf

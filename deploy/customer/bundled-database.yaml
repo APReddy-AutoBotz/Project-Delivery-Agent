@@ -1,0 +1,26 @@
+# Optional overlay. Without it, PDAA_DB_HOST selects an external PostgreSQL 17 host.
+services:
+  database:
+    image: pgvector/pgvector:0.8.6-pg17-bookworm@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: ${PDAA_DB_NAME:?}
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
+    entrypoint: [sh, /etc/pdaa/postgres.sh]
+    secrets: [admin-password, database.crt, database.key]
+    volumes:
+      - database-data:/var/lib/postgresql/data
+      - ./postgres.sh:/etc/pdaa/postgres.sh:ro
+      - ./pg_hba.conf:/etc/pdaa/pg_hba.conf:ro
+    tmpfs: [/var/lib/postgresql/tls]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  database-data:
+secrets:
+  database.crt: {file: "${PDAA_SECRET_DIR:?}/database.crt"}
+  database.key: {file: "${PDAA_SECRET_DIR:?}/database.key"}

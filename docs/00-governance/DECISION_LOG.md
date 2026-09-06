@@ -72,3 +72,14 @@ groups, migration/recovery and the remaining required checks. See
 FOUNDATION_CONTRACT_VALIDATION.md for full immutable references. R0 is 2/5 (40%);
 R1 is 0/33 (0%). STORY-003/004/005, Issue #5, customer deployment and commercial
 release/distribution remain open; no release gate or customer prerequisite is waived.
+
+## Foundation operations adapter, 2026-09-06
+
+Accept ADR-013 under delegated routine implementation authority. A separate
+operations image reuses approved dependencies and PostgreSQL 17 tools, shares the
+pinned Prisma migration ledger/lock, provisions restricted roles, and authenticates
+encrypted backups before a fresh quarantined restore. Customer reference Compose
+supports bundled or external PostgreSQL. No dependency version, business schema,
+connector scope or customer activation is introduced. Cross-cluster bootstrap,
+restore promotion/action reconciliation and full distribution gates remain open.
+Independent review and immutable packaged acceptance are required before merge.

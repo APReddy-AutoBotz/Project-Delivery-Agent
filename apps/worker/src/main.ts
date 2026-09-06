@@ -1,8 +1,14 @@
 import { Pool } from "pg";
 import { run, Logger } from "graphile-worker";
 import { createDatabase, DatabaseWorkerHeartbeatRepository } from "@pdaa/data";
-import { loadConfig, operationalLog } from "@pdaa/platform";
+import {
+  loadConfig,
+  operationalLog,
+  installFatalHandlers,
+} from "@pdaa/platform";
 import { createTasks } from "./tasks.js";
+import { setInterval, clearInterval } from "node:timers";
+installFatalHandlers("worker");
 let stage = "configuration";
 try {
   const config = loadConfig(process.env);
@@ -11,31 +17,55 @@ try {
     ...config.database,
     max: 4,
     connectionTimeoutMillis: 5000,
+    query_timeout: 10000,
   });
   pool.on("error", () => operationalLog("worker.pool_error"));
   pool.on("connect", (client) => {
     client.on("error", () => operationalLog("worker.connection_error"));
   });
   stage = "startup";
+  let lastProgress = Date.now();
+  const heartbeat = new DatabaseWorkerHeartbeatRepository(db);
+  // A healthy PID is insufficient: terminate if scheduled work stops progressing.
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastProgress > 180000) {
+      operationalLog("worker.progress_timeout");
+      process.exit(1);
+    }
+  }, 10000);
+  watchdog.unref();
   const runner = await run({
+    preset: { worker: { completeJobBatchDelay: 0, failJobBatchDelay: 0 } },
     pgPool: pool,
     schema: "graphile_worker",
     concurrency: 1,
     noHandleSignals: true,
     logger: new Logger(() => () => operationalLog("worker.event")),
     crontab: "* * * * * foundation_heartbeat",
-    taskList: createTasks(new DatabaseWorkerHeartbeatRepository(db)),
+    taskList: createTasks({
+      recordHeartbeat: async (at) => {
+        await heartbeat.recordHeartbeat(at);
+        lastProgress = Date.now();
+      },
+    }),
   });
   operationalLog("worker.started");
   stage = "running";
+  let shutdown: Promise<void> | undefined;
   for (const signal of ["SIGINT", "SIGTERM"] as const)
-    process.once(signal, async () => {
-      await runner.stop();
-      await db.$disconnect();
-      await pool.end();
-      process.exit(0);
+    process.once(signal, () => {
+      if (shutdown) return;
+      clearInterval(watchdog);
+      shutdown = (async () => {
+        await runner.stop();
+        await db.$disconnect();
+        await pool.end();
+      })();
     });
   await runner.promise;
+  if (!shutdown) throw new Error("Worker ended without a shutdown signal");
+  await shutdown;
+  process.exit(0);
 } catch (error) {
   // Fixed categories only: database errors can otherwise disclose credentials/SQL.
   const code =

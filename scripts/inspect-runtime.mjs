@@ -64,7 +64,11 @@ function walk(path) {
 if (!existsSync(join(root, "dist/main.js")))
   throw new Error("Runtime application entrypoint absent");
 walk(root);
-for (const name of ["@pdaa/data", "@pdaa/platform", "@pdaa/domain"]) {
+const application = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const expected = application.name === "@pdaa/operations"
+  ? ["@pdaa/platform", "@pdaa/domain"]
+  : ["@pdaa/data", "@pdaa/platform", "@pdaa/domain"];
+for (const name of expected) {
   const target = roots.get(name);
   if (!target || !existsSync(join(target, "dist/index.js")))
     throw new Error("Compiled workspace dependency absent");

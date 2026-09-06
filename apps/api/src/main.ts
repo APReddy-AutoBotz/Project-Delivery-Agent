@@ -1,6 +1,11 @@
 import { createDatabase, DatabaseProjectRepository } from "@pdaa/data";
-import { loadConfig, operationalLog } from "@pdaa/platform";
+import {
+  loadConfig,
+  operationalLog,
+  installFatalHandlers,
+} from "@pdaa/platform";
 import { createApp } from "./app.js";
+installFatalHandlers("api");
 try {
   const config = loadConfig(process.env);
   const db = createDatabase(config.database);
