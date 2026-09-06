@@ -17,6 +17,8 @@ Published packages are used without modification. Their original license and cop
 - **@types/react 19.2.18** — MIT; [publisher metadata](https://registry.npmjs.org/%40types%2Freact/19.2.18); source: https://github.com/DefinitelyTyped/DefinitelyTyped.git.
 - **@types/react-dom 19.2.7** — MIT; [publisher metadata](https://registry.npmjs.org/%40types%2Freact-dom/19.2.7); source: https://github.com/DefinitelyTyped/DefinitelyTyped.git.
 - **@vitejs/plugin-react 5.2.0** — MIT; [publisher metadata](https://registry.npmjs.org/%40vitejs%2Fplugin-react/5.2.0); source: git+https://github.com/vitejs/vite-plugin-react.git.
+- **ajv 8.20.0** — MIT; [publisher metadata](https://registry.npmjs.org/ajv/8.20.0); source: git+https://github.com/ajv-validator/ajv.git.
+- **ajv-formats 3.0.1** — MIT; [publisher metadata](https://registry.npmjs.org/ajv-formats/3.0.1); source: git+https://github.com/ajv-validator/ajv-formats.git.
 - **deepmerge-ts 8.0.0** — BSD-3-Clause; [publisher metadata](https://registry.npmjs.org/deepmerge-ts/8.0.0); source: git+https://github.com/RebeccaStevens/deepmerge-ts.git.
 - **eslint 10.10.0** — MIT; [publisher metadata](https://registry.npmjs.org/eslint/10.10.0); source: git+https://github.com/eslint/eslint.git.
 - **graphile-worker 0.17.3** — MIT; [publisher metadata](https://registry.npmjs.org/graphile-worker/0.17.3); source: git+ssh://git@github.com/graphile/worker.git.

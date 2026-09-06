@@ -1,5 +1,12 @@
 import "reflect-metadata";
-import { completeContract } from "./contract.js";
+import {
+  completeContract,
+  grantSchema,
+  revokeSchema,
+  developmentSchema,
+} from "./contract.js";
+import { ResponseContractInterceptor } from "./response-contract.js";
+import { ExceptionContractFilter } from "./exception-contract.js";
 import { randomUUID } from "node:crypto";
 import {
   Controller,
@@ -24,10 +31,9 @@ import {
   DocumentBuilder,
   ApiBearerAuth,
   ApiTags,
-  ApiBody,
 } from "@nestjs/swagger";
 import { z } from "zod";
-import { roleSchema, type Actor, type ProjectRepository } from "@pdaa/domain";
+import { type Actor, type ProjectRepository } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
 type Request = {
@@ -36,15 +42,6 @@ type Request = {
   correlationId: string;
   method: string;
 };
-const grantSchema = z
-  .object({
-    subject: z.string().trim().min(1).max(200),
-    scopeType: z.enum(["project", "portfolio"]),
-    scopeId: z.uuid(),
-    role: roleSchema,
-  })
-  .strict();
-const revokeSchema = grantSchema.omit({ role: true });
 const REPOSITORY = "PROJECT_REPOSITORY";
 const CONFIG = "APP_CONFIG";
 
@@ -94,25 +91,9 @@ class FoundationController {
   }
   @Post("auth/development")
   @HttpCode(200)
-  @ApiBody({
-    schema: {
-      type: "object",
-      required: ["persona"],
-      properties: {
-        persona: {
-          type: "string",
-          enum: ["pm-atlas", "leader-atlas", "operator"],
-        },
-      },
-      additionalProperties: false,
-    },
-  })
   async development(@Body() body: unknown) {
     if (this.config.AUTH_MODE !== "development") throw new NotFoundException();
-    const input = z
-      .object({ persona: z.enum(["pm-atlas", "leader-atlas", "operator"]) })
-      .strict()
-      .safeParse(body);
+    const input = developmentSchema.safeParse(body);
     if (!input.success) throw new BadRequestException("Invalid persona");
     return { token: await this.identity.developmentToken(input.data.persona) };
   }
@@ -142,30 +123,21 @@ class FoundationController {
         heartbeat && Date.now() - heartbeat.getTime() < 90000
           ? "running"
           : "unavailable",
-      heartbeat,
+      heartbeat: heartbeat?.toISOString() ?? null,
       shadowMode: this.config.SHADOW_MODE === "true",
       identityMode: this.config.AUTH_MODE,
       dataMode: this.config.DATA_MODE,
     };
   }
   @Get("audit") async audit(@Req() req: Request) {
-    return this.repository.listAudit(await this.admin(req));
+    const rows = await this.repository.listAudit(await this.admin(req));
+    return rows.map((row) => ({
+      ...row,
+      occurredAt: row.occurredAt.toISOString(),
+    }));
   }
   @Post("access-grants")
   @HttpCode(204)
-  @ApiBody({
-    schema: {
-      type: "object",
-      required: ["subject", "scopeType", "scopeId", "role"],
-      properties: {
-        subject: { type: "string" },
-        scopeType: { type: "string", enum: ["project", "portfolio"] },
-        scopeId: { type: "string", format: "uuid" },
-        role: { type: "string", enum: roleSchema.options },
-      },
-      additionalProperties: false,
-    },
-  })
   async grant(@Req() req: Request, @Body() body: unknown) {
     const actor = await this.admin(req);
     const input = grantSchema.safeParse(body);
@@ -180,18 +152,6 @@ class FoundationController {
   }
   @Delete("access-grants")
   @HttpCode(204)
-  @ApiBody({
-    schema: {
-      type: "object",
-      required: ["subject", "scopeType", "scopeId"],
-      properties: {
-        subject: { type: "string" },
-        scopeType: { type: "string", enum: ["project", "portfolio"] },
-        scopeId: { type: "string", format: "uuid" },
-      },
-      additionalProperties: false,
-    },
-  })
   async revoke(@Req() req: Request, @Body() body: unknown) {
     const actor = await this.admin(req);
     const input = revokeSchema.safeParse(body);
@@ -215,6 +175,8 @@ export async function createApp(
   })
   class AppModule {}
   const app = await NestFactory.create(AppModule, { logger: false });
+  app.useGlobalInterceptors(new ResponseContractInterceptor());
+  app.useGlobalFilters(new ExceptionContractFilter(app.getHttpAdapter()));
   app.enableCors({
     origin: config.APP_ORIGIN,
     methods: ["GET", "POST", "DELETE"],

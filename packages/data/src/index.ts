@@ -1,6 +1,11 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
-import type { Actor, Grant, ProjectRepository } from "@pdaa/domain";
+import type {
+  Actor,
+  Grant,
+  ProjectRepository,
+  WorkerHeartbeatRepository,
+} from "@pdaa/domain";
 
 export function createDatabase(
   connection: string | import("@pdaa/platform").DatabaseTransport,
@@ -17,6 +22,18 @@ export function createDatabase(
   });
 }
 export type Database = ReturnType<typeof createDatabase>;
+export class DatabaseWorkerHeartbeatRepository
+  implements WorkerHeartbeatRepository
+{
+  constructor(private readonly db: Database) {}
+  async recordHeartbeat(occurredAt: Date): Promise<void> {
+    await this.db.serviceHeartbeat.upsert({
+      where: { id: "worker" },
+      create: { id: "worker", occurredAt },
+      update: { occurredAt },
+    });
+  }
+}
 const projectSelect = {
   id: true,
   portfolioId: true,

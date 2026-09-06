@@ -2,6 +2,7 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import {
   createDatabase,
   DatabaseProjectRepository,
+  DatabaseWorkerHeartbeatRepository,
 } from "../packages/data/dist/index.js";
 import {
   loadConfig,
@@ -62,6 +63,61 @@ const api = (path: string, token?: string, method = "GET", body?: unknown) =>
   });
 
 describe("Real database and HTTP foundation boundaries", () => {
+  it("INT-DATA-001: enforces customer/portfolio ownership and customer-scoped project-code uniqueness", async () => {
+    const other = "10000000-0000-4000-8000-000000000090";
+    const portfolio = "20000000-0000-4000-8000-000000000090";
+    const project = "30000000-0000-4000-8000-000000000090";
+    const data = {
+      id: project,
+      customerId: other,
+      portfolioId: portfolio,
+      code: "ATL",
+      name: "Constraint fixture",
+      description: "Synthetic",
+      reportedStatus: "UNKNOWN",
+    };
+    await db.customer.create({
+      data: { id: other, name: "Synthetic constraint fixture" },
+    });
+    await db.portfolio.create({
+      data: { id: portfolio, customerId: other, name: "Synthetic" },
+    });
+    try {
+      await expect(
+        db.project.create({
+          data: {
+            ...data,
+            portfolioId: "20000000-0000-4000-8000-000000000001",
+          },
+        }),
+      ).rejects.toThrow();
+      await expect(
+        db.project.create({
+          data: {
+            ...data,
+            customerId,
+            portfolioId: "20000000-0000-4000-8000-000000000001",
+          },
+        }),
+      ).rejects.toThrow();
+      await db.project.create({ data });
+      expect(await repository.getProject(manager, project)).toBe(null);
+    } finally {
+      await db.project.deleteMany({ where: { customerId: other } });
+      await db.portfolio.delete({ where: { id: portfolio } });
+      await db.customer.delete({ where: { id: other } });
+    }
+  });
+  it("INT-DATA-001: heartbeat repository updates one durable worker row", async () => {
+    const heartbeat = new DatabaseWorkerHeartbeatRepository(db);
+    await heartbeat.recordHeartbeat(new Date("2026-09-06T00:00:00.000Z"));
+    const latest = new Date();
+    await heartbeat.recordHeartbeat(latest);
+    expect(await repository.heartbeat()).toEqual(latest);
+    expect(await db.serviceHeartbeat.count({ where: { id: "worker" } })).toBe(
+      1,
+    );
+  });
   it("denies detail reads with no grants, including after the last grant is revoked", async () => {
     expect((await api("/projects/" + atlas, opToken)).status).toBe(404);
     const scope = {

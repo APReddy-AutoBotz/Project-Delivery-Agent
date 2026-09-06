@@ -9,6 +9,7 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@pdaa/domain": "workspace:*",
     "@pdaa/data": "workspace:*",
     "@pdaa/platform": "workspace:*",
     "graphile-worker": "0.17.3",
