@@ -1,0 +1,19 @@
+{
+  "name": "@pdaa/operations",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "graphile-worker": {},
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pdaa/platform": "workspace:*",
+    "graphile-worker": "0.17.3",
+    "pg": "8.23.0"
+  },
+  "devDependencies": { "@types/pg": "8.23.1" },
+  "files": ["dist"]
+}

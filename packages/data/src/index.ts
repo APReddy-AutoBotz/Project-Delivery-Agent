@@ -17,6 +17,7 @@ export function createDatabase(
         : connection),
       max: 5,
       connectionTimeoutMillis: 5000,
+      query_timeout: 10000,
       idleTimeoutMillis: 10000,
     }),
   });
@@ -148,11 +149,18 @@ export class DatabaseProjectRepository implements ProjectRepository {
     });
   }
   async ready() {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      await this.db.$queryRaw`SELECT 1`;
-      return true;
+      return await Promise.race([
+        this.db.$queryRaw`SELECT 1`.then(() => true),
+        new Promise<false>((resolve) => {
+          timeout = setTimeout(() => resolve(false), 3000);
+        }),
+      ]);
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeout);
     }
   }
   async heartbeat() {

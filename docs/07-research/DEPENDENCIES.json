@@ -183,7 +183,8 @@
       "runtime": false,
       "consumers": [
         "@pdaa/worker",
-        "@pdaa/data"
+        "@pdaa/data",
+        "@pdaa/operations"
       ],
       "license": "MIT",
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
@@ -312,7 +313,8 @@
       "version": "0.17.3",
       "runtime": true,
       "consumers": [
-        "@pdaa/worker"
+        "@pdaa/worker",
+        "@pdaa/operations"
       ],
       "license": "MIT",
       "repository": "git+ssh://git@github.com/graphile/worker.git",
@@ -395,7 +397,8 @@
       "runtime": true,
       "consumers": [
         "@pdaa/worker",
-        "@pdaa/data"
+        "@pdaa/data",
+        "@pdaa/operations"
       ],
       "license": "MIT",
       "repository": "git://github.com/brianc/node-postgres.git",

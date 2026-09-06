@@ -4,6 +4,7 @@ x-environment: &environment
   DEPLOYMENT_MODE: customer
   DATA_MODE: synthetic
   AUTH_MODE: oidc
+  CUSTOMER_NAME: Synthetic acceptance
   CUSTOMER_ID: 10000000-0000-4000-8000-000000000001
   APP_ORIGIN: https://gateway:8443
   API_HOST: 0.0.0.0
@@ -30,7 +31,7 @@ x-database: &database
     - ${PDAA_ACCEPTANCE_DIR:?}:/run/secrets:ro
     - ./postgres.sh:/etc/pdaa/postgres.sh:ro
     - ./pg_hba.conf:/etc/pdaa/pg_hba.conf:ro
-  tmpfs: [/var/lib/postgresql/data, /var/lib/postgresql/tls]
+  tmpfs: [/var/lib/postgresql/tls]
   healthcheck:
     test: [CMD-SHELL, pg_isready -U fixture_admin -d pdaa]
     interval: 3s
@@ -39,6 +40,11 @@ x-database: &database
 services:
   database:
     <<: *database
+    volumes:
+      - ${PDAA_ACCEPTANCE_DIR:?}:/run/secrets:ro
+      - ./postgres.sh:/etc/pdaa/postgres.sh:ro
+      - ./pg_hba.conf:/etc/pdaa/pg_hba.conf:ro
+      - database-data:/var/lib/postgresql/data
     networks:
       default:
         aliases: [database-alias]
@@ -49,6 +55,42 @@ services:
     command: [start-dev, --import-realm, --hostname=https://gateway:8443/identity, --hostname-strict=true, --http-relative-path=/identity, --http-port=8080, --proxy-headers=xforwarded]
     volumes: ["${PDAA_ACCEPTANCE_DIR:?}/realm:/opt/keycloak/data/import:ro"]
     mem_limit: 1g
+  operations: &operations
+    image: ${PDAA_OPERATIONS_IMAGE:?}
+    profiles: [operations]
+    environment: &operations-environment
+      <<: *environment
+      PDAA_DB_USER: fixture_admin
+      PDAA_DB_PASSWORD_FILE: /run/secrets/admin-password
+      PDAA_OPS_TARGET: database:5432/pdaa
+      PDAA_MIGRATION_PASSWORD_FILE: /run/secrets/migration-password
+      PDAA_API_PASSWORD_FILE: /run/secrets/api-password
+      PDAA_WORKER_PASSWORD_FILE: /run/secrets/worker-password
+      PDAA_BACKUP_PASSWORD_FILE: /run/secrets/backup-password
+      PDAA_BACKUP_KEY_FILE: /run/secrets/backup-key
+    volumes:
+      - ${PDAA_ACCEPTANCE_DIR:?}:/run/secrets:ro
+      - ${PDAA_ACCEPTANCE_DIR:?}/backups:/backups
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+  provision:
+    <<: *operations
+    profiles: []
+    command: [provision]
+    depends_on:
+      database: {condition: service_healthy}
+  provision-external:
+    <<: *operations
+    profiles: []
+    environment:
+      <<: *operations-environment
+      PDAA_DB_HOST: external-database
+      PDAA_OPS_TARGET: external-database:5432/pdaa
+    command: [provision]
+    depends_on:
+      external-database: {condition: service_healthy}
   initialize:
     image: ${PDAA_ACCEPTANCE_IMAGE:?}
     environment:
@@ -62,9 +104,10 @@ services:
       - ${PDAA_ACCEPTANCE_DIR:?}:/run/secrets:ro
     command: [node, scripts/acceptance/initialize.mjs]
     depends_on:
-      database: {condition: service_healthy}
-      external-database: {condition: service_healthy}
+      provision: {condition: service_completed_successfully}
+      provision-external: {condition: service_completed_successfully}
   api:
+    restart: unless-stopped
     image: ${PDAA_API_IMAGE:?}
     environment:
       <<: *environment
@@ -79,6 +122,7 @@ services:
     depends_on:
       initialize: {condition: service_completed_successfully}
   worker:
+    restart: unless-stopped
     image: ${PDAA_WORKER_IMAGE:?}
     environment:
       <<: *environment
@@ -97,6 +141,7 @@ services:
     networks:
       default:
         aliases: [gateway-alias]
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro"]
     user: '1000:1000'
     read_only: true
     cap_drop: [ALL]
@@ -122,6 +167,7 @@ services:
     volumes:
       - ${PDAA_ACCEPTANCE_DIR:?}:/run/secrets:ro
       - ../../artifacts:/workspace/artifacts
+      - ${PDAA_ACCEPTANCE_DIR:?}/backups:/backups
     command: [node, scripts/acceptance/run.mjs]
 secrets:
   ca.crt: {file: "${PDAA_ACCEPTANCE_DIR:?}/ca.crt"}
@@ -130,3 +176,6 @@ secrets:
   encryption-key: {file: "${PDAA_ACCEPTANCE_DIR:?}/encryption-key"}
   api-password: {file: "${PDAA_ACCEPTANCE_DIR:?}/api-password"}
   worker-password: {file: "${PDAA_ACCEPTANCE_DIR:?}/worker-password"}
+
+volumes:
+  database-data:

@@ -6,6 +6,11 @@ import { isBuiltin } from "node:module";
 import { pathToFileURL } from "node:url";
 
 const policies = {
+  "@pdaa/operations": {
+    workspace: ["@pdaa/platform"],
+    external: ["pg", "graphile-worker"],
+    node: true,
+  },
   "@pdaa/domain": { workspace: [], external: ["zod"] },
   "@pdaa/platform": {
     workspace: ["@pdaa/domain"],

@@ -134,6 +134,7 @@
 - `docs/04-delivery/exec-plans/EXEC-003-customer-hosted-foundation.md`: production boundary implementation and remaining release gates.
 - `docs/03-architecture/adr/ADR-011-FOUNDATION-DEPLOYMENT-BOUNDARIES.md`: approved native component and production transport boundaries.
 - `docs/03-architecture/adr/ADR-012-EXECUTABLE-FOUNDATION-CONTRACTS.md`: runtime REST contracts, import boundaries and foundation acceptance gates.
+- `docs/03-architecture/adr/ADR-013-FOUNDATION-OPERATIONS.md`: provisioning, migration, encrypted backup, quarantined restore and restart boundaries.
 - `docs/07-research/FOUNDATION_IMAGE_REGISTER.md`: pinned acceptance images and unresolved distribution review.
 - `docs/05-quality/FOUNDATION_VALIDATION.md`: executed checks, boundaries and review fixes.
 - `docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md`: production TLS/OIDC increment and scoped validation evidence.
@@ -156,3 +157,6 @@ implementation contract is superseded by the 2026-09-06 approval record in
 DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.
 
 - `docs/04-delivery/PUBLICATION_RECORD.md`: approved public publication, exact review/merge/check evidence, backlog links and remaining acceptance.
+
+- `docs/06-commercial-deployment/FOUNDATION_OPERATIONS.md`: reference composition, release jobs, backup/restore and recovery limits.
+- `docs/05-quality/FOUNDATION_OPERATIONS_VALIDATION.md`: operations increment scope, validation and remaining acceptance gates.

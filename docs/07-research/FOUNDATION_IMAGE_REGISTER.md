@@ -47,4 +47,7 @@ Prisma CLI's development closure contains Studio branding conditions and an EPL
 dependency. Neither belongs in an application image. A proposed minimal migration
 package also has a transitive BlueOak notice requiring policy review; it has not
 been adopted. This increment uses the existing CLI only in its development test
-image. A supported release migration/backup artifact remains separate work.
+image. The operations target now reuses the pinned PostgreSQL/pgvector image and Node 24
+binary, plus the existing approved pg/Graphile/platform dependencies. It packages
+the reviewed SQL migration set and excludes Prisma CLI/Studio. Complete OS and
+transitive distribution review still applies to this additional target.

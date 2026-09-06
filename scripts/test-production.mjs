@@ -58,7 +58,7 @@ const env = Object.fromEntries(
 env.PDAA_ACCEPTANCE_DIR = fixture;
 env.PDAA_ACCEPTANCE_RUN_ID = project;
 env.PDAA_ARTIFACT_DIR = "/workspace/artifacts/" + project;
-const targets = ["acceptance", "api", "worker", "web"];
+const targets = ["acceptance", "api", "worker", "web", "operations"];
 for (const target of targets)
   env[`PDAA_${target.toUpperCase()}_IMAGE`] = `pdaa-${target}:${project}`;
 const endpoint =
@@ -100,6 +100,47 @@ const compose = (...args) => [
   project,
   ...args,
 ];
+function denied(args, name) {
+  let failed = false;
+  try {
+    docker(args, name);
+  } catch {
+    failed = true;
+  }
+  assert(
+    failed &&
+      readFileSync(join(output, name + ".log"), "utf8").includes(
+        '"event":"operations.failed"',
+      ),
+    "Expected safe operations denial: " + name,
+  );
+}
+const operation = (command, patch = {}, extra = []) =>
+  compose(
+    "run",
+    "--rm",
+    ...Object.entries(patch).flatMap(([key, value]) => [
+      "-e",
+      key + "=" + value,
+    ]),
+    "operations",
+    command,
+    ...extra,
+  );
+const fixtureStep = (mode) =>
+  docker(
+    compose(
+      "run",
+      "--rm",
+      "verify",
+      "node",
+      "scripts/acceptance/operations.mjs",
+      mode,
+    ),
+    "operations-" + mode,
+    "inherit",
+  );
+let paused = false;
 let started = false;
 let failure;
 let checks;
@@ -166,20 +207,201 @@ try {
     "Acceptance report belongs to another run",
   );
   assert(checks.passed?.length > 0, "Acceptance checks missing");
+  console.log("Testing release operations and recovery");
+  docker(operation("provision"), "repeat-provision");
+  docker(
+    operation("migrate", {
+      PDAA_DB_USER: "pdaa_migrate",
+      PDAA_DB_PASSWORD_FILE: "/run/secrets/migration-password",
+    }),
+    "release-migrate",
+  );
+  denied(
+    operation("provision", {
+      PDAA_API_PASSWORD_FILE: "/run/secrets/backup-password",
+    }),
+    "mismatched-role-secret",
+  );
+  denied(
+    operation("provision", { CUSTOMER_NAME: "Wrong customer" }),
+    "mismatched-customer",
+  );
+  denied(
+    operation("migrate", { PDAA_DB_CA_FILE: "/run/secrets/wrong-ca.crt" }),
+    "operations-wrong-ca",
+  );
+  fixtureStep("prepare");
+  const backupResult = docker(
+    operation("backup", {
+      PDAA_DB_USER: "pdaa_backup",
+      PDAA_DB_PASSWORD_FILE: "/run/secrets/backup-password",
+    }),
+    "encrypted-backup",
+    "capture",
+  );
+  const backupName = JSON.parse(
+    backupResult.split("\n").find((line) => line.startsWith('{"operation"')),
+  ).result.file;
+  assert(/^backup-[a-zA-Z0-9-]+\.pdaa$/.test(backupName));
+  const restoreTarget = (name) => ({
+    PDAA_DB_NAME: name,
+    PDAA_OPS_TARGET: "database:5432/" + name,
+  });
+  fixtureStep("corrupt");
+  denied(
+    operation("restore", restoreTarget("restore_wrong"), [
+      "backup-corrupt.pdaa",
+    ]),
+    "corrupt-archive",
+  );
+  denied(
+    operation(
+      "restore",
+      {
+        ...restoreTarget("restore_wrong"),
+        PDAA_BACKUP_KEY_FILE: "/run/secrets/wrong-backup-key",
+      },
+      [backupName],
+    ),
+    "wrong-backup-key",
+  );
+  denied(
+    operation("restore", restoreTarget("restore_nonempty"), [backupName]),
+    "nonempty-restore",
+  );
+  denied(operation("restore", {}, [backupName]), "source-restore-denied");
+  denied(
+    operation("restore", restoreTarget("restore_wrong"), ["../" + backupName]),
+    "restore-path-denied",
+  );
+  denied(
+    operation("restore", restoreTarget("restore_large"), [backupName]),
+    "large-object-restore-denied",
+  );
+  const heldId = docker(
+    compose(
+      "run",
+      "-d",
+      "--rm",
+      "verify",
+      "node",
+      "scripts/acceptance/operations.mjs",
+      "hold",
+    ),
+    "restore-held-client",
+    "capture",
+  );
+  try {
+    fixtureStep("held-ready");
+    denied(
+      operation("restore", restoreTarget("restore_connected"), [backupName]),
+      "connected-target-denied",
+    );
+  } finally {
+    docker(["stop", heldId], "restore-held-stop");
+  }
+  docker(
+    operation("restore", restoreTarget("restore_target"), [backupName]),
+    "quarantined-restore",
+  );
+  denied(
+    operation("provision", restoreTarget("restore_target")),
+    "quarantine-reprovision-denied",
+  );
+  denied(
+    operation("migrate", restoreTarget("restore_target")),
+    "quarantine-migrate-denied",
+  );
+  fixtureStep("verify");
+  checks.passed.push(
+    "Release operations: packaged provision/repeat, customer/secret/TLS denial and bidirectional migration interoperability, concurrency, drift and atomic rollback",
+  );
+  checks.passed.push(
+    "Encrypted whole-database backup and fresh quarantined restore: integrity, credential decryption, audit and ownership; corrupt/key/path/nonempty/source denials",
+  );
+  fixtureStep("heartbeat");
+  docker(compose("pause", "database"), "database-pause");
+  paused = true;
+  fixtureStep("outage");
+  docker(compose("unpause", "database"), "database-unpause");
+  paused = false;
+  fixtureStep("recovered");
+  docker(compose("restart", "database"), "database-restart");
+  fixtureStep("recovered");
+  const workerId = docker(
+    compose("ps", "-q", "worker"),
+    "worker-id",
+    "capture",
+  );
+  const beforeRestart = Number(
+    docker(
+      ["inspect", "--format", "{{.RestartCount}}", workerId],
+      "restart-count-before",
+      "capture",
+    ),
+  );
+  try {
+    docker(
+      compose(
+        "exec",
+        "-T",
+        "worker",
+        "node",
+        "-e",
+        "process.kill(1,'SIGKILL')",
+      ),
+      "worker-failure",
+    );
+  } catch {
+    /* PID 1 failure can terminate docker exec too. Assert actual restart below. */
+  }
+  fixtureStep("recovered");
+  const afterRestart = Number(
+    docker(
+      ["inspect", "--format", "{{.RestartCount}}", workerId],
+      "restart-count-after",
+      "capture",
+    ),
+  );
+  assert(
+    afterRestart > beforeRestart,
+    "Worker restart policy must recover an unexpected process exit",
+  );
+  checks.passed.push(
+    "Database blackhole readiness deadline, persistent database restart and independently supervised worker recovery with advancing heartbeat",
+  );
 } catch (error) {
   failure = error;
 } finally {
   try {
+    if (paused) {
+      docker(compose("unpause", "database"), "cleanup-unpause");
+      paused = false;
+    }
     if (started && failure)
       docker(
-        compose("logs", "--no-color", "initialize", "api", "worker"),
+        compose(
+          "logs",
+          "--no-color",
+          "provision",
+          "provision-external",
+          "database",
+          "external-database",
+          "initialize",
+          "api",
+          "worker",
+        ),
         "failure-diagnostics",
       );
   } catch {
     /* Preserve the original failed step. */
   }
   try {
-    if (started) docker(compose("down", "--remove-orphans"), "production-stop");
+    if (started)
+      docker(
+        compose("down", "--remove-orphans", "--volumes"),
+        "production-stop",
+      );
   } catch (error) {
     failure ??= error;
   }

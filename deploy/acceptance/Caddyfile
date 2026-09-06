@@ -20,6 +20,14 @@ https://:8443 {
     handle /api/* {
         reverse_proxy api:3001
     }
+    # Controlled IdP fixture. Customer deployment uses its registered external issuer.
+    handle /identity/* {
+        reverse_proxy identity:8080 {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host gateway:8443
+            header_up X-Forwarded-Port 8443
+        }
+    }
     handle {
         root * /srv
         try_files {path} /index.html
