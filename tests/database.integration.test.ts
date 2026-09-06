@@ -62,6 +62,26 @@ const api = (path: string, token?: string, method = "GET", body?: unknown) =>
   });
 
 describe("Real database and HTTP foundation boundaries", () => {
+  it("denies detail reads with no grants, including after the last grant is revoked", async () => {
+    expect((await api("/projects/" + atlas, opToken)).status).toBe(404);
+    const scope = {
+      subject: "pm-atlas",
+      scopeType: "project" as const,
+      scopeId: atlas,
+    };
+    await repository.revokeGrant(operator, scope, "last-grant-revoked");
+    try {
+      expect((await api("/projects/" + atlas, pmToken)).status).toBe(404);
+      expect(await repository.getProject(manager, atlas)).toBe(null);
+      expect(await repository.listProjects(manager)).toEqual([]);
+    } finally {
+      await repository.setGrant(
+        operator,
+        { ...scope, role: "project_manager" },
+        "last-grant-restored",
+      );
+    }
+  });
   it("applies portfolio access and revocation without expanding operational roles", async () => {
     const portfolio = {
       subject: "portfolio-reader",

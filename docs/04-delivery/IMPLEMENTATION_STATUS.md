@@ -11,12 +11,14 @@ Updated: 2026-09-06
 - Validator regression tests: 13 passed.
 - Local foundation implemented: web/API/worker, PostgreSQL schema and seed,
   OIDC validation, scoped grants, encrypted credential primitives and immutable audit.
-- Application validation: 13 unit/security/health tests, 6 real database/API tests,
-  and 3 Chromium workflows passed; clean/repeat migration and full restore passed.
+- Application validation: 13 unit/security/health tests, 7 real database/API tests,
+  and 5 Chromium workflows passed; clean/repeat migration and full restore passed.
 - Dependency audit after patch overrides: zero known advisories across the lockfile.
 - Desktop/mobile screenshots inspected; synthetic preview at http://localhost:5173.
 - Two identity test specifications now have implementation evidence; 133 remain planned.
-- Full foundation candidate review and final completion record pending below.
+- Build, lint, typecheck, documentation validation and 13 validator regression tests passed.
+- Review fixes include cached-data removal and explicit denial after the last scoped grant is revoked.
+- Independent review disposition is recorded in the task against the immutable branch tip.
 
 ## Accepted implementation completion
 
@@ -36,7 +38,7 @@ at affdbae; they do not validate the new local candidate.
 
 ## Next coherent increment
 
-Finish independent review of the prepared EPIC-01 foundation candidate. When public publishing is
+The local foundation is prepared and verified. When public publishing is
 approved, publish/review/merge the baseline and master plan in order, create the
 grouped implementation issues/milestones, then submit the independently reviewed
 foundation candidate. Keep real integrations and external actions disabled.

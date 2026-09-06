@@ -34,16 +34,20 @@ write-back and reports remain future increments; the interface labels them clear
 
 - Build: all six workspace packages/apps compiled.
 - Unit/security/health: **13 passed** across three test files.
-- Real database/API: **6 passed** on fresh `pdaa_test_1788680176791`.
+- Real database/API: **7 passed** on fresh `pdaa_test_1788682481770`.
 - Initial migration applied; repeat deployment reported no pending migrations.
-- Restore: `pdaa_restore_1788680210559`; complete project, grant, audit and encrypted
+- Restore: `pdaa_restore_1788682493346`; complete project, grant, audit and encrypted
   credential rows matched; decryption, project scope and UPDATE/DELETE/TRUNCATE
   audit protection passed. No application or outbound work started on the restore.
-- Chromium: **3 passed** — project manager journey, operator grant/revoke/audit,
-  390px mobile layout. Desktop/detail/platform/mobile screenshots inspected.
+- Chromium: **5 passed** — project manager journey, operator grant/revoke/audit,
+  390px mobile layout, removal of revoked cached project data, and expired-session
+  sign-in recovery. Desktop/detail/platform/mobile screenshots inspected.
 - Locked dependency audit, including development tooling: **0 known advisories**.
-- Final lint, typecheck, documentation validation and immutable review are recorded
-  in the completion record after the final candidate checks.
+- Lint, typecheck and build passed. Documentation validation passed with 245
+  requirements, 91 criteria, 38 stories and 135 test specifications; its 13
+  regression tests passed. Frozen-lockfile installation passed with a clean tree.
+- Independent review disposition is recorded in the task against the immutable
+  candidate SHA; remote checks and merge remain separate gates.
 
 Screenshots are local ignored artifacts: `artifacts/projects-desktop.png`,
 `project-detail.png`, `platform-desktop.png`, `projects-mobile.png`.
@@ -56,7 +60,18 @@ Independent partial reviews found and resolved malformed outbound-policy allowan
 truncated GCM tag acceptance, database URL driver-option overrides, Docker routing
 inheritance and malformed URL error disclosure. Regression checks cover the fixes.
 The safety reviewer rechecked the three target/error findings and reported no
-remaining P1 finding. Final complete-candidate review is still a separate gate.
+remaining P1 finding. Complete review of `aca4a2e` identified stale cached protected
+UI data after denial. The fix hides errored query data, clears the session/cache
+on a current-token 401, and refreshes the project list after detail denial.
+Its live regression also exposed an empty-grant detail-query edge case. The
+repository now returns an explicit denial before querying when an account has no
+grants. Tests cover direct administrator detail access and final-grant revocation.
+
+Docker Desktop crashed during a browser rerun with a daemon-validation
+segmentation fault. That run was recorded as failed. Its processes were recovered
+without changing daemon configuration, and all five browser tests then passed
+against the restarted application. Recovery tooling now pins Docker Desktop's
+local Linux engine pipe on Windows and verifies the database cluster identity.
 
 One initial migration command inherited a generic host `DATABASE_URL` and failed
 while attempting a remote connection; no migration was reported applied. The app
@@ -84,7 +99,7 @@ for startup/stop and restoration instructions. No destructive down migration exi
 ## Pending gates
 
 Public publication authorization; baseline and plan PR/check/merge; remote CI;
-full foundation review and eventual acceptance; production IdP/TLS/containers,
+eventual foundation acceptance; production IdP/TLS/containers,
 key rotation, vulnerability scans of distribution images, notices and customer
 deployment testing. R0 accepted **0/5**, R1 accepted **0/33**. No percentage of a
 release is claimed complete from local preparation alone.

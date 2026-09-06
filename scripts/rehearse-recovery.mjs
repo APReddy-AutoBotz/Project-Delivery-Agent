@@ -37,7 +37,7 @@ const dockerEnvironment = Object.fromEntries(
 );
 const endpoint =
   process.platform === "win32"
-    ? "npipe:////./pipe/docker_engine"
+    ? "npipe:////./pipe/dockerDesktopLinuxEngine"
     : "unix:///var/run/docker.sock";
 function docker(args, capture = false) {
   const result = spawnSync(

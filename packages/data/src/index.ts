@@ -27,6 +27,8 @@ export class DatabaseProjectRepository implements ProjectRepository {
     const grants = await this.db.accessGrant.findMany({
       where: { customerId: actor.customerId, subject: actor.subject },
     });
+    // Do not rely on ORM normalization of an empty OR nested under AND.
+    if (grants.length === 0) return null;
     return {
       customerId: actor.customerId,
       OR: grants.map((g) =>
@@ -37,15 +39,19 @@ export class DatabaseProjectRepository implements ProjectRepository {
     };
   }
   async listProjects(actor: Actor) {
+    const scope = await this.scope(actor);
+    if (!scope) return [];
     return this.db.project.findMany({
-      where: await this.scope(actor),
+      where: scope,
       orderBy: { code: "asc" },
       select: projectSelect,
     });
   }
   async getProject(actor: Actor, id: string) {
+    const scope = await this.scope(actor);
+    if (!scope) return null;
     return this.db.project.findFirst({
-      where: { AND: [await this.scope(actor), { id }] },
+      where: { AND: [scope, { id }] },
       select: projectSelect,
     });
   }

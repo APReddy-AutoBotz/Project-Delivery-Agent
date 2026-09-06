@@ -1,6 +1,6 @@
 # EXEC-002: Secured local platform foundation
 
-Status: In Progress (local preparation; remote acceptance gates pending)
+Status: Local preparation verified (remote acceptance gates pending)
 Owner: Implementation controller
 Requirement IDs: TR-STACK-001, TR-STACK-002, TR-STACK-003, TR-STACK-004, TR-STACK-005, NFR-MNT-004, NFR-MNT-005, FR-ADM-001, FR-ADM-002, FR-ADM-003, TR-AUTH-001, TR-AUTH-003, NFR-SEC-001, NFR-SEC-004, FR-APP-010
 GitHub issue: Pending public publication authorization; grouped EPIC-01 issue prepared from STORY-001..005
@@ -111,11 +111,11 @@ the server. Pin compatible versions rather than blindly installing latest tags.
 ## Validation evidence
 
 See `docs/05-quality/FOUNDATION_VALIDATION.md`. All workspace builds passed;
-13 unit/security/health tests, 6 real database/API tests and 3 Chromium workflows
+13 unit/security/health tests, 7 real database/API tests and 5 Chromium workflows
 passed. Fresh and repeat migration, restored encrypted records/access and immutable
 audit checks passed. Full dependency audit reports zero advisories after patched
 Prisma tooling overrides. Independent safety re-review resolved all reported P1s.
-Final complete-candidate review is pending.
+Independent complete-candidate review is recorded by immutable SHA in the task.
 
 ## Completion summary
 

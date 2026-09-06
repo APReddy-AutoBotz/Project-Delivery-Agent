@@ -4,6 +4,7 @@ import {
   QueryClient,
   QueryClientProvider,
   useQuery,
+  type UseQueryOptions,
 } from "@tanstack/react-query";
 import { UserManager, WebStorageStateStore } from "oidc-client-ts";
 import "./style.css";
@@ -38,14 +39,27 @@ const client = new QueryClient({
 // Tokens live only in memory. OIDC redirect state uses session storage and is removed by the callback.
 let accessToken: string | undefined;
 let oidc: UserManager | undefined;
+let expireSession: (() => void) | undefined;
+function useProtectedQuery<T>(options: UseQueryOptions<T>) {
+  const query = useQuery(options);
+  return { ...query, data: query.isError ? undefined : query.data };
+}
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const requestToken = accessToken;
   const response = await fetch("/api" + path, {
     ...init,
     headers: {
       ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...(accessToken ? { Authorization: "Bearer " + accessToken } : {}),
+      ...(requestToken ? { Authorization: "Bearer " + requestToken } : {}),
     },
   });
+  if (response.status === 401 && requestToken && requestToken === accessToken)
+    expireSession?.();
+  if (
+    (response.status === 403 || response.status === 404) &&
+    path.startsWith("/projects/")
+  )
+    void client.invalidateQueries({ queryKey: ["projects"] });
   if (!response.ok)
     throw new Error(
       response.status === 401
@@ -94,21 +108,34 @@ function App() {
   const [error, setError] = useState("");
   const [view, setView] = useState<"projects" | "platform">("projects");
   const [selected, setSelected] = useState<string | null>(null);
+  React.useEffect(() => {
+    expireSession = () => {
+      accessToken = undefined;
+      setSignedIn(false);
+      setSelected(null);
+      setView("projects");
+      setError("Your session has ended. Please sign in again.");
+      client.clear();
+    };
+    return () => {
+      expireSession = undefined;
+    };
+  }, []);
   const auth = useQuery({
     queryKey: ["auth-config"],
     queryFn: () => request<AuthConfig>("/auth/config"),
   });
-  const me = useQuery({
+  const me = useProtectedQuery({
     queryKey: ["me"],
     queryFn: () => request<Actor>("/me"),
     enabled: signedIn,
   });
-  const projects = useQuery({
+  const projects = useProtectedQuery({
     queryKey: ["projects"],
     queryFn: () => request<Project[]>("/projects"),
     enabled: signedIn,
   });
-  const project = useQuery({
+  const project = useProtectedQuery({
     queryKey: ["project", selected],
     queryFn: () => request<Project>("/projects/" + selected),
     enabled: signedIn && !!selected,
@@ -517,12 +544,12 @@ function ProjectDetail({ project }: { project: Project }) {
   );
 }
 function PlatformView() {
-  const status = useQuery({
+  const status = useProtectedQuery({
     queryKey: ["platform"],
     queryFn: () => request<Platform>("/platform"),
     refetchInterval: 15000,
   });
-  const audit = useQuery({
+  const audit = useProtectedQuery({
     queryKey: ["audit"],
     queryFn: () => request<Audit[]>("/audit"),
   });
