@@ -118,8 +118,10 @@ Non-author `review_baseline_candidate` reviewed base affdbae through candidate
 2. Missing eligible golden tests: registered GOLDEN-009 and GOLDEN-012 against source-change and role-advice criteria.
 3. Mandatory baseline files: restored checks and added a negative regression case.
 
-All three are corrected in this candidate. The changed commit requires reviewer
-confirmation before merge. Final totals are 245 requirements, 91 criteria,
+All three were corrected. The separate reviewer approved exact candidate
+`5f37c657293e41627b4e8fe1caf93c52b50bce17` before merge. Final totals are 245 requirements, 91 criteria,
 38 stories and 135 planned test specifications; 13 validator tests pass.
-Public publishing is separately pending explicit user approval after automatic
-approval review rejected the push to the public repository. No PR/merge is claimed.
+The user approved public publication on 2026-09-06. [PR #2](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/2)
+passed its remote checks and merged as `70378ed816958ef24c0576e3c1a4dd45b73d9e34`;
+Issue #1 is closed. PUBLICATION_RECORD.md records subsequent plan/foundation
+merges. The earlier automatic publication block is resolved.

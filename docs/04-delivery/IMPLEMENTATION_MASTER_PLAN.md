@@ -1,24 +1,25 @@
 # Release 1 Implementation Master Plan
 
-Status: Approved for local preparation under the user's 2026-09-06 instruction;
-remote baseline/plan publication, checks and merge remain pending.
+Status: Approved and merged through PR #3 on 2026-09-06; partial foundation
+merged through PR #4. Complete story acceptance remains separately gated.
 Owner: Implementation controller
 Baseline: `5f37c657293e41627b4e8fe1caf93c52b50bce17`
 
 ## Current state and gates
 
-The corrected baseline has independent non-author approval and passing local
-documentation validation (245 requirements, 91 criteria, 38 stories, 135 planned
-test specifications; 13 validator tests). Automatic approval review blocked
-publishing proprietary material to the public repository; explicit destination
-approval is pending. No PR, merged increment or remote success is claimed.
+The corrected baseline was approved by a separate non-author reviewer at
+`5f37c657293e41627b4e8fe1caf93c52b50bce17`, passed documentation checks and merged
+through [PR #2](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/2). Issue #1 is closed. The independently reviewed
+master plan merged through [PR #3](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/3); four milestones and ten
+implementation issues are published. The partial synthetic foundation merged
+through [PR #4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4) after remote documentation and application checks.
 
-The user authorized applying corrections and starting implementation. Continue
-local development preparation and tests using synthetic data while publication
-is blocked. Keep all completion/merge gates open. Do not enable real sources,
-external messaging or writes, release a product, or mark stories accepted through
-an uncompleted remote gate. Publish baseline, plan, then foundation in order once
-authorized. Reconcile live main and independently review changed candidates.
+The user explicitly approved publication to this public destination. Earlier
+local work proceeded with synthetic data under the user's implementation
+instruction. Publication is now complete; real sources, messaging, writes and
+product acceptance retain their own security and release gates. All five R0
+stories remain in progress because the local increment does not satisfy their
+complete contracts. See IMPLEMENTATION_STATUS.md and PUBLICATION_RECORD.md.
 
 ## Approved product scope
 
@@ -94,7 +95,7 @@ require an explicit restore/reconciliation runbook, never silent destructive rol
 
 | Capability | External prerequisite | Local alternative |
 |---|---|---|
-| GitHub publication | Explicit approval to publish this payload publicly; existing Git credentials work | Local branches, commits, review and tests |
+| GitHub publication | Approved on 2026-09-06; PRs #2/#3/#4 merged with passing checks | Local review remains available during access outages |
 | OIDC | Customer issuer, client registration, API audience and keys/discovery | Signed deterministic identity fixtures; explicit local synthetic login |
 | Jira read/write | Customer-approved site/app/scopes and test project | Shared contract fixture adapter; no live calls in CI |
 | AI | Approved provider/model/endpoint and customer key | Mock provider and versioned golden fixtures |
@@ -137,7 +138,7 @@ change; never reset user work. Local containers use an isolated Compose project.
 Schema recovery restores an approved backup into an isolated database; production
 restores remain outbound-disabled until remote-action reconciliation.
 
-Main risks: public publishing approval, customer credentials, small-team scope,
+Main risks: customer credentials, remaining foundation acceptance, small-team scope,
 source-data quality, non-atomic Jira comment dispatch, AI provider variation and
 customer operations. Mitigate with explicit gates, comment-only scope, mocks,
 independent review and measurable synthetic/pilot evidence. Proprietary distribution

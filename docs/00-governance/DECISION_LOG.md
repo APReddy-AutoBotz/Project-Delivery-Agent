@@ -31,3 +31,12 @@ delegation; independent review, checks and merge remain separate evidence gates.
 | Independent information satisfaction and external action | Accepted | WORKFLOW_ARCHITECTURE.md |
 | Retry preflight and restore quarantine | Accepted | APPROVAL_AND_WRITEBACK.md, DEPLOYMENT_AND_OPERATIONS.md |
 | No unsupported commercial outcome claim | Retain proposed terms; measure pilot evidence | PILOT_SUCCESS_METRICS.md |
+
+## Publication and partial-increment acceptance, 2026-09-06
+
+The Product Owner explicitly approved public publication. PRs #2/#3/#4 merged
+after separate exact-candidate review and passing remote checks. Four milestones
+and ten implementation issues are published. Accept the foundation merge only
+for its documented synthetic scope; keep STORY-001..005 in progress until their
+full contracts pass. Tailwind and pgvector deferrals are outstanding requirement
+work, not approved waivers. R0 remains 0/5 and R1 0/33 accepted.

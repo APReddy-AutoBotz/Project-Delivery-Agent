@@ -84,3 +84,13 @@ its independent review, passing remote checks and review PR merge. R1 structured
 requirements are approved as contracts; future-release requirements remain draft.
 Commercial/legal documents remain planning positions. See ASTRA_BASELINE_REVIEW
 and the linked PR for findings, exact review SHA and validation evidence.
+
+## Verified publication and effective approval
+
+On 2026-09-06 the Product Owner explicitly approved public publication. Baseline
+[PR #2](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/2) merged at `70378ed` after separate non-author approval of
+`5f37c65` and passing remote documentation checks. The conditional R0/R1 baseline
+approval above is therefore effective and Issue #1 is closed. Master-plan PR #3
+and partial-foundation PR #4 also merged after review and checks. See
+PUBLICATION_RECORD.md for full immutable SHAs and links. This does not mark any
+complete R0/R1 story or customer release accepted.
