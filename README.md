@@ -105,20 +105,20 @@ See [Release 1 Vertical Slice](docs/04-delivery/RELEASE-1-VERTICAL-SLICE.md) and
 
 ## Current status
 
-This repository contains a reviewed documentation candidate and a runnable **local synthetic foundation**: web/API/worker, database, identity validation, scoped access, encrypted credential primitives and audit protection. It is not a production release. Publication and merged acceptance remain pending.
+This repository contains an approved implementation contract and a runnable **synthetic development foundation**: web/API/worker, database, identity validation, scoped access, encrypted credential primitives and audit protection. Baseline, master-plan and partial-foundation PRs #2, #3 and #4 are merged with passing checks. Full story acceptance and production readiness remain open.
 
 | Area | Status |
 |---|---|
-| Business and product definition | Reviewed local candidate |
-| Functional, technical, and non-functional requirements | Reviewed local candidate |
-| Solution, data, integration, AI, workflow, security, and deployment architecture | Reviewed local candidate |
-| Release 1 epics, stories, acceptance criteria, and dependency map | Master plan and grouped issue drafts prepared |
+| Business and product definition | Approved R0/R1 contract |
+| Functional, technical, and non-functional requirements | Approved R0/R1 contract |
+| Solution, data, integration, AI, workflow, security, and deployment architecture | Approved R0/R1 contract |
+| Release 1 epics, stories, acceptance criteria, and dependency map | Master plan merged; four milestones and ten implementation issues published |
 | Test strategy, golden scenarios, threat model, and Definition of Done | Drafted |
 | Commercial, customer-hosting, support, and source-access models | Drafted |
 | Machine-readable requirements and traceability | Available |
 | Documentation validation | 245 requirements, 91 criteria, no Must coverage gap |
-| Independent baseline review | Local candidate approved; remote merge pending |
-| Application implementation | Local foundation prepared; see validation evidence |
+| Independent baseline review | Exact candidate approved; PR #2 merged with passing checks |
+| Application implementation | Partial foundation merged in PR #4; all five R0 stories remain in progress |
 
 See [local setup](docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md), [implementation status](docs/04-delivery/IMPLEMENTATION_STATUS.md), and [foundation evidence](docs/05-quality/FOUNDATION_VALIDATION.md). Customer deployment and real-data integrations remain gated by the approved baseline and required review evidence.
 

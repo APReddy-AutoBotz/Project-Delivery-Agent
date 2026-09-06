@@ -1,7 +1,8 @@
 # Foundation implementation evidence
 
-Date: 2026-09-06. Scope: local synthetic foundation on `feature/platform-foundation`.
-This is preparation for EPIC-01/STORY-001..005, with no merged story acceptance.
+Date: 2026-09-06. Scope: synthetic foundation on `feature/platform-foundation`.
+PR #4 merged candidate `6cec7f0` after independent review and passing remote checks.
+This is partial EPIC-01/STORY-001..005 delivery, with no complete story acceptance.
 
 ## Implemented behavior
 
@@ -27,7 +28,7 @@ write-back and reports remain future increments; the interface labels them clear
 | FR-ADM-003, NFR-SEC-001, TR-DATA-003; AC-AUTH-002 / SEC-AUTH-002 | Real API/repository tests: project and portfolio grant/revoke, cross-project/customer denial, unauthorized administration, operational admin without grants | Business mutation routes will need the same scoped enforcement when implemented |
 | NFR-SEC-004/005, TR-DEP-003; AC-SEC-001 (partial) | Randomized context-bound encryption, wrong key/tamper/shortened-tag denial, stored ciphertext; secret-safe malformed configuration and startup errors | Customer secret manager, rotation, separated deployment secrets and complete configuration/export review pending |
 | FR-APP-010; AC-SEC-003 (partial) | Outbound callback never executes for shadow, missing permissions/approval or malformed policy | Connector and messaging integration of the guard is pending |
-| NFR-MNT-004, TR-TEST-001/002; AC-MNT-002/004 (partial) | Local validation commands; documentation and foundation workflow definitions | New remote workflow has not executed; public publication remains pending |
+| NFR-MNT-004, TR-TEST-001/002; AC-MNT-002/004 (partial) | Local validation commands; documentation and foundation workflow definitions | Remote execution passed; complete license/notices/SBOM and image-scan enforcement remains pending |
 | TR-DEP-001, NFR-AVL-001, NFR-PORT-001/002/004; AC-DEP-001/002, AC-SEC-002 (partial) | Pinned local PostgreSQL container, health, seed and restore rehearsal | Application containers, production ingress/TLS, operating-system image scans and customer-hosted acceptance remain pending |
 
 ## Observed local results
@@ -98,8 +99,27 @@ for startup/stop and restoration instructions. No destructive down migration exi
 
 ## Pending gates
 
-Public publication authorization; baseline and plan PR/check/merge; remote CI;
-eventual foundation acceptance; production IdP/TLS/containers,
+Full foundation story acceptance; required Tailwind/component layer and contract
+evidence; pgvector availability; production IdP/TLS/containers,
 key rotation, vulnerability scans of distribution images, notices and customer
 deployment testing. R0 accepted **0/5**, R1 accepted **0/33**. No percentage of a
-release is claimed complete from local preparation alone.
+release is claimed complete from a merged partial increment alone.
+
+## Verified remote execution and merge
+
+Public publication was explicitly approved on 2026-09-06. Baseline PR #2 and
+master-plan PR #3 merged first. Separate non-author review approved exact
+foundation `6cec7f05ab5f6d4b14b4c24460985791c5863160` for its partial synthetic
+scope. [Foundation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34025145071) and
+[documentation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34025145004) both passed before
+[PR #4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4) merged as `e29b9842b9d4d8db8ec32bf91409a71e869e160a`.
+
+The Ubuntu runner log confirms 13 unit/security tests, seven integration tests,
+five Chromium workflows, clean/repeat migration, seed and recovery. Restore used
+`pdaa_restore_1788687471558` and retained six audit events with immutability active.
+Frozen installation, six workspace builds, lint/types and dependency audit passed.
+The PR review approved implementation/tests; these local and remote executions
+are separately observed evidence, not an additional human GitHub approval.
+
+STORY-001..005 remain in progress under Issue #5. The complete acceptance gaps
+are listed in IMPLEMENTATION_STATUS.md. No production or R1 acceptance is implied.

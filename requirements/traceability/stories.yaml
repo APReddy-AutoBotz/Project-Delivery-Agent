@@ -16,8 +16,13 @@ stories:
   - TR-API-001
   acceptance_criteria:
   - AC-FND-001
-  status: planned
+  status: in_progress
   release: R0
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
+  implementation_evidence:
+  - docs/05-quality/FOUNDATION_VALIDATION.md
 - id: STORY-002
   epic: EPIC-01
   title: Create PostgreSQL schema foundation
@@ -29,8 +34,13 @@ stories:
   - NFR-MNT-005
   acceptance_criteria:
   - AC-DATA-001
-  status: planned
+  status: in_progress
   release: R0
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
+  implementation_evidence:
+  - docs/05-quality/FOUNDATION_VALIDATION.md
 - id: STORY-003
   epic: EPIC-01
   title: Create containerized local environment
@@ -47,8 +57,13 @@ stories:
   - AC-DEP-001
   - AC-SEC-002
   - AC-DEP-002
-  status: planned
+  status: in_progress
   release: R0
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
+  implementation_evidence:
+  - docs/05-quality/FOUNDATION_VALIDATION.md
 - id: STORY-004
   epic: EPIC-01
   title: Establish CI and documentation validation
@@ -62,8 +77,13 @@ stories:
   acceptance_criteria:
   - AC-MNT-002
   - AC-MNT-004
-  status: planned
+  status: in_progress
   release: R0
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
+  implementation_evidence:
+  - docs/05-quality/FOUNDATION_VALIDATION.md
 - id: STORY-005
   epic: EPIC-01
   title: Implement foundation security controls
@@ -90,8 +110,13 @@ stories:
   - AC-AUTH-002
   - AC-SEC-001
   - AC-SEC-003
-  status: planned
+  status: in_progress
   release: R0
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
+  implementation_evidence:
+  - docs/05-quality/FOUNDATION_VALIDATION.md
 - id: STORY-006
   epic: EPIC-02
   title: Implement connector contract
@@ -104,6 +129,7 @@ stories:
   - AC-MNT-003
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7
 - id: STORY-007
   epic: EPIC-02
   title: Implement Jira read connector
@@ -127,6 +153,7 @@ stories:
   - AC-CON-008
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7
 - id: STORY-008
   epic: EPIC-02
   title: Implement Jira webhook and reconciliation
@@ -143,6 +170,7 @@ stories:
   - AC-CON-007
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7
 - id: STORY-009
   epic: EPIC-02
   title: Implement spreadsheet mapping and import
@@ -155,6 +183,7 @@ stories:
   - AC-CON-005
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7
 - id: STORY-010
   epic: EPIC-03
   title: Implement canonical project model
@@ -170,6 +199,7 @@ stories:
   - AC-MOD-001
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6
 - id: STORY-011
   epic: EPIC-03
   title: Implement fact and evidence versioning
@@ -189,6 +219,7 @@ stories:
   - AC-EVD-002
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6
 - id: STORY-012
   epic: EPIC-03
   title: Implement source authority and conflict resolution
@@ -207,6 +238,7 @@ stories:
   - AC-EVD-004
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6
 - id: STORY-013
   epic: EPIC-04
   title: Implement freshness and completeness rules
@@ -221,6 +253,7 @@ stories:
   - AC-HLT-002
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/8
 - id: STORY-014
   epic: EPIC-04
   title: Implement blocker and overdue signals
@@ -242,6 +275,7 @@ stories:
   - AC-HLT-006
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/8
 - id: STORY-015
   epic: EPIC-04
   title: Implement first contradiction rules
@@ -257,6 +291,7 @@ stories:
   - AC-HLT-005
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/8
 - id: STORY-016
   epic: EPIC-05
   title: Implement update-obligation state machine
@@ -279,6 +314,7 @@ stories:
   - AC-WFL-001
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9
 - id: STORY-017
   epic: EPIC-05
   title: Implement contextual request generator
@@ -293,6 +329,7 @@ stories:
   - AC-UPD-002
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9
 - id: STORY-018
   epic: EPIC-05
   title: Implement secure response page
@@ -313,6 +350,7 @@ stories:
   - AC-UPD-009
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9
 - id: STORY-019
   epic: EPIC-05
   title: Implement reminder and escalation jobs
@@ -337,6 +375,7 @@ stories:
   - AC-ADM-002
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9
 - id: STORY-020
   epic: EPIC-06
   title: Implement AI response extraction
@@ -370,6 +409,7 @@ stories:
   - AC-AI-002
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10
 - id: STORY-021
   epic: EPIC-06
   title: Implement clarification and interpretation confirmation
@@ -384,6 +424,7 @@ stories:
   - AC-UPD-005
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10
 - id: STORY-022
   epic: EPIC-06
   title: Implement approval diff and authority
@@ -404,6 +445,7 @@ stories:
   - AC-APP-004
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10
 - id: STORY-023
   epic: EPIC-06
   title: Implement Jira comment write-back
@@ -434,6 +476,7 @@ stories:
   - AC-WRB-002
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10
 - id: STORY-024
   epic: EPIC-06
   title: Implement source-change conflict
@@ -446,6 +489,7 @@ stories:
   - AC-APP-005
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10
 - id: STORY-025
   epic: EPIC-07
   title: Implement recommendation framework
@@ -463,6 +507,7 @@ stories:
   - AC-ADV-004
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11
 - id: STORY-026
   epic: EPIC-07
   title: Implement PM action queue
@@ -479,6 +524,7 @@ stories:
   - AC-RPT-003
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11
 - id: STORY-027
   epic: EPIC-08
   title: Implement authorized Q&A scope
@@ -500,6 +546,7 @@ stories:
   - AC-QA-009
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12
 - id: STORY-028
   epic: EPIC-08
   title: Implement claim and citation composer
@@ -517,6 +564,7 @@ stories:
   - AC-QA-009
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12
 - id: STORY-029
   epic: EPIC-08
   title: Implement delay explanation
@@ -539,6 +587,7 @@ stories:
   - AC-QA-008
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12
 - id: STORY-030
   epic: EPIC-09
   title: Implement live project and portfolio views
@@ -563,6 +612,7 @@ stories:
   - AC-PERF-001
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13
 - id: STORY-031
   epic: EPIC-09
   title: Implement report-run fact set
@@ -579,6 +629,7 @@ stories:
   - AC-RPT-004
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13
 - id: STORY-032
   epic: EPIC-09
   title: Implement PowerPoint snapshot
@@ -598,6 +649,7 @@ stories:
   - AC-RPT-005
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13
 - id: STORY-033
   epic: EPIC-09
   title: Implement email digest preview
@@ -612,6 +664,7 @@ stories:
   - AC-RPT-001
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13
 - id: STORY-034
   epic: EPIC-10
   title: Implement audit and action-receipt search
@@ -639,6 +692,7 @@ stories:
   - AC-AUD-001
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14
 - id: STORY-035
   epic: EPIC-10
   title: Implement shadow mode
@@ -655,6 +709,7 @@ stories:
   - AC-APP-006
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14
 - id: STORY-036
   epic: EPIC-10
   title: Implement backup, restore and upgrade runbook
@@ -676,6 +731,7 @@ stories:
   - AC-DEP-004
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14
 - id: STORY-037
   epic: EPIC-10
   title: Run security and failure gates
@@ -702,6 +758,7 @@ stories:
   - AC-AI-001
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14
 - id: STORY-038
   epic: EPIC-10
   title: Prepare synthetic event demo
@@ -748,3 +805,4 @@ stories:
   - AC-MNT-001
   status: planned
   release: R1
+  github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14

@@ -1,9 +1,9 @@
 # EXEC-002: Secured local platform foundation
 
-Status: Local preparation verified (remote acceptance gates pending)
+Status: In Progress (partial synthetic increment merged through PR #4)
 Owner: Implementation controller
 Requirement IDs: TR-STACK-001, TR-STACK-002, TR-STACK-003, TR-STACK-004, TR-STACK-005, NFR-MNT-004, NFR-MNT-005, FR-ADM-001, FR-ADM-002, FR-ADM-003, TR-AUTH-001, TR-AUTH-003, NFR-SEC-001, NFR-SEC-004, FR-APP-010
-GitHub issue: Pending public publication authorization; grouped EPIC-01 issue prepared from STORY-001..005
+GitHub issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5 (EPIC-01, STORY-001..005)
 Target release: R0
 Last updated: 2026-09-06
 
@@ -22,12 +22,13 @@ synthetic foundation and meaningful negative security/database/browser tests.
 ## Out of scope
 
 Production release, live Jira/AI/email, full evidence ingestion, reminder execution,
-source write-back, leadership AI and report generation. Public publishing is
-blocked until the user explicitly approves that destination.
+source write-back, leadership AI and report generation. Public publication was
+approved on 2026-09-06; it does not authorize live customer integration.
 
 ## Current state
 
-Documentation-only repo; corrected baseline has separate local review approval.
+At plan creation the repo was documentation-only. The corrected baseline, master
+plan and partial foundation are now merged through PRs #2, #3 and #4.
 Node 24.19.0 and pnpm 11.19.0 are available through bundled runtimes. Docker engine
 29.6.1 is reachable with the task's authorized local execution permissions.
 
@@ -94,17 +95,22 @@ and rehearse restore into a separate database. No production schema is modified.
 
 ## Progress log
 
-- 2026-09-06: Prepared plan after local baseline review approval; remote publication pending.
+- 2026-09-06: Prepared local plan after independent baseline review approval.
+- 2026-09-06: Public publication approved; predecessor gates completed. Exact
+  foundation candidate `6cec7f0` passed both remote workflows and merged as
+  `e29b984` in PR #4. Issue #5 retains all five stories in progress.
 
 ## Decisions made
 
 Local preparation continues under the user's request to start implementation.
-Accepted/merged completion stays zero until remote gates pass. No assertion of
+Accepted story completion stays zero until each full contract is satisfied;
+passing remote checks and merging the partial increment are insufficient alone. No assertion of
 production OIDC integration or customer readiness follows from fixture tests.
 
 ## Risks and mitigations
 
-Public destination approval and customer integrations remain external gates.
+Public destination approval is complete. Customer integrations and the
+remaining production foundation controls retain their own evidence gates.
 Keep synthetic labels and deny-by-default settings visible and enforce them on
 the server. Pin compatible versions rather than blindly installing latest tags.
 
@@ -119,8 +125,18 @@ Independent complete-candidate review is recorded by immutable SHA in the task.
 
 ## Completion summary
 
-Local increment implemented and verified; no R0 story is yet accepted as complete.
+Partial synthetic increment implemented, independently reviewed, remotely
+verified and merged; no R0 story is yet accepted as complete.
 The implementation uses native accessible controls and CSS for this foundation;
 Tailwind/shadcn remain available for later component expansion. Application container
 packaging, production TLS/IdP, key rotation and complete distribution notices are
 outside this local increment's completed evidence. No connector scopes were added.
+
+## Remaining foundation work
+
+Follow the story-specific gaps in IMPLEMENTATION_STATUS.md and Issue #5. Complete
+the required Tailwind/component layer and registered contract evidence, resolve
+pgvector availability against TR-STACK-004, package application OCI services and
+external database/TLS deployment, enforce distribution dependency/license gates,
+and validate OIDC/browser/API scopes and production secret separation. These
+requirements remain open; the local preparation deferrals do not waive them.

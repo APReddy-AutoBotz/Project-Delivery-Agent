@@ -2,23 +2,39 @@
 
 Updated: 2026-09-06
 
-## Completed local preparation
+## Published and merged work
 
-- Restored verified bundle and reconciled it with live GitHub main.
-- Applied five controller fixes and specialist baseline corrections.
-- Independent review approved baseline candidate `5f37c657293e41627b4e8fe1caf93c52b50bce17`.
-- Documentation validation: 245 requirements, 91 acceptance criteria, 38 stories, 135 planned test specifications; no Must coverage gap.
-- Validator regression tests: 13 passed.
-- Local foundation implemented: web/API/worker, PostgreSQL schema and seed,
-  OIDC validation, scoped grants, encrypted credential primitives and immutable audit.
-- Application validation: 13 unit/security/health tests, 7 real database/API tests,
-  and 5 Chromium workflows passed; clean/repeat migration and full restore passed.
-- Dependency audit after patch overrides: zero known advisories across the lockfile.
-- Desktop/mobile screenshots inspected; synthetic preview at http://localhost:5173.
-- Two identity test specifications now have implementation evidence; 133 remain planned.
-- Build, lint, typecheck, documentation validation and 13 validator regression tests passed.
-- Review fixes include cached-data removal and explicit denial after the last scoped grant is revoked.
-- Independent review disposition is recorded in the task against the immutable branch tip.
+The Product Owner explicitly approved public publication on 2026-09-06.
+The independently reviewed baseline, master plan and partial foundation merged
+in dependency order after their GitHub Actions passed:
+
+| Increment | Pull request | Reviewed candidate | Merge commit |
+|---|---|---|---|
+| Corrected baseline | [#2](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/2) | `5f37c65` | `70378ed` |
+| Implementation master plan | [#3](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/3) | `3a7ead5` | `e153d1b` |
+| Synthetic foundation | [#4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4) | `6cec7f0` | `e29b984` |
+
+[Issue #1](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/1) is closed with evidence. Four milestones and ten
+implementation issues exist; the full mapping is in
+[PUBLICATION_RECORD.md](PUBLICATION_RECORD.md). No implementation issue is closed.
+
+## Implemented and verified foundation
+
+- React/Vite web, NestJS API, Graphile Worker and PostgreSQL schema/migrations/seed.
+- OIDC validation, synthetic-only local login, scoped access grants/revocation,
+  encrypted credential primitives and append-only audit protection.
+- Protected browser data disappears after denial; final-grant revocation returns
+  an explicit repository denial; current-token expiry clears the session/cache.
+- Local and [remote foundation validation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34025145071)
+  passed: 13 unit/security/health tests, seven real database/API tests, five
+  Chromium workflows, clean/repeat migration, complete restore, all six workspace
+  builds, lint, typecheck and dependency audit.
+- Documentation validation: 245 requirements, 91 criteria, 38 stories and 135
+  test specifications; no direct R1 Must coverage gap; 13 validator tests passed.
+- Two registered identity test specifications have implementation evidence;
+  133 remain planned. The 25 executed application tests are a separate count.
+- The independent reviewer approved exact `6cec7f0` for this partial synthetic
+  increment. Product release and customer deployment have not been accepted.
 
 ## Accepted implementation completion
 
@@ -27,18 +43,28 @@ Updated: 2026-09-06
 | R0 | 0 | 5 | 0% |
 | R1 | 0 | 33 | 0% |
 
-## Gates and blockers
+All five R0 stories are in progress. Merge of a partial implementation does not
+close a complete story contract. [Issue #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5) remains open:
 
-Automatic approval review rejected publishing this proprietary project payload
-to its public GitHub repository. Explicit public-destination approval is pending.
-No baseline or master-plan PR exists, no PR has merged, and Issue #1 remains open.
-Existing Git credentials work; this is a publication-approval gate, not an
-unavailable credential. Latest remote main documentation runs were successful
-at affdbae; they do not validate the new local candidate.
+| Story | Remaining completion work |
+|---|---|
+| STORY-001 | Required Tailwind/component layer and registered boundary/OpenAPI contract evidence |
+| STORY-002 | Resolve and verify pgvector availability under TR-STACK-004; register the demonstrated migration evidence |
+| STORY-003 | Web/API/worker OCI composition, external PostgreSQL compatibility, ingress TLS and invalid-certificate denial |
+| STORY-004 | Enforced license/inventory/notices gates, SBOM and distribution-image scans |
+| STORY-005 | Customer OIDC/browser/API-scope interoperability, separated production secrets and complete disclosure checks |
 
-## Next coherent increment
+## Gates and next coherent increment
 
-The local foundation is prepared and verified. When public publishing is
-approved, publish/review/merge the baseline and master plan in order, create the
-grouped implementation issues/milestones, then submit the independently reviewed
-foundation candidate. Keep real integrations and external actions disabled.
+Publication, baseline approval and the master-plan merge gates are complete.
+The next coherent task is the remaining EPIC-01 customer-hosted foundation:
+complete the required web stack, application containers, database/pgvector
+availability, production configuration and CI distribution gates, then validate
+the identity/deployment boundary with a controlled IdP before any real source is
+enabled. Customer-specific interoperability needs the customer's IdP registration
+and policy. Synthetic fixtures remain available without those credentials.
+
+Follow [EXEC-002](exec-plans/EXEC-002-platform-foundation.md). Real Jira/AI/email,
+source writes and reports remain unimplemented. No new connector scopes were
+requested or enabled. Once the foundation gate is accepted, proceed to the
+canonical model and evidence ledger in [Issue #6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6).

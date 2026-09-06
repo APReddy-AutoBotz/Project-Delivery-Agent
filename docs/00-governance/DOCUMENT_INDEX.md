@@ -128,8 +128,8 @@
 
 ## Implementation-control additions
 
-- `docs/04-delivery/IMPLEMENTATION_MASTER_PLAN.md`: approved local preparation sequence.
-- `docs/04-delivery/IMPLEMENTATION_STATUS.md`: local progress versus accepted work.
+- `docs/04-delivery/IMPLEMENTATION_MASTER_PLAN.md`: approved and merged implementation sequence.
+- `docs/04-delivery/IMPLEMENTATION_STATUS.md`: merged partial progress versus accepted stories.
 - `docs/04-delivery/exec-plans/EXEC-002-platform-foundation.md`: foundation scope and evidence.
 - `docs/05-quality/FOUNDATION_VALIDATION.md`: executed checks, boundaries and review fixes.
 - `docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md`: reproducible synthetic setup and recovery.
@@ -148,3 +148,5 @@
 The original register rows above record the 2026-09-05 draft baseline. The R0/R1
 implementation contract is superseded by the 2026-09-06 approval record in
 DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.
+
+- `docs/04-delivery/PUBLICATION_RECORD.md`: approved public publication, exact review/merge/check evidence, backlog links and remaining acceptance.
