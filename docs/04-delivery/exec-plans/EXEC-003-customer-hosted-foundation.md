@@ -29,8 +29,8 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `5829e23` contains the reviewed production boundary and executable foundation
-contracts. STORY-001/002 are accepted after exact review, current CI and PR #18
+Main `2d854d2` contains the reviewed production boundary, executable foundation
+contracts and release operations increment. STORY-001/002 are accepted after exact review, current CI and PR #18
 merge; STORY-003/004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
 findings were resolved in PR #16.
@@ -106,6 +106,15 @@ with outbound disabled and the separately retained encryption key.
 
 ## Progress log
 
+- 2026-09-06: PR #20 merged as `2d854d2` after independent approval of exact
+  `6cd425e` and all three CI jobs. The clean matching-tree artifact records 11
+  production groups; native checks cover 49 tests, seven builds and 13 documentation
+  regressions. Actual operations jobs now replace fixture-only provisioning.
+  Backup/restore, quarantine denials, migration interoperability and sustained-outage
+  automatic worker recovery pass. See FOUNDATION_OPERATIONS_VALIDATION.md.
+  Continue direct customer-reference composition acceptance, then distribution and
+  identity gates. STORY-003/004/005 remain open; R0 2/5, R1 0/33.
+
 - 2026-09-06: Operations increment starts from clean merged `e1e8680` on
   `feature/foundation-operations`. Implement ADR-013's operations package,
   customer reference configuration and isolated migration/backup/restore and
@@ -170,6 +179,7 @@ the production evidence document records the CI source tree and run identity.
 
 Production boundary and executable contracts are implemented, validated,
 independently reviewed and merged. STORY-001/002 are accepted with evidence in
-FOUNDATION_CONTRACT_VALIDATION.md. Release provisioning/migration/backup/restore,
-full distribution gates and remaining identity/deployment validation stay in this
-ExecPlan. R0 release and Issue #5 remain open.
+FOUNDATION_CONTRACT_VALIDATION.md. Release operations and isolated recovery are
+merged with evidence in FOUNDATION_OPERATIONS_VALIDATION.md. Direct customer
+composition acceptance, full distribution gates and remaining identity/deployment
+validation stay in this ExecPlan. R0 release and Issue #5 remain open.

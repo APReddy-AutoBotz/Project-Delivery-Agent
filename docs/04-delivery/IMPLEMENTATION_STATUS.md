@@ -27,6 +27,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Synthetic foundation | [#4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4) | `6cec7f0` | `e29b984` |
 | Production foundation boundary | [#16](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16) | `9e7ed74` | `7ea6452` |
 | Executable foundation contracts | [#18](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/18) | `56e4fbd` | `5829e23` |
+| Foundation release operations | [#20](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/20) | `6cd425e` | `2d854d2` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -43,35 +44,38 @@ backlog links are in [PUBLICATION_RECORD.md](PUBLICATION_RECORD.md).
 - Executable module/import boundaries, complete generated OpenAPI contracts for
   all 11 controller operations, runtime response validation, safe fixed errors
   and independent serialized HTTP tests. Worker persistence uses a domain port.
-- [PR #18 CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34036868766)
-  passes 28 unit/security/policy/contract/architecture tests, nine database/API
-  tests and seven browser workflows (44 native tests), plus eight production
-  groups, clean/repeat migration, complete recovery, six workspace builds, lint,
-  typecheck, contract drift, the 37-record dependency gate and dependency audit.
-- [Documentation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34036868619)
+- Separate provisioning/migration/backup/restore image; verified TLS and restricted
+  roles, authenticated encrypted archives, fresh quarantined restore, and customer
+  reference configuration. Bounded API readiness and independently supervised worker
+  recovery cover short and sustained database outages plus clean shutdown.
+- [PR #20 CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34043249145)
+  passes 33 unit tests, nine database/API tests and seven browser workflows (49 native
+  tests), plus 11 packaged groups, clean/repeat migration, recovery, seven workspace
+  builds, lint, typecheck, contract/architecture/dependency gates and dependency audit.
+- [Documentation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34043249162)
   passes validation of 245 requirements, 91 criteria, 38 stories and 135 test
   specifications, with no direct R1 Must coverage gap, and 13 validator tests.
   Four specifications have implementation evidence; 131 remain planned.
 
 The successful production artifact is clean, records immutable image IDs and has
-an identical Git tree to reviewed `56e4fbd`. It explicitly retains
+an identical Git tree to reviewed `6cd425e`. It explicitly retains
 `distributionAccepted: false`. See
-[FOUNDATION_CONTRACT_VALIDATION.md](../05-quality/FOUNDATION_CONTRACT_VALIDATION.md)
+[FOUNDATION_OPERATIONS_VALIDATION.md](../05-quality/FOUNDATION_OPERATIONS_VALIDATION.md)
 for requirements, exact review/merge, artifact identity, failures corrected and
 local/CI evidence. Prior scope remains in FOUNDATION_VALIDATION.md and
-PRODUCTION_BOUNDARY_VALIDATION.md.
+PRODUCTION_BOUNDARY_VALIDATION.md and FOUNDATION_CONTRACT_VALIDATION.md.
 
 ## Remaining work and next coherent increment
 
 | Story | Remaining completion work |
 |---|---|
-| STORY-003 | Supported deployment package, release migration/backup/provisioning and operations artifacts |
+| STORY-003 | Full acceptance of the customer reference composition and its operator/install/upgrade workflow |
 | STORY-004 | Full transitive and OS license/notices review, SBOM and final image vulnerability gates |
 | STORY-005 | Remaining identity negatives, complete disclosure checks and customer-specific interoperability |
 
-Continue [EXEC-003](exec-plans/EXEC-003-customer-hosted-foundation.md) with the
-release provisioning/migration/backup/restore package and its isolated upgrade/
-recovery tests. Complete distribution gates and remaining identity tests before
+Continue [EXEC-003](exec-plans/EXEC-003-customer-hosted-foundation.md) by exercising
+the customer reference composition directly with controlled identity/certificates,
+then complete distribution gates and remaining identity tests before
 foundation release acceptance. Customer-specific IdP and operations validation
 needs the customer's registration and policy; generic synthetic checks can continue.
 Real Jira/AI/email, write-back, assurance rules and reports remain unimplemented.
@@ -81,8 +85,9 @@ ledger in [Issue #6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/
 ## Security, data and recovery
 
 No schema migration, customer connector scope or outbound action was added by
-PR #18. Invalid API data fails closed; error responses contain fixed messages.
-Ajv/ajv-formats are reviewed MIT development-only dependencies. Complete
+PR #20. Separate maintenance roles and backup policies are added; restored runtime
+connections remain quarantined. Invalid API data fails closed; error responses contain fixed messages.
+The operations package reuses existing approved dependency versions. Complete
 commercial distribution approval is still required. Revert the application
 increment through review to roll back; no data rollback is needed. The guarded
 restore rehearsal retains source data and starts no application on the restore

@@ -163,3 +163,31 @@ foundation stories remain open. Customer-specific validation awaits the customer
 identity registration and policy; generic implementation can continue. Revert
 application changes through review to roll back; data needs no rollback, and the
 guarded restore rehearsal remains available with outbound disabled.
+
+## Foundation release operations, 2026-09-06
+
+[PR #20](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/20) merged
+exact reviewed `6cd425ed9221ce1b14cba876f154096e843f83bd` as
+`2d854d21eb52ce425ce7af2d864808ac4ab66909`. Application/production run
+[34043249145](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34043249145)
+and documentation run
+[34043249162](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34043249162)
+passed: 49 native tests, 11 packaged groups, 13 documentation regressions, seven
+workspace builds and required contract, architecture, dependency and recovery gates.
+The clean saved artifact matches the reviewed Git tree. Full source/run/image
+identity and resolved failures are in FOUNDATION_OPERATIONS_VALIDATION.md.
+
+Files span the operations package, worker/API/platform/data fault handling,
+Docker/Compose, tests, dependency consumer records and ADR/runbooks. Requirements
+TR-DEP-001/003/004 and supporting availability/security controls are implemented
+for this scoped increment. No business schema or connector scope is added. Revert
+reviewed images for code rollback or restore a matching archive to a fresh
+quarantined target; preserve the source and separately retained keys.
+
+The prior explicit Product Owner authorization to merge after passing checks was
+reconfirmed from the original supplied controller when automatic approval review
+initially rejected the merge. The authorized retry succeeded; no approval gate
+was bypassed. Issue #5 remains open. STORY-003 customer composition acceptance,
+STORY-004 distribution and STORY-005 identity gates remain; R0 is 2/5 (40%) and
+R1 is 0/33 (0%). Branch `docs/foundation-operations-evidence` reconciles these
+observed results without changing application behavior or accepting a release.
