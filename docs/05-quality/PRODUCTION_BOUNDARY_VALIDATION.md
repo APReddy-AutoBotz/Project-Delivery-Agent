@@ -43,6 +43,28 @@ that the parent main revision alone contained these changes. The final runner
 uses verification code from its immutable test image, with no source-code bind
 mount. Exact-candidate remote checks and independent review remain the merge gate.
 
+## Verified merge evidence
+
+[PR #16](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16) merged
+on 2026-09-06 as `7ea6452c936d3b629bc3e4ff2914f81d73a99978`. Independent non-author
+review approved exact head `9e7ed74e5d9f7a42f9b3d20e4d60293ed51d3e07` after the
+override drift correction. [Foundation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34033085773)
+passed both application and production jobs; [documentation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34033085720)
+also passed.
+
+The successful CI artifact records run `pdaa-acceptance-1788697574948-7efa4e9c`,
+all eight groups, teardown, immutable image IDs and `distributionAccepted: false`.
+Its clean source `b5ca8bc6aa090da7b8c655b201fe534cc6c62403` is GitHub's merge
+snapshot. Its tree and the reviewed head's tree are identical:
+`be04c4cdb9d2783701a9de090c6efa564f40d0f8`. This equality was verified from Git,
+not inferred from a green status alone. The corrected local precommit run
+`pdaa-acceptance-1788697125105-f00a3d37` also passed all groups and teardown.
+
+An earlier immutable-image run failed worker startup. Its original root cause was
+not established; the corrected runs passed with database CREATE revoked. Explicit
+schema selection, fixed diagnostic categories and a post-revocation migration/
+startup check provide further evidence without widening runtime permissions.
+
 ## Defects fixed during validation
 
 - Preserve literal percent-encoded-looking password text across runtime and
