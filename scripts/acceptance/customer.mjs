@@ -265,9 +265,9 @@ try {
     assert.equal(state.AccessGrant.length, 1);
     assert(state.AuditEvent.length > 0);
     save("backup-state", state);
-    save("upgrade-start", Date.now());
   } else if (phase === "after-upgrade") {
-    await ready(read("upgrade-start"));
+    // This phase starts after recreation; an old worker heartbeat cannot satisfy it.
+    await ready(Date.now());
     assert.deepEqual(
       await projection(db),
       read("backup-state"),
