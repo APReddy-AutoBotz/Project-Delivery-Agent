@@ -32,6 +32,7 @@ P0/P1/P2 finding remains within the reviewed partial foundation scope.
 | [#3](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/3) | `plan/release-1-master-plan` | `3a7ead53dd15165b81250eac9abf0d17d9ec1fef` | `e153d1bd4c3fe52baafef65e5bb58246123ca614` | [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34024861372) |
 | [#4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4) | `feature/platform-foundation` | `6cec7f05ab5f6d4b14b4c24460985791c5863160` | `e29b9842b9d4d8db8ec32bf91409a71e869e160a` | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34025145071), [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34025145004) |
 | [#16](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16) | `feature/customer-hosted-foundation` | `9e7ed74e5d9f7a42f9b3d20e4d60293ed51d3e07` | `7ea6452c936d3b629bc3e4ff2914f81d73a99978` | [Foundation and production](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34033085773), [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34033085720) |
+| [#18](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/18) | `feature/foundation-contract-gates` | `56e4fbd9381b6c6b334b808f7a125b024a1bb38c` | `5829e23629d24250f4d53534c779739f2ffedd38` | [Foundation and production](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34036868766), [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34036868619) |
 
 Logical author commits are `26cadc6`, `5f37c65`, `3a7ead5`, `aca4a2e`, and
 `6cec7f0`. The follow-up `docs/foundation-publication-evidence` branch reconciles
@@ -67,10 +68,10 @@ review/check evidence. All implementation issues remain open.
 | EPIC-09 | R1 | [#13](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13) |
 | EPIC-10 | R1 | [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14) |
 
-All 38 stories now link to their published issue. STORY-001..005 link to the
-partial foundation PR/evidence and remain in progress. R0 accepted 0/5 (0%);
-R1 accepted 0/33 (0%). This fixed denominator does not treat a merged partial PR
-as a finished story.
+All 38 stories link to their published issue. STORY-001/002 are accepted after
+PR #18's complete contract evidence, independent exact-SHA review, passing CI and
+merge. STORY-003/004/005 remain in progress. R0 accepted 2/5 (40%); R1 accepted
+0/33 (0%). No implementation issue or release is closed by these two story acceptances.
 
 ## Implementation, validation and limits
 
@@ -116,10 +117,49 @@ The saved clean CI merge snapshot has the same Git tree as that reviewed head.
 See [PRODUCTION_BOUNDARY_VALIDATION.md](../05-quality/PRODUCTION_BOUNDARY_VALIDATION.md)
 for run IDs, source equality, diagnostics, limitations and recovery.
 
-The next coherent task is the remaining customer-hosted foundation under
-[Issue #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5): registered architecture/OpenAPI contracts,
-release migration/backup/provisioning artifacts, transitive and OS notice/license
-review, SBOM/image scans, remaining identity negatives and formal story evidence.
+The next coherent task is the release provisioning/migration/backup/restore
+package and its isolated upgrade/recovery tests under
+[Issue #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5). Transitive and OS notice/license
+review, SBOM/image scans and remaining identity negatives also remain open.
 Customer IdP registration/policy is needed for customer-specific interoperability.
 Keep real sources disabled until this foundation gate is satisfied. Then proceed to the canonical
 model/evidence ledger in [Issue #6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6).
+
+## Foundation contract run and accepted stories
+
+This run started from clean merged main `fabec988a2199c8b6ac8f5bb38754e410a8edcbf`.
+Read-only agent `baseline_quality` audited the next acceptance gaps;
+`review_baseline_candidate` reviewed the changes and exact final commit.
+The root retained edits, commits and GitHub ownership. No user work was overwritten.
+No new P0/P1 finding remained; review's P2 missing 413/415 contract was fixed and
+independently verified. Documentation had unregistered CI-FND-001/INT-DATA-001
+execution evidence and stale validation counts; these are corrected.
+
+PR #18 implements ADR-012: complete shared/runtime/OpenAPI contracts, independent
+HTTP validation, TypeScript dependency/import gates, worker repository persistence
+and explicit migration/integrity evidence. Exact MIT Ajv/ajv-formats are development
+validators. Files changed span API/worker, domain/data, validation scripts/tests,
+workspace/CI, dependency records and architecture/delivery/traceability docs; the
+PR diff is the complete 33-file implementation inventory. No new schema,
+connector scope, customer action or live integration was introduced.
+
+Created branch `feature/foundation-contract-gates` and author commit `56e4fbd`;
+PR #18 merged as `5829e23`. Branch `docs/foundation-story-acceptance` reconciles
+these observed results through its own reviewed PR. No new issue is created;
+Issue #5 records the accepted AC-FND-001/AC-DATA-001 evidence and remains open.
+
+All three PR #18 checks passed: 28 unit/security/policy/architecture/HTTP tests,
+nine real database/API tests, seven Chromium workflows, eight production groups,
+13 documentation regressions, six builds, lint/types, clean/repeat migration,
+recovery, architecture/contract/dependency gates and audit. The refreshed local
+preview also passes all seven browser workflows. The saved clean CI artifact has
+an identical source tree to the reviewed head; full IDs are in
+[FOUNDATION_CONTRACT_VALIDATION.md](../05-quality/FOUNDATION_CONTRACT_VALIDATION.md).
+Four registered specifications have implementation evidence; 131 remain planned.
+
+The controller accepts STORY-001/002 after the review/check/merge gates. R0 is
+2/5 (40%); R1 is 0/33 (0%). Release operations/distribution and the other three
+foundation stories remain open. Customer-specific validation awaits the customer's
+identity registration and policy; generic implementation can continue. Revert
+application changes through review to roll back; data needs no rollback, and the
+guarded restore rehearsal remains available with outbound disabled.

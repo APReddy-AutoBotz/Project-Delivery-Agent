@@ -1,9 +1,10 @@
 # Foundation contract validation
 
 Date: 2026-09-06. Issue: [#5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5).
-Candidate scope: STORY-001 / AC-FND-001 / CI-FND-001 and
+Accepted story scope: STORY-001 / AC-FND-001 / CI-FND-001 and
 STORY-002 / AC-DATA-001 / INT-DATA-001, under ADR-012 and EXEC-003.
-Story acceptance remains conditional on exact non-author review, passing CI and merge.
+Exact non-author review, passing CI and verified PR #18 merge support acceptance
+of these two stories. The remaining R0 stories and release remain open.
 
 ## Requirements and executable evidence
 
@@ -34,11 +35,36 @@ model or a working customer connector.
   grant, audit and encrypted credential rows matched; six audit records,
   restored scope enforcement, decryption and audit immutability were verified.
 
-These are precommit working-tree results. The final immutable CI report and
-review/merge references must be recorded below before accepting either story.
-The existing production workflow runs eight TLS/OIDC/packaged-runtime groups,
-including initial/repeat migrations, pgvector and restricted worker persistence.
-Its prior PR #16 result is historical evidence, not a substitute for this candidate.
+These local results came from the precommit working tree. Current CI independently
+reran native validation and the eight TLS/OIDC/packaged-runtime groups, including
+initial/repeat migrations, pgvector and restricted worker persistence.
+
+## Immutable review, CI and acceptance
+
+[PR #18](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/18) merged on
+2026-09-06 as `5829e23629d24250f4d53534c779739f2ffedd38`. Independent non-author
+agent `review_baseline_candidate` approved exact head
+`56e4fbd9381b6c6b334b808f7a125b024a1bb38c`, with no unresolved P0/P1/P2 finding,
+and supported acceptance of STORY-001/002 after matching checks and merge.
+[Foundation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34036868766)
+and [documentation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34036868619)
+passed all three jobs. CI logs confirm the same 28 + 9 + 7 native test counts,
+all eight production groups, clean/repeat migration and recovery, six builds,
+lint/types/contract/dependency gates and all 13 documentation regressions.
+
+The downloaded production artifact records run
+`pdaa-acceptance-1788702109134-e5620678`, clean source
+`b7460266b6e3a73eaca3f81ccf8653dd4bbc27e9`, immutable image IDs, all eight passing
+groups and `distributionAccepted: false`. The runner publishes only after
+successful teardown. Git confirms the CI merge snapshot and reviewed head share
+tree `0b890a1cc5083bf53e420a1a4eb137b6d2fc0692`.
+
+The CI database artifact records `pdaa_test_1788702161417`, seven foundation
+tables, the unchanged migration checksum above and `repeatUnchanged: true`.
+CI recovery passed into `pdaa_restore_1788702166268` with six audit records and
+matching rows/protections. These artifacts are attached to the linked run.
+The controller therefore accepts STORY-001 / AC-FND-001 / CI-FND-001 and
+STORY-002 / AC-DATA-001 / INT-DATA-001. R0 is 2/5 (40%); R1 is 0/33 (0%).
 
 ## Review corrections and negative cases
 
@@ -72,5 +98,5 @@ tears down only its isolated generated Compose project.
 STORY-003/004/005 remain open for release provisioning/backup/operations tooling,
 complete transitive and OS license/notices review, SBOM/image vulnerability gates,
 remaining identity negatives and customer-specific validation. Issue #5, R0
-release acceptance and commercial distribution remain open even if these first
-two story contracts are accepted.
+release acceptance and commercial distribution remain open after acceptance of
+these first two story contracts.

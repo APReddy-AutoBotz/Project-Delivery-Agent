@@ -16,12 +16,13 @@ stories:
   - TR-API-001
   acceptance_criteria:
   - AC-FND-001
-  status: in_progress
+  status: accepted
   release: R0
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
   pull_requests:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/18
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
   - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md
@@ -37,12 +38,13 @@ stories:
   - NFR-MNT-005
   acceptance_criteria:
   - AC-DATA-001
-  status: in_progress
+  status: accepted
   release: R0
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
   pull_requests:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/18
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
   - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md

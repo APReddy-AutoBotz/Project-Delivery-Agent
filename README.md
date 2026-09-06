@@ -105,7 +105,7 @@ See [Release 1 Vertical Slice](docs/04-delivery/RELEASE-1-VERTICAL-SLICE.md) and
 
 ## Current status
 
-This repository contains an approved implementation contract and a runnable **synthetic development foundation**: web/API/worker, database, identity validation, scoped access, encrypted credential primitives and audit protection. Baseline, master-plan and partial-foundation PRs #2, #3 and #4 are merged with passing checks. Full story acceptance and production readiness remain open.
+This repository contains an approved implementation contract and a runnable **synthetic development foundation**: web/API/worker, database, identity validation, scoped access, encrypted credential primitives and audit protection. Baseline, master-plan and foundation PRs #2, #3, #4, #16 and #18 are merged with passing checks. STORY-001/002 are accepted: R0 is 2/5 (40%) and R1 is 0/33 (0%). Foundation release and customer deployment acceptance remain open.
 
 | Area | Status |
 |---|---|
@@ -118,7 +118,7 @@ This repository contains an approved implementation contract and a runnable **sy
 | Machine-readable requirements and traceability | Available |
 | Documentation validation | 245 requirements, 91 criteria, no Must coverage gap |
 | Independent baseline review | Exact candidate approved; PR #2 merged with passing checks |
-| Application implementation | Partial foundation merged in PR #4; all five R0 stories remain in progress |
+| Application implementation | STORY-001/002 accepted after PR #18; three R0 stories remain in progress |
 
 See [local setup](docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md), [implementation status](docs/04-delivery/IMPLEMENTATION_STATUS.md), and [foundation evidence](docs/05-quality/FOUNDATION_VALIDATION.md). Customer deployment and real-data integrations remain gated by the approved baseline and required review evidence.
 
@@ -128,7 +128,7 @@ The current architecture decision baseline is:
 
 | Layer | Planned technology |
 |---|---|
-| Frontend | React, Vite, TypeScript, Tailwind CSS, shadcn/ui |
+| Frontend | React, Vite, TypeScript, Tailwind CSS and native accessible controls (ADR-011) |
 | Backend | NestJS modular monolith, REST/OpenAPI, SSE |
 | Data | PostgreSQL, pgvector, Prisma behind repository interfaces |
 | Background execution | Graphile Worker and database-backed workflow state |
