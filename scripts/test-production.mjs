@@ -333,13 +333,6 @@ try {
     "worker-id",
     "capture",
   );
-  const beforeRestart = Number(
-    docker(
-      ["inspect", "--format", "{{.RestartCount}}", workerId],
-      "restart-count-before",
-      "capture",
-    ),
-  );
   docker(compose("stop", "-t", "20", "worker"), "worker-clean-stop");
   assert.equal(
     docker(
@@ -352,6 +345,13 @@ try {
   );
   docker(compose("start", "worker"), "worker-clean-start");
   fixtureStep("recovered");
+  const beforeRestart = Number(
+    docker(
+      ["inspect", "--format", "{{.RestartCount}}", workerId],
+      "restart-count-before",
+      "capture",
+    ),
+  );
   try {
     docker(
       compose(
