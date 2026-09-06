@@ -103,8 +103,10 @@ encrypted credential rows and verifies audit immutability after restoration.
 
 ## Remaining acceptance work
 
-EXEC-003 and Issue #5 remain open. Complete the registered architecture/OpenAPI
-boundary evidence, release migration/backup/provisioning artifact, full transitive
+EXEC-003 and Issue #5 remain open. PR #18 subsequently completed registered
+architecture/OpenAPI and database evidence and accepted STORY-001/002; see
+FOUNDATION_CONTRACT_VALIDATION.md. Remaining work: release migration/backup/
+provisioning artifact, full transitive
 and OS license/notices/SBOM/image-scan gates, expired-certificate and wrong-PKCE
 negative coverage, and customer-specific IdP/operations validation. The controlled
 fixture is not an approved customer installation. See the image register for the

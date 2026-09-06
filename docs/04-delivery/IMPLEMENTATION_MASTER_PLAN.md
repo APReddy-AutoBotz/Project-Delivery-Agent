@@ -154,4 +154,5 @@ Report separately what is implemented locally and what is accepted/merged.
 Fixed denominators: R0 has 5 stories; R1 has 33. Completion is merged accepted
 stories divided by that denominator, not a count of files or planned tests. A
 scope change updates the approved denominator explicitly. Current accepted
-completion is R0 0/5 (0%) and R1 0/33 (0%).
+completion is R0 2/5 (40%) and R1 0/33 (0%), after acceptance of STORY-001/002
+with the exact review, CI and merged evidence in FOUNDATION_CONTRACT_VALIDATION.md.

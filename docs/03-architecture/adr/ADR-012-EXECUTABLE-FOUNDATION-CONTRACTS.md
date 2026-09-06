@@ -1,6 +1,6 @@
 # ADR-012: Executable foundation contracts
 
-Status: Accepted under delegated controller authority; exact implementation review required
+Status: Accepted under delegated controller authority; implementation reviewed and merged in PR #18
 Date: 2026-09-06
 Requirement IDs: TR-STACK-001, TR-STACK-003, TR-STACK-005, TR-API-001, NFR-MNT-002, NFR-MNT-005
 
@@ -30,9 +30,9 @@ checks enforce repository conventions, not a sandbox against arbitrary code.
 
 No new delivery model, connector, external action or customer deployment is added.
 Existing migration evidence is made explicit with schema/constraint assertions.
-CI-FND-001 and INT-DATA-001 can become implemented specifications once their
-executable evidence passes. STORY-001/002 acceptance requires the corrected
-candidate's independent review, passing required CI and merge. Distribution,
+CI-FND-001 and INT-DATA-001 have passing executable evidence. STORY-001/002
+are accepted after PR #18's exact independent review, passing required CI and
+merge; FOUNDATION_CONTRACT_VALIDATION.md records the immutable evidence. Distribution,
 customer installation and the other R0 story contracts remain separate gates.
 
 Sources: [Zod JSON Schema](https://zod.dev/json-schema),

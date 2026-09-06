@@ -29,10 +29,11 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `8f7c9dd` contains the reviewed partial foundation and published backlog.
-All five R0 stories are in progress. The user explicitly authorized continued
-implementation and public branch/PR publication. Review found missing production
-database TLS, fixed browser scopes and a lost logout ID-token hint.
+Main `5829e23` contains the reviewed production boundary and executable foundation
+contracts. STORY-001/002 are accepted after exact review, current CI and PR #18
+merge; STORY-003/004/005 remain in progress. The user authorized continued
+implementation and public branch/PR publication. Earlier TLS, scope and logout
+findings were resolved in PR #16.
 
 ## Proposed design
 
@@ -105,6 +106,12 @@ with outbound disabled and the separately retained encryption key.
 
 ## Progress log
 
+- 2026-09-06: PR #18 merged exact reviewed `56e4fbd` as `5829e23` after all
+  three CI jobs passed. Registered CI-FND-001/INT-DATA-001 have complete evidence;
+  accept STORY-001/002 (R0 2/5, R1 0/33). Review's missing parser 413/415 errors
+  were fixed with safe error normalization and real HTTP regressions. Next:
+  release provisioning/migration/backup/restore package and isolated recovery tests.
+
 - 2026-09-06: Next increment starts from merged `fabec98`. Implement ADR-012's
   complete runtime/OpenAPI contracts, drift and module-boundary checks, narrow
   worker heartbeat repository and explicit database-integrity evidence. Register
@@ -154,6 +161,8 @@ the production evidence document records the CI source tree and run identity.
 
 ## Completion summary
 
-Production boundary increment implemented, validated, independently reviewed and merged.
-Release migration/backup, complete boundary contracts and distribution gates stay
-in this ExecPlan for the next increment. No additional story is yet accepted.
+Production boundary and executable contracts are implemented, validated,
+independently reviewed and merged. STORY-001/002 are accepted with evidence in
+FOUNDATION_CONTRACT_VALIDATION.md. Release provisioning/migration/backup/restore,
+full distribution gates and remaining identity/deployment validation stay in this
+ExecPlan. R0 release and Issue #5 remain open.

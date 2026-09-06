@@ -61,3 +61,14 @@ independently verifies actual HTTP bodies. Exact MIT Ajv 8.20.0 and ajv-formats
 enforce the documented boundaries, and worker heartbeat persistence moves behind
 a domain repository port. No new schema or integration is required. STORY-001/002
 acceptance remains conditional on complete evidence, exact review, CI and merge.
+
+## First foundation story acceptance, 2026-09-06
+
+Accept STORY-001 / AC-FND-001 and STORY-002 / AC-DATA-001 under delegated
+implementation controller authority. Non-author review approved exact `56e4fbd`;
+all three remote jobs passed and PR #18 merged as `5829e23`. Saved CI artifacts
+match the reviewed source tree and confirm 44 native tests, eight production
+groups, migration/recovery and the remaining required checks. See
+FOUNDATION_CONTRACT_VALIDATION.md for full immutable references. R0 is 2/5 (40%);
+R1 is 0/33 (0%). STORY-003/004/005, Issue #5, customer deployment and commercial
+release/distribution remain open; no release gate or customer prerequisite is waived.
