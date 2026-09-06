@@ -105,6 +105,13 @@ with outbound disabled and the separately retained encryption key.
 
 ## Progress log
 
+- 2026-09-06: Next increment starts from merged `fabec98`. Implement ADR-012's
+  complete runtime/OpenAPI contracts, drift and module-boundary checks, narrow
+  worker heartbeat repository and explicit database-integrity evidence. Register
+  CI-FND-001/INT-DATA-001, then assess STORY-001/002 only after review, CI and merge.
+  No new schema or live connector is needed. Release tooling, distribution and
+  the remaining identity/deployment story gates continue separately.
+
 - 2026-09-06: Reconciled main/Issue #5; delegated read-only component, distribution
   and identity/security research; root retains implementation and Git ownership.
 - 2026-09-06: Implemented native Tailwind controls, shared verified TLS/file-secret

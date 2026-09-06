@@ -21,6 +21,7 @@ jobs:
       - run: pnpm setup:local
       - run: docker compose up -d --wait
       - run: pnpm build
+      - run: pnpm check:architecture && pnpm check:contracts
       - run: pnpm lint && pnpm typecheck && pnpm test
       - run: node scripts/check-dependencies.mjs
       - run: pnpm audit --audit-level high
@@ -34,6 +35,12 @@ jobs:
           node scripts/local.mjs scripts/dev.mjs > artifacts/dev.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://localhost:5173 >/dev/null && break; sleep 1; done
           pnpm test:e2e
+      - name: Publish successful database contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-contract-evidence
+          path: artifacts/database-validation.json
+          if-no-files-found: error
       - if: always()
         run: docker compose down
   production-boundary:

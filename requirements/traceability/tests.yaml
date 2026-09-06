@@ -73,13 +73,20 @@ tests:
   evidence: []
 - id: CI-FND-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-FND-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The pnpm TypeScript workspace builds web, NestJS API and worker applications; domain package boundaries
     have no cycles or external SDK leakage, and API routes publish a generated, runtime-validated OpenAPI contract.
-  evidence: []
+  evidence:
+  - scripts/check-architecture.mjs
+  - scripts/validate-openapi.mjs
+  - scripts/export-openapi.mjs
+  - tests/architecture.test.ts
+  - tests/api-contract.test.ts
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/FOUNDATION_CONTRACT_VALIDATION.md
 - id: CI-MNT-002
   release: R1
   status: planned
@@ -829,13 +836,19 @@ tests:
   evidence: []
 - id: INT-DATA-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-DATA-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A clean PostgreSQL database can apply the initial versioned migration and create customer, identity,
     project, connector and audit foundations.
-  evidence: []
+  evidence:
+  - scripts/test-database.mjs
+  - tests/database.integration.test.ts
+  - scripts/rehearse-recovery.mjs
+  - scripts/acceptance/initialize.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/FOUNDATION_CONTRACT_VALIDATION.md
 - id: INT-EVD-001
   release: R1
   status: planned

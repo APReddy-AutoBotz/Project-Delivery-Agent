@@ -72,6 +72,8 @@ Exact direct dependencies verified against publisher metadata on 2026-09-06. Run
 | [@types/react](https://registry.npmjs.org/%40types%2Freact/19.2.18) | 19.2.18 | MIT | Development |
 | [@types/react-dom](https://registry.npmjs.org/%40types%2Freact-dom/19.2.7) | 19.2.7 | MIT | Development |
 | [@vitejs/plugin-react](https://registry.npmjs.org/%40vitejs%2Fplugin-react/5.2.0) | 5.2.0 | MIT | Development |
+| [ajv](https://registry.npmjs.org/ajv/8.20.0) | 8.20.0 | MIT | Development |
+| [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1) | 3.0.1 | MIT | Development |
 | [deepmerge-ts](https://registry.npmjs.org/deepmerge-ts/8.0.0) | 8.0.0 | BSD-3-Clause | Development |
 | [eslint](https://registry.npmjs.org/eslint/10.10.0) | 10.10.0 | MIT | Development |
 | [graphile-worker](https://registry.npmjs.org/graphile-worker/0.17.3) | 0.17.3 | MIT | Runtime |

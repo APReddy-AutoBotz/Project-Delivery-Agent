@@ -240,7 +240,7 @@ python scripts/validate_documentation.py
 Expected result for the current draft baseline:
 
 ```text
-Validated 245 requirements, 67 acceptance criteria and 38 stories.
+Validated 245 requirements, 91 acceptance criteria, 38 stories and 135 test specifications.
 Documentation validation passed.
 ```
 

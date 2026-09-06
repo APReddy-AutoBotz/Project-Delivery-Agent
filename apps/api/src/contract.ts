@@ -1,91 +1,220 @@
-import type { OpenAPIObject, SchemaObject } from "@nestjs/swagger";
-export function completeContract(document: OpenAPIObject) {
-  const string: SchemaObject = { type: "string" };
-  const object = (
-    properties: Record<string, SchemaObject>,
-    required = Object.keys(properties),
-  ): SchemaObject => ({
-    type: "object",
-    properties,
-    required,
-    additionalProperties: false,
-  });
-  const project = object({
-    id: { type: "string", format: "uuid" },
-    portfolioId: { type: "string", format: "uuid" },
-    code: string,
-    name: string,
-    description: string,
-    reportedStatus: string,
-  });
-  const response = (schema: SchemaObject) => ({
-    description: "Success",
-    content: { "application/json": { schema } },
-  });
-  const shapes: Record<string, SchemaObject> = {
-    "/api/health/live": object({ status: string }),
-    "/api/health/ready": object({ status: string }),
-    "/api/auth/config": object(
-      {
-        mode: { type: "string", enum: ["oidc", "development"] },
-        dataMode: string,
-        issuer: string,
-        clientId: string,
-        audience: string,
-        scope: string,
-        resource: string,
-      },
-      ["mode", "dataMode", "scope"],
-    ),
-    "/api/me": object({
-      subject: string,
-      roles: { type: "array", items: string },
-      customerId: { type: "string", format: "uuid" },
+// TR-API-001 / CI-FND-001: one runtime schema source for every controller operation.
+import type {
+  OpenAPIObject,
+  SchemaObject,
+  OperationObject,
+} from "@nestjs/swagger";
+import { z } from "zod";
+import { roleSchema } from "@pdaa/domain";
+
+// The wire pattern preserves the existing 1..200 limit after trimming. A raw
+// maxLength would incorrectly reject a valid subject padded with whitespace.
+const subjectSchema = z
+  .string()
+  .regex(/^\s*(?:\S|\S[\s\S]{0,198}\S)\s*$/)
+  .describe(
+    "Account subject, 1 to 200 characters after trimming surrounding whitespace",
+  )
+  .transform((value) => value.trim());
+export const grantSchema = z.strictObject({
+  subject: subjectSchema,
+  scopeType: z.enum(["project", "portfolio"]),
+  scopeId: z.uuid(),
+  role: roleSchema,
+});
+export const revokeSchema = grantSchema.omit({ role: true });
+export const developmentSchema = z.strictObject({
+  persona: z.enum(["pm-atlas", "leader-atlas", "operator"]),
+});
+const project = z.strictObject({
+  id: z.uuid(),
+  portfolioId: z.uuid(),
+  code: z.string(),
+  name: z.string(),
+  description: z.string(),
+  reportedStatus: z.string(),
+});
+const modes = z.enum(["oidc", "development"]);
+const dataModes = z.enum(["synthetic", "customer"]);
+export type RouteContract = {
+  status: number;
+  response?: z.ZodType;
+  request?: z.ZodType;
+  public?: boolean;
+  errors?: number[];
+  parameters?: Record<string, z.ZodType>;
+};
+export const contracts: Record<string, RouteContract> = {
+  "get /api/health/live": {
+    status: 200,
+    public: true,
+    response: z.strictObject({ status: z.literal("ok") }),
+  },
+  "get /api/health/ready": {
+    status: 200,
+    public: true,
+    errors: [503],
+    response: z.strictObject({ status: z.literal("ok") }),
+  },
+  "get /api/auth/config": {
+    status: 200,
+    public: true,
+    response: z.strictObject({
+      mode: modes,
+      dataMode: dataModes,
+      scope: z.string().min(1),
+      issuer: z.string().optional(),
+      clientId: z.string().optional(),
+      audience: z.string().optional(),
+      resource: z.string().optional(),
     }),
-    "/api/projects": { type: "array", items: project },
-    "/api/projects/{id}": project,
-    "/api/platform": object({
-      database: string,
-      worker: string,
-      heartbeat: { type: "string", format: "date-time", nullable: true },
-      shadowMode: { type: "boolean" },
-      identityMode: string,
-      dataMode: string,
+  },
+  "post /api/auth/development": {
+    status: 200,
+    public: true,
+    errors: [400, 404],
+    request: developmentSchema,
+    response: z.strictObject({ token: z.string().min(1) }),
+  },
+  "get /api/me": {
+    status: 200,
+    response: z.strictObject({
+      subject: z.string().min(1),
+      roles: z.array(roleSchema),
+      customerId: z.uuid(),
     }),
-    "/api/audit": {
-      type: "array",
-      items: object({
-        id: string,
-        event: string,
-        actor: string,
-        occurredAt: { type: "string", format: "date-time" },
+  },
+  "get /api/projects": { status: 200, response: z.array(project) },
+  "get /api/projects/{id}": {
+    status: 200,
+    errors: [404],
+    parameters: { id: z.uuid() },
+    response: project,
+  },
+  "get /api/platform": {
+    status: 200,
+    response: z.strictObject({
+      database: z.enum(["connected", "unavailable"]),
+      worker: z.enum(["running", "unavailable"]),
+      heartbeat: z.iso.datetime().nullable(),
+      shadowMode: z.boolean(),
+      identityMode: modes,
+      dataMode: dataModes,
+    }),
+  },
+  "get /api/audit": {
+    status: 200,
+    response: z.array(
+      z.strictObject({
+        id: z.uuid(),
+        event: z.string(),
+        actor: z.string(),
+        occurredAt: z.iso.datetime(),
       }),
-    },
-  };
-  for (const [path, schema] of Object.entries(shapes)) {
-    const operation = document.paths[path]?.get;
+    ),
+  },
+  "post /api/access-grants": {
+    status: 204,
+    request: grantSchema,
+    errors: [400, 404],
+  },
+  "delete /api/access-grants": {
+    status: 204,
+    request: revokeSchema,
+    errors: [400],
+  },
+};
+export function wireSchema(schema: z.ZodType): SchemaObject {
+  return z.toJSONSchema(schema, {
+    target: "openapi-3.0",
+    cycles: "throw",
+    io: "input",
+  }) as SchemaObject;
+}
+export const errorMessages = {
+  400: "Invalid request",
+  401: "Sign-in required",
+  403: "Access denied",
+  404: "Resource unavailable",
+  413: "Request body too large",
+  415: "Unsupported media type",
+  500: "Internal server error",
+  503: "Service unavailable",
+} as const;
+export function isErrorStatus(
+  status: unknown,
+): status is keyof typeof errorMessages {
+  return typeof status === "number" && Object.hasOwn(errorMessages, status);
+}
+const errorSchema = (status: number) => {
+  if (!isErrorStatus(status)) throw new Error("Unregistered API error status");
+  return z.strictObject({
+    statusCode: z.literal(status),
+    message: z.literal(errorMessages[status]),
+  });
+};
+const response = (schema: z.ZodType, description: string) => ({
+  description,
+  content: { "application/json": { schema: wireSchema(schema) } },
+});
+const methods = [
+  "get",
+  "post",
+  "put",
+  "delete",
+  "patch",
+  "head",
+  "options",
+  "trace",
+] as const;
+
+export function completeContract(document: OpenAPIObject) {
+  const operations = new Map<string, OperationObject>();
+  for (const [path, item] of Object.entries(document.paths))
+    for (const method of methods)
+      if (item[method]) operations.set(method + " " + path, item[method]);
+  if (
+    operations.size !== Object.keys(contracts).length ||
+    [...operations.keys()].some((key) => !contracts[key])
+  )
+    throw new Error("API routes differ from registered contracts");
+  for (const [key, contract] of Object.entries(contracts)) {
+    const operation = operations.get(key);
     if (!operation) throw new Error("Missing API contract route");
+    operation.security = contract.public ? [] : [{ bearer: [] }];
     operation.responses = {
-      "200": response(schema),
-      ...(path === "/api/health/ready"
-        ? { "503": { description: "Database unavailable" } }
-        : {}),
+      [contract.status]: contract.response
+        ? response(contract.response, "Success")
+        : { description: "Success; no response body" },
     };
-    if (path.startsWith("/api/health/") || path === "/api/auth/config")
-      operation.security = [];
-    else
-      Object.assign(operation.responses, {
-        "401": { description: "Identity required" },
-        "403": { description: "Permission denied" },
-        "404": { description: "Resource unavailable" },
-      });
+    for (const status of new Set([
+      400,
+      413,
+      415,
+      500,
+      ...(contract.public ? [] : [401, 403]),
+      ...(contract.errors ?? []),
+    ]))
+      operation.responses[status] = response(
+        errorSchema(status),
+        "Request could not be completed",
+      );
+    if (contract.request)
+      operation.requestBody = {
+        required: true,
+        content: {
+          "application/json": { schema: wireSchema(contract.request) },
+        },
+      };
+    if (contract.parameters)
+      operation.parameters = Object.entries(contract.parameters).map(
+        ([name, schema]) => ({
+          name,
+          in: "path",
+          required: true,
+          schema: wireSchema(schema),
+        }),
+      );
   }
-  const development = document.paths["/api/auth/development"]!.post!;
-  development.security = [];
-  development.responses = {
-    "200": response(object({ token: string })),
-    "400": { description: "Invalid persona" },
-    "404": { description: "Development sign-in unavailable" },
-  };
   return document;
 }

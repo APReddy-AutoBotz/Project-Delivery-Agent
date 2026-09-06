@@ -98,3 +98,8 @@ export interface ProjectRepository {
   ready(): Promise<boolean>;
   heartbeat(): Promise<Date | null>;
 }
+
+// TR-STACK-005: tasks receive a narrow persistence port, never an ORM client.
+export interface WorkerHeartbeatRepository {
+  recordHeartbeat(occurredAt: Date): Promise<void>;
+}

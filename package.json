@@ -21,12 +21,16 @@
     "db:seed": "node scripts/local.mjs packages/data/dist/seed.js",
     "setup:local": "node scripts/setup-local.mjs",
     "docs:validate": "python scripts/validate_documentation.py",
-    "test:production": "node scripts/test-production.mjs"
+    "test:production": "node scripts/test-production.mjs",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "check:contracts": "node scripts/local.mjs scripts/export-openapi.mjs --check"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
     "@types/node": "24.0.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "eslint": "10.10.0",
     "jose": "6.2.12",
     "js-yaml": "5.3.0",

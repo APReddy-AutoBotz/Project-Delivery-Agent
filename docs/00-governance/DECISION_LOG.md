@@ -51,3 +51,13 @@ tools; upstream package files are unchanged. Controlled TLS/Keycloak fixtures ru
 only in isolated development containers. Commercial distribution, OS license
 review, complete notices and final image vulnerability disposition are not waived.
 EXEC-003 remains open until its complete acceptance scope is evidenced.
+
+## Executable foundation contracts, 2026-09-06
+
+Accept ADR-012 under delegated routine architecture authority. Shared Zod schemas
+generate OpenAPI and validate requests/successful responses; development-only Ajv
+independently verifies actual HTTP bodies. Exact MIT Ajv 8.20.0 and ajv-formats
+3.0.1 are approved for development validation. TypeScript import/package gates
+enforce the documented boundaries, and worker heartbeat persistence moves behind
+a domain repository port. No new schema or integration is required. STORY-001/002
+acceptance remains conditional on complete evidence, exact review, CI and merge.

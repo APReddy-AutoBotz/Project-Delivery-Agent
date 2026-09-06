@@ -86,3 +86,15 @@ Follow [EXEC-003](exec-plans/EXEC-003-customer-hosted-foundation.md). Real Jira/
 source writes and reports remain unimplemented. No new connector scopes were
 requested or enabled. Once the foundation gate is accepted, proceed to the
 canonical model and evidence ledger in [Issue #6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6).
+
+## Foundation contract candidate
+
+The current EXEC-003 increment implements executable package/import boundaries,
+complete runtime/OpenAPI contracts, fixed safe API errors, a worker heartbeat
+repository port and explicit clean/repeat migration constraints. Local validation
+passes 28 unit/contract/architecture tests, nine database/API tests and seven
+browser workflows (44 native tests), plus recovery, builds, lint, types, contract
+drift and the 37-record dependency gate/audit. Four test specifications now have
+implementation evidence and 131 remain planned. Exact review, current CI and
+merge are still required before accepting STORY-001/002; the table above remains
+0/5 R0 and 0/33 R1. See [FOUNDATION_CONTRACT_VALIDATION.md](../05-quality/FOUNDATION_CONTRACT_VALIDATION.md).
