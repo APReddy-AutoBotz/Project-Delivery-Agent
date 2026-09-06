@@ -229,11 +229,12 @@ try {
           "SELECT pg_get_serial_sequence('graphile_worker._private_jobs','id') AS name",
         )
       ).rows[0].name;
-      assert(/^graphile_worker\.[a-z_]+$/.test(sequenceName));
+      assert(/^graphile_worker\.[a-z_][a-z0-9_]*$/.test(sequenceName));
       const sequence = (
-        await pool.query(`SELECT last_value FROM ${sequenceName}`)
+        await pool.query(`SELECT last_value,is_called FROM ${sequenceName}`)
       ).rows[0];
       assert(BigInt(sequence.last_value) >= BigInt(expected.queuedJob[0].id));
+      assert.equal(sequence.is_called, true);
       for (const role of ["pdaa_api", "pdaa_worker"])
         assert.equal(
           (
