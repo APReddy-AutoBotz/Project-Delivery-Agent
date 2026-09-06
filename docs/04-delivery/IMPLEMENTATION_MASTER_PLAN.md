@@ -1,7 +1,7 @@
 # Release 1 Implementation Master Plan
 
-Status: Approved and merged through PR #3 on 2026-09-06; partial foundation
-merged through PR #4. Complete story acceptance remains separately gated.
+Status: Approved and merged through PR #3 on 2026-09-06; foundation increments
+merged through PR #18. STORY-001/002 accepted; remaining stories and release gated.
 Owner: Implementation controller
 Baseline: `5f37c657293e41627b4e8fe1caf93c52b50bce17`
 
@@ -17,9 +17,10 @@ through [PR #4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/
 The user explicitly approved publication to this public destination. Earlier
 local work proceeded with synthetic data under the user's implementation
 instruction. Publication is now complete; real sources, messaging, writes and
-product acceptance retain their own security and release gates. All five R0
-stories remain in progress because the local increment does not satisfy their
-complete contracts. See IMPLEMENTATION_STATUS.md and PUBLICATION_RECORD.md.
+product acceptance retain their own security and release gates. STORY-001/002
+are accepted after PR #18's complete contract evidence, independent review,
+passing checks and merge. STORY-003/004/005 remain in progress.
+See IMPLEMENTATION_STATUS.md and PUBLICATION_RECORD.md.
 
 ## Approved product scope
 
