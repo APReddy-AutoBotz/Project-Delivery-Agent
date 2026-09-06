@@ -23,6 +23,7 @@ stories:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
+  - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md
 - id: STORY-002
   epic: EPIC-01
   title: Create PostgreSQL schema foundation
@@ -41,6 +42,7 @@ stories:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
+  - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md
 - id: STORY-003
   epic: EPIC-01
   title: Create containerized local environment
@@ -64,6 +66,7 @@ stories:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
+  - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md
 - id: STORY-004
   epic: EPIC-01
   title: Establish CI and documentation validation
@@ -84,6 +87,7 @@ stories:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
+  - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md
 - id: STORY-005
   epic: EPIC-01
   title: Implement foundation security controls
@@ -117,6 +121,7 @@ stories:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
+  - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md
 - id: STORY-006
   epic: EPIC-02
   title: Implement connector contract

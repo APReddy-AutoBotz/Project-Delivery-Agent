@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.19.0",
-  "engines": { "node": ">=24.0.0 <25" },
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
   "scripts": {
     "build": "pnpm -r build",
     "lint": "eslint apps packages scripts --ignore-pattern '**/generated/**'",
@@ -18,7 +20,8 @@
     "db:migrate": "node scripts/local.mjs scripts/migrate.mjs",
     "db:seed": "node scripts/local.mjs packages/data/dist/seed.js",
     "setup:local": "node scripts/setup-local.mjs",
-    "docs:validate": "python scripts/validate_documentation.py"
+    "docs:validate": "python scripts/validate_documentation.py",
+    "test:production": "node scripts/test-production.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -29,6 +32,7 @@
     "eslint": "10.10.0",
     "typescript": "5.9.3",
     "typescript-eslint": "8.69.0",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "prisma": "7.10.0"
   }
 }

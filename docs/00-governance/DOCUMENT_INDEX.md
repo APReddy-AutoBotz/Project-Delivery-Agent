@@ -131,7 +131,11 @@
 - `docs/04-delivery/IMPLEMENTATION_MASTER_PLAN.md`: approved and merged implementation sequence.
 - `docs/04-delivery/IMPLEMENTATION_STATUS.md`: merged partial progress versus accepted stories.
 - `docs/04-delivery/exec-plans/EXEC-002-platform-foundation.md`: foundation scope and evidence.
+- `docs/04-delivery/exec-plans/EXEC-003-customer-hosted-foundation.md`: production boundary implementation and remaining release gates.
+- `docs/03-architecture/adr/ADR-011-FOUNDATION-DEPLOYMENT-BOUNDARIES.md`: approved native component and production transport boundaries.
+- `docs/07-research/FOUNDATION_IMAGE_REGISTER.md`: pinned acceptance images and unresolved distribution review.
 - `docs/05-quality/FOUNDATION_VALIDATION.md`: executed checks, boundaries and review fixes.
+- `docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md`: production TLS/OIDC increment and scoped validation evidence.
 - `docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md`: reproducible synthetic setup and recovery.
 - `docs/03-architecture/OPENAPI_FOUNDATION.json`: generated REST contract.
 - `docs/07-research/DEPENDENCIES.json`: exact adopted package inventory.

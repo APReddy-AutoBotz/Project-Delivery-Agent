@@ -32,8 +32,10 @@ export function completeContract(document: OpenAPIObject) {
         issuer: string,
         clientId: string,
         audience: string,
+        scope: string,
+        resource: string,
       },
-      ["mode", "dataMode"],
+      ["mode", "dataMode", "scope"],
     ),
     "/api/me": object({
       subject: string,

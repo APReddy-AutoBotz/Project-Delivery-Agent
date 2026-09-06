@@ -31,11 +31,11 @@ function node(args, cwd = process.cwd()) {
     throw new Error("Database validation command failed");
 }
 node(
-  ["node_modules/prisma/build/index.js", "migrate", "deploy"],
+  ["../../node_modules/prisma/build/index.js", "migrate", "deploy"],
   process.cwd() + "/packages/data",
 );
 node(
-  ["node_modules/prisma/build/index.js", "migrate", "deploy"],
+  ["../../node_modules/prisma/build/index.js", "migrate", "deploy"],
   process.cwd() + "/packages/data",
 );
 node(["packages/data/dist/seed.js"]);

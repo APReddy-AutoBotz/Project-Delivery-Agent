@@ -131,9 +131,20 @@ test("Operator has no implicit project access and can grant and revoke access wi
   await page
     .getByLabel("Scope identifier")
     .fill("30000000-0000-4000-8000-000000000001");
-  await page.getByRole("button", { name: "Grant access" }).click();
+  const grant = page.getByRole("button", { name: "Grant access" });
+  await page.getByLabel("Scope identifier", { exact: true }).press("Tab");
+  await expect(grant).toBeFocused();
+  await expect(grant).toHaveCSS("outline-style", "solid");
+  await expect(grant).toHaveCSS("outline-width", "2px");
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("Access granted.");
-  await page.getByRole("button", { name: "Revoke access" }).click();
+  await expect(grant).toBeEnabled();
+  await grant.focus();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("button", { name: "Revoke access" }),
+  ).toBeFocused();
+  await page.keyboard.press("Space");
   await expect(page.getByRole("status")).toContainText("Access revoked.");
   await expect(
     page.getByText("Access revoked", { exact: true }).first(),
@@ -160,4 +171,57 @@ test("Small screens retain sign-in and project navigation without horizontal ove
     path: "artifacts/projects-mobile.png",
     fullPage: true,
   });
+});
+
+test("Synthetic OIDC workspace uses organization sign-in without a local-only claim", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/config", (route) =>
+    route.fulfill({
+      json: {
+        mode: "oidc",
+        dataMode: "synthetic",
+        issuer: "https://identity.example.test",
+        clientId: "synthetic-ui-fixture",
+        scope: "openid profile",
+      },
+    }),
+  );
+  await page.goto("/");
+  await expect(
+    page.getByText("Synthetic workspace", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign in with your organization" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Project manager" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(/limited to this local development environment/),
+  ).toHaveCount(0);
+});
+
+test("Mobile operator controls fit the viewport and retain accessible labels", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Platform operator" }).press("Enter");
+  await page.getByRole("button", { name: /Platform & access/ }).press("Enter");
+  for (const control of [
+    page.getByLabel("Account subject", { exact: true }),
+    page.getByRole("combobox", { name: "Scope", exact: true }),
+    page.getByRole("combobox", { name: "Role", exact: true }),
+    page.getByLabel("Scope identifier", { exact: true }),
+    page.getByRole("button", { name: "Grant access" }),
+    page.getByRole("button", { name: "Revoke access" }),
+  ]) {
+    await control.scrollIntoViewIfNeeded();
+    await expect(control).toBeVisible();
+    const box = await control.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  }
 });

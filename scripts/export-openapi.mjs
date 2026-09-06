@@ -6,7 +6,7 @@ import {
 } from "../packages/data/dist/index.js";
 import { loadConfig } from "../packages/platform/dist/index.js";
 const config = loadConfig(process.env);
-const db = createDatabase(config.PDAA_DATABASE_URL);
+const db = createDatabase(config.database);
 const { app, spec } = await createApp(
   config,
   new DatabaseProjectRepository(db),

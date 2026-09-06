@@ -1,11 +1,17 @@
+import { Pool } from "pg";
 import { run, Logger } from "graphile-worker";
 import { createDatabase } from "@pdaa/data";
 import { loadConfig, operationalLog } from "@pdaa/platform";
 try {
   const config = loadConfig(process.env);
-  const db = createDatabase(config.PDAA_DATABASE_URL);
+  const db = createDatabase(config.database);
+  const pool = new Pool({
+    ...config.database,
+    max: 4,
+    connectionTimeoutMillis: 5000,
+  });
   const runner = await run({
-    connectionString: config.PDAA_DATABASE_URL,
+    pgPool: pool,
     concurrency: 1,
     noHandleSignals: true,
     logger: new Logger(() => () => operationalLog("worker.event")),
@@ -25,6 +31,7 @@ try {
     process.once(signal, async () => {
       await runner.stop();
       await db.$disconnect();
+      await pool.end();
       process.exit(0);
     });
   await runner.promise;

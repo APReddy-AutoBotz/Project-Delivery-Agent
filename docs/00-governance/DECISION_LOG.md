@@ -40,3 +40,14 @@ and ten implementation issues are published. Accept the foundation merge only
 for its documented synthetic scope; keep STORY-001..005 in progress until their
 full contracts pass. Tailwind and pgvector deferrals are outstanding requirement
 work, not approved waivers. R0 remains 0/5 and R1 0/33 accepted.
+
+## Customer-hosted boundary implementation, 2026-09-06
+
+Accept ADR-011's native React/Tailwind layer, explicit production file secrets,
+shared verified database transport and configurable OIDC scope/logout behavior
+under delegated routine architecture authority. Modern pnpm deploy and bounded
+optional-build-peer metadata hooks separate runtime packages from development
+tools; upstream package files are unchanged. Controlled TLS/Keycloak fixtures run
+only in isolated development containers. Commercial distribution, OS license
+review, complete notices and final image vulnerability disposition are not waived.
+EXEC-003 remains open until its complete acceptance scope is evidenced.
