@@ -152,3 +152,14 @@ In customer-hosted deployments, the customer normally determines the purposes an
 ## Initial compliance posture
 
 Release 1 should be designed to support enterprise security review but must not claim certifications such as SOC 2 or ISO 27001 until achieved.
+
+## Foundation security gate
+
+EPIC-01 must deliver production OIDC validation, configurable user/group mappings,
+server-enforced project/portfolio scope, service-identity separation, encrypted
+credential storage, configuration validation and redacted audit/log output.
+Negative tests must deny invalid/expired identities, cross-project direct API
+access, revoked scope and production development login. Synthetic demo identity
+is explicitly enabled only for local synthetic data. Shadow mode starts enabled.
+Real-data ingestion, messaging and write-back depend on this gate. EPIC-10 performs
+release verification and hardening of controls already present in every increment.

@@ -142,3 +142,15 @@ A completed task or pull request must state:
 - Connector scopes added or changed
 - Known limitations
 - Rollback or recovery method
+
+## Implementation controller and review gate
+
+Follow `docs/04-delivery/IMPLEMENTATION_CONTROLLER.md` and the delegated approval
+record in `docs/00-governance/DOCUMENT_CONTROL.md`. Bootstrap missing checkouts
+without overwriting user work. A separate non-author agent reviews the immutable
+candidate SHA before merge; the root retains edit and Git ownership.
+
+Production identity validation, scoped server authorization, encrypted secret
+storage and denial tests belong to EPIC-01. They must pass before real-data
+connectors, messaging or write-back. Preserve provenance, freshness and conflict
+independently according to ADR-009. Human approval is never a model-callable tool.

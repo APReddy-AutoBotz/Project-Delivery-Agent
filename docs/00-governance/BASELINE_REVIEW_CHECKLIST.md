@@ -51,7 +51,7 @@
 
 ## Before implementation begins
 
-1. Push `docs/baseline-v0.1` to the private repository.
+1. Push `docs/baseline-v0.1` to the intended repository.
 2. Open a documentation baseline pull request.
 3. Run the Astra review prompt.
 4. Resolve P0 findings and product-owner decisions.

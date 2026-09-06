@@ -5,11 +5,11 @@ requirements:
 - id: FR-UPD-001
   type: functional
   title: Due update detection
-  statement: The system must create an update request when a configured reporting obligation becomes due and no valid current
-    update exists.
+  statement: The system must create an update request when a configured reporting obligation becomes due and no
+    valid current update exists.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-006
   source_doc: FRD.md
 - id: FR-UPD-002
@@ -18,16 +18,17 @@ requirements:
   statement: The request must identify the project context and the specific missing or stale information.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-006
   source_doc: FRD.md
 - id: FR-UPD-003
   type: functional
   title: Responsible recipient
-  statement: The system must address the request to the configured responsible person and avoid broad unnecessary distribution.
+  statement: The system must address the request to the configured responsible person and avoid broad unnecessary
+    distribution.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-006
   source_doc: FRD.md
 - id: FR-UPD-004
@@ -36,7 +37,7 @@ requirements:
   statement: A recipient must be able to submit an update through a secure, time-limited or authenticated page.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-006
   source_doc: FRD.md
 - id: FR-UPD-005
@@ -45,7 +46,7 @@ requirements:
   statement: The request may provide configurable structured response choices in addition to free text.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-006
   source_doc: FRD.md
 - id: FR-UPD-006
@@ -54,7 +55,7 @@ requirements:
   statement: The recipient must be able to provide a natural-language update.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-006
   source_doc: FRD.md
 - id: FR-UPD-007
@@ -63,7 +64,7 @@ requirements:
   statement: The system may use AI to extract proposed structured facts from the response.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-006
   source_doc: FRD.md
 - id: FR-UPD-008
@@ -72,7 +73,7 @@ requirements:
   statement: The recipient or authorized reviewer must be able to confirm or correct the extracted interpretation.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-UPD-009
@@ -81,7 +82,7 @@ requirements:
   statement: The system must request clarification when a response cannot safely support the required fact or action.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-006
   source_doc: FRD.md
 - id: FR-UPD-010
@@ -90,7 +91,7 @@ requirements:
   statement: A valid response must cancel or suppress pending reminders for the satisfied obligation.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-UPD-011
@@ -99,16 +100,17 @@ requirements:
   statement: The recipient must be able to indicate absence, delegation or an allowed skip reason.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-UPD-012
   type: functional
   title: Time-zone awareness
-  statement: Requests and reminders must use configured user or project time zones and quiet hours.
+  statement: Requests and reminders must use configured user or project IANA time zones, weekday calculations and
+    quiet hours in R1.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-ESC-001
@@ -117,7 +119,7 @@ requirements:
   statement: The system must send reminders according to a configured schedule when no valid response is received.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-ESC-002
@@ -126,7 +128,7 @@ requirements:
   statement: Administrators must be able to configure escalation stages, delays, recipients and channels.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-ESC-003
@@ -135,7 +137,7 @@ requirements:
   statement: The system must be able to notify the project manager after configured unanswered reminders.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-ESC-004
@@ -144,7 +146,7 @@ requirements:
   statement: The system must be able to notify a team lead or alternate role after a continued non-response.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-ESC-005
@@ -153,7 +155,7 @@ requirements:
   statement: An escalation must include request history, project impact and the exact missing information.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-ESC-006
@@ -162,7 +164,7 @@ requirements:
   statement: The system must prevent duplicate reminders or escalations for the same active obligation.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-ESC-007
@@ -171,13 +173,14 @@ requirements:
   statement: An authorized user must be able to pause or close an update obligation with a recorded reason.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-007
   source_doc: FRD.md
 - id: FR-ESC-008
   type: functional
   title: Calendar rules
-  statement: The policy must support business days, holidays and quiet hours.
+  statement: The policy should support configurable customer holiday calendars beyond the R1 weekday, time-zone
+    and quiet-hour controls.
   priority: Should
   release: R2
   status: draft
@@ -189,7 +192,7 @@ requirements:
   statement: Recommendations must be triggered by approved delivery rules and current facts.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-008
   source_doc: FRD.md
 - id: FR-ADV-002
@@ -198,7 +201,7 @@ requirements:
   statement: The product must provide project managers with prioritized suggested follow-up or recovery actions.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-008
   source_doc: FRD.md
 - id: FR-ADV-003
@@ -207,7 +210,7 @@ requirements:
   statement: The product must provide scrum masters with relevant blocker, carryover and sprint-hygiene suggestions.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-008
   source_doc: FRD.md
 - id: FR-ADV-004
@@ -216,7 +219,7 @@ requirements:
   statement: The product must provide team leads with relevant ownership, dependency and technical-decision suggestions.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-008
   source_doc: FRD.md
 - id: FR-ADV-005
@@ -225,7 +228,7 @@ requirements:
   statement: The product must provide PMO users with reporting, governance and portfolio-intervention suggestions.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-008
   source_doc: FRD.md
 - id: FR-ADV-006
@@ -234,7 +237,7 @@ requirements:
   statement: Leadership recommendations must focus on decisions and interventions, not operational task management.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-008
   source_doc: FRD.md
 - id: FR-ADV-007
@@ -243,17 +246,17 @@ requirements:
   statement: Each recommendation must state the triggering facts, rule and expected outcome.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-008
   source_doc: FRD.md
 - id: FR-ADV-008
   type: functional
   title: No blame attribution
-  statement: The system must not attribute personal blame unless an authorized source explicitly records responsibility and
-    the context is appropriate.
+  statement: The system must not attribute personal blame unless an authorized source explicitly records responsibility
+    and the context is appropriate.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: BR-013
   source_doc: FRD.md
 - id: FR-APP-001
@@ -262,16 +265,17 @@ requirements:
   statement: Every proposed action must have a configured risk and approval class.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-APP-002
   type: functional
   title: Approval diff
-  statement: A material proposal must show current value, proposed value, reason, source, evidence and intended side effects.
+  statement: A material proposal must show current value, proposed value, reason, source, evidence and intended
+    side effects.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-APP-003
@@ -280,7 +284,7 @@ requirements:
   statement: An authorized reviewer must be able to edit a proposal before approval.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-APP-004
@@ -289,7 +293,7 @@ requirements:
   statement: An authorized reviewer must be able to approve or reject a proposal with an optional reason.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-APP-005
@@ -298,7 +302,7 @@ requirements:
   statement: The system must enforce the configured approval role for the action type and project.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-APP-006
@@ -307,17 +311,17 @@ requirements:
   statement: A proposal must expire or require reconfirmation after its configured validity period.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-APP-007
   type: functional
   title: Current-value recheck
-  statement: Immediately before execution, the system must verify that the source value still matches the approved comparison
-    base.
+  statement: Immediately before execution, the system must verify that the source value still matches the approved
+    comparison base.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-APP-008
@@ -327,7 +331,7 @@ requirements:
     task.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-APP-009
@@ -336,7 +340,7 @@ requirements:
   statement: Bulk approval must be disabled for material actions in Release 1.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-APP-010
@@ -345,7 +349,7 @@ requirements:
   statement: In shadow mode, proposals must be recorded but never sent or executed externally.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-014
   source_doc: FRD.md
 - id: FR-WRB-001
@@ -354,15 +358,16 @@ requirements:
   statement: The system must support an approved Jira comment write-back for Release 1.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-WRB-002
   type: functional
   title: Selected field write-back
-  statement: The system may support approved changes to a configured allowlist of non-baseline Jira fields.
+  statement: The system may support approved changes to a configured allowlist of non-baseline Jira fields in R2
+    after connector concurrency and stability review.
   priority: Should
-  release: R1
+  release: R2
   status: draft
   parent: PR-009
   source_doc: FRD.md
@@ -372,7 +377,7 @@ requirements:
   statement: The agent must not receive a generic unrestricted Jira update capability.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-WRB-004
@@ -381,7 +386,7 @@ requirements:
   statement: Each external write must use an idempotency control or equivalent duplicate protection.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-WRB-005
@@ -390,7 +395,7 @@ requirements:
   statement: The system must check application and connector permission before execution.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-WRB-006
@@ -399,7 +404,7 @@ requirements:
   statement: The external update must identify its source and acting integration account where supported.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-WRB-007
@@ -408,7 +413,7 @@ requirements:
   statement: The system must record success, failure, external record revision and returned identifier.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-WRB-008
@@ -417,7 +422,7 @@ requirements:
   statement: Only failures classified as safe to retry may be retried automatically.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-009
   source_doc: FRD.md
 - id: FR-WRB-009
@@ -426,7 +431,7 @@ requirements:
   statement: The product must not automatically change project baselines, budget or contractual commitments.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: BR-007
   source_doc: FRD.md
 - id: FR-WRB-010
@@ -435,6 +440,6 @@ requirements:
   statement: The product must not autonomously mark a work item complete in Release 1.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: BR-007
   source_doc: FRD.md

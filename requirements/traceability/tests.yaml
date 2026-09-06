@@ -1,0 +1,1225 @@
+schema_version: '1.0'
+tests:
+- id: AI-ADV-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADV-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A recommendation contains the triggering facts, rule, urgency, suggested action and expected outcome.
+  evidence: []
+- id: AI-ADV-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADV-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The same underlying concern is expressed as an operational action for the PM and as a decision/intervention
+    need for leadership.
+  evidence: []
+- id: AI-PROVIDER-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AI-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The same validated extraction/claim contract runs through mock and approved alternate provider adapters
+    without domain changes. Invalid schema/timeouts preserve responses for manual structuring. Pin and record provider/prompt/schema
+    versions; deterministic CI fixtures require no live keys.
+  evidence: []
+- id: AI-QA-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Every material factual sentence maps to an authorized claim object with fact/evidence IDs, immutable
+    provenance, assessed freshness/conflict and as-of time; unsupported claims are blocked before streaming and
+    uncertainty is disclosed.
+  evidence: []
+- id: AI-QA-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An inferred conclusion is explicitly labelled and is not presented as SYSTEM_VERIFIED or HUMAN_CONFIRMED.
+  evidence: []
+- id: AI-SAFE-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADV-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The recommendation does not label a person as underperforming or personally at fault based only on response
+    time or activity.
+  evidence: []
+- id: AI-UPD-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A valid free-text reply produces schema-valid proposed facts and does not directly write to Jira.
+  evidence: []
+- id: AI-UPD-005
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-005
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An ambiguous response creates a focused clarification request and no material fact or write proposal
+    is approved automatically.
+  evidence: []
+- id: CI-FND-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-FND-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The pnpm TypeScript workspace builds web, NestJS API and worker applications; domain package boundaries
+    have no cycles or external SDK leakage, and API routes publish a generated, runtime-validated OpenAPI contract.
+  evidence: []
+- id: CI-MNT-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-MNT-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A PR fails CI for failed lint, typecheck, the chosen Vitest suite, build or documentation validation;
+    critical implemented browser journeys run through Playwright and also gate the PR.
+  evidence: []
+- id: CI-MNT-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-MNT-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: CI/release review rejects unregistered runtime packages, incompatible or unknown licenses, missing exact
+    lockfile inventory or notices, and missing dependency/container vulnerability scans; a release includes SBOM
+    and documented vulnerability dispositions.
+  evidence: []
+- id: DEP-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-DEP-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The documented OCI container composition starts web/API, worker and PostgreSQL and passes readiness
+    checks without a mandatory vendor-operated service or control plane.
+  evidence: []
+- id: DEP-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-DEP-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The same application can connect to a supported external PostgreSQL instance without product-code changes.
+  evidence: []
+- id: DEP-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-DEP-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A backup restores into a clean deployment with fact, workflow and audit consistency. Restores start
+    outbound-disabled; a comment completed after the backup is reconciled by marker and never replayed. Failed migration
+    stops upgrade and exercises documented recovery before resuming.
+  evidence: []
+- id: DEP-CONTROL-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-PRO-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A single-tenant customer-hosted install uses its configured OIDC and approved AI endpoint, owns its
+    data/secrets and operates without vendor control-plane credentials. Swap the approved endpoint without domain-code
+    changes; no-AI mode remains useful.
+  evidence: []
+- id: E2E-ACC-005
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-RPT-005
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Health uses labels and explanation rather than color alone.
+  evidence: []
+- id: E2E-ADM-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADM-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An administrator can configure due time, reminders, escalation recipient and quiet hours and preview
+    the resulting schedule.
+  evidence: []
+- id: E2E-ADV-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADV-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The PM action queue ranks pending approvals, stale updates and critical interventions for assigned projects.
+  evidence: []
+- id: E2E-APP-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-APP-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A material Jira proposal displays target, current value, proposed value, source response, evidence,
+    side effects and required approver.
+  evidence: []
+- id: E2E-APP-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-APP-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An authorized reviewer can edit the proposed text or allowlisted value and the approved revision is
+    retained.
+  evidence: []
+- id: E2E-CON-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Given valid Jira credentials and approved scopes, the administrator can connect a site and receive a
+    successful connection test without enabling writes.
+  evidence: []
+- id: E2E-CON-005
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-005
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An Excel or CSV import previews mappings, invalid rows and planned changes before any facts are committed.
+  evidence: []
+- id: E2E-DEP-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-DEP-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The reference deployment supports a no-AI mode in which synchronization, freshness, health and manual
+    reporting remain available.
+  evidence: []
+- id: E2E-ESC-008
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-008
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: After the configured unanswered stages, the PM receives the original request, reminder history, missing
+    facts and project impact.
+  evidence: []
+- id: E2E-EVD-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A fact outside its configured validity period is marked STALE and cannot be presented as current without
+    warning.
+  evidence: []
+- id: E2E-HERO-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-PRO-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The synthetic hero workflow retains Jira and the spreadsheet as source systems, normalizes a tool-neutral
+    project, versions facts/evidence and applies field authority, detects missing/stale information, asks the correct
+    owner a contextual question, and presents an evidence-backed answer without replacing project-management tools.
+  evidence: []
+- id: E2E-HLT-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-HLT-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Reported GREEN and independently calculated RED are stored and displayed separately with reproducible
+    input facts, rule revision and rationale.
+  evidence: []
+- id: E2E-MNT-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-MNT-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Two synthetic customer configurations with different mappings, terminology, cadence/escalation, health
+    thresholds and report configuration run on the identical build with no customer branch or code edits; invalid
+    configuration is rejected.
+  evidence: []
+- id: E2E-QA-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An authorized leader can ask why a project is delayed and receive baseline, forecast, verified cause,
+    action and uncertainty.
+  evidence: []
+- id: E2E-RPT-006
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-RPT-006
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The PMO dashboard lists only authorized portfolio projects, displaying exact missing obligations, stale
+    facts and unresolved conflicts from the current projection.
+  evidence: []
+- id: E2E-UPD-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-HLT-001
+  - AC-UPD-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A project whose required update is older than policy is shown as stale and creates the configured obligation.
+    When an update becomes due, the request names the project, current known position and specific missing information.
+  evidence: []
+- id: E2E-UPD-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A valid free-text reply produces schema-valid proposed facts and does not directly write to Jira.
+  evidence: []
+- id: E2E-UPD-009
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-009
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A configured PM, lead or contributor owner can submit/correct their own free-text or configured-choice
+    response through recipient-bound authenticated access. Another user or expired link is denied. Approved email
+    notification includes the secure route; shadow suppresses sends and ambiguous delivery outcomes require safe
+    recovery.
+  evidence: []
+- id: FAIL-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-006
+  - AC-CON-008
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Expired credentials change connector health to failed or degraded and show a safe administrator-facing
+    reason without exposing the secret. Concurrent OAuth refresh attempts serialize rotation; the new encrypted
+    refresh token and revision persist atomically, survive restart, and an invalid/revoked token stops access with
+    a redacted admin action.
+  evidence: []
+- id: FAIL-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-006
+  - AC-CON-008
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Expired credentials change connector health to failed or degraded and show a safe administrator-facing
+    reason without exposing the secret. Concurrent OAuth refresh attempts serialize rotation; the new encrypted
+    refresh token and revision persist atomically, survive restart, and an invalid/revoked token stops access with
+    a redacted admin action.
+  evidence: []
+- id: FAIL-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-WRB-002
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Lose the acknowledgement after the source commits a marked comment. Reconcile the exact target/marker/digest
+    without duplication; incomplete lookup remains manual recovery. Known-safe failures use bounded classified retries;
+    every attempt repeats expiry, authority, source, allowlist and mode checks.
+  evidence: []
+- id: FAIL-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-007
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Invalid authenticity/replay evidence has no domain effect. Supported valid webhooks are idempotent;
+    scheduled reconciliation with persisted cursor recovers a deliberately missed update and safe connector-health
+    detail records failures.
+  evidence: []
+- id: FAIL-005
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-007
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Invalid authenticity/replay evidence has no domain effect. Supported valid webhooks are idempotent;
+    scheduled reconciliation with persisted cursor recovers a deliberately missed update and safe connector-health
+    detail records failures.
+  evidence: []
+- id: FAIL-006
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-005
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: An Excel or CSV import previews mappings, invalid rows and planned changes before any facts are committed.
+  evidence: []
+- id: FAIL-007
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AI-002
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: The same validated extraction/claim contract runs through mock and approved alternate provider adapters
+    without domain changes. Invalid schema/timeouts preserve responses for manual structuring. Pin and record provider/prompt/schema
+    versions; deterministic CI fixtures require no live keys.
+  evidence: []
+- id: FAIL-008
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AI-002
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: The same validated extraction/claim contract runs through mock and approved alternate provider adapters
+    without domain changes. Invalid schema/timeouts preserve responses for manual structuring. Pin and record provider/prompt/schema
+    versions; deterministic CI fixtures require no live keys.
+  evidence: []
+- id: FAIL-009
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-004
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING.
+  evidence: []
+- id: FAIL-010
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-005
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: An ambiguous response creates a focused clarification request and no material fact or write proposal
+    is approved automatically.
+  evidence: []
+- id: FAIL-011
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-010
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: An authorized administrator sets stage delays/recipients/channels; weekday and quiet-hour scheduling
+    uses valid IANA time zones. A response after escalation suppresses future satisfied-fact reminders; invalid
+    time zones are rejected.
+  evidence: []
+- id: FAIL-012
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-WFL-001
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Crash before/after domain-plus-outbox commit and dispatch, then restart Graphile Worker. Obligation,
+    approval and attempt history recover consistently, with atomic claims and no duplicate material action; waiting
+    for humans holds no process.
+  evidence: []
+- id: FAIL-013
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-WFL-001
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Crash before/after domain-plus-outbox commit and dispatch, then restart Graphile Worker. Obligation,
+    approval and attempt history recover consistently, with atomic claims and no duplicate material action; waiting
+    for humans holds no process.
+  evidence: []
+- id: FAIL-014
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-WRB-002
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Lose the acknowledgement after the source commits a marked comment. Reconcile the exact target/marker/digest
+    without duplication; incomplete lookup remains manual recovery. Known-safe failures use bounded classified retries;
+    every attempt repeats expiry, authority, source, allowlist and mode checks.
+  evidence: []
+- id: FAIL-015
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-WRB-002
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Lose the acknowledgement after the source commits a marked comment. Reconcile the exact target/marker/digest
+    without duplication; incomplete lookup remains manual recovery. Known-safe failures use bounded classified retries;
+    every attempt repeats expiry, authority, source, allowlist and mode checks.
+  evidence: []
+- id: FAIL-016
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-RPT-002
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: A timestamped editable PowerPoint is generated on a clean host without Microsoft Office using approved
+    server-side libraries, with report period, source freshness and approval state.
+  evidence: []
+- id: FAIL-017
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-DEP-003
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: A backup restores into a clean deployment with fact, workflow and audit consistency. Restores start
+    outbound-disabled; a comment completed after the backup is reconciled by marker and never replayed. Failed migration
+    stops upgrade and exercises documented recovery before resuming.
+  evidence: []
+- id: FAIL-018
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-005
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: A user without access to the source project cannot open or retrieve its evidence, even through a copied
+    evidence URL.
+  evidence: []
+- id: FAIL-019
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AI-001
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Validate schema, scope, action class and audit policy on every model tool invocation. Malicious Jira
+    text cannot call arbitrary SQL/URLs/connectors/email, expand scope, or approve a proposal even under a PM session;
+    approval is absent from the model registry.
+  evidence: []
+- id: FAIL-020
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-009
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: A configured PM, lead or contributor owner can submit/correct their own free-text or configured-choice
+    response through recipient-bound authenticated access. Another user or expired link is denied. Approved email
+    notification includes the secure route; shadow suppresses sends and ambiguous delivery outcomes require safe
+    recovery.
+  evidence: []
+- id: FAIL-021
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-009
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: A configured PM, lead or contributor owner can submit/correct their own free-text or configured-choice
+    response through recipient-bound authenticated access. Another user or expired link is denied. Approved email
+    notification includes the secure route; shadow suppresses sends and ambiguous delivery outcomes require safe
+    recovery.
+  evidence: []
+- id: FAIL-022
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-009
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: A configured PM, lead or contributor owner can submit/correct their own free-text or configured-choice
+    response through recipient-bound authenticated access. Another user or expired link is denied. Approved email
+    notification includes the secure route; shadow suppresses sends and ambiguous delivery outcomes require safe
+    recovery.
+  evidence: []
+- id: FAIL-023
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-010
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: An authorized administrator sets stage delays/recipients/channels; weekday and quiet-hour scheduling
+    uses valid IANA time zones. A response after escalation suppresses future satisfied-fact reminders; invalid
+    time zones are rejected.
+  evidence: []
+- id: FAIL-024
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-DEP-003
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: A backup restores into a clean deployment with fact, workflow and audit consistency. Restores start
+    outbound-disabled; a comment completed after the backup is reconciled by marker and never replayed. Failed migration
+    stops upgrade and exercises documented recovery before resuming.
+  evidence: []
+- id: FAIL-025
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-WRB-002
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Lose the acknowledgement after the source commits a marked comment. Reconcile the exact target/marker/digest
+    without duplication; incomplete lookup remains manual recovery. Known-safe failures use bounded classified retries;
+    every attempt repeats expiry, authority, source, allowlist and mode checks.
+  evidence: []
+- id: FAIL-026
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-DEP-003
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: A backup restores into a clean deployment with fact, workflow and audit consistency. Restores start
+    outbound-disabled; a comment completed after the backup is reconciled by marker and never replayed. Failed migration
+    stops upgrade and exercises documented recovery before resuming.
+  evidence: []
+- id: FAIL-027
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-006
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: Confirmation commits satisfied fact state and reminder suppression atomically, independent of delayed
+    or failed optional Jira write-back. Workers recheck current state before sending; unresolved facts retain clarification
+    actions.
+  evidence: []
+- id: FAIL-028
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-002
+  specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
+  behavior: A human-confirmed fact that expires and conflicts retains HUMAN_CONFIRMED provenance with STALE freshness
+    and CONFLICTING state. API/display expose all dimensions, derive labels deterministically, and preserve a previously
+    frozen snapshot assessment.
+  evidence: []
+- id: GOLDEN-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-001
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: An authorized leader can ask why a project is delayed and receive baseline, forecast, verified cause,
+    action and uncertainty.
+  evidence: []
+- id: GOLDEN-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-HLT-004
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: Reported GREEN and independently calculated RED are stored and displayed separately with reproducible
+    input facts, rule revision and rationale.
+  evidence: []
+- id: GOLDEN-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-004
+  - AC-HLT-005
+  - AC-QA-005
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING.
+    A completed milestone with mandatory open linked issues creates a contradiction signal and a PM reconciliation
+    action. The answer describes both conflicting values and does not silently choose one.
+  evidence: []
+- id: GOLDEN-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-004
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: The answer states when the latest project update is stale and identifies the active clarification request.
+  evidence: []
+- id: GOLDEN-005
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-006
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: When delay is verified but cause is not, the answer states that the cause is unknown and can create
+    a clarification request.
+  evidence: []
+- id: GOLDEN-006
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-005
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: An ambiguous response creates a focused clarification request and no material fact or write proposal
+    is approved automatically.
+  evidence: []
+- id: GOLDEN-007
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AI-001
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: Validate schema, scope, action class and audit policy on every model tool invocation. Malicious Jira
+    text cannot call arbitrary SQL/URLs/connectors/email, expand scope, or approve a proposal even under a PM session;
+    approval is absent from the model registry.
+  evidence: []
+- id: GOLDEN-008
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-009
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: Resolve exactly one authorized project and reporting time or request clarification. A contradictory
+    semantic match cannot replace authoritative structured dates/status. Multi-project aggregation is deferred and
+    inaccessible project names or evidence are never disclosed.
+  evidence: []
+- id: GOLDEN-010
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AI-002
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: The same validated extraction/claim contract runs through mock and approved alternate provider adapters
+    without domain changes. Invalid schema/timeouts preserve responses for manual structuring. Pin and record provider/prompt/schema
+    versions; deterministic CI fixtures require no live keys.
+  evidence: []
+- id: GOLDEN-013
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-002
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: A human-confirmed fact that expires and conflicts retains HUMAN_CONFIRMED provenance with STALE freshness
+    and CONFLICTING state. API/display expose all dimensions, derive labels deterministically, and preserve a previously
+    frozen snapshot assessment.
+  evidence: []
+- id: GOLDEN-014
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AI-001
+  specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
+  behavior: Validate schema, scope, action class and audit policy on every model tool invocation. Malicious Jira
+    text cannot call arbitrary SQL/URLs/connectors/email, expand scope, or approve a proposal even under a PM session;
+    approval is absent from the model registry.
+  evidence: []
+- id: INT-ADM-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADM-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An administrator can configure OIDC metadata and map an identity group to an application role without
+    code changes.
+  evidence: []
+- id: INT-ADM-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADM-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Changing an authority rule affects subsequent fact resolution while preserving prior fact history.
+  evidence: []
+- id: INT-ADM-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADM-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An administrator can select an approved provider or OpenAI-compatible private endpoint and test it without
+    exposing the secret.
+  evidence: []
+- id: INT-APP-005
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-APP-005
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: If Jira changes between approval and execution, execution stops and a new diff is required.
+  evidence: []
+- id: INT-APP-006
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-APP-006
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Global, connector and action-class shadow controls suppress every affected outbound message/write while
+    retaining proposals and audit; read-only onboarding never writes to source systems.
+  evidence: []
+- id: INT-AUD-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AUD-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Authentication/configuration/agent/approval/connector events distinguish human, service and worker actors
+    and correlate request/job/model/connector activity. Reject normal API audit edits/deletes. Record provider/model/prompt/schema
+    versions, evidence IDs and structured input/tool/result summaries with redaction and without private chain-of-thought.
+  evidence: []
+- id: INT-AUD-008
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-APP-008
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Every write attempt records proposal, approver, execution identity, result, correlation ID and external
+    revision or error class.
+  evidence: []
+- id: INT-CON-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Given valid Jira credentials and approved scopes, the administrator can connect a site and receive a
+    successful connection test without enabling writes.
+  evidence: []
+- id: INT-CON-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A Jira project not visible to the integration identity is not listed, synchronized or queryable.
+  evidence: []
+- id: INT-CON-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Configured issue, sprint, comment, changelog, link and selected custom-field data is normalized with
+    source IDs and revisions.
+  evidence: []
+- id: INT-CON-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Submitting the same webhook event twice produces one source observation and no duplicate downstream
+    obligation.
+  evidence: []
+- id: INT-CON-006
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-006
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Expired credentials change connector health to failed or degraded and show a safe administrator-facing
+    reason without exposing the secret.
+  evidence: []
+- id: INT-CON-007
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-007
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Invalid authenticity/replay evidence has no domain effect. Supported valid webhooks are idempotent;
+    scheduled reconciliation with persisted cursor recovers a deliberately missed update and safe connector-health
+    detail records failures.
+  evidence: []
+- id: INT-CON-008
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-008
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Concurrent OAuth refresh attempts serialize rotation; the new encrypted refresh token and revision persist
+    atomically, survive restart, and an invalid/revoked token stops access with a redacted admin action.
+  evidence: []
+- id: INT-DATA-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-DATA-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A clean PostgreSQL database can apply the initial versioned migration and create customer, identity,
+    project, connector and audit foundations.
+  evidence: []
+- id: INT-EVD-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A changed source value creates a new fact version and preserves the previous value, source and timestamps.
+  evidence: []
+- id: INT-EVD-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING.
+  evidence: []
+- id: INT-EVD-006
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-006
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A confirmed response records the confirming user, timestamp, original response and linked evidence.
+  evidence: []
+- id: INT-HLT-005
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-HLT-005
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A completed milestone with mandatory open linked issues creates a contradiction signal and a PM reconciliation
+    action.
+  evidence: []
+- id: INT-MNT-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-MNT-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The Jira adapter passes the common identity, sync, cursor, duplicate, permission, throttling and unknown-outcome
+    connector contract; a boundary check rejects external SDK types in domain modules.
+  evidence: []
+- id: INT-MOD-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-MOD-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The API can create and retrieve a canonical project with hierarchy, roles, baseline/forecast dates,
+    reported health and external source mappings.
+  evidence: []
+- id: INT-PRV-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-PRV-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Configured expiry for operational, evidence, AI and audit data applies by class with an auditable retention
+    job; normal APIs cannot edit/delete retained material audit. Source removal triggers claim revalidation and
+    no unauthorized content reappears from embeddings.
+  evidence: []
+- id: INT-QA-008
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-008
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A 'what changed' answer compares the current fact set with the selected prior snapshot or time point.
+  evidence: []
+- id: INT-RPT-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-RPT-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A dashboard snapshot, email preview and PowerPoint generated for one report run share the same fact-set
+    revision.
+  evidence: []
+- id: INT-RPT-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-RPT-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A timestamped editable PowerPoint is generated on a clean host without Microsoft Office using approved
+    server-side libraries, with report period, source freshness and approval state.
+  evidence: []
+- id: INT-RPT-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-RPT-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A finalized snapshot does not change when live source data changes later.
+  evidence: []
+- id: INT-UPD-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The initial request is sent only to the configured responsible owner unless policy names additional
+    recipients.
+  evidence: []
+- id: INT-UPD-006
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-006
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Confirmation commits satisfied fact state and reminder suppression atomically, independent of delayed
+    or failed optional Jira write-back. Workers recheck current state before sending; unresolved facts retain clarification
+    actions.
+  evidence: []
+- id: INT-WFL-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-WFL-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Crash before/after domain-plus-outbox commit and dispatch, then restart Graphile Worker. Obligation,
+    approval and attempt history recover consistently, with atomic claims and no duplicate material action; waiting
+    for humans holds no process.
+  evidence: []
+- id: INT-WRB-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-WRB-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Lose the acknowledgement after the source commits a marked comment. Reconcile the exact target/marker/digest
+    without duplication; incomplete lookup remains manual recovery. Known-safe failures use bounded classified retries;
+    every attempt repeats expiry, authority, source, allowlist and mode checks.
+  evidence: []
+- id: INT-WRB-007
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-APP-007
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Retrying an already successful write does not create a duplicate comment or field change.
+  evidence: []
+- id: PERF-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-PERF-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: During scheduled synchronization and report generation at the documented reference load, interactive
+    requests remain responsive; measure core dashboard response against the three-second target while jobs run outside
+    the request process.
+  evidence: []
+- id: PILOT-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-PIL-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Record agreed baseline and observation windows, denominators, exclusions and PMO measurement owner.
+    Synthetic fixtures verify aggregate chasing/reporting effort, fresh/completed updates and risk-detection lead
+    time. Demonstrate improvement only from observed pilot results; never infer employee performance from response/activity
+    counts.
+  evidence: []
+- id: SEC-ADM-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADM-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An administrator can select an approved provider or OpenAI-compatible private endpoint and test it without
+    exposing the secret.
+  evidence: []
+- id: SEC-AI-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AI-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Validate schema, scope, action class and audit policy on every model tool invocation. Malicious Jira
+    text cannot call arbitrary SQL/URLs/connectors/email, expand scope, or approve a proposal even under a PM session;
+    approval is absent from the model registry.
+  evidence: []
+- id: SEC-APP-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-APP-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A user with read access but without approval authority cannot approve the proposal.
+  evidence: []
+- id: SEC-AUTH-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AUTH-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Trusted OIDC identity succeeds with configured user/group mapping; invalid signature, issuer, audience
+    and expired tokens/sessions are denied. Development login is disabled in production and constrained to synthetic
+    local data.
+  evidence: []
+- id: SEC-AUTH-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-AUTH-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An authorized administrator can grant/revoke portfolio and project access. Direct API/service/query
+    access denies cross-project reads/writes, revoked memberships and operational administrators without explicit
+    business scope.
+  evidence: []
+- id: SEC-CON-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-CON-006
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Expired credentials change connector health to failed or degraded and show a safe administrator-facing
+    reason without exposing the secret.
+  evidence: []
+- id: SEC-EVD-005
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-005
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A user without access to the source project cannot open or retrieve its evidence, even through a copied
+    evidence URL.
+  evidence: []
+- id: SEC-PRV-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-PRV-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An administrator configures redaction and data-routing restrictions; captured adapter requests contain
+    only necessary permitted content, disallowed provider/class routes are blocked, and operational storage remains
+    customer-controlled. Provider no-training statements require recorded agreement evidence.
+  evidence: []
+- id: SEC-QA-007
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-007
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A user authorized for Project A receives no fact, title, person or evidence from Project B in answers
+    or citations.
+  evidence: []
+- id: SEC-QA-009
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-QA-009
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Resolve exactly one authorized project and reporting time or request clarification. A contradictory
+    semantic match cannot replace authoritative structured dates/status. Multi-project aggregation is deferred and
+    inaccessible project names or evidence are never disclosed.
+  evidence: []
+- id: SEC-RPT-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-RPT-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A user sees only action-queue items from authorized projects.
+  evidence: []
+- id: SEC-SECRET-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-SEC-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Credential storage contains authenticated ciphertext or approved secret references; missing/wrong keys
+    and modified ciphertext fail closed. Logs, API errors, browser responses and nonsecret configuration exports
+    reveal no secret. Secrets and nonsecrets are configured separately.
+  evidence: []
+- id: SEC-TLS-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-SEC-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The customer deployment terminates browser TLS at approved ingress and verifies external certificate
+    chains; invalid certificates fail closed. Local loopback HTTP is documented as synthetic-development-only.
+  evidence: []
+- id: SEC-UPD-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An expired, invalid or unauthorized response link cannot submit or reveal project information.
+  evidence: []
+- id: SEC-WRB-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-WRB-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A human-approved allowlisted Jira comment posts with receipt; removed app/connector authority, unapproved
+    revision, bulk material approval, arbitrary field writes, baseline/budget/contract changes or automatic issue
+    completion are rejected before dispatch.
+  evidence: []
+- id: UNIT-ADV-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADV-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A recommendation contains the triggering facts, rule, urgency, suggested action and expected outcome.
+  evidence: []
+- id: UNIT-ADV-005
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-ADV-005
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Disabling the AI provider does not remove the underlying recommendation trigger from the action queue.
+  evidence: []
+- id: UNIT-APP-004
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-APP-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An expired proposal cannot execute without a new review or approval.
+  evidence: []
+- id: UNIT-EVD-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A human-confirmed fact that expires and conflicts retains HUMAN_CONFIRMED provenance with STALE freshness
+    and CONFLICTING state. API/display expose all dimensions, derive labels deterministically, and preserve a previously
+    frozen snapshot assessment.
+  evidence: []
+- id: UNIT-EVD-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-EVD-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A fact outside its configured validity period is marked STALE and cannot be presented as current without
+    warning.
+  evidence: []
+- id: UNIT-HLT-001
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-HLT-001
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A project whose required update is older than policy is shown as stale and creates the configured obligation.
+  evidence: []
+- id: UNIT-HLT-002
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-HLT-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The completeness check lists the exact required facts that are missing or unconfirmed.
+  evidence: []
+- id: UNIT-HLT-003
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-HLT-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Blocker age is calculated from source dates and the applied threshold is visible.
+  evidence: []
+- id: UNIT-HLT-006
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-HLT-006
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: The health result is reproducible with the AI provider disabled.
+  evidence: []
+- id: UNIT-HLT-007
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-HLT-007
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: Configured work-item/milestone due dates and thresholds produce reproducible overdue signals at boundary
+    times across time zones, identifying exact source dates and rule inputs.
+  evidence: []
+- id: UNIT-UPD-007
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-007
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: A reminder becoming due during quiet hours is deferred to the next allowed time and the reason is recorded.
+  evidence: []
+- id: UNIT-UPD-010
+  release: R1
+  status: planned
+  acceptance_criteria:
+  - AC-UPD-010
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: An authorized administrator sets stage delays/recipients/channels; weekday and quiet-hour scheduling
+    uses valid IANA time zones. A response after escalation suppresses future satisfied-fact reminders; invalid
+    time zones are rejected.
+  evidence: []

@@ -6,3 +6,5 @@ includes:
 - traceability/acceptance-engagement-and-action.yaml
 - traceability/acceptance-experience-and-operations.yaml
 - traceability/stories.yaml
+- traceability/acceptance-baseline-gates.yaml
+- traceability/tests.yaml

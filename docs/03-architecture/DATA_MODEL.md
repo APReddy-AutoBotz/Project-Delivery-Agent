@@ -112,7 +112,7 @@ Do not store entire sensitive raw payloads by default when normalized facts are 
 - `id`
 - `fact_id`
 - `value_json`
-- `classification`
+- `provenance` (immutable origin; ADR-009)
 - `confidence`
 - `effective_at`
 - `observed_at`
@@ -257,7 +257,7 @@ Do not store entire sensitive raw payloads by default when normalized facts are 
 - Unique action execution by idempotency key.
 - Optimistic version on update obligations and proposals.
 - Foreign-key restrictions around audit and receipt deletion.
-- Check constraints for classification and state values.
+- Check constraints for provenance and state values; assessed freshness/conflict are derived or frozen with as-of time and policy revision.
 - Tenant/customer key included in every business table.
 - Project scope verified before joining evidence into user-facing queries.
 
@@ -276,3 +276,19 @@ Embeddings may support retrieval for:
 - Documents
 
 Embeddings must not determine permissions, source authority or current structured facts.
+
+## Orthogonal fact state (ADR-009)
+
+Persist provenance on each immutable fact version as SYSTEM_VERIFIED,
+HUMAN_CONFIRMED, AGENT_INFERENCE or UNKNOWN. It records origin, so it survives
+expiry and contradictory evidence. Calculate freshness (CURRENT, STALE, UNKNOWN)
+and conflict (NONE, CONFLICTING) separately using policy and an explicit as-of time.
+Never mutate a historical version just because time passes. Freeze these assessed
+dimensions, the policy revision and as-of time in a report/answer claim.
+
+A primary display classification is CONFLICTING when unresolved, otherwise STALE
+when expired, otherwise UNKNOWN when freshness is unknown, otherwise provenance.
+Show all dimensions alongside that label. Only current, unconflicted,
+authority-permitted SYSTEM_VERIFIED or HUMAN_CONFIRMED claims may be presented as
+settled facts. Human confirmation establishes attribution; it does not override
+source authority. A stale, conflicting human statement retains all three states.

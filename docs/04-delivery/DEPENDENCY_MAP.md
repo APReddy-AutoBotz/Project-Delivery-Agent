@@ -4,7 +4,7 @@
 flowchart TD
     F[EPIC-01 Foundation] --> C[EPIC-02 Connectors]
     F --> M[EPIC-03 Canonical Model and Evidence]
-    C --> M
+    M --> C
     M --> H[EPIC-04 Health and Contradictions]
     M --> U[EPIC-05 Update Engagement]
     F --> U
@@ -28,8 +28,8 @@ flowchart TD
 ## Critical path
 
 1. Platform foundation
-2. Jira/spreadsheet ingestion
-3. Canonical facts and evidence
+2. Canonical facts and evidence
+3. Jira/spreadsheet ingestion
 4. Update obligations
 5. Response interpretation and confirmation
 6. Approval and Jira write-back
@@ -54,3 +54,14 @@ After the foundation:
 - No escalation before update-obligation state is durable.
 - No final report before report-run fact-set revision exists.
 - No customer deployment before backup, restore and secret configuration are documented.
+
+## Foundation security gate
+
+EPIC-01 must deliver production OIDC validation, configurable user/group mappings,
+server-enforced project/portfolio scope, service-identity separation, encrypted
+credential storage, configuration validation and redacted audit/log output.
+Negative tests must deny invalid/expired identities, cross-project direct API
+access, revoked scope and production development login. Synthetic demo identity
+is explicitly enabled only for local synthetic data. Shadow mode starts enabled.
+Real-data ingestion, messaging and write-back depend on this gate. EPIC-10 performs
+release verification and hardening of controls already present in every increment.

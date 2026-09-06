@@ -92,7 +92,7 @@ Before a material write, the user sees:
 
 ### 5.5 Leadership Q&A
 
-A leader can ask questions across permitted projects. The answer contains:
+A leader can select one permitted project for each R1 question; multi-project aggregation is deferred to R3. The answer contains:
 
 - Direct response
 - Current health and change since the previous period
@@ -128,12 +128,12 @@ Release 1 must include:
 - Secure in-app response flow
 - AI-assisted structured extraction from a reply
 - Human approval diff
-- Jira comment or selected safe field write-back
+- Approved Jira comment write-back (field writes deferred to R2)
 - Action receipts
 - PM recommendation
 - Leadership Q&A with evidence
 - Live dashboard
-- PowerPoint or PDF management snapshot
+- Editable PowerPoint management snapshot; optional PDF
 - Role-based access
 - Shadow mode
 - Customer-configurable AI provider
@@ -163,7 +163,7 @@ Release 1 must include:
 - Confluence, SharePoint and OneDrive evidence
 - Cross-project dependency propagation
 - RAID hygiene and unlogged-risk detection
-- Green-versus-evidence contradiction detection
+- Advanced portfolio contradiction detection beyond the two R1 rules
 - Portfolio-level recommendations
 - Multiple PM tool connectors
 - Customer-specific report templates
@@ -206,3 +206,14 @@ Analytics must not become employee performance scoring.
 ## 11. Release acceptance
 
 Release 1 is acceptable only when the complete hero workflow works end to end and all P0 acceptance criteria pass, including permission failures, conflicting sources, duplicate events, ambiguous replies, expired credentials and source changes between approval and write-back.
+
+## Approved R1 scope decisions (2026-09-06)
+
+- External project writes: approved Jira comments only; non-baseline field writes move to R2.
+- Q&A: one explicitly resolved authorized project per answer; multi-project/portfolio analysis remains R3. Portfolio dashboards may list authorized projects.
+- Reporting: editable PowerPoint required; PDF is optional and cannot substitute for PowerPoint.
+- Cadence: weekday calculations, IANA time zones and quiet hours in R1; customer holiday calendars in R2.
+- Health: stale/missing updates, blocker age, overdue work, GREEN-versus-critical-signal and completed-milestone-versus-open-work rules in R1; advanced propagation later.
+- Basic OIDC user/group role mapping and enforced scope are foundation work; later enterprise administration extends them.
+
+These decisions resolve OD-003/006/007/008 and conflicting earlier release wording.

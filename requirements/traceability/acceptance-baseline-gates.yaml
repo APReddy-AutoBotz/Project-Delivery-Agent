@@ -1,0 +1,332 @@
+schema_version: '1.0'
+product: Project Delivery Assurance Agent
+baseline: '0.1'
+acceptance_criteria:
+- id: AC-AUTH-001
+  title: Production identity validation
+  criterion: Trusted OIDC identity succeeds with configured user/group mapping; invalid signature, issuer, audience
+    and expired tokens/sessions are denied. Development login is disabled in production and constrained to synthetic
+    local data.
+  requirements:
+  - TR-AUTH-001
+  - TR-AUTH-002
+  - TR-AUTH-003
+  - FR-ADM-001
+  - FR-ADM-002
+  priority: P0
+  tests:
+  - SEC-AUTH-001
+- id: AC-AUTH-002
+  title: Scoped grants and revocation
+  criterion: An authorized administrator can grant/revoke portfolio and project access. Direct API/service/query
+    access denies cross-project reads/writes, revoked memberships and operational administrators without explicit
+    business scope.
+  requirements:
+  - FR-ADM-003
+  - NFR-SEC-001
+  - TR-DATA-003
+  priority: P0
+  tests:
+  - SEC-AUTH-002
+- id: AC-SEC-001
+  title: Secret storage and redaction
+  criterion: Credential storage contains authenticated ciphertext or approved secret references; missing/wrong keys
+    and modified ciphertext fail closed. Logs, API errors, browser responses and nonsecret configuration exports
+    reveal no secret. Secrets and nonsecrets are configured separately.
+  requirements:
+  - NFR-SEC-004
+  - NFR-SEC-005
+  - TR-DEP-003
+  priority: P0
+  tests:
+  - SEC-SECRET-001
+- id: AC-SEC-002
+  title: Transport protection
+  criterion: The customer deployment terminates browser TLS at approved ingress and verifies external certificate
+    chains; invalid certificates fail closed. Local loopback HTTP is documented as synthetic-development-only.
+  requirements:
+  - NFR-SEC-003
+  priority: P0
+  tests:
+  - SEC-TLS-001
+- id: AC-CON-007
+  title: Reconciliation and webhook authenticity
+  criterion: Invalid authenticity/replay evidence has no domain effect. Supported valid webhooks are idempotent;
+    scheduled reconciliation with persisted cursor recovers a deliberately missed update and safe connector-health
+    detail records failures.
+  requirements:
+  - FR-CON-005
+  - FR-CON-004
+  - FR-CON-010
+  - NFR-SEC-006
+  priority: P0
+  tests:
+  - INT-CON-007
+  - FAIL-004
+  - FAIL-005
+- id: AC-CON-008
+  title: Atomic refresh rotation
+  criterion: Concurrent OAuth refresh attempts serialize rotation; the new encrypted refresh token and revision
+    persist atomically, survive restart, and an invalid/revoked token stops access with a redacted admin action.
+  requirements:
+  - TR-JIRA-002
+  - NFR-SEC-004
+  priority: P0
+  tests:
+  - INT-CON-008
+  - FAIL-001
+  - FAIL-002
+- id: AC-HLT-007
+  title: Overdue work boundaries
+  criterion: Configured work-item/milestone due dates and thresholds produce reproducible overdue signals at boundary
+    times across time zones, identifying exact source dates and rule inputs.
+  requirements:
+  - FR-HLT-003
+  - FR-HLT-009
+  - PR-005
+  - BR-003
+  priority: P0
+  tests:
+  - UNIT-HLT-007
+- id: AC-WRB-001
+  title: Permitted human-approved comment
+  criterion: A human-approved allowlisted Jira comment posts with receipt; removed app/connector authority, unapproved
+    revision, bulk material approval, arbitrary field writes, baseline/budget/contract changes or automatic issue
+    completion are rejected before dispatch.
+  requirements:
+  - FR-WRB-001
+  - FR-WRB-003
+  - FR-WRB-005
+  - FR-WRB-009
+  - FR-WRB-010
+  - FR-APP-009
+  - TR-JIRA-003
+  - BR-007
+  - PR-009
+  priority: P0
+  tests:
+  - SEC-WRB-001
+- id: AC-WRB-002
+  title: Unknown outcomes and retry preflight
+  criterion: Lose the acknowledgement after the source commits a marked comment. Reconcile the exact target/marker/digest
+    without duplication; incomplete lookup remains manual recovery. Known-safe failures use bounded classified retries;
+    every attempt repeats expiry, authority, source, allowlist and mode checks.
+  requirements:
+  - FR-WRB-004
+  - FR-WRB-007
+  - FR-WRB-008
+  - FR-AUD-002
+  - NFR-REL-001
+  - NFR-REL-005
+  - FR-APP-007
+  - FR-APP-008
+  priority: P0
+  tests:
+  - INT-WRB-002
+  - FAIL-003
+  - FAIL-014
+  - FAIL-015
+  - FAIL-025
+- id: AC-WFL-001
+  title: Durable workflow and transactional outbox
+  criterion: Crash before/after domain-plus-outbox commit and dispatch, then restart Graphile Worker. Obligation,
+    approval and attempt history recover consistently, with atomic claims and no duplicate material action; waiting
+    for humans holds no process.
+  requirements:
+  - NFR-REL-002
+  - TR-DATA-001
+  - TR-STACK-006
+  priority: P0
+  tests:
+  - INT-WFL-001
+  - FAIL-012
+  - FAIL-013
+- id: AC-QA-009
+  title: Single-project scope and structured authority
+  criterion: Resolve exactly one authorized project and reporting time or request clarification. A contradictory
+    semantic match cannot replace authoritative structured dates/status. Multi-project aggregation is deferred and
+    inaccessible project names or evidence are never disclosed.
+  requirements:
+  - FR-QA-001
+  - FR-QA-002
+  - FR-QA-003
+  - TR-DATA-004
+  priority: P0
+  tests:
+  - SEC-QA-009
+  - GOLDEN-008
+- id: AC-RPT-006
+  title: Scoped PMO freshness view
+  criterion: The PMO dashboard lists only authorized portfolio projects, displaying exact missing obligations, stale
+    facts and unresolved conflicts from the current projection.
+  requirements:
+  - FR-RPT-003
+  priority: P0
+  tests:
+  - E2E-RPT-006
+- id: AC-AI-001
+  title: Bounded tools and human-only approval
+  criterion: Validate schema, scope, action class and audit policy on every model tool invocation. Malicious Jira
+    text cannot call arbitrary SQL/URLs/connectors/email, expand scope, or approve a proposal even under a PM session;
+    approval is absent from the model registry.
+  requirements:
+  - NFR-SEC-007
+  - NFR-SEC-008
+  - TR-AI-002
+  - FR-WRB-003
+  - FR-APP-004
+  - FR-APP-005
+  priority: P0
+  tests:
+  - SEC-AI-001
+  - GOLDEN-007
+  - GOLDEN-014
+  - FAIL-019
+- id: AC-PRV-001
+  title: Configured data minimization and routing
+  criterion: An administrator configures redaction and data-routing restrictions; captured adapter requests contain
+    only necessary permitted content, disallowed provider/class routes are blocked, and operational storage remains
+    customer-controlled. Provider no-training statements require recorded agreement evidence.
+  requirements:
+  - FR-ADM-008
+  - NFR-PRV-001
+  - NFR-PRV-002
+  - NFR-PRV-003
+  - NFR-PRV-005
+  priority: P0
+  tests:
+  - SEC-PRV-001
+- id: AC-PRV-002
+  title: Retention by data class
+  criterion: Configured expiry for operational, evidence, AI and audit data applies by class with an auditable retention
+    job; normal APIs cannot edit/delete retained material audit. Source removal triggers claim revalidation and
+    no unauthorized content reappears from embeddings.
+  requirements:
+  - NFR-PRV-004
+  - FR-AUD-007
+  - FR-ADM-008
+  priority: P0
+  tests:
+  - INT-PRV-002
+- id: AC-AUD-001
+  title: Append-only correlated audit
+  criterion: Authentication/configuration/agent/approval/connector events distinguish human, service and worker
+    actors and correlate request/job/model/connector activity. Reject normal API audit edits/deletes. Record provider/model/prompt/schema
+    versions, evidence IDs and structured input/tool/result summaries with redaction and without private chain-of-thought.
+  requirements:
+  - FR-AUD-001
+  - FR-AUD-003
+  - FR-AUD-004
+  - FR-AUD-005
+  - NFR-SEC-009
+  - NFR-OBS-001
+  - NFR-AI-005
+  - TR-DATA-002
+  - TR-API-003
+  - TR-AI-004
+  priority: P0
+  tests:
+  - INT-AUD-001
+- id: AC-PERF-001
+  title: Asynchronous workload isolation
+  criterion: During scheduled synchronization and report generation at the documented reference load, interactive
+    requests remain responsive; measure core dashboard response against the three-second target while jobs run outside
+    the request process.
+  requirements:
+  - NFR-PERF-003
+  - NFR-PERF-001
+  priority: P0
+  tests:
+  - PERF-001
+- id: AC-AI-002
+  title: Provider replacement and deterministic fixtures
+  criterion: The same validated extraction/claim contract runs through mock and approved alternate provider adapters
+    without domain changes. Invalid schema/timeouts preserve responses for manual structuring. Pin and record provider/prompt/schema
+    versions; deterministic CI fixtures require no live keys.
+  requirements:
+  - NFR-PORT-003
+  - TR-STACK-007
+  - TR-TEST-004
+  priority: P0
+  tests:
+  - AI-PROVIDER-002
+  - FAIL-007
+  - FAIL-008
+  - GOLDEN-010
+- id: AC-UPD-009
+  title: Recipient-bound reply and notification
+  criterion: A configured PM, lead or contributor owner can submit/correct their own free-text or configured-choice
+    response through recipient-bound authenticated access. Another user or expired link is denied. Approved email
+    notification includes the secure route; shadow suppresses sends and ambiguous delivery outcomes require safe
+    recovery.
+  requirements:
+  - FR-UPD-004
+  - FR-UPD-005
+  - FR-UPD-006
+  - FR-UPD-008
+  - TR-MSG-001
+  priority: P0
+  tests:
+  - E2E-UPD-009
+  - FAIL-020
+  - FAIL-021
+  - FAIL-022
+- id: AC-UPD-010
+  title: Configurable cadence stages
+  criterion: An authorized administrator sets stage delays/recipients/channels; weekday and quiet-hour scheduling
+    uses valid IANA time zones. A response after escalation suppresses future satisfied-fact reminders; invalid
+    time zones are rejected.
+  requirements:
+  - FR-ESC-002
+  - FR-UPD-012
+  - PR-007
+  priority: P0
+  tests:
+  - UNIT-UPD-010
+  - FAIL-011
+  - FAIL-023
+- id: AC-PIL-001
+  title: Measure pilot outcomes
+  criterion: Record agreed baseline and observation windows, denominators, exclusions and PMO measurement owner.
+    Synthetic fixtures verify aggregate chasing/reporting effort, fresh/completed updates and risk-detection lead
+    time. Demonstrate improvement only from observed pilot results; never infer employee performance from response/activity
+    counts.
+  requirements:
+  - BR-001
+  - BR-002
+  - BR-003
+  - BR-012
+  - PR-015
+  - BR-013
+  priority: P0
+  tests:
+  - PILOT-001
+- id: AC-PRO-001
+  title: Integrated assurance outcome
+  criterion: The synthetic hero workflow retains Jira and the spreadsheet as source systems, normalizes a tool-neutral
+    project, versions facts/evidence and applies field authority, detects missing/stale information, asks the correct
+    owner a contextual question, and presents an evidence-backed answer without replacing project-management tools.
+  requirements:
+  - BR-004
+  - BR-005
+  - PR-001
+  - PR-002
+  - PR-003
+  - PR-004
+  - PR-005
+  - PR-006
+  priority: P0
+  tests:
+  - E2E-HERO-001
+- id: AC-PRO-002
+  title: Customer-controlled portable operation
+  criterion: A single-tenant customer-hosted install uses its configured OIDC and approved AI endpoint, owns its
+    data/secrets and operates without vendor control-plane credentials. Swap the approved endpoint without domain-code
+    changes; no-AI mode remains useful.
+  requirements:
+  - BR-006
+  - PR-012
+  - NFR-PORT-003
+  priority: P0
+  tests:
+  - DEP-CONTROL-001

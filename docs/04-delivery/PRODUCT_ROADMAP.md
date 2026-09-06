@@ -7,12 +7,12 @@ Each release must complete an end-to-end customer outcome. Do not add broad conn
 ## R0: Documentation and platform foundation
 
 - Approved product and architecture baseline
-- Private repository and branch controls
+- Repository access and branch controls matching the actual GitHub configuration
 - Monorepo scaffold
 - CI and documentation validation
 - PostgreSQL foundation
 - Synthetic seed data
-- Identity and authorization skeleton
+- Enforced OIDC identity, scoped authorization and encrypted secrets
 - Containerized local environment
 
 ## R1: Closed-loop delivery assurance
@@ -42,8 +42,8 @@ Each release must complete an end-to-end customer outcome. Do not add broad conn
 - Microsoft Graph mail sending and reply capture
 - Microsoft Teams notifications and interactions
 - SharePoint and OneDrive evidence
-- Enterprise OIDC group mapping
-- Business calendars and holidays
+- Enterprise identity administration extensions beyond R1 basic user/group mapping
+- Customer holiday calendars beyond R1 weekday and quiet-hour scheduling
 - Customer-branded templates
 
 ## R3: Portfolio intelligence

@@ -101,3 +101,10 @@ A new threat-model review is required when:
 - Adding vendor telemetry
 - Adding multi-tenancy
 - Enabling automatic customer communication
+
+## Baseline review controls
+
+- Model impersonation of approval: human approval endpoint is absent from the tool registry; bind decisions to immutable proposal revisions (GOLDEN-014).
+- Retry privilege drift: repeat expiry, scope, source, connector and mode checks before each attempt (FAIL-025).
+- Restore replay: outbound-disabled startup and remote-marker reconciliation prevent duplicate external actions after backup recovery (FAIL-026).
+- Misleading evidence state: preserve provenance while exposing simultaneous stale and conflicting assessments (GOLDEN-013).

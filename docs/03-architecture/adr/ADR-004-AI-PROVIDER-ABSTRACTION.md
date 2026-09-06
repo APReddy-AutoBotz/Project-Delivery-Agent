@@ -1,6 +1,6 @@
 # ADR-004: Use a Customer-Controlled AI Provider Abstraction
 
-Status: Proposed baseline  
+Status: Accepted  
 Date: 2026-09-05
 
 ## Context

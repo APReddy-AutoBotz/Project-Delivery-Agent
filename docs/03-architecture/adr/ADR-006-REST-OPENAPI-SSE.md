@@ -1,6 +1,6 @@
 # ADR-006: REST, OpenAPI and Server-Sent Events
 
-Status: Proposed baseline  
+Status: Accepted  
 Date: 2026-09-05
 
 ## Context

@@ -4,7 +4,8 @@ baseline: '0.1'
 acceptance_criteria:
 - id: AC-RPT-001
   title: Same fact set across channels
-  criterion: A dashboard snapshot, email preview and PowerPoint generated for one report run share the same fact-set revision.
+  criterion: A dashboard snapshot, email preview and PowerPoint generated for one report run share the same fact-set
+    revision.
   requirements:
   - FR-RPT-001
   - FR-RPT-004
@@ -15,13 +16,16 @@ acceptance_criteria:
   - INT-RPT-001
 - id: AC-RPT-002
   title: PowerPoint metadata
-  criterion: Generated PowerPoint contains reporting period, generation time, approval state, freshness and snapshot ID.
+  criterion: A timestamped editable PowerPoint is generated on a clean host without Microsoft Office using approved
+    server-side libraries, with report period, source freshness and approval state.
   requirements:
   - FR-RPT-005
   - FR-RPT-007
+  - TR-STACK-008
   priority: P0
   tests:
   - INT-RPT-002
+  - FAIL-016
 - id: AC-RPT-003
   title: Role queue authorization
   criterion: A user sees only action-queue items from authorized projects.
@@ -50,7 +54,8 @@ acceptance_criteria:
   - E2E-ACC-005
 - id: AC-ADM-001
   title: Configure OIDC and roles
-  criterion: An administrator can configure OIDC metadata and map an identity group to an application role without code changes.
+  criterion: An administrator can configure OIDC metadata and map an identity group to an application role without
+    code changes.
   requirements:
   - FR-ADM-001
   - FR-ADM-002
@@ -59,8 +64,8 @@ acceptance_criteria:
   - INT-ADM-001
 - id: AC-ADM-002
   title: Configure cadence
-  criterion: An administrator can configure due time, reminders, escalation recipient and quiet hours and preview the resulting
-    schedule.
+  criterion: An administrator can configure due time, reminders, escalation recipient and quiet hours and preview
+    the resulting schedule.
   requirements:
   - FR-ADM-004
   - FR-ESC-002
@@ -78,8 +83,8 @@ acceptance_criteria:
   - INT-ADM-003
 - id: AC-ADM-004
   title: Configure model endpoint
-  criterion: An administrator can select an approved provider or OpenAI-compatible private endpoint and test it without exposing
-    the secret.
+  criterion: An administrator can select an approved provider or OpenAI-compatible private endpoint and test it
+    without exposing the secret.
   requirements:
   - FR-ADM-007
   - TR-AI-001
@@ -89,10 +94,13 @@ acceptance_criteria:
   - SEC-ADM-004
 - id: AC-DEP-001
   title: Start reference deployment
-  criterion: The documented container composition starts web/API, worker and PostgreSQL and passes readiness checks.
+  criterion: The documented OCI container composition starts web/API, worker and PostgreSQL and passes readiness
+    checks without a mandatory vendor-operated service or control plane.
   requirements:
   - TR-DEP-001
   - NFR-AVL-001
+  - NFR-PORT-001
+  - NFR-PORT-004
   priority: P0
   tests:
   - DEP-001
@@ -106,18 +114,24 @@ acceptance_criteria:
   - DEP-002
 - id: AC-DEP-003
   title: Backup and restore
-  criterion: A documented backup can be restored into a clean deployment with fact, workflow and audit consistency checks
-    passing.
+  criterion: A backup restores into a clean deployment with fact, workflow and audit consistency. Restores start
+    outbound-disabled; a comment completed after the backup is reconciled by marker and never replayed. Failed migration
+    stops upgrade and exercises documented recovery before resuming.
   requirements:
   - TR-DEP-004
   - NFR-AVL-002
+  - NFR-REL-001
+  - FR-WRB-004
   priority: P0
   tests:
   - DEP-003
+  - FAIL-017
+  - FAIL-024
+  - FAIL-026
 - id: AC-DEP-004
   title: Run without external AI
-  criterion: The reference deployment supports a no-AI mode in which synchronization, freshness, health and manual reporting
-    remain available.
+  criterion: The reference deployment supports a no-AI mode in which synchronization, freshness, health and manual
+    reporting remain available.
   requirements:
   - BR-014
   - NFR-REL-003
@@ -126,35 +140,46 @@ acceptance_criteria:
   - E2E-DEP-004
 - id: AC-MNT-001
   title: No customer fork required
-  criterion: A second synthetic customer configuration with different fields and cadence runs on the same build.
+  criterion: Two synthetic customer configurations with different mappings, terminology, cadence/escalation, health
+    thresholds and report configuration run on the identical build with no customer branch or code edits; invalid
+    configuration is rejected.
   requirements:
   - NFR-MNT-003
   - PR-013
+  - BR-008
+  - BR-010
   priority: P0
   tests:
   - E2E-MNT-001
 - id: AC-MNT-002
   title: CI validation
-  criterion: A pull request fails CI when lint, type checking, tests, build or documentation validation fails.
+  criterion: A PR fails CI for failed lint, typecheck, the chosen Vitest suite, build or documentation validation;
+    critical implemented browser journeys run through Playwright and also gate the PR.
   requirements:
   - NFR-MNT-004
+  - TR-TEST-001
+  - TR-TEST-002
   priority: P0
   tests:
   - CI-MNT-002
 - id: AC-MNT-003
   title: Connector contract
-  criterion: The Jira connector passes the shared connector contract test suite.
+  criterion: The Jira adapter passes the common identity, sync, cursor, duplicate, permission, throttling and unknown-outcome
+    connector contract; a boundary check rejects external SDK types in domain modules.
   requirements:
   - TR-TEST-003
+  - FR-CON-011
   priority: P0
   tests:
   - INT-MNT-003
 - id: AC-MNT-004
   title: Dependency registered
-  criterion: A new runtime dependency not added to the open-source adoption register fails documentation validation or review
-    policy.
+  criterion: CI/release review rejects unregistered runtime packages, incompatible or unknown licenses, missing
+    exact lockfile inventory or notices, and missing dependency/container vulnerability scans; a release includes
+    SBOM and documented vulnerability dispositions.
   requirements:
   - OPEN_SOURCE_POLICY
+  - NFR-SEC-010
   priority: P1
   tests:
   - CI-MNT-004

@@ -1,6 +1,6 @@
 # ADR-001: Use a Modular Monolith
 
-Status: Proposed baseline  
+Status: Accepted  
 Date: 2026-09-05
 
 ## Context

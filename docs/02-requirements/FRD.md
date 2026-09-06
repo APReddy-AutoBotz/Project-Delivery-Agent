@@ -57,7 +57,7 @@ This document defines the required system behaviour. The structured source is `r
 |---|---|---:|---:|
 | FR-EVD-001 | Every material project fact must retain its value, type, effective date, observed date and source. | Must | R1 |
 | FR-EVD-002 | A fact must retain a resolvable source record identifier or approved stored evidence reference. | Must | R1 |
-| FR-EVD-003 | A material fact must use an approved classification: SYSTEM_VERIFIED, HUMAN_CONFIRMED, AGENT_INFERENCE, CONFLICTING, STALE or UNKNOWN. | Must | R1 |
+| FR-EVD-003 | A material fact must retain immutable provenance (SYSTEM_VERIFIED, HUMAN_CONFIRMED, AGENT_INFERENCE or UNKNOWN), independent freshness (CURRENT, STALE or UNKNOWN) and conflict (NONE or CONFLICTING); derive its display classification deterministically under ADR-009. | Must | R1 |
 | FR-EVD-004 | Changing a fact must create a new version while retaining the previous value and provenance. | Must | R1 |
 | FR-EVD-005 | The system must record who confirmed a fact and when. | Must | R1 |
 | FR-EVD-006 | The system must calculate fact freshness using configurable validity periods by fact type. | Must | R1 |
@@ -100,7 +100,7 @@ This document defines the required system behaviour. The structured source is `r
 | FR-UPD-009 | The system must request clarification when a response cannot safely support the required fact or action. | Must | R1 |
 | FR-UPD-010 | A valid response must cancel or suppress pending reminders for the satisfied obligation. | Must | R1 |
 | FR-UPD-011 | The recipient must be able to indicate absence, delegation or an allowed skip reason. | Should | R1 |
-| FR-UPD-012 | Requests and reminders must use configured user or project time zones and quiet hours. | Must | R1 |
+| FR-UPD-012 | Requests and reminders must use configured user or project IANA time zones, weekday calculations and quiet hours in R1. | Must | R1 |
 
 ## Reminder and escalation
 
@@ -113,7 +113,7 @@ This document defines the required system behaviour. The structured source is `r
 | FR-ESC-005 | An escalation must include request history, project impact and the exact missing information. | Must | R1 |
 | FR-ESC-006 | The system must prevent duplicate reminders or escalations for the same active obligation. | Must | R1 |
 | FR-ESC-007 | An authorized user must be able to pause or close an update obligation with a recorded reason. | Should | R1 |
-| FR-ESC-008 | The policy must support business days, holidays and quiet hours. | Should | R2 |
+| FR-ESC-008 | The policy should support configurable customer holiday calendars beyond the R1 weekday, time-zone and quiet-hour controls. | Should | R2 |
 
 ## Role-based advice
 
@@ -148,7 +148,7 @@ This document defines the required system behaviour. The structured source is `r
 | ID | Requirement | Priority | Release |
 |---|---|---:|---:|
 | FR-WRB-001 | The system must support an approved Jira comment write-back for Release 1. | Must | R1 |
-| FR-WRB-002 | The system may support approved changes to a configured allowlist of non-baseline Jira fields. | Should | R1 |
+| FR-WRB-002 | The system may support approved changes to a configured allowlist of non-baseline Jira fields in R2 after connector concurrency and stability review. | Should | R2 |
 | FR-WRB-003 | The agent must not receive a generic unrestricted Jira update capability. | Must | R1 |
 | FR-WRB-004 | Each external write must use an idempotency control or equivalent duplicate protection. | Must | R1 |
 | FR-WRB-005 | The system must check application and connector permission before execution. | Must | R1 |
@@ -162,8 +162,8 @@ This document defines the required system behaviour. The structured source is `r
 
 | ID | Requirement | Priority | Release |
 |---|---|---:|---:|
-| FR-QA-001 | A user must be able to ask a natural-language question across projects they are authorized to access. | Must | R1 |
-| FR-QA-002 | The system must resolve the requested project, portfolio, time period and question type without broadening access. | Must | R1 |
+| FR-QA-001 | A user must be able to ask a natural-language question about one explicitly resolved project they are authorized to access; portfolio and multi-project analysis is deferred to R3. | Must | R1 |
+| FR-QA-002 | The system must resolve the requested authorized project, time period and question type without broadening access; ambiguous or multi-project requests must ask for a single project in R1. | Must | R1 |
 | FR-QA-003 | The system must retrieve structured current facts before unstructured evidence. | Must | R1 |
 | FR-QA-004 | Each material factual claim in an answer must be linked to supporting evidence. | Must | R1 |
 | FR-QA-005 | The answer must distinguish verified facts, human confirmations and agent inferences. | Must | R1 |

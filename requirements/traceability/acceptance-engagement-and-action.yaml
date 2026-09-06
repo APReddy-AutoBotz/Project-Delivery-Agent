@@ -4,7 +4,8 @@ baseline: '0.1'
 acceptance_criteria:
 - id: AC-UPD-001
   title: Create contextual request
-  criterion: When an update becomes due, the request names the project, current known position and specific missing information.
+  criterion: When an update becomes due, the request names the project, current known position and specific missing
+    information.
   requirements:
   - FR-UPD-001
   - FR-UPD-002
@@ -13,7 +14,8 @@ acceptance_criteria:
   - E2E-UPD-001
 - id: AC-UPD-002
   title: Send to responsible recipient
-  criterion: The initial request is sent only to the configured responsible owner unless policy names additional recipients.
+  criterion: The initial request is sent only to the configured responsible owner unless policy names additional
+    recipients.
   requirements:
   - FR-UPD-003
   priority: P0
@@ -41,23 +43,28 @@ acceptance_criteria:
   - E2E-UPD-004
 - id: AC-UPD-005
   title: Clarify ambiguous response
-  criterion: An ambiguous response creates a focused clarification request and no material fact or write proposal is approved
-    automatically.
+  criterion: An ambiguous response creates a focused clarification request and no material fact or write proposal
+    is approved automatically.
   requirements:
   - FR-UPD-009
   priority: P0
   tests:
   - AI-UPD-005
-  - GOLDEN-005
+  - GOLDEN-006
+  - FAIL-010
 - id: AC-UPD-006
   title: Stop reminders
-  criterion: A response satisfying the obligation cancels pending reminder and escalation jobs.
+  criterion: Confirmation commits satisfied fact state and reminder suppression atomically, independent of delayed
+    or failed optional Jira write-back. Workers recheck current state before sending; unresolved facts retain clarification
+    actions.
   requirements:
   - FR-UPD-010
   - FR-ESC-006
+  - NFR-REL-002
   priority: P0
   tests:
   - INT-UPD-006
+  - FAIL-027
 - id: AC-UPD-007
   title: Respect quiet hours
   criterion: A reminder becoming due during quiet hours is deferred to the next allowed time and the reason is recorded.
@@ -68,8 +75,8 @@ acceptance_criteria:
   - UNIT-UPD-007
 - id: AC-UPD-008
   title: Escalate with context
-  criterion: After the configured unanswered stages, the PM receives the original request, reminder history, missing facts
-    and project impact.
+  criterion: After the configured unanswered stages, the PM receives the original request, reminder history, missing
+    facts and project impact.
   requirements:
   - FR-ESC-001
   - FR-ESC-003
@@ -89,7 +96,8 @@ acceptance_criteria:
   - AI-ADV-001
 - id: AC-ADV-002
   title: PM action queue
-  criterion: The PM action queue ranks pending approvals, stale updates and critical interventions for assigned projects.
+  criterion: The PM action queue ranks pending approvals, stale updates and critical interventions for assigned
+    projects.
   requirements:
   - FR-ADV-002
   - FR-RPT-002
@@ -98,8 +106,8 @@ acceptance_criteria:
   - E2E-ADV-002
 - id: AC-ADV-003
   title: Role-specific wording
-  criterion: The same underlying concern is expressed as an operational action for the PM and as a decision/intervention need
-    for leadership.
+  criterion: The same underlying concern is expressed as an operational action for the PM and as a decision/intervention
+    need for leadership.
   requirements:
   - FR-ADV-002
   - FR-ADV-006
@@ -108,8 +116,8 @@ acceptance_criteria:
   - AI-ADV-003
 - id: AC-ADV-004
   title: No unsupported blame
-  criterion: The recommendation does not label a person as underperforming or personally at fault based only on response time
-    or activity.
+  criterion: The recommendation does not label a person as underperforming or personally at fault based only on
+    response time or activity.
   requirements:
   - FR-ADV-008
   - BR-013
@@ -127,8 +135,8 @@ acceptance_criteria:
   - UNIT-ADV-005
 - id: AC-APP-001
   title: Show complete approval diff
-  criterion: A material Jira proposal displays target, current value, proposed value, source response, evidence, side effects
-    and required approver.
+  criterion: A material Jira proposal displays target, current value, proposed value, source response, evidence,
+    side effects and required approver.
   requirements:
   - FR-APP-001
   - FR-APP-002
@@ -146,7 +154,8 @@ acceptance_criteria:
   - SEC-APP-002
 - id: AC-APP-003
   title: Edit before approval
-  criterion: An authorized reviewer can edit the proposed text or allowlisted value and the approved revision is retained.
+  criterion: An authorized reviewer can edit the proposed text or allowlisted value and the approved revision is
+    retained.
   requirements:
   - FR-APP-003
   - FR-APP-004
@@ -172,10 +181,14 @@ acceptance_criteria:
   - INT-APP-005
 - id: AC-APP-006
   title: Shadow mode prevents side effect
-  criterion: In shadow mode, an approved-looking proposal never calls the external write endpoint.
+  criterion: Global, connector and action-class shadow controls suppress every affected outbound message/write while
+    retaining proposals and audit; read-only onboarding never writes to source systems.
   requirements:
   - FR-APP-010
   - FR-CON-012
+  - FR-ADM-009
+  - BR-011
+  - PR-014
   priority: P0
   tests:
   - INT-APP-006
@@ -190,8 +203,8 @@ acceptance_criteria:
   - INT-WRB-007
 - id: AC-APP-008
   title: Complete action receipt
-  criterion: Every write attempt records proposal, approver, execution identity, result, correlation ID and external revision
-    or error class.
+  criterion: Every write attempt records proposal, approver, execution identity, result, correlation ID and external
+    revision or error class.
   requirements:
   - FR-WRB-007
   - FR-AUD-002
@@ -200,8 +213,8 @@ acceptance_criteria:
   - INT-AUD-008
 - id: AC-QA-001
   title: Answer authorized delay question
-  criterion: An authorized leader can ask why a project is delayed and receive baseline, forecast, verified cause, action
-    and uncertainty.
+  criterion: An authorized leader can ask why a project is delayed and receive baseline, forecast, verified cause,
+    action and uncertainty.
   requirements:
   - FR-QA-001
   - FR-QA-009
@@ -211,10 +224,15 @@ acceptance_criteria:
   - GOLDEN-001
 - id: AC-QA-002
   title: Cite material claims
-  criterion: Every material date, number, cause and current-state claim has at least one authorized evidence reference.
+  criterion: Every material factual sentence maps to an authorized claim object with fact/evidence IDs, immutable
+    provenance, assessed freshness/conflict and as-of time; unsupported claims are blocked before streaming and
+    uncertainty is disclosed.
   requirements:
   - FR-QA-004
   - NFR-AI-002
+  - TR-AI-003
+  - PR-010
+  - BR-004
   priority: P0
   tests:
   - AI-QA-002
@@ -244,8 +262,8 @@ acceptance_criteria:
   - GOLDEN-003
 - id: AC-QA-006
   title: Admit unknown cause
-  criterion: When delay is verified but cause is not, the answer states that the cause is unknown and can create a clarification
-    request.
+  criterion: When delay is verified but cause is not, the answer states that the cause is unknown and can create
+    a clarification request.
   requirements:
   - FR-QA-008
   priority: P0
@@ -253,7 +271,8 @@ acceptance_criteria:
   - GOLDEN-005
 - id: AC-QA-007
   title: No cross-project leakage
-  criterion: A user authorized for Project A receives no fact, title, person or evidence from Project B in answers or citations.
+  criterion: A user authorized for Project A receives no fact, title, person or evidence from Project B in answers
+    or citations.
   requirements:
   - FR-QA-012
   priority: P0

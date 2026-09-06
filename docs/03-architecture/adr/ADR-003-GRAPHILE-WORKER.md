@@ -1,6 +1,6 @@
 # ADR-003: Use Graphile Worker for Background Work
 
-Status: Proposed baseline  
+Status: Accepted  
 Date: 2026-09-05
 
 ## Context

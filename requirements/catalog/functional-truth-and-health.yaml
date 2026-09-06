@@ -5,11 +5,11 @@ requirements:
 - id: FR-CON-001
   type: functional
   title: Jira Cloud connection
-  statement: An administrator must be able to connect a Jira Cloud site using an approved authentication method and least-privilege
-    scopes.
+  statement: An administrator must be able to connect a Jira Cloud site using an approved authentication method
+    and least-privilege scopes.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-001
   source_doc: FRD.md
 - id: FR-CON-002
@@ -18,26 +18,27 @@ requirements:
   statement: The connector must list only Jira projects visible to the configured identity.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-001
   source_doc: FRD.md
 - id: FR-CON-003
   type: functional
   title: Jira delivery data
-  statement: The connector must read configured projects, boards, sprints, issues, comments, changelog, links and selected
-    custom fields.
+  statement: The connector must read configured projects, boards, sprints, issues, comments, changelog, links and
+    selected custom fields.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-CON-004
   type: functional
   title: Webhook ingestion
-  statement: The connector must accept supported Jira webhook events with signature or authenticity controls where available.
+  statement: The connector must accept supported Jira webhook events with signature or authenticity controls where
+    available.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-CON-005
@@ -46,7 +47,7 @@ requirements:
   statement: The connector must run scheduled reconciliation to recover missed events and refresh current state.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-CON-006
@@ -55,7 +56,7 @@ requirements:
   statement: An authorized user must be able to import Excel or CSV portfolio data through a configured mapping.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-CON-007
@@ -64,7 +65,7 @@ requirements:
   statement: The system must preview source-to-canonical field mappings and validation errors before import.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-CON-008
@@ -73,7 +74,7 @@ requirements:
   statement: The system must avoid reprocessing unchanged source records where feasible.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-CON-009
@@ -82,7 +83,7 @@ requirements:
   statement: The system must display connection state, last success, last failure and actionable error detail.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-012
   source_doc: FRD.md
 - id: FR-CON-010
@@ -91,16 +92,17 @@ requirements:
   statement: Repeated delivery of the same source event must not create duplicate facts, reminders or writes.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-CON-011
   type: functional
   title: Connector abstraction
-  statement: External systems must implement a common connector contract without leaking SDK-specific types into domain modules.
+  statement: External systems must implement a common connector contract without leaking SDK-specific types into
+    domain modules.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-013
   source_doc: FRD.md
 - id: FR-CON-012
@@ -109,7 +111,7 @@ requirements:
   statement: Each connector must support a configuration that prevents external writes.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-014
   source_doc: FRD.md
 - id: FR-MOD-001
@@ -118,7 +120,7 @@ requirements:
   statement: The canonical model must represent portfolios, programmes and projects.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-MOD-002
@@ -127,7 +129,7 @@ requirements:
   statement: The canonical model must represent sprints, milestones, work items and relationships.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-MOD-003
@@ -136,7 +138,7 @@ requirements:
   statement: The canonical model must represent risks, assumptions, issues, dependencies, decisions and actions.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-MOD-004
@@ -145,7 +147,7 @@ requirements:
   statement: The model must represent sponsor, PM, scrum master, team lead and responsible owner relationships.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-MOD-005
@@ -154,7 +156,7 @@ requirements:
   statement: The model must distinguish baseline, planned, forecast and actual dates.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-MOD-006
@@ -163,7 +165,7 @@ requirements:
   statement: The model must store reported health separately from calculated delivery signals.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-MOD-007
@@ -172,7 +174,7 @@ requirements:
   statement: The model must retain mappings between canonical entities and source-system records.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-002
   source_doc: FRD.md
 - id: FR-MOD-008
@@ -181,7 +183,7 @@ requirements:
   statement: Administrators must be able to map customer terminology to canonical concepts without changing code.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-013
   source_doc: FRD.md
 - id: FR-EVD-001
@@ -190,7 +192,7 @@ requirements:
   statement: Every material project fact must retain its value, type, effective date, observed date and source.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-003
   source_doc: FRD.md
 - id: FR-EVD-002
@@ -199,17 +201,18 @@ requirements:
   statement: A fact must retain a resolvable source record identifier or approved stored evidence reference.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-003
   source_doc: FRD.md
 - id: FR-EVD-003
   type: functional
   title: Fact classification
-  statement: 'A material fact must use an approved classification: SYSTEM_VERIFIED, HUMAN_CONFIRMED, AGENT_INFERENCE, CONFLICTING,
-    STALE or UNKNOWN.'
+  statement: A material fact must retain immutable provenance (SYSTEM_VERIFIED, HUMAN_CONFIRMED, AGENT_INFERENCE
+    or UNKNOWN), independent freshness (CURRENT, STALE or UNKNOWN) and conflict (NONE or CONFLICTING); derive its
+    display classification deterministically under ADR-009.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-003
   source_doc: FRD.md
 - id: FR-EVD-004
@@ -218,7 +221,7 @@ requirements:
   statement: Changing a fact must create a new version while retaining the previous value and provenance.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-003
   source_doc: FRD.md
 - id: FR-EVD-005
@@ -227,7 +230,7 @@ requirements:
   statement: The system must record who confirmed a fact and when.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-003
   source_doc: FRD.md
 - id: FR-EVD-006
@@ -236,7 +239,7 @@ requirements:
   statement: The system must calculate fact freshness using configurable validity periods by fact type.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-EVD-007
@@ -245,7 +248,7 @@ requirements:
   statement: When authoritative sources disagree, the system must retain both values and mark the fact as conflicting.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-004
   source_doc: FRD.md
 - id: FR-EVD-008
@@ -254,7 +257,7 @@ requirements:
   statement: The system must retain an explainable confidence level without presenting it as proof.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-003
   source_doc: FRD.md
 - id: FR-EVD-009
@@ -263,7 +266,7 @@ requirements:
   statement: A user must be able to inspect evidence supporting a claim when authorized for the source project.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-010
   source_doc: FRD.md
 - id: FR-EVD-010
@@ -272,7 +275,7 @@ requirements:
   statement: Expired or superseded evidence must not be used as current fact without a visible warning.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-003
   source_doc: FRD.md
 - id: FR-EVD-011
@@ -281,7 +284,7 @@ requirements:
   statement: The system must retain source synchronization time and source revision where available.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-003
   source_doc: FRD.md
 - id: FR-EVD-012
@@ -290,7 +293,7 @@ requirements:
   statement: The system must not silently choose a value when applicable authority rules do not resolve a conflict.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-004
   source_doc: FRD.md
 - id: FR-HLT-001
@@ -299,7 +302,7 @@ requirements:
   statement: The system must identify projects whose required update is outside the configured freshness window.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-HLT-002
@@ -308,7 +311,7 @@ requirements:
   statement: The system must identify required project fields that are missing or unconfirmed.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-HLT-003
@@ -317,7 +320,7 @@ requirements:
   statement: The system must identify configured overdue work items and milestones.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-HLT-004
@@ -326,7 +329,7 @@ requirements:
   statement: The system must calculate the age of open blockers and compare it with configured thresholds.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-HLT-005
@@ -335,16 +338,17 @@ requirements:
   statement: The system must identify repeated forecast-date changes while retaining the change history.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-HLT-006
   type: functional
   title: Dependency risk signal
-  statement: The system must identify a discoverable dependency whose due date or status threatens the dependent item.
+  statement: The system must identify a discoverable dependency whose due date or status threatens the dependent
+    item.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-HLT-007
@@ -353,7 +357,7 @@ requirements:
   statement: The system must show reported RAG separately from calculated signals.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-004
   source_doc: FRD.md
 - id: FR-HLT-008
@@ -362,7 +366,7 @@ requirements:
   statement: The system must detect configured contradictions between reported status and objective facts.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-004
   source_doc: FRD.md
 - id: FR-HLT-009
@@ -371,7 +375,7 @@ requirements:
   statement: Each health signal must expose the inputs and rule that produced it.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-HLT-010
@@ -380,7 +384,7 @@ requirements:
   statement: Authorized administrators must be able to tune thresholds without changing code.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-013
   source_doc: FRD.md
 - id: FR-HLT-011
@@ -389,7 +393,7 @@ requirements:
   statement: The language model must not be the sole calculator of project health or schedule variance.
   priority: Must
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md
 - id: FR-HLT-012
@@ -398,6 +402,6 @@ requirements:
   statement: The system must retain material signal changes over reporting periods.
   priority: Should
   release: R1
-  status: draft
+  status: approved
   parent: PR-005
   source_doc: FRD.md

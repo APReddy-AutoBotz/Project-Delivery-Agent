@@ -2,7 +2,7 @@
 
 This directory is the authoritative human-readable baseline for the Project Delivery Assurance Agent.
 
-**Baseline:** v0.1 Draft  
+**Baseline:** v0.1 Approved candidate (effective after Issue #1 review PR merge)  
 **Product:** Project Delivery Assurance Agent  
 **Approval authority:** Product Owner
 
@@ -79,7 +79,7 @@ This directory is the authoritative human-readable baseline for the Project Deli
 - Requirement-to-acceptance/test mapping is maintained in [`../requirements/traceability.yaml`](../requirements/traceability.yaml).
 - Material changes follow [Change Control](00-governance/CHANGE_CONTROL.md).
 - Open decisions must be recorded in [Open Decisions](00-governance/OPEN_DECISIONS.md) rather than resolved silently during implementation.
-- The baseline remains **Draft** until the Product Owner approves it after independent review.
+- Baseline approval follows the Product Owner delegation and exact-candidate review/check/merge gate in DOCUMENT_CONTROL.md.
 
 ## Documentation validation
 

@@ -38,3 +38,12 @@ This is a critical scenario.
 5. If the write already occurred, record success.
 6. If it did not occur and retry is safe, retry once according to policy.
 7. Otherwise create a manual recovery item.
+
+## Additional R1 recovery gates
+
+| ID | Scenario | Expected recovery |
+|---|---|---|
+| FAIL-025 | Approval expires, scope is revoked, source changes or shadow mode activates during retry backoff | Repeat every preflight check and block dispatch |
+| FAIL-026 | Restore backup predating a successful Jira comment | Start outbound-disabled; reconcile marker; suppress duplicate; require operator review |
+| FAIL-027 | Confirmed response while external write waits or fails | Satisfy confirmed facts and stop their reminders independently |
+| FAIL-028 | Source fact becomes both stale and conflicting | Retain provenance and expose both assessed states |

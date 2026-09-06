@@ -99,3 +99,19 @@ If evidence is deleted or the user loses access:
 - Do not expose content no longer authorized.
 - Mark dependent claims for revalidation if the evidence can no longer be verified.
 - Follow customer retention and legal policy.
+
+## Orthogonal fact state (ADR-009)
+
+Persist provenance on each immutable fact version as SYSTEM_VERIFIED,
+HUMAN_CONFIRMED, AGENT_INFERENCE or UNKNOWN. It records origin, so it survives
+expiry and contradictory evidence. Calculate freshness (CURRENT, STALE, UNKNOWN)
+and conflict (NONE, CONFLICTING) separately using policy and an explicit as-of time.
+Never mutate a historical version just because time passes. Freeze these assessed
+dimensions, the policy revision and as-of time in a report/answer claim.
+
+A primary display classification is CONFLICTING when unresolved, otherwise STALE
+when expired, otherwise UNKNOWN when freshness is unknown, otherwise provenance.
+Show all dimensions alongside that label. Only current, unconflicted,
+authority-permitted SYSTEM_VERIFIED or HUMAN_CONFIRMED claims may be presented as
+settled facts. Human confirmation establishes attribution; it does not override
+source authority. A stale, conflicting human statement retains all three states.
