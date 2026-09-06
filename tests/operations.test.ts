@@ -88,6 +88,7 @@ it("DEP-001: preserves complete SQL and rejects divergent or incomplete migratio
     "CREATE TABLE foo$tag$ (id integer); ABORT; -- $tag$\nCREATE TABLE escaped(id int);",
     "CREATE TABLE café$tag$ (id integer); ABORT; -- $tag$\nCREATE TABLE escaped(id int);",
     "-- comment\rABORT;\rCREATE TABLE escaped(id int);",
+    "SELECT E'a'\n'\\''; ABORT; -- '\nCREATE TABLE escaped(id int);",
   ]) {
     writeFileSync(join(migrationDir, "migration.sql"), sql);
     expect(() => readMigrations(dir)).toThrow();
