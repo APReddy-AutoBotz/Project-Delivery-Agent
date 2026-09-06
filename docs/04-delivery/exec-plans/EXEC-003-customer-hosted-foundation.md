@@ -119,6 +119,13 @@ with outbound disabled and the separately retained encryption key.
 
 ## Decisions made
 
+Independent candidate review identified an override-register drift bypass. The
+gate now parses actual workspace YAML and tests independent changes, additions
+and removals. The immutable-image rerun also exposed a worker startup failure;
+fixed diagnostic categories and a post-revocation schema/startup check retain
+least privilege while this acceptance failure is investigated. Merge remains
+conditional on a successful complete run and review of the corrected SHA.
+
 Customer credentials are not needed to test generic production code against a
 controlled provider. Customer-specific activation remains a separate gate. No
 story closes merely because one test or partial implementation has merged.

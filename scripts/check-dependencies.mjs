@@ -1,19 +1,54 @@
 // NFR-MNT-004 / CI-MNT-004 (direct package registration portion only).
 import { readdirSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-export function checkDependencies(manifests, entries, overrides = []) {
+import { load, JSON_SCHEMA } from "js-yaml";
+const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+export function checkDependencies(
+  manifests,
+  entries,
+  reviewedOverrides = [],
+  workspaceOverrides = {},
+) {
   const wanted = new Map();
   for (const manifest of manifests)
     for (const kind of ["dependencies", "devDependencies"])
       for (const [name, version] of Object.entries(manifest[kind] ?? {})) {
         if (version.startsWith("workspace:")) continue;
-        if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version))
+        if (!exactVersion.test(version))
           throw new Error("Exact dependency version required: " + name);
         const key = name + "@" + version;
         wanted.set(key, (wanted.get(key) ?? false) || kind === "dependencies");
       }
-  for (const entry of overrides)
-    wanted.set(entry.name + "@" + entry.version, entry.runtime);
+  if (
+    !workspaceOverrides ||
+    typeof workspaceOverrides !== "object" ||
+    Array.isArray(workspaceOverrides)
+  )
+    throw new Error("Workspace overrides must be a package/version map");
+  const reviewed = new Map();
+  for (const entry of reviewedOverrides) {
+    if (
+      reviewed.has(entry.name) ||
+      !exactVersion.test(entry.version) ||
+      typeof entry.runtime !== "boolean"
+    )
+      throw new Error("Invalid or duplicate override review: " + entry.name);
+    reviewed.set(entry.name, entry);
+  }
+  if (reviewed.size !== Object.keys(workspaceOverrides).length)
+    throw new Error("Workspace overrides differ from reviewed overrides");
+  for (const [name, version] of Object.entries(workspaceOverrides)) {
+    const entry = reviewed.get(name);
+    if (
+      typeof version !== "string" ||
+      !exactVersion.test(version) ||
+      !entry ||
+      entry.version !== version
+    )
+      throw new Error("Unreviewed workspace override: " + name);
+    const key = name + "@" + version;
+    wanted.set(key, (wanted.get(key) ?? false) || entry.runtime);
+  }
   const registered = new Map();
   for (const entry of entries) {
     const key = entry.name + "@" + entry.version;
@@ -56,6 +91,8 @@ if (
     manifests,
     json("docs/07-research/DEPENDENCIES.json").entries,
     json("docs/07-research/DEPENDENCY_OVERRIDES.json"),
+    load(readFileSync("pnpm-workspace.yaml", "utf8"), { schema: JSON_SCHEMA })
+      .overrides ?? {},
   );
   console.log(
     `${total} exact direct/override dependency records verified. Transitive/image distribution review remains a separate gate.`,

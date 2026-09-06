@@ -16,7 +16,7 @@ customer/commercial release is accepted by this document.
 
 ## Execution and artifact contract
 
-The native suite passes 19 unit/security/policy tests, seven real database/API
+The native suite passes 20 unit/security/policy tests, seven real database/API
 tests and seven Chromium workflows. Lint, typecheck, all workspace builds,
 dependency audit and the guarded forward/repeat migration and complete restore
 rehearsals pass. Documentation validation covers 245 requirements, 91 criteria,
@@ -61,6 +61,9 @@ mount. Exact-candidate remote checks and independent review remain the merge gat
 - Use unique image tags, resolve immutable image IDs, invalidate old success and
   publish evidence atomically after teardown. Isolate the browser certificate
   failure page from the later invalid-state navigation.
+- Parse actual workspace overrides before comparing approved dependency records;
+  reject independent version, addition and removal drift. The reviewed MIT YAML
+  parser is development-only; the register now covers 35 direct/override records.
 
 ## Data, security, connector and recovery impact
 

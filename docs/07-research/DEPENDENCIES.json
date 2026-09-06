@@ -309,6 +309,22 @@
       "replacementPath": "Replace behind first-party module boundary"
     },
     {
+      "name": "js-yaml",
+      "version": "5.3.0",
+      "runtime": false,
+      "consumers": [
+        "project-delivery-assurance-agent"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/nodeca/js-yaml.git",
+      "source": "https://registry.npmjs.org/js-yaml/5.3.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-06",
+      "replacementPath": "Replace development tooling"
+    },
+    {
       "name": "mysql2",
       "version": "3.23.1",
       "reason": "Prisma CLI optional database tooling: GHSA-3f6p-5ww8-9rcr and GHSA-rgwj-5xj2-c3m3",

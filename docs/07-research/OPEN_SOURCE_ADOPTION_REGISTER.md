@@ -76,6 +76,7 @@ Exact direct dependencies verified against publisher metadata on 2026-09-06. Run
 | [eslint](https://registry.npmjs.org/eslint/10.10.0) | 10.10.0 | MIT | Development |
 | [graphile-worker](https://registry.npmjs.org/graphile-worker/0.17.3) | 0.17.3 | MIT | Runtime |
 | [jose](https://registry.npmjs.org/jose/6.2.12) | 6.2.12 | MIT | Runtime |
+| [js-yaml](https://registry.npmjs.org/js-yaml/5.3.0) | 5.3.0 | MIT | Development |
 | [mysql2](https://registry.npmjs.org/mysql2/3.23.1) | 3.23.1 | MIT | Development |
 | [oidc-client-ts](https://registry.npmjs.org/oidc-client-ts/3.5.0) | 3.5.0 | Apache-2.0 | Runtime |
 | [pg](https://registry.npmjs.org/pg/8.23.0) | 8.23.0 | MIT | Runtime |

@@ -42,6 +42,7 @@ for (const host of ["database", "external-database"]) {
     try {
       const utils = await makeWorkerUtils({
         pgPool: workerPool,
+        schema: "graphile_worker",
         logger: new Logger(() => () => {}),
       });
       try {
@@ -52,6 +53,37 @@ for (const host of ["database", "external-database"]) {
     } finally {
       await workerPool.end();
       await admin.query("REVOKE CREATE ON DATABASE pdaa FROM pdaa_worker");
+    }
+    const restrictedPool = new Pool(
+      config(host, "pdaa_worker", "worker-password").database,
+    );
+    try {
+      assert.equal(
+        (
+          await restrictedPool.query(
+            "SELECT has_database_privilege(current_user,current_database(),'CREATE') AS allowed",
+          )
+        ).rows[0].allowed,
+        false,
+      );
+      assert.equal(
+        Number(
+          (
+            await restrictedPool.query(
+              "SELECT max(id) AS version FROM graphile_worker.migrations",
+            )
+          ).rows[0].version,
+        ),
+        19,
+      );
+      const utils = await makeWorkerUtils({
+        pgPool: restrictedPool,
+        schema: "graphile_worker",
+        logger: new Logger(() => () => {}),
+      });
+      await utils.release();
+    } finally {
+      await restrictedPool.end();
     }
     const owner = new Pool(config(host).database);
     try {

@@ -21,6 +21,7 @@ Published packages are used without modification. Their original license and cop
 - **eslint 10.10.0** — MIT; [publisher metadata](https://registry.npmjs.org/eslint/10.10.0); source: git+https://github.com/eslint/eslint.git.
 - **graphile-worker 0.17.3** — MIT; [publisher metadata](https://registry.npmjs.org/graphile-worker/0.17.3); source: git+ssh://git@github.com/graphile/worker.git.
 - **jose 6.2.12** — MIT; [publisher metadata](https://registry.npmjs.org/jose/6.2.12); source: git+https://github.com/panva/jose.git.
+- **js-yaml 5.3.0** — MIT; [publisher metadata](https://registry.npmjs.org/js-yaml/5.3.0); source: git+https://github.com/nodeca/js-yaml.git.
 - **mysql2 3.23.1** — MIT; [publisher metadata](https://registry.npmjs.org/mysql2/3.23.1); source: git+https://github.com/sidorares/node-mysql2.git.
 - **oidc-client-ts 3.5.0** — Apache-2.0; [publisher metadata](https://registry.npmjs.org/oidc-client-ts/3.5.0); source: git+https://github.com/authts/oidc-client-ts.git.
 - **pg 8.23.0** — MIT; [publisher metadata](https://registry.npmjs.org/pg/8.23.0); source: git://github.com/brianc/node-postgres.git.

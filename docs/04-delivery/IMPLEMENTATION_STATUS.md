@@ -60,7 +60,7 @@ EXEC-003 adds native Tailwind controls, file-based production secrets, shared
 verified database TLS, configured OIDC scopes/logout, separate application images
 and isolated Keycloak acceptance. The precommit run passed all eight production
 check groups after initialization/repeat migration of both TLS databases. Native
-validation passes 19 unit/security/policy tests, seven database/API tests and seven
+validation passes 20 unit/security/policy tests, seven database/API tests and seven
 browser workflows, plus migration/recovery, build, lint, typecheck and audit.
 
 The direct dependency register is now enforced and physical runtime packaging
