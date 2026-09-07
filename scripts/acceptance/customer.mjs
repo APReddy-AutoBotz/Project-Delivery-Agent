@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { chromium, expect } from "@playwright/test";
 import { Pool, secret } from "./common.mjs";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
+import { waitForIdentityProvider } from "./identity-readiness.mjs";
 import {
   createDisclosureCheck,
   readFixtureSecrets,
@@ -220,6 +221,9 @@ try {
   mkdirSync(output, { recursive: true });
   if (phase === "installed") {
     await ready();
+    await waitForIdentityProvider(
+      "https://identity-ingress:8443/identity/realms/pdaa",
+    );
     assert.equal(
       (await db.query("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()"))
         .rows[0].ssl,

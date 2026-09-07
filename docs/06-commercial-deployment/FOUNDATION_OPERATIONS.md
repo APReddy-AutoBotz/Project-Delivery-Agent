@@ -61,6 +61,31 @@ state alone does not restart a container. Monitor readiness and worker progress,
 and alert on repeated restarts. The local development supervisor restarts a failed
 worker independently so its failure no longer takes down API/web.
 
+## OIDC configuration and role mapping
+
+FR-ADM-001/002: set `OIDC_ISSUER`, `OIDC_JWKS_URI`, `OIDC_CLIENT_ID`,
+`OIDC_AUDIENCE`, `OIDC_SCOPE` and `OIDC_GROUP_ROLE_MAP` in the operator environment
+file. The group map is JSON from identity-provider group names to application-role
+arrays, for example `{"operators":["system_admin"]}`. Unknown application roles
+and malformed JSON fail configuration validation. Keep credentials in the separate
+mounted secret files.
+
+After editing a mapping, validate the composition and recreate the API using the
+same reviewed image. Add the bundled-database overlay when applicable, as above:
+
+```sh
+docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml config --quiet
+docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml up -d --no-deps --force-recreate api
+```
+
+Confirm API readiness and the intended identity's administrative access. The API
+applies the new role mapping to subsequent requests, including requests with an
+existing valid token. This is API recreation, not hot reload. Changing group
+membership at the IdP is distinct: issued tokens retain their existing claims
+until renewed or expired. Administrative roles do not grant project/portfolio
+business access. Restore the prior environment mapping and recreate the API to
+reverse a mapping change. See [the acceptance scope](../05-quality/OIDC_CONFIGURATION_VALIDATION.md).
+
 ## Backup and upgrade
 
 ```sh

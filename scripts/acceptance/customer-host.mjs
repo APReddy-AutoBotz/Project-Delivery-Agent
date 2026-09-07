@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { checkIdentityConfiguration } from "./customer-identity-host.mjs";
 import {
   createHostDisclosure,
   scanExecutionLogs,
@@ -269,6 +270,20 @@ export async function customerProfiles({
         );
         check("installed");
         check("before-upgrade");
+        const identityConfiguration =
+          profile === "bundled"
+            ? await checkIdentityConfiguration({
+                run,
+                compose,
+                container,
+                settings,
+                envFile,
+                evidence,
+                project,
+                name,
+                disclosure,
+              })
+            : undefined;
         const backupOutput = run(service("backup"), "backup", "capture");
         disclosure.add("execution-logs", backupOutput);
         const backupName = JSON.parse(
@@ -277,6 +292,10 @@ export async function customerProfiles({
             .find((line) => line.startsWith('{"operation"')),
         ).result.file;
         assert.match(backupName, /^backup-[a-zA-Z0-9-]+\.pdaa$/);
+        // Configuration acceptance already replaced the API. The upgrade must
+        // replace the containers that are running immediately before maintenance.
+        for (const target of ["api", "worker", "web"])
+          productIds[target] = container(target).Id;
         run(compose("stop", "-t", "20", "api", "worker"), "upgrade-stop");
         for (const target of ["api", "worker"])
           assert.equal(container(target).State.Running, false);
@@ -359,6 +378,7 @@ export async function customerProfiles({
           profile,
           project: name,
           status: "passed",
+          ...(identityConfiguration ? { identityConfiguration } : {}),
           disclosure: {
             runtime: runtimeDisclosure,
             browser: browserDisclosure,
