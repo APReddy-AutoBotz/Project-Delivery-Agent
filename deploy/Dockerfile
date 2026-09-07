@@ -71,11 +71,13 @@ RUN mkdir -p /out/notices/go && \
     go version -m /out/caddy && test "$(/out/caddy version)" = v2.11.4
 
 FROM caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 AS web-files
-RUN rm /usr/bin/caddy
+# NFR-SEC-010 / AC-MNT-004: Caddy and the BusyBox health probe do not use curl.
+# Resolve orphan libraries offline, preserving the installed-package inventory.
+RUN apk del --no-network curl && rm /usr/bin/caddy
 COPY --from=web-build /out/caddy /usr/bin/caddy
 COPY --from=web-build /out/notices/ /usr/share/caddy/
 
-# A fresh graph prevents the replaced publisher binary surviving in lower layers.
+# A fresh graph excludes the replaced binary and removed transfer-tool payloads.
 FROM scratch AS web
 COPY --from=web-files / /
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

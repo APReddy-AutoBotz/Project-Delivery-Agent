@@ -487,6 +487,17 @@ describe("web runtime compiler and attribution", () => {
     caddyVersion: "v2.11.4",
     caddyGoVersion: "go1.26.8",
     caddyBuildTags: ["nobadger", "nomysql", "nopgx"],
+    webForbiddenPackages: [
+      "curl",
+      "libcurl",
+      "brotli-libs",
+      "c-ares",
+      "libidn2",
+      "libpsl",
+      "libunistring",
+      "nghttp2-libs",
+      "zstd-libs",
+    ],
     caddyNotices: {
       "/usr/share/caddy/LICENSE": hash("Original Caddy notice"),
       "/usr/share/caddy/go/LICENSE": hash("Original Go notice"),
@@ -503,6 +514,7 @@ describe("web runtime compiler and attribution", () => {
             goCompiledVersion: "go1.26.8",
             goBuildSettings: [
               { key: "-tags", value: "nobadger,nomysql,nopgx" },
+              { key: "CGO_ENABLED", value: "0" },
             ],
           },
           locations: [{ path: "/usr/bin/caddy" }],
@@ -604,6 +616,84 @@ describe("web runtime compiler and attribution", () => {
         caddyBuildTags: [],
       }),
     ).toThrow(/build tags/);
+  });
+  it("rejects transfer packages by name and source package even after relocation", () => {
+    for (const name of [
+      "curl",
+      "libcurl",
+      "c-ares",
+      "brotli",
+      "nghttp2",
+      "zstd",
+    ])
+      for (const identifiedBy of ["name", "originPackage"]) {
+        const f = runtime();
+        const unwanted = {
+          type: "apk",
+          name: identifiedBy === "name" ? name : "renamed-subpackage",
+          version: "1",
+          metadata: {
+            originPackage:
+              identifiedBy === "originPackage" ? name : "unrelated",
+          },
+          locations: [{ path: "/opt/retained-tool" }],
+        };
+        expect(() =>
+          validateRuntimeTooling(
+            "web",
+            { ...f, artifacts: [...f.artifacts, unwanted] },
+            policy,
+          ),
+        ).toThrow(/transfer package/);
+      }
+  });
+  it("rejects retained transfer commands and library copies without package records", () => {
+    for (const path of [
+      "/usr/bin/curl",
+      "/usr/bin/wcurl",
+      "/opt/hidden/curl",
+      "/usr/lib/libcurl.so.4.8.0",
+      "/opt/old/libcurl.so.4",
+      "/opt/archive/libcurl.a",
+      "/lib/libcares.so.2.19.5",
+      "/opt/old/libbrotlidec.so.1",
+      "/opt/old/libidn2.so.0",
+      "/opt/old/libpsl.so.5",
+      "/opt/old/libunistring.so.5",
+      "/opt/old/libnghttp2.so.14",
+      "/opt/old/libzstd.so.1",
+    ]) {
+      const f = runtime();
+      f.files.push({ location: { path }, contents: "" });
+      expect(() => validateRuntimeTooling("web", f, policy)).toThrow(
+        /transfer payload/,
+      );
+    }
+  });
+  it("rejects missing removal policy and a native-linked Caddy build", () => {
+    expect(() =>
+      validateRuntimeTooling("web", runtime(), {
+        ...policy,
+        webForbiddenPackages: [],
+      }),
+    ).toThrow(/transfer-tool policy/);
+    for (const value of ["1", ""]) {
+      const f = runtime();
+      f.artifacts[0]!.metadata!.goBuildSettings[1]!.value = value;
+      expect(() => validateRuntimeTooling("web", f, policy)).toThrow(/pure-Go/);
+    }
+  });
+  it("preserves the health probe, trust store and other required native libraries", () => {
+    const f = runtime();
+    for (const path of [
+      "/usr/bin/wget",
+      "/bin/busybox",
+      "/etc/ssl/certs/ca-certificates.crt",
+      "/lib/libssl.so.3",
+      "/lib/libcrypto.so.3",
+    ])
+      f.files.push({ location: { path }, contents: "" });
+    expect(() => validateRuntimeTooling("web", f, policy)).not.toThrow();
   });
 });
 

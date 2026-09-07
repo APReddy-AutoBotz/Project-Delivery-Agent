@@ -58,6 +58,21 @@ legal approval, unresolved findings and trusted signing continue to block releas
 
 ## Original consequences
 
+### Web transfer-tool removal
+
+The 2026-09-08 increment removes unused curl and its orphan libraries with
+`apk del --no-network curl` in the existing web preparation stage. Copy the
+resulting filesystem into the fresh final graph, retaining truthful APK metadata.
+The shipped HTTP loopback healthcheck uses BusyBox wget; the gateway uses the
+existing Caddy build with `CGO_ENABLED=0`. Preserve shared libraries, the trust
+store, supported serving configuration and original Go/Caddy notices.
+
+Both image scopes reject removed package names/source origins and corresponding
+command/library paths, including copies outside standard locations. Verification
+must show the exact expected package deletion set, unchanged retained versions,
+unchanged Caddy binary and passing immutable packaged acceptance. Do not infer
+exploitability or commercial acceptance from package presence or removal.
+
 ### Web build toolchain and layer evidence
 
 The 2026-09-07 web increment retains Caddy 2.11.4 and the existing Alpine image

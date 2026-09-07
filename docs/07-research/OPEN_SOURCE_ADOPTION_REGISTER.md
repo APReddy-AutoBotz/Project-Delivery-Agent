@@ -109,3 +109,12 @@ Exact direct dependencies verified against publisher metadata on 2026-09-06. Run
 | [vite](https://registry.npmjs.org/vite/7.3.6) | 7.3.6 | MIT | Development |
 | [vitest](https://registry.npmjs.org/vitest/4.1.11) | 4.1.11 | MIT | Development |
 | [zod](https://registry.npmjs.org/zod/4.5.4) | 4.5.4 | MIT | Runtime |
+
+## Web transfer-tool exclusion, 2026-09-08
+
+The next web packaging increment removes the existing unused curl/libcurl
+dependency closure; it adds no runtime package or license adoption. The exact
+removed set and retained shared components are recorded in
+[FOUNDATION_IMAGE_REGISTER.md](FOUNDATION_IMAGE_REGISTER.md). Require matching
+runtime and all-layer evidence before acceptance. Remaining OS/transitive license
+and original-notice review obligations remain open.

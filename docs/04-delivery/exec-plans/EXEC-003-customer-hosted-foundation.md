@@ -5,7 +5,7 @@ Owner: Implementation controller
 Requirement IDs: TR-STACK-001, TR-STACK-002, TR-STACK-004, TR-DEP-001, TR-DEP-003, TR-AUTH-001, TR-AUTH-002, TR-AUTH-003, FR-ADM-001, FR-ADM-002, FR-ADM-003, NFR-SEC-001, NFR-SEC-003, NFR-SEC-004, NFR-SEC-005, NFR-SEC-010, NFR-MNT-004, NFR-MNT-005, NFR-PORT-001, NFR-PORT-002, NFR-PORT-004
 GitHub issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
 Target release: R0
-Last updated: 2026-09-07
+Last updated: 2026-09-08
 
 ## Objective
 
@@ -29,21 +29,31 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `5da7352` contains the reviewed production boundary, executable foundation
+Main `62bcbe6` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
 findings were resolved in PR #16.
 
-The next bounded increment rebuilds Caddy 2.11.4 with the pinned Go 1.26.8
-toolchain while preserving its upstream module versions and served configuration.
-Copy the prepared web filesystem into a new layer graph, retain original Go/Caddy
-notices and require compiler/version/notice evidence for every runtime and layer
-copy. Validate the upstream TLS record regressions, both packaged profiles and
-the existing browser/API flows. Detailed applicability evidence remains private;
-STORY-004/005 and all distribution review gates remain open. This changes no
-database, connector scope or authorization policy. Rollback restores the previous
-development image; it does not authorize a customer release of an earlier image.
+PR #30 rebuilt Caddy 2.11.4 with pinned Go 1.26.8, retaining the publisher's
+build tags, 143 dependency versions and original notices. Independent review,
+candidate CI, all 63 artifact hashes and subsequent merged-main CI passed.
+
+The next bounded increment removes unused curl from the web preparation stage
+with offline APK dependency resolution, before the existing fresh layer graph.
+The expected removed set is curl, libcurl, brotli-libs, c-ares, libidn2, libpsl,
+libunistring, nghttp2-libs and zstd-libs. Verify the actual set against the prior
+image; reject unexpected removals or version changes. Preserve BusyBox/wget,
+the CA store, OpenSSL and APK's remaining dependencies. Require absence of removed
+packages and command/library payloads in both scanner scopes, and retain Caddy's
+pure-Go build contract. Run the existing HTTPS, browser, health and both-profile
+packaged acceptance on the resulting immutable images.
+
+This is dependency minimization; scanner observations do not establish live
+exploitability. Detailed applicability assessment remains private, and
+STORY-004/005 and all distribution review gates stay open. No database, connector
+scope or authorization policy change. A reviewed revert restores the prior
+development image; it does not authorize a customer release of that image.
 
 ## Proposed design
 
