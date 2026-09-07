@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import { Pool, secret } from "./common.mjs";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
 import {
@@ -125,7 +125,7 @@ async function browserCheck(afterUpgrade) {
   try {
     async function login(name) {
       const context = await browser.newContext();
-      const capture = observeBrowserDisclosure(
+      const capture = await observeBrowserDisclosure(
         context,
         base,
         disclosure,
@@ -166,14 +166,25 @@ async function browserCheck(afterUpgrade) {
     const logout = operator.page.waitForRequest((request) =>
       request.url().includes("/protocol/openid-connect/logout?"),
     );
+    const returned = operator.page.waitForEvent("framenavigated", {
+      predicate: (frame) =>
+        frame === operator.page.mainFrame() && frame.url() === base + "/",
+    });
     await operator.page.getByRole("button", { name: "Sign out" }).click();
     assert.equal(
       new URL((await logout).url()).origin,
       "https://identity-ingress:8443",
     );
+    await returned;
+    await operator.page.waitForLoadState("domcontentloaded");
     await operator.page
       .getByRole("heading", { name: "Welcome to your workspace" })
       .waitFor();
+    await expect(
+      operator.page.getByRole("button", {
+        name: "Sign in with your organization",
+      }),
+    ).toBeEnabled();
     await operator.capture(operator.page);
     await operator.context.close();
     const pm = await login("pm-atlas");

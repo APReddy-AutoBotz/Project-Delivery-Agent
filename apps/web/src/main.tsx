@@ -39,6 +39,15 @@ const client = new QueryClient({
     queries: { retry: false, staleTime: 15000, refetchOnWindowFocus: true },
   },
 });
+function clearProtectedData() {
+  // TR-AUTH-003 / NFR-SEC-005: keep only public bootstrap configuration. Removing
+  // it starts an unnecessary refetch immediately before the logout redirect.
+  client.removeQueries({
+    predicate: ({ queryKey }) =>
+      !(queryKey.length === 1 && queryKey[0] === "auth-config"),
+  });
+  client.getMutationCache().clear();
+}
 // Tokens live only in memory. OIDC redirect state uses session storage and is removed by the callback.
 let accessToken: string | undefined;
 let idToken: string | undefined;
@@ -121,7 +130,7 @@ function App() {
       setSelected(null);
       setView("projects");
       setError("Your session has ended. Please sign in again.");
-      client.clear();
+      clearProtectedData();
     };
     return () => {
       expireSession = undefined;
@@ -200,7 +209,7 @@ function App() {
     setSignedIn(false);
     setSelected(null);
     setView("projects");
-    client.clear();
+    clearProtectedData();
     if (auth.data?.mode === "oidc" && oidc) {
       try {
         await oidc.removeUser();

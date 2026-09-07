@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import { lookup } from "node:dns/promises";
 import {
   loadDatabaseConfig,
@@ -202,7 +202,7 @@ for (;;) {
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 try {
   const context = await browser.newContext();
-  const capture = observeBrowserDisclosure(context, base, disclosure);
+  const capture = await observeBrowserDisclosure(context, base, disclosure);
   const page = await context.newPage();
   let tokenResponse;
   let authorization;
@@ -295,12 +295,21 @@ try {
       const ended = page.waitForRequest((req) =>
         req.url().includes("/protocol/openid-connect/logout?"),
       );
+      const returned = page.waitForEvent("framenavigated", {
+        predicate: (frame) =>
+          frame === page.mainFrame() && frame.url() === base + "/",
+      });
       await page.getByRole("button", { name: "Sign out" }).click();
       const request = await ended;
       assert(new URL(request.url()).searchParams.has("id_token_hint"));
+      await returned;
+      await page.waitForLoadState("domcontentloaded");
       await page
         .getByRole("heading", { name: "Welcome to your workspace" })
         .waitFor();
+      await expect(
+        page.getByRole("button", { name: "Sign in with your organization" }),
+      ).toBeEnabled();
       await capture(page);
       await page
         .getByRole("button", { name: "Sign in with your organization" })
@@ -361,7 +370,11 @@ try {
   await capture(page);
   await context.close();
   const operator = await browser.newContext();
-  const captureOperator = observeBrowserDisclosure(operator, base, disclosure);
+  const captureOperator = await observeBrowserDisclosure(
+    operator,
+    base,
+    disclosure,
+  );
   const op = await operator.newPage();
   await check(
     "OIDC operator has no implicit project access; restricted DB role writes audited grants",

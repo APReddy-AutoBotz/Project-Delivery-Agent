@@ -86,6 +86,11 @@ test("Expired identity clears cached protected data and returns to sign-in", asy
 test("Project manager can inspect scoped synthetic evidence and sign out", async ({
   page,
 }) => {
+  let publicConfigurationRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/auth/config")
+      publicConfigurationRequests++;
+  });
   await page.goto("/");
   await page.getByRole("button", { name: "Project manager" }).click();
   await expect(
@@ -112,6 +117,13 @@ test("Project manager can inspect scoped synthetic evidence and sign out", async
   await expect(
     page.getByRole("heading", { name: "Welcome to your workspace" }),
   ).toBeVisible();
+  await expect(page.getByText(/Atlas · Customer platform/)).toHaveCount(0);
+  await page.getByRole("button", { name: "Platform operator" }).click();
+  await expect(
+    page.getByText("No projects are shared with this account"),
+  ).toBeVisible();
+  await expect(page.getByText(/Atlas · Customer platform/)).toHaveCount(0);
+  expect(publicConfigurationRequests).toBe(1);
 });
 test("Operator has no implicit project access and can grant and revoke access with audit", async ({
   page,

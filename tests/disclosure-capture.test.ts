@@ -76,15 +76,22 @@ it("SEC-SECRET-001: host receipts must match the current run, profile, phase and
   }
 });
 
-function observer() {
+async function observer() {
   const canary = secret();
   const check = createDisclosureCheck([canary]);
-  const context = new EventEmitter();
+  const context = Object.assign(new EventEmitter(), {
+    route: vi.fn(
+      async (
+        _pattern: string,
+        _handler: (route: unknown) => Promise<void>,
+      ) => {},
+    ),
+  });
   const page = Object.assign(new EventEmitter(), {
     content: async () => "<html>Public page</html>",
     evaluate: async () => ({ local: {}, session: {} }),
   });
-  const capture = observeBrowserDisclosure(context, base, check);
+  const capture = await observeBrowserDisclosure(context, base, check);
   context.emit("page", page);
   const response = (
     path: string,
@@ -95,6 +102,7 @@ function observer() {
     context.emit("response", {
       url: () => base + path,
       status: () => 200,
+      request: () => ({ method: () => (path === tokenPath ? "POST" : "GET") }),
       allHeaders: async () => ({
         "content-type": "application/json",
         ...headers,
@@ -123,7 +131,7 @@ it("SEC-SECRET-001: browser collector detects nested console values, error stack
     "token-metadata",
     "issued-server-secret",
   ]) {
-    const f = observer();
+    const f = await observer();
     f.response(
       tokenPath,
       f.tokens,
@@ -163,17 +171,17 @@ it("SEC-SECRET-001: browser collector detects nested console values, error stack
 });
 
 it("SEC-SECRET-001: browser capture requires an observed token response and complete awaited bodies", async () => {
-  const missing = observer();
+  const missing = await observer();
   await expect(missing.capture(missing.page)).rejects.toThrow(
     /token response was not observed/,
   );
-  const broken = observer();
+  const broken = await observer();
   broken.response(tokenPath, broken.tokens);
   broken.response("/api/me", {}, {}, true);
   await expect(broken.capture(broken.page)).rejects.toThrow(
     /^Browser disclosure capture incomplete$/,
   );
-  const complete = observer();
+  const complete = await observer();
   complete.response(tokenPath, complete.tokens);
   complete.response("/api/me", { subject: "synthetic" });
   await complete.capture(complete.page);
@@ -186,6 +194,148 @@ it("SEC-SECRET-001: browser capture requires an observed token response and comp
       "identity-token-metadata",
     ])["identity-token-metadata"].captures,
   ).toBe(1);
+});
+
+it("SEC-SECRET-001: response body capture begins while headers are pending", async () => {
+  const f = await observer();
+  f.response(tokenPath, f.tokens);
+  let releaseHeaders!: (value: object) => void;
+  const headers = new Promise((resolve) => {
+    releaseHeaders = resolve;
+  });
+  const body = vi.fn(async () => Buffer.from("public response"));
+  f.context.emit("response", {
+    url: () => base + "/api/auth/config",
+    status: () => 200,
+    request: () => ({ method: () => "GET" }),
+    allHeaders: () => headers,
+    body,
+  });
+  expect(body).toHaveBeenCalledOnce();
+  releaseHeaders({ "content-type": "application/json" });
+  await f.capture(f.page);
+  expect(
+    f.check.verify(["browser-response-bodies"])["browser-response-bodies"]
+      .bytes,
+  ).toBeGreaterThan(0);
+});
+
+it("SEC-SECRET-001: bodyless HTTP responses retain disclosure checks on their headers", async () => {
+  for (const leaked of [false, true]) {
+    const f = await observer();
+    f.response(tokenPath, f.tokens);
+    const body = vi.fn(async () => {
+      throw new Error("No body available");
+    });
+    for (const [method, status] of [
+      ["POST", 204],
+      ["POST", 205],
+      ["HEAD", 200],
+    ] as const) {
+      f.context.emit("response", {
+        url: () => base + "/api/empty",
+        status: () => status,
+        request: () => ({ method: () => method }),
+        allHeaders: async () => ({ value: leaked ? f.canary : "public" }),
+        body,
+      });
+    }
+    await f.capture(f.page);
+    expect(body).not.toHaveBeenCalled();
+    if (leaked)
+      expect(() => f.check.verify(["browser-response-headers"])).toThrow(
+        /^Secret disclosure detected$/,
+      );
+    else
+      expect(
+        f.check.verify(["browser-response-headers"])[
+          "browser-bodyless-responses"
+        ].captures,
+      ).toBe(3);
+  }
+});
+
+it("SEC-SECRET-001: navigation waits for response capture and includes newly queued captures", async () => {
+  const f = await observer();
+  const navigate = f.context.route.mock.calls[0][1];
+  const first = {
+    request: () => ({ isNavigationRequest: () => true, url: () => base }),
+    continue: vi.fn(async () => {}),
+    abort: vi.fn(async () => {}),
+  };
+  await navigate(first);
+  expect(first.continue).toHaveBeenCalledOnce();
+  f.response(tokenPath, f.tokens);
+  let releaseFirst!: () => void;
+  let releaseSecond!: () => void;
+  const pendingBody = () =>
+    new Promise<Buffer>((resolve) => {
+      releaseFirst = () => resolve(Buffer.from("first body"));
+    });
+  f.context.emit("response", {
+    url: () => base + "/api/first",
+    status: () => 200,
+    request: () => ({ method: () => "GET" }),
+    allHeaders: async () => ({}),
+    body: pendingBody,
+  });
+  const route = { ...first, continue: vi.fn(async () => {}) };
+  const completion = navigate(route);
+  await Promise.resolve();
+  expect(route.continue).not.toHaveBeenCalled();
+  f.context.emit("response", {
+    url: () => base + "/api/second",
+    status: () => 200,
+    request: () => ({ method: () => "GET" }),
+    allHeaders: async () => ({}),
+    body: () =>
+      new Promise<Buffer>((resolve) => {
+        releaseSecond = () => resolve(Buffer.from("second body"));
+      }),
+  });
+  releaseFirst();
+  await Promise.resolve();
+  expect(route.continue).not.toHaveBeenCalled();
+  releaseSecond();
+  await completion;
+  expect(route.continue).toHaveBeenCalledOnce();
+  expect(route.abort).not.toHaveBeenCalled();
+  await f.capture(f.page);
+  expect(
+    f.check.verify(["browser-response-bodies"])["browser-response-bodies"]
+      .captures,
+  ).toBe(2);
+});
+
+it("SEC-SECRET-001: stuck capture aborts navigation and remains a failure at the final snapshot", async () => {
+  vi.useFakeTimers();
+  try {
+    const f = await observer();
+    f.response(tokenPath, f.tokens);
+    f.context.emit("response", {
+      url: () => base + "/api/stuck",
+      status: () => 200,
+      request: () => ({ method: () => "GET" }),
+      allHeaders: async () => ({}),
+      body: () => new Promise(() => {}),
+    });
+    const route = {
+      request: () => ({ isNavigationRequest: () => true, url: () => base }),
+      continue: vi.fn(async () => {}),
+      abort: vi.fn(async () => {}),
+    };
+    const completion = f.context.route.mock.calls[0][1](route);
+    await vi.advanceTimersByTimeAsync(10001);
+    await completion;
+    expect(route.abort).toHaveBeenCalledOnce();
+    expect(route.continue).not.toHaveBeenCalled();
+    await expect(f.capture(f.page)).rejects.toThrow(
+      /^Browser disclosure capture incomplete$/,
+    );
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("SEC-SECRET-001: asset coverage rejects missing, altered, unsafe and malformed inventory without reflecting content", async () => {

@@ -82,14 +82,14 @@ export function createDisclosureCheck(initialSecrets) {
 
 // Observe product and configured fixture IdP outputs. Only the three credential
 // fields of the exact token response are expected to deliver browser credentials.
-export function observeBrowserDisclosure(
+export async function observeBrowserDisclosure(
   context,
   origin,
   disclosure,
   identityOrigin = origin,
 ) {
   const pending = [];
-  const failed = { response: 0, console: 0 };
+  const failed = { response: 0, console: 0, navigation: 0 };
   let tokenResponses = 0;
   const tokenUrl =
     identityOrigin + "/identity/realms/pdaa/protocol/openid-connect/token";
@@ -99,18 +99,75 @@ export function observeBrowserDisclosure(
         failed[kind]++;
       }),
     );
+  const drain = async () => {
+    for (let start = 0; start < pending.length; ) {
+      const end = pending.length;
+      await Promise.all(pending.slice(start, end));
+      start = end;
+    }
+  };
+  // Navigation can discard even completed response bodies before Chromium's
+  // asynchronous body reader finishes. Let those reads finish in the original
+  // document before continuing its navigation. Requests still use the browser's
+  // network/TLS stack; nothing is refetched or replaced.
+  await context.route("**/*", async (route) => {
+    const request = route.request();
+    if (
+      request.isNavigationRequest() &&
+      [origin, identityOrigin].includes(new URL(request.url()).origin)
+    ) {
+      let timer;
+      try {
+        await Promise.race([
+          drain(),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () =>
+                reject(new Error("Disclosure navigation capture timed out")),
+              10000,
+            );
+          }),
+        ]);
+        if (failed.response || failed.console)
+          throw new Error("Disclosure navigation capture incomplete");
+      } catch {
+        failed.navigation++;
+        await route.abort().catch(() => {});
+        return;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    try {
+      await route.continue();
+    } catch {
+      failed.navigation++;
+      await route.abort().catch(() => {});
+    }
+  });
   context.on("response", (response) => {
     const url = new URL(response.url());
     if (![origin, identityOrigin].includes(url.origin)) return;
     collect(
       "response",
       (async () => {
-        disclosure.add(
-          "browser-response-headers",
-          JSON.stringify(await response.allHeaders()),
-        );
-        if (url.href === tokenUrl && response.status() === 200) {
-          const tokens = await response.json();
+        const status = response.status();
+        const method = response.request().method();
+        const hasNoBody =
+          method === "HEAD" ||
+          status === 204 ||
+          status === 205 ||
+          (status >= 300 && status < 400);
+        const isToken = url.href === tokenUrl && status === 200 && !hasNoBody;
+        // Start body capture immediately: awaiting headers first can lose a
+        // completed response when its document navigates away in the meantime.
+        const [headers, body] = await Promise.all([
+          response.allHeaders(),
+          isToken ? response.json() : hasNoBody ? undefined : response.body(),
+        ]);
+        disclosure.add("browser-response-headers", JSON.stringify(headers));
+        if (isToken) {
+          const tokens = body;
           disclosure.checkServerSecrets(JSON.stringify(tokens));
           const { access_token, id_token, refresh_token, ...rest } = tokens;
           if (typeof access_token !== "string" || typeof id_token !== "string")
@@ -124,8 +181,15 @@ export function observeBrowserDisclosure(
           tokenResponses++;
           return;
         }
-        if (response.status() >= 300 && response.status() < 400) return;
-        const body = await response.body();
+        // HTTP bodyless responses still expose headers, which are checked above.
+        // Chromium rejects getResponseBody for 204/205 rather than returning [].
+        if (hasNoBody) {
+          disclosure.add(
+            "browser-bodyless-responses",
+            JSON.stringify({ method, status }),
+          );
+          return;
+        }
         disclosure.add("browser-response-bodies", body.toString("utf8"));
       })(),
     );
@@ -151,6 +215,10 @@ export function observeBrowserDisclosure(
     );
   });
   return async (page) => {
+    if (failed.navigation)
+      throw new Error("Browser disclosure capture incomplete", {
+        cause: failed,
+      });
     // Snapshot application state before navigating away or closing the context.
     disclosure.add("browser-dom", await page.content());
     disclosure.add(
@@ -162,12 +230,8 @@ export function observeBrowserDisclosure(
         })),
       ),
     );
-    for (let start = 0; start < pending.length; ) {
-      const end = pending.length;
-      await Promise.all(pending.slice(start, end));
-      start = end;
-    }
-    if (failed.response || failed.console)
+    await drain();
+    if (failed.response || failed.console || failed.navigation)
       throw new Error("Browser disclosure capture incomplete", {
         cause: failed,
       });
