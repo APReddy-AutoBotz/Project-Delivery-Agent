@@ -80,10 +80,18 @@ async function observer() {
   const canary = secret();
   const check = createDisclosureCheck([canary]);
   const bodies = new Map<string, () => Promise<unknown>>();
+  const continuationFailures = new Set<string>();
   const session = Object.assign(new EventEmitter(), {
-    send: vi.fn(async (method: string, args?: { requestId?: string }) =>
-      method === "Fetch.getResponseBody" ? bodies.get(args!.requestId!)!() : {},
-    ),
+    send: vi.fn(async (method: string, args?: { requestId?: string }) => {
+      if (
+        method === "Fetch.continueRequest" &&
+        continuationFailures.has(args!.requestId!)
+      )
+        throw new Error(canary);
+      return method === "Fetch.getResponseBody"
+        ? bodies.get(args!.requestId!)!()
+        : {};
+    }),
   });
   const page = Object.assign(new EventEmitter(), {
     waitForLoadState: async () => {},
@@ -116,6 +124,7 @@ async function observer() {
       error?: string;
       noResponse?: boolean;
       networkId?: string;
+      continuationError?: boolean;
     },
     body: () => Promise<unknown> = async () => ({
       body: "public response",
@@ -124,6 +133,7 @@ async function observer() {
   ) => {
     const requestId = String(++sequence);
     bodies.set(requestId, body);
+    if (response.continuationError) continuationFailures.add(requestId);
     session.emit("Fetch.requestPaused", {
       requestId,
       networkId: response.networkId,
@@ -367,6 +377,8 @@ it("SEC-SECRET-001: provisional errors require the same native request's complet
     "metadata",
     "no-id",
     "no-error",
+    "continuation",
+    "provisional-continuation",
   ]) {
     const f = await observer();
     f.response(tokenPath, f.tokens);
@@ -375,6 +387,7 @@ it("SEC-SECRET-001: provisional errors require the same native request's complet
       error: fault === "no-error" ? undefined : "Failed",
       noResponse: fault !== "metadata",
       networkId: fault === "no-id" ? undefined : "native-request",
+      continuationError: fault === "provisional-continuation",
     });
     f.page.waitForLoadState = async () => {
       if (fault !== "missing")
@@ -383,6 +396,7 @@ it("SEC-SECRET-001: provisional errors require the same native request's complet
             path: fault === "url" ? "/other.woff2" : "/asset.woff2",
             method: fault === "method" ? "POST" : "GET",
             networkId: fault === "id" ? "different-request" : "native-request",
+            continuationError: fault === "continuation",
           },
           async () => {
             if (fault === "body") throw new Error(f.canary);

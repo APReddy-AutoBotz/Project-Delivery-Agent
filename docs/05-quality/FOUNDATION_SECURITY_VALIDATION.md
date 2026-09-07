@@ -167,7 +167,9 @@ of the matching eventual headers and applicable body, followed by successful
 continuation, resolves a record. Capture and closure fail if any record remains;
 errors already carrying HTTP metadata remain fatal. No resource type is exempt.
 Regressions cover matching recovery, mismatched identity, missing responses,
-missing identity/error metadata and failed body capture.
+missing identity/error metadata, failed body capture and failure to continue either
+the provisional event or its recovered response. The continuation cases were added
+from independent QA feedback and passed the focused ten-test capture suite.
 
 The corrected local probe `pdaa-acceptance-1788754777936-c69f4c88` passed all nine
 primary TLS/OIDC/browser/worker checks using the unmodified source recorder. It
