@@ -64,7 +64,7 @@ ENTRYPOINT ["node", "dist/main.js"]
 FROM golang:1.26.8-alpine3.23@sha256:33ce311e5eecedee48ec1b84419c1306e9fbd71009f0d5c3f2a6904b579c1ecc AS web-build
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOBIN=/out
 RUN go test crypto/tls -run '^(TestKeyUpdateSpamPostHandshakeTLS13|TestMultipleKeyUpdate)$' -count=1 -timeout=60s
-RUN go install -trimpath -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4
+RUN go install -trimpath -tags nobadger,nomysql,nopgx -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4
 RUN mkdir -p /out/notices/go && \
     cp /usr/local/go/LICENSE /out/notices/go/LICENSE && \
     cp /go/pkg/mod/github.com/caddyserver/caddy/v2@v2.11.4/LICENSE /out/notices/LICENSE && \

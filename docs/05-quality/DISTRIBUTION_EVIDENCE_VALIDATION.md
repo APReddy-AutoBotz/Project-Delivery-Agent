@@ -101,15 +101,20 @@ layer graph excludes the replaced binary. Both scanner scopes now require every
 observed Caddy/Go copy to match the compiler/release policy and every protected
 notice to match its original hash; missing evidence is rejected.
 
-Local lint, typecheck, all 102 unit tests, all seven workspace builds, 13
+Local lint, typecheck, all 103 unit tests, all seven workspace builds, 13
 documentation regressions and documentation validation passed. The first direct
 module build reported an unknown Caddy display version; the build now supplies
 the upstream-supported version linker field and asserts its output. Actual
 module/compiler identity remains independently checked from binary metadata.
 
+A binary dependency comparison also caught the publisher's omitted storage
+backends. The build retains its `nobadger,nomysql,nopgx` tags; runtime evidence
+rejects absent or changed tags. The final image must retain the original
+dependency versions and contain no additional backend modules.
+
 The build executes upstream TLS record-limit and adjacent protocol regressions
 with a bounded timeout. These are toolchain tests, not a load test of a deployed
-service. The focused distribution suite passed 42 tests, including old extra
+service. The focused distribution suite passed 43 tests, including old extra
 runtime copies, missing compiler/module evidence, incorrect entrypoint and
 missing/substituted notices. Full candidate repository, browser and both-profile
 packaged checks remain required before merge. Their immutable image evidence

@@ -34,6 +34,12 @@ direct module installation otherwise reports `unknown`. Assert the command's
 output during the build; compiler/module evidence is checked independently of
 this display value.
 
+Retain the publisher's `nobadger,nomysql,nopgx` build tags from its
+[release configuration](https://github.com/caddyserver/caddy/blob/v2.11.4/.goreleaser.yml).
+Direct installation without these tags includes additional storage drivers;
+binary comparison caught that discrepancy before acceptance. Require the same
+tags in binary build metadata as part of both distribution-scope checks.
+
 Original Caddy and Go LICENSE bytes are copied from the downloaded module and
 toolchain. `scripts/distribution/runtime-policy.json` requires their exact hashes
 and the Caddy/Go versions in both image scopes, rejecting additional older copies.

@@ -317,6 +317,21 @@ export function validateRuntimeTooling(target, sbom, policy) {
         ),
       "Expected Caddy binary/compiler absent or additional version present",
     );
+    assert.deepEqual(
+      policy.caddyBuildTags,
+      ["nobadger", "nomysql", "nopgx"],
+      "Required Caddy build tags missing",
+    );
+    for (const caddy of caddies) {
+      const tags = caddy.metadata?.goBuildSettings?.find(
+        (s) => s.key === "-tags",
+      )?.value;
+      assert.deepEqual(
+        tags?.split(",").sort(),
+        [...policy.caddyBuildTags].sort(),
+        "Caddy build tags differ or are missing",
+      );
+    }
     assert(
       runtimes.length > 0 &&
         runtimes.every((p) => p.version === policy.caddyGoVersion),

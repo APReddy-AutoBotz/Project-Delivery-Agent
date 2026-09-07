@@ -486,6 +486,7 @@ describe("web runtime compiler and attribution", () => {
   const policy = {
     caddyVersion: "v2.11.4",
     caddyGoVersion: "go1.26.8",
+    caddyBuildTags: ["nobadger", "nomysql", "nopgx"],
     caddyNotices: {
       "/usr/share/caddy/LICENSE": hash("Original Caddy notice"),
       "/usr/share/caddy/go/LICENSE": hash("Original Go notice"),
@@ -498,7 +499,12 @@ describe("web runtime compiler and attribution", () => {
           type: "go-module",
           name: "github.com/caddyserver/caddy/v2",
           version: "v2.11.4",
-          metadata: { goCompiledVersion: "go1.26.8" },
+          metadata: {
+            goCompiledVersion: "go1.26.8",
+            goBuildSettings: [
+              { key: "-tags", value: "nobadger,nomysql,nopgx" },
+            ],
+          },
           locations: [{ path: "/usr/bin/caddy" }],
         },
         { type: "go-module", name: "stdlib", version: "go1.26.8" },
@@ -525,7 +531,10 @@ describe("web runtime compiler and attribution", () => {
       const f = runtime();
       f.artifacts.push({
         ...f.artifacts[0]!,
-        metadata: { goCompiledVersion: "go1.26.3" },
+        metadata: {
+          ...f.artifacts[0]!.metadata!,
+          goCompiledVersion: "go1.26.3",
+        },
         locations: [{ path }],
       });
       expect(() => validateRuntimeTooling("web", f, policy)).toThrow(
@@ -576,6 +585,25 @@ describe("web runtime compiler and attribution", () => {
         /notice differs/,
       );
     }
+  });
+  it("rejects changed publisher build tags and missing tag evidence", () => {
+    for (const value of [
+      "",
+      "nobadger,nomysql",
+      "nobadger,nomysql,nopgx,extra",
+    ]) {
+      const f = runtime();
+      f.artifacts[0]!.metadata!.goBuildSettings[0]!.value = value;
+      expect(() => validateRuntimeTooling("web", f, policy)).toThrow(
+        /build tags/,
+      );
+    }
+    expect(() =>
+      validateRuntimeTooling("web", runtime(), {
+        ...policy,
+        caddyBuildTags: [],
+      }),
+    ).toThrow(/build tags/);
   });
 });
 
