@@ -15,6 +15,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { customerProfiles } from "./acceptance/customer-host.mjs";
 import {
+  expiryCheckName,
+  validateExpiryReceipt,
+} from "./acceptance/expiry-evidence.mjs";
+import {
   createHostDisclosure,
   scanExecutionLogs,
   rejectLoggedTokens,
@@ -242,6 +246,11 @@ try {
     "Acceptance report belongs to another run",
   );
   assert(checks.passed?.length > 0, "Acceptance checks missing");
+  assert.equal(
+    checks.passed.filter((name) => name === expiryCheckName).length,
+    1,
+  );
+  record.identityExpiry = validateExpiryReceipt(checks.identityExpiry, project);
   console.log("Testing release operations and recovery");
   docker(operation("provision"), "repeat-provision");
   docker(

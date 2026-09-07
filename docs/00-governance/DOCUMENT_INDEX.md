@@ -166,3 +166,4 @@ DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.
 - `docs/05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md`: complete evidence collection checks, static browser coverage and remaining release review.
 - `docs/05-quality/FOUNDATION_SECURITY_VALIDATION.md`: bound outbound policy, complete disclosure capture, reviewer assignments and foundation acceptance limits.
 - `docs/05-quality/OIDC_CONFIGURATION_VALIDATION.md`: operator OIDC metadata and role-remapping acceptance on an unchanged API image.
+- `docs/05-quality/OIDC_EXPIRY_VALIDATION.md`: naturally expired OIDC token denials and real browser protected-data cleanup.

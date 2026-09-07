@@ -33,6 +33,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Distribution evidence collection | [#24](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/24) | `a720ec5` | `438cc13` |
 | Runtime distribution hardening | [#25](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/25) | `5071cea` | `1d0bcb9` |
 | Foundation output and outbound security | [#26](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/26) | `40da638` | `2a9882f` |
+| OIDC configuration acceptance | [#27](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27) | `3b88a84` | `71b4e6d` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -95,10 +96,18 @@ logs, real HTTP responses, browser outputs/assets and deployment exports. Separa
 security and acceptance reviewers are assigned in
 [FOUNDATION_SECURITY_VALIDATION.md](../05-quality/FOUNDATION_SECURITY_VALIDATION.md).
 Both exact-candidate reviews, all required CI and downloaded evidence verification
-passed before merge. The next STORY-005 increment implements INT-ADM-001: operator
-OIDC metadata and configuration-only role remapping on the same API image. Its
-scope and remaining validation are in
+passed before merge. PR #27 implements INT-ADM-001: operator
+OIDC metadata and configuration-only role remapping on the same API image. Both
+independent reviews, matching CI (97 unit, nine database/API, eight browser tests
+and 16 packaged groups), all 63 downloaded evidence files and merged-main CI passed.
+Its scope and acceptance limits are in
 [OIDC_CONFIGURATION_VALIDATION.md](../05-quality/OIDC_CONFIGURATION_VALIDATION.md).
+
+The next STORY-005 increment verifies real OIDC token expiry through the packaged
+API and browser, supporting SEC-AUTH-001. It requires same-token 401 responses,
+unchanged database state and cleanup of already loaded protected data. See
+[OIDC_EXPIRY_VALIDATION.md](../05-quality/OIDC_EXPIRY_VALIDATION.md) for execution
+and review gates; customer-specific identity and full story acceptance remain open.
 
 | Story | Remaining completion work |
 |---|---|
