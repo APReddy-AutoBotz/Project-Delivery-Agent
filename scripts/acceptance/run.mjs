@@ -11,6 +11,8 @@ import {
 } from "../../packages/platform/dist/index.js";
 import { createDatabase } from "../../packages/data/dist/index.js";
 import { Pool, config, secret, migrate, guard } from "./common.mjs";
+import { checkIdentityExpiry } from "./identity-expiry.mjs";
+import { expiryCheckName } from "./expiry-evidence.mjs";
 import {
   createDisclosureCheck,
   readFixtureSecrets,
@@ -21,6 +23,7 @@ guard();
 const passed = [];
 const disclosure = createDisclosureCheck(readFixtureSecrets("/run/secrets"));
 let disclosureEvidence;
+let identityExpiry;
 async function check(name, fn) {
   await fn();
   passed.push(name);
@@ -410,6 +413,9 @@ try {
   );
   await captureOperator(op);
   await captureOperator.close();
+  await check(expiryCheckName, async () => {
+    identityExpiry = await checkIdentityExpiry(browser);
+  });
   await check(
     "SEC-SECRET-001: first-party browser responses, headers, DOM, diagnostics, storage and all inventoried assets exclude generated secrets",
     async () => {
@@ -465,6 +471,7 @@ writeFileSync(
       completedAt: new Date().toISOString(),
       passed,
       disclosure: disclosureEvidence,
+      identityExpiry,
       distributionAccepted: false,
     },
     null,

@@ -103,6 +103,20 @@ or acceptance of AC-ADM-001/AC-AUTH-001/002. STORY-005, customer-specific identi
 interoperability and existing distribution gates remain open. R0 remains 3/5
 accepted and R1 remains 0/33.
 
+## Verified merge record
+
+[PR #27](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27) merged
+reviewed `3b88a846f9c3f2f0e3f91d6c80d1f06e00b63f13` as
+`71b4e6df1972b379660500237c6a159e6ad46232`. Both non-author reviews passed.
+[Foundation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34089107999)
+and [documentation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34089108087)
+passed with 97 unit, nine database/API, eight browser tests and 16 packaged groups.
+All 63 downloaded evidence files match reviewed tree
+`ca8035764e84a3cb2e63fad9447c72afd80378d1`; the full immutable record is on the
+[PR](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27#issuecomment-5565987075).
+Merged-main CI also passed. Earlier pending-check wording records the pre-merge
+sequence; the acceptance limits above remain unchanged.
+
 ## Impact and recovery
 
 Changes are confined to acceptance helpers, test-only fixture lifetime, negative

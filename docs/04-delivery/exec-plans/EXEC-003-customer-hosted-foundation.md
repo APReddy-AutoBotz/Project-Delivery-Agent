@@ -29,7 +29,7 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `2a9882f` contains the reviewed production boundary, executable foundation
+Main `71b4e6d` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
@@ -105,6 +105,28 @@ are verified. Revert code through review; restore backups into a separate target
 with outbound disabled and the separately retained encryption key.
 
 ## Progress log
+
+- 2026-09-07: Begin real OIDC expiry acceptance on `feature/oidc-expiry-acceptance`.
+  Requirements: TR-AUTH-001/002/003, NFR-SEC-001/005; AC-AUTH-001 / SEC-AUTH-001.
+  After existing logout/replay/operator tests, sign in a fresh project-manager
+  context and load both its project list and detail. Retain one token only in
+  memory; wait beyond its real expiry under a finite overall deadline. Require
+  fixed HTTP 401 contracts on protected reads and valid grant writes, unchanged
+  business/grant/audit projection, and a real browser request using that same
+  token followed by cleared protected data and enabled organization sign-in.
+  Valid-token grant writes must first return 403: this checks authentication before
+  authorization and does not claim the manager previously had grant authority.
+  Require one token exchange, complete original-response disclosure capture and
+  run-bound count-only evidence. No clock spoofing, response replacement, token
+  refresh, fixture lifetime change, new dependency/schema or connector scope.
+  Root owns edits/Git; security and QA independently review the immutable candidate.
+
+- 2026-09-07: PR #27 merged reviewed `3b88a84` as `71b4e6d` after both independent
+  reviews and required checks. CI passed 97 unit, nine database/API, eight browser
+  tests and 16 packaged groups; all 63 downloaded evidence files match the reviewed
+  tree. Merged-main foundation/documentation CI also passed (34090690904/34090690939).
+  See [final evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27#issuecomment-5565987075).
+  STORY-005 and release gates remain open; R0 3/5, R1 0/33.
 
 - 2026-09-07: Begin INT-ADM-001 / AC-ADM-001 configuration acceptance on
   `feature/oidc-configuration-acceptance`, following merged PR #26 (`2a9882f`).

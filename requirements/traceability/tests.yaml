@@ -1072,6 +1072,12 @@ tests:
   evidence:
   - tests/security.test.ts
   - tests/identity-boundary.test.ts
+  - tests/identity-expiry.test.ts
+  - scripts/acceptance/identity-expiry.mjs
+  - scripts/acceptance/expiry-evidence.mjs
+  - scripts/acceptance/run.mjs
+  - scripts/test-production.mjs
+  - docs/05-quality/OIDC_EXPIRY_VALIDATION.md
   - docs/05-quality/FOUNDATION_VALIDATION.md
 - id: SEC-AUTH-002
   release: R1
