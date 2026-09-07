@@ -92,7 +92,45 @@ application and packaged checks remain required for the candidate.
 
 ## Remaining release gates
 
+### Web transfer-tool increment
+
+Requirements NFR-SEC-010 and AC-MNT-004, with NFR-SEC-003 compatibility retained;
+Issue #5, ADR-014 and EXEC-003. Remove unused curl and the exact nine-package
+closure recorded in FOUNDATION_IMAGE_REGISTER.md before copying the prepared
+filesystem into the final web image. Preserve all retained versions, Caddy binary,
+publisher tags/notices, BusyBox/wget and the trust store. The pure-Go compiler
+contract is required so native-library assumptions remain explicit.
+
+The focused distribution suite passes 47 tests. New negative controls cover
+removed package/source records, relocated commands and libraries without package
+records, missing policy and changed CGO settings. Positive controls retain the
+health probe, trust store and shared OpenSSL libraries. Required final validation
+includes the full repository suite, both image inventory scopes and both customer
+profiles against this candidate's immutable images. Reject unexpected package
+removals or upgrades and compare retained binary/notice hashes with PR #30.
+
+Local lint, typecheck, all 107 unit tests, seven workspace builds, 13
+documentation regressions and documentation validation passed. One initial
+parallel run produced no startup-control output at its child-process time limit;
+the unchanged isolated control and complete suite passed with two workers.
+The final focused tests also passed after separating package-name and
+package-origin controls. Default CI execution remains required before merge.
+
+Package removal is not an exploitability verdict. Keep complete scanner output
+and all unresolved release gates; no suppression or legal waiver is introduced.
+No database migration, connector scope or authorization change. Roll back through
+a reviewed packaging revert, with no database recovery needed.
+
 ### Web runtime toolchain increment
+
+PR #30 merged as `62bcbe6` after exact non-author review of `c7bbfb6`, successful
+[foundation CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34148350613)
+and matching documentation CI. All 63 artifact hashes, five image identities,
+eight browser components, both customer profiles and 17 packaged groups verified.
+CI passed 103 unit, ten database/API and eight browser tests, seven builds and
+13 documentation regressions. Subsequent
+[merged-main CI](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34149934868)
+also passed. These results do not close the remaining distribution gates.
 
 Requirements NFR-SEC-003/010 and AC-MNT-004, tracked in Issue #5 and EXEC-003.
 The web build retains Caddy 2.11.4 and its upstream module versions, uses the

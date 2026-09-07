@@ -323,6 +323,12 @@ export function validateRuntimeTooling(target, sbom, policy) {
       "Required Caddy build tags missing",
     );
     for (const caddy of caddies) {
+      assert.equal(
+        caddy.metadata?.goBuildSettings?.find((s) => s.key === "CGO_ENABLED")
+          ?.value,
+        "0",
+        "Caddy must retain its pure-Go build",
+      );
       const tags = caddy.metadata?.goBuildSettings?.find(
         (s) => s.key === "-tags",
       )?.value;
@@ -362,6 +368,39 @@ export function validateRuntimeTooling(target, sbom, policy) {
           "Original Caddy or Go notice differs",
         );
     }
+    assert.deepEqual(
+      policy.webForbiddenPackages,
+      [
+        "curl",
+        "libcurl",
+        "brotli-libs",
+        "c-ares",
+        "libidn2",
+        "libpsl",
+        "libunistring",
+        "nghttp2-libs",
+        "zstd-libs",
+      ],
+      "Required web transfer-tool policy missing",
+    );
+    const removed = new Set([
+      ...policy.webForbiddenPackages,
+      "brotli",
+      "nghttp2",
+      "zstd",
+    ]);
+    for (const p of sbom.artifacts)
+      assert(
+        !removed.has(p.name) && !removed.has(p.metadata?.originPackage),
+        "Unused web transfer package remains: " + p.name,
+      );
+    for (const file of sbom.files)
+      assert(
+        !/^(?:curl|wcurl|(?:libcurl|libcares|libbrotli(?:common|dec|enc)|libidn2|libpsl|libunistring|libnghttp2|libzstd)(?:[.-].*)?)$/.test(
+          posix.basename(file.location.path),
+        ),
+        "Unused web transfer payload remains: " + file.location.path,
+      );
     return;
   }
   const nodeTargets = ["api", "worker", "operations"];

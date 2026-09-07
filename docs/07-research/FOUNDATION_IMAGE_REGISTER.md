@@ -84,6 +84,21 @@ The next evidence collector is described in [DISTRIBUTION_EVIDENCE_VALIDATION.md
 
 ## Runtime package-manager removal and Node attribution
 
+### Web transfer-tool boundary
+
+The 2026-09-08 web increment retains the Caddy/Go/base pins and removes curl using
+the installed APK database without a network package refresh. The inspected
+dependency graph identifies nine removable packages: curl, libcurl, brotli-libs,
+c-ares, libidn2, libpsl, libunistring, nghttp2-libs and zstd-libs. Verify that exact
+set on the candidate image and that every retained package version is unchanged.
+
+BusyBox wget still supplies the HTTP loopback healthcheck. Caddy's pure-Go build
+handles HTTPS and API/static routing. APK/libapk, CA tooling and ssl_client still
+require OpenSSL and other shared libraries; retain those components and their
+inventory. Removal occurs before the scratch copy so discarded bytes are absent
+from lower layers. Remaining OS, Go and browser dependencies retain their own
+license, notice and vulnerability review gates. No new dependency is adopted.
+
 The 2026-09-07 increment retains the exact image pins above. API/worker copy the
 prepared Node filesystem into a fresh layer graph after removing unused npm,
 Corepack and Yarn payloads and command links. The build and acceptance stages

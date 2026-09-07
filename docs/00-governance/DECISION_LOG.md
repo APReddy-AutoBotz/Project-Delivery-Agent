@@ -111,3 +111,13 @@ both image scopes. This adoption becomes effective after exact independent
 candidate review, required checks and verified merge. ADR-014 and EXEC-003 record
 the constraints; detailed security assessment remains private. No story,
 distribution, signing or customer deployment gate is waived.
+
+## Web transfer-tool exclusion, 2026-09-08
+
+Under delegated implementation authority, remove the unused curl closure from
+the existing web image using its offline package resolver. Preserve Caddy,
+BusyBox health checks, shared native dependencies and original attribution.
+ADR-014 and EXEC-003 require an exact package-set comparison, absence of removed
+payloads from both image scopes and full candidate acceptance before merge.
+This reduces the shipped dependency inventory without assigning exploitability
+verdicts or waiving distribution, legal, signing or story completion gates.

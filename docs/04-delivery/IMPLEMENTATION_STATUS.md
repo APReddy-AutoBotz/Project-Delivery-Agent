@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-07
+Updated: 2026-09-08
 
 ## Accepted implementation completion
 
@@ -36,6 +36,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | OIDC configuration acceptance | [#27](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27) | `3b88a84` | `71b4e6d` |
 | Real OIDC expiry acceptance | [#28](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28) | `0c9489f` | `519c192` |
 | Portfolio authorization acceptance | [#29](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/29) | `c8d08d0` | `5da7352` |
+| Web runtime build toolchain | [#30](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/30) | `c7bbfb6` | `62bcbe6` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -119,11 +120,16 @@ Exact-candidate review, matching CI/evidence and merge are verified. The effecti
 criterion decision is in [FOUNDATION_SECURITY_ACCEPTANCE.md](../05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md).
 STORY-005 remains open until the Definition of Done security assessment is resolved.
 
-The current bounded increment refreshes the Caddy build toolchain, preserves
-original notices and extends runtime/layer evidence checks. Local and remote
-validation are recorded in [DISTRIBUTION_EVIDENCE_VALIDATION.md](../05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md).
-Detailed applicability assessment stays private. No story or distribution gate
-is accepted by this increment alone.
+PR #30 refreshes the Caddy build toolchain, preserves original notices and extends
+runtime/layer evidence checks. Independent review, required candidate CI and all
+63 artifact hashes passed; merged-main CI also passed. Validation is recorded in
+[DISTRIBUTION_EVIDENCE_VALIDATION.md](../05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md).
+
+The current bounded increment removes unused curl and its orphan libraries from
+the web image while preserving Caddy, BusyBox health checks and shared native
+dependencies. Both scanner scopes must reject removed packages and payloads.
+Detailed applicability assessment stays private; this is dependency minimization,
+not acceptance of the remaining security or distribution gates.
 
 | Story | Remaining completion work |
 |---|---|
