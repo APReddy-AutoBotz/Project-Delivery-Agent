@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-06
+Updated: 2026-09-07
 
 ## Accepted implementation completion
 
@@ -31,6 +31,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Foundation release operations | [#20](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/20) | `6cd425e` | `2d854d2` |
 | Customer composition acceptance | [#22](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/22) | `c669e95` | `27bc174` |
 | Distribution evidence collection | [#24](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/24) | `a720ec5` | `438cc13` |
+| Runtime distribution hardening | [#25](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/25) | `5071cea` | `1d0bcb9` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -82,9 +83,17 @@ reports after production acceptance. Its 37-file bundle was downloaded and verif
 against the reviewed source tree and accepted images. All required checks and
 subsequent main CI passed; details are in
 [DISTRIBUTION_EVIDENCE_VALIDATION.md](../05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md).
-Scanner findings and attribution gaps remain unresolved. The next increment
-removes unused runtime package managers and adds explicit distributed-layer
-evidence while preserving original Node notices. STORY-004 remains open.
+Scanner findings and attribution gaps remain unresolved. PR #25 removes unused
+runtime package managers and adds explicit distributed-layer evidence while
+preserving original Node notices. Exact review, all required CI checks and
+downloaded evidence verification passed. STORY-004 remains open.
+
+The current STORY-005 increment binds outbound operations to trusted current
+configuration/policy readers and extends secret-disclosure evidence across runtime
+logs, real HTTP responses, browser outputs/assets and deployment exports. Separate
+security and acceptance reviewers are assigned in
+[FOUNDATION_SECURITY_VALIDATION.md](../05-quality/FOUNDATION_SECURITY_VALIDATION.md).
+Full candidate validation and independent review remain required before merge.
 
 | Story | Remaining completion work |
 |---|---|

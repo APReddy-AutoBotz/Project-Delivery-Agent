@@ -2,6 +2,11 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
+import {
+  createHostDisclosure,
+  scanExecutionLogs,
+  rejectLoggedTokens,
+} from "./disclosure.mjs";
 
 export async function customerProfiles({
   docker,
@@ -149,6 +154,38 @@ export async function customerProfiles({
           ],
           "prepare",
         );
+        const disclosure = createHostDisclosure({
+          output: evidence,
+          runId: project,
+          profile,
+          run,
+          command: (name) =>
+            service("verify", [
+              "node",
+              "scripts/acceptance/check-disclosure.mjs",
+              name,
+            ]),
+        });
+        const captureLogs = () => {
+          for (const serviceName of ["api", "worker", "web", dbHost]) {
+            const logs = run(
+              compose("logs", "--no-color", serviceName),
+              "disclosure-" + serviceName,
+              "capture-output",
+            );
+            disclosure.add("service-" + serviceName, logs);
+            rejectLoggedTokens(logs);
+          }
+          scanExecutionLogs(output, disclosure, `customer-${profile}-`);
+          return disclosure.verify([
+            "configuration",
+            "service-api",
+            "service-worker",
+            "service-web",
+            "service-" + dbHost,
+            "execution-logs",
+          ]);
+        };
         const shipped = JSON.parse(
           run(
             [...base, "--profile", "operations", "config", "--format", "json"],
@@ -163,6 +200,10 @@ export async function customerProfiles({
             "capture",
           ),
         );
+        disclosure.add("configuration", readFileSync(envFile, "utf8"));
+        disclosure.add("configuration", JSON.stringify(shipped));
+        disclosure.add("configuration", JSON.stringify(resolved));
+        disclosure.verify(["configuration"]);
         for (const [serviceName, definition] of Object.entries(
           shipped.services,
         ))
@@ -221,10 +262,15 @@ export async function customerProfiles({
         }
         const acceptedDatabase = container(dbHost);
         const databaseId = acceptedDatabase.Id;
-        assert.equal(acceptedDatabase.Image, record.databaseImage, "Customer database differs from accepted database image");
+        assert.equal(
+          acceptedDatabase.Image,
+          record.databaseImage,
+          "Customer database differs from accepted database image",
+        );
         check("installed");
         check("before-upgrade");
         const backupOutput = run(service("backup"), "backup", "capture");
+        disclosure.add("execution-logs", backupOutput);
         const backupName = JSON.parse(
           backupOutput
             .split("\n")
@@ -266,6 +312,7 @@ export async function customerProfiles({
           }),
           "upgrade-migrate",
         );
+        captureLogs();
         run(
           compose(
             "up",
@@ -296,10 +343,26 @@ export async function customerProfiles({
           "restore",
         );
         check("restored");
+        const runtimeDisclosure = captureLogs();
+        const browserDisclosure = {};
+        for (const phase of ["before-upgrade", "after-upgrade"]) {
+          const report = JSON.parse(
+            readFileSync(
+              join(evidence, "disclosure-" + phase + ".json"),
+              "utf8",
+            ),
+          );
+          assert.equal(report.status, "passed");
+          browserDisclosure[phase] = report.channels;
+        }
         results.push({
           profile,
           project: name,
           status: "passed",
+          disclosure: {
+            runtime: runtimeDisclosure,
+            browser: browserDisclosure,
+          },
           databaseImage: acceptedDatabase.Image,
           images: {
             api: record.images.api,

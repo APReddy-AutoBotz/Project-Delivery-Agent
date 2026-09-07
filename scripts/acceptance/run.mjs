@@ -11,8 +11,16 @@ import {
 } from "../../packages/platform/dist/index.js";
 import { createDatabase } from "../../packages/data/dist/index.js";
 import { Pool, config, secret, migrate, guard } from "./common.mjs";
+import {
+  createDisclosureCheck,
+  readFixtureSecrets,
+  observeBrowserDisclosure,
+  scanBrowserAssets,
+} from "./disclosure.mjs";
 guard();
 const passed = [];
+const disclosure = createDisclosureCheck(readFixtureSecrets("/run/secrets"));
+let disclosureEvidence;
 async function check(name, fn) {
   await fn();
   passed.push(name);
@@ -194,6 +202,7 @@ for (;;) {
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 try {
   const context = await browser.newContext();
+  const capture = observeBrowserDisclosure(context, base, disclosure);
   const page = await context.newPage();
   let tokenResponse;
   let authorization;
@@ -235,9 +244,20 @@ try {
         .waitFor();
       assert.equal(await page.getByText(/Draco/).count(), 0);
       assert(tokenResponse?.access_token && tokenResponse?.id_token);
-      const publicConfig = await (await fetch(base + "/api/auth/config")).text();
-      for (const name of ["encryption-key", "api-password", "worker-password", "migration-password", "login-password"])
-        assert(!publicConfig.includes(secret(name)), "Public auth configuration must not disclose secrets");
+      const publicConfig = await (
+        await fetch(base + "/api/auth/config")
+      ).text();
+      for (const name of [
+        "encryption-key",
+        "api-password",
+        "worker-password",
+        "migration-password",
+        "login-password",
+      ])
+        assert(
+          !publicConfig.includes(secret(name)),
+          "Public auth configuration must not disclose secrets",
+        );
       const api = (token) =>
         fetch(base + "/api/projects", {
           headers: { Authorization: "Bearer " + token },
@@ -266,6 +286,7 @@ try {
         await page.evaluate(() => Object.keys(sessionStorage)),
         [],
       );
+      await capture(page);
     },
   );
   await check(
@@ -299,8 +320,10 @@ try {
         },
       );
       assert.equal(replay.status, 400);
-    await new IdentityService(loadConfig(process.env)).authenticate(tokenResponse.access_token);
-    const identity = new IdentityService(
+      await new IdentityService(loadConfig(process.env)).authenticate(
+        tokenResponse.access_token,
+      );
+      const identity = new IdentityService(
         loadConfig({
           ...process.env,
           OIDC_JWKS_URI:
@@ -311,14 +334,19 @@ try {
         () => identity.authenticate(tokenResponse.access_token),
         "JWKS hostname mismatch must deny identity",
       );
-    const invalidTlsPage = await context.newPage();
-    try {
-      const failure = await rejected(
-        () => invalidTlsPage.goto("https://gateway-alias:8443"),
-        "Browser must reject ingress hostname mismatch",
-      );
-      assert(String(failure).includes("ERR_CERT_COMMON_NAME_INVALID"), "Ingress denial must be a certificate hostname failure");
-    } finally { await invalidTlsPage.close(); }
+      const invalidTlsPage = await context.newPage();
+      try {
+        const failure = await rejected(
+          () => invalidTlsPage.goto("https://gateway-alias:8443"),
+          "Browser must reject ingress hostname mismatch",
+        );
+        assert(
+          String(failure).includes("ERR_CERT_COMMON_NAME_INVALID"),
+          "Ingress denial must be a certificate hostname failure",
+        );
+      } finally {
+        await invalidTlsPage.close();
+      }
       await page.goto(
         base + "/auth/callback?code=synthetic-invalid&state=unrecognized",
       );
@@ -328,8 +356,11 @@ try {
         .waitFor();
     },
   );
+  await page.goto(base);
+  await capture(page);
   await context.close();
   const operator = await browser.newContext();
+  const captureOperator = observeBrowserDisclosure(operator, base, disclosure);
   const op = await operator.newPage();
   await check(
     "OIDC operator has no implicit project access; restricted DB role writes audited grants",
@@ -359,7 +390,22 @@ try {
         .waitFor();
     },
   );
+  await captureOperator(op);
   await operator.close();
+  await check(
+    "SEC-SECRET-001: first-party browser responses, headers, DOM, diagnostics, storage and all inventoried assets exclude generated secrets",
+    async () => {
+      await scanBrowserAssets(base, disclosure);
+      disclosureEvidence = disclosure.verify([
+        "browser-response-headers",
+        "browser-response-bodies",
+        "browser-dom",
+        "browser-storage",
+        "assets",
+        "asset-headers",
+      ]);
+    },
+  );
 } finally {
   await browser.close();
 }
@@ -400,6 +446,7 @@ writeFileSync(
       runId: process.env.PDAA_ACCEPTANCE_RUN_ID,
       completedAt: new Date().toISOString(),
       passed,
+      disclosure: disclosureEvidence,
       distributionAccepted: false,
     },
     null,

@@ -29,8 +29,8 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `438cc13` contains the reviewed production boundary, executable foundation
-contracts, release operations, customer composition acceptance and distribution evidence collector. STORY-001/002/003
+Main `1d0bcb9` contains the reviewed production boundary, executable foundation
+contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
 findings were resolved in PR #16.
@@ -105,6 +105,30 @@ are verified. Revert code through review; restore backups into a separate target
 with outbound disabled and the separately retained encryption key.
 
 ## Progress log
+
+- 2026-09-07: Begin the bounded STORY-005 security-output and outbound-policy
+  increment on `feature/foundation-security-boundaries`. Requirements:
+  NFR-SEC-001/004/005, TR-DEP-003, FR-APP-010 and FR-ADM-009;
+  AC-SEC-001/003 and SEC-SECRET-001/SEC-OUTBOUND-003. Bind dispatch to
+  server-owned current configuration/policy readers and a recording adapter;
+  model-style invocation arguments cannot supply approval. Enforce runtime log
+  field/category allowlists and verify real HTTP bodies/headers, captured logs,
+  browser outputs/assets and nonsecret deployment exports using generated fixture
+  secrets. Preserve intended IdP token delivery and logout flows. Root owns edits
+  and Git. Assigned independent reviewers: `review_customer_candidate` (security)
+  and `baseline_quality` (acceptance/QA); review the immutable final SHA before
+  merge. The Product Owner confirmed they are the sole GitHub contributor, so no
+  other GitHub collaborator is available for review requests. Record agent review
+  assignment and outcome explicitly on the next PR. No live connectors, new
+  schema/dependencies or release acceptance are introduced. Full checks and both
+  packaged customer profiles remain required; preserve the local database and
+  use CI for the complete container rebuild.
+
+- 2026-09-07: PR #25 merged reviewed `5071cea` as `1d0bcb9` after independent
+  review and all required checks. The downloaded evidence passed hash and source
+  verification. Issue #5 and distribution acceptance remain open. The approved
+  public CI status is linked on PR #25; the detailed local report was retained
+  locally after automatic approval review rejected public disclosure.
 
 - 2026-09-07: Start runtime distribution hardening from `438cc13`. PR #24's
   exact reviewed tree passed all checks, collected 37 verified files for five

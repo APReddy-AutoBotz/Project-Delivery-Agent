@@ -159,7 +159,7 @@ try {
           name: "Restore fixture",
           keyId: "primary",
           envelope: cipher.encrypt(
-            "synthetic-restore-credential",
+            readFileSync("/run/secrets/connector-secret", "utf8"),
             "restore-fixture",
           ),
         },
@@ -262,9 +262,10 @@ try {
       const cipher = new CredentialVault(
         loadConfig(process.env).ENCRYPTION_KEY,
       );
-      assert.equal(
-        cipher.decrypt(row.envelope, "restore-fixture"),
-        "synthetic-restore-credential",
+      assert(
+        cipher.decrypt(row.envelope, "restore-fixture") ===
+          readFileSync("/run/secrets/connector-secret", "utf8"),
+        "Restored credential must match the generated fixture",
       );
     });
     for (const [role, file] of [

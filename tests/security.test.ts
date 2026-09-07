@@ -5,7 +5,7 @@ import {
   loadConfig,
   IdentityService,
   CredentialVault,
-  guardedDispatch,
+  createOutboundDispatcher,
   assertSyntheticDatabaseUrl,
 } from "../packages/platform/src/index.js";
 import { assessFact, canReadProject } from "../packages/domain/src/index.js";
@@ -162,14 +162,23 @@ describe("Foundation security — TR-AUTH-001, TR-AUTH-003, NFR-SEC-001, NFR-SEC
       { shadow: false, permitted: "true", humanApproved: true },
     ])
       await expect(
-        guardedDispatch(policy as never, dispatch),
+        createOutboundDispatcher({
+          readConfiguration: () => ({ SHADOW_MODE: "false" }),
+          readPolicy: () => policy,
+          dispatch,
+        })(),
       ).rejects.toThrow();
     expect(dispatch).not.toHaveBeenCalled();
     expect(
-      await guardedDispatch(
-        { shadow: false, permitted: true, humanApproved: true },
+      await createOutboundDispatcher({
+        readConfiguration: () => ({ SHADOW_MODE: "false" }),
+        readPolicy: () => ({
+          shadow: false,
+          permitted: true,
+          humanApproved: true,
+        }),
         dispatch,
-      ),
+      })(),
     ).toBe("sent");
   });
   it("does not infer project access from an operational admin role", () => {

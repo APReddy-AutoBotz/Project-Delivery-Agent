@@ -1,0 +1,281 @@
+import { expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
+import { randomBytes, createHash } from "node:crypto";
+import {
+  mkdtempSync,
+  writeFileSync,
+  rmSync,
+  realpathSync,
+  readFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import {
+  createDisclosureCheck,
+  observeBrowserDisclosure,
+  scanBrowserAssets,
+  scanExecutionLogs,
+  rejectLoggedTokens,
+  createHostDisclosure,
+} from "../scripts/acceptance/disclosure.mjs";
+
+const base = "https://product.example.test";
+const tokenPath = "/identity/realms/pdaa/protocol/openid-connect/token";
+const secret = () => randomBytes(32).toString("base64url");
+it("SEC-SECRET-001: host receipts must match the current run, profile, phase and required channels", () => {
+  const directory = mkdtempSync(join(tmpdir(), "pdaa-disclosure-"));
+  try {
+    for (const fault of [
+      "none",
+      "run",
+      "profile",
+      "phase",
+      "empty",
+      "malformed",
+    ]) {
+      const check = createHostDisclosure({
+        output: directory,
+        runId: "current-run",
+        profile: "bundled",
+        command: (name: string) => [name],
+        run: ([name]: string[]) => {
+          const input = JSON.parse(
+            readFileSync(join(directory, name + ".input.json"), "utf8"),
+          );
+          expect(input.required).toEqual(["configuration"]);
+          expect(input.captures).toEqual([
+            { channel: "configuration", text: "public settings" },
+          ]);
+          const receipt = {
+            status: "passed",
+            runId: fault === "run" ? "old-run" : "current-run",
+            profile: fault === "profile" ? "external" : "bundled",
+            phase: fault === "phase" ? "old-phase" : name,
+            channels: {
+              configuration: { captures: 1, bytes: fault === "empty" ? 0 : 15 },
+            },
+          };
+          writeFileSync(
+            join(directory, name + ".receipt.json"),
+            fault === "malformed" ? "invalid" : JSON.stringify(receipt),
+          );
+        },
+      });
+      check.add("configuration", "public settings");
+      if (fault === "none")
+        expect(check.verify(["configuration"]).configuration.bytes).toBe(15);
+      else
+        expect(() => check.verify(["configuration"])).toThrow(
+          /^Host disclosure verification incomplete$/,
+        );
+    }
+  } finally {
+    if (dirname(realpathSync(directory)) !== realpathSync(tmpdir()))
+      throw new Error("Unexpected disclosure test directory");
+    rmSync(directory, { recursive: true });
+  }
+});
+
+function observer() {
+  const canary = secret();
+  const check = createDisclosureCheck([canary]);
+  const context = new EventEmitter();
+  const page = Object.assign(new EventEmitter(), {
+    content: async () => "<html>Public page</html>",
+    evaluate: async () => ({ local: {}, session: {} }),
+  });
+  const capture = observeBrowserDisclosure(context, base, check);
+  context.emit("page", page);
+  const response = (
+    path: string,
+    value: unknown,
+    headers = {},
+    broken = false,
+  ) =>
+    context.emit("response", {
+      url: () => base + path,
+      status: () => 200,
+      allHeaders: async () => ({
+        "content-type": "application/json",
+        ...headers,
+      }),
+      json: async () => value,
+      body: async () => {
+        if (broken) throw new Error(canary);
+        return Buffer.from(JSON.stringify(value));
+      },
+    });
+  const tokens = {
+    access_token: secret(),
+    id_token: secret(),
+    refresh_token: secret(),
+    expires_in: 120,
+  };
+  return { canary, check, context, page, capture, response, tokens };
+}
+
+it("SEC-SECRET-001: browser collector detects nested console values, error stacks and token header leaks", async () => {
+  for (const channel of [
+    "console",
+    "stack",
+    "token-header",
+    "unexpected-token-path",
+    "token-metadata",
+    "issued-server-secret",
+  ]) {
+    const f = observer();
+    f.response(
+      tokenPath,
+      f.tokens,
+      channel === "token-header" ? { private: f.canary } : {},
+    );
+    if (channel === "console")
+      f.page.emit("console", {
+        text: () => "Object",
+        args: () => [
+          { jsonValue: async () => ({ nested: { token: f.canary } }) },
+        ],
+      });
+    if (channel === "stack")
+      f.page.emit("pageerror", {
+        toString: () => "Error",
+        stack: "Error\n at " + f.canary,
+      });
+    if (channel === "unexpected-token-path")
+      f.response("/api/other/protocol/openid-connect/token", {
+        access_token: f.tokens.access_token,
+      });
+    if (channel === "token-metadata")
+      f.response(tokenPath, { ...f.tokens, debug: f.canary });
+    if (channel === "issued-server-secret")
+      f.response(tokenPath, { ...f.tokens, access_token: f.canary });
+    if (channel === "issued-server-secret" || channel === "token-metadata") {
+      await expect(f.capture(f.page)).rejects.toThrow(
+        /^Browser disclosure capture incomplete$/,
+      );
+    } else {
+      await f.capture(f.page);
+      expect(() => f.check.verify(["browser-dom"])).toThrow(
+        /^Secret disclosure detected$/,
+      );
+    }
+  }
+});
+
+it("SEC-SECRET-001: browser capture requires an observed token response and complete awaited bodies", async () => {
+  const missing = observer();
+  await expect(missing.capture(missing.page)).rejects.toThrow(
+    /token response was not observed/,
+  );
+  const broken = observer();
+  broken.response(tokenPath, broken.tokens);
+  broken.response("/api/me", {}, {}, true);
+  await expect(broken.capture(broken.page)).rejects.toThrow(
+    /^Browser disclosure capture incomplete$/,
+  );
+  const complete = observer();
+  complete.response(tokenPath, complete.tokens);
+  complete.response("/api/me", { subject: "synthetic" });
+  await complete.capture(complete.page);
+  expect(
+    complete.check.verify([
+      "browser-response-bodies",
+      "browser-response-headers",
+      "browser-dom",
+      "browser-storage",
+      "identity-token-metadata",
+    ])["identity-token-metadata"].captures,
+  ).toBe(1);
+});
+
+it("SEC-SECRET-001: asset coverage rejects missing, altered, unsafe and malformed inventory without reflecting content", async () => {
+  const canary = secret();
+  const script = 'console.log("public")';
+  const digest = createHash("sha256").update(script).digest("hex");
+  for (const scenario of [
+    "valid",
+    "missing",
+    "hash",
+    "path",
+    "malformed",
+    "leak",
+  ]) {
+    const check = createDisclosureCheck([canary]);
+    const manifest = {
+      schemaVersion: 1,
+      assets: [
+        {
+          file: scenario === "path" ? "../secret.js" : "assets/main.js",
+          sha256: scenario === "hash" ? "0".repeat(64) : digest,
+        },
+      ],
+    };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => {
+        const path = new URL(String(input)).pathname;
+        if (path.endsWith("third-party-components.json"))
+          return new Response(
+            scenario === "malformed"
+              ? '{"private":"' + canary + '",invalid'
+              : JSON.stringify(manifest),
+          );
+        if (path.endsWith("main.js"))
+          return new Response(script, {
+            status: scenario === "missing" ? 404 : 200,
+          });
+        return new Response(scenario === "leak" ? canary : "public notices");
+      });
+    try {
+      if (scenario === "valid" || scenario === "leak") {
+        expect(await scanBrowserAssets(base, check)).toBe(3);
+        if (scenario === "leak")
+          expect(() => check.verify(["assets"])).toThrow(
+            /^Secret disclosure detected$/,
+          );
+        else
+          expect(
+            check.verify(["assets", "asset-headers"]).assets.captures,
+          ).toBe(3);
+      } else {
+        let failure: unknown;
+        try {
+          await scanBrowserAssets(base, check);
+        } catch (error) {
+          failure = error;
+        }
+        expect(failure).toBeInstanceOf(Error);
+        expect(String(failure).includes(canary)).toBe(false);
+      }
+    } finally {
+      fetchMock.mockRestore();
+    }
+  }
+});
+
+it("SEC-SECRET-001: private command logs include stderr-only leaks and reject signed token shapes", () => {
+  const directory = mkdtempSync(join(tmpdir(), "pdaa-disclosure-"));
+  const canary = secret();
+  try {
+    // The host saves stdout plus stderr even when stdout is separately parsed.
+    writeFileSync(
+      join(directory, "backup.log"),
+      '{"operation":"backup"}\n' + canary,
+    );
+    const check = createDisclosureCheck([canary]);
+    scanExecutionLogs(directory, check);
+    expect(() => check.verify(["execution-logs"])).toThrow(
+      /^Secret disclosure detected$/,
+    );
+    expect(() =>
+      rejectLoggedTokens(
+        "eyJ" + "a".repeat(20) + "." + "b".repeat(24) + "." + "c".repeat(32),
+      ),
+    ).toThrow(/Credential-shaped token/);
+    expect(() => rejectLoggedTokens('{"event":"api.started"}')).not.toThrow();
+  } finally {
+    if (dirname(realpathSync(directory)) !== realpathSync(tmpdir()))
+      throw new Error("Unexpected disclosure test directory");
+    rmSync(directory, { recursive: true });
+  }
+});
