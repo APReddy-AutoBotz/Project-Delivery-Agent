@@ -34,6 +34,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Runtime distribution hardening | [#25](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/25) | `5071cea` | `1d0bcb9` |
 | Foundation output and outbound security | [#26](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/26) | `40da638` | `2a9882f` |
 | OIDC configuration acceptance | [#27](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27) | `3b88a84` | `71b4e6d` |
+| Real OIDC expiry acceptance | [#28](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28) | `0c9489f` | `519c192` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -103,21 +104,29 @@ and 16 packaged groups), all 63 downloaded evidence files and merged-main CI pas
 Its scope and acceptance limits are in
 [OIDC_CONFIGURATION_VALIDATION.md](../05-quality/OIDC_CONFIGURATION_VALIDATION.md).
 
-The next STORY-005 increment verifies real OIDC token expiry through the packaged
-API and browser, supporting SEC-AUTH-001. It requires same-token 401 responses,
-unchanged database state and cleanup of already loaded protected data. See
-[OIDC_EXPIRY_VALIDATION.md](../05-quality/OIDC_EXPIRY_VALIDATION.md) for execution
-and review gates; customer-specific identity and full story acceptance remain open.
+PR #28 adds real OIDC token expiry through the packaged API and browser. Both
+independent reviews and all required checks passed; all 63 downloaded evidence
+files match the reviewed tree. CI passed 99 unit, nine database/API, eight browser
+tests and 17 packaged groups. See [OIDC_EXPIRY_VALIDATION.md](../05-quality/OIDC_EXPIRY_VALIDATION.md)
+and its [final verification record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28#issuecomment-5572894493).
+
+The next STORY-005 increment adds the missing two-portfolio HTTP/repository
+boundary matrix: grant A, exclude B, deny unauthorized writes without state changes,
+then revoke A while preserving the independent Atlas grant. Its isolated ten-test
+database/API suite passed locally. See [PORTFOLIO_AUTHORIZATION_VALIDATION.md](../05-quality/PORTFOLIO_AUTHORIZATION_VALIDATION.md).
+Exact-candidate review and matching CI/evidence remain pending. The conditional
+criterion decision is in [FOUNDATION_SECURITY_ACCEPTANCE.md](../05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md).
+STORY-005 remains open until the Definition of Done security assessment is resolved.
 
 | Story | Remaining completion work |
 |---|---|
 | STORY-004 | Runtime remediation, full adoption/license/notices and layer review, vulnerability dispositions and signing |
-| STORY-005 | Remaining identity negatives, complete disclosure checks and customer-specific interoperability |
+| STORY-005 | Verify the portfolio candidate and criterion acceptance; assess unresolved high/critical image matches against Definition of Done |
 
 Continue [EXEC-003](exec-plans/EXEC-003-customer-hosted-foundation.md) with complete
 transitive/OS license and notice inventory, SBOM and final image vulnerability gates,
-then remaining identity tests before
-foundation release acceptance. Customer-specific IdP and operations validation
+and complete the STORY-005 security assessment before foundation release acceptance.
+Customer-specific IdP and operations validation
 needs the customer's registration and policy; generic synthetic checks can continue.
 Real Jira/AI/email, write-back, assurance rules and reports remain unimplemented.
 Once the foundation gate is accepted, proceed to the canonical model and evidence

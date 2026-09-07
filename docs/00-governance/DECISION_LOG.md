@@ -83,3 +83,20 @@ supports bundled or external PostgreSQL. No dependency version, business schema,
 connector scope or customer activation is introduced. Cross-cluster bootstrap,
 restore promotion/action reconciliation and full distribution gates remain open.
 Independent review and immutable packaged acceptance are required before merge.
+
+## Foundation security criteria and story gate, 2026-09-07
+
+Under delegated authority, conditionally accept AC-ADM-001, AC-AUTH-001/002 and
+AC-SEC-001/003 after the portfolio authorization candidate passes exact non-author
+review, required CI, downloaded evidence verification and merge. Record actual
+commit/check identities on the PR and Issue #5 before updating criterion checkboxes.
+See FOUNDATION_SECURITY_ACCEPTANCE.md for the requirement/evidence mapping.
+STORY-005 remains in progress: the Definition of Done high/critical security review
+requires assessment of unresolved image matches, which are neither proven
+exploitable findings nor evidence of their absence. No DoD waiver or customer
+credential prerequisite is introduced. R0 stays 3/5 (60%); R1 stays 0/33.
+
+The same effective gate applies to AC-MNT-002: register the already executed
+CI-MNT-002 workflow and documentation regression evidence without accepting the
+broader STORY-004 distribution criterion. After verified merge, six additional
+Issue #5 criterion checkboxes may be checked; story counts remain unchanged.

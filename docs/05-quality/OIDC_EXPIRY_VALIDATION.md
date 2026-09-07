@@ -101,3 +101,19 @@ change. No application permission policy, fixture token lifetime, dependency,
 schema/migration or connector scope changes. The isolated local fixture is removed
 after the rehearsal and the original development database is preserved. Revert
 this increment through review; no database rollback or customer action is needed.
+
+## Verified merge and immutable evidence
+
+[PR #28](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28) merged
+reviewed `0c9489fb24267b28a0976d628fc1e1bfef882b1a` as
+`519c1926edbf1b391c0f8ad56d0b89741b3194c5`. Both independent exact-candidate
+reviews and all three required checks passed. The downloaded acceptance run
+`pdaa-acceptance-1788793939639-f68441af` and 63-file distribution bundle have
+reviewed tree `43944f9512391579028d384eb24ed1be7f693530`. CI passed 99 unit,
+nine database/API and eight browser tests plus 17 packaged groups; five images
+across both customer profiles and eight browser components were verified.
+The [final verification record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28#issuecomment-5572894493)
+links matching CI and reviewers. Distribution acceptance remains false.
+The independent follow-up audit identified the two-portfolio authorization matrix
+as the remaining generic identity evidence gap. Formal story acceptance remains
+subject to its complete evidence and Definition of Done; customer activation is separate.

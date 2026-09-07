@@ -29,7 +29,7 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `71b4e6d` contains the reviewed production boundary, executable foundation
+Main `519c192` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
@@ -105,6 +105,31 @@ are verified. Revert code through review; restore backups into a separate target
 with outbound disabled and the separately retained encryption key.
 
 ## Progress log
+
+- 2026-09-07: Begin the two-portfolio authorization matrix on
+  `feature/portfolio-authorization-acceptance`. Requirements: FR-ADM-003,
+  NFR-SEC-001 and TR-DATA-003; AC-AUTH-002 / SEC-AUTH-002. Create two additional
+  same-customer portfolios with one synthetic project each in the existing isolated
+  database test. Preserve the manager's seeded Atlas project grant. Grant portfolio
+  A through administrator HTTP, prove exact HTTP/repository scope excludes B, deny
+  nonadministrator grant/revoke with unchanged grants/audit, then revoke through
+  HTTP and prove A access disappears while Atlas remains. Verify exact appended
+  audit events and clean up only newly created fixture rows, retaining immutable
+  audits. No runtime policy, schema, dependency or connector changes are planned.
+  Reconcile prior PR traceability and assess all five STORY-005 criteria after the
+  immutable candidate passes independent review, required CI and artifact checks.
+  Root owns edits/Git; an independent acceptance auditor checks completeness.
+  All local checks pass: 99 unit, ten DB/API, eight browser, seven builds and
+  13 documentation regressions. The audit supports conditional criterion acceptance
+  while retaining the story-level security assessment. CI-MNT-002 is registered
+  from existing execution evidence; no CI behavior changes.
+
+- 2026-09-07: PR #28 merged reviewed `0c9489f` as `519c192` after both independent
+  reviews and required checks. Matching CI passed 99 unit, nine database/API, eight
+  browser tests and 17 packaged groups; all 63 downloaded evidence files match the
+  reviewed tree. See [final evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28#issuecomment-5572894493).
+  The remaining generic identity evidence gap is the two-portfolio boundary matrix;
+  customer activation and distribution/signing gates remain separate.
 
 - 2026-09-07: Begin real OIDC expiry acceptance on `feature/oidc-expiry-acceptance`.
   Requirements: TR-AUTH-001/002/003, NFR-SEC-001/005; AC-AUTH-001 / SEC-AUTH-001.
@@ -257,6 +282,12 @@ with outbound disabled and the separately retained encryption key.
   open. Unique immutable image IDs and post-teardown evidence prevent stale results.
 
 ## Decisions made
+
+The 2026-09-07 independent acceptance audit supports conditional acceptance of all
+five STORY-005 criteria after the portfolio candidate passes its full merge gates.
+STORY-005 remains in progress pending the Definition of Done high/critical security
+assessment of unresolved image matches. FOUNDATION_SECURITY_ACCEPTANCE.md records
+the mapping and scope; customer activation is separate and no security gate is waived.
 
 Independent candidate review identified an override-register drift bypass. The
 gate now parses actual workspace YAML and tests independent changes, additions

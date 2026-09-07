@@ -235,3 +235,25 @@ permission, dependency or connector scope changed. Branch
 independent review and required checks. Revert tests/docs for code rollback;
 operational recovery retains reviewed images and matching backups in fresh
 quarantined targets with separately held keys.
+
+## Security evidence and portfolio acceptance reconciliation, 2026-09-07
+
+PR #26 merged bound outbound/disclosure controls (`40da638` to `2a9882f`), PR #27
+merged OIDC metadata/remapping acceptance (`3b88a84` to `71b4e6d`), and PR #28
+merged real token expiry (`0c9489f` to `519c192`). Their exact reviews, successful
+checks and verified 63-file bundles are linked in FOUNDATION_SECURITY_VALIDATION.md,
+OIDC_CONFIGURATION_VALIDATION.md and OIDC_EXPIRY_VALIDATION.md. The original local
+database recovered and remains preserved; the earlier host incident is historical.
+
+The current portfolio branch adds the remaining same-customer two-portfolio
+HTTP/repository grant/revoke matrix and reconciles story PR links, CI-MNT-002
+execution evidence and the master plan's stale progress figure. Its local checks
+are recorded in PORTFOLIO_AUTHORIZATION_VALIDATION.md. Independent candidate review,
+matching CI, downloaded evidence verification and merge remain required.
+
+FOUNDATION_SECURITY_ACCEPTANCE.md records the conditional five security criteria
+and AC-MNT-002 decisions. Issue #5 may check those criteria only after their merge
+gates are verified. STORY-004/005 remain in progress: distribution review and the
+Definition of Done high/critical security assessment are unresolved. No scanner
+match is automatically declared exploitable or dismissed. R0 remains 3/5 (60%);
+R1 remains 0/33. This reconciliation adds no dependency, schema or connector scope.
