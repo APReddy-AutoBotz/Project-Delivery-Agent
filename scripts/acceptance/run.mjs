@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import { lookup } from "node:dns/promises";
 import {
   loadDatabaseConfig,
@@ -11,8 +11,16 @@ import {
 } from "../../packages/platform/dist/index.js";
 import { createDatabase } from "../../packages/data/dist/index.js";
 import { Pool, config, secret, migrate, guard } from "./common.mjs";
+import {
+  createDisclosureCheck,
+  readFixtureSecrets,
+  observeBrowserDisclosure,
+  scanBrowserAssets,
+} from "./disclosure.mjs";
 guard();
 const passed = [];
+const disclosure = createDisclosureCheck(readFixtureSecrets("/run/secrets"));
+let disclosureEvidence;
 async function check(name, fn) {
   await fn();
   passed.push(name);
@@ -194,7 +202,8 @@ for (;;) {
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 try {
   const context = await browser.newContext();
-  const page = await context.newPage();
+  const capture = await observeBrowserDisclosure(context, base, disclosure);
+  const page = await capture.newPage();
   let tokenResponse;
   let authorization;
   let exchangedCode;
@@ -213,11 +222,13 @@ try {
   });
   async function login(username) {
     await page.goto(base);
+    await capture.settle(page);
     await page
       .getByRole("button", { name: "Sign in with your organization" })
       .click();
     await page.locator("#username").fill(username);
     await page.locator("#password").fill(secret("login-password"));
+    await capture.settle(page);
     await page.locator("#kc-login").click();
     await page.getByRole("heading", { name: "Your projects" }).waitFor();
   }
@@ -235,9 +246,20 @@ try {
         .waitFor();
       assert.equal(await page.getByText(/Draco/).count(), 0);
       assert(tokenResponse?.access_token && tokenResponse?.id_token);
-      const publicConfig = await (await fetch(base + "/api/auth/config")).text();
-      for (const name of ["encryption-key", "api-password", "worker-password", "migration-password", "login-password"])
-        assert(!publicConfig.includes(secret(name)), "Public auth configuration must not disclose secrets");
+      const publicConfig = await (
+        await fetch(base + "/api/auth/config")
+      ).text();
+      for (const name of [
+        "encryption-key",
+        "api-password",
+        "worker-password",
+        "migration-password",
+        "login-password",
+      ])
+        assert(
+          !publicConfig.includes(secret(name)),
+          "Public auth configuration must not disclose secrets",
+        );
       const api = (token) =>
         fetch(base + "/api/projects", {
           headers: { Authorization: "Bearer " + token },
@@ -266,6 +288,7 @@ try {
         await page.evaluate(() => Object.keys(sessionStorage)),
         [],
       );
+      await capture(page);
     },
   );
   await check(
@@ -274,16 +297,27 @@ try {
       const ended = page.waitForRequest((req) =>
         req.url().includes("/protocol/openid-connect/logout?"),
       );
+      const returned = page.waitForEvent("framenavigated", {
+        predicate: (frame) =>
+          frame === page.mainFrame() && frame.url() === base + "/",
+      });
       await page.getByRole("button", { name: "Sign out" }).click();
       const request = await ended;
       assert(new URL(request.url()).searchParams.has("id_token_hint"));
+      await returned;
+      await page.waitForLoadState("domcontentloaded");
       await page
         .getByRole("heading", { name: "Welcome to your workspace" })
         .waitFor();
+      await expect(
+        page.getByRole("button", { name: "Sign in with your organization" }),
+      ).toBeEnabled();
+      await capture(page);
       await page
         .getByRole("button", { name: "Sign in with your organization" })
         .click();
       await page.locator("#username").waitFor();
+      await capture(page);
     },
   );
   await check(
@@ -299,8 +333,10 @@ try {
         },
       );
       assert.equal(replay.status, 400);
-    await new IdentityService(loadConfig(process.env)).authenticate(tokenResponse.access_token);
-    const identity = new IdentityService(
+      await new IdentityService(loadConfig(process.env)).authenticate(
+        tokenResponse.access_token,
+      );
+      const identity = new IdentityService(
         loadConfig({
           ...process.env,
           OIDC_JWKS_URI:
@@ -311,14 +347,19 @@ try {
         () => identity.authenticate(tokenResponse.access_token),
         "JWKS hostname mismatch must deny identity",
       );
-    const invalidTlsPage = await context.newPage();
-    try {
-      const failure = await rejected(
-        () => invalidTlsPage.goto("https://gateway-alias:8443"),
-        "Browser must reject ingress hostname mismatch",
-      );
-      assert(String(failure).includes("ERR_CERT_COMMON_NAME_INVALID"), "Ingress denial must be a certificate hostname failure");
-    } finally { await invalidTlsPage.close(); }
+      const invalidTlsPage = await capture.newPage();
+      try {
+        const failure = await rejected(
+          () => invalidTlsPage.goto("https://gateway-alias:8443"),
+          "Browser must reject ingress hostname mismatch",
+        );
+        assert(
+          String(failure).includes("ERR_CERT_COMMON_NAME_INVALID"),
+          "Ingress denial must be a certificate hostname failure",
+        );
+      } finally {
+        await invalidTlsPage.close();
+      }
       await page.goto(
         base + "/auth/callback?code=synthetic-invalid&state=unrecognized",
       );
@@ -328,18 +369,26 @@ try {
         .waitFor();
     },
   );
-  await context.close();
+  await capture(page);
+  await capture.close();
   const operator = await browser.newContext();
-  const op = await operator.newPage();
+  const captureOperator = await observeBrowserDisclosure(
+    operator,
+    base,
+    disclosure,
+  );
+  const op = await captureOperator.newPage();
   await check(
     "OIDC operator has no implicit project access; restricted DB role writes audited grants",
     async () => {
       await op.goto(base);
+      await captureOperator.settle(op);
       await op
         .getByRole("button", { name: "Sign in with your organization" })
         .click();
       await op.locator("#username").fill("operator");
       await op.locator("#password").fill(secret("login-password"));
+      await captureOperator.settle(op);
       await op.locator("#kc-login").click();
       await op.getByText("No projects are shared with this account").waitFor();
       await op.getByRole("button", { name: /Platform & access/ }).click();
@@ -359,7 +408,22 @@ try {
         .waitFor();
     },
   );
-  await operator.close();
+  await captureOperator(op);
+  await captureOperator.close();
+  await check(
+    "SEC-SECRET-001: first-party browser responses, headers, DOM, diagnostics, storage and all inventoried assets exclude generated secrets",
+    async () => {
+      await scanBrowserAssets(base, disclosure);
+      disclosureEvidence = disclosure.verify([
+        "browser-response-headers",
+        "browser-response-bodies",
+        "browser-dom",
+        "browser-storage",
+        "assets",
+        "asset-headers",
+      ]);
+    },
+  );
 } finally {
   await browser.close();
 }
@@ -400,6 +464,7 @@ writeFileSync(
       runId: process.env.PDAA_ACCEPTANCE_RUN_ID,
       completedAt: new Date().toISOString(),
       passed,
+      disclosure: disclosureEvidence,
       distributionAccepted: false,
     },
     null,

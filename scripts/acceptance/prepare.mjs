@@ -18,6 +18,7 @@ for (const name of [
   "migration-password",
   "backup-password",
   "login-password",
+  "connector-secret",
 ])
   write(name, randomBytes(32).toString("base64url") + "%40%25");
 mkdirSync(dir + "/backups", { recursive: true });

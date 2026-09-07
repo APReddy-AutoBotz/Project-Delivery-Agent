@@ -17,6 +17,9 @@ export {
   type DatabaseTransport,
 } from "./config.js";
 export { assertSyntheticDatabaseUrl } from "./database-target.js";
+export { createOutboundDispatcher } from "./outbound.js";
+export { operationalLog } from "./logging.js";
+import { operationalLog } from "./logging.js";
 
 export class IdentityService {
   private readonly key: Uint8Array;
@@ -125,34 +128,6 @@ export class CredentialVault {
       throw new Error("Credential decryption failed");
     }
   }
-}
-
-export async function guardedDispatch<T>(
-  policy: { shadow: boolean; permitted: boolean; humanApproved: boolean },
-  dispatch: () => Promise<T>,
-): Promise<T> {
-  if (
-    !policy ||
-    policy.shadow !== false ||
-    policy.permitted !== true ||
-    policy.humanApproved !== true
-  )
-    throw new Error("Outbound action blocked");
-  return dispatch();
-}
-
-export function operationalLog(
-  event: string,
-  fields: {
-    correlationId?: string;
-    method?: string;
-    status?: number;
-    durationMs?: number;
-  } = {},
-): void {
-  console.log(
-    JSON.stringify({ timestamp: new Date().toISOString(), event, ...fields }),
-  );
 }
 
 // Fatal process boundaries disclose no rejected value, SQL, token or stack trace.

@@ -1097,7 +1097,7 @@ tests:
   evidence: []
 - id: SEC-OUTBOUND-003
   release: R0
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-SEC-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
@@ -1105,7 +1105,11 @@ tests:
     policy permits it. Invalid configuration and production development identity fail closed; callers cannot bypass
     the guard through a model tool. Foundation denial tests use a recording adapter and prove zero dispatches while
     blocked.
-  evidence: []
+  evidence:
+  - packages/platform/src/outbound.ts
+  - tests/outbound-boundary.test.ts
+  - tests/security.test.ts
+  - docs/05-quality/FOUNDATION_SECURITY_VALIDATION.md
 - id: SEC-PRV-001
   release: R1
   status: planned
@@ -1145,14 +1149,33 @@ tests:
   evidence: []
 - id: SEC-SECRET-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-SEC-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Credential storage contains authenticated ciphertext or approved secret references; missing/wrong keys
     and modified ciphertext fail closed. Logs, API errors, browser responses and nonsecret configuration exports
     reveal no secret. Secrets and nonsecrets are configured separately.
-  evidence: []
+  evidence:
+  - tests/security.test.ts
+  - tests/identity-boundary.test.ts
+  - tests/production-config.test.ts
+  - tests/database.integration.test.ts
+  - tests/api-contract.test.ts
+  - tests/operations.test.ts
+  - tests/logging.test.ts
+  - tests/startup-disclosure.test.ts
+  - tests/disclosure.test.ts
+  - tests/disclosure-capture.test.ts
+  - tests/e2e/disclosure.spec.ts
+  - apps/web/src/main.tsx
+  - tests/e2e/foundation.spec.ts
+  - scripts/acceptance/disclosure.mjs
+  - scripts/acceptance/run.mjs
+  - scripts/acceptance/customer.mjs
+  - scripts/acceptance/customer-host.mjs
+  - scripts/test-production.mjs
+  - docs/05-quality/FOUNDATION_SECURITY_VALIDATION.md
 - id: SEC-TLS-001
   release: R1
   status: implemented

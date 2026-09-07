@@ -2,9 +2,15 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import { Pool, secret } from "./common.mjs";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
+import {
+  createDisclosureCheck,
+  readFixtureSecrets,
+  observeBrowserDisclosure,
+  scanBrowserAssets,
+} from "./disclosure.mjs";
 
 const env = process.env;
 const profile = env.PDAA_CUSTOMER_PROFILE;
@@ -94,6 +100,7 @@ async function ready(after = 0) {
   );
 }
 async function browserCheck(afterUpgrade) {
+  const disclosure = createDisclosureCheck(readFixtureSecrets("/run/secrets"));
   const nss = env.HOME + "/.pki/nssdb";
   mkdirSync(nss, { recursive: true });
   execFileSync("certutil", ["-N", "-d", "sql:" + nss, "--empty-password"], {
@@ -118,8 +125,15 @@ async function browserCheck(afterUpgrade) {
   try {
     async function login(name) {
       const context = await browser.newContext();
-      const page = await context.newPage();
+      const capture = await observeBrowserDisclosure(
+        context,
+        base,
+        disclosure,
+        "https://identity-ingress:8443",
+      );
+      const page = await capture.newPage();
       await page.goto(base);
+      await capture.settle(page);
       await page
         .getByRole("button", { name: "Sign in with your organization" })
         .click();
@@ -127,9 +141,10 @@ async function browserCheck(afterUpgrade) {
       assert.equal(new URL(page.url()).origin, "https://identity-ingress:8443");
       await page.locator("#username").fill(name);
       await page.locator("#password").fill(secret("login-password"));
+      await capture.settle(page);
       await page.locator("#kc-login").click();
       await page.getByRole("heading", { name: "Your projects" }).waitFor();
-      return { context, page };
+      return { context, page, capture };
     }
     const operator = await login("operator");
     await operator.page
@@ -149,18 +164,31 @@ async function browserCheck(afterUpgrade) {
       .getByRole("status")
       .filter({ hasText: afterUpgrade ? "Access revoked" : "Access granted" })
       .waitFor();
+    await operator.capture(operator.page);
     const logout = operator.page.waitForRequest((request) =>
       request.url().includes("/protocol/openid-connect/logout?"),
     );
+    const returned = operator.page.waitForEvent("framenavigated", {
+      predicate: (frame) =>
+        frame === operator.page.mainFrame() && frame.url() === base + "/",
+    });
     await operator.page.getByRole("button", { name: "Sign out" }).click();
     assert.equal(
       new URL((await logout).url()).origin,
       "https://identity-ingress:8443",
     );
+    await returned;
+    await operator.page.waitForLoadState("domcontentloaded");
     await operator.page
       .getByRole("heading", { name: "Welcome to your workspace" })
       .waitFor();
-    await operator.context.close();
+    await expect(
+      operator.page.getByRole("button", {
+        name: "Sign in with your organization",
+      }),
+    ).toBeEnabled();
+    await operator.capture(operator.page);
+    await operator.capture.close();
     const pm = await login("pm-atlas");
     if (afterUpgrade)
       await pm.page
@@ -170,7 +198,20 @@ async function browserCheck(afterUpgrade) {
       await pm.page
         .getByRole("button", { name: /Customer installation fixture/ })
         .waitFor();
-    await pm.context.close();
+    await pm.capture(pm.page);
+    await pm.capture.close();
+    await scanBrowserAssets(base, disclosure);
+    save("disclosure-" + phase, {
+      status: "passed",
+      channels: disclosure.verify([
+        "browser-response-headers",
+        "browser-response-bodies",
+        "browser-dom",
+        "browser-storage",
+        "assets",
+        "asset-headers",
+      ]),
+    });
   } finally {
     await browser.close();
   }

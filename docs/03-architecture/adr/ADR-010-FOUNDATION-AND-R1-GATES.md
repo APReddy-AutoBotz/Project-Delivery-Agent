@@ -39,6 +39,15 @@ the product does not claim Jira provides atomic compare-and-swap for comment POS
 
 ## Alternatives and consequences
 
+Foundation implementation clarification, 2026-09-07: bind each outbound operation
+to server-owned configuration and current-policy readers plus its adapter. The
+invocation surface accepts no approval/policy overrides. Validate policy before
+the final synchronous shadow-mode check and adapter call. Model tools must never
+receive the factory or readers. This foundation boundary does not replace later
+immutable proposals, authorization, receipts and remote reconciliation. Operational
+logging enforces its field/category allowlist at runtime. See EXEC-003 and
+FOUNDATION_SECURITY_VALIDATION.md for executable evidence and acceptance limits.
+
 Reject end-of-release authentication retrofits and immediate field writes. This
 adds early security verification but avoids unsafe intermediate deployments and
 unnecessary R1 connector concurrency complexity. Keep TypeScript, PostgreSQL,

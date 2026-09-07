@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { Console } from "node:console";
+import { createDisclosureCheck } from "../scripts/acceptance/disclosure.mjs";
 import { createApp } from "../apps/api/dist/app.js";
 import { completeContract, grantSchema } from "../apps/api/dist/contract.js";
 import {
@@ -55,9 +58,12 @@ const config = loadConfig({
   AUTH_MODE: "development",
   CUSTOMER_ID: customerId,
   APP_ORIGIN: "http://localhost:5173",
-  PDAA_DATABASE_URL: "postgresql://pdaa:unused@127.0.0.1:55432/pdaa",
-  SESSION_SECRET: "s".repeat(64),
-  ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+  PDAA_DATABASE_URL:
+    "postgresql://pdaa:" +
+    randomBytes(32).toString("hex") +
+    "@127.0.0.1:55432/pdaa",
+  SESSION_SECRET: randomBytes(48).toString("base64url"),
+  ENCRYPTION_KEY: randomBytes(32).toString("base64"),
   SHADOW_MODE: "true",
 });
 let app: Awaited<ReturnType<typeof createApp>>["app"];
@@ -235,6 +241,118 @@ it("CI-FND-001: actual parser errors match the contract without reflecting reque
   expect(head.status).toBe(200);
   expect(await head.text()).toBe("");
 });
+it("SEC-SECRET-001: real HTTP headers, configuration and both output streams exclude generated credentials", async () => {
+  const canary = randomBytes(32).toString("base64url");
+  const disclosure = createDisclosureCheck([
+    canary,
+    config.ENCRYPTION_KEY,
+    config.SESSION_SECRET!,
+    config.database.password,
+    operator,
+    manager,
+  ]);
+  const stdout: string[] = [],
+    stderr: string[] = [];
+  const capture =
+    (sink: string[]) =>
+    (chunk: string | Uint8Array, encoding?: unknown, callback?: unknown) => {
+      sink.push(
+        typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"),
+      );
+      const done = typeof encoding === "function" ? encoding : callback;
+      if (typeof done === "function") done();
+      return true;
+    };
+  const out = vi
+    .spyOn(process.stdout, "write")
+    .mockImplementation(capture(stdout) as never);
+  const err = vi
+    .spyOn(process.stderr, "write")
+    .mockImplementation(capture(stderr) as never);
+  // Vitest redirects its console through worker IPC. Bind these console methods
+  // to the intercepted process streams, as they are in the production process.
+  const streamConsole = new Console(process.stdout, process.stderr);
+  const consoleWrites = [
+    vi.spyOn(console, "log").mockImplementation(streamConsole.log),
+    vi.spyOn(console, "error").mockImplementation(streamConsole.error),
+    vi.spyOn(console, "warn").mockImplementation(streamConsole.warn),
+  ];
+  try {
+    async function observe(
+      path: string,
+      status: number,
+      token?: string,
+      init: RequestInit = {},
+    ) {
+      const response = await fetch(base + path + "?private=" + canary, {
+        ...init,
+        headers: {
+          "X-Request-Id": canary,
+          "X-Private-Input": canary,
+          ...(token ? { Authorization: "Bearer " + token } : {}),
+          ...init.headers,
+        },
+      });
+      const text = await response.text();
+      disclosure.add("api-body", text);
+      disclosure.add("api-headers", JSON.stringify([...response.headers]));
+      expect(response.status).toBe(status);
+      expect(response.headers.get("x-request-id") === canary).toBe(false);
+      return text;
+    }
+    const auth = JSON.parse(await observe("/api/auth/config", 200));
+    expect(Object.keys(auth).sort()).toEqual(["dataMode", "mode", "scope"]);
+    const platform = JSON.parse(await observe("/api/platform", 200, operator));
+    expect(Object.keys(platform).sort()).toEqual([
+      "dataMode",
+      "database",
+      "heartbeat",
+      "identityMode",
+      "shadowMode",
+      "worker",
+    ]);
+    await observe("/api/me", 401, canary);
+    await observe("/api/platform", 403, manager);
+    await observe("/api/projects/" + canary, 404, manager);
+    await observe("/api/access-grants", 400, operator, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...grant, token: canary }),
+    });
+    vi.mocked(repository.listProjects).mockRejectedValueOnce(
+      Object.assign(new Error(canary), {
+        cause: new Error(config.database.password),
+        token: manager,
+      }),
+    );
+    await observe("/api/projects", 500, manager);
+    disclosure.add("stdout", stdout.join(""));
+    disclosure.add("stderr", stderr.join(""));
+    disclosure.verify(["api-body", "api-headers", "stdout"]);
+    const logs = stdout
+      .join("")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const requests = logs.filter((line) => line.event === "http.request");
+    expect(requests).toHaveLength(7);
+    for (const line of requests)
+      expect(Object.keys(line).sort()).toEqual([
+        "correlationId",
+        "durationMs",
+        "event",
+        "method",
+        "status",
+        "timestamp",
+      ]);
+    expect(stderr.join("") === "").toBe(true);
+  } finally {
+    for (const method of consoleWrites) method.mockRestore();
+    out.mockRestore();
+    err.mockRestore();
+  }
+});
+
 it("CI-FND-001: contract gates reject route/schema/export drift and malformed HTTP bodies", () => {
   const omitted = structuredClone(spec);
   delete omitted.paths["/api/me"];

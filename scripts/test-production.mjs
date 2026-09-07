@@ -14,6 +14,11 @@ import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { customerProfiles } from "./acceptance/customer-host.mjs";
+import {
+  createHostDisclosure,
+  scanExecutionLogs,
+  rejectLoggedTokens,
+} from "./acceptance/disclosure.mjs";
 const root = resolve(import.meta.dirname, "..");
 const project =
   "pdaa-acceptance-" + Date.now() + "-" + randomUUID().slice(0, 8);
@@ -81,7 +86,7 @@ function docker(args, name, mode = "log") {
       stdio:
         mode === "inherit"
           ? "inherit"
-          : mode === "capture"
+          : mode === "capture" || mode === "capture-output"
             ? "pipe"
             : ["ignore", file, file],
     });
@@ -92,7 +97,15 @@ function docker(args, name, mode = "log") {
     throw new Error(
       `Production acceptance step failed: ${name}. Inspect ${project}'s local diagnostic; do not publish raw logs.`,
     );
-  return result.stdout?.trim();
+  // Commands whose stdout is parsed still retain both streams for disclosure
+  // validation. These private diagnostics are excluded from published artifacts.
+  if (mode === "capture")
+    writeFileSync(join(output, name + ".log"), result.stdout + result.stderr, {
+      mode: 0o600,
+    });
+  return mode === "capture-output"
+    ? result.stdout + result.stderr
+    : result.stdout?.trim();
 }
 const compose = (...args) => [
   "compose",
@@ -202,9 +215,20 @@ try {
     compose("up", "-d", "--wait", "--wait-timeout", "120", "gateway", "worker"),
     "production-start",
   );
-  const acceptedDatabase = docker(compose("ps", "-q", "database"), "accepted-database-container", "capture");
-  record.databaseImage = docker(["inspect", acceptedDatabase, "--format", "{{.Image}}"], "accepted-database-image", "capture");
-  assert(/^sha256:[a-f0-9]{64}$/.test(record.databaseImage), "Accepted database image identity missing");
+  const acceptedDatabase = docker(
+    compose("ps", "-q", "database"),
+    "accepted-database-container",
+    "capture",
+  );
+  record.databaseImage = docker(
+    ["inspect", acceptedDatabase, "--format", "{{.Image}}"],
+    "accepted-database-image",
+    "capture",
+  );
+  assert(
+    /^sha256:[a-f0-9]{64}$/.test(record.databaseImage),
+    "Accepted database image identity missing",
+  );
   save();
   docker(
     compose("run", "--rm", "--no-deps", "verify"),
@@ -397,6 +421,55 @@ try {
   );
   checks.passed.push(
     "Database blackhole readiness deadline, persistent database restart and independently supervised worker recovery with advancing heartbeat",
+  );
+  const disclosure = createHostDisclosure({
+    output,
+    runId: project,
+    run: docker,
+    command: (name) =>
+      compose(
+        "run",
+        "--rm",
+        "--no-deps",
+        "verify",
+        "node",
+        "scripts/acceptance/check-disclosure.mjs",
+        name,
+      ),
+  });
+  for (const service of [
+    "api",
+    "worker",
+    "gateway",
+    "database",
+    "external-database",
+    "provision",
+    "provision-external",
+  ]) {
+    const logs = docker(
+      compose("logs", "--no-color", service),
+      "disclosure-" + service,
+      "capture-output",
+    );
+    disclosure.add("service-" + service, logs);
+    rejectLoggedTokens(logs);
+  }
+  scanExecutionLogs(output, disclosure);
+  record.disclosure = {
+    browser: checks.disclosure,
+    runtime: disclosure.verify([
+      "service-api",
+      "service-worker",
+      "service-gateway",
+      "service-database",
+      "service-external-database",
+      "service-provision",
+      "service-provision-external",
+      "execution-logs",
+    ]),
+  };
+  checks.passed.push(
+    "SEC-SECRET-001: packaged service stdout/stderr and operation diagnostics exclude generated secrets and signed tokens before teardown",
   );
   // Release the earlier fixture before starting the customer composition profiles.
   docker(compose("down", "--remove-orphans", "--volumes"), "production-stop");
