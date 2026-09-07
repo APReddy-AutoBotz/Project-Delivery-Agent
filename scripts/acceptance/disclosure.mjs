@@ -89,20 +89,21 @@ export function observeBrowserDisclosure(
   identityOrigin = origin,
 ) {
   const pending = [];
-  let failed = false;
+  const failed = { response: 0, console: 0 };
   let tokenResponses = 0;
   const tokenUrl =
     identityOrigin + "/identity/realms/pdaa/protocol/openid-connect/token";
-  const collect = (task) =>
+  const collect = (kind, task) =>
     pending.push(
       task.catch(() => {
-        failed = true;
+        failed[kind]++;
       }),
     );
   context.on("response", (response) => {
     const url = new URL(response.url());
     if (![origin, identityOrigin].includes(url.origin)) return;
     collect(
+      "response",
       (async () => {
         disclosure.add(
           "browser-response-headers",
@@ -133,6 +134,7 @@ export function observeBrowserDisclosure(
     page.on("console", (message) => {
       disclosure.add("browser-console", message.text());
       collect(
+        "console",
         (async () => {
           for (const argument of message.args()) {
             const value = await argument.jsonValue();
@@ -165,7 +167,10 @@ export function observeBrowserDisclosure(
       await Promise.all(pending.slice(start, end));
       start = end;
     }
-    if (failed) throw new Error("Browser disclosure capture incomplete");
+    if (failed.response || failed.console)
+      throw new Error("Browser disclosure capture incomplete", {
+        cause: failed,
+      });
     if (!tokenResponses)
       throw new Error("Expected token response was not observed");
   };

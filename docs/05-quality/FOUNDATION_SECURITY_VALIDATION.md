@@ -90,6 +90,19 @@ documentation-test discovery used the wrong directory and ran zero tests; the
 correct scripts directory passed all 13. These initial attempts are not counted
 as passing checks.
 
+The initial PR #26 candidate `5ce5f0c` passed application and documentation CI,
+but packaged CI run `34078657994` stopped at incomplete browser capture after the
+OIDC navigation checks. Await capture before changing pages, and remove an
+unnecessary navigation before the final snapshot. Capture failures still fail
+closed and report only fixed response/console failure counts. Matching corrected
+candidate CI is required; the initial packaged run is failed evidence.
+
+A separate local verifier probe passed three scenarios using an actual container
+volume with a UID1000-owned mode0700 directory and root-owned mode0600 secrets:
+clean capture passed, injected stderr disclosure failed, and empty required output
+failed. No secret appeared in process output. The probe reused an existing image,
+used no network and removed only its verified, uniquely labelled temporary volume.
+
 The two security specifications now reference executable tests as implemented;
 this is not acceptance of AC-SEC-001/003 or STORY-005. Remote packaged results and
 independent review of the exact candidate remain required and are recorded on the

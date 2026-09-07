@@ -301,10 +301,12 @@ try {
       await page
         .getByRole("heading", { name: "Welcome to your workspace" })
         .waitFor();
+      await capture(page);
       await page
         .getByRole("button", { name: "Sign in with your organization" })
         .click();
       await page.locator("#username").waitFor();
+      await capture(page);
     },
   );
   await check(
@@ -356,7 +358,6 @@ try {
         .waitFor();
     },
   );
-  await page.goto(base);
   await capture(page);
   await context.close();
   const operator = await browser.newContext();
