@@ -58,6 +58,21 @@ legal approval, unresolved findings and trusted signing continue to block releas
 
 ## Original consequences
 
+### Web build toolchain and layer evidence
+
+The 2026-09-07 web increment retains Caddy 2.11.4 and the existing Alpine image
+pin but rebuilds its published module with a pinned Go 1.26.8 build-only image.
+Use `GOTOOLCHAIN=local` and preserve upstream module selection. Copy the prepared
+filesystem into a fresh layer graph so the replaced binary is not distributed in
+lower layers. Require the selected compiler and Caddy release for every observed
+copy, plus exact original Go/Caddy notices. Upstream bounded TLS regressions and
+both customer-profile acceptance runs must pass on the resulting candidate.
+These checks extend evidence integrity without waiving open release-review gates.
+
+Revert the packaging/policy changes to restore the prior development build.
+No database migration, data rollback or connector permission change is involved;
+customer release still requires its independent security and distribution gates.
+
 This adds build and review tooling, not a runtime service or new connector. Existing
 Debian/Alpine images contain components requiring explicit review under
 OPEN_SOURCE_POLICY.md. Do not infer legal approval from the base-image publisher's

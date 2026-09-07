@@ -100,3 +100,14 @@ The same effective gate applies to AC-MNT-002: register the already executed
 CI-MNT-002 workflow and documentation regression evidence without accepting the
 broader STORY-004 distribution criterion. After verified merge, six additional
 Issue #5 criterion checkboxes may be checked; story counts remain unchanged.
+
+## Web runtime build, 2026-09-07
+
+Under delegated controller authority, retain Caddy 2.11.4 and its upstream
+module selection while rebuilding with the pinned Go 1.26.8 toolchain. Preserve
+the supported HTTPS interface, original notices and complete scanner evidence.
+Require a fresh layer graph and reject inconsistent binary/compiler copies in
+both image scopes. This adoption becomes effective after exact independent
+candidate review, required checks and verified merge. ADR-014 and EXEC-003 record
+the constraints; detailed security assessment remains private. No story,
+distribution, signing or customer deployment gate is waived.

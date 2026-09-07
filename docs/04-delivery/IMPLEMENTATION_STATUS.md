@@ -35,6 +35,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Foundation output and outbound security | [#26](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/26) | `40da638` | `2a9882f` |
 | OIDC configuration acceptance | [#27](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27) | `3b88a84` | `71b4e6d` |
 | Real OIDC expiry acceptance | [#28](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28) | `0c9489f` | `519c192` |
+| Portfolio authorization acceptance | [#29](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/29) | `c8d08d0` | `5da7352` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -110,18 +111,24 @@ files match the reviewed tree. CI passed 99 unit, nine database/API, eight brows
 tests and 17 packaged groups. See [OIDC_EXPIRY_VALIDATION.md](../05-quality/OIDC_EXPIRY_VALIDATION.md)
 and its [final verification record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28#issuecomment-5572894493).
 
-The next STORY-005 increment adds the missing two-portfolio HTTP/repository
+PR #29 adds the two-portfolio HTTP/repository
 boundary matrix: grant A, exclude B, deny unauthorized writes without state changes,
 then revoke A while preserving the independent Atlas grant. Its isolated ten-test
 database/API suite passed locally. See [PORTFOLIO_AUTHORIZATION_VALIDATION.md](../05-quality/PORTFOLIO_AUTHORIZATION_VALIDATION.md).
-Exact-candidate review and matching CI/evidence remain pending. The conditional
+Exact-candidate review, matching CI/evidence and merge are verified. The effective
 criterion decision is in [FOUNDATION_SECURITY_ACCEPTANCE.md](../05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md).
 STORY-005 remains open until the Definition of Done security assessment is resolved.
+
+The current bounded increment refreshes the Caddy build toolchain, preserves
+original notices and extends runtime/layer evidence checks. Local and remote
+validation are recorded in [DISTRIBUTION_EVIDENCE_VALIDATION.md](../05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md).
+Detailed applicability assessment stays private. No story or distribution gate
+is accepted by this increment alone.
 
 | Story | Remaining completion work |
 |---|---|
 | STORY-004 | Runtime remediation, full adoption/license/notices and layer review, vulnerability dispositions and signing |
-| STORY-005 | Verify the portfolio candidate and criterion acceptance; assess unresolved high/critical image matches against Definition of Done |
+| STORY-005 | Assess and resolve remaining security findings against Definition of Done |
 
 Continue [EXEC-003](exec-plans/EXEC-003-customer-hosted-foundation.md) with complete
 transitive/OS license and notice inventory, SBOM and final image vulnerability gates,

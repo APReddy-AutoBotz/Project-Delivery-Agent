@@ -9,6 +9,7 @@ certify every operating-system package license. No images are pushed by this wor
 | node:24.19.0-bookworm-slim | a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df | Node 24 build and API/worker runtime | [Node official image](https://github.com/nodejs/docker-node); Node MIT and bundled notices |
 | pgvector/pgvector:0.8.6-pg17-bookworm | cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f | Isolated bundled/external PostgreSQL with vector availability | [pgvector](https://github.com/pgvector/pgvector); PostgreSQL license |
 | caddy:2.11.4-alpine | 5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 | TLS ingress and static web | [Caddy](https://github.com/caddyserver/caddy); Apache-2.0 |
+| golang:1.26.8-alpine3.23 | 33ce311e5eecedee48ec1b84419c1306e9fbd71009f0d5c3f2a6904b579c1ecc | Build-only toolchain for the existing Caddy 2.11.4 release | [Go official image](https://github.com/docker-library/golang); Go BSD-3-Clause |
 | quay.io/keycloak/keycloak:26.7.3 | ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54 | Controlled test identity provider only | [Keycloak](https://www.keycloak.org/server/containers); Apache-2.0 |
 
 Replace Node behind the documented Node 24 interface, Caddy behind standard HTTPS
@@ -18,6 +19,33 @@ verification here and is not used for structured delivery facts. The controller
 owns pin review, upgrade validation and vulnerability disposition.
 
 ## Packaging decision
+
+The web runtime now uses a local build of the published Caddy 2.11.4 module with
+Go 1.26.8, `GOTOOLCHAIN=local`, `CGO_ENABLED=0` and its unchanged upstream module
+selection. The [official image source](https://github.com/docker-library/golang/tree/f47489bcbda87966b421340c536f39a34d00b45f/1.26/alpine3.23)
+and registry manifest establish the toolchain pin above. The existing Alpine
+filesystem is prepared with the replacement binary and copied into a fresh
+`scratch` graph. Preserve Caddy's command, PATH, XDG paths and working directory;
+Compose continues to select the non-root user and ports. This is a product build,
+not the publisher's original Caddy binary.
+
+Set Caddy's upstream-supported `CustomVersion` linker value to `v2.11.4` because
+direct module installation otherwise reports `unknown`. Assert the command's
+output during the build; compiler/module evidence is checked independently of
+this display value.
+
+Retain the publisher's `nobadger,nomysql,nopgx` build tags from its
+[release configuration](https://github.com/caddyserver/caddy/blob/v2.11.4/.goreleaser.yml).
+Direct installation without these tags includes additional storage drivers;
+binary comparison caught that discrepancy before acceptance. Require the same
+tags in binary build metadata as part of both distribution-scope checks.
+
+Original Caddy and Go LICENSE bytes are copied from the downloaded module and
+toolchain. `scripts/distribution/runtime-policy.json` requires their exact hashes
+and the Caddy/Go versions in both image scopes, rejecting additional older copies.
+This increment does not approve other bundled components, OS packages or remaining
+distribution findings. The build runs bounded upstream TLS regression tests;
+packaged acceptance remains necessary to verify the served application.
 
 pnpm 11.19 modern deploy derives a frozen deployment lockfile. Legacy deploy
 re-resolves dependencies and is not used. Injected workspace packages synchronize

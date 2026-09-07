@@ -53,6 +53,16 @@ Review date:
 - Git submodules used to bypass normal dependency review
 ## Foundation package adoption
 
+Go 1.26.8 (BSD-3-Clause) is approved for the foundation Caddy build under the
+delegated permissive-license policy on 2026-09-07. It replaces the embedded Go
+runtime while retaining Caddy 2.11.4 (Apache-2.0), its published module graph and
+standard HTTPS interface. Upstream source is downloaded in the build stage and
+is not vendored into this repository. The controller owns updates and security
+review; the replacement path is another reviewed Caddy/toolchain build behind the
+same HTTPS interface. Original Go/Caddy notices are retained and hash-checked.
+Exact build-image pins, sources, runtime paths and unresolved distribution review
+are in [FOUNDATION_IMAGE_REGISTER.md](FOUNDATION_IMAGE_REGISTER.md).
+
 Development-only image evidence tooling is recorded in
 [DISTRIBUTION_TOOL_REGISTER.md](DISTRIBUTION_TOOL_REGISTER.md). Syft 1.51.1 and
 Grype 0.118.0 are checksum-pinned Apache-2.0 publisher executables; neither is a
