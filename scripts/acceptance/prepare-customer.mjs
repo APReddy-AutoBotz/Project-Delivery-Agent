@@ -34,6 +34,9 @@ for (const [from, to] of [
 ])
   copyFileSync(`${dir}/${from}`, `${dir}/${to}`);
 const realm = JSON.parse(readFileSync(dir + "/realm/pdaa-realm.json", "utf8"));
+// The bounded configuration rehearsal retains one token through two API restarts.
+// Production token lifetime remains an identity-provider policy.
+realm.accessTokenLifespan = 600;
 realm.clients[0].redirectUris = ["https://web:8443/auth/callback"];
 realm.clients[0].webOrigins = ["https://web:8443"];
 realm.clients[0].attributes["post.logout.redirect.uris"] = "https://web:8443";

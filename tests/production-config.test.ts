@@ -48,6 +48,31 @@ const fixture = (): NodeJS.ProcessEnv => ({
   OIDC_SCOPE: "openid pdaa.read",
 });
 describe("Production deployment boundary — TR-DEP-003, NFR-SEC-003/005, TR-AUTH-001", () => {
+  it("INT-ADM-001: rejects malformed or unknown group mappings without reflecting their values", () => {
+    const canary = randomBytes(32).toString("base64url");
+    for (const mapping of [
+      '{"' + canary + '":',
+      JSON.stringify({ operators: [canary] }),
+      JSON.stringify({ operators: "system_admin" }),
+      JSON.stringify(["system_admin"]),
+      "null",
+    ]) {
+      let failure: unknown;
+      try {
+        loadConfig({ ...fixture(), OIDC_GROUP_ROLE_MAP: mapping });
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toBe(
+        "Invalid OIDC group-role mapping",
+      );
+      expect(inspect(failure)).not.toContain(canary);
+    }
+    expect(
+      loadConfig({ ...fixture(), OIDC_GROUP_ROLE_MAP: "{}" }).groupRoles,
+    ).toEqual({});
+  });
   it("binds certificate identity to the configured IP instead of a TLS localhost fallback", () => {
     const tls = loadDatabaseConfig({ ...fixture(), PDAA_DB_HOST: "192.0.2.1" })
       .database.ssl;

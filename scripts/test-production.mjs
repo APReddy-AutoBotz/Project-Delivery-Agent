@@ -482,9 +482,15 @@ try {
     project,
     record,
   });
+  assert.equal(
+    record.customerProfiles.find((profile) => profile.profile === "bundled")
+      ?.identityConfiguration?.status,
+    "passed",
+  );
   checks.passed.push(
     "DEP-001: unchanged shipped bundled customer composition, empty install, operator OIDC, backup, current-release upgrade and quarantined restore",
     "DEP-002: identical application images with external PostgreSQL configured through the customer env file; install, operator access, upgrade and restore",
+    "INT-ADM-001: operator OIDC metadata and group remapping through configuration-only API recreation on the same image; one valid token loses and regains administrative access without database mutation",
   );
 } catch (error) {
   failure = error;

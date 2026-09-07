@@ -29,7 +29,7 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `1d0bcb9` contains the reviewed production boundary, executable foundation
+Main `2a9882f` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
@@ -105,6 +105,27 @@ are verified. Revert code through review; restore backups into a separate target
 with outbound disabled and the separately retained encryption key.
 
 ## Progress log
+
+- 2026-09-07: Begin INT-ADM-001 / AC-ADM-001 configuration acceptance on
+  `feature/oidc-configuration-acceptance`, following merged PR #26 (`2a9882f`).
+  Requirements: FR-ADM-001/002/003, TR-AUTH-001/003, TR-DEP-003 and NFR-SEC-001.
+  Extend the bundled customer fixture after its first grant: keep one issued token
+  in verifier memory while changing only the operator env-file group mapping and
+  recreating only the API on the identical image. Require removed roles with HTTP
+  200 identity, HTTP 403 administrative reads/writes, unchanged business/audit
+  projection and restored access. Match public OIDC metadata to operator settings.
+  Bind ordered nonsecret coordination files to run/profile/session; enforce finite
+  deadlines and verifier exit zero. Capture logs before each replacement and scan
+  probe responses. Use a ten-minute customer-fixture token lifetime for the bounded
+  restart rehearsal; production lifetime remains controlled by the customer's IdP.
+  Root owns edits/Git; independent security and QA reviews precede merge. No UI,
+  schema, dependency, connector scope, hot reload or customer activation is added.
+
+- 2026-09-07: PR #26 merged exact independently reviewed `40da638` as `2a9882f`.
+  Matching CI passed 92 unit, nine database/API, eight browser and 15 packaged
+  groups, both customer profiles and all 63 downloaded evidence files. See its
+  [review and validation record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/26#issuecomment-5565335909).
+  STORY-004/005 and release gates remain open; R0 3/5, R1 0/33.
 
 - 2026-09-07: Begin the bounded STORY-005 security-output and outbound-policy
   increment on `feature/foundation-security-boundaries`. Requirements:

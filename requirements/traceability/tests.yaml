@@ -723,13 +723,22 @@ tests:
   evidence: []
 - id: INT-ADM-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-ADM-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: An administrator can configure OIDC metadata and map an identity group to an application role without
     code changes.
-  evidence: []
+  evidence:
+  - tests/identity-configuration.test.ts
+  - tests/production-config.test.ts
+  - scripts/acceptance/customer-identity.mjs
+  - scripts/acceptance/customer-identity-host.mjs
+  - scripts/acceptance/remapping-exchange.mjs
+  - scripts/acceptance/identity-readiness.mjs
+  - scripts/acceptance/customer-host.mjs
+  - scripts/test-production.mjs
+  - docs/05-quality/OIDC_CONFIGURATION_VALIDATION.md
 - id: INT-ADM-003
   release: R1
   status: planned
