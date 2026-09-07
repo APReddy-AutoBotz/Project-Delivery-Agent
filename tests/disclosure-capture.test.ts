@@ -79,47 +79,105 @@ it("SEC-SECRET-001: host receipts must match the current run, profile, phase and
 async function observer() {
   const canary = secret();
   const check = createDisclosureCheck([canary]);
-  const context = Object.assign(new EventEmitter(), {
-    route: vi.fn(
-      async (
-        _pattern: string,
-        _handler: (route: unknown) => Promise<void>,
-      ) => {},
+  const bodies = new Map<string, () => Promise<unknown>>();
+  const session = Object.assign(new EventEmitter(), {
+    send: vi.fn(async (method: string, args?: { requestId?: string }) =>
+      method === "Fetch.getResponseBody" ? bodies.get(args!.requestId!)!() : {},
     ),
   });
   const page = Object.assign(new EventEmitter(), {
+    waitForLoadState: async () => {},
     content: async () => "<html>Public page</html>",
     evaluate: async () => ({ local: {}, session: {} }),
   });
+  let created = false;
+  const context = Object.assign(new EventEmitter(), {
+    pages: () => (created ? [page] : []),
+    serviceWorkers: () => [],
+    newCDPSession: async () => session,
+    newPage: async () => {
+      created = true;
+      context.emit("page", page);
+      return page;
+    },
+    close: async () => {
+      context.emit("closed");
+    },
+  });
   const capture = await observeBrowserDisclosure(context, base, check);
-  context.emit("page", page);
+  await capture.newPage();
+  let sequence = 0;
+  const pause = (
+    response: {
+      path?: string;
+      status?: number;
+      method?: string;
+      headers?: { name: string; value: string }[];
+      error?: string;
+      noResponse?: boolean;
+      networkId?: string;
+    },
+    body: () => Promise<unknown> = async () => ({
+      body: "public response",
+      base64Encoded: false,
+    }),
+  ) => {
+    const requestId = String(++sequence);
+    bodies.set(requestId, body);
+    session.emit("Fetch.requestPaused", {
+      requestId,
+      networkId: response.networkId,
+      request: {
+        url: base + (response.path ?? "/api/example"),
+        method: response.method ?? "GET",
+      },
+      responseStatusCode: response.noResponse
+        ? undefined
+        : (response.status ?? 200),
+      responseHeaders: response.noResponse
+        ? undefined
+        : (response.headers ?? []),
+      responseErrorReason: response.error,
+    });
+    return requestId;
+  };
   const response = (
     path: string,
     value: unknown,
     headers = {},
     broken = false,
   ) =>
-    context.emit("response", {
-      url: () => base + path,
-      status: () => 200,
-      request: () => ({ method: () => (path === tokenPath ? "POST" : "GET") }),
-      allHeaders: async () => ({
-        "content-type": "application/json",
-        ...headers,
-      }),
-      json: async () => value,
-      body: async () => {
-        if (broken) throw new Error(canary);
-        return Buffer.from(JSON.stringify(value));
+    pause(
+      {
+        path,
+        method: path === tokenPath ? "POST" : "GET",
+        headers: Object.entries({
+          "content-type": "application/json",
+          ...headers,
+        }).map(([name, value]) => ({ name, value })),
       },
-    });
+      async () => {
+        if (broken) throw new Error(canary);
+        return { body: JSON.stringify(value), base64Encoded: false };
+      },
+    );
   const tokens = {
     access_token: secret(),
     id_token: secret(),
     refresh_token: secret(),
     expires_in: 120,
   };
-  return { canary, check, context, page, capture, response, tokens };
+  return {
+    canary,
+    check,
+    context,
+    page,
+    capture,
+    response,
+    tokens,
+    pause,
+    session,
+  };
 }
 
 it("SEC-SECRET-001: browser collector detects nested console values, error stacks and token header leaks", async () => {
@@ -196,31 +254,58 @@ it("SEC-SECRET-001: browser capture requires an observed token response and comp
   ).toBe(1);
 });
 
-it("SEC-SECRET-001: response body capture begins while headers are pending", async () => {
+it("SEC-SECRET-001: original responses remain paused until delayed and newly queued bodies are captured", async () => {
   const f = await observer();
+  expect(f.session.send.mock.calls[0]).toEqual([
+    "Fetch.enable",
+    { patterns: [{ urlPattern: base + "/*", requestStage: "Response" }] },
+  ]);
   f.response(tokenPath, f.tokens);
-  let releaseHeaders!: (value: object) => void;
-  const headers = new Promise((resolve) => {
-    releaseHeaders = resolve;
-  });
-  const body = vi.fn(async () => Buffer.from("public response"));
-  f.context.emit("response", {
-    url: () => base + "/api/auth/config",
-    status: () => 200,
-    request: () => ({ method: () => "GET" }),
-    allHeaders: () => headers,
-    body,
-  });
-  expect(body).toHaveBeenCalledOnce();
-  releaseHeaders({ "content-type": "application/json" });
-  await f.capture(f.page);
+  let releaseFirst!: () => void;
+  let releaseSecond!: () => void;
+  const first = f.pause(
+    {},
+    () =>
+      new Promise((resolve) => {
+        releaseFirst = () => resolve({ body: "first", base64Encoded: false });
+      }),
+  );
+  const completion = f.capture(f.page);
+  const second = f.pause(
+    {},
+    () =>
+      new Promise((resolve) => {
+        releaseSecond = () =>
+          resolve({
+            body: Buffer.from("second").toString("base64"),
+            base64Encoded: true,
+          });
+      }),
+  );
+  const continued = (id: string) =>
+    f.session.send.mock.calls.some(
+      ([method, args]) =>
+        method === "Fetch.continueRequest" && args?.requestId === id,
+    );
+  expect(continued(first)).toBe(false);
+  expect(continued(second)).toBe(false);
+  releaseFirst();
+  await Promise.resolve();
+  expect(continued(second)).toBe(false);
+  releaseSecond();
+  await completion;
+  expect(continued(first)).toBe(true);
+  expect(continued(second)).toBe(true);
+  for (const [method, args] of f.session.send.mock.calls)
+    if (method === "Fetch.continueRequest")
+      expect(Object.keys(args!)).toEqual(["requestId"]);
   expect(
     f.check.verify(["browser-response-bodies"])["browser-response-bodies"]
-      .bytes,
-  ).toBeGreaterThan(0);
+      .captures,
+  ).toBe(2);
 });
 
-it("SEC-SECRET-001: bodyless HTTP responses retain disclosure checks on their headers", async () => {
+it("SEC-SECRET-001: bodyless and redirect responses retain duplicate-header disclosure checks", async () => {
   for (const leaked of [false, true]) {
     const f = await observer();
     f.response(tokenPath, f.tokens);
@@ -231,14 +316,21 @@ it("SEC-SECRET-001: bodyless HTTP responses retain disclosure checks on their he
       ["POST", 204],
       ["POST", 205],
       ["HEAD", 200],
+      ["GET", 304],
+      ["GET", 302],
     ] as const) {
-      f.context.emit("response", {
-        url: () => base + "/api/empty",
-        status: () => status,
-        request: () => ({ method: () => method }),
-        allHeaders: async () => ({ value: leaked ? f.canary : "public" }),
+      f.pause(
+        {
+          method,
+          status,
+          headers: [
+            { name: "Location", value: "/public" },
+            { name: "Set-Cookie", value: "public" },
+            { name: "Set-Cookie", value: leaked ? f.canary : "also-public" },
+          ],
+        },
         body,
-      });
+      );
     }
     await f.capture(f.page);
     expect(body).not.toHaveBeenCalled();
@@ -251,84 +343,127 @@ it("SEC-SECRET-001: bodyless HTTP responses retain disclosure checks on their he
         f.check.verify(["browser-response-headers"])[
           "browser-bodyless-responses"
         ].captures,
-      ).toBe(3);
+      ).toBe(5);
+  }
+  for (const status of [200, 300, 302, 404]) {
+    const f = await observer();
+    f.response(tokenPath, f.tokens);
+    f.pause({ status }, async () => ({ body: f.canary, base64Encoded: false }));
+    await f.capture(f.page);
+    expect(() => f.check.verify(["browser-response-bodies"])).toThrow(
+      /^Secret disclosure detected$/,
+    );
   }
 });
 
-it("SEC-SECRET-001: navigation waits for response capture and includes newly queued captures", async () => {
-  const f = await observer();
-  const navigate = f.context.route.mock.calls[0][1];
-  const first = {
-    request: () => ({ isNavigationRequest: () => true, url: () => base }),
-    continue: vi.fn(async () => {}),
-    abort: vi.fn(async () => {}),
-  };
-  await navigate(first);
-  expect(first.continue).toHaveBeenCalledOnce();
-  f.response(tokenPath, f.tokens);
-  let releaseFirst!: () => void;
-  let releaseSecond!: () => void;
-  const pendingBody = () =>
-    new Promise<Buffer>((resolve) => {
-      releaseFirst = () => resolve(Buffer.from("first body"));
+it("SEC-SECRET-001: provisional errors require the same native request's complete response", async () => {
+  for (const fault of [
+    "none",
+    "id",
+    "url",
+    "method",
+    "missing",
+    "body",
+    "metadata",
+    "no-id",
+    "no-error",
+  ]) {
+    const f = await observer();
+    f.response(tokenPath, f.tokens);
+    const first = f.pause({
+      path: "/asset.woff2",
+      error: fault === "no-error" ? undefined : "Failed",
+      noResponse: fault !== "metadata",
+      networkId: fault === "no-id" ? undefined : "native-request",
     });
-  f.context.emit("response", {
-    url: () => base + "/api/first",
-    status: () => 200,
-    request: () => ({ method: () => "GET" }),
-    allHeaders: async () => ({}),
-    body: pendingBody,
-  });
-  const route = { ...first, continue: vi.fn(async () => {}) };
-  const completion = navigate(route);
-  await Promise.resolve();
-  expect(route.continue).not.toHaveBeenCalled();
-  f.context.emit("response", {
-    url: () => base + "/api/second",
-    status: () => 200,
-    request: () => ({ method: () => "GET" }),
-    allHeaders: async () => ({}),
-    body: () =>
-      new Promise<Buffer>((resolve) => {
-        releaseSecond = () => resolve(Buffer.from("second body"));
-      }),
-  });
-  releaseFirst();
-  await Promise.resolve();
-  expect(route.continue).not.toHaveBeenCalled();
-  releaseSecond();
-  await completion;
-  expect(route.continue).toHaveBeenCalledOnce();
-  expect(route.abort).not.toHaveBeenCalled();
-  await f.capture(f.page);
-  expect(
-    f.check.verify(["browser-response-bodies"])["browser-response-bodies"]
-      .captures,
-  ).toBe(2);
+    f.page.waitForLoadState = async () => {
+      if (fault !== "missing")
+        f.pause(
+          {
+            path: fault === "url" ? "/other.woff2" : "/asset.woff2",
+            method: fault === "method" ? "POST" : "GET",
+            networkId: fault === "id" ? "different-request" : "native-request",
+          },
+          async () => {
+            if (fault === "body") throw new Error(f.canary);
+            return { body: "original asset", base64Encoded: false };
+          },
+        );
+    };
+    if (fault === "none") {
+      await f.capture(f.page);
+      await f.capture.close();
+      expect(
+        f.check.verify(["browser-response-bodies"])["browser-response-bodies"]
+          .captures,
+      ).toBe(1);
+      expect(
+        f.session.send.mock.calls.filter(
+          ([method, args]) => args?.requestId === first,
+        ),
+      ).toEqual([["Fetch.continueRequest", { requestId: first }]]);
+    } else {
+      await expect(f.capture(f.page)).rejects.toThrow(
+        /^Browser disclosure capture incomplete$/,
+      );
+      await expect(f.capture.close()).rejects.toThrow(
+        /^Browser disclosure capture incomplete$/,
+      );
+    }
+  }
 });
 
-it("SEC-SECRET-001: stuck capture aborts navigation and remains a failure at the final snapshot", async () => {
+it("SEC-SECRET-001: unsupported targets, transport errors and late close failures cannot pass", async () => {
+  const existing = await observer();
+  await expect(
+    observeBrowserDisclosure(existing.context, base, existing.check),
+  ).rejects.toThrow(/^Browser disclosure requires a fresh context$/);
+  for (const fault of [
+    "popup",
+    "worker",
+    "frame",
+    "serviceworker",
+    "transport",
+    "close",
+  ]) {
+    const f = await observer();
+    f.response(tokenPath, f.tokens);
+    if (fault === "popup") f.context.emit("page", new EventEmitter());
+    if (fault === "worker") f.page.emit("worker", {});
+    if (fault === "frame") f.page.emit("frameattached", {});
+    if (fault === "serviceworker") f.context.emit("serviceworker", {});
+    if (fault === "transport") f.pause({ error: "Failed" });
+    if (fault === "close") {
+      await f.capture(f.page);
+      f.context.on("closed", () => f.pause({ error: "Aborted" }));
+      await expect(f.capture.close()).rejects.toThrow(
+        /^Browser disclosure capture incomplete$/,
+      );
+    } else
+      await expect(f.capture(f.page)).rejects.toThrow(
+        /^Browser disclosure capture incomplete$/,
+      );
+  }
+});
+
+it("SEC-SECRET-001: stuck response capture fails within its deadline without continuing an unread body", async () => {
   vi.useFakeTimers();
   try {
     const f = await observer();
     f.response(tokenPath, f.tokens);
-    f.context.emit("response", {
-      url: () => base + "/api/stuck",
-      status: () => 200,
-      request: () => ({ method: () => "GET" }),
-      allHeaders: async () => ({}),
-      body: () => new Promise(() => {}),
-    });
-    const route = {
-      request: () => ({ isNavigationRequest: () => true, url: () => base }),
-      continue: vi.fn(async () => {}),
-      abort: vi.fn(async () => {}),
-    };
-    const completion = f.context.route.mock.calls[0][1](route);
+    const requestId = f.pause({}, () => new Promise(() => {}));
+    const completion = expect(f.capture(f.page)).rejects.toThrow(
+      /^Browser disclosure capture incomplete$/,
+    );
     await vi.advanceTimersByTimeAsync(10001);
     await completion;
-    expect(route.abort).toHaveBeenCalledOnce();
-    expect(route.continue).not.toHaveBeenCalled();
+    expect(
+      f.session.send.mock.calls.some(
+        ([method, args]) =>
+          ["Fetch.continueRequest", "Fetch.failRequest"].includes(method) &&
+          args?.requestId === requestId,
+      ),
+    ).toBe(false);
     await expect(f.capture(f.page)).rejects.toThrow(
       /^Browser disclosure capture incomplete$/,
     );

@@ -1167,6 +1167,7 @@ tests:
   - tests/startup-disclosure.test.ts
   - tests/disclosure.test.ts
   - tests/disclosure-capture.test.ts
+  - tests/e2e/disclosure.spec.ts
   - apps/web/src/main.tsx
   - tests/e2e/foundation.spec.ts
   - scripts/acceptance/disclosure.mjs

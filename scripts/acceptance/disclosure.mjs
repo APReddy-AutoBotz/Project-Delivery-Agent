@@ -88,9 +88,27 @@ export async function observeBrowserDisclosure(
   disclosure,
   identityOrigin = origin,
 ) {
+  if (context.pages().length || context.serviceWorkers().length)
+    throw new Error("Browser disclosure requires a fresh context");
   const pending = [];
-  const failed = { response: 0, console: 0, navigation: 0 };
+  const unresolved = new Set();
+  const failed = {
+    response: 0,
+    headers: 0,
+    body: 0,
+    continuation: 0,
+    console: 0,
+    timeout: 0,
+    targets: 0,
+  };
+  const observedPages = new Set();
+  const preparedPages = new Set();
+  context.on("page", (page) => observedPages.add(page));
+  context.on("serviceworker", () => {
+    failed.targets++;
+  });
   let tokenResponses = 0;
+  const origins = [...new Set([origin, identityOrigin])];
   const tokenUrl =
     identityOrigin + "/identity/realms/pdaa/protocol/openid-connect/token";
   const collect = (kind, task) =>
@@ -99,102 +117,84 @@ export async function observeBrowserDisclosure(
         failed[kind]++;
       }),
     );
+  const incomplete = () =>
+    new Error("Browser disclosure capture incomplete", {
+      cause: { ...failed, unresolved: unresolved.size },
+    });
+  const assertHealthy = () => {
+    if (
+      [...observedPages].some((page) => !preparedPages.has(page)) ||
+      Object.values(failed).some(Boolean)
+    )
+      throw incomplete();
+  };
+  const assertComplete = () => {
+    assertHealthy();
+    if (unresolved.size) throw incomplete();
+  };
   const drain = async () => {
-    for (let start = 0; start < pending.length; ) {
-      const end = pending.length;
-      await Promise.all(pending.slice(start, end));
-      start = end;
+    let timer;
+    try {
+      await Promise.race([
+        (async () => {
+          for (let start = 0; start < pending.length; ) {
+            const end = pending.length;
+            await Promise.all(pending.slice(start, end));
+            start = end;
+          }
+        })(),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            failed.timeout++;
+            reject(incomplete());
+          }, 10000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
     }
   };
-  // Navigation can discard even completed response bodies before Chromium's
-  // asynchronous body reader finishes. Let those reads finish in the original
-  // document before continuing its navigation. Requests still use the browser's
-  // network/TLS stack; nothing is refetched or replaced.
-  await context.route("**/*", async (route) => {
-    const request = route.request();
-    if (
-      request.isNavigationRequest() &&
-      [origin, identityOrigin].includes(new URL(request.url()).origin)
-    ) {
-      let timer;
-      try {
-        await Promise.race([
-          drain(),
-          new Promise((_, reject) => {
-            timer = setTimeout(
-              () =>
-                reject(new Error("Disclosure navigation capture timed out")),
-              10000,
-            );
-          }),
-        ]);
-        if (failed.response || failed.console)
-          throw new Error("Disclosure navigation capture incomplete");
-      } catch {
-        failed.navigation++;
-        await route.abort().catch(() => {});
-        return;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    try {
-      await route.continue();
-    } catch {
-      failed.navigation++;
-      await route.abort().catch(() => {});
-    }
-  });
-  context.on("response", (response) => {
-    const url = new URL(response.url());
-    if (![origin, identityOrigin].includes(url.origin)) return;
-    collect(
-      "response",
-      (async () => {
-        const status = response.status();
-        const method = response.request().method();
-        const hasNoBody =
-          method === "HEAD" ||
-          status === 204 ||
-          status === 205 ||
-          (status >= 300 && status < 400);
-        const isToken = url.href === tokenUrl && status === 200 && !hasNoBody;
-        // Start body capture immediately: awaiting headers first can lose a
-        // completed response when its document navigates away in the meantime.
-        const [headers, body] = await Promise.all([
-          response.allHeaders(),
-          isToken ? response.json() : hasNoBody ? undefined : response.body(),
-        ]);
-        disclosure.add("browser-response-headers", JSON.stringify(headers));
-        if (isToken) {
-          const tokens = body;
-          disclosure.checkServerSecrets(JSON.stringify(tokens));
-          const { access_token, id_token, refresh_token, ...rest } = tokens;
-          if (typeof access_token !== "string" || typeof id_token !== "string")
-            throw new Error("Expected browser credentials unavailable");
-          disclosure.addSecrets(
-            [access_token, id_token, refresh_token].filter(
-              (value) => typeof value === "string",
-            ),
-          );
-          disclosure.add("identity-token-metadata", JSON.stringify(rest));
-          tokenResponses++;
-          return;
-        }
-        // HTTP bodyless responses still expose headers, which are checked above.
-        // Chromium rejects getResponseBody for 204/205 rather than returning [].
-        if (hasNoBody) {
-          disclosure.add(
-            "browser-bodyless-responses",
-            JSON.stringify({ method, status }),
-          );
-          return;
-        }
-        disclosure.add("browser-response-bodies", body.toString("utf8"));
-      })(),
+  const capture = async (page) => {
+    await capture.settle(page);
+    assertComplete();
+    if (!preparedPages.has(page)) throw incomplete();
+    disclosure.add("browser-dom", await page.content());
+    disclosure.add(
+      "browser-storage",
+      JSON.stringify(
+        await page.evaluate(() => ({
+          local: { ...window.localStorage },
+          session: { ...window.sessionStorage },
+        })),
+      ),
     );
-  });
-  context.on("page", (page) => {
+    await drain();
+    assertComplete();
+    if (!tokenResponses)
+      throw new Error("Expected token response was not observed");
+  };
+  // Explicit test interactions must not navigate away while unrelated assets
+  // are still loading; the recorder fails if their capture is cancelled.
+  capture.settle = async (page) => {
+    assertHealthy();
+    await page.waitForLoadState("networkidle");
+    await drain();
+    assertComplete();
+  };
+  // Chromium Fetch pauses the ORIGINAL response before application JavaScript
+  // can consume it and navigate away. Continue without any request/response
+  // override: native networking, certificate validation and cookies remain active.
+  // https://chromedevtools.github.io/devtools-protocol/tot/Fetch/
+  capture.newPage = async () => {
+    const page = await context.newPage();
+    const session = await context.newCDPSession(page);
+    const provisional = new Map();
+    page.on("worker", () => {
+      failed.targets++;
+    });
+    page.on("frameattached", () => {
+      failed.targets++;
+    });
     page.on("console", (message) => {
       disclosure.add("browser-console", message.text());
       collect(
@@ -213,31 +213,146 @@ export async function observeBrowserDisclosure(
     page.on("pageerror", (error) =>
       disclosure.add("browser-errors", error.stack ?? String(error)),
     );
-  });
-  return async (page) => {
-    if (failed.navigation)
-      throw new Error("Browser disclosure capture incomplete", {
-        cause: failed,
-      });
-    // Snapshot application state before navigating away or closing the context.
-    disclosure.add("browser-dom", await page.content());
-    disclosure.add(
-      "browser-storage",
-      JSON.stringify(
-        await page.evaluate(() => ({
-          local: { ...window.localStorage },
-          session: { ...window.sessionStorage },
+    session.on("Fetch.requestPaused", (event) => {
+      collect(
+        "response",
+        (async () => {
+          let phase = "headers";
+          try {
+            const url = new URL(event.request.url);
+            if (!origins.includes(url.origin))
+              throw new Error("Unexpected disclosure response origin");
+            const status = event.responseStatusCode;
+            const method = event.request.method;
+            const headers = event.responseHeaders;
+            const identity = JSON.stringify([
+              event.networkId,
+              event.request.url,
+              method,
+            ]);
+            // Chromium can emit an error pause before the same native request
+            // later supplies its HTTP response. Continue that provisional event
+            // unchanged, but require its matching headers and body before passing.
+            // Identities stay private and are scoped to this CDP session.
+            if (
+              typeof event.responseErrorReason === "string" &&
+              event.responseErrorReason.length > 0 &&
+              status === undefined &&
+              headers === undefined &&
+              typeof event.networkId === "string" &&
+              event.networkId.length > 0 &&
+              typeof method === "string" &&
+              method.length > 0
+            ) {
+              if (!provisional.has(identity)) {
+                const record = {};
+                provisional.set(identity, record);
+                unresolved.add(record);
+              }
+              phase = "continuation";
+              await session.send("Fetch.continueRequest", {
+                requestId: event.requestId,
+              });
+              return;
+            }
+            if (
+              event.responseErrorReason ||
+              !Number.isInteger(status) ||
+              !Array.isArray(headers)
+            )
+              throw new Error("Disclosure response unavailable");
+            disclosure.add("browser-response-headers", JSON.stringify(headers));
+            const redirect =
+              [301, 302, 303, 307, 308].includes(status) &&
+              headers.some(({ name }) => name.toLowerCase() === "location");
+            const bodyless =
+              method === "HEAD" || [204, 205, 304].includes(status) || redirect;
+            if (bodyless) {
+              disclosure.add(
+                "browser-bodyless-responses",
+                JSON.stringify({ method, status }),
+              );
+            } else {
+              phase = "body";
+              const result = await session.send("Fetch.getResponseBody", {
+                requestId: event.requestId,
+              });
+              if (
+                typeof result.body !== "string" ||
+                typeof result.base64Encoded !== "boolean"
+              )
+                throw new Error("Disclosure response body unavailable");
+              const body = Buffer.from(
+                result.body,
+                result.base64Encoded ? "base64" : "utf8",
+              ).toString("utf8");
+              if (
+                url.href === tokenUrl &&
+                status === 200 &&
+                method === "POST"
+              ) {
+                disclosure.checkServerSecrets(body);
+                let tokens;
+                try {
+                  tokens = JSON.parse(body);
+                } catch {
+                  throw new Error("Expected browser credentials unavailable");
+                }
+                const { access_token, id_token, refresh_token, ...rest } =
+                  tokens;
+                if (
+                  typeof access_token !== "string" ||
+                  typeof id_token !== "string"
+                )
+                  throw new Error("Expected browser credentials unavailable");
+                disclosure.addSecrets(
+                  [access_token, id_token, refresh_token].filter(
+                    (value) => typeof value === "string",
+                  ),
+                );
+                disclosure.add("identity-token-metadata", JSON.stringify(rest));
+                tokenResponses++;
+              } else disclosure.add("browser-response-bodies", body);
+            }
+            phase = "continuation";
+            await session.send("Fetch.continueRequest", {
+              requestId: event.requestId,
+            });
+            unresolved.delete(provisional.get(identity));
+            provisional.delete(identity);
+          } catch {
+            failed[phase]++;
+            await session
+              .send("Fetch.failRequest", {
+                requestId: event.requestId,
+                errorReason: "Aborted",
+              })
+              .catch(() => {});
+            throw new Error("Disclosure response capture failed");
+          }
+        })(),
+      );
+    });
+    try {
+      await session.send("Fetch.enable", {
+        patterns: origins.map((value) => ({
+          urlPattern: value + "/*",
+          requestStage: "Response",
         })),
-      ),
-    );
-    await drain();
-    if (failed.response || failed.console || failed.navigation)
-      throw new Error("Browser disclosure capture incomplete", {
-        cause: failed,
       });
-    if (!tokenResponses)
-      throw new Error("Expected token response was not observed");
+    } catch {
+      failed.response++;
+      throw incomplete();
+    }
+    preparedPages.add(page);
+    return page;
   };
+  capture.close = async () => {
+    await context.close();
+    await drain();
+    assertComplete();
+  };
+  return capture;
 }
 
 export async function scanBrowserAssets(base, disclosure) {

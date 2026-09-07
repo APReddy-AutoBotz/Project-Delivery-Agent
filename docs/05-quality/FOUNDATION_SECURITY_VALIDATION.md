@@ -53,6 +53,7 @@ approved workflows. Do not expose the factory or policy readers as model tools.
 | Runtime log categories/fields and API/worker startup output | `tests/logging.test.ts`, `tests/startup-disclosure.test.ts`; existing fatal subprocess checks in `tests/operations.test.ts` |
 | Default shadow, malformed configuration/policy, policy revocation, shadow changes during lookup, invocation overrides and reader failure produce zero blocked adapter calls | `tests/outbound-boundary.test.ts`, existing policy cases in `tests/security.test.ts` |
 | Disclosure checker and capture helpers reject seeded leaks, incomplete captures and invalid asset evidence | `tests/disclosure.test.ts`, `tests/disclosure-capture.test.ts` |
+| Real Chromium response capture survives immediate navigation and detects injected metadata secrets without a second request | `tests/e2e/disclosure.spec.ts` |
 | Packaged browser outputs and complete inventoried static assets | `scripts/acceptance/disclosure.mjs`, `run.mjs`, `customer.mjs` |
 | Session cleanup preserves public configuration while clearing protected data; actual provider logout return is awaited | `apps/web/src/main.tsx`, `tests/e2e/foundation.spec.ts`, packaged OIDC workflows |
 | Packaged service stdout/stderr, operations diagnostics, nonsecret env and resolved Compose exports | `scripts/test-production.mjs`, `scripts/acceptance/customer-host.mjs` |
@@ -86,9 +87,9 @@ exporting browser-issued token values to the host evidence bundle.
 
 ## Validation status and acceptance limits
 
-Local validation passes all 91 unit tests, seven workspace builds, lint, typecheck,
+Local validation passes all 92 unit tests, seven workspace builds, lint, typecheck,
 architecture/OpenAPI/dependency checks, documentation validation and all 13
-documentation regressions, plus seven browser workflows. The first stream-capture attempt correctly failed
+documentation regressions, plus eight browser workflows. The first stream-capture attempt correctly failed
 because Vitest redirected console output away from the intercepted streams; the
 test now binds console methods to those streams, and the unchanged nonempty
 capture requirement passes. Two helper lint diagnostics were corrected. An initial
@@ -107,10 +108,9 @@ Corrected run `34079193910` also failed packaged capture while application and
 documentation checks passed. An isolated local reproduction confirmed the missing
 body was a completed HTTP 200 auth-configuration refetch whose document navigated
 away. The browser now retains only the public configuration during session cleanup,
-response headers and bodies begin capture concurrently, and logout tests wait for
-the actual returned main-frame document before taking a snapshot. An added helper
-regression verifies body capture starts even while headers are pending. Missing
-response bodies still fail; neither failed CI attempt is accepted evidence.
+and logout tests wait for the actual returned main-frame document before taking a
+snapshot. An initial concurrent header/body capture correction still lost responses
+in later probes. Neither failed CI attempt is accepted evidence.
 
 The corrected local OIDC probe passed logout and reached grant/revoke, then found
 Chromium's body-read error on the two HTTP 204 responses. A separate loopback
@@ -122,20 +122,68 @@ returned document's organization sign-in control to become enabled, proving its
 public configuration has loaded before the context can close.
 
 A later probe exposed the same completed-body navigation race on identity-provider
-metadata. The observer therefore holds product/fixture-identity navigation until
-pending response and console captures drain, including captures queued during the
-wait. It installs and awaits the guard before creating pages. A ten-second deadline
-aborts navigation and leaves a persistent capture failure; it never refetches or
-replaces responses or bypasses browser TLS. Unit regressions cover delayed bodies,
-newly queued captures, first navigation without a token, and a stuck capture.
-Playwright routing disables HTTP caching and guards the initial request in a
-redirect chain; later unavailable response bodies still fail the final capture.
+metadata. Pausing navigation in candidate `280503f` was also too late in a local
+probe, so that approach is superseded. The current observer uses Chromium's
+[Fetch response stage](https://chromedevtools.github.io/devtools-protocol/tot/Fetch/)
+to read original headers and bodies before the application receives the response.
+It then continues the request with no overrides. Network requests, cookies and
+browser certificate validation remain native; no response is refetched or replaced.
+
+Each fixture page is created through the recorder, which awaits setup before
+navigation. Unexpected pages, frames, workers and service workers fail this bounded
+fixture rather than silently escaping coverage. Headers retain duplicate entries.
+Only HEAD, 204/205/304 and actual redirect responses omit body capture; the latter
+require a documented redirect status plus Location, and their bodies are unavailable
+through this protocol. Missing ordinary bodies and unresolved transport errors
+fail closed.
+A ten-second capture-drain deadline leaves a persistent failure, and fixture cleanup
+closes the browser; no unread paused body is continued. A final drain/failure check
+after context closure catches late failures.
+
+Unit regressions cover delayed/newly queued bodies, duplicate-header disclosure,
+nonredirect 3xx bodies, unsupported targets, late closure failures and timeouts.
+A real Chromium regression navigates immediately after metadata, verifies one
+original request per run, passes two clean runs and detects an injected secret.
+This transport is specific to the existing Chromium acceptance suite; it does not
+establish coverage for other browser engines or worker/frame-based applications.
+
+The recorder requires a fresh context. Explicit fixture interactions wait for
+assets and pending captures before navigating; cancelled capture is still failure.
+An added settle step initially re-entered the wait after a previous timeout; the
+timeout regression caught that hang, and settlement now rejects recorded failures
+immediately. The corrected helper suite passed unchanged assertions.
+
+CI run `34081059870` for superseded `280503f` passed application checks and reached
+the external customer profile after completing bundled upgrade/restore, but failed
+at external-profile sign-in after upgrade. Documentation CI also passed. This is
+failed packaged evidence, and it does not approve the current recorder transport.
+
+An independent diagnostic then traced four no-status/no-header font error pauses
+to the same native network requests subsequently returning HTTP 200 and complete
+original bodies, with no final network failures. The recorder continues only
+explicit errors without HTTP metadata provisionally, keeping private unresolved
+records scoped to the CDP session, network ID, exact URL and method. Only capture
+of the matching eventual headers and applicable body, followed by successful
+continuation, resolves a record. Capture and closure fail if any record remains;
+errors already carrying HTTP metadata remain fatal. No resource type is exempt.
+Regressions cover matching recovery, mismatched identity, missing responses,
+missing identity/error metadata and failed body capture.
+
+The corrected local probe `pdaa-acceptance-1788754777936-c69f4c88` passed all nine
+primary TLS/OIDC/browser/worker checks using the unmodified source recorder. It
+captured 77 response header sets and 70 bodies with no unresolved requests. The
+probe used existing images with current scripts and compiled web assets mounted
+read-only, so it is functional diagnostic evidence, not immutable release evidence.
+Its uniquely named fixture and volumes were removed; the development database was
+preserved. The real Chromium navigation regression also passed.
 
 One local full-suite attempt during concurrent Docker/browser work returned empty
 output from two 15-second subprocess checks (86 passed, two failed). With the
 fixture stopped, all 88 tests then present passed with two workers and unchanged
-timeouts/assertions. After adding the bodyless-response and navigation regressions,
-the full current 91-test suite passed with two workers. Matching final-candidate
+timeouts/assertions. After adding the bodyless-response and capture regressions,
+the then-current 91-test suite passed with two workers. The final local suite now
+passes all 92 tests with two workers, including provisional-response regression.
+Matching final-candidate
 packaged validation is required and recorded on the PR.
 
 A separate local verifier probe passed three scenarios using an actual container

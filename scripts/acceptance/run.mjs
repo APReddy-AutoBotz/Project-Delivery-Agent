@@ -203,7 +203,7 @@ const browser = await chromium.launch({ args: ["--no-sandbox"] });
 try {
   const context = await browser.newContext();
   const capture = await observeBrowserDisclosure(context, base, disclosure);
-  const page = await context.newPage();
+  const page = await capture.newPage();
   let tokenResponse;
   let authorization;
   let exchangedCode;
@@ -222,11 +222,13 @@ try {
   });
   async function login(username) {
     await page.goto(base);
+    await capture.settle(page);
     await page
       .getByRole("button", { name: "Sign in with your organization" })
       .click();
     await page.locator("#username").fill(username);
     await page.locator("#password").fill(secret("login-password"));
+    await capture.settle(page);
     await page.locator("#kc-login").click();
     await page.getByRole("heading", { name: "Your projects" }).waitFor();
   }
@@ -345,7 +347,7 @@ try {
         () => identity.authenticate(tokenResponse.access_token),
         "JWKS hostname mismatch must deny identity",
       );
-      const invalidTlsPage = await context.newPage();
+      const invalidTlsPage = await capture.newPage();
       try {
         const failure = await rejected(
           () => invalidTlsPage.goto("https://gateway-alias:8443"),
@@ -368,23 +370,25 @@ try {
     },
   );
   await capture(page);
-  await context.close();
+  await capture.close();
   const operator = await browser.newContext();
   const captureOperator = await observeBrowserDisclosure(
     operator,
     base,
     disclosure,
   );
-  const op = await operator.newPage();
+  const op = await captureOperator.newPage();
   await check(
     "OIDC operator has no implicit project access; restricted DB role writes audited grants",
     async () => {
       await op.goto(base);
+      await captureOperator.settle(op);
       await op
         .getByRole("button", { name: "Sign in with your organization" })
         .click();
       await op.locator("#username").fill("operator");
       await op.locator("#password").fill(secret("login-password"));
+      await captureOperator.settle(op);
       await op.locator("#kc-login").click();
       await op.getByText("No projects are shared with this account").waitFor();
       await op.getByRole("button", { name: /Platform & access/ }).click();
@@ -405,7 +409,7 @@ try {
     },
   );
   await captureOperator(op);
-  await operator.close();
+  await captureOperator.close();
   await check(
     "SEC-SECRET-001: first-party browser responses, headers, DOM, diagnostics, storage and all inventoried assets exclude generated secrets",
     async () => {

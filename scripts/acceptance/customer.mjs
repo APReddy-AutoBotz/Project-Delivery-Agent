@@ -131,8 +131,9 @@ async function browserCheck(afterUpgrade) {
         disclosure,
         "https://identity-ingress:8443",
       );
-      const page = await context.newPage();
+      const page = await capture.newPage();
       await page.goto(base);
+      await capture.settle(page);
       await page
         .getByRole("button", { name: "Sign in with your organization" })
         .click();
@@ -140,6 +141,7 @@ async function browserCheck(afterUpgrade) {
       assert.equal(new URL(page.url()).origin, "https://identity-ingress:8443");
       await page.locator("#username").fill(name);
       await page.locator("#password").fill(secret("login-password"));
+      await capture.settle(page);
       await page.locator("#kc-login").click();
       await page.getByRole("heading", { name: "Your projects" }).waitFor();
       return { context, page, capture };
@@ -186,7 +188,7 @@ async function browserCheck(afterUpgrade) {
       }),
     ).toBeEnabled();
     await operator.capture(operator.page);
-    await operator.context.close();
+    await operator.capture.close();
     const pm = await login("pm-atlas");
     if (afterUpgrade)
       await pm.page
@@ -197,7 +199,7 @@ async function browserCheck(afterUpgrade) {
         .getByRole("button", { name: /Customer installation fixture/ })
         .waitFor();
     await pm.capture(pm.page);
-    await pm.context.close();
+    await pm.capture.close();
     await scanBrowserAssets(base, disclosure);
     save("disclosure-" + phase, {
       status: "passed",
