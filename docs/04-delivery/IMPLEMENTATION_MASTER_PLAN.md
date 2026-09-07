@@ -156,5 +156,9 @@ Report separately what is implemented locally and what is accepted/merged.
 Fixed denominators: R0 has 5 stories; R1 has 33. Completion is merged accepted
 stories divided by that denominator, not a count of files or planned tests. A
 scope change updates the approved denominator explicitly. Current accepted
-completion is R0 2/5 (40%) and R1 0/33 (0%), after acceptance of STORY-001/002
-with the exact review, CI and merged evidence in FOUNDATION_CONTRACT_VALIDATION.md.
+completion is R0 3/5 (60%) and R1 0/33 (0%), after acceptance of STORY-001/002/003
+with exact review, CI and merged evidence in FOUNDATION_CONTRACT_VALIDATION.md
+and CUSTOMER_COMPOSITION_VALIDATION.md. The conditional security/CI criterion
+record in FOUNDATION_SECURITY_ACCEPTANCE.md does not accept STORY-004/005:
+unresolved distribution evidence and the Definition of Done security assessment
+remain open. Customer-specific activation stays separate.

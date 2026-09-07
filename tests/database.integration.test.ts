@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import {
   createDatabase,
   DatabaseProjectRepository,
@@ -164,6 +165,174 @@ describe("Real database and HTTP foundation boundaries", () => {
     ).rejects.toThrow("denied");
     await repository.revokeGrant(operator, revocation, "portfolio-revoke");
     expect(await repository.listProjects(reader)).toEqual([]);
+  });
+  it("SEC-AUTH-002: isolates two same-customer portfolios through HTTP grants, query scope and revocation", async () => {
+    const portfolios = [randomUUID(), randomUUID()] as const;
+    const makeProject = (portfolioId: string, index: number) => ({
+      id: randomUUID(),
+      portfolioId,
+      code: "SCOPE-" + index,
+      name: "Synthetic portfolio " + index,
+      description: "Portfolio boundary fixture " + index,
+      reportedStatus: "UNKNOWN",
+    });
+    const projects = [
+      makeProject(portfolios[0], 0),
+      makeProject(portfolios[1], 1),
+    ] as const;
+    const scope = {
+      subject: manager.subject,
+      scopeType: "portfolio" as const,
+      scopeId: portfolios[0],
+    };
+    const allowedGrant: Grant = { ...scope, role: "leadership" };
+    const otherGrant: Grant = { ...allowedGrant, scopeId: portfolios[1] };
+    const state = async () => ({
+      grants: await db.accessGrant.findMany({ orderBy: { id: "asc" } }),
+      audits: await db.auditEvent.findMany({ orderBy: { id: "asc" } }),
+    });
+    const initial = await state();
+    const denyDetail = async (id: string, token: string, actor: Actor) => {
+      const response = await api("/projects/" + id, token);
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({
+        statusCode: 404,
+        message: "Resource unavailable",
+      });
+      expect(await repository.getProject(actor, id)).toBe(null);
+    };
+    const assertScope = async (hasPortfolio: boolean) => {
+      const expected = hasPortfolio ? [atlas, projects[0].id].sort() : [atlas];
+      const response = await api("/projects", pmToken);
+      expect(response.status).toBe(200);
+      expect(
+        (await response.json()).map((p: { id: string }) => p.id).sort(),
+      ).toEqual(expected);
+      expect(
+        (await repository.listProjects(manager)).map((p) => p.id).sort(),
+      ).toEqual(expected);
+      if (hasPortfolio) {
+        const detail = await api("/projects/" + projects[0].id, pmToken);
+        expect(detail.status).toBe(200);
+        expect(await detail.json()).toEqual(projects[0]);
+        expect(await repository.getProject(manager, projects[0].id)).toEqual(
+          projects[0],
+        );
+      } else {
+        await denyDetail(projects[0].id, pmToken, manager);
+      }
+      await denyDetail(projects[1].id, pmToken, manager);
+      const operational = await api("/projects", opToken);
+      expect(operational.status).toBe(200);
+      expect(await operational.json()).toEqual([]);
+      expect(await repository.listProjects(operator)).toEqual([]);
+      for (const project of projects)
+        await denyDetail(project.id, opToken, operator);
+    };
+    const assertAudit = async (
+      before: Awaited<ReturnType<typeof state>>,
+      response: Response,
+      event: string,
+      detail: unknown,
+    ) => {
+      expect(response.status).toBe(204);
+      expect(await response.text()).toBe("");
+      const correlationId = response.headers.get("x-request-id");
+      expect(correlationId).toMatch(/^[a-f0-9-]{36}$/);
+      const after = await state();
+      const existingIds = new Set(before.audits.map((row) => row.id));
+      expect(after.audits.filter((row) => existingIds.has(row.id))).toEqual(
+        before.audits,
+      );
+      const appended = after.audits.filter((row) => !existingIds.has(row.id));
+      expect(appended).toHaveLength(1);
+      expect(appended[0]).toMatchObject({
+        customerId,
+        actor: operator.subject,
+        event,
+        correlationId,
+        detail,
+      });
+      expect(appended[0].detail).toEqual(detail);
+      return after;
+    };
+    try {
+      await db.$transaction([
+        ...portfolios.map((id) =>
+          db.portfolio.create({
+            data: { id, customerId, name: "Synthetic authorization fixture" },
+          }),
+        ),
+        ...projects.map((project) =>
+          db.project.create({ data: { ...project, customerId } }),
+        ),
+      ]);
+      await assertScope(false);
+      expect(await state()).toEqual(initial);
+      const granted = await assertAudit(
+        initial,
+        await api("/access-grants", opToken, "POST", allowedGrant),
+        "access.granted",
+        allowedGrant,
+      );
+      expect(
+        granted.grants.filter((row) => row.scopeId !== scope.scopeId),
+      ).toEqual(initial.grants);
+      expect(
+        granted.grants.filter((row) => row.scopeId === scope.scopeId),
+      ).toEqual([expect.objectContaining({ customerId, ...allowedGrant })]);
+      await assertScope(true);
+
+      // Valid targets: expanding into B and removing A must both be denied.
+      for (const [method, body] of [
+        ["POST", otherGrant],
+        ["DELETE", scope],
+      ] as const) {
+        const denied = await api("/access-grants", pmToken, method, body);
+        expect(denied.status).toBe(403);
+        expect(await denied.json()).toEqual({
+          statusCode: 403,
+          message: "Access denied",
+        });
+        expect(await state()).toEqual(granted);
+      }
+      await expect(
+        repository.setGrant(manager, otherGrant, "portfolio-denied-grant"),
+      ).rejects.toThrow("Access administration denied");
+      expect(await state()).toEqual(granted);
+      await expect(
+        repository.revokeGrant(manager, scope, "portfolio-denied-revoke"),
+      ).rejects.toThrow("Access administration denied");
+      expect(await state()).toEqual(granted);
+      await assertScope(true);
+
+      const revoked = await assertAudit(
+        granted,
+        await api("/access-grants", opToken, "DELETE", scope),
+        "access.revoked",
+        scope,
+      );
+      expect(revoked.grants).toEqual(initial.grants);
+      await assertScope(false);
+      expect(await state()).toEqual(revoked);
+    } finally {
+      // Remove only this test's unique rows. Immutable audit evidence is retained.
+      await db.$transaction([
+        db.accessGrant.deleteMany({
+          where: {
+            customerId,
+            scopeType: "portfolio",
+            scopeId: { in: [...portfolios] },
+          },
+        }),
+        db.project.deleteMany({
+          where: { customerId, id: { in: projects.map((p) => p.id) } },
+        }),
+        db.portfolio.deleteMany({
+          where: { customerId, id: { in: [...portfolios] } },
+        }),
+      ]);
+    }
   });
   it("requires identity and denies cross-project enumeration and detail", async () => {
     expect((await api("/projects")).status).toBe(401);

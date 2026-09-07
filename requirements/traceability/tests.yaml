@@ -89,13 +89,17 @@ tests:
   - docs/05-quality/FOUNDATION_CONTRACT_VALIDATION.md
 - id: CI-MNT-002
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-MNT-002
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A PR fails CI for failed lint, typecheck, the chosen Vitest suite, build or documentation validation;
     critical implemented browser journeys run through Playwright and also gate the PR.
-  evidence: []
+  evidence:
+  - .github/workflows/foundation-validation.yml
+  - .github/workflows/documentation-validation.yml
+  - scripts/test_validate_documentation.py
+  - docs/05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md
 - id: CI-MNT-004
   release: R1
   status: planned
@@ -1092,6 +1096,7 @@ tests:
   - tests/database.integration.test.ts
   - tests/e2e/foundation.spec.ts
   - docs/05-quality/FOUNDATION_VALIDATION.md
+  - docs/05-quality/PORTFOLIO_AUTHORIZATION_VALIDATION.md
 - id: SEC-CON-001
   release: R1
   status: planned

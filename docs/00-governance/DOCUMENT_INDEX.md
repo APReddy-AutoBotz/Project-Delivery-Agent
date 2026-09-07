@@ -167,3 +167,6 @@ DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.
 - `docs/05-quality/FOUNDATION_SECURITY_VALIDATION.md`: bound outbound policy, complete disclosure capture, reviewer assignments and foundation acceptance limits.
 - `docs/05-quality/OIDC_CONFIGURATION_VALIDATION.md`: operator OIDC metadata and role-remapping acceptance on an unchanged API image.
 - `docs/05-quality/OIDC_EXPIRY_VALIDATION.md`: naturally expired OIDC token denials and real browser protected-data cleanup.
+- `docs/05-quality/PORTFOLIO_AUTHORIZATION_VALIDATION.md`: two-portfolio HTTP/repository scope, grant/revoke audit and unchanged-state denial evidence.
+
+- `docs/05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md`: conditional five-criterion decision and unresolved story-level security assessment.

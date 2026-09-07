@@ -97,9 +97,11 @@ stories:
   pull_requests:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
   - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md
+  - docs/05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md
 - id: STORY-005
   epic: EPIC-01
   title: Implement foundation security controls
@@ -132,12 +134,17 @@ stories:
   pull_requests:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/26
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28
   implementation_evidence:
   - docs/05-quality/FOUNDATION_VALIDATION.md
   - docs/05-quality/PRODUCTION_BOUNDARY_VALIDATION.md
   - docs/05-quality/FOUNDATION_SECURITY_VALIDATION.md
   - docs/05-quality/OIDC_CONFIGURATION_VALIDATION.md
   - docs/05-quality/OIDC_EXPIRY_VALIDATION.md
+  - docs/05-quality/PORTFOLIO_AUTHORIZATION_VALIDATION.md
+  - docs/05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md
 - id: STORY-006
   epic: EPIC-02
   title: Implement connector contract
