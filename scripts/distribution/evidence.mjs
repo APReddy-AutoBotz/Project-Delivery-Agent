@@ -294,6 +294,61 @@ export function requireCompleteTargets(images) {
 
 export function validateRuntimeTooling(target, sbom, policy) {
   assert(customerTargets.includes(target), "Unknown customer target");
+  if (target === "web") {
+    assert(
+      /^v\d+\.\d+\.\d+$/.test(policy.caddyVersion ?? ""),
+      "Pinned Caddy version missing",
+    );
+    assert(
+      /^go\d+\.\d+\.\d+$/.test(policy.caddyGoVersion ?? ""),
+      "Pinned Caddy Go version missing",
+    );
+    const modules = sbom.artifacts.filter((p) => p.type === "go-module");
+    const caddies = modules.filter(
+      (p) => p.name === "github.com/caddyserver/caddy/v2",
+    );
+    const runtimes = modules.filter((p) => p.name === "stdlib");
+    assert(
+      caddies.length > 0 &&
+        caddies.every(
+          (p) =>
+            p.version === policy.caddyVersion &&
+            p.metadata?.goCompiledVersion === policy.caddyGoVersion,
+        ),
+      "Expected Caddy binary/compiler absent or additional version present",
+    );
+    assert(
+      runtimes.length > 0 &&
+        runtimes.every((p) => p.version === policy.caddyGoVersion),
+      "Expected Go runtime absent or additional version present",
+    );
+    assert(
+      caddies.some((p) =>
+        p.locations?.some((l) => l.path === "/usr/bin/caddy"),
+      ),
+      "Caddy runtime entrypoint absent",
+    );
+    assert.deepEqual(
+      Object.keys(policy.caddyNotices ?? {}).sort(),
+      ["/usr/share/caddy/LICENSE", "/usr/share/caddy/go/LICENSE"],
+      "Required Caddy notice policy missing",
+    );
+    for (const [path, expected] of Object.entries(policy.caddyNotices)) {
+      assert(
+        /^[a-f0-9]{64}$/.test(expected),
+        "Pinned Caddy notice digest missing",
+      );
+      const notices = sbom.files.filter((f) => f.location.path === path);
+      assert(notices.length > 0, "Original Caddy or Go notice missing");
+      for (const notice of notices)
+        assert.equal(
+          hash(Buffer.from(notice.contents ?? "", "base64")),
+          expected,
+          "Original Caddy or Go notice differs",
+        );
+    }
+    return;
+  }
   const nodeTargets = ["api", "worker", "operations"];
   if (!nodeTargets.includes(target)) return;
   assert(

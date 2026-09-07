@@ -49,3 +49,8 @@ and is copied unchanged to `/usr/local/share/doc/node/LICENSE` in operations.
 Its exact publisher source and checksum are recorded in the foundation image
 register and enforced by the distribution runtime policy. npm/Corepack/Yarn are
 development tools and are removed from the API/worker distribution layer graph.
+
+The web image builds Caddy 2.11.4 (Apache-2.0) with Go 1.26.8 (BSD-3-Clause).
+Their original LICENSE files are retained at `/usr/share/caddy/LICENSE` and
+`/usr/share/caddy/go/LICENSE`; the distribution runtime policy verifies both
+hashes. The complete module and OS attribution review remains a release gate.

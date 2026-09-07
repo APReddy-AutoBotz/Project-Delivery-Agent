@@ -29,11 +29,21 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `519c192` contains the reviewed production boundary, executable foundation
+Main `5da7352` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
 findings were resolved in PR #16.
+
+The next bounded increment rebuilds Caddy 2.11.4 with the pinned Go 1.26.8
+toolchain while preserving its upstream module versions and served configuration.
+Copy the prepared web filesystem into a new layer graph, retain original Go/Caddy
+notices and require compiler/version/notice evidence for every runtime and layer
+copy. Validate the upstream TLS record regressions, both packaged profiles and
+the existing browser/API flows. Detailed applicability evidence remains private;
+STORY-004/005 and all distribution review gates remain open. This changes no
+database, connector scope or authorization policy. Rollback restores the previous
+development image; it does not authorize a customer release of an earlier image.
 
 ## Proposed design
 

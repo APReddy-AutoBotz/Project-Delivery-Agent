@@ -92,6 +92,34 @@ application and packaged checks remain required for the candidate.
 
 ## Remaining release gates
 
+### Web runtime toolchain increment
+
+Requirements NFR-SEC-003/010 and AC-MNT-004, tracked in Issue #5 and EXEC-003.
+The web build retains Caddy 2.11.4 and its upstream module versions, uses the
+pinned Go 1.26.8 toolchain and preserves original Caddy/Go notices. A fresh final
+layer graph excludes the replaced binary. Both scanner scopes now require every
+observed Caddy/Go copy to match the compiler/release policy and every protected
+notice to match its original hash; missing evidence is rejected.
+
+Local lint, typecheck, all 102 unit tests, all seven workspace builds, 13
+documentation regressions and documentation validation passed. The first direct
+module build reported an unknown Caddy display version; the build now supplies
+the upstream-supported version linker field and asserts its output. Actual
+module/compiler identity remains independently checked from binary metadata.
+
+The build executes upstream TLS record-limit and adjacent protocol regressions
+with a bounded timeout. These are toolchain tests, not a load test of a deployed
+service. The focused distribution suite passed 42 tests, including old extra
+runtime copies, missing compiler/module evidence, incorrect entrypoint and
+missing/substituted notices. Full candidate repository, browser and both-profile
+packaged checks remain required before merge. Their immutable image evidence
+must match this candidate; earlier-image evidence cannot satisfy this change.
+
+Detailed finding assessment is private. Remaining scanner observations and
+release review gates are not waived. No database, authorization or connector
+scope change is included. Restore the previous development image to roll back;
+customer release requires independent acceptance of the selected image.
+
 STORY-004 / CI-MNT-004 are still in progress/planned. R0 remains 3/5 and R1 0/33.
 Complete adoption/registry integrity review, OS and transitive license decisions,
 missing original notices, complete Node bundled component reconciliation, compiled

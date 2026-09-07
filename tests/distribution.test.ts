@@ -482,6 +482,103 @@ describe("runtime tooling and Node attribution", () => {
     );
   });
 });
+describe("web runtime compiler and attribution", () => {
+  const policy = {
+    caddyVersion: "v2.11.4",
+    caddyGoVersion: "go1.26.8",
+    caddyNotices: {
+      "/usr/share/caddy/LICENSE": hash("Original Caddy notice"),
+      "/usr/share/caddy/go/LICENSE": hash("Original Go notice"),
+    },
+  };
+  function runtime() {
+    return {
+      artifacts: [
+        {
+          type: "go-module",
+          name: "github.com/caddyserver/caddy/v2",
+          version: "v2.11.4",
+          metadata: { goCompiledVersion: "go1.26.8" },
+          locations: [{ path: "/usr/bin/caddy" }],
+        },
+        { type: "go-module", name: "stdlib", version: "go1.26.8" },
+      ],
+      files: [
+        {
+          location: { path: "/usr/share/caddy/LICENSE" },
+          contents: Buffer.from("Original Caddy notice").toString("base64"),
+        },
+        {
+          location: { path: "/usr/share/caddy/go/LICENSE" },
+          contents: Buffer.from("Original Go notice").toString("base64"),
+        },
+      ],
+    };
+  }
+  it("accepts the selected compiler and original notices", () => {
+    expect(() =>
+      validateRuntimeTooling("web", runtime(), policy),
+    ).not.toThrow();
+  });
+  it("rejects an old compiler in a replaced or relocated lower-layer copy", () => {
+    for (const path of ["/usr/bin/caddy", "/opt/old-caddy"]) {
+      const f = runtime();
+      f.artifacts.push({
+        ...f.artifacts[0]!,
+        metadata: { goCompiledVersion: "go1.26.3" },
+        locations: [{ path }],
+      });
+      expect(() => validateRuntimeTooling("web", f, policy)).toThrow(
+        /Caddy binary\/compiler/,
+      );
+    }
+    const f = runtime();
+    f.artifacts.push({
+      type: "go-module",
+      name: "stdlib",
+      version: "go1.26.3",
+    });
+    expect(() => validateRuntimeTooling("web", f, policy)).toThrow(
+      /Go runtime/,
+    );
+  });
+  it("rejects missing binary/compiler evidence, policy pins and original notices", () => {
+    for (const name of ["github.com/caddyserver/caddy/v2", "stdlib"]) {
+      const f = runtime();
+      f.artifacts = f.artifacts.filter((p) => p.name !== name);
+      expect(() => validateRuntimeTooling("web", f, policy)).toThrow(/absent/);
+    }
+    const f = runtime();
+    f.artifacts[0]!.locations = [{ path: "/opt/caddy" }];
+    expect(() => validateRuntimeTooling("web", f, policy)).toThrow(
+      /entrypoint/,
+    );
+    for (const key of ["caddyVersion", "caddyGoVersion", "caddyNotices"])
+      expect(() =>
+        validateRuntimeTooling("web", runtime(), {
+          ...policy,
+          [key]: undefined,
+        }),
+      ).toThrow(/missing/);
+    for (const file of runtime().files) {
+      const missing = runtime();
+      missing.files = missing.files.filter(
+        (f) => f.location.path !== file.location.path,
+      );
+      expect(() => validateRuntimeTooling("web", missing, policy)).toThrow(
+        /notice missing/,
+      );
+      const altered = runtime();
+      altered.files.find(
+        (f) => f.location.path === file.location.path,
+      )!.contents = Buffer.from("Substitute").toString("base64");
+      expect(() => validateRuntimeTooling("web", altered, policy)).toThrow(
+        /notice differs/,
+      );
+    }
+  });
+});
+
 describe("browser bundle evidence", () => {
   it("rejects missing, substituted and non-SPDX browser conversion output", () => {
     const packages = [{ name: "fixture", version: "1.0.0" }];
