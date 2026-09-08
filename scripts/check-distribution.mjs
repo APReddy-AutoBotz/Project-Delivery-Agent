@@ -8,6 +8,7 @@ import { verifyGoNoticeReports } from "./distribution/go-notices.mjs";
 import { verifyNpmNoticeReports } from "./distribution/npm-notices.mjs";
 import { verifyNodeComponentReports } from "./distribution/node-components.mjs";
 import { verifyNodeSupplementReports } from "./distribution/node-supplemental.mjs";
+import { verifyNodeResourceReports } from "./distribution/node-resources.mjs";
 const report = JSON.parse(
   readFileSync("artifacts/distribution-evidence.json", "utf8"),
 );
@@ -19,6 +20,7 @@ try {
   verifyNpmNoticeReports(join("artifacts", report.runId), report);
   verifyNodeComponentReports(join("artifacts", report.runId), report);
   verifyNodeSupplementReports(join("artifacts", report.runId), report);
+  verifyNodeResourceReports(join("artifacts", report.runId), report);
   if (
     process.argv.slice(2).length === 1 &&
     process.argv[2] === "--evidence-only"

@@ -221,3 +221,20 @@ Owner: implementation controller for source maintenance and implementation;
 legal/product review remains required for distribution. Replacement/recovery is
 a reviewed Node/source-policy update or packaging revert with fresh immutable
 acceptance. No licence choice, dependency version or connector-scope change occurs.
+
+## Observed Node native resource table, 2026-09-08
+
+The [resource policy](../../scripts/distribution/node-resources.json) records the
+existing binary's 371 string resources and one own undefined `configs` property,
+including descriptors and lossless UTF-8 sizes/digests. No dependency is adopted
+or upgraded. The collector runs a fixed bounded probe in API, worker and
+operations; independent inspection reproduced every observation. Resource bodies
+are neither evaluated nor redistributed as new source files.
+
+Punycode.js, caja, rimraf, node-fs-extra, on-exit-leak-free and sonic-boom original
+notice paths have seven candidate resource identifiers. These remain path/name
+relationships requiring source applicability review. The existing full root
+notice and supplements remain intact; no absent, executed or legally accepted
+classification follows from this probe. ncrypto and native/tool/generated-source
+membership remain unresolved. Owner and recovery remain the implementation
+controller and a reviewed evidence-policy revert with fresh validation.

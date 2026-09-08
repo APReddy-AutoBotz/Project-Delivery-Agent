@@ -1,5 +1,11 @@
 # Third-party notices — foundation development inventory
 
+The Node resource evidence policy supplements this inventory with identifiers,
+types, descriptors and UTF-8 sizes/hashes observed in the existing binary. It
+adds no new notice text, package or licence determination. Candidate relationships
+to six original notice paths remain subject to source applicability review;
+ncrypto and complete distribution acceptance remain unresolved.
+
 Published packages are used without modification. Their original license and copyright files remain in installed packages. The exact inventory and publisher references appear below; this development inventory is not a completed distributable notice bundle. Before distribution, aggregate all transitive package and container OS licenses/copyrights and review the locked dependency scan.
 
 - **@eslint/js 10.0.1** — MIT; [publisher metadata](https://registry.npmjs.org/%40eslint%2Fjs/10.0.1); source: git+https://github.com/eslint/eslint.git.

@@ -32,6 +32,10 @@ import {
   validateNodeComponentEvidence,
 } from "./distribution/node-components.mjs";
 import { validateNodeSupplementEvidence } from "./distribution/node-supplemental.mjs";
+import {
+  captureNodeResources,
+  validateNodeResourceEvidence,
+} from "./distribution/node-resources.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const canonical = join(root, "artifacts/distribution-evidence.json");
@@ -151,6 +155,10 @@ const nodeSupplementBytes = readFileSync(
   join(root, "scripts/distribution/node-supplemental.json"),
 );
 writeFileSync(join(output, "node-supplemental.json"), nodeSupplementBytes);
+const nodeResourceBytes = readFileSync(
+  join(root, "scripts/distribution/node-resources.json"),
+);
+writeFileSync(join(output, "node-resources.json"), nodeResourceBytes);
 writeFileSync(join(output, "pnpm-lock.yaml"), lockBytes);
 writeFileSync(
   join(output, "lock-inventory.json"),
@@ -158,7 +166,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 6,
+  schemaVersion: 7,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -303,6 +311,20 @@ try {
         metadataBytes,
       );
       write(`${target}.node-receipt.json`, receipt);
+      const resources = captureNodeResources({
+        target,
+        inspection,
+        sbom,
+        policyBytes: nodeResourceBytes,
+        nodePolicyBytes,
+        runId,
+        env,
+      });
+      writeFileSync(
+        join(output, `${target}.node-resources.json`),
+        resources.resourceBytes,
+      );
+      write(`${target}.resource-receipt.json`, resources.receipt);
       for (const [native, review] of [
         [sbom, image],
         [layerSbom, allLayers],
@@ -322,6 +344,16 @@ try {
           sbom: native,
           policyBytes: nodeSupplementBytes,
           nodePolicyBytes,
+        });
+        review.nodeResources = validateNodeResourceEvidence({
+          target,
+          inspection,
+          sbom: native,
+          policyBytes: nodeResourceBytes,
+          nodePolicyBytes,
+          resourceBytes: resources.resourceBytes,
+          receipt: resources.receipt,
+          runId,
         });
       }
     }

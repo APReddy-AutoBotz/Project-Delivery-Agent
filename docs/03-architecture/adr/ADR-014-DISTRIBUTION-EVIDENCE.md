@@ -102,6 +102,50 @@ Sources: [Go module cache and ZIP contract](https://go.dev/ref/mod),
 
 ## Original consequences
 
+### 2026-09-08 amendment: observed Node resource inventory
+
+Require schema 7 with the reviewed `node-resources.json` policy and three raw
+resource outputs/command receipts, making 80 required evidence files. The pinned
+Node binary exposes 371 string resources totaling 9,352,034 UTF-8 bytes and one
+own undefined `configs` entry. Preserve that non-string descriptor explicitly.
+These are observations of an internal interface on this exact binary; a future
+binary/interface change requires a newly measured and independently reviewed pin.
+
+After original image/binary/notice validation, reuse bounded nonroot, read-only,
+no-network/no-pull/no-mount execution with dropped capabilities and unique owned
+container names. Enumerate every own key with Reflect.ownKeys and inspect data
+descriptors. Reject symbols, accessors and unexpected types without invoking
+getters or evaluating resource bodies. Bound 1,024 keys, 256-character identifiers,
+8 MiB per string, 16 MiB aggregate UTF-8 data, 256 KiB stdout and 30 seconds.
+Check sizes before encoding, require lossless UTF-8 round trips before hashing,
+and retain only identifiers, kinds, descriptors, sizes and digests. No resource
+body is added to customer files or interpreted as an npm package.
+
+Collection and retained replay require every observation and exact direct JSON
+output to match the policy and command receipt, including identity, supplying
+layers and both policy hashes. Reject ambiguous/duplicate JSON tokens. Compare
+archived resource and Node policy content with independently supplied trusted
+checkout policies; an archive's own rehashed manifest cannot authorize a changed
+inventory. Syntax whitespace may differ between trusted checkouts and archives;
+the final candidate verification separately requires exact archived Git blob
+bytes. Trust in the checkout/review is distinct from release signing, which
+remains unresolved.
+
+Derive all residual original notice sections from the validated Node policy and
+captured root notice, retaining each source tuple. Six original paths have seven
+reviewed candidate resource identifiers. Label these path/name relationships as
+candidates, not upstream byte equality, execution, licensing or linked-code
+membership. Leave the other sections without an established resource mapping;
+do not call them absent from the binary. Preserve all source-only classifications
+and derive ncrypto's unresolved state from existing validated metadata. Prior
+source-inspection narratives are not converted into fresh observations.
+
+No image packaging, dependency version, application, database, permission or
+connector scope is changed. Revert the collector/policy/schema increment through
+review and fresh validation to recover. Complete original source applicability,
+licensing, vulnerability dispositions, distributed-layer review and trusted
+signing remain release gates.
+
 ### 2026-09-08 amendment: supplemental Node source notices
 
 Require schema 6 with `node-supplemental.json` added to the 72-file manifest. A
