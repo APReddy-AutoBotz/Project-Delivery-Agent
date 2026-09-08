@@ -41,6 +41,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Compiled Go source notices | [#32](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/32) | `50ffbc1` | `7c85993` |
 | Npm original notice attribution | [#33](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/33) | `ff1c301` | `6ff5c63` |
 | Node binary metadata and source coverage | [#34](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/34) | `b0a9bd2` | `5071962` |
+| Node supplemental original notices | [#35](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/35) | `174bd8d` | `43b59f8` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -167,17 +168,33 @@ Separate candidate review, all required CI, 72-file downloaded evidence checks
 and merged-main CI passed. No runtime dependency, database, permission or
 connector-scope change was included.
 
-The current supplement increment authenticates four original source files and
+PR #35 authenticates four original source files and
 packages nbytes's complete LICENSE plus 149 original SQLite attribution comments
 and their source index into the three existing Node images. Shared collection and
 retained replay bind all 150 notices to exact source pins, Node binary, image and
 supplying layers. Schema 6 retains the supplemental policy. All 68 new focused
 tests pass, including fixes from an independent precheck. Native lint, type
 checking, all 255 unit tests, seven builds, thirteen documentation regressions and
-traceability checks pass. Three diagnostic images build; final real-image checks,
-fresh immutable CI and separate review remain merge gates.
+traceability checks passed. All six diagnostic replays, separate candidate review,
+required CI, 73-file downloaded verification and merged-main CI passed.
 ncrypto and complete licensing/composition review remain unresolved. No runtime
 dependency version, database, permission or connector scope changes.
+
+The current resource increment observes 371 strings and one undefined `configs`
+entry through the pinned binary's native resource interface. Three bounded probes
+and six image/scope replays agree; an independent descriptor traversal reproduced
+every pin. Retained schema-7 evidence requires 80 files and independent checkout
+policy anchoring. The 24 residual notice sections are derived from original
+validated tuples; six path/name relationships have seven candidate resources.
+All source-membership and ncrypto uncertainty remains explicit. A precheck UTF-8
+lossiness defect was fixed. Final required native checks, immutable review, fresh
+CI and downloaded verification remain merge gates. No runtime, database,
+permission or connector-scope change is included.
+
+Native lint/typecheck, 309 unit tests including 54 new resource tests, seven
+builds, thirteen documentation regressions and traceability pass. The encoding
+fix was independently rechecked, and all six diagnostic resource replays passed
+with unchanged pins. Candidate review, CI and downloaded checks remain required.
 
 | Story | Remaining completion work |
 |---|---|

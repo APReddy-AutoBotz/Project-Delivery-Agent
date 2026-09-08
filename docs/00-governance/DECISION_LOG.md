@@ -171,3 +171,18 @@ binding and shared schema-6 collection/retained replay. ncrypto, literal root
 notice gaps and linked-source/legal applicability remain explicit review work.
 No dependency version or licence choice is made. Required validation and a
 separate immutable candidate review gate merge; distribution approval stays open.
+
+## Observed Node resource inventory, 2026-09-08
+
+Under delegated routine implementation authority, retain bounded observations of
+the exact Node binary's native resource table. Independent design review narrowed
+the scope to measured resource pins and residual sections derived from existing
+validated notices, without duplicate historical assertions. The initial experiment
+found an undefined `configs` property alongside 371 strings; preserve its exact
+descriptor rather than silently omitting it. An independent traversal reproduced
+the inventory. Add lossless UTF-8 encoding checks and trusted checkout policy
+anchoring before accepting retained observations. ADR-014 and EXEC-003 require
+all 80 files, both scopes, unchanged runtime files and full candidate validation.
+Candidate resource names do not authorize source-membership or legal conclusions.
+No dependency, notice packaging or licence choice is introduced; all release
+review gates remain open.

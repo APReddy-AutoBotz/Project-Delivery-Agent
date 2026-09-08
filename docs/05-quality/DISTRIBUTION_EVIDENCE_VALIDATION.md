@@ -3,6 +3,44 @@
 Requirements: NFR-SEC-010, NFR-MNT-004, TR-TEST-001/002; AC-MNT-004;
 OPEN_SOURCE_POLICY; STORY-004; Issue #5; ADR-014; EXEC-003.
 
+## Observed Node resource evidence, 2026-09-08
+
+The current increment records 371 string resources and one own undefined `configs`
+entry from the unchanged Node binary. All three isolated diagnostic probes agree
+on 9,352,034 UTF-8 bytes. An independent probe using a separate descriptor traversal
+matched every identifier, type, descriptor, size and digest. The initial all-string
+assumption failed safely; the undefined observation is preserved explicitly.
+
+The fixed probe enumerates all own keys, refuses symbols/accessors/unexpected
+types, checks size bounds before allocation and never evaluates resource bodies.
+Precheck found lone surrogates could collapse to replacement-character hashes;
+lossless UTF-8 round-trip validation now rejects them before hashing. Retained
+replay binds raw output and receipts to accepted images in both scopes and compares
+archived policies with independently supplied trusted checkout content. Coherently
+rewriting an archive's pins, outputs, receipts and summaries cannot authorize them.
+
+The schema-7 manifest requires 80 files. All 24 residual original notice sections
+are derived from the already validated source tuples. Seven resource identifiers
+are path/name candidates for six sections; neither observation nor an unmatched
+mapping proves source equivalence, execution, compiled membership or licensing.
+ncrypto remains unresolved. Original notice files and dependency versions remain
+unchanged. Required native checks, immutable candidate review, fresh packaged CI
+and downloaded evidence comparison remain merge gates for this increment.
+
+Native lint, type checking, all 309 unit tests (54 resource tests), seven builds,
+thirteen documentation regressions and traceability pass. The fixed probe passes
+all three diagnostic images and six scope replays without changing inventory
+pins. Separate precheck confirmed the encoding correction and policy trust
+boundaries. Final immutable review, fresh CI and downloaded checks remain required.
+
+PR #35 merged `174bd8d` as `43b59f8` after separate review, all candidate checks and
+73-file downloaded verification passed. It verified 255 unit, ten integration,
+eight browser and 17 packaged test groups with both customer profiles. Its initial
+database artifact upload failed with an intermediary HTTP403 after tests passed;
+the scoped failed-job retry succeeded. All ten accepted image/scope comparisons
+passed, accounting for notice additions and explicit generated-file hash changes.
+Its merged-main CI also passed. Complete distribution approval remains open.
+
 ## Node supplemental original notices, 2026-09-08
 
 The current increment packages original source attribution for two existing Node

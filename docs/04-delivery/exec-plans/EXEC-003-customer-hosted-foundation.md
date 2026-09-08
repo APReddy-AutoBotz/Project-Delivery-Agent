@@ -21,7 +21,45 @@ bundled pgvector availability and external database configuration; production
 file secrets, scoped OIDC code/PKCE login and provider logout; restricted database
 roles; backup/recovery; dependency/license/notices/SBOM and image-scan gates.
 
-### Current increment: Node supplemental original notices
+### Current increment: Node built-in resource evidence
+
+Under NFR-SEC-010 / AC-MNT-004, collect the exact pinned binary's native resource
+table without evaluating resource bodies or invoking accessors. The initial
+isolated experiment observed 371 string resources (9,352,034 UTF-8 bytes) and one
+own undefined `configs` entry, identically in the three diagnostic images. An
+initial all-string assumption failed safely; preserve the undefined observation
+explicitly. Enumerate every own key and descriptor, reject symbols/accessors and
+unexpected types, and bound keys, strings, aggregate bytes, output and execution.
+
+Retain reviewed identity/resource pins, three raw outputs and command receipts;
+schema 7 requires 80 evidence files. Bind each probe to the accepted image's exact
+Node binary and original notice before execution, using the existing isolated
+container controls. Shared collection and retained replay verify both scopes.
+Archive policies must match independently supplied trusted checkout policy
+content; final downloaded verification also compares exact candidate Git bytes.
+
+Derive all 24 residual notice sections from existing validated original sections,
+without adding editable historical assertions. Six notice paths have seven
+candidate resource identifiers observed by the experiment. Preserve these as
+path/name candidates, not authenticated upstream source equivalence, execution
+or linked-code membership. Keep ncrypto's state derived and unresolved. No
+additional source fetch, notice packaging, runtime dependency or application,
+database, permission or connector-scope change is needed. Rollback is a reviewed
+collector/policy/schema revert with fresh checks.
+
+Run meaningful omission/type/descriptor/byte/receipt/policy-anchor/retained-forgery
+tests, required native checks, fresh packaged CI and downloaded comparisons, then
+obtain separate immutable candidate review before merge. All release blockers
+remain open. PR #35 merged as `43b59f8` after all candidate gates passed; its
+merged-main foundation and documentation checks also passed.
+
+Native lint/typecheck, 309 unit tests (54 new resource tests), seven builds,
+thirteen documentation regressions and traceability passed. An independent
+descriptor traversal reproduced every measured pin. Precheck's lossless-encoding
+fix passed separate recheck and final three-image/six-scope replay with unchanged
+pins. Complete immutable candidate review and fresh CI/downloaded gates next.
+
+### Completed increment: Node supplemental original notices
 
 Under NFR-SEC-010 / AC-MNT-004, authenticate four immutable Node source files in a
 separate build stage. Preserve nbytes's complete original LICENSE and all 149

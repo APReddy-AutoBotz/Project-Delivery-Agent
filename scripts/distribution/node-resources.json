@@ -1,0 +1,4110 @@
+{
+  "schemaVersion": 1,
+  "reviewRequired": true,
+  "binary": {
+    "path": "/usr/local/bin/node",
+    "size": 125989464,
+    "sha256": "bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12"
+  },
+  "rootNoticeSha256": "148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5",
+  "sourceCommit": "cdc1b38d40cb567b7ad0b39c86addf830a0af0ae",
+  "snapshot": {
+    "schemaVersion": 1,
+    "version": "v24.19.0",
+    "arch": "x64",
+    "platform": "linux",
+    "execPath": "/usr/local/bin/node",
+    "entries": [
+      {
+        "id": "_http_agent",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 21871,
+        "sha256": "45bfd382a959c7107817a4f9d10dfb8c4853d382ad8bf51541c950f48e9c91b5"
+      },
+      {
+        "id": "_http_client",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 38410,
+        "sha256": "0fa540c3384ea9d512c5b541004afe52dd24ec351b3d851768aedf7a2cfee386"
+      },
+      {
+        "id": "_http_common",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 11516,
+        "sha256": "76d4cf8b96390cb8afeaafdbb9335e8ac18502a603e403fa0d42ee0ec09f4cb5"
+      },
+      {
+        "id": "_http_incoming",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 15688,
+        "sha256": "24c177fb6151c5b0131cb1658d1c9f0107b8137630b15be20401fb0f76a605c3"
+      },
+      {
+        "id": "_http_outgoing",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 36545,
+        "sha256": "559c44b487506f13adb16b8299a61ede3358c3b1a8d1cfa6ccff1b17f8d33d55"
+      },
+      {
+        "id": "_http_server",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 43615,
+        "sha256": "cefc145685c39e44b0d1cbb8731e57f9d4fbf0ab851ac63c7108c669a5fc08d9"
+      },
+      {
+        "id": "_stream_duplex",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 117,
+        "sha256": "bec46f2e0ba500ae9d886e5340479c492c033b1ad97780da8691ade02960c9fa"
+      },
+      {
+        "id": "_stream_passthrough",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 122,
+        "sha256": "ea1b93719ef47a2ad989e2ef3ee70d7e18ce816908eb06757941adc05927a8cd"
+      },
+      {
+        "id": "_stream_readable",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 119,
+        "sha256": "abaac352242fa002d4c607d3d1ab4b798b027338c9801353eba4158578913df5"
+      },
+      {
+        "id": "_stream_transform",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 120,
+        "sha256": "071799bfe39258a5a8fb54e5647ac45afde4d22f396920398c74405e8d21bea5"
+      },
+      {
+        "id": "_stream_wrap",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 186,
+        "sha256": "8f29c26fbc340c7f940c222bceaaa7e1c867181f3cd63d1228de683250e6656c"
+      },
+      {
+        "id": "_stream_writable",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 119,
+        "sha256": "683fef04233fce8dd3cb6cbb043d113c07f0ddefd8d5984c8da17eeb5dba5abb"
+      },
+      {
+        "id": "_tls_common",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 210,
+        "sha256": "45123037a915b5fd82395c58bb5d050bf366cb33bc4003a24b49841b94d5414c"
+      },
+      {
+        "id": "_tls_wrap",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 170,
+        "sha256": "815123b6e78ac81f62d296fcafa04ab6f2a953061b1f4ef22d978e403aa449b0"
+      },
+      {
+        "id": "assert",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 27510,
+        "sha256": "6f388bad36064dc1dbc5558d3c8018d9daf5d1d2f28acc1b159a93a6e468643e"
+      },
+      {
+        "id": "assert/strict",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 58,
+        "sha256": "07c94fd4322f33fb366bec83977c7aa4816802a0deb1a4ab54c1093d0c05a524"
+      },
+      {
+        "id": "async_hooks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 9013,
+        "sha256": "fa88748e8443544189029826955f0cdb7386473a0b7191956d7529a22457dff7"
+      },
+      {
+        "id": "buffer",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 42256,
+        "sha256": "0a10082cf34f780ce17c52d7f744a41b3a1354334550db4a578f87357600e59f"
+      },
+      {
+        "id": "child_process",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 29162,
+        "sha256": "df028ee287a6adad4bb69bd5daf4975311ceffe19c95c18fdc9f0662ea32ef68"
+      },
+      {
+        "id": "cluster",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1376,
+        "sha256": "5adcd8b0f12c3375027e10e67a5d4ed6fbb9d454805dda3065fdc060efc9d35f"
+      },
+      {
+        "id": "configs",
+        "kind": "undefined",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        }
+      },
+      {
+        "id": "console",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1202,
+        "sha256": "5a90c73a304c10ef51adf6c82e25b757f567eaff5e007093a2ca4fe05c309044"
+      },
+      {
+        "id": "constants",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1713,
+        "sha256": "91c9af0602f8f474055e7d87d3138daa18d0cd2912c93940687d9db0af696f9a"
+      },
+      {
+        "id": "crypto",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8719,
+        "sha256": "5398618275f5d575ffe26329a80aab5920f060c58856aaccb84b995a1748bcc8"
+      },
+      {
+        "id": "dgram",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 34063,
+        "sha256": "666c529ec4eecc173f14736a487301730fba1a838de1f76484de02cd77038098"
+      },
+      {
+        "id": "diagnostics_channel",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 11043,
+        "sha256": "d26df2e24a591389675b9e09404793497251e6677f71e6eac7c53b6d34898d28"
+      },
+      {
+        "id": "dns",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 9448,
+        "sha256": "f1ffb2166e148ea229d56100a16db5f97afe4377b5a528a23a10569827bbbe9a"
+      },
+      {
+        "id": "dns/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 66,
+        "sha256": "d95ebe014ed0ef8fd9004935545903944589345bb13e0e52d849bd50e15fc4a8"
+      },
+      {
+        "id": "domain",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 16724,
+        "sha256": "6d48d9842912ac9e30eabceece4a18c5529690e68c84d717b84f4cc95f8371d7"
+      },
+      {
+        "id": "events",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 36115,
+        "sha256": "00b82a669fd6299ea5f3916473eb922a74018f96612b290024fffe399580f2c1"
+      },
+      {
+        "id": "fs",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 90251,
+        "sha256": "3bc50106d3d35dd4dd34faaa2086d0df72f9182c5f6c25225094dbbd34f691cf"
+      },
+      {
+        "id": "fs/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 73,
+        "sha256": "f18e640c98afa9c2cac0541e7d281fd9ec65a802bd396eca6a3afb0a34480d8e"
+      },
+      {
+        "id": "http",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8274,
+        "sha256": "4e8f6347631eb73481e6bd11b26a53c4bd89b3cff42a4fed2eac7e8d48e6293e"
+      },
+      {
+        "id": "http2",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 520,
+        "sha256": "1cd29a174f5780cb561628bf187b387f8babad06ae581908f7e472e597db7784"
+      },
+      {
+        "id": "https",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 22642,
+        "sha256": "7ae6e70c63d3b9540438ddd4ba599f8b804443cd6231d5a6ca9fc31e1b82994b"
+      },
+      {
+        "id": "inspector",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7308,
+        "sha256": "0b967712491f7ce3330529c5dd64deac8c91a7b1c894628258e1e32225e73d39"
+      },
+      {
+        "id": "inspector/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 267,
+        "sha256": "df5c05b3b8912991d6312b55549e45fe5b3d719656b626b9c106a9e01c5f21c2"
+      },
+      {
+        "id": "internal/abort_controller",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 17953,
+        "sha256": "3302a512a8882723e4cb756113ed53f2f24216d1a16c187d33e3ba663f236cbc"
+      },
+      {
+        "id": "internal/assert",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 445,
+        "sha256": "03940c9b646255b631d3a95cf2a9ad156d587db8b0ac223d1a87f3fd5531a807"
+      },
+      {
+        "id": "internal/assert/assertion_error",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 14267,
+        "sha256": "41ebb0538f7707b144042ea4ac1085db1268751f8a727760f09fb06d720e6ba4"
+      },
+      {
+        "id": "internal/assert/calltracker",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3452,
+        "sha256": "b73a7f5296ed47e22ca20f28d03c2aaa3f0a2f53c295e35c20f8a337391bf9ba"
+      },
+      {
+        "id": "internal/assert/myers_diff",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5361,
+        "sha256": "811f14c9c9f0a85b39cc2925dc351f9ce6d0ce0f4e0426802c72e5bf0d905ea6"
+      },
+      {
+        "id": "internal/assert/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2414,
+        "sha256": "ea5b811f58b5d6ee922bd8aaa9f2bec0826b0ba04d1f929eddbfe0ba1224f596"
+      },
+      {
+        "id": "internal/async_context_frame",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1571,
+        "sha256": "7860efa14c0ef1e0ca7a230b4c52b91a79cf186ab6b9816d8c38665fd55a27cf"
+      },
+      {
+        "id": "internal/async_hooks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 20527,
+        "sha256": "08a5d05e584c48a6f51edd61e1e6cb117906d763e521e4b8dc2c7227462bbdca"
+      },
+      {
+        "id": "internal/async_local_storage/async_context_frame",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1736,
+        "sha256": "6786d7c61fd97c37405744413c7e0f605cafb33627f6b76b592840f1d2422764"
+      },
+      {
+        "id": "internal/async_local_storage/async_hooks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3430,
+        "sha256": "eea3319577b1d10267b19d0668b54cf5ad4d4d986050b640035cdd98f69b7d15"
+      },
+      {
+        "id": "internal/blob",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 14470,
+        "sha256": "d609c6919b357bdbf1256ae4a1e242e7ef65295dfde0c7cdddf99e25dacb7df2"
+      },
+      {
+        "id": "internal/blocklist",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8358,
+        "sha256": "f58284eedbadf7949c84371592ba4352815cf873d51c71341295e1072c257524"
+      },
+      {
+        "id": "internal/bootstrap/node",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 16158,
+        "sha256": "ccca20c9ef99635d61e8506153a449ecea9eebfedea0ad045dfe650fd5b5b34d"
+      },
+      {
+        "id": "internal/bootstrap/realm",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 15448,
+        "sha256": "6b19b7e820c099e28748019277b1cfdcdf2f1167c4f937f2645072764d2ac421"
+      },
+      {
+        "id": "internal/bootstrap/shadow_realm",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 579,
+        "sha256": "4301acd3b518be9687aa17b289e6dc7d1df8461d0b41d3738e65188ff450e804"
+      },
+      {
+        "id": "internal/bootstrap/switches/does_not_own_process_state",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1285,
+        "sha256": "3cc0d582c196f255992cd6733eafc9a30b0b27b176b1aaf811e416a4cb482800"
+      },
+      {
+        "id": "internal/bootstrap/switches/does_own_process_state",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3835,
+        "sha256": "eab185e4a26a807d21da8f3addba046b7a91e5ba2ca0bba86ef062663dd6f4aa"
+      },
+      {
+        "id": "internal/bootstrap/switches/is_main_thread",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8734,
+        "sha256": "e1734b3862ccf9c3232be7a65ab6add539ef045b07908cb2753989165947a74c"
+      },
+      {
+        "id": "internal/bootstrap/switches/is_not_main_thread",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1410,
+        "sha256": "b1aa7ddaa27e5fcdbb63ac453ce6ba6553fc02296335737d391fed847b7853b4"
+      },
+      {
+        "id": "internal/bootstrap/web/exposed-wildcard",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3120,
+        "sha256": "6f32ba99191553d3fc5eeaacdca74ca498da695ab6ab1d942ecaa653be6fb675"
+      },
+      {
+        "id": "internal/bootstrap/web/exposed-window-or-worker",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4553,
+        "sha256": "ad6a968e4b6f6b117f1e6666e91926afc57426f9c86771df98d81d1bfbfbe97f"
+      },
+      {
+        "id": "internal/buffer",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 33183,
+        "sha256": "ce1f2b80ecaf7f4d8ef3ff5d40e77e48c4413760e1a743c8c1b24cabfc1c25d8"
+      },
+      {
+        "id": "internal/child_process",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 32777,
+        "sha256": "ace05809adf0d02482984f6b9fb8418b3c788df2d8fb8fec3527bfcfd7465d2f"
+      },
+      {
+        "id": "internal/child_process/serialization",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4377,
+        "sha256": "659ae952321f3d02935accb9140bf938824e7886ec0c14fa39b64fb1dc23d2e7"
+      },
+      {
+        "id": "internal/cli_table",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2887,
+        "sha256": "2fe1a0ac73f6101f581a70e266ba72c6a45d3260ee0d0dec024d01ee398525ca"
+      },
+      {
+        "id": "internal/cluster/child",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8103,
+        "sha256": "395a65b45074029b5a9423202fb5d66d305ae54824748d49005d883288ced062"
+      },
+      {
+        "id": "internal/cluster/primary",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 10330,
+        "sha256": "bf8ec4ef724b4f6ba4d5363252ec9ff841a0e04e275b364f20e3ce7d19b325dd"
+      },
+      {
+        "id": "internal/cluster/round_robin_handle",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3543,
+        "sha256": "72386f38fd655d9dd2002081fb683a6b57a6ef9c9970ff3ccce41a635be15577"
+      },
+      {
+        "id": "internal/cluster/shared_handle",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1197,
+        "sha256": "0b749fdcb2fe20a01fe941ca48a926af3a63ab5f1928c4b91b9e99eff32ef7e5"
+      },
+      {
+        "id": "internal/cluster/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1054,
+        "sha256": "2bf8ceeb2725e403de7036c5c50c1e51f3cf7b83c52a765f2224f1484f86a495"
+      },
+      {
+        "id": "internal/cluster/worker",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1409,
+        "sha256": "b2f541fa9db2bc0c4c182b9253383c5459aaac2bb4d19a7baa11df94ea5ee044"
+      },
+      {
+        "id": "internal/console/constructor",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 21776,
+        "sha256": "6cdad6113815cecbe8c914af86835499dbf2b3bbd617babec9e24af779c8aeaa"
+      },
+      {
+        "id": "internal/console/global",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1880,
+        "sha256": "3822573834e98586cf342c37ff92e0b03eeefdb859e15f722e324b062ff04a0e"
+      },
+      {
+        "id": "internal/constants",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1583,
+        "sha256": "8c4c12bb17f4b106760be5fe77e8d7febc9b104d9dcd97402c332f64d6619440"
+      },
+      {
+        "id": "internal/crypto/aes",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6483,
+        "sha256": "a826e542b4afa3990ddb34efa3d54092054ac6122d8f2c56eefbdef79bf63316"
+      },
+      {
+        "id": "internal/crypto/argon2",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6287,
+        "sha256": "438980141317dc5676d10d12b11068e41f35797e7f18a96daf96b7a693fcce27"
+      },
+      {
+        "id": "internal/crypto/certificate",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1546,
+        "sha256": "c9c1463f93a1dcff2546cf8ec7dee8d08a5f457a51bd1fa60f1e63d2467c3753"
+      },
+      {
+        "id": "internal/crypto/cfrg",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5898,
+        "sha256": "35fb0dee76ab7711330c27a76358ed1bdc82915ab7d265308af5e4617ef86e3c"
+      },
+      {
+        "id": "internal/crypto/chacha20_poly1305",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2259,
+        "sha256": "2bbaa72d0e9bca6aabc9423baa4266653a95f422e50dfb8f37c2032256b44df4"
+      },
+      {
+        "id": "internal/crypto/cipher",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8802,
+        "sha256": "01fe70ec6e0dbd58cc56ce5e1c3b2fae95787b3359eb370c193145ca0f347cd2"
+      },
+      {
+        "id": "internal/crypto/diffiehellman",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 11385,
+        "sha256": "78b02568434976088420337ed388ec2b7276fabf3a1f7c530103501fe1c7c80c"
+      },
+      {
+        "id": "internal/crypto/ec",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7212,
+        "sha256": "539baa58595f308f05c17e925f19dd4b3f14d0decdc4b8ac99ffbd0bd5791c9c"
+      },
+      {
+        "id": "internal/crypto/hash",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 9232,
+        "sha256": "11f6fe61bdfae7f424c18724e304dfb1895e254258432f12fa6d33dc4907d854"
+      },
+      {
+        "id": "internal/crypto/hashnames",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2814,
+        "sha256": "ed7278f15c582de1d17ea6e9d71fdeb2b4340dc2884a747452aa3d8af327a7b4"
+      },
+      {
+        "id": "internal/crypto/hkdf",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3427,
+        "sha256": "a9e974e76c8c3f20f6ba6002a0190906cb1754fcdc9bbc8f46ea91c267f0a02e"
+      },
+      {
+        "id": "internal/crypto/kem",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2460,
+        "sha256": "66bcc81f3b1784b79850053a860d9350ee240abea0bef858c0e800669f855fd1"
+      },
+      {
+        "id": "internal/crypto/keygen",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12266,
+        "sha256": "e6ad8c0fc882c53abe402d883776ed550093d336bb358ff2bf75f4b730041a6b"
+      },
+      {
+        "id": "internal/crypto/keys",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 39748,
+        "sha256": "3f5836dbb49400b530cee3b15f60b7e0e4651469d8220671461312323489e915"
+      },
+      {
+        "id": "internal/crypto/mac",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4508,
+        "sha256": "c1788054601029960fca37f3bdb84f6ed69d3e54259b52ba3e8b32df8f106c37"
+      },
+      {
+        "id": "internal/crypto/ml_dsa",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6151,
+        "sha256": "0c554ea9d47129e505a33fe3c39cd6170f899dcb99beb954192679c8af818a52"
+      },
+      {
+        "id": "internal/crypto/ml_kem",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6137,
+        "sha256": "93825c90e7084b1c9436eca9bf3359ada69255efead6ab76af70d04708d57814"
+      },
+      {
+        "id": "internal/crypto/pbkdf2",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2926,
+        "sha256": "3740e4460d6c88315e6e423159e29ad66f4843700d173c3715705f671c976e2d"
+      },
+      {
+        "id": "internal/crypto/random",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 17775,
+        "sha256": "c38bb04ee73a711945095b5393d1598372b4b8be6f39a572582d0aea9e7d2e8b"
+      },
+      {
+        "id": "internal/crypto/rsa",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7537,
+        "sha256": "33b46b8195144c245470879b21d7edd3c310ea3ac64796889a2ce42db8eb4c27"
+      },
+      {
+        "id": "internal/crypto/scrypt",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3389,
+        "sha256": "f590103014a0fa582e9d860bd2526ce797bd51406d454f8d8a6fee38f3c0646c"
+      },
+      {
+        "id": "internal/crypto/sig",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7695,
+        "sha256": "2a5598f37a57751756c2bbbc2273a2f563e3cd29684b3e60dda7357be188d474"
+      },
+      {
+        "id": "internal/crypto/util",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 29438,
+        "sha256": "49947d3140455b078c881bfc0f3027119564e49e83ead85eba4868070756b59b"
+      },
+      {
+        "id": "internal/crypto/webcrypto",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 57026,
+        "sha256": "466b4543661af1fe8f0e369391e743a0a8c9de1b1e81252e4e384ddb72a4f2ba"
+      },
+      {
+        "id": "internal/crypto/webcrypto_util",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7421,
+        "sha256": "2ab3a5e1a92b7211d5b44ce9dfd6dcd776855d4172052f36465a90b508c5e9c6"
+      },
+      {
+        "id": "internal/crypto/webidl",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 21007,
+        "sha256": "3bdaa42be192d89404d782cf5ba5e472dce6e4ec28e30c45bb91ca98a40f4ae2"
+      },
+      {
+        "id": "internal/crypto/x509",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 11225,
+        "sha256": "eb8831ace2f2c5f7f4e06ba5ad0e964d5991b3b40b6cf135166c89585d6dd00d"
+      },
+      {
+        "id": "internal/data_url",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 10461,
+        "sha256": "8f6158d827130c2edbf8cf6d027fd622b1346b847ff4eb4276beb733bc499217"
+      },
+      {
+        "id": "internal/debugger/inspect",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 9845,
+        "sha256": "633ea10453236607050df7d3ceb959eac9c8c40596d8da05aff784b816939176"
+      },
+      {
+        "id": "internal/debugger/inspect_client",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 10129,
+        "sha256": "b63e0b2522e3e631c0a197cdd2a9de9960728340db8bb00ad93ce6fd23813313"
+      },
+      {
+        "id": "internal/debugger/inspect_helpers",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6594,
+        "sha256": "65cbeede2bcb10a751b15136bd3a20feca9c0d924a37ab07f316d2516ca38af3"
+      },
+      {
+        "id": "internal/debugger/inspect_probe",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 37598,
+        "sha256": "535ad356fa3d1b117f3a6ae303963a7f8e124d029dc623cebd165e24df39292c"
+      },
+      {
+        "id": "internal/debugger/inspect_repl",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 37865,
+        "sha256": "2de7192c83d3f7b825efaf188f3cbd15771f242b5af6f9fd6c4e351b8d9933ce"
+      },
+      {
+        "id": "internal/deps/acorn/acorn-walk/dist/walk",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 16739,
+        "sha256": "1aa9615d8ea06e2126a21a4c21eb7b8b97a69e5eda256f06d2c48834a57cbf0e"
+      },
+      {
+        "id": "internal/deps/acorn/acorn/dist/acorn",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 244682,
+        "sha256": "b373ccd10e9deb63654289f73216eeefcaf0405d9ee24289aabf596b91b4c318"
+      },
+      {
+        "id": "internal/deps/amaro/dist/index",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3796290,
+        "sha256": "d2d2209e9144a92b538d7394815fac36c7bfd710310cee3321d702229c5ddea5"
+      },
+      {
+        "id": "internal/deps/minimatch/index",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 65295,
+        "sha256": "23f1e425aa0813670574fe2c0241f591ef5463aacf2a23e3284654a49245fd4c"
+      },
+      {
+        "id": "internal/deps/undici/undici",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 758136,
+        "sha256": "19e00833036e7d25f20da1bc70dd4b19dd3081c051bfc9eea8f70d026534cad4"
+      },
+      {
+        "id": "internal/deps/v8/tools/arguments",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2496,
+        "sha256": "8e747f0935c3a3aac1dfdd2f4f4e0ec86321cd0e49bf42853af10af809c3f5b7"
+      },
+      {
+        "id": "internal/deps/v8/tools/codemap",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 9843,
+        "sha256": "c1d8d061bba844fd79d96a9dd744c24e2fb0472aeab7a55a1ce9ef32a53ee5d6"
+      },
+      {
+        "id": "internal/deps/v8/tools/consarray",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3233,
+        "sha256": "a94a4970c1e03f9a4bdf72125c28dceb469fe74e649d93547d91b64ec01260bb"
+      },
+      {
+        "id": "internal/deps/v8/tools/csvparser",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3862,
+        "sha256": "1954003ea08cfd1081574e92d0b63ba3c01dd891940b008f1b9f5f6cabeac822"
+      },
+      {
+        "id": "internal/deps/v8/tools/logreader",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8730,
+        "sha256": "a3fdb70b2cc1146387895e9b0d386d5819b7e63aae658a7e287f3be58e31d7ec"
+      },
+      {
+        "id": "internal/deps/v8/tools/profile",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 41181,
+        "sha256": "c719c90edf99d9e6821fe73fb51ed60680d2a4aa6948493455055c3f7baf6e8b"
+      },
+      {
+        "id": "internal/deps/v8/tools/profile_view",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6362,
+        "sha256": "4301c54c81794bb5cfefd6b966ec9fbedf7b484d106809fd8052c48785ef7084"
+      },
+      {
+        "id": "internal/deps/v8/tools/sourcemap",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 13700,
+        "sha256": "7abe6df6e21fadcccb849045c588b29ab2948c3e95aab7700f608d46b7122dee"
+      },
+      {
+        "id": "internal/deps/v8/tools/splaytree",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8859,
+        "sha256": "bf6d452df4e1737a6417adfcef342cf7da373699ca082012c87a0dd263a1b9fe"
+      },
+      {
+        "id": "internal/deps/v8/tools/tickprocessor",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 36856,
+        "sha256": "3525ca9fd32ade0489ac0945fff8ae10ccaaefd8a88c64d80b739384b987d2b3"
+      },
+      {
+        "id": "internal/deps/v8/tools/tickprocessor-driver",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2008,
+        "sha256": "5a9cb483519c05faa902f6bfc15282ae26ee4e609e076119be9b6eda7014aa92"
+      },
+      {
+        "id": "internal/dgram",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2243,
+        "sha256": "ebfaa844cc0363c61468c8a7af43aec2dfcbb1479334d97295f364e46d28c8d9"
+      },
+      {
+        "id": "internal/dns/callback_resolver",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2791,
+        "sha256": "40546f29bdb814a2e5079eb94e424c31acda1a66adf74336333da1b2508c7480"
+      },
+      {
+        "id": "internal/dns/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 10605,
+        "sha256": "fe4d4381023ff65041ac18cbf42711de6454714fa7473a9ff1f5f99f73e5872d"
+      },
+      {
+        "id": "internal/dns/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 10191,
+        "sha256": "1fc54051638bc0746304416b3d7528116a6fd39dd5a375b1fa28ae5217d835ea"
+      },
+      {
+        "id": "internal/encoding",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 18147,
+        "sha256": "569b962eccc86b00a2948e452a324f5db1c01a15ef8a9164ec11c1005819ed70"
+      },
+      {
+        "id": "internal/encoding/single-byte",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 13577,
+        "sha256": "15fcd72cb67129bfcb019ea1f36a4127269291c1aaa42dbb0245187c71c82a5b"
+      },
+      {
+        "id": "internal/encoding/util",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3059,
+        "sha256": "d2b4b86ac88c150a3cd099419287381f3efffd5650de553ec0e2637eb98b9b07"
+      },
+      {
+        "id": "internal/error_serdes",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6023,
+        "sha256": "ddea3fc5a79eefd670fa1f0810efc86fa1169e3efcd8661ca26edd7666233849"
+      },
+      {
+        "id": "internal/errors",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 70520,
+        "sha256": "305e3de72f2927cf20ef1f15a11bdd963375a2d9960bbf42544bba9875827d37"
+      },
+      {
+        "id": "internal/errors/error_source",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5359,
+        "sha256": "ba84ebd73ab2ff0460036cf86591773c5fb05f86abce8396be0399694a77236f"
+      },
+      {
+        "id": "internal/event_target",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 32787,
+        "sha256": "0b32915b2dcae0570966075f329a2aa650cc51f6bf68a6fb96303fa7f245093a"
+      },
+      {
+        "id": "internal/events/abort_listener",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1427,
+        "sha256": "914195a824f3585626ebffdc0accfbd9a40f3ddec8dd03ab746949d650ee3fb8"
+      },
+      {
+        "id": "internal/events/symbols",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 147,
+        "sha256": "eff49f22c59c0d97da42fe6834dcc8a482b4892b701185baed81050270e441e3"
+      },
+      {
+        "id": "internal/file",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3008,
+        "sha256": "a6935dd6037ce604b5075c3f7dbe98000ae2d65e6fa589af36267ff40f0cdd09"
+      },
+      {
+        "id": "internal/fixed_queue",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4486,
+        "sha256": "7835f56dd55679da79eb676af0daa57fd23a87e811a2fce709965a83311bb74c"
+      },
+      {
+        "id": "internal/freelist",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 476,
+        "sha256": "86011a0ec68a26f52a139cde807c3de703c240d5f721558b92d647562ee92af2"
+      },
+      {
+        "id": "internal/freeze_intrinsics",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 15428,
+        "sha256": "144d288f640c3e441c3321a23c702a371e87ded01e762813d15098b2b9487045"
+      },
+      {
+        "id": "internal/fs/cp/cp",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 11066,
+        "sha256": "1519e09b5129cc66f6eae0448e9e860c9cc9ae83dcde721efb7f818e4324a196"
+      },
+      {
+        "id": "internal/fs/cp/cp-sync",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7031,
+        "sha256": "cfa9592d9d11b1791282373a1de86d422ec4562203e7edf5b5a72abcc979dfc6"
+      },
+      {
+        "id": "internal/fs/dir",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8190,
+        "sha256": "4ca7e25d1cd8703a75159937d6886bfeb50034914e989ce61cf01d1eb4f0c36c"
+      },
+      {
+        "id": "internal/fs/glob",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 31395,
+        "sha256": "17c1d082f351da05c92c4efe6a6119cea8c88d22badd381986101a81efd82da8"
+      },
+      {
+        "id": "internal/fs/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 36749,
+        "sha256": "13e788399ddc3b2caa2778a726841d33a5587d74631d854da4846ba666e6607b"
+      },
+      {
+        "id": "internal/fs/read/context",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4647,
+        "sha256": "1745213104ec0784ab518053d3b6373ca3bbeef493da1c470132f69e0f030a4b"
+      },
+      {
+        "id": "internal/fs/recursive_watch",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7983,
+        "sha256": "eadf213663a69df4ab9c57505457d0d6e486f3154513497373c2c93d62ed00da"
+      },
+      {
+        "id": "internal/fs/rimraf",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4076,
+        "sha256": "6428105c4a824a4d757ac6d298464e7814d657cc1ccc3a14dab494c663250035"
+      },
+      {
+        "id": "internal/fs/streams",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 15565,
+        "sha256": "f43ccd6f33688e4fe585428dba8d9b47e8f5e95358dbffe850c998e09ed4b78e"
+      },
+      {
+        "id": "internal/fs/sync_write_stream",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1101,
+        "sha256": "297bc092a46bcb314c19274300ac5acfaaf379ce99d28dfe17848e1091730a5a"
+      },
+      {
+        "id": "internal/fs/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 28625,
+        "sha256": "f4db2e1dc91477d5859e944c92c9df74166716b09a6596a003154f5a0ade0954"
+      },
+      {
+        "id": "internal/fs/watchers",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 14597,
+        "sha256": "1e56ebb425c662e48cbccc4338995b2076bd6892ff07e539fb3cade491cd3e6a"
+      },
+      {
+        "id": "internal/heap_utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2459,
+        "sha256": "da187e8e9f2833160b9168f26c2fd6a93ccae91e8dd5f0f6cf78fe590e328cfb"
+      },
+      {
+        "id": "internal/histogram",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8498,
+        "sha256": "f58d668e628819bbf078690ac3c14a4c7250c530df6c1b6a41d1df97b1d2ce8d"
+      },
+      {
+        "id": "internal/http",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 9445,
+        "sha256": "d8ab1e14124c261de26ae7bb23a5e8a1785f8eeee280673edd93aeec31f748d6"
+      },
+      {
+        "id": "internal/http2/compat",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 24421,
+        "sha256": "447f1d80a0d43f3399fc744941ca174a3206a3b6e2d00d387ec2b6283d7fbdfc"
+      },
+      {
+        "id": "internal/http2/core",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 118072,
+        "sha256": "31ddb447c69a906be3f49d3aef7d35ff29ed7dddd466de38c98c34d531423318"
+      },
+      {
+        "id": "internal/http2/util",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 33388,
+        "sha256": "b6ede34b800bfe3d17717d49d3036b2bacd967f19c1a2073c75a98558e73c5c0"
+      },
+      {
+        "id": "internal/inspector/network",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2165,
+        "sha256": "014138ec8911423e6101663521c201aed808b7a1ec462856d07fcd215c7d7e07"
+      },
+      {
+        "id": "internal/inspector/network_http",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4899,
+        "sha256": "90de5cec841ef43d1de016f4026c2b0bb6670e363561a36c8f301432f56af282"
+      },
+      {
+        "id": "internal/inspector/network_http2",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7878,
+        "sha256": "990dfb541dfa780db30f0244f3d5c7ceec95aef904efd13dd867db8fb14184f0"
+      },
+      {
+        "id": "internal/inspector/network_resources",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 820,
+        "sha256": "b78a13995af931427a6a7354339f59f8cd1bc919e442b568a2d0aa6be3981532"
+      },
+      {
+        "id": "internal/inspector/network_undici",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7774,
+        "sha256": "52f74b64549fd289c123756fd58315f4a492d73b9d613acc668ba42dd82bbfa1"
+      },
+      {
+        "id": "internal/inspector/webstorage",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2335,
+        "sha256": "34a5fff1823d9da82cbc87b307a49e8a866f037f95cf210674a39abfc37ae476"
+      },
+      {
+        "id": "internal/inspector_async_hook",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1645,
+        "sha256": "8d7bf65637a0415f9dcdc243cc2e26242b60a583b77b00df2a490e6eb8bc6694"
+      },
+      {
+        "id": "internal/inspector_network_tracking",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 444,
+        "sha256": "ec92dab0f854ca7bb3104e928e789a0a2f7f8bf9be1c4f18a5cbedfddff7bf56"
+      },
+      {
+        "id": "internal/js_stream_socket",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8580,
+        "sha256": "8b212982af95f9a373b284830d9283ff919227bc7c1f5a82283656173b94afe5"
+      },
+      {
+        "id": "internal/legacy/processbinding",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1124,
+        "sha256": "c3b0171bcdfa6784fa0d316383a72192e68041cf1a00c678d902ccbb0785dbea"
+      },
+      {
+        "id": "internal/linkedlist",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1128,
+        "sha256": "71560ae7794bfaff7dd2613dd12b65a5cfd3fe5fef459638acc5ea38e2273cec"
+      },
+      {
+        "id": "internal/locks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 10284,
+        "sha256": "a14a6a26b00f8a26dcf33469f12c020947626a0b84cb4bee3e16f44a3fbe0b68"
+      },
+      {
+        "id": "internal/main/check_syntax",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2126,
+        "sha256": "d66e0456087439803d24f7a16a0fa125ce477d68537fddd025d56bd9496f55d2"
+      },
+      {
+        "id": "internal/main/embedding",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6567,
+        "sha256": "ba6e1aa35f4fb7360610e11f3f8c37563cf3fa19687291a0a7a1c8c8d094d533"
+      },
+      {
+        "id": "internal/main/eval_stdin",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1586,
+        "sha256": "bb35771904d2b6ad67af911d362d5501e38c0202d9ec857ce343d165f6028e1e"
+      },
+      {
+        "id": "internal/main/eval_string",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2570,
+        "sha256": "1346e229e2d1e7a8355bd5c4e6768655b8e67e661a48671e3f4e0ba2ae6d3ca2"
+      },
+      {
+        "id": "internal/main/inspect",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 333,
+        "sha256": "d7bd34ebcd04dd47a1ae5cff2f01a3a4d2a64f90345f3d818c5cea00cb8fab9a"
+      },
+      {
+        "id": "internal/main/mksnapshot",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6454,
+        "sha256": "0f066fbe21c50ffa91f97ce3981b736ca69a8b498e35de831b8e4693b5e2babf"
+      },
+      {
+        "id": "internal/main/print_help",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8145,
+        "sha256": "44c47fc16993f3256467d5bd5e72b7ab00f74a747c2e34d66b10f6958c18fe22"
+      },
+      {
+        "id": "internal/main/prof_process",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1406,
+        "sha256": "fc253aa81174e4b33eab0e8d2683ddbc33bb1ecd3f9d8f5f6773e670bed64019"
+      },
+      {
+        "id": "internal/main/repl",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2061,
+        "sha256": "88884e7770e4e0ae031a57c62634177e612daa347e4d8e623626f5ae757aa951"
+      },
+      {
+        "id": "internal/main/run_main_module",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1232,
+        "sha256": "b7fea2ff72d8f90801535f598cc3dd7ade6f1991d4946a9d1515e69e224684a2"
+      },
+      {
+        "id": "internal/main/test_runner",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1382,
+        "sha256": "351ce585c9d7b504691637223b77295fada44d42839a27766e6a327983c258c3"
+      },
+      {
+        "id": "internal/main/watch_mode",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6605,
+        "sha256": "41293e1650601b30db72da18ac6415680ba594ada087dff641c75aa37d8f017f"
+      },
+      {
+        "id": "internal/main/worker_thread",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 9007,
+        "sha256": "f94b80e02fceb173ba8179e2f5b3af3fee5d6763fa4788fe2428835147081595"
+      },
+      {
+        "id": "internal/mime",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 11377,
+        "sha256": "f34ca40f84cc35a00e0065d4a776bfc740f9ab132d94fe02367eb05fe469ed4a"
+      },
+      {
+        "id": "internal/modules/cjs/loader",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 74566,
+        "sha256": "4b871382714cc980dfb6f779e1d18a82856e76d954f1eb901ff256f1360d0e0f"
+      },
+      {
+        "id": "internal/modules/customization_hooks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 13456,
+        "sha256": "02cf07c29fd2c4701ccc19395d5d0b11968aee34a9aefb37b5684f7248c457f7"
+      },
+      {
+        "id": "internal/modules/esm/assert",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4333,
+        "sha256": "1fc4c423d9f8c317826ec292d6d3a7bfde074f60c7a9f4b98b727af5e862a6fe"
+      },
+      {
+        "id": "internal/modules/esm/create_dynamic_module",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2974,
+        "sha256": "545e49cb9cbc841a0e8bf31eac58781a56d8fb10c5d23e6a0c11ea30aad6dc94"
+      },
+      {
+        "id": "internal/modules/esm/get_format",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 9829,
+        "sha256": "ed2a7cd27bbc6d66dc0b890dd6d0d2effa5eb4a2d1a1f5f9713afb5ec0826e5a"
+      },
+      {
+        "id": "internal/modules/esm/hooks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 28552,
+        "sha256": "ac6dd7e1da92df706fb6430831248f665d81b7aea00675053e8647dbe28d9ef3"
+      },
+      {
+        "id": "internal/modules/esm/initialize_import_meta",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2372,
+        "sha256": "e19673ca4966129bd65de47c526a3911946e018dec3c226e1b52c9e5731b1071"
+      },
+      {
+        "id": "internal/modules/esm/load",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6026,
+        "sha256": "4d05a5d723f74acdd895ae7f919c43ffc70ae0ad7d86dac39ebe7011f8cb792d"
+      },
+      {
+        "id": "internal/modules/esm/loader",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 39544,
+        "sha256": "1aaf8d994d129fa42c4d391f5a6b4bc233e2ab4b1c079285029c3ecaf825b76d"
+      },
+      {
+        "id": "internal/modules/esm/module_job",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 21793,
+        "sha256": "370caf2e75ecb01c44212e59a896e181f442871a227b54df193cd23eb34a34a0"
+      },
+      {
+        "id": "internal/modules/esm/module_map",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4026,
+        "sha256": "916c981417ddaee7843b50c0ad802857c03cf6bf95b109188365e376dbce07ea"
+      },
+      {
+        "id": "internal/modules/esm/resolve",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 39356,
+        "sha256": "d9fb8b7b9c3345c872993f764d252d4fe463ce05b83c925e26f0297f2fcc3268"
+      },
+      {
+        "id": "internal/modules/esm/shared_constants",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 633,
+        "sha256": "71ebe8119dc8c760ca244ccef4b397db86eef4e01b1af4ed68d570cdbb49602b"
+      },
+      {
+        "id": "internal/modules/esm/translators",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 26801,
+        "sha256": "019b48f389fb452659e8768f6a4f0dfbcfaf999ddb6669d624a5fc7264b73a91"
+      },
+      {
+        "id": "internal/modules/esm/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 13195,
+        "sha256": "dfd930e378b23228046a87155c5116a107494c5cd2ab4b4be04e52e16bfe9ca3"
+      },
+      {
+        "id": "internal/modules/esm/worker",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12051,
+        "sha256": "d67e165a84d523aed961bf715b084844efc08868cc35db773d36bd69280383be"
+      },
+      {
+        "id": "internal/modules/helpers",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 15922,
+        "sha256": "c5b90b1ca1465e0feb20f92d7668d343d2a9982ca09647940ad23911a371eecb"
+      },
+      {
+        "id": "internal/modules/package_json_reader",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 10998,
+        "sha256": "f398dd7232fb76fe507c9f2768d2500b6afad10c74b8ad48c8aed2adb9508f61"
+      },
+      {
+        "id": "internal/modules/run_main",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6356,
+        "sha256": "9b9cf06a2bb5ace9210ac581fc66bc10f46d37d0b4473b4731d0d4ca5c71da47"
+      },
+      {
+        "id": "internal/modules/typescript",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8435,
+        "sha256": "9aa93d60d6752921fae95485b94022a009cdbd4a832bd5cd4ce7fdeec3f7d904"
+      },
+      {
+        "id": "internal/navigator",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3951,
+        "sha256": "0eb66d5b02da157221eae3f3dac825bac6e24a9ea8948b222e0945889a90e18e"
+      },
+      {
+        "id": "internal/net",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3240,
+        "sha256": "2b9bf5e57d8c3606bffc4aa91ab8a59595df2fa4a8eb475473521c4a3cc59d1f"
+      },
+      {
+        "id": "internal/options",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5134,
+        "sha256": "e0ab420134f5d0d5a5f51de2ec46680387a7cb98be78b6bd6b1f356c96d6540b"
+      },
+      {
+        "id": "internal/per_context/domexception",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6496,
+        "sha256": "9a7a82d0a6b9a3ad85d87335fb75f123211b2715208e704548f3cd2e50fa1d73"
+      },
+      {
+        "id": "internal/per_context/messageport",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 995,
+        "sha256": "28bf223a668ddaa3ac43fdc84b7196e3c8e689d9d6c5d845d0d525a2fcb5410c"
+      },
+      {
+        "id": "internal/per_context/primordials",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 22759,
+        "sha256": "bc055991605bc0133c69fcb79b455f51cab6c04d940eb2a35bb7c538d549eedf"
+      },
+      {
+        "id": "internal/perf/event_loop_delay",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1983,
+        "sha256": "00b89687f99baaa3c92c862972bab1e62265ff9dfd288afe4465303123e38b47"
+      },
+      {
+        "id": "internal/perf/event_loop_utilization",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1527,
+        "sha256": "41103605f43fd31b497c0bcf188350d078069084a6a403d950d9f7e44d57213b"
+      },
+      {
+        "id": "internal/perf/nodetiming",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3858,
+        "sha256": "3ecac721d8650e10b175086a1d4d5ed0a2dbba58174ab157057eb83d6b219d3f"
+      },
+      {
+        "id": "internal/perf/observe",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 16758,
+        "sha256": "4317a10d8d147dd1a2bf27a83bb84c80c36d131c91895fa314130f4808de283a"
+      },
+      {
+        "id": "internal/perf/performance",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6480,
+        "sha256": "e726129389491f2a9d37c64c71aa002b679cdeb22a23ebedafd0fb924561f29b"
+      },
+      {
+        "id": "internal/perf/performance_entry",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3304,
+        "sha256": "8f13ef192d56d23ab344f3ccf760cf3cbfc625277378006bdfc0415d4b7791ee"
+      },
+      {
+        "id": "internal/perf/resource_timing",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8319,
+        "sha256": "ad7ffef84d082bf0bd97f5e85bc99548a80a5205dc5a245573debde84a7601f4"
+      },
+      {
+        "id": "internal/perf/timerify",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2280,
+        "sha256": "ed4377905e5b188aa4e5fff66d37b3a1c657d8cdebbdded3fd690ed5f2b2f9cf"
+      },
+      {
+        "id": "internal/perf/usertiming",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6472,
+        "sha256": "51f709377b76dd94dc50ed3fee62037b5629ef3337155588b51860bdf83f04b3"
+      },
+      {
+        "id": "internal/perf/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 810,
+        "sha256": "12aaefacd6f7b67360fb9758cdc94c8e0f2d43c36a1f71f313c3e4f776e80be0"
+      },
+      {
+        "id": "internal/priority_queue",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2755,
+        "sha256": "5e2b5101114b24354405eda2a905af10ce23967dd7bfa34aa7fdb42dc2187338"
+      },
+      {
+        "id": "internal/process/execution",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 17264,
+        "sha256": "0e1ca1425e44469425ad6658907a81c4a96322acb779f5e4b402cd0015292c41"
+      },
+      {
+        "id": "internal/process/finalization",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3237,
+        "sha256": "7eb8e8d4fcb0b6b246a508408a3747955303b0392cfe0ad5f6f2ef5e95705209"
+      },
+      {
+        "id": "internal/process/per_thread",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 16578,
+        "sha256": "f3bca509ca9ae6be403fcbc0133c45760c6cc76f21f890c8f494f2934efc9e7b"
+      },
+      {
+        "id": "internal/process/permission",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1110,
+        "sha256": "10b6b5457b9678c7d2484cc84fb5e16ce62189d44a657ed21f317050a757ab2c"
+      },
+      {
+        "id": "internal/process/pre_execution",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 24514,
+        "sha256": "7e31423af5b85f29ed9e1573c324e8be0ed065018aa233eb686589af241a1c1a"
+      },
+      {
+        "id": "internal/process/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 13888,
+        "sha256": "bb56d0728f560dbf6a1cf215ecfb4688f39f292bccfb526cf7bdd04275ecb1a1"
+      },
+      {
+        "id": "internal/process/report",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3572,
+        "sha256": "618dc3a253d941c484d259c001ba5b3e7b1155438d867cfb6d23acaa3a8ac0c0"
+      },
+      {
+        "id": "internal/process/signal",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1180,
+        "sha256": "7f2b9926fe8fb8ef850b72a7e751db6db1708e637d9dfcca815d2c40818d1794"
+      },
+      {
+        "id": "internal/process/task_queues",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4826,
+        "sha256": "c07ef9efe4a0c34e2193f44c60c7a95ef8d66907a791cb41d797cad6aa5bdb15"
+      },
+      {
+        "id": "internal/process/warning",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5861,
+        "sha256": "b3abe35b1f8c98d6fb7ff34649d422fe4ae8b700968a533a5e20ade7bc471ee8"
+      },
+      {
+        "id": "internal/process/worker_thread_only",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 433,
+        "sha256": "a9a11c45980d03c804c21ef766e1817a5a112406f889d8f66f5ea6f2a8c9b004"
+      },
+      {
+        "id": "internal/promise_hooks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3074,
+        "sha256": "1b2d7268017e67bbde07b27d51e80ff90385505b003876ee0ebc49411e7f1ae8"
+      },
+      {
+        "id": "internal/querystring",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3316,
+        "sha256": "92d0cbd561d7cce93936b083d56d2a41063d177f3aa6772ae2c1871f160163d1"
+      },
+      {
+        "id": "internal/quic/quic",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 72987,
+        "sha256": "bebddce6b81d0666ad3867cb33cc086726662b17ce48da1e9519370af5c2fd19"
+      },
+      {
+        "id": "internal/quic/state",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 18915,
+        "sha256": "d45fcf1fd44638bbcb294674b76a65b388930e9d6d3bad0703f1d5476051473b"
+      },
+      {
+        "id": "internal/quic/stats",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 20139,
+        "sha256": "4215508bad830ac727842024d433559d795bf4a1bfe33e814d30fb7631aafb7f"
+      },
+      {
+        "id": "internal/quic/symbols",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1949,
+        "sha256": "6bd81ddd56d1ede3a8fd7e92711a0b14da558aba0bc3d7fa3a94eeed58b984bd"
+      },
+      {
+        "id": "internal/readline/callbacks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2754,
+        "sha256": "af9b691f147976bca019361b7be1095c7ef8c059353cd948e518327f2b3d6f8f"
+      },
+      {
+        "id": "internal/readline/emitKeypressEvents",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2663,
+        "sha256": "a4e22146ea0a66703c8f9d1861f3fe6e860adc06fb5cfb40919d0c002cba974b"
+      },
+      {
+        "id": "internal/readline/interface",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 47331,
+        "sha256": "d10af47bb8d1393c6fb1de3a3faa253ffb7f7ee8ec1c36e697eccff607d778e5"
+      },
+      {
+        "id": "internal/readline/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3513,
+        "sha256": "8ebe49629da7f7aca5f61754729ecb8f1dcf6b5860c67e83a93807afcccdfd79"
+      },
+      {
+        "id": "internal/readline/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12782,
+        "sha256": "a0b8b7cb13da3df61bade053aebdd15d031ca8767399f726f047bcb5692d0faf"
+      },
+      {
+        "id": "internal/repl",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1274,
+        "sha256": "da46a79d091b7a44730ff99a8e2a9758bfc722a72d92b2a5ad1695c053596988"
+      },
+      {
+        "id": "internal/repl/await",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8560,
+        "sha256": "356c00c69036256fc1bad4aa19f1d96269ee0cdfa86935c7eaa0bfcb1c9eabb1"
+      },
+      {
+        "id": "internal/repl/completion",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 28571,
+        "sha256": "e6439086fa10cc31e2707ab67de4b765efa45cc04ac900bea7e13067b83ee0ef"
+      },
+      {
+        "id": "internal/repl/history",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12789,
+        "sha256": "19069b28f75bb9925170ef8e14aee7351214a5d06a3270024d237bdb1b804b7f"
+      },
+      {
+        "id": "internal/repl/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 28475,
+        "sha256": "2ea863fecad8165f895388fd31d37bc2dce818081abf807f5a6497e88bdbc653"
+      },
+      {
+        "id": "internal/socket_list",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2709,
+        "sha256": "f28aa47cd9e0cbe1bc3ae03b669f2a05a97557492f4448b5907ddefa8f0b4fe3"
+      },
+      {
+        "id": "internal/socketaddress",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4472,
+        "sha256": "95cb2dcb091311231f62fc08bddc62e00b1db85d915452055821c7597a16248a"
+      },
+      {
+        "id": "internal/source_map/prepare_stack_trace",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7355,
+        "sha256": "46800a6363f67f766445e6bdacbde9774dec32c429da868b55a7c4398709e41c"
+      },
+      {
+        "id": "internal/source_map/source_map",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12150,
+        "sha256": "57c3648e131d6316ccca3a57782d3728f45e8dc60d6bb605ab1a6908c63eb6aa"
+      },
+      {
+        "id": "internal/source_map/source_map_cache",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 15985,
+        "sha256": "f6a6823663845852670293f788fab72e8f216534525756ecee28aee330998767"
+      },
+      {
+        "id": "internal/source_map/source_map_cache_map",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3883,
+        "sha256": "56ed03526bdeed4f88fd84a14edb0c005a29bc4b4616e5596414b535a5926272"
+      },
+      {
+        "id": "internal/stream_base_commons",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7322,
+        "sha256": "bfdad04241cc86e8eccb1cfdd0c3aea0f355a348535be50d92c0e8fb74be9d3a"
+      },
+      {
+        "id": "internal/streams/add-abort-signal",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1725,
+        "sha256": "d794b3292b60220df681ee1523ac2207f9caf467bb64fa602251c0865f686706"
+      },
+      {
+        "id": "internal/streams/compose",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5221,
+        "sha256": "89aff34359d6f6d28a8939a9250fdc56c26faacc27f9f276ee5cb38709ec4e39"
+      },
+      {
+        "id": "internal/streams/destroy",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7355,
+        "sha256": "74aaae64ff7e4553fbf981baffb1f1dab7748c1e3fedfbef59eb8ab9ed4ec22d"
+      },
+      {
+        "id": "internal/streams/duplex",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6547,
+        "sha256": "e2b5d781357dff0e742517a3fb451750477a394d2306186ca119b671f71261d5"
+      },
+      {
+        "id": "internal/streams/duplexify",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8565,
+        "sha256": "507d9fbf1d2a644f7b9f69a12d6c91fe94fecdc5199ad640f94e77e70c564e7c"
+      },
+      {
+        "id": "internal/streams/duplexpair",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2038,
+        "sha256": "693d2e9525a62d7847cf4e4a35990eea34fe5f065e6357ecb3b1c8504a42f4bc"
+      },
+      {
+        "id": "internal/streams/end-of-stream",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8882,
+        "sha256": "f6a0d6902051d5db33aa9ce76ca9be063ffbf4dcdd05cc27299e9e8709632a44"
+      },
+      {
+        "id": "internal/streams/fast-utf8-stream",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 24624,
+        "sha256": "a6a66430a8f93cf5b6d7c90e16386bb2429ae3309672242e914a0a28bc9f71ef"
+      },
+      {
+        "id": "internal/streams/from",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4628,
+        "sha256": "4999ebb66e39a5aac7c246c6a521a7832159dc6436c1d5a1f0756a700d82e286"
+      },
+      {
+        "id": "internal/streams/lazy_transform",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1386,
+        "sha256": "a2b7749bc9c31e31677907a96235a9e0b37f43bc429753e448a02ca681935b68"
+      },
+      {
+        "id": "internal/streams/legacy",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3328,
+        "sha256": "ad4f9ef0255ff525b0248176a021bcdb3ec1fd3b4f302d2a3552af864ee6bcaa"
+      },
+      {
+        "id": "internal/streams/operators",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8832,
+        "sha256": "656f0f0c3128c77bdc43d0f237eb4531e8d2f085fb2554363aeba854789ac1d9"
+      },
+      {
+        "id": "internal/streams/passthrough",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1762,
+        "sha256": "52bed2d31129172fce7fb4d5dd1c0c45f59cc9185964cd6069c63ed4219163ec"
+      },
+      {
+        "id": "internal/streams/pipeline",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12720,
+        "sha256": "96fcda8c76b24bdd763df8dec9cf5eb02acb2100ca2cf86994e4165022febfb9"
+      },
+      {
+        "id": "internal/streams/readable",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 52150,
+        "sha256": "1d59ea7a8aa44fe8b9715cc1bb69c7327549997baa5a2f6ae4a3fcc45b8b95ae"
+      },
+      {
+        "id": "internal/streams/state",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1440,
+        "sha256": "4b5e014feed92eab8832debc31090ec8a6024226fa147db37a448f89ad157c29"
+      },
+      {
+        "id": "internal/streams/transform",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7123,
+        "sha256": "af0424491c8b4de48df33f57955d2d501bbaed8d80393a45a0fae84c62459af9"
+      },
+      {
+        "id": "internal/streams/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8930,
+        "sha256": "76f2a40f2e1b799a575116036549bf5eca5f69b9038a77b1016eee823e51625f"
+      },
+      {
+        "id": "internal/streams/writable",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 33559,
+        "sha256": "7aae77c483373029827412567e695c31c654ad8d405370d64a7480a46998bcc5"
+      },
+      {
+        "id": "internal/test/binding",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 987,
+        "sha256": "786248c46b070e6fd01c4f6be9a4ba864298bc2c87bace5ffad089e1e16d9928"
+      },
+      {
+        "id": "internal/test/transfer",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 732,
+        "sha256": "c5737253d35100c0db93eecf05c4f5e660c390bd2da14f782812c01a94620454"
+      },
+      {
+        "id": "internal/test_runner/assert",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 934,
+        "sha256": "b1735a595c16a11071da65b0421077aee078311db4638653d37caf46c374d8f9"
+      },
+      {
+        "id": "internal/test_runner/coverage",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 25298,
+        "sha256": "f55a1971af99b0ff53b15b406ae99227f95364f0c48831e56b440b1dff2c6b42"
+      },
+      {
+        "id": "internal/test_runner/harness",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 13823,
+        "sha256": "61038f76fac819889060054aff83e10e9087104716270ab8f816a12ff019176b"
+      },
+      {
+        "id": "internal/test_runner/mock/loader",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4203,
+        "sha256": "c55296a4ee64a8cc8a6298244f04e84e31cb88a224810d78f6e9ef71619f7654"
+      },
+      {
+        "id": "internal/test_runner/mock/mock",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 28814,
+        "sha256": "2e3f742b84a139746debf1ed3f9aeddc6765011d12462a750035d90c2acb8594"
+      },
+      {
+        "id": "internal/test_runner/mock/mock_timers",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 22824,
+        "sha256": "fcc324ca41b8c72a6a315f533ba4aff2e69c1d590c7057d5475bc8e83d8b8083"
+      },
+      {
+        "id": "internal/test_runner/reporter/dot",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1087,
+        "sha256": "b3fc367af72e95ec57f4d4423d6555934de55124f4e21f1e2af57fdf364d5b7a"
+      },
+      {
+        "id": "internal/test_runner/reporter/junit",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6062,
+        "sha256": "172a3fc540d7283d6ade005201359dac8744da0be3ae53d347fbd318b6337374"
+      },
+      {
+        "id": "internal/test_runner/reporter/lcov",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4316,
+        "sha256": "3347e1c043f70aba7605cbcb228ca2a0066e612de6244be65963c7fb58e89df0"
+      },
+      {
+        "id": "internal/test_runner/reporter/rerun",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2513,
+        "sha256": "11a0159c0b6d435c73208b57cddd13556ec121f3ec2fc69e3fc7579a7d3d5aa4"
+      },
+      {
+        "id": "internal/test_runner/reporter/spec",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4743,
+        "sha256": "2077200dd9130524d888fb002f96a4e2da50f1c57ab2895b1c22a34959020242"
+      },
+      {
+        "id": "internal/test_runner/reporter/tap",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8786,
+        "sha256": "b01091a4d358064062ed6784170960af1a25ced8cd4ea9469c41ab4ec80ded38"
+      },
+      {
+        "id": "internal/test_runner/reporter/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2955,
+        "sha256": "f1aee5a5b8af7d6252240448ad8a9546d08c9a4235582ea63887eee6af8b9931"
+      },
+      {
+        "id": "internal/test_runner/reporter/v8-serializer",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1459,
+        "sha256": "703c91cd034964dfb41deed5e79971fe061ab154220d8a8bb5adcc9af48b06bc"
+      },
+      {
+        "id": "internal/test_runner/runner",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 35690,
+        "sha256": "e04e397be4e579f1fb08ecf239fb2914035f7ffe26be5bc629f45aa4313a0b68"
+      },
+      {
+        "id": "internal/test_runner/snapshot",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8341,
+        "sha256": "8dd698b2ef8b6f43aca31b2317dc4cb06b7853f0fdc0e88168ee75bbbfaf8c16"
+      },
+      {
+        "id": "internal/test_runner/tag_filter",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3476,
+        "sha256": "c509eec7ed635881078f73b13f9b8d4d9a6864e3254b7c5df280001ad8242b5a"
+      },
+      {
+        "id": "internal/test_runner/test",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 54900,
+        "sha256": "21570a32454209d42032d73e87676f6d9ff178827740b8a770ff314c510bb476"
+      },
+      {
+        "id": "internal/test_runner/tests_stream",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4015,
+        "sha256": "49946df9b229df7193f2f3e7a612d17b62f9b62667094c14c8f6cff20cb697bd"
+      },
+      {
+        "id": "internal/test_runner/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 23288,
+        "sha256": "aa047506eac62cc394eab0add5cca72796d1ea7d36273ac7a0fd9d47dd76fd32"
+      },
+      {
+        "id": "internal/timers",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 22130,
+        "sha256": "fe9891c314a12c21cfde7d086bf43b49d46ac56bb574f1210978972c2ecf5922"
+      },
+      {
+        "id": "internal/tls/common",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4789,
+        "sha256": "b377f317786dbc6bf34feeac9f711e9a2a11aa34e3622a9b0eaf50a42276ec9c"
+      },
+      {
+        "id": "internal/tls/secure-context",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 11053,
+        "sha256": "7721bf2e7244c551ade9e3c79455018f1a2b400257e40f604c26ab12c2f0a218"
+      },
+      {
+        "id": "internal/tls/wrap",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 55164,
+        "sha256": "7d059ba88f31308614efb930da8053afb0365c6c4e13db1d16a6e18b3e3fb034"
+      },
+      {
+        "id": "internal/trace_events_async_hooks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2810,
+        "sha256": "c9b5330965af8441dc7d256bccef96e43bce4ab11edcf2ed7845360c6ba282dc"
+      },
+      {
+        "id": "internal/tty",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7150,
+        "sha256": "996ae301ee60854817401545811fd908c332cd3ed071c6a498d211ccdd9a932d"
+      },
+      {
+        "id": "internal/url",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 53408,
+        "sha256": "d25783bc5729bdbd60eb3026794f833d6a33176b0ccb76573c9a65177bd8b5cc"
+      },
+      {
+        "id": "internal/util",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 27664,
+        "sha256": "4aa900feab2a6cdb84060c0358c569578d31b6f0831224792868ece9b8899951"
+      },
+      {
+        "id": "internal/util/colors",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1321,
+        "sha256": "f6b6702f24abe359726f05115767142148bcd5f87b84896dab47488db08af516"
+      },
+      {
+        "id": "internal/util/comparisons",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 30207,
+        "sha256": "1a58c16d2e37277fc07d8fcc74b8a1ee1586c30e9984f4ed3e3a8bca7d4c25af"
+      },
+      {
+        "id": "internal/util/debuglog",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12596,
+        "sha256": "4471d0ba1b85d272e583aef5ec9fe05c28377bf59b923523495bcba46a858fec"
+      },
+      {
+        "id": "internal/util/diff",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1097,
+        "sha256": "a83310ac63406ef953c2b2440817d4771fc79af5985d2254618591fdf9735752"
+      },
+      {
+        "id": "internal/util/inspect",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 93593,
+        "sha256": "578e96c3e776b17152dfc9331befe13fb84953575197b1bea7db78564efaa8c7"
+      },
+      {
+        "id": "internal/util/inspector",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3929,
+        "sha256": "96ff6b3a871860e1720964aae93835b4e416bd1c8564f192b7aabb1149b621d8"
+      },
+      {
+        "id": "internal/util/parse_args/parse_args",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 13575,
+        "sha256": "9effe6eb9db8d953a6b4433c334a169c07a21d2b3ae25ad97fcb1369db9a767c"
+      },
+      {
+        "id": "internal/util/parse_args/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6563,
+        "sha256": "98d6355bd61ad6bbf6087b9bb7a16fa4f5dc7fdd7f0280e82fd86a88dae99a2f"
+      },
+      {
+        "id": "internal/util/trace_sigint",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 636,
+        "sha256": "a40ab7d0652fac3691cb83d1084a94e1559f9a7773c17c8a6bdb51381530dc8c"
+      },
+      {
+        "id": "internal/util/types",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2744,
+        "sha256": "9fee21497045f91bb4501c8e915b2f2b79da06e24b8970e26d559584ec9f2da9"
+      },
+      {
+        "id": "internal/v8/startup_snapshot",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3897,
+        "sha256": "ca0c3355a13bc0eb75185d0bf2bfdaa110504a3f74e085d91ff8a5e1868b9c93"
+      },
+      {
+        "id": "internal/v8_prof_polyfill",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6256,
+        "sha256": "4424384535aa742b72a1b4ffbcdc834792b22b40057387dc4b582ae39361eb54"
+      },
+      {
+        "id": "internal/validators",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 19476,
+        "sha256": "dd61b9cb7af5c18b46f2029c2f06b0fc2638d1cd870fe65934966e840e88e1c2"
+      },
+      {
+        "id": "internal/vm",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8860,
+        "sha256": "4a3048ab5892370c7fdf184e47aab7bf0f905b0f30282f27706d964d3044240a"
+      },
+      {
+        "id": "internal/vm/module",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 15431,
+        "sha256": "577f18d85d67c5a80c46bd3e5880f8ab5b360edeff76e1c8f65c471b04e87eee"
+      },
+      {
+        "id": "internal/wasm_web_api",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1948,
+        "sha256": "505438b2a4b7ad44e1c1a5558f913b52fdec28942569caa23bbed0df2e5c9163"
+      },
+      {
+        "id": "internal/watch_mode/files_watcher",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6788,
+        "sha256": "deec8d51492d7a04e4685620d449ce1ec010f5b00ea58197d672bda57225e252"
+      },
+      {
+        "id": "internal/watchdog",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1363,
+        "sha256": "aaf5d85db65433641c8ca469cbd13808b059b3f16b4c63eb89f80305d4308d8d"
+      },
+      {
+        "id": "internal/webidl",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 36239,
+        "sha256": "723ff57823d4621621ca3e5ae8a7c402445bddef051cff78ec4d29ccbbcf1cfe"
+      },
+      {
+        "id": "internal/webstorage",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2315,
+        "sha256": "c78584373d4f40c0c7c30ada9bc3878d2ecaa036b9b57973459f2b3f8ce22e99"
+      },
+      {
+        "id": "internal/webstreams/adapters",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 28450,
+        "sha256": "bcf55ad97faa9fcea3fcc47a9771000d1f62b70e7864ee55a3619d4671a3deb0"
+      },
+      {
+        "id": "internal/webstreams/compression",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4638,
+        "sha256": "fbe6af810f448b794af84751e4ec663a4e21b1f31ae0b99f586ef45b2ad44d8a"
+      },
+      {
+        "id": "internal/webstreams/encoding",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5089,
+        "sha256": "87eea35876600480d6908a5a8721527b5f2c0db3aa3c9ea44f16e6944ca61b34"
+      },
+      {
+        "id": "internal/webstreams/queuingstrategies",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3198,
+        "sha256": "6fb1d6c2e150209c77673e0060eb8f2f9cf222a6cc46fb8cce1ca90ae9e56f37"
+      },
+      {
+        "id": "internal/webstreams/readablestream",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 106722,
+        "sha256": "565b9cad63d2b39fd4871826bba2cb34a7f261ee9ba4c5ee78143ac82562ee73"
+      },
+      {
+        "id": "internal/webstreams/transfer",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7993,
+        "sha256": "9bbab82488e2d2ae3038a56504a6cb305d1868b2356f6d429a3e56d688a032a8"
+      },
+      {
+        "id": "internal/webstreams/transformstream",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 19281,
+        "sha256": "326c448902d369a1238a60ea37468087fbd5183e21f00f594a30d085299f567c"
+      },
+      {
+        "id": "internal/webstreams/util",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7232,
+        "sha256": "5cc11caf02d495de8ed4259c271f41ffad2db8c6e7119742057c1a80ac1291b5"
+      },
+      {
+        "id": "internal/webstreams/writablestream",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 41249,
+        "sha256": "e7c1dbeb8de9a045404b5b1d4994f955dc2c48d8fe5dd67301d6474520043087"
+      },
+      {
+        "id": "internal/worker",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 20585,
+        "sha256": "178b2ce2add8f25e68253a9dad2b762228813b13a376ce5be50830734bef57c1"
+      },
+      {
+        "id": "internal/worker/clone_dom_exception",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 151,
+        "sha256": "19df5ef926fd6cd5ba0bf11f65f92c321be645b7cf89682c33c64706f835a13f"
+      },
+      {
+        "id": "internal/worker/io",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 14151,
+        "sha256": "b4c084d5fc9329b90467a5554f95a2e32dd4434785d82cb20849ef2268419f8a"
+      },
+      {
+        "id": "internal/worker/js_transferable",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4053,
+        "sha256": "15e5ddfbc2b9c8963b307345e4b7373c3a8402dc990c88a78883cf94e3011a11"
+      },
+      {
+        "id": "internal/worker/messaging",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6680,
+        "sha256": "65fea9368be820a66dc7d14573d0efcd9c0d77ce968a32cc510a853b68744519"
+      },
+      {
+        "id": "module",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1121,
+        "sha256": "3636f9bea504d82017b7e054810f88894e76e497f8e2dfd8ce8eb06d9083d0c2"
+      },
+      {
+        "id": "net",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 77720,
+        "sha256": "5f110da3a2bbec06e97c72b41c83b9d2554cea6ae87b7eebcfed86ca6ef82e98"
+      },
+      {
+        "id": "os",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8250,
+        "sha256": "5b14b21284e19382708f588ff7fa5a212c5335a84b1d9ae6ebdf626244f8fde9"
+      },
+      {
+        "id": "path",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 52691,
+        "sha256": "dd326ecdc2d6ad2025c4991f4b480d76a9f1d52b7f6d0988a5dc0a1d02de5209"
+      },
+      {
+        "id": "path/posix",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 55,
+        "sha256": "117a373870d6dd7ff7470e9e5d0eb7f0c284c39f036492da60453ad0615d643e"
+      },
+      {
+        "id": "path/win32",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 55,
+        "sha256": "cfa5914ed0ada68fbf7891014ddb2db26db353810c8bbc7b25d941537ddf22e5"
+      },
+      {
+        "id": "perf_hooks",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1235,
+        "sha256": "4464d395ecde3d4ef16607b57b36d007af764190203ec3f1b905427d2f25f234"
+      },
+      {
+        "id": "process",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 83,
+        "sha256": "93ff86f9669940eae34dafe6a2e734efd3eaa202bbda0709e7a49e19612b28e4"
+      },
+      {
+        "id": "punycode",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12959,
+        "sha256": "c5c75d5f31323affefa3595e63b3c50bca8bf7a2766936699e20460398e61717"
+      },
+      {
+        "id": "querystring",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 14576,
+        "sha256": "513ace4440c97fcaf3da958598be85f136eb044c6045b06dcac945395c4a7b56"
+      },
+      {
+        "id": "quic",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 482,
+        "sha256": "04974f256a7a82cdaebe6bd79385d2cf050d3140ec4d7af745323d60b3d6389a"
+      },
+      {
+        "id": "readline",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12801,
+        "sha256": "9a316ea2f324340976c4ad23b3e08053a76867ba8fbcf20537497b07fa3a1cea"
+      },
+      {
+        "id": "readline/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1560,
+        "sha256": "76e9099cebd75a18992a0fef6f2a7f359a347aa2bfdb525739fdfe06f5db1eff"
+      },
+      {
+        "id": "repl",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 45940,
+        "sha256": "d8924013575a5f7d856765194c8de4b1bd3a14d715a58bc7a17725e5f1cd7a71"
+      },
+      {
+        "id": "sea",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2523,
+        "sha256": "96e8357c40d66d7e3d4c964e87cc11cb21bf589247ae1ece691088c27032201d"
+      },
+      {
+        "id": "sqlite",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 59,
+        "sha256": "1b3616bc43b20a5ebf0b55e8eef1706b2c56f346941c65347ee7c69c83c51aa7"
+      },
+      {
+        "id": "stream",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5099,
+        "sha256": "3dec4d8da73ac37b6fcfd812ed252c12bf8355ccdc71ac6d669e76288f2a1857"
+      },
+      {
+        "id": "stream/consumers",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1951,
+        "sha256": "c30b6273efd77b5122d9b01c6dec58ec6d7708e72d49d60a4aa63bd3ba3831a6"
+      },
+      {
+        "id": "stream/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 917,
+        "sha256": "29606bc43e45922f0b39f633cad11d607afa2afcb35f3f1dcfe296219243031e"
+      },
+      {
+        "id": "stream/web",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1787,
+        "sha256": "7de6f8ef62effcd9aee45ed6ae1170cde8b4bd3d588e1ae4be759913ff95485f"
+      },
+      {
+        "id": "string_decoder",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4518,
+        "sha256": "50ebfa7db26d22f4fed8fd96b141fa49d00c18e224ef9d74a5a77fde1774e697"
+      },
+      {
+        "id": "sys",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1612,
+        "sha256": "7845c30f71a9e91d9156c9f14a6682d25a4ea01b264b4e997a941e8c4e170372"
+      },
+      {
+        "id": "test",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1566,
+        "sha256": "16c12ad39a8b7b41044b31902785d2451deeb0e006e38c951f39b11bbe1ca1f2"
+      },
+      {
+        "id": "test/reporters",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1201,
+        "sha256": "c76d9bd0d79c0ad6206f8e78ea5ec1b33e86137157265a31e2b0577167d023a7"
+      },
+      {
+        "id": "timers",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 7045,
+        "sha256": "23e988eb60371fea0b5eb8a7aeb8a50665fea00483a9f6eb8f3742fe3c2c2b27"
+      },
+      {
+        "id": "timers/promises",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6390,
+        "sha256": "7352c2b6c168ab8003e6715de5e648a31a6fd74f4559d60e9f82a8dfb5f7ae2c"
+      },
+      {
+        "id": "tls",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 14925,
+        "sha256": "7cecb2573a9f6c8726fc423cc7821c8e1cb20fa5b5f4d56893c5c3f5ecbff88c"
+      },
+      {
+        "id": "trace_events",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2160,
+        "sha256": "5904a5be8175319e76542598e2fbe33094cc15a5a6841930f2aa859abe24e349"
+      },
+      {
+        "id": "tty",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5045,
+        "sha256": "9d05c1f3cbacb47623d49eeb09dd185cca4d80bcdfb4ed769fde90e0535ffe7b"
+      },
+      {
+        "id": "url",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 32932,
+        "sha256": "0a53e0c4e8bfb5946380577bf9d5ae9c227ad54ae738f5bd5e4a5e8682921f38"
+      },
+      {
+        "id": "util",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 20289,
+        "sha256": "96dfdc936ba7eb3289714c24b2fbdb9e50758c5815d4a5954b878a51e4562cd9"
+      },
+      {
+        "id": "util/types",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 64,
+        "sha256": "ccdb74daed669baa9512818d6aef80a2f352277d767f0d3f2be60d6554a67966"
+      },
+      {
+        "id": "v8",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 14763,
+        "sha256": "ed24392fbc14a67d065dedb839b975719c262f03a3b2bcf2c6aeb278a05e700d"
+      },
+      {
+        "id": "vm",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 12970,
+        "sha256": "a69355a0eba86ad3a94c0a238d17512ad05c04c1ad568a183754bdc4ed60ad89"
+      },
+      {
+        "id": "wasi",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 4832,
+        "sha256": "e5e05695c09f05eb0a4e1d0ecbbd94749774e19783568073cda5cbcaa63bb88c"
+      },
+      {
+        "id": "worker_threads",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1005,
+        "sha256": "2fe530c26372cd992d8fd8c2215bbd3a58f2b30baf6f0b4baaf4d7d6ca540a5a"
+      },
+      {
+        "id": "zlib",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 32405,
+        "sha256": "399cb4e2b3f31269cc52278a1f1bb4ab7838e3c0ccdc5262e41a8824b1f438a5"
+      }
+    ]
+  }
+}
