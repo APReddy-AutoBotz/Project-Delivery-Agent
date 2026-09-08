@@ -158,3 +158,16 @@ attribution remains unresolved; no license choice, dependency upgrade, runtime
 permission or customer-release approval is introduced. ADR-014 and EXEC-003 record
 the contract and limits. Non-author immutable candidate review, full required CI
 and downloaded evidence verification remain merge gates.
+
+## Node supplemental original source notices, 2026-09-08
+
+Under delegated routine implementation authority, package nbytes's original
+LICENSE and all reviewed SQLite attribution comment occurrences for the existing
+Node binary. Authenticate complete immutable parent sources before offline
+extraction and retain original bytes, source spans and separate occurrences.
+Ship only the notices/index; keep source and helper build-only. ADR-014 and
+EXEC-003 require fixed component/source coverage, bounded reads, image/layer
+binding and shared schema-6 collection/retained replay. ncrypto, literal root
+notice gaps and linked-source/legal applicability remain explicit review work.
+No dependency version or licence choice is made. Required validation and a
+separate immutable candidate review gate merge; distribution approval stays open.

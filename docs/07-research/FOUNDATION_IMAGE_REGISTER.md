@@ -179,3 +179,21 @@ This adds evidence tooling only. Source correspondence and metadata do not prove
 a reproducible build, complete linked-code census or legal applicability. The
 policy and validation documentation preserve missing/unversioned/source-only/data
 attribution as review work, alongside the existing vulnerability/signing gates.
+
+## Node supplemental notice packaging
+
+The supplemental increment retains the Node/base-image pins and executable above.
+A separate stage fetches four checksum-pinned original Node source files, then
+verifies and extracts notices with networking disabled. Only nbytes's complete
+LICENSE, 149 SQLite original source comments and their index enter API, worker
+and operations under `/usr/local/share/doc/node/supplements/`. Full parent sources
+and build helpers remain outside the customer image graph.
+
+This changes image identities through added attribution files. Both scope scans
+must show the expected namespace, original byte hashes and independent supplying
+layers, with unchanged Node executable, original root notice and process metadata.
+Packaged acceptance must use the fresh image identities for both customer profiles.
+The same supplemental policy and original evidence replay are required in the
+73-file schema-6 bundle. ncrypto, linked-source applicability and full distribution
+review remain unresolved. Roll back with a reviewed packaging/policy revert;
+no database migration or connector permission recovery is needed.

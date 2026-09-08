@@ -102,6 +102,47 @@ Sources: [Go module cache and ZIP contract](https://go.dev/ref/mod),
 
 ## Original consequences
 
+### 2026-09-08 amendment: supplemental Node source notices
+
+Require schema 6 with `node-supplemental.json` added to the 72-file manifest. A
+separate build stage fetches only four exact files from the reviewed Node commit:
+nbytes LICENSE and SQLite's amalgamation/two headers. Bound HTTPS requests to
+30 seconds and their pinned decoded byte lengths, refuse redirects, and verify
+full original SHA-256 values. Source policies and original files are read through
+bounded regular-file descriptors, checking exact sizes before allocating buffers.
+
+Repeat authentication and extraction with networking disabled. A stateful C
+comment reader skips strings, character literals, line comments and logical
+backslash-newline splices while retaining original byte positions. Its exact
+attribution-marker discovery must match all 149 reviewed SQLite comment spans.
+Preserve nbytes's complete original LICENSE and every original SQLite comment,
+without normalization, deduplication or added newline. Complete comments can
+include explanatory examples; they are source extracts, not a generated licence.
+Write the index only after all parent sources, ranges and output hashes validate.
+
+Only those 150 notices and their index enter customer images, under
+`/usr/local/share/doc/node/supplements/`. Source files, source cache and helper
+remain in build stages. The existing Node executable, root LICENSE, dependency
+versions and runtime metadata remain unchanged. The operations copies may have
+independent valid supplying layers. No runtime code or service is introduced.
+
+Both image scopes must contain exactly the expected original files and index in
+that namespace. Verify regular-file identities, full captured original bytes,
+source/index/policy digests, accepted Node binary and each supplying layer.
+Required source roots and occurrence counts are bound to component keys, so
+coherently empty policies cannot claim coverage. Retained evidence replays these
+checks alongside the original Node, npm, Go and runtime-tooling contracts.
+Reviewed extract pins and build authentication support parent-source attribution;
+retained image reports do not contain complete parent source files or a signed
+build attestation. They must not claim to reconstruct the source-to-binary build.
+
+Supplemental source coverage for nbytes and SQLite is separate from the three
+literal root-notice gaps. ncrypto remains unresolved; root Node or OpenSSL text
+must not automatically stand in as its component notice. Conditional, platform,
+header, data and linked-code applicability remain review work. Full licensing,
+vulnerability dispositions, layer review and signing continue to block release.
+Rollback is a reviewed packaging/policy revert without database or scope changes.
+
 ### 2026-09-08 amendment: Node binary metadata and original source coverage
 
 Require schema 5, adding the reviewed `node-components.json` policy and separate

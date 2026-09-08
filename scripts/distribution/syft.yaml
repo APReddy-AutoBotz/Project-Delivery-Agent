@@ -29,6 +29,7 @@ file:
       - '/app/node_modules/.pnpm/pg-types@2.2.0/node_modules/pg-types/README.md'
       - '/app/node_modules/.pnpm/pgpass@1.0.5/node_modules/pgpass/README.md'
       - '/usr/share/caddy/modules/**'
+      - '/usr/local/share/doc/node/supplements/**'
 enrich: []
 exclude: []
 golang:

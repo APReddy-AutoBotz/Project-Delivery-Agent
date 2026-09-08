@@ -197,3 +197,27 @@ commercial distribution. Replacement path: a separately reviewed Node/base-image
 update through existing runtime boundaries with fresh binary/metadata/notice pins
 and complete immutable acceptance. No source archive or new library is copied
 into customer images by this evidence increment.
+
+## Node supplemental source notices, 2026-09-08
+
+No dependency is added or upgraded. The [supplemental policy](../../scripts/distribution/node-supplemental.json)
+pins four original files at the same Node source commit and 150 notice outputs for
+the existing API, worker and operations binary. Full original sources are
+authenticated in a build stage; final images contain only notice bytes and index.
+
+| Existing component | Original source observation | Packaged evidence | Remaining review |
+|---|---|---|---|
+| nbytes 0.1.4 | Original `deps/nbytes/LICENSE` headed MIT License, crediting Node.js | Complete original 1,064-byte file | Component/source applicability and full distribution review |
+| SQLite 3.53.3 | Original copyright-disclaimer/blessing and public-domain language in amalgamation/header comments | 149 complete original comment extracts, 144,879 bytes, retaining separate occurrences | Conditional/platform/header and actual linked composition |
+| ncrypto 0.0.1 | No component-specific notice in its seven-file subtree; README describes Node-internal extraction, with an OpenSSL formatting reference in source | Explicit unresolved supplemental status; no borrowed notice | Determine original attribution and applicability |
+
+The policy records exact publisher URLs, full parent-source sizes/SHA-256, output
+ranges and hashes. Original text is not rewritten into a synthetic licence.
+Embedded examples remain inside original comment wrappers. Independent source
+checks establish byte correspondence, not legal acceptance, signed execution or
+a reproducible build. Existing root-notice gaps remain separately recorded.
+
+Owner: implementation controller for source maintenance and implementation;
+legal/product review remains required for distribution. Replacement/recovery is
+a reviewed Node/source-policy update or packaging revert with fresh immutable
+acceptance. No licence choice, dependency version or connector-scope change occurs.

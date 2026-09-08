@@ -21,7 +21,38 @@ bundled pgvector availability and external database configuration; production
 file secrets, scoped OIDC code/PKCE login and provider logout; restricted database
 roles; backup/recovery; dependency/license/notices/SBOM and image-scan gates.
 
-### Current increment: Node binary and component attribution
+### Current increment: Node supplemental original notices
+
+Under NFR-SEC-010 / AC-MNT-004, authenticate four immutable Node source files in a
+separate build stage. Preserve nbytes's complete original LICENSE and all 149
+reviewed SQLite attribution comments with their full parent-source hashes and
+exact byte intervals. Discovery must agree with the reviewed inventory before
+writing the index. Fetch only fixed source URLs with bounded HTTPS responses;
+repeat source verification and extraction under Docker's disabled network.
+
+Package only the original notice bytes and index under the same Node-specific
+supplement directory in API, worker and operations. Keep the executable, complete
+root LICENSE and runtime metadata unchanged. Source files and packaging helpers
+remain build-only. Retain separate source occurrences, including repeated and
+conditional/platform/header comments; do not claim complete linked membership.
+ncrypto remains explicitly unresolved and all three literal root-notice gaps
+remain distinct from supplemental coverage.
+
+Schema 6 adds the reviewed supplemental policy to the existing 72-file bundle.
+Shared collection and retained replay validate exact index/policy/source pins,
+every physical notice file and its independent supplying layer, accepted Node
+binary and both scanner scopes. Reject source/range substitutions, missing files
+and entries together, foreign namespaces, links, extra files and forged coverage.
+Run required native validation, fresh packaged CI, downloaded checks and separate
+immutable candidate review. Rollback is a reviewed packaging/policy revert; no
+database, permission, dependency version or connector-scope change is intended.
+
+Native lint, type checking, 255 unit tests (68 supplemental), seven builds,
+thirteen documentation regressions and traceability checks pass. Three diagnostic
+images build. Finish six real-image scope replays, exact candidate review and
+downloaded CI evidence verification before merging this increment.
+
+### Completed increment: Node binary and component attribution
 
 Under NFR-SEC-010 / AC-MNT-004, retain the current Node/runtime images and add a
 reviewed policy for its exact binary, original source notice sections and process
@@ -56,7 +87,7 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `6ff5c63` contains the reviewed production boundary, executable foundation
+Main `5071962` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
