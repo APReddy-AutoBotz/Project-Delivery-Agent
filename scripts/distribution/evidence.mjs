@@ -174,7 +174,9 @@ export function validateImageReports({
           /^(licen[sc]e|notice|copyright)/i.test(
             posix.basename(f.location.path),
           ) ||
-          f.location.path === "/srv/THIRD_PARTY_NOTICES.txt"),
+          f.location.path === "/srv/THIRD_PARTY_NOTICES.txt" ||
+          (f.location.path.startsWith("/usr/share/caddy/modules/") &&
+            f.location.path !== "/usr/share/caddy/modules/index.json")),
     )
     .map((f) => ({
       fileId: f.id,
@@ -565,7 +567,11 @@ export function assertReleaseReady(report) {
 }
 
 export function verifyEvidenceFiles(directory, report) {
-  assert.equal(report.schemaVersion, 2, "Dual-scope evidence schema required");
+  assert.equal(
+    report.schemaVersion,
+    3,
+    "Go notice and dual-scope evidence schema required",
+  );
   assert.equal(report.status, "complete", "Distribution evidence incomplete");
   requireCompleteTargets(report.images);
   assert(
@@ -574,6 +580,7 @@ export function verifyEvidenceFiles(directory, report) {
   );
   const required = [
     "runtime-policy.json",
+    "caddy-modules.json",
     "pnpm-lock.yaml",
     "lock-inventory.json",
     "production-acceptance.json",

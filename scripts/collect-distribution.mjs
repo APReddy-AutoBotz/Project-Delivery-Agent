@@ -22,6 +22,7 @@ import {
   validateRuntimeTooling,
 } from "./distribution/evidence.mjs";
 import { browserEvidence } from "./distribution/browser.mjs";
+import { validateGoModuleNotices } from "./distribution/go-notices.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const canonical = join(root, "artifacts/distribution-evidence.json");
@@ -125,6 +126,10 @@ const runtimePolicyBytes = readFileSync(
 );
 const runtimePolicy = JSON.parse(runtimePolicyBytes);
 writeFileSync(join(output, "runtime-policy.json"), runtimePolicyBytes);
+const goInventoryBytes = readFileSync(
+  join(root, "scripts/distribution/caddy-modules.json"),
+);
+writeFileSync(join(output, "caddy-modules.json"), goInventoryBytes);
 writeFileSync(join(output, "pnpm-lock.yaml"), lockBytes);
 writeFileSync(
   join(output, "lock-inventory.json"),
@@ -132,7 +137,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -188,6 +193,8 @@ function collectImageReports(target, scope, inspection) {
     pins: toolPins,
   });
   validateRuntimeTooling(target, sbom, runtimePolicy);
+  if (target === "web")
+    image.goNotices = validateGoModuleNotices(sbom, goInventoryBytes);
   return { sbom, image };
 }
 try {

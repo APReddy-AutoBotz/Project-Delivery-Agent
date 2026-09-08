@@ -37,6 +37,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Real OIDC expiry acceptance | [#28](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28) | `0c9489f` | `519c192` |
 | Portfolio authorization acceptance | [#29](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/29) | `c8d08d0` | `5da7352` |
 | Web runtime build toolchain | [#30](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/30) | `c7bbfb6` | `62bcbe6` |
+| Web transfer-tool removal | [#31](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/31) | `92f184d` | `d546e14` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -125,11 +126,20 @@ runtime/layer evidence checks. Independent review, required candidate CI and all
 63 artifact hashes passed; merged-main CI also passed. Validation is recorded in
 [DISTRIBUTION_EVIDENCE_VALIDATION.md](../05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md).
 
-The current bounded increment removes unused curl and its orphan libraries from
+PR #31 removed unused curl and its orphan libraries from
 the web image while preserving Caddy, BusyBox health checks and shared native
 dependencies. Both scanner scopes must reject removed packages and payloads.
 Detailed applicability assessment stays private; this is dependency minimization,
-not acceptance of the remaining security or distribution gates.
+not acceptance of the remaining security or distribution gates. Independent
+review, all required candidate checks, downloaded evidence verification and
+merged-main CI passed.
+
+The current bounded increment collects and verifies original notices for the
+existing 144 compiled non-stdlib Go modules. The pinned module-and-notice inventory
+binds 197 original source files to compiled h1 values and the unchanged Caddy
+binary; both image scopes must reconcile their actual bytes and layers. It adds
+no runtime dependency and grants no license approval. Complete candidate checks,
+independent review and immutable artifact verification remain required.
 
 | Story | Remaining completion work |
 |---|---|

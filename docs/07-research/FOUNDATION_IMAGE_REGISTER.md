@@ -117,3 +117,25 @@ PR #24's reported npm closure matches include [undici](https://github.com/nodejs
 and [node-tar](https://github.com/isaacs/node-tar/security/advisories/GHSA-r292-9mhp-454m).
 Removing unused package-manager copies narrows the shipped inventory; Node's
 own embedded libraries and all remaining scanner matches stay subject to review.
+
+## Compiled Go source notices
+
+The next notice increment retains every image/compiler/module pin and requires
+the unchanged Caddy binary hash recorded in `scripts/distribution/caddy-modules.json`.
+A first-party standard-library Go helper runs in the existing build stage with
+network disabled. It verifies exact module ZIP h1 values against compiled build
+metadata and the committed inventory, then preserves 197 original files plus an
+index under `/usr/share/caddy/modules/`. Source archives, extracted module caches
+and helper executables are excluded from the final graph.
+
+Both Syft scopes must contain the sole pinned Caddy binary, all 144 non-stdlib
+module identities, the expected standard library and every original notice byte.
+Notice paths, hashes, file IDs and supplying layers are reconciled independently;
+the old root-notices-only image cannot satisfy the new gate. Existing Go/Caddy
+LICENSE paths and all runtime package versions remain unchanged. The complete
+immutable customer acceptance suite still gates the candidate.
+
+Module-source attribution remains distinct from legal approval or proof of
+package/platform/asset applicability. See the adoption register and ADR-014 for
+the recorded custom-term review obligations. No database, permission, connector
+or runtime behavior change is intended; rollback is a reviewed packaging revert.

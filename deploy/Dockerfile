@@ -65,6 +65,11 @@ FROM golang:1.26.8-alpine3.23@sha256:33ce311e5eecedee48ec1b84419c1306e9fbd71009f
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOBIN=/out
 RUN go test crypto/tls -run '^(TestKeyUpdateSpamPostHandshakeTLS13|TestMultipleKeyUpdate)$' -count=1 -timeout=60s
 RUN go install -trimpath -tags nobadger,nomysql,nopgx -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4
+COPY scripts/go-notices /notice-collector
+COPY scripts/distribution/caddy-modules.json /notice-collector/caddy-modules.json
+# AC-MNT-004: exact compiled sources and original notices, with no network access.
+RUN --network=none cd /notice-collector && GO111MODULE=off go test -count=1 -v . && \
+    go run main.go -inventory /notice-collector/caddy-modules.json
 RUN mkdir -p /out/notices/go && \
     cp /usr/local/go/LICENSE /out/notices/go/LICENSE && \
     cp /go/pkg/mod/github.com/caddyserver/caddy/v2@v2.11.4/LICENSE /out/notices/LICENSE && \

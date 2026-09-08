@@ -29,7 +29,7 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `62bcbe6` contains the reviewed production boundary, executable foundation
+Main `d546e14` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
@@ -39,7 +39,7 @@ PR #30 rebuilt Caddy 2.11.4 with pinned Go 1.26.8, retaining the publisher's
 build tags, 143 dependency versions and original notices. Independent review,
 candidate CI, all 63 artifact hashes and subsequent merged-main CI passed.
 
-The next bounded increment removes unused curl from the web preparation stage
+PR #31 removed unused curl from the web preparation stage
 with offline APK dependency resolution, before the existing fresh layer graph.
 The expected removed set is curl, libcurl, brotli-libs, c-ares, libidn2, libpsl,
 libunistring, nghttp2-libs and zstd-libs. Verify the actual set against the prior
@@ -47,7 +47,37 @@ image; reject unexpected removals or version changes. Preserve BusyBox/wget,
 the CA store, OpenSSL and APK's remaining dependencies. Require absence of removed
 packages and command/library payloads in both scanner scopes, and retain Caddy's
 pure-Go build contract. Run the existing HTTPS, browser, health and both-profile
-packaged acceptance on the resulting immutable images.
+packaged acceptance on the resulting immutable images. These checks, independent
+candidate review and subsequent merged-main CI passed; the reviewed tree is
+`a7f64a13f9c6c97c4eec2bb60868fd02ffacbabf`.
+
+The next bounded increment collects original notices for the exact compiled
+Caddy module inventory (main module plus 143 dependencies). A first-party Go
+build helper uses only the pinned compiler's standard library, reads binary build
+information, verifies cached module ZIP content hashes against compiled h1 values
+and a committed inventory, then copies original attribution bytes with an index.
+Retain the unchanged Caddy binary, module versions and existing Go/Caddy notices.
+No source archives, module cache or helper executable enter the final image.
+
+Pin each module's expected notice paths and hashes as well as its coordinate and
+h1, so deleting a nested notice and its index entry cannot silently reduce
+coverage. Handle mixed-case paths, nested attribution and identical content for
+distinct modules. Offline collection fails on malformed paths, unsupported file
+types, bounded size/count overruns, changed module contents or unexpected files.
+Reconcile the index, original bytes and exact binary/module metadata independently
+in both immutable image scopes; report Go notice coverage separately from npm.
+This is a source-module notice superset requiring legal/package-level review,
+including terms outside the normally permitted list. It does not approve licenses
+or claim complete source-header, generated-data or standard-library attribution.
+
+Expected changes: build helper and its Go tests, committed module/notice inventory,
+Docker packaging, Syft capture and JavaScript evidence reconciliation, negative
+fixtures, adoption/notice/image records and this plan. No new dependency or
+runtime behavior. Verify changed/missing modules, h1/ZIP/notice tampering, missing
+nested notices, path escapes, replacements and mismatched binary/index/layers;
+then run all required repository and immutable packaged checks and obtain a
+separate non-author review. Root owns edits and Git. Rollback is a reviewed
+packaging/evidence revert without database recovery.
 
 This is dependency minimization; scanner observations do not establish live
 exploitability. Detailed applicability assessment remains private, and
@@ -125,6 +155,19 @@ are verified. Revert code through review; restore backups into a separate target
 with outbound disabled and the separately retained encryption key.
 
 ## Progress log
+
+- 2026-09-08: Implement the Go notice helper, exact 144-module/197-file inventory
+  and schema-3 reconciliation on `feature/go-dependency-notices`. The source audit
+  verified every archive h1 and all matching notice bytes. Initial offline
+  `go mod download` metadata lookup failed; direct named-cache ZIP reads passed
+  under network isolation while independently verifying compiled/pinned h1 values.
+  Five Go test groups and 58 JavaScript distribution tests passed. Both rebuilt
+  diagnostic image scopes verify all notices and unchanged runtime bytes/versions;
+  the old image is rejected. Inventory formatting correctly invalidated a prior
+  diagnostic image's byte hash, so it was rebuilt before verification. Local
+  lint/typecheck, all 118 unit tests, seven builds, 13 documentation regressions
+  and documentation validation passed. Fresh non-author review and immutable CI evidence remain
+  required before merge. No license or broader release criterion is accepted.
 
 - 2026-09-07: Begin the two-portfolio authorization matrix on
   `feature/portfolio-authorization-acceptance`. Requirements: FR-ADM-003,
