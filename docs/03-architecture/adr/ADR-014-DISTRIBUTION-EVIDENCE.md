@@ -102,6 +102,53 @@ Sources: [Go module cache and ZIP contract](https://go.dev/ref/mod),
 
 ## Original consequences
 
+### 2026-09-08 amendment: retained selected-source correspondence
+
+Require schema 8 with 82 evidence files. The reviewed
+`node-resource-sources.json` policy pins seven section/path/resource triples,
+their original sizes, SHA-256 and Git blob SHA-1 at the existing Node source
+commit. The independently checked originals total 78,421 bytes and exactly match
+the observed resources by size/SHA-256. Require every selected pair, including
+both cp files, independently of editable rows. These selected-file observations
+do not establish execution, complete component contents or licence applicability.
+
+A separate preparation command retrieves only fixed commit-qualified HTTPS
+originals, refusing redirects and changed response URLs. Bound each complete
+response to its expected size and 30 seconds, and preparation to 120 seconds.
+Abort on failure; no successful-looking partial or stale bundle may remain.
+An offline option reads bounded opened regular files, checking size before
+allocation. Preserve source bytes without decoding/re-encoding transformations
+or execution. Validate SHA-256 and Git `blob` identity for every original.
+
+Publish one deterministic `node-source-bundle.json` containing canonical base64
+originals and exact hashes of the source, resource and Node policies only after
+all seven files validate. A duplicate self-reported fetch receipt adds no separate
+authority and is not part of this contract. CI job provenance remains in the
+existing workflow/acceptance evidence. Retrieval relies on reviewed pins and
+GitHub HTTPS originals, not upstream signatures or a reproduced binary build.
+
+The collector validates the entire source bundle before installing scanner tools
+and archives the same validated buffers. Source fetching is not part of the scan
+loop. Retained replay authenticates all original bytes and their policy bindings,
+then replays physical binary/root-notice/resource/command evidence in both Node
+scopes before deriving correspondence. All three archived policy contents must
+match independently supplied trusted checkout policies; the existing syntax-only
+whitespace contract permits Windows checkouts while archived hashes remain exact.
+Source byte and base64 representations are never normalized. Duplicate JSON keys,
+extra fields, missing/reordered pairs and coherently rehashed policy forgeries fail.
+
+Add a separate source-correspondence array to each of the 24 residual section
+records. Six sections have seven verified selected-file correspondences; retain
+their existing identity, path candidates and unresolved full-membership status.
+The other 18 sections have no selected-source observation, which is not absence.
+ncrypto attribution stays unresolved. Web/database have no Node source summary.
+Full source originals and helper remain outside customer images; no dependency,
+application, image packaging, database, permission or connector scope changes.
+Recovery is a reviewed preparation/collector/policy/schema revert with fresh
+validation. All inventory, licence/notice, vulnerability, layer and signing gates
+remain open. The next priority after this bounded bridge is actual disposition
+and release review, rather than further general inventory expansion.
+
 ### 2026-09-08 amendment: observed Node resource inventory
 
 Require schema 7 with the reviewed `node-resources.json` policy and three raw

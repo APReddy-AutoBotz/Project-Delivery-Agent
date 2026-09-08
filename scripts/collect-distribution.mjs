@@ -36,6 +36,13 @@ import {
   captureNodeResources,
   validateNodeResourceEvidence,
 } from "./distribution/node-resources.mjs";
+import { readBoundedNodeFile } from "./distribution/node-supplemental.mjs";
+import {
+  validateNodeSourceBundle,
+  validateNodeSourceEvidence,
+  nodeSourcePolicyLimit,
+  nodeSourceBundleLimit,
+} from "./distribution/node-resource-sources.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const canonical = join(root, "artifacts/distribution-evidence.json");
@@ -116,7 +123,6 @@ for (const profile of acceptance.customerProfiles) {
   for (const target of customerTargets.filter((t) => t !== "database"))
     assert.equal(profile.images[target], acceptance.images[target]);
 }
-const tools = await installTools(root);
 const lockBytes = readFileSync(join(root, "pnpm-lock.yaml"));
 const lock = load(lockBytes.toString("utf8"));
 assert.equal(
@@ -159,6 +165,26 @@ const nodeResourceBytes = readFileSync(
   join(root, "scripts/distribution/node-resources.json"),
 );
 writeFileSync(join(output, "node-resources.json"), nodeResourceBytes);
+const nodeSourcePolicyBytes = readBoundedNodeFile(
+  join(root, "scripts/distribution/node-resource-sources.json"),
+  nodeSourcePolicyLimit,
+);
+const nodeSourceBundleBytes = readBoundedNodeFile(
+  join(root, "artifacts/node-source-bundle.json"),
+  nodeSourceBundleLimit,
+);
+validateNodeSourceBundle({
+  sourcePolicyBytes: nodeSourcePolicyBytes,
+  resourcePolicyBytes: nodeResourceBytes,
+  nodePolicyBytes,
+  bundleBytes: nodeSourceBundleBytes,
+});
+writeFileSync(
+  join(output, "node-resource-sources.json"),
+  nodeSourcePolicyBytes,
+);
+writeFileSync(join(output, "node-source-bundle.json"), nodeSourceBundleBytes);
+const tools = await installTools(root);
 writeFileSync(join(output, "pnpm-lock.yaml"), lockBytes);
 writeFileSync(
   join(output, "lock-inventory.json"),
@@ -166,7 +192,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 7,
+  schemaVersion: 8,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -351,6 +377,18 @@ try {
           sbom: native,
           policyBytes: nodeResourceBytes,
           nodePolicyBytes,
+          resourceBytes: resources.resourceBytes,
+          receipt: resources.receipt,
+          runId,
+        });
+        review.nodeResourceSources = validateNodeSourceEvidence({
+          target,
+          inspection,
+          sbom: native,
+          sourcePolicyBytes: nodeSourcePolicyBytes,
+          resourcePolicyBytes: nodeResourceBytes,
+          nodePolicyBytes,
+          bundleBytes: nodeSourceBundleBytes,
           resourceBytes: resources.resourceBytes,
           receipt: resources.receipt,
           runId,

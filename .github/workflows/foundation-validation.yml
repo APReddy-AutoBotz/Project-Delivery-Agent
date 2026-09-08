@@ -63,6 +63,8 @@ jobs:
         with:
           version: '11.19.0'
       - run: pnpm install --frozen-lockfile
+      - name: Prepare pinned Node source correspondence evidence
+        run: node scripts/prepare-node-resource-sources.mjs
       - name: Collect immutable image SBOM, notices and vulnerability evidence
         run: node scripts/collect-distribution.mjs
       - name: Verify complete evidence file manifest

@@ -42,12 +42,38 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Npm original notice attribution | [#33](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/33) | `ff1c301` | `6ff5c63` |
 | Node binary metadata and source coverage | [#34](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/34) | `b0a9bd2` | `5071962` |
 | Node supplemental original notices | [#35](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/35) | `174bd8d` | `43b59f8` |
+| Observed Node resource evidence | [#36](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/36) | `d107997` | `889716b` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
 backlog links are in [PUBLICATION_RECORD.md](PUBLICATION_RECORD.md).
 
 ## Implemented and verified
+
+The current NFR-SEC-010 / AC-MNT-004 increment retains seven authenticated
+JavaScript originals and derives exact selected-source/resource size-hash
+correspondence in all six Node scopes. A reviewed policy plus canonical
+original-byte bundle extends the required manifest to schema 8 / 82 files.
+Separate bounded preparation precedes offline collection/replay. Complete
+source files remain outside customer images. All 24 residual identities,
+unresolved full-membership/applicability questions and ncrypto remain explicit.
+
+Focused validation passes 284 tests, including 63 new source-policy, original-byte,
+deadline, physical-binding and forged-archive tests. Independent precheck passes
+34 checks, including recheck of the scanner-install ordering correction. Six
+diagnostic replays against retained accepted PR #36 images verify all seven pairs
+and 78,421 original bytes. Native lint, type checking, 372 unit tests across 22
+files, seven builds, thirteen documentation regressions and traceability pass.
+Separate immutable candidate review, fresh CI and downloaded evidence verification
+remain merge gates for this change.
+
+PR #36's candidate CI and all 80 downloaded files passed before its verified
+merge, including 309 unit, ten integration/eight browser tests, 17 packaged groups
+and both profiles. All ten native comparisons and six resource replays passed.
+Its duplicate merged-main foundation and documentation jobs also passed at
+`889716b`. No story or acceptance percentage changes; Issue #5 stays 11/12 with
+AC-MNT-004 unchecked. Source correspondence is followed by actual vulnerability
+disposition and remaining release-review work.
 
 - React/Vite/Tailwind web, NestJS API, Graphile Worker, PostgreSQL/pgvector
   foundation, versioned migrations and synthetic seed.

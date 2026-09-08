@@ -238,3 +238,25 @@ notice and supplements remain intact; no absent, executed or legally accepted
 classification follows from this probe. ncrypto and native/tool/generated-source
 membership remain unresolved. Owner and recovery remain the implementation
 controller and a reviewed evidence-policy revert with fresh validation.
+
+## Selected Node source/resource originals, 2026-09-08
+
+The [source policy](../../scripts/distribution/node-resource-sources.json) records
+seven exact JavaScript originals at the same reviewed Node commit. Independent
+checks authenticated complete original sizes, SHA-256 and Git blob SHA-1 from
+retained GitHub metadata/raw files. All seven original size/SHA-256 pairs match
+the independently observed resources, totaling 78,421 bytes without normalization.
+
+The selected paths are `lib/punycode.js`, `lib/internal/freeze_intrinsics.js`,
+`lib/internal/fs/rimraf.js`, both `lib/internal/fs/cp/cp.js` and `cp-sync.js`,
+`lib/internal/process/finalization.js`, and
+`lib/internal/streams/fast-utf8-stream.js`. The corresponding six original notice
+sections remain unchanged. A deterministic source bundle allows offline replay;
+source material is evidence only and stays outside customer images and execution.
+
+No dependency is adopted or upgraded and no licence choice is made. Selected-file
+byte correspondence does not establish execution, complete component coverage,
+source-build reproducibility or licence compatibility. All 24 residual identities
+remain; ncrypto, native/tool/generated-source coverage and complete distribution
+review are unresolved. Owner: implementation controller for source-pin maintenance
+and replay. Recovery: reviewed preparation/evidence-policy revert and fresh checks.

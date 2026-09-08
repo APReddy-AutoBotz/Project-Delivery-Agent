@@ -645,6 +645,8 @@ function archive(
     rewrite("node-components.json", base.nodePolicyBytes);
     rewrite("node-supplemental.json", base.policyBytes);
     rewrite("node-resources.json", {});
+    rewrite("node-resource-sources.json", {});
+    rewrite("node-source-bundle.json", {});
     for (const name of [
       "runtime-policy.json",
       "caddy-modules.json",
@@ -694,7 +696,7 @@ function archive(
       rewrite(`${target}.layers.review.json`, entry.allLayers);
     }
     const report = {
-      schemaVersion: 7,
+      schemaVersion: 8,
       status: "complete",
       runId: "pdaa-distribution-1234567890-12345678",
       images,
@@ -758,7 +760,7 @@ describe("retained source supplement replay", () => {
     }));
   it("reconstructs every image scope from the complete73-file archive", () =>
     archive((directory, report) => {
-      expect(Object.keys(report.files)).toHaveLength(80);
+      expect(Object.keys(report.files)).toHaveLength(82);
       expect(() => verifyEvidenceFiles(directory, report)).not.toThrow();
       expect(() =>
         verifyNodeSupplementReports(directory, report),

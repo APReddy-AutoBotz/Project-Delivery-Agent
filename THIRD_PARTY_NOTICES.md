@@ -112,3 +112,12 @@ source occurrence. This supplements attribution evidence without establishing
 complete linked-code applicability or legal approval. ncrypto 0.0.1's component
 notice remains unresolved; Node-root/OpenSSL relationships are not automatic
 substitutes. Commercial distribution continues to require all separate reviews.
+
+The [selected-source policy](scripts/distribution/node-resource-sources.json)
+preserves seven original JavaScript source identities corresponding by exact
+size/SHA-256 to resources in the existing Node binary. Complete unchanged originals
+are retained in a separate review-evidence bundle, outside customer images and
+source execution. This adds selected-file correspondence to six existing notice
+sections without replacing their text or deciding licence applicability. Complete
+component coverage, ncrypto attribution and commercial distribution review remain
+open.

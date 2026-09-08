@@ -435,6 +435,8 @@ function archive(
     for (const name of [
       "runtime-policy.json",
       "node-supplemental.json",
+      "node-resource-sources.json",
+      "node-source-bundle.json",
       "caddy-modules.json",
       "npm-notices.json",
       "pnpm-lock.yaml",
@@ -481,7 +483,7 @@ function archive(
     }
     check(
       directory,
-      { schemaVersion: 7, status: "complete", runId, images, files },
+      { schemaVersion: 8, status: "complete", runId, images, files },
       rewrite,
       trusted,
     );
@@ -492,9 +494,9 @@ function archive(
   }
 }
 describe("retained resource evidence and independent trust", () => {
-  it("requires all 80 files, replays six scopes and rejects the prior schema", () =>
+  it("requires all 82 files, replays six scopes and rejects the prior schema", () =>
     archive((directory, report, _rewrite, trusted) => {
-      expect(Object.keys(report.files)).toHaveLength(80);
+      expect(Object.keys(report.files)).toHaveLength(82);
       expect(() => verifyEvidenceFiles(directory, report)).not.toThrow();
       expect(() =>
         verifyNodeResourceReports(directory, report, trusted),
