@@ -142,3 +142,28 @@ other OS/npm/native components require their own review.
 Source authenticity and collection limits are recorded in ADR-014 and
 DISTRIBUTION_EVIDENCE_VALIDATION.md. The helper reuses the pinned Go compiler and
 standard library only; it adds no dependency, service or runtime executable.
+
+## Existing npm notice attribution, 2026-09-08
+
+The [npm notice policy](../../scripts/distribution/npm-notices.json) records four
+existing locked packages; it is an attribution evidence baseline, not new adoption
+or final license approval. Original publisher tarball integrity was matched to
+the exact lockfile, and selected file bytes were compared with immutable image
+digests before implementation. Collection preserves those originals without
+network enrichment or changes to installed package files.
+
+| Existing package | Original notice | Consumers | Publisher source |
+|---|---|---|---|
+| @tokenizer/token 0.3.0 | README.md containing original MIT notice | API | [version metadata](https://registry.npmjs.org/%40tokenizer%2Ftoken/0.3.0) |
+| pg-types 2.2.0 | README.md containing original MIT notice | API, worker, operations | [version metadata](https://registry.npmjs.org/pg-types/2.2.0) |
+| pgpass 1.0.5 | README.md containing original MIT notice | API, worker, operations | [version metadata](https://registry.npmjs.org/pgpass/1.0.5) |
+| rxjs 7.8.2 | LICENSE.txt, Apache-2.0 publisher notice | API, including five embedded entrypoints | [version metadata](https://registry.npmjs.org/rxjs/7.8.2) |
+
+Owner: implementation controller for maintenance and source-evidence updates;
+legal/product review remains required for commercial distribution. Replace or
+upgrade these packages only through their existing consumer boundaries and a
+reviewed lock/policy update. No package upgrade or licence choice is made here.
+The policy separately pins root/entrypoint manifest hashes, target coverage and
+original notice hashes. README capture and explicit RxJS parent attribution close
+the twelve identified evidence gaps only; complete npm/source-header/OS/native
+attribution and the remaining security/signing gates stay open.

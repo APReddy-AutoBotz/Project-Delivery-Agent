@@ -38,6 +38,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Portfolio authorization acceptance | [#29](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/29) | `c8d08d0` | `5da7352` |
 | Web runtime build toolchain | [#30](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/30) | `c7bbfb6` | `62bcbe6` |
 | Web transfer-tool removal | [#31](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/31) | `92f184d` | `d546e14` |
+| Compiled Go source notices | [#32](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/32) | `50ffbc1` | `7c85993` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -134,12 +135,22 @@ not acceptance of the remaining security or distribution gates. Independent
 review, all required candidate checks, downloaded evidence verification and
 merged-main CI passed.
 
-The current bounded increment collects and verifies original notices for the
+PR #32 collects and verifies original notices for the
 existing 144 compiled non-stdlib Go modules. The pinned module-and-notice inventory
 binds 197 original source files to compiled h1 values and the unchanged Caddy
 binary; both image scopes must reconcile their actual bytes and layers. It adds
-no runtime dependency and grants no license approval. Complete candidate checks,
-independent review and immutable artifact verification remain required.
+no runtime dependency and grants no license approval. Independent review, all
+candidate checks, all 64 downloaded evidence hashes and merged-main CI passed.
+
+The current npm increment captures original README attribution for three existing
+packages and uses the verified parent LICENSE for five RxJS entrypoint manifests.
+It preserves package versions and runtime image contents, runs application/notice
+reconciliation in both image scopes and requires source-bound original bytes and
+separate physical occurrences. Schema 4 retains the npm policy and replays its
+checks from downloaded evidence. Local lint/types, all 135 unit tests, seven
+builds, documentation checks and all six diagnostic image-scope scans pass;
+complete candidate CI, downloaded evidence and a fresh non-author review remain required before
+merge. It does not accept AC-MNT-004 or waive any release-review gate.
 
 | Story | Remaining completion work |
 |---|---|
