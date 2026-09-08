@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "reviewRequired": true,
+  "packages": [
+    {
+      "name": "@tokenizer/token",
+      "version": "0.3.0",
+      "integrity": "sha512-OvjF+z51L3ov0OyAU0duzsYuvO01PH7x4t6DJx+guahgTnBHkhJdG7soQeTSFLWN3efnHyibZ4Z8l2EuWwJN3A==",
+      "targets": ["api"],
+      "source": {
+        "archive": "https://registry.npmjs.org/@tokenizer/token/-/token-0.3.0.tgz",
+        "sha256": "911758ceca239c8e5372700eedfbbd514f16d3c117b5af0a648f6e720487c209"
+      },
+      "manifest": {
+        "path": "package.json",
+        "size": 700,
+        "sha256": "a677763aaed22462b4f9df2526b1038cef3a90bc6cf80be27b4e65d0f14472a9"
+      },
+      "notices": [
+        {
+          "path": "README.md",
+          "size": 1451,
+          "sha256": "a88c936c259cc261d5b37a2433735e9819e01f824bdc26e644d46ccd3055c8d7"
+        }
+      ],
+      "embeddedManifests": []
+    },
+    {
+      "name": "pg-types",
+      "version": "2.2.0",
+      "integrity": "sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==",
+      "targets": ["api", "operations", "worker"],
+      "source": {
+        "archive": "https://registry.npmjs.org/pg-types/-/pg-types-2.2.0.tgz",
+        "sha256": "c4804fd058140c32f8fda78883ad45dee3eaa4fd9e9127b6eb659fefe51981bd"
+      },
+      "manifest": {
+        "path": "package.json",
+        "size": 973,
+        "sha256": "3ec0293cb38cc8d9475e3eb32ac5f19d195bf9fccc8b19a0714e6ecd6e7c2cf0"
+      },
+      "notices": [
+        {
+          "path": "README.md",
+          "size": 3831,
+          "sha256": "ecda9bca71d3f0cee4e600d1dd2bef336213f39ef2e8fca6a1a1c1c8723f643a"
+        }
+      ],
+      "embeddedManifests": []
+    },
+    {
+      "name": "pgpass",
+      "version": "1.0.5",
+      "integrity": "sha512-FdW9r/jQZhSeohs1Z3sI1yxFQNFvMcnmfuj4WBMUTxOrAyLMaTcE1aAMBiTlbMNaXvBCQuVi0R7hd8udDSP7ug==",
+      "targets": ["api", "operations", "worker"],
+      "source": {
+        "archive": "https://registry.npmjs.org/pgpass/-/pgpass-1.0.5.tgz",
+        "sha256": "ff794c956186430afd600b5bc4500f3f0faf34b62be6ff98494f4c7f4a6d8597"
+      },
+      "manifest": {
+        "path": "package.json",
+        "size": 1074,
+        "sha256": "d75240eb4fe759c10db9f903838275348676a8bdc1f329e20a833713cd7c99bd"
+      },
+      "notices": [
+        {
+          "path": "README.md",
+          "size": 3294,
+          "sha256": "62549909404b5a0dcb2b4b74c9a930baf8095dbcfa1543c4ffc79378acd22b57"
+        }
+      ],
+      "embeddedManifests": []
+    },
+    {
+      "name": "rxjs",
+      "version": "7.8.2",
+      "integrity": "sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==",
+      "targets": ["api"],
+      "source": {
+        "archive": "https://registry.npmjs.org/rxjs/-/rxjs-7.8.2.tgz",
+        "sha256": "2312f8ffd9726ffd7bd53ea12c5f13663d09a3dc3326f448c70b88f5ef6fac82"
+      },
+      "manifest": {
+        "path": "package.json",
+        "size": 8116,
+        "sha256": "2399f5d968d1d693ecd206e7972fd26cb7e3daa45931ecc12202b3a924be38b7"
+      },
+      "notices": [
+        {
+          "path": "LICENSE.txt",
+          "size": 11064,
+          "sha256": "81c407ac717813b0e3795402960e04003c7bba8ba59b621624707028531c9ade"
+        }
+      ],
+      "embeddedManifests": [
+        {
+          "name": "rxjs/ajax",
+          "manifest": {
+            "path": "ajax/package.json",
+            "size": 216,
+            "sha256": "a1d5789b3326db9d728c41641bc68c645198384f59c814bd0d7c0f2096e73913"
+          }
+        },
+        {
+          "name": "rxjs/fetch",
+          "manifest": {
+            "path": "fetch/package.json",
+            "size": 221,
+            "sha256": "37a7e1a0956e8e3c2df2e995e5529da5d3257ed5f2ba40048417ddee866f2591"
+          }
+        },
+        {
+          "name": "rxjs/operators",
+          "manifest": {
+            "path": "operators/package.json",
+            "size": 241,
+            "sha256": "a91d2f973f8f500a81d385d6c92b68b1ffe22a37b87e24fdb0c9bfb85e63d14c"
+          }
+        },
+        {
+          "name": "rxjs/testing",
+          "manifest": {
+            "path": "testing/package.json",
+            "size": 231,
+            "sha256": "4a14182ff4d487fa27a49ee302e03ff4a6ce63a399ce63812d83f6157ff772f6"
+          }
+        },
+        {
+          "name": "rxjs/webSocket",
+          "manifest": {
+            "path": "webSocket/package.json",
+            "size": 241,
+            "sha256": "ee53a1fd12d7bf02ffc81bbf1b7a80b252e7081a6b13c119c2f764d393dc734c"
+          }
+        }
+      ]
+    }
+  ]
+}

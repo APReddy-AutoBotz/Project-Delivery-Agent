@@ -67,3 +67,17 @@ This module-source notice superset supplements the root notices above. It is not
 a completed legal determination of nested asset/platform, source-header,
 generated-data or standard-library terms. All entries require review under
 OPEN_SOURCE_POLICY.md; source-specific terms are recorded in the adoption register.
+
+The npm notice policy in `scripts/distribution/npm-notices.json` binds the original
+README notices in `@tokenizer/token@0.3.0`, `pg-types@2.2.0` and `pgpass@1.0.5`
+to exact publisher archive integrity and original file hashes. These complete
+files already reside in their installed packages; collection captures their
+unchanged bytes into both image-scope notice bundles. It does not substitute
+generic license text or modify installed packages.
+
+The five `rxjs@7.8.2` entrypoint manifests (`ajax`, `fetch`, `operators`, `testing`,
+`webSocket`) retain their original scanner identities and use the original
+LICENSE.txt from their verified physical parent package. Any child-specific
+notice is retained separately. The derived attribution preserves manifest/file
+and layer identities; native scanner license fields remain unchanged. These
+source-bound records support review and do not complete commercial licensing.

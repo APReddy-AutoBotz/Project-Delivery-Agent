@@ -102,6 +102,41 @@ Sources: [Go module cache and ZIP contract](https://go.dev/ref/mod),
 
 ## Original consequences
 
+### 2026-09-08 amendment: npm original files and parent attribution
+
+Require schema 4 evidence, retaining `npm-notices.json` alongside the unchanged
+Go inventory. The reviewed npm policy pins four existing package coordinates,
+exact lock integrity, publisher archive references/hashes, original root manifest
+hashes and notice paths/sizes/hashes. It also pins the five versionless RxJS
+entrypoint manifests. The original publisher archives were checksum-verified
+against the lockfile; collection performs no remote enrichment or archive fetch.
+
+Capture only the three selected README paths in addition to existing notice
+globs. Validate their full original UTF-8 bytes, size, digest, regular-file identity
+and supplying layer before adding them to the notice bundle. Pin manifest
+metadata hashes to reviewed publisher originals; manifest text is not required
+as a new notice artifact. Root and embedded manifests cannot disappear together
+with their report entries: the selected source policy remains mandatory.
+
+Apply application lock and notice reconciliation to API, worker and operations in
+both squashed and all-layer scopes. Retain each scanner package/manifest/layer
+occurrence, even when coordinates or notice contents repeat. Associate ordinary
+captured notices with their nearest physical manifest without crossing a nested
+node_modules boundary. Only reviewed source-pinned embedded manifests may inherit
+their uniquely enclosing locked parent's notice, in the same supplying layer;
+preserve child-specific files too. Other versionless manifests remain explicit
+and do not gain an automatic license exemption. Keep direct capture observations
+separate from confirmed source/parent attribution and leave native SBOM fields
+unchanged.
+
+The downloaded-evidence checker replays this calculation from native image/file
+reports and archived lockfile bytes, compares the derived lock inventory, original
+notice bundles and both recorded review objects, and rejects mismatches. Schema 3
+cannot satisfy this expanded gate. Hash manifests and source-tree binding remain
+evidence-integrity controls; trusted signing and commercial release approval are
+separate open work. This increment adds no runtime dependency, Dockerfile change,
+schema or connector scope. Rollback is a reviewed collector/policy revert.
+
 ### Web transfer-tool removal
 
 The 2026-09-08 increment removes unused curl and its orphan libraries with

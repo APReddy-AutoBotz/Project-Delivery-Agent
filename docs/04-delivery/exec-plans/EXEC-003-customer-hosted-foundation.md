@@ -29,7 +29,7 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `d546e14` contains the reviewed production boundary, executable foundation
+Main `7c85993` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
@@ -51,7 +51,7 @@ packaged acceptance on the resulting immutable images. These checks, independent
 candidate review and subsequent merged-main CI passed; the reviewed tree is
 `a7f64a13f9c6c97c4eec2bb60868fd02ffacbabf`.
 
-The next bounded increment collects original notices for the exact compiled
+PR #32 collects original notices for the exact compiled
 Caddy module inventory (main module plus 143 dependencies). A first-party Go
 build helper uses only the pinned compiler's standard library, reads binary build
 information, verifies cached module ZIP content hashes against compiled h1 values
@@ -70,13 +70,14 @@ This is a source-module notice superset requiring legal/package-level review,
 including terms outside the normally permitted list. It does not approve licenses
 or claim complete source-header, generated-data or standard-library attribution.
 
-Expected changes: build helper and its Go tests, committed module/notice inventory,
+Completed changes: build helper and its Go tests, committed module/notice inventory,
 Docker packaging, Syft capture and JavaScript evidence reconciliation, negative
 fixtures, adoption/notice/image records and this plan. No new dependency or
 runtime behavior. Verify changed/missing modules, h1/ZIP/notice tampering, missing
 nested notices, path escapes, replacements and mismatched binary/index/layers;
 then run all required repository and immutable packaged checks and obtain a
-separate non-author review. Root owns edits and Git. Rollback is a reviewed
+separate non-author review. These candidate gates, all 64 downloaded evidence
+hashes and subsequent merged-main CI passed. Root owns edits and Git. Rollback is a reviewed
 packaging/evidence revert without database recovery.
 
 This is dependency minimization; scanner observations do not establish live
@@ -86,6 +87,37 @@ scope or authorization policy change. A reviewed revert restores the prior
 development image; it does not authorize a customer release of that image.
 
 ## Proposed design
+
+### Current increment: npm notice capture and attribution
+
+Under NFR-SEC-010 / AC-MNT-004, correct the twelve observed npm notice gaps
+without changing package versions or image contents. Capture the complete original
+README files in `@tokenizer/token@0.3.0`, `pg-types@2.2.0` and `pgpass@1.0.5`;
+their publisher archives contain the original MIT notices there. Bind selected
+files and package manifests to reviewed hashes/sizes and exact lock integrity.
+The five versionless RxJS entrypoints must retain their native scanner records
+and use only their uniquely enclosing, source-pinned `rxjs@7.8.2` parent LICENSE.
+Preserve any child-specific notices and reject cross-package or cross-layer
+borrowing, altered bytes, missing parent files and ambiguous identities.
+
+Add the selected README capture globs, an npm notice policy and a first-party
+reconciler; run application/notice reconciliation for both squashed and all-layer
+scopes. Keep every package/manifest/file/layer occurrence independently recorded.
+Schema 4 must retain the policy and replay its original-byte and lock/parent
+checks from downloaded native reports. Modified summaries or omitted selected
+notice/manifest records cannot waive missing evidence. Preserve the existing Go
+contract, native license observations, vulnerability reports and release refusal.
+
+Add meaningful omission, tampering, ownership and retained-report regression
+fixtures; run required lint/types/unit/build/documentation checks, actual scanner
+capture, full immutable packaged CI and a separate non-author candidate review.
+Root owns edits and Git on `feature/npm-notice-attribution`. Update notice,
+adoption, image, validation and decision records. No runtime dependency, schema,
+authorization or connector change is planned. Rollback is a reviewed tooling and
+evidence-policy revert without database recovery. This bounded attribution proof
+does not approve complete npm/OS/source-header licensing or a customer release.
+
+### Existing foundation design
 
 Use exact published dependencies and immutable image digests. Approve a small
 native HTML React component layer styled with Tailwind. Share validated database
@@ -155,6 +187,18 @@ are verified. Revert code through review; restore backups into a separate target
 with outbound disabled and the separately retained encryption key.
 
 ## Progress log
+
+- 2026-09-08: Begin npm original notice capture/attribution from verified main
+  `7c85993` on `feature/npm-notice-attribution`. PR #32 merged-main CI passed.
+  Implement the four-package source policy, three exact README capture paths,
+  explicit five-entrypoint parent attribution and schema-4 retained evidence
+  replay. All 75 focused tests passed after correcting a negative fixture to
+  reach the intended guard. An old local fixture image correctly failed the
+  pre-existing versioned application inventory check; rebuilt current diagnostic
+  images pass all six actual scanner scopes. Local lint/types, all 135 unit tests,
+  seven builds, 13 documentation regressions and traceability pass. Immutable CI
+  artifacts and a non-author candidate review remain pending. Local BuildKit Git
+  provenance warnings keep diagnostic scans distinct from final CI evidence.
 
 - 2026-09-08: Implement the Go notice helper, exact 144-module/197-file inventory
   and schema-3 reconciliation on `feature/go-dependency-notices`. The source audit

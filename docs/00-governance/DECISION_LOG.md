@@ -133,3 +133,15 @@ limits. No module, license category or runtime policy is newly adopted. Unclear
 or custom source-subtree terms remain review-required, and STORY-004/005, legal,
 security and signing gates stay open. Exact non-author review, required checks
 and immutable artifact verification are required before merge.
+
+## Npm original notice attribution, 2026-09-08
+
+Under delegated routine implementation authority, capture the three existing
+README notices and explicitly associate five source-pinned RxJS entrypoints with
+their physical parent LICENSE. Preserve original bytes, native scanner records
+and separate target/image/manifest/file/layer occurrences. ADR-014's schema-4
+amendment requires source-file/lock-integrity pins, both-scope reconciliation and
+replay from retained original evidence, including missing/altered-file denials.
+No dependency, image package contents or license category is newly adopted.
+Full candidate validation and a non-author immutable-SHA review gate merge;
+commercial licensing, vulnerability dispositions and trusted signing stay open.

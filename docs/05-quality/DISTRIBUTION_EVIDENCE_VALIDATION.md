@@ -3,6 +3,63 @@
 Requirements: NFR-SEC-010, NFR-MNT-004, TR-TEST-001/002; AC-MNT-004;
 OPEN_SOURCE_POLICY; STORY-004; Issue #5; ADR-014; EXEC-003.
 
+## Npm source notices and physical attribution, 2026-09-08
+
+The current increment fixes twelve identified capture/attribution gaps in existing
+image contents. Seven occurrences have complete original MIT notices in the
+README files of @tokenizer/token 0.3.0, pg-types 2.2.0 and pgpass 1.0.5. Five API
+RxJS entrypoint manifests already reconcile to locked rxjs 7.8.2, whose original
+LICENSE.txt is captured. The new policy pins the four source coordinates, archive
+integrity/provenance, root and embedded manifest hashes, exact targets and original
+notice hashes/sizes. No generic license text or changed package files are added.
+
+The checker requires captured original notice contents, regular-file metadata,
+matching SHA-256/size and the correct physical package/layer. Manifest metadata
+hashes are matched to the reviewed publisher archive originals. Each occurrence
+retains target, image ID, scope, scanner package ID, original manifest and notice
+file/layer identities. It reports named-file capture separately from source-pinned
+README and parent attribution. Native UNKNOWN entrypoint versions and scanner
+license observations remain unchanged; a zero missing-notice count is not legal
+approval.
+
+Both scopes perform application lock reconciliation and notice attribution.
+Ordinary notice ownership follows the nearest physical manifest and cannot cross
+node_modules boundaries. Reviewed embedded manifests may use only their unique
+same-layer locked parent; child-specific notices are preserved too. Repeated
+coordinates or identical texts do not collapse distinct image/layer occurrences.
+Missing selected root/entrypoint manifests or notices fail even if report entries
+are also omitted. Unknown inheritance remains uncollected rather than waived.
+
+Schema 4 adds `npm-notices.json` to the 65-file manifest and retains the Go notice
+contract. Downloaded validation replays the new calculation from native reports,
+checks archived lockfile bytes against their derived inventory, and compares
+original notice bundles and recorded review objects in both scopes. Tests cover
+source/content/metadata changes, missing captures, wrong parents/versions/layers,
+child-specific notices, nested unrelated packages, repeated occurrences,
+noncanonical/duplicate/link paths and rewritten retained summaries.
+
+All 75 focused distribution tests passed, including 17 npm cases. One initial
+negative fixture reached the earlier retained-review consistency check; the
+fixture now keeps that record consistent and proves the intended scope-attribution
+denial. No production assertion was weakened. An older local image was rejected
+by the existing application-inventory guard because its own workspace manifest
+had no version; current diagnostic images were rebuilt for actual scanner checks.
+All six current API/worker/operations scope scans passed, preserving original bytes
+and resolving the eight/two/two direct-capture or parent-attribution gaps. These
+are local diagnostics; BuildKit did not retain clean Git provenance, and full
+immutable candidate acceptance remains required.
+
+Local lint, typecheck, all 135 unit tests in 18 files, all seven workspace builds,
+13 documentation regressions and documentation traceability passed. The source
+register still contains 245 requirements, 91 criteria, 38 stories and 135 planned
+test specifications. Required candidate CI, downloaded evidence verification and
+an independent non-author review remain final merge gates. No image is pushed or
+release approved.
+
+Prior PR #32 completed independent review, all required CI and 64-file immutable
+evidence verification before merge; its merged-main CI also passed. Its original
+Go notice inventory and compiled binary remain unchanged in this increment.
+
 ## Implemented contract
 
 After successful production and customer-composition acceptance, CI runs
@@ -15,8 +72,8 @@ from the proposed customer distribution.
 Each target gets separate runtime (`squashed`) and `all-layers` native Syft and
 SPDX 2.3 SBOMs, full Grype reports, observed original notice bytes, image filesystem
 identity and review inventories. Historical files retain their file and layer
-IDs; findings retain the supplying package locations. Current application/browser
-reconciliation consumes only the runtime view. The
+IDs; findings retain the supplying package locations. Application/npm-notice and
+Go reconciliation use both scopes; static-browser reconciliation uses the runtime view. The
 validator checks the ordered image filesystem layers, hashed image configuration,
 scanner versions and reported scope, SPDX package correspondence, scan source, vulnerability database
 identity/freshness and absence of suppression. The full original lockfile and its

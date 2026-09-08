@@ -18,11 +18,14 @@ import {
   hash,
   validateImageReports,
   requireCompleteTargets,
-  reconcileApplicationPackages,
   validateRuntimeTooling,
 } from "./distribution/evidence.mjs";
 import { browserEvidence } from "./distribution/browser.mjs";
 import { validateGoModuleNotices } from "./distribution/go-notices.mjs";
+import {
+  npmTargets,
+  validateNpmModuleNotices,
+} from "./distribution/npm-notices.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const canonical = join(root, "artifacts/distribution-evidence.json");
@@ -130,6 +133,10 @@ const goInventoryBytes = readFileSync(
   join(root, "scripts/distribution/caddy-modules.json"),
 );
 writeFileSync(join(output, "caddy-modules.json"), goInventoryBytes);
+const npmInventoryBytes = readFileSync(
+  join(root, "scripts/distribution/npm-notices.json"),
+);
+writeFileSync(join(output, "npm-notices.json"), npmInventoryBytes);
 writeFileSync(join(output, "pnpm-lock.yaml"), lockBytes);
 writeFileSync(
   join(output, "lock-inventory.json"),
@@ -137,7 +144,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -195,6 +202,32 @@ function collectImageReports(target, scope, inspection) {
   validateRuntimeTooling(target, sbom, runtimePolicy);
   if (target === "web")
     image.goNotices = validateGoModuleNotices(sbom, goInventoryBytes);
+  if (npmTargets.includes(target)) {
+    Object.assign(
+      image,
+      validateNpmModuleNotices({
+        target,
+        sbom,
+        inspection,
+        inventoryBytes: npmInventoryBytes,
+        locked,
+      }),
+    );
+    assert(
+      sbom.artifacts.some((p) => p.name === "node" && p.type === "binary"),
+      "Copied Node binary missing from SBOM",
+    );
+  } else {
+    assert(
+      !sbom.artifacts.some(
+        (p) =>
+          p.type === "npm" &&
+          p.locations.some((l) => l.path.startsWith("/app/")),
+      ),
+      "Unexpected application npm target",
+    );
+    image.missingPackageNotices = [];
+  }
   return { sbom, image };
 }
 try {
@@ -216,43 +249,6 @@ try {
       RootFS: inspection.RootFS,
     });
     const { sbom, image } = collectImageReports(target, "squashed", inspection);
-    const appPackages = sbom.artifacts.filter(
-      (p) =>
-        p.type === "npm" && p.locations.some((l) => l.path.startsWith("/app/")),
-    );
-    if (["api", "worker", "operations"].includes(target)) {
-      assert(appPackages.length > 0, "Application package inventory missing");
-      const packaged = sbom.files.find(
-        (f) => f.location.path === "/app/runtime-inventory.json",
-      );
-      assert(packaged?.contents, "Build-observed runtime inventory missing");
-      const expected = JSON.parse(Buffer.from(packaged.contents, "base64"));
-      image.applicationLockInventory = reconcileApplicationPackages(
-        appPackages,
-        expected,
-        locked,
-      );
-      assert(
-        sbom.artifacts.some((p) => p.name === "node" && p.type === "binary"),
-        "Copied Node binary missing from SBOM",
-      );
-    }
-    image.missingPackageNotices = appPackages
-      .filter(
-        (p) =>
-          !p.name.startsWith("@pdaa/") &&
-          !p.locations.some((l) => {
-            const prefix = l.path.slice(0, l.path.lastIndexOf("/") + 1);
-            return image.notices.some(
-              (n) =>
-                n.path.startsWith(prefix) &&
-                /licen[sc]e|notice|copyright/i.test(
-                  n.path.slice(prefix.length),
-                ),
-            );
-          }),
-      )
-      .map((p) => ({ id: p.id, name: p.name, version: p.version }));
     image.binaryInventory = sbom.artifacts
       .filter((p) => ["binary", "go-module"].includes(p.type))
       .map((p) => ({

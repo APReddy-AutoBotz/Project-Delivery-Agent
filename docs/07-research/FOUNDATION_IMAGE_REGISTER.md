@@ -120,7 +120,7 @@ own embedded libraries and all remaining scanner matches stay subject to review.
 
 ## Compiled Go source notices
 
-The next notice increment retains every image/compiler/module pin and requires
+The Go notice increment retains every image/compiler/module pin and requires
 the unchanged Caddy binary hash recorded in `scripts/distribution/caddy-modules.json`.
 A first-party standard-library Go helper runs in the existing build stage with
 network disabled. It verifies exact module ZIP h1 values against compiled build
@@ -139,3 +139,21 @@ Module-source attribution remains distinct from legal approval or proof of
 package/platform/asset applicability. See the adoption register and ADR-014 for
 the recorded custom-term review obligations. No database, permission, connector
 or runtime behavior change is intended; rollback is a reviewed packaging revert.
+
+## Npm notice capture and attribution
+
+The npm increment changes scanner capture and evidence reconciliation only. The
+existing three README files in @tokenizer/token, pg-types and pgpass already occur
+in the API/worker/operations images. Their complete original bytes enter the
+notice artifacts through exact capture paths, bound to reviewed lock-integrity
+and file-hash pins. The five RxJS entrypoints retain their original scanner
+records and use the existing parent LICENSE.txt under verified physical ownership.
+
+Both image scopes retain target/image/package/manifest/file/layer identities and
+reject missing bytes, source drift or cross-package/cross-layer notice borrowing.
+No runtime package or base-image version changes, and no Dockerfile package-copy
+step is added. Actual scanner capture and full immutable candidate acceptance
+remain required; an old image with incompatible application metadata is not valid
+new evidence. Schema 4 archives the npm policy and repeats attribution checks on
+downloaded reports. This does not approve the remaining image licensing,
+vulnerability dispositions, distributed layers or release signing.

@@ -166,7 +166,28 @@ export function validateImageReports({
       licenses: p.licenses.map((l) => l.spdxExpression ?? l.value),
       disposition: "review-required",
     }));
-  const notices = (sbom.files ?? [])
+  const notices = collectImageNotices(sbom);
+  assert(notices.length > 0, "License/notice file capture missing");
+  return {
+    imageId: inspection.Id,
+    imageConfigId: source.imageID,
+    scope,
+    packages: sbom.artifacts.length,
+    findings,
+    licenseReview,
+    notices,
+    database: { built: db.built, from: db.from, valid: db.valid },
+    severityCounts: Object.fromEntries(
+      [...severityNames].map((s) => [
+        s,
+        findings.filter((f) => f.severity === s).length,
+      ]),
+    ),
+  };
+}
+
+export function collectImageNotices(sbom) {
+  return (sbom.files ?? [])
     .filter(
       (f) =>
         typeof f.contents === "string" &&
@@ -185,23 +206,6 @@ export function validateImageReports({
       sha256: hash(Buffer.from(f.contents, "base64")),
       contents: f.contents,
     }));
-  assert(notices.length > 0, "License/notice file capture missing");
-  return {
-    imageId: inspection.Id,
-    imageConfigId: source.imageID,
-    scope,
-    packages: sbom.artifacts.length,
-    findings,
-    licenseReview,
-    notices,
-    database: { built: db.built, from: db.from, valid: db.valid },
-    severityCounts: Object.fromEntries(
-      [...severityNames].map((s) => [
-        s,
-        findings.filter((f) => f.severity === s).length,
-      ]),
-    ),
-  };
 }
 
 export function validateScan(scan, packageIds, pins, now = Date.now()) {
@@ -569,8 +573,8 @@ export function assertReleaseReady(report) {
 export function verifyEvidenceFiles(directory, report) {
   assert.equal(
     report.schemaVersion,
-    3,
-    "Go notice and dual-scope evidence schema required",
+    4,
+    "Npm/Go notice and dual-scope evidence schema required",
   );
   assert.equal(report.status, "complete", "Distribution evidence incomplete");
   requireCompleteTargets(report.images);
@@ -581,6 +585,7 @@ export function verifyEvidenceFiles(directory, report) {
   const required = [
     "runtime-policy.json",
     "caddy-modules.json",
+    "npm-notices.json",
     "pnpm-lock.yaml",
     "lock-inventory.json",
     "production-acceptance.json",
