@@ -102,6 +102,55 @@ Sources: [Go module cache and ZIP contract](https://go.dev/ref/mod),
 
 ## Original consequences
 
+### 2026-09-08 amendment: Node binary metadata and original source coverage
+
+Require schema 5, adding the reviewed `node-components.json` policy and separate
+raw Node metadata/command receipts for API, worker and operations. Retain the
+current Node 24.19.0 executable, image pins and complete original LICENSE. Pin the
+executable path/size/SHA-256, reviewed metadata snapshot and exact Node source
+commit/file hashes. Partition the unchanged notice into its root preamble and
+all 44 original top-level sections, preserving original byte offsets/hashes,
+headings and source paths. Validate the partition against the actual notice text,
+so removing an unreferenced section and merging its span into a neighbour fails.
+
+Before executing a probe, require the sole classified Node binary and original
+notice to match their physical files and accepted image layers. Detect extra
+observed executable copies, including renamed identical bytes and lower-layer
+copies. Operations stores binary and notice in different valid layers; verify
+each supplying layer independently. Source/config hashes and ordered filesystem
+layers remain bound to the accepted immutable image and scanner scope.
+
+Run only the fixed direct Node metadata expression in a uniquely named ephemeral
+container. Disable pulling and networking; use nonroot execution, read-only root,
+no mounts, dropped capabilities, no-new-privileges, bounded resources and timeout,
+and reset NODE_OPTIONS/NODE_PATH. Override the application entrypoint and working
+directory. Retain exact stdout and a receipt containing target/run/image, binary
+and policy hashes, complete argv and stdout digest/size. Clean up the owned probe
+container after command failure. The probe starts no application or connector.
+
+Require every metadata key/value/type, feature and embedded build configuration
+to match the reviewed snapshot. Keep original V8/zlib suffixes, ABI/data keys and
+empty disabled QUIC values. Build configuration that mentions installed npm or
+Corepack does not override actual verified package-manager removal. Use Node
+component identities tied to binary/source/image evidence, separately from
+application npm records. Native Syft/SPDX and vulnerability observations remain
+unchanged; this increment does not add inferred npm coordinates to scanner input.
+
+Retained verification repeats original binary/notice/section, metadata and receipt
+validation in both scopes, compares derived review objects and replays the
+existing runtime-tooling exclusions for every target. It retains npm/Go replay.
+All 72 evidence files remain hashed; schema 4 cannot satisfy the new contract.
+
+This records source correspondence and runtime metadata, not a reproducible
+source-to-binary build or signed execution attestation. The 24 notice sections
+without dedicated version keys retain unresolved shipped membership. Three
+versioned libraries (nbytes, ncrypto and sqlite) have no literal root-notice
+section; keep their component-source attribution unresolved. ICU-related data
+attribution and nested/platform/header applicability remain open. Full licensing,
+vulnerability dispositions and trusted release signing are separate requirements.
+No dependency, image package contents, database, permission or connector scope is
+changed. Rollback is a reviewed collector/policy revert without database recovery.
+
 ### 2026-09-08 amendment: npm original files and parent attribution
 
 Require schema 4 evidence, retaining `npm-notices.json` alongside the unchanged

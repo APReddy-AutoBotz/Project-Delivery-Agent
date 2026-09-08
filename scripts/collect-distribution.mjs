@@ -26,6 +26,11 @@ import {
   npmTargets,
   validateNpmModuleNotices,
 } from "./distribution/npm-notices.mjs";
+import {
+  nodeTargets,
+  captureNodeMetadata,
+  validateNodeComponentEvidence,
+} from "./distribution/node-components.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const canonical = join(root, "artifacts/distribution-evidence.json");
@@ -137,6 +142,10 @@ const npmInventoryBytes = readFileSync(
   join(root, "scripts/distribution/npm-notices.json"),
 );
 writeFileSync(join(output, "npm-notices.json"), npmInventoryBytes);
+const nodePolicyBytes = readFileSync(
+  join(root, "scripts/distribution/node-components.json"),
+);
+writeFileSync(join(output, "node-components.json"), nodePolicyBytes);
 writeFileSync(join(output, "pnpm-lock.yaml"), lockBytes);
 writeFileSync(
   join(output, "lock-inventory.json"),
@@ -144,7 +153,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -270,11 +279,39 @@ try {
     write(target + ".notices.json", image.notices);
     delete image.notices;
     console.log(`Collecting ${target} distributed lower-layer evidence`);
-    const { image: allLayers } = collectImageReports(
+    const { sbom: layerSbom, image: allLayers } = collectImageReports(
       target,
       "all-layers",
       inspection,
     );
+    if (nodeTargets.includes(target)) {
+      const { metadataBytes, receipt } = captureNodeMetadata({
+        target,
+        inspection,
+        sbom,
+        policyBytes: nodePolicyBytes,
+        runId,
+        env,
+      });
+      writeFileSync(
+        join(output, `${target}.node-metadata.json`),
+        metadataBytes,
+      );
+      write(`${target}.node-receipt.json`, receipt);
+      for (const [native, review] of [
+        [sbom, image],
+        [layerSbom, allLayers],
+      ])
+        review.nodeComponents = validateNodeComponentEvidence({
+          target,
+          inspection,
+          sbom: native,
+          policyBytes: nodePolicyBytes,
+          metadataBytes,
+          receipt,
+          runId,
+        });
+    }
     write(target + ".layers.notices.json", allLayers.notices);
     delete allLayers.notices;
     write(target + ".layers.review.json", allLayers);

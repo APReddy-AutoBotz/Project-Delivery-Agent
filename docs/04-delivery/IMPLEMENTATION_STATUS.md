@@ -39,6 +39,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Web runtime build toolchain | [#30](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/30) | `c7bbfb6` | `62bcbe6` |
 | Web transfer-tool removal | [#31](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/31) | `92f184d` | `d546e14` |
 | Compiled Go source notices | [#32](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/32) | `50ffbc1` | `7c85993` |
+| Npm original notice attribution | [#33](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/33) | `ff1c301` | `6ff5c63` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -142,15 +143,27 @@ binary; both image scopes must reconcile their actual bytes and layers. It adds
 no runtime dependency and grants no license approval. Independent review, all
 candidate checks, all 64 downloaded evidence hashes and merged-main CI passed.
 
-The current npm increment captures original README attribution for three existing
+PR #33 captures original README attribution for three existing
 packages and uses the verified parent LICENSE for five RxJS entrypoint manifests.
-It preserves package versions and runtime image contents, runs application/notice
+It preserves package versions and original package contents, runs application/notice
 reconciliation in both image scopes and requires source-bound original bytes and
 separate physical occurrences. Schema 4 retains the npm policy and replays its
 checks from downloaded evidence. Local lint/types, all 135 unit tests, seven
-builds, documentation checks and all six diagnostic image-scope scans pass;
-complete candidate CI, downloaded evidence and a fresh non-author review remain required before
-merge. It does not accept AC-MNT-004 or waive any release-review gate.
+builds, documentation checks and all six diagnostic image-scope scans passed.
+Independent candidate review, all required CI and 65-file downloaded evidence
+verification passed before merge. It does not accept AC-MNT-004 or waive any
+release-review gate.
+
+The current Node increment binds the unchanged executable, complete original
+notice and all 44 source sections to reviewed metadata and source pins. Direct
+metadata is collected from each accepted image under bounded isolated execution;
+schema 5 retains the policy and six raw/receipt files and replays both scopes.
+All 29 metadata keys remain distinct from application npm packages, with explicit
+ABI/data/disabled classifications and unresolved source attribution. Local lint,
+type checking, 187 unit tests, seven builds, thirteen documentation regressions,
+traceability validation, three diagnostic probes and six scope replays passed.
+Fresh immutable candidate CI and separate review remain merge gates. No runtime dependency,
+database, permission or connector-scope change is included.
 
 | Story | Remaining completion work |
 |---|---|

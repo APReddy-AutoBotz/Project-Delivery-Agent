@@ -573,8 +573,8 @@ export function assertReleaseReady(report) {
 export function verifyEvidenceFiles(directory, report) {
   assert.equal(
     report.schemaVersion,
-    4,
-    "Npm/Go notice and dual-scope evidence schema required",
+    5,
+    "Node component, npm/Go notice and dual-scope evidence schema required",
   );
   assert.equal(report.status, "complete", "Distribution evidence incomplete");
   requireCompleteTargets(report.images);
@@ -586,6 +586,7 @@ export function verifyEvidenceFiles(directory, report) {
     "runtime-policy.json",
     "caddy-modules.json",
     "npm-notices.json",
+    "node-components.json",
     "pnpm-lock.yaml",
     "lock-inventory.json",
     "production-acceptance.json",
@@ -594,6 +595,11 @@ export function verifyEvidenceFiles(directory, report) {
     "browser.grype.json",
     "browser.scan-receipt.json",
   ];
+  for (const target of ["api", "worker", "operations"])
+    required.push(
+      `${target}.node-metadata.json`,
+      `${target}.node-receipt.json`,
+    );
   for (const target of customerTargets)
     for (const suffix of [
       ".image.json",

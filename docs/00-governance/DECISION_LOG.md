@@ -145,3 +145,16 @@ replay from retained original evidence, including missing/altered-file denials.
 No dependency, image package contents or license category is newly adopted.
 Full candidate validation and a non-author immutable-SHA review gate merge;
 commercial licensing, vulnerability dispositions and trusted signing stay open.
+
+## Node binary metadata and source coverage, 2026-09-08
+
+Under delegated routine implementation authority, bind the unchanged Node binary
+and original notice to a reviewed source/metadata policy and each accepted image.
+Capture direct metadata with bounded isolated execution and replay the full
+contract from retained schema-5 evidence in both scopes. Preserve 29 metadata
+keys, 44 original source sections, valid cross-layer operations packaging, and
+explicit ABI/data/disabled/source-only distinctions. Missing component-source
+attribution remains unresolved; no license choice, dependency upgrade, runtime
+permission or customer-release approval is introduced. ADR-014 and EXEC-003 record
+the contract and limits. Non-author immutable candidate review, full required CI
+and downloaded evidence verification remain merge gates.

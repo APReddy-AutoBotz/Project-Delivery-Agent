@@ -157,3 +157,25 @@ remain required; an old image with incompatible application metadata is not vali
 new evidence. Schema 4 archives the npm policy and repeats attribution checks on
 downloaded reports. This does not approve the remaining image licensing,
 vulnerability dispositions, distributed layers or release signing.
+
+## Node binary metadata and source coverage
+
+The Node evidence increment retains the same runtime image pins and executable:
+125,989,464 bytes, SHA-256
+`bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12`.
+The complete original notice above is unchanged. A reviewed source policy indexes
+its preamble and 44 source sections and pins all 29 observed process metadata
+keys. Node built-ins remain separate from application npm inventory.
+
+Each accepted API/worker/operations image is probed directly after native binary
+and notice validation, with networking disabled and bounded nonroot read-only
+execution. Raw stdout and complete command/image/policy receipts are archived;
+both scope reviews are reconstructed from retained originals. Operations' binary
+and notice belong to different valid supplying layers, each retained explicitly.
+Runtime package-manager exclusion checks still apply to the actual filesystem
+even when Node's original embedded build configuration mentions npm/Corepack.
+
+This adds evidence tooling only. Source correspondence and metadata do not prove
+a reproducible build, complete linked-code census or legal applicability. The
+policy and validation documentation preserve missing/unversioned/source-only/data
+attribution as review work, alongside the existing vulnerability/signing gates.
