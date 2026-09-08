@@ -573,8 +573,8 @@ export function assertReleaseReady(report) {
 export function verifyEvidenceFiles(directory, report) {
   assert.equal(
     report.schemaVersion,
-    5,
-    "Node component, npm/Go notice and dual-scope evidence schema required",
+    6,
+    "Node supplemental/component, npm/Go notice and dual-scope evidence schema required",
   );
   assert.equal(report.status, "complete", "Distribution evidence incomplete");
   requireCompleteTargets(report.images);
@@ -587,6 +587,7 @@ export function verifyEvidenceFiles(directory, report) {
     "caddy-modules.json",
     "npm-notices.json",
     "node-components.json",
+    "node-supplemental.json",
     "pnpm-lock.yaml",
     "lock-inventory.json",
     "production-acceptance.json",

@@ -31,6 +31,7 @@ import {
   captureNodeMetadata,
   validateNodeComponentEvidence,
 } from "./distribution/node-components.mjs";
+import { validateNodeSupplementEvidence } from "./distribution/node-supplemental.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const canonical = join(root, "artifacts/distribution-evidence.json");
@@ -146,6 +147,10 @@ const nodePolicyBytes = readFileSync(
   join(root, "scripts/distribution/node-components.json"),
 );
 writeFileSync(join(output, "node-components.json"), nodePolicyBytes);
+const nodeSupplementBytes = readFileSync(
+  join(root, "scripts/distribution/node-supplemental.json"),
+);
+writeFileSync(join(output, "node-supplemental.json"), nodeSupplementBytes);
 writeFileSync(join(output, "pnpm-lock.yaml"), lockBytes);
 writeFileSync(
   join(output, "lock-inventory.json"),
@@ -153,7 +158,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 5,
+  schemaVersion: 6,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -301,7 +306,7 @@ try {
       for (const [native, review] of [
         [sbom, image],
         [layerSbom, allLayers],
-      ])
+      ]) {
         review.nodeComponents = validateNodeComponentEvidence({
           target,
           inspection,
@@ -311,6 +316,14 @@ try {
           receipt,
           runId,
         });
+        review.nodeSupplements = validateNodeSupplementEvidence({
+          target,
+          inspection,
+          sbom: native,
+          policyBytes: nodeSupplementBytes,
+          nodePolicyBytes,
+        });
+      }
     }
     write(target + ".layers.notices.json", allLayers.notices);
     delete allLayers.notices;

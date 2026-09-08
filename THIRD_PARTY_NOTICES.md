@@ -88,6 +88,21 @@ the same complete original Node LICENSE and records its root preamble plus all
 accepted image; library identities remain distinct from application npm packages.
 The original source notice includes tools/tests and material without dedicated
 runtime version keys, so section presence does not prove shipped applicability.
-Unrepresented nbytes/ncrypto/sqlite attribution, ICU-related data and the remaining
-source/header/platform review stay open. No generic notice text or legal approval
-is substituted for original evidence.
+The root notice has no named nbytes/ncrypto/sqlite sections. Supplemental coverage
+below remains distinct from those gaps, ICU-related data and the remaining
+source/header/platform review. No generic notice or legal approval is substituted.
+
+The [Node supplemental policy](scripts/distribution/node-supplemental.json) pins
+four complete original source files from the same reviewed Node commit. The build
+preserves nbytes 0.1.4's complete original LICENSE and all 149 identified SQLite
+3.53.3 attribution comments under `/usr/local/share/doc/node/supplements/` in API,
+worker and operations, alongside an index of source parents and exact byte spans.
+SQLite files are explicitly named original source extracts, including repeated
+and conditional/header occurrences; the original complete Node LICENSE remains.
+
+Source parents are authenticated before extraction and are not shipped as runtime
+code. The image and retained-evidence checks verify every original output byte and
+source occurrence. This supplements attribution evidence without establishing
+complete linked-code applicability or legal approval. ncrypto 0.0.1's component
+notice remains unresolved; Node-root/OpenSSL relationships are not automatic
+substitutes. Commercial distribution continues to require all separate reviews.

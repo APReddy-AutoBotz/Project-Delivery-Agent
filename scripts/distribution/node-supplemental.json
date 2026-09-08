@@ -1,0 +1,1265 @@
+{
+  "schemaVersion": 1,
+  "reviewRequired": true,
+  "source": {
+    "repository": "https://github.com/nodejs/node",
+    "commit": "cdc1b38d40cb567b7ad0b39c86addf830a0af0ae",
+    "files": [
+      {
+        "path": "deps/nbytes/LICENSE",
+        "size": 1064,
+        "sha256": "782ab5b8ae1540c1a2b102fdd00990ed268d4a3a98e90ad7fe724b489d7bb0f2",
+        "url": "https://raw.githubusercontent.com/nodejs/node/cdc1b38d40cb567b7ad0b39c86addf830a0af0ae/deps/nbytes/LICENSE"
+      },
+      {
+        "path": "deps/sqlite/sqlite3.c",
+        "size": 9514279,
+        "sha256": "87497ab605bedd0dbee27a209c1eeff8c89b229b13f921a7efdbb81a13f779fd",
+        "url": "https://raw.githubusercontent.com/nodejs/node/cdc1b38d40cb567b7ad0b39c86addf830a0af0ae/deps/sqlite/sqlite3.c"
+      },
+      {
+        "path": "deps/sqlite/sqlite3.h",
+        "size": 690838,
+        "sha256": "4ff81af4849acabc76fc8349abb926814395072617ca18e08800abf734ab7612",
+        "url": "https://raw.githubusercontent.com/nodejs/node/cdc1b38d40cb567b7ad0b39c86addf830a0af0ae/deps/sqlite/sqlite3.h"
+      },
+      {
+        "path": "deps/sqlite/sqlite3ext.h",
+        "size": 39175,
+        "sha256": "ac9645e5c9ff0cf176efdd6e75cb5e98f46295d38e02db5c4d208826a39ab4be",
+        "url": "https://raw.githubusercontent.com/nodejs/node/cdc1b38d40cb567b7ad0b39c86addf830a0af0ae/deps/sqlite/sqlite3ext.h"
+      }
+    ]
+  },
+  "binary": {
+    "path": "/usr/local/bin/node",
+    "size": 125989464,
+    "sha256": "bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12"
+  },
+  "rootNoticeSha256": "148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5",
+  "components": [
+    {
+      "key": "nbytes",
+      "version": "0.1.4",
+      "sourcePath": "deps/nbytes",
+      "method": "complete-original-file",
+      "notices": [
+        {
+          "path": "nbytes/LICENSE",
+          "sourcePath": "deps/nbytes/LICENSE",
+          "start": 0,
+          "end": 1064,
+          "size": 1064,
+          "sha256": "782ab5b8ae1540c1a2b102fdd00990ed268d4a3a98e90ad7fe724b489d7bb0f2"
+        }
+      ]
+    },
+    {
+      "key": "sqlite",
+      "version": "3.53.3",
+      "sourcePath": "deps/sqlite",
+      "method": "original-source-comments",
+      "notices": [
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1601-2027.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1601,
+          "end": 2027,
+          "size": 426,
+          "sha256": "39fc4986b224f2f5575dec58ae66c7c9ee2d5d3884ba4971c932f1fd5b40b033"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3917-4353.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3917,
+          "end": 4353,
+          "size": 436,
+          "sha256": "5b6f62a60c20fa0090221a98ffe08c8a1f595ffc6587824316579e8a7bf74c85"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5638-6084.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5638,
+          "end": 6084,
+          "size": 446,
+          "sha256": "a58ee35d713689a5b67aed5c698086e0bb5312a61c52283706fda54e48736535"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-12149-13633.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 12149,
+          "end": 13633,
+          "size": 1484,
+          "sha256": "cc65d76f325d884dd49e319acf3764d5513920f34ad18e34347b8dedc6ddd2ec"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-570134-570508.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 570134,
+          "end": 570508,
+          "size": 374,
+          "sha256": "0bfa112bb1558a2fbabd398948a1459cf59e9d3265e0cc7c4dc2171a492613ef"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-669476-670030.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 669476,
+          "end": 670030,
+          "size": 554,
+          "sha256": "83061b213b5cb38b761e36dce277a7f896861dc25359dfeaefd645b9b1bf3bf9"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-703543-703980.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 703543,
+          "end": 703980,
+          "size": 437,
+          "sha256": "9432e42eb2d81e4c9c1e5d984b7673a97b3129bf88022d38a75259635de96753"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-727250-727715.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 727250,
+          "end": 727715,
+          "size": 465,
+          "sha256": "ad3f98d409998e0e8115e1db20b25b36f17d92968d3b6ffee5b71fab5a3fa4ba"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-766349-767049.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 766349,
+          "end": 767049,
+          "size": 700,
+          "sha256": "118d2c87627f518256c6275f6b690acc2c1df48e4df0d193a925952f8b21803f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-767373-767859.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 767373,
+          "end": 767859,
+          "size": 486,
+          "sha256": "b59508543ca8e5d263fe02a3c75e046588ca134058068315beebbbac44efa142"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-779455-780022.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 779455,
+          "end": 780022,
+          "size": 567,
+          "sha256": "95aa2f940bde5f6aa2c936d0c962d77d1f6242d5d60e7e5165cdeadd4558ccdd"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-790257-790818.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 790257,
+          "end": 790818,
+          "size": 561,
+          "sha256": "0d76aab4c5010845b2c18c111531142c00acae8e6f735c5b64fe6aaa46d73ccd"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-808904-809535.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 808904,
+          "end": 809535,
+          "size": 631,
+          "sha256": "d575089fee251ff0ffbe9737f7b2e9fde60c1aba5ea8a970e3fd9028e6753bc5"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-843312-843769.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 843312,
+          "end": 843769,
+          "size": 457,
+          "sha256": "7fdf7217a2cc7bce82d755dfd869e921007339cb87f0b14a4b999a10833fadd0"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-851112-851900.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 851112,
+          "end": 851900,
+          "size": 788,
+          "sha256": "b1fce90f0df4196196c2f78de0d09be5e7f9d69626bc9236db4caf2bb555e3ca"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1073179-1073822.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1073179,
+          "end": 1073822,
+          "size": 643,
+          "sha256": "4412211abb6795e5d15f33de3b53f5b2146d6a2e619f97fff817e2cbad6bec6c"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1076706-1077185.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1076706,
+          "end": 1077185,
+          "size": 479,
+          "sha256": "e9df0073f1a2e9b831cfbfc7bc83ae7d7bbd6700e97da003d995890ca6b556e1"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1096550-1096994.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1096550,
+          "end": 1096994,
+          "size": 444,
+          "sha256": "5071d5534a42d08fc1bee5c973a4ded98bf3967ef5a30facdbea94c1c9d8dcea"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1114279-1114741.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1114279,
+          "end": 1114741,
+          "size": 462,
+          "sha256": "3b4cc1c8ba22bfbd4c822579afcb94763b24de1131be2203d52c4e5c34643421"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1114931-1115619.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1114931,
+          "end": 1115619,
+          "size": 688,
+          "sha256": "48e1c94032397b433ece3b3f9345ba846c905578a0bd6b4c6db0010acbf78c5f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1162980-1164694.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1162980,
+          "end": 1164694,
+          "size": 1714,
+          "sha256": "8d2ed07e438ceacd4e86fcde8844f99d4bbb4fec2d0281c70ca3bde581307a6a"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1212693-1213157.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1212693,
+          "end": 1213157,
+          "size": 464,
+          "sha256": "a26495532d8e5dc44c0cb5cab02124117d8960ef6d85ec4d1bb9cbcc7f97a462"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1227564-1228635.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1227564,
+          "end": 1228635,
+          "size": 1071,
+          "sha256": "c44834278bc421f9f72c67c7c5cd9c91970880fdd23bc84233e865529da6d6d5"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1230464-1231170.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1230464,
+          "end": 1231170,
+          "size": 706,
+          "sha256": "491bbd0905ee71e2a5c1ee62e63c8c3b53bfd8b3fe9680d342d21e80e970790d"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1232575-1234579.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1232575,
+          "end": 1234579,
+          "size": 2004,
+          "sha256": "abd3c491a29a85858abe0ea41f2473b7cbeddd9b67f136574f5151ba132969a6"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1241852-1242683.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1241852,
+          "end": 1242683,
+          "size": 831,
+          "sha256": "e3c2a9e2570b075c7b0d8eb97f38550b38bd10c19689b4233763879d8e29a6b7"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1256866-1257858.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1256866,
+          "end": 1257858,
+          "size": 992,
+          "sha256": "73ca68ee0b8892f29026796c133a0e1c35fc6a071cda4f412ea3dbd0c3ab0951"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1277234-1279395.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1277234,
+          "end": 1279395,
+          "size": 2161,
+          "sha256": "20809758fb86431942a01c89416a005da977ed48c0b2f8b124f412dc0a869081"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1294798-1295313.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1294798,
+          "end": 1295313,
+          "size": 515,
+          "sha256": "099beb1063240317fda4a35145ef59e4440fc8605cf40312ad4d652a97bcaa4f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1305683-1306643.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1305683,
+          "end": 1306643,
+          "size": 960,
+          "sha256": "a448a60d725abb7db4188e90332090a454d1489a4691838a322b96721412bc4f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1312067-1312515.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1312067,
+          "end": 1312515,
+          "size": 448,
+          "sha256": "0aab86a3b6087e58280587ca947b4db0c6b26e1ccd8ef754f047b5f60c116161"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1324910-1325356.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1324910,
+          "end": 1325356,
+          "size": 446,
+          "sha256": "2f6b127b229523c6b3c6bba45b2dc84328a9702b36bd9b2a32eb4e6b714e1004"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1325706-1326146.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1325706,
+          "end": 1326146,
+          "size": 440,
+          "sha256": "8847f7fa86a5eedc2a4d1d7e5c95e8bc6be618dc56708d094a50533fec5135df"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1339202-1339637.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1339202,
+          "end": 1339637,
+          "size": 435,
+          "sha256": "b8224f034941536f402839f81945c209abaea74bc01413e528474ea5ae33afb2"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1366375-1366773.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1366375,
+          "end": 1366773,
+          "size": 398,
+          "sha256": "9ee061ba3949215b4bfa9f0cf0ba0f4e2c64f3f7dce54cfb04397e219f2ba0f2"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1418419-1419043.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1418419,
+          "end": 1419043,
+          "size": 624,
+          "sha256": "f7a85e9fcc8060521ce0e76a5e415d6c7febefd2dd6cee8dbbfcbe95df33b393"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1461193-1461804.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1461193,
+          "end": 1461804,
+          "size": 611,
+          "sha256": "ec277b3ea97392d2b8ad53862aff1a1ae157af0f424d53c85045443dd3d25a18"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1465820-1466955.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1465820,
+          "end": 1466955,
+          "size": 1135,
+          "sha256": "376e7f216bdd61445102c9d2854c29d0fea91f65cf0732544a73975ce121cad7"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1474335-1475546.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1474335,
+          "end": 1475546,
+          "size": 1211,
+          "sha256": "303b278fc6ba8b809df81b962771afd75b8b76b61ead3283bd3cb8e8dc555d0c"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1493214-1493740.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1493214,
+          "end": 1493740,
+          "size": 526,
+          "sha256": "cbc8a3d842907513cb1d86f60ce18023254ae9221416674e67da9517211bfbb7"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1558039-1558488.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1558039,
+          "end": 1558488,
+          "size": 449,
+          "sha256": "47038f021e0ebe9b25c92401d9cbd2712ecad0d028b83eec6c8a58afa9e4af38"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1577859-1578381.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1577859,
+          "end": 1578381,
+          "size": 522,
+          "sha256": "2b3cd0c8c05ccb786c7f10a7ad66a99e9586faee3f3e097232f13dedc9cab838"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1610561-1612593.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1610561,
+          "end": 1612593,
+          "size": 2032,
+          "sha256": "b713bbc658b8c883f39db9abee3fad5c66e8ff34f58fa0a8191304166400dfa3"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-1906158-1906593.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 1906158,
+          "end": 1906593,
+          "size": 435,
+          "sha256": "65cc34490dddfe503e993d032f4610ced234538111bd9c2eade2fceb41a960dd"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2116752-2117319.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2116752,
+          "end": 2117319,
+          "size": 567,
+          "sha256": "7ec31f3e004da634a878b91dbdb4d30ad276ff5279fb3b95888b3b2813dd4d4f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2144207-2145886.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2144207,
+          "end": 2145886,
+          "size": 1679,
+          "sha256": "a4d9fa18cacf9a5e959f341e7cc81f54a81b0edcdc5ec30335df113ca83d5cc8"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2160299-2160714.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2160299,
+          "end": 2160714,
+          "size": 415,
+          "sha256": "c15d9814a8a07ac66858df130a095fe19b60e322e12fbcd598ad10497c35a0c8"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2192372-2196404.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2192372,
+          "end": 2196404,
+          "size": 4032,
+          "sha256": "2b3ad2958f0710ca82346f99e7d5ddb790caab7810f904509c997839dcf19791"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2236812-2239445.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2236812,
+          "end": 2239445,
+          "size": 2633,
+          "sha256": "308eb15268a54c87eb193779e59753cc82949ab6f4e19fc96a7b60fdea51ba85"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2252931-2253750.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2252931,
+          "end": 2253750,
+          "size": 819,
+          "sha256": "75fc450c68d9751c5a5a8bf3876a519c3a7edcb3adb0fce8b98b997d79d72c6a"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2253967-2254554.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2253967,
+          "end": 2254554,
+          "size": 587,
+          "sha256": "31e46cc83c684132e4e2630e16f85f1d91efb1e1c97e963534fc5a2906261b79"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2565150-2577888.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2565150,
+          "end": 2577888,
+          "size": 12738,
+          "sha256": "b29663b9343388d301d4b5e14570316a7d6432ff8c9dc69a8799f9ec767ef9af"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2743473-2744078.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2743473,
+          "end": 2744078,
+          "size": 605,
+          "sha256": "eba37ba20df06715ca44875f88219d6b6ba3d58efcc6e0390a738922645d4445"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2744239-2754512.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2744239,
+          "end": 2754512,
+          "size": 10273,
+          "sha256": "04bf60e3aab5fddfa7c7b35375bd39cc82392621dcf8774fbf29734d685653ff"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-2787430-2788016.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 2787430,
+          "end": 2788016,
+          "size": 586,
+          "sha256": "162ba5cfe71417de1bdf2c1dfdfb60066ee1e01429ba1da51e630c1627dab22c"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3193956-3194443.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3193956,
+          "end": 3194443,
+          "size": 487,
+          "sha256": "f90e85874930b4f8948b91278b6a5c12ca099e2ef3533ab845c54450beedc8c3"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3222218-3222828.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3222218,
+          "end": 3222828,
+          "size": 610,
+          "sha256": "9652a0946fb04ac2284617c32a3aba8a475a0c443311fc51f901ee5aa8e84814"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3296412-3296931.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3296412,
+          "end": 3296931,
+          "size": 519,
+          "sha256": "1815b37aefc5482c9bba6dc75b3b4d4b4d56dffc7fbe3440c9c84fb5d8542752"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3484473-3484926.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3484473,
+          "end": 3484926,
+          "size": 453,
+          "sha256": "5296b1bcdac85c0cf729405993f29222dee22fe29c144910728d998a931bf35f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3565499-3566072.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3565499,
+          "end": 3566072,
+          "size": 573,
+          "sha256": "2d34efe39a4b8d842e29bc3fecfde83317e845c9d332b6eb712fc4ed24301280"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3572568-3573404.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3572568,
+          "end": 3573404,
+          "size": 836,
+          "sha256": "f60c67d4f05d93a5e8e61e7161f8eb38aedf2d096d99f39c7d96fecbeb171a01"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3573811-3574305.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3573811,
+          "end": 3574305,
+          "size": 494,
+          "sha256": "fba46e0909fef9e73d6139e09de6108ebe2185be52f6e0d1af9a3fbe61ea02bb"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3894478-3894918.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3894478,
+          "end": 3894918,
+          "size": 440,
+          "sha256": "cb4087bb2358a9eedf90071816d34cc8e1672e7ce65cbb8c35daaf12a64ad04f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-3911957-3918880.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 3911957,
+          "end": 3918880,
+          "size": 6923,
+          "sha256": "c4dfafae104669ff12aa81ec56efd94ebc483c17555acdd2e39ad488d393abf1"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4010274-4010749.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4010274,
+          "end": 4010749,
+          "size": 475,
+          "sha256": "1c527d6eb6265df7cfc9535fe89e41d2900f90cafedc3f3c75859c070e02f391"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4023082-4024180.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4023082,
+          "end": 4024180,
+          "size": 1098,
+          "sha256": "631b5f00201cd92f434d5fabcfb2dd2c916a337dfdcc6399a0384fbe01d745aa"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4037263-4037726.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4037263,
+          "end": 4037726,
+          "size": 463,
+          "sha256": "60e99110477faa9b431b4655b013b8c196e31e82059767ba2158dff9c270efa3"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4045960-4046491.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4045960,
+          "end": 4046491,
+          "size": 531,
+          "sha256": "5f293304335e9b805e804e14dc00e3d1afef9c45db6735252e1c011962e48b0f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4132164-4132673.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4132164,
+          "end": 4132673,
+          "size": 509,
+          "sha256": "a8c72617885ab9b75253b912b4dd4da04197aa4a1f96a8c1192217bd200bc41d"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4402570-4403060.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4402570,
+          "end": 4403060,
+          "size": 490,
+          "sha256": "09582addaa09943fe040ad32c5a6c6b6d5696d41542d3faddbdb44c601e27ba3"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4502166-4509361.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4502166,
+          "end": 4509361,
+          "size": 7195,
+          "sha256": "c39d13b824bd05e8e822daae494fe909f5b4f8e7e6df065fdf5c4931c73f0ef7"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4572850-4573299.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4572850,
+          "end": 4573299,
+          "size": 449,
+          "sha256": "c43ec92d421fdfd6272c6aa9434dbb0a9b12565661c6e273d78798ba88084e7a"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4592340-4592980.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4592340,
+          "end": 4592980,
+          "size": 640,
+          "sha256": "d1e3eae61fc660f267f1cb9c53904e8ae0f126c0fbc0c5106a05bca30e2c9de5"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4601356-4602073.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4601356,
+          "end": 4602073,
+          "size": 717,
+          "sha256": "37bfed9be38fabfc23a4ce0139ae096a89454690d1e19b83a46637254b34e95f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4798626-4799126.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4798626,
+          "end": 4799126,
+          "size": 500,
+          "sha256": "795d68fba640477263e901ced06e5174ecddc19debb5f4a58e96bffccb81403f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4817572-4818074.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4817572,
+          "end": 4818074,
+          "size": 502,
+          "sha256": "6b4a7dcfac34793115892cec59961ede6c66b59b5d4df1b3c38da4a36df57603"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4857661-4858230.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4857661,
+          "end": 4858230,
+          "size": 569,
+          "sha256": "d98618ebafe6b12b8bdac164c6b55c5ec2baf6b2842e356d0b82f5bb4704ced9"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-4966218-4966680.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 4966218,
+          "end": 4966680,
+          "size": 462,
+          "sha256": "8c38af76675b278baf1cc2610d1b5a41f38ce259651400d40be1613dbcfe74f2"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5025916-5026403.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5025916,
+          "end": 5026403,
+          "size": 487,
+          "sha256": "51c9b9a8639b398ded89f69625ad65c41654995518a2eab6ba593396a1f120ab"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5156600-5157209.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5156600,
+          "end": 5157209,
+          "size": 609,
+          "sha256": "c4e2fdb3a0b49278304781ff4ddb38eb9afa213ea3258127ba59331e158bd463"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5161308-5161770.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5161308,
+          "end": 5161770,
+          "size": 462,
+          "sha256": "117f4f3c44641e86d976e88f04b8ef983867064f92a295e9ef6189057778dad8"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5162035-5162674.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5162035,
+          "end": 5162674,
+          "size": 639,
+          "sha256": "0fd46bd4a8fc37fd355957c1144247d38691aea7816a18d2afe43f67d2c30ea1"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5226541-5226978.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5226541,
+          "end": 5226978,
+          "size": 437,
+          "sha256": "6336c6d9b354de5566f86b455c78ffb8104dad0c5c13f53f0b04e089fe52068a"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5361442-5361967.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5361442,
+          "end": 5361967,
+          "size": 525,
+          "sha256": "d501c12078faebca7af75e8f8da7ad527c9b290fb01a40417d25ef5cb77cd6d7"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5399576-5400063.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5399576,
+          "end": 5400063,
+          "size": 487,
+          "sha256": "7b41661e986e51abd9b0433a8d122c2a46ef5c8795f20dcaa328d6d051ebf185"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5734081-5734735.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5734081,
+          "end": 5734735,
+          "size": 654,
+          "sha256": "56584e5ffad18df8ea708bf5f8d3a3c7ca029f2170a91601e1519214b246c5d5"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5740381-5740791.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5740381,
+          "end": 5740791,
+          "size": 410,
+          "sha256": "c9be478af6e650c0fce61f935537b1997de9953fee0d564effc05dea10b7a8e4"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5795603-5796080.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5795603,
+          "end": 5796080,
+          "size": 477,
+          "sha256": "f6d9be7467dddb46b0f36267fca7d645ed4fbb40752235677bffe6d0a31e681d"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5846435-5846920.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5846435,
+          "end": 5846920,
+          "size": 485,
+          "sha256": "6ffc17d223fe8aa8991de11c8cd96f64942bbe525129886c355ff0af9f78d17a"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5858291-5858824.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5858291,
+          "end": 5858824,
+          "size": 533,
+          "sha256": "2186370cf8a19c1b7b546fdc733ea5f0e9d09dab89dc637c699e63e5e5273516"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5875045-5875483.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5875045,
+          "end": 5875483,
+          "size": 438,
+          "sha256": "7aa804703a3fe2a1bc6bcb3cb7be4ca5a534d1bf40d3f61a5b27c9853d065bab"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5919288-5920074.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5919288,
+          "end": 5920074,
+          "size": 786,
+          "sha256": "82b550551c7b28c4e9d2df0afff353ac4ae51d8b0f199a5dcf570bce23c33818"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-5920264-5920821.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 5920264,
+          "end": 5920821,
+          "size": 557,
+          "sha256": "34cf437e11b503d8d82e1b76360b7d140bb624956c863d022f77bc337c65ed31"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6067677-6068354.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6067677,
+          "end": 6068354,
+          "size": 677,
+          "sha256": "4e0874f15edf9018ec3be6db275dd12dee1927335bd08404f936d4582cd8f9e0"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6140591-6141400.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6140591,
+          "end": 6141400,
+          "size": 809,
+          "sha256": "785f9b48f2a1a8c0783cd2a361759ef5adc2c7bc6ebfa82868c725c64cff8246"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6438467-6438838.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6438467,
+          "end": 6438838,
+          "size": 371,
+          "sha256": "cace7f8e17f620405fc3ac82b212b8f5e9ef375358eb5504e0649ac8de045003"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6545891-6546705.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6545891,
+          "end": 6546705,
+          "size": 814,
+          "sha256": "030325526682734b6905d1a6a17d76e1d5d80967a2353997b656e54e8fdf80e9"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6799571-6800135.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6799571,
+          "end": 6800135,
+          "size": 564,
+          "sha256": "58a7381e8e965d9ae1cd75d3a8116f8dda9d338d11fce26e8b8f1d53b1f2a297"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6848673-6849321.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6848673,
+          "end": 6849321,
+          "size": 648,
+          "sha256": "07a12b966a76354e0f50115d3d0084c048e95419d3a46cff0df10253ba14858e"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6858098-6858707.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6858098,
+          "end": 6858707,
+          "size": 609,
+          "sha256": "c4e2fdb3a0b49278304781ff4ddb38eb9afa213ea3258127ba59331e158bd463"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6858924-6859447.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6858924,
+          "end": 6859447,
+          "size": 523,
+          "sha256": "bf75fd8c96c3a92d7b5a7dc21232ed36b5e5d7c733145a5bcef9c86d52c6186c"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6859979-6860504.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6859979,
+          "end": 6860504,
+          "size": 525,
+          "sha256": "66e6f05f4cfb50334fbd88a96c3cbc36f2de9a0f12a21ff4dbaf2b74bf108206"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-6861150-6861673.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 6861150,
+          "end": 6861673,
+          "size": 523,
+          "sha256": "496998c6b86af9216e7b4cb380dadf90404599520190d6b053d43aa8f00cb893"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7034026-7034521.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7034026,
+          "end": 7034521,
+          "size": 495,
+          "sha256": "5894857d754d24316fa35378e14a2db74ff09e89d4b31757eb9a08dbbfe1e97b"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7044959-7045397.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7044959,
+          "end": 7045397,
+          "size": 438,
+          "sha256": "920b0fd271cd5c9fb1fec4d22b524f95b839ce792f47220a45c2eaf62fd4d047"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7057708-7058087.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7057708,
+          "end": 7058087,
+          "size": 379,
+          "sha256": "b08b23786e7ffeb58f9d2633f2240e29e797a8f04b245f5b3c24a992a4d536f0"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7059253-7059909.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7059253,
+          "end": 7059909,
+          "size": 656,
+          "sha256": "4c32bea53afd487130e2b728b0683446d6050e2e0df785ad0b2445f5ad0b1480"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7065977-7066562.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7065977,
+          "end": 7066562,
+          "size": 585,
+          "sha256": "bf919884e8914b3475f28a7a4394d7065cb850381eceb5bc38db820c123319b3"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7294083-7294462.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7294083,
+          "end": 7294462,
+          "size": 379,
+          "sha256": "2aaf18070830cf28f19bbdf5f754ab995b1f1e41f605d96198a27286873ca9a0"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7311673-7312287.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7311673,
+          "end": 7312287,
+          "size": 614,
+          "sha256": "8af8ec676d05ef6b18dedf223ea905876792cbd4dd974372ec21fd10954f93a2"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7354273-7354838.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7354273,
+          "end": 7354838,
+          "size": 565,
+          "sha256": "48865b8a7994b53c4633f4a501ceaa922ce0e0190fac6bd7fb35e0f176ace353"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7366115-7366581.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7366115,
+          "end": 7366581,
+          "size": 466,
+          "sha256": "b92023028917066c05cfcff946ce867b3cca5c8c23232e7b45aa2420d69d3d93"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7383825-7384340.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7383825,
+          "end": 7384340,
+          "size": 515,
+          "sha256": "22844b2d85892302aecc75d4e8da4ddf68c19fb3b0fca70c29ce0848d3b881ca"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7398666-7399107.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7398666,
+          "end": 7399107,
+          "size": 441,
+          "sha256": "5fb2111009e61b4be1a73e0c5011a4efa5fa7bd0a031a54734095c4195bd51b4"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7405518-7406893.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7405518,
+          "end": 7406893,
+          "size": 1375,
+          "sha256": "3e3149a7a70a19ad8bbcef1f6df5b254dc795064a0af98734fd04292ed491fcf"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7419302-7419985.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7419302,
+          "end": 7419985,
+          "size": 683,
+          "sha256": "78e89c30a0c2540157c1ea37c7abea7e1d6c9a45e048002532c6417034ecb1c4"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7618412-7618788.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7618412,
+          "end": 7618788,
+          "size": 376,
+          "sha256": "beea1f633cd4bea64ebc72daf9fb656123a87105af1af75a5ba0d44297c769f7"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7677539-7677981.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7677539,
+          "end": 7677981,
+          "size": 442,
+          "sha256": "d33f11734b178ec012d9e7a46a3941cc28694a68971fcd821daac9b32b843ac1"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7690468-7690843.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7690468,
+          "end": 7690843,
+          "size": 375,
+          "sha256": "ebd9578e3ea4bb8b26383a970aa41effef78f68e4dbab3bbac98025968d42413"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7708416-7714267.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7708416,
+          "end": 7714267,
+          "size": 5851,
+          "sha256": "960e28d9aedda4fdc984aefe0bd4d41fc5f77ba7ff8fdad2db9a7459f160d67e"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-7887669-7888177.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 7887669,
+          "end": 7888177,
+          "size": 508,
+          "sha256": "17b97303276680d613a199a1bd2b4b7b5ca2b26551d318afc773f4264819a39a"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8024059-8024685.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8024059,
+          "end": 8024685,
+          "size": 626,
+          "sha256": "30683360281d30d225904d5bbfef5bcb61c58258fb9b4b283f0d2f9ba29c768f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8083033-8084084.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8083033,
+          "end": 8084084,
+          "size": 1051,
+          "sha256": "0a074e0b31c0647200014dd94421b1e4c4db764145cb74de2c914341875a7885"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8101847-8102290.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8101847,
+          "end": 8102290,
+          "size": 443,
+          "sha256": "4e316c08e91b73081efd749e451317fd30e582ffde70421458df074484724cc4"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8108864-8112724.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8108864,
+          "end": 8112724,
+          "size": 3860,
+          "sha256": "4ea247ad8cd03da3d6393b2c730128114e970c986d78a045de853a48792e02eb"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8113048-8113491.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8113048,
+          "end": 8113491,
+          "size": 443,
+          "sha256": "4ebd77c7463c5338ff5cd979ce0ded5e6949595edee60a7b8c8527e29adb3532"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8313534-8314330.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8313534,
+          "end": 8314330,
+          "size": 796,
+          "sha256": "dbfa8029a827da1421858050e9740261145d075ca610dc4bf08e946e89e55f29"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8343139-8344651.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8343139,
+          "end": 8344651,
+          "size": 1512,
+          "sha256": "b4c2cc70653a42ab5b01d4b9e758927291043f3895f789048028ecf392769a00"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8358089-8359946.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8358089,
+          "end": 8359946,
+          "size": 1857,
+          "sha256": "e0aa5b206e831017a9b6cd92545ffdf0beb3711bd13fcc5a122af69060024b1a"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8617306-8617860.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8617306,
+          "end": 8617860,
+          "size": 554,
+          "sha256": "83061b213b5cb38b761e36dce277a7f896861dc25359dfeaefd645b9b1bf3bf9"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8650657-8651036.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8650657,
+          "end": 8651036,
+          "size": 379,
+          "sha256": "e20756c8ecb8c68f397343301f417c7fe1e571596e5e3eb30c5d79ab50f522ce"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8684304-8685293.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8684304,
+          "end": 8685293,
+          "size": 989,
+          "sha256": "11f8d4340f3fb97c70bf18e1c2b12bdd20111dd0efee88d631b1d5af6183f109"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8742277-8742653.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8742277,
+          "end": 8742653,
+          "size": 376,
+          "sha256": "6d5dd5886924d351f8c19df77eceab2d63a4893d0144863f56b52c83e0e9fdea"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8769355-8769731.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8769355,
+          "end": 8769731,
+          "size": 376,
+          "sha256": "6d5dd5886924d351f8c19df77eceab2d63a4893d0144863f56b52c83e0e9fdea"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8780327-8780765.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8780327,
+          "end": 8780765,
+          "size": 438,
+          "sha256": "06b03955b12ff7e833f0d765dfda3cbea9c19d4a0ff1632b4123e14fe41477a5"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8811363-8811742.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8811363,
+          "end": 8811742,
+          "size": 379,
+          "sha256": "e20756c8ecb8c68f397343301f417c7fe1e571596e5e3eb30c5d79ab50f522ce"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8905342-8905724.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8905342,
+          "end": 8905724,
+          "size": 382,
+          "sha256": "c9656e5d87b2bc19b05aef30dc63e2ab7db8905eb4f7a89e2b0582eaccd9ec68"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-8921894-8922528.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 8921894,
+          "end": 8922528,
+          "size": 634,
+          "sha256": "9d79bbd57a2850f40c2b68187d6ee06aefbcea3598ec42522c63c8039b21aa2f"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-9221854-9222292.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 9221854,
+          "end": 9222292,
+          "size": 438,
+          "sha256": "06b03955b12ff7e833f0d765dfda3cbea9c19d4a0ff1632b4123e14fe41477a5"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-9342967-9343346.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 9342967,
+          "end": 9343346,
+          "size": 379,
+          "sha256": "e20756c8ecb8c68f397343301f417c7fe1e571596e5e3eb30c5d79ab50f522ce"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-9390049-9390425.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 9390049,
+          "end": 9390425,
+          "size": 376,
+          "sha256": "6d5dd5886924d351f8c19df77eceab2d63a4893d0144863f56b52c83e0e9fdea"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-9430613-9430988.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 9430613,
+          "end": 9430988,
+          "size": 375,
+          "sha256": "ebd9578e3ea4bb8b26383a970aa41effef78f68e4dbab3bbac98025968d42413"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-9471674-9472111.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 9471674,
+          "end": 9472111,
+          "size": 437,
+          "sha256": "5956b4c08a1f60318a5e9bdf91cbfd8b55a520c93b78605949303d6e85ffdfef"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-9478730-9480118.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 9478730,
+          "end": 9480118,
+          "size": 1388,
+          "sha256": "4b3a12b0a0a33c031c3a0aa9fa0020ee37bc9883c6a5f1d80069b22fd99b080c"
+        },
+        {
+          "path": "sqlite/sqlite3.c/NOTICE-9503787-9504407.txt",
+          "sourcePath": "deps/sqlite/sqlite3.c",
+          "start": 9503787,
+          "end": 9504407,
+          "size": 620,
+          "sha256": "4305565e80faa2d04d81746ae6daed0732b7062c3551f45974c4befa7c41e050"
+        },
+        {
+          "path": "sqlite/sqlite3.h/NOTICE-0-1484.txt",
+          "sourcePath": "deps/sqlite/sqlite3.h",
+          "start": 0,
+          "end": 1484,
+          "size": 1484,
+          "sha256": "cc65d76f325d884dd49e319acf3764d5513920f34ad18e34347b8dedc6ddd2ec"
+        },
+        {
+          "path": "sqlite/sqlite3.h/NOTICE-558036-558410.txt",
+          "sourcePath": "deps/sqlite/sqlite3.h",
+          "start": 558036,
+          "end": 558410,
+          "size": 374,
+          "sha256": "0bfa112bb1558a2fbabd398948a1459cf59e9d3265e0cc7c4dc2171a492613ef"
+        },
+        {
+          "path": "sqlite/sqlite3.h/NOTICE-657430-657984.txt",
+          "sourcePath": "deps/sqlite/sqlite3.h",
+          "start": 657430,
+          "end": 657984,
+          "size": 554,
+          "sha256": "83061b213b5cb38b761e36dce277a7f896861dc25359dfeaefd645b9b1bf3bf9"
+        },
+        {
+          "path": "sqlite/sqlite3ext.h/NOTICE-0-640.txt",
+          "sourcePath": "deps/sqlite/sqlite3ext.h",
+          "start": 0,
+          "end": 640,
+          "size": 640,
+          "sha256": "a781b07c5f45191c342417a65ac85dbeedbecf06d730a27a52e7f90ddd53d00d"
+        }
+      ]
+    },
+    {
+      "key": "ncrypto",
+      "version": "0.0.1",
+      "sourcePath": "deps/ncrypto",
+      "method": "unresolved",
+      "notices": []
+    }
+  ]
+}

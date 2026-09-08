@@ -3,6 +3,50 @@
 Requirements: NFR-SEC-010, NFR-MNT-004, TR-TEST-001/002; AC-MNT-004;
 OPEN_SOURCE_POLICY; STORY-004; Issue #5; ADR-014; EXEC-003.
 
+## Node supplemental original notices, 2026-09-08
+
+The current increment packages original source attribution for two existing Node
+libraries. The policy pins four unchanged originals from the reviewed Node commit,
+nbytes's complete 1,064-byte LICENSE and 149 SQLite comment occurrences totalling
+144,879 bytes. Independent source preparation verified full sizes, SHA-256 and
+Git blob identities. A separate stateful C lexer confirmed every pinned extract
+is an actual block comment, preserving duplicate and conditional/header material.
+
+The build fetches only those four fixed HTTPS URLs with timeout/byte bounds and
+no redirects. Offline packaging rechecks full source, executable and root-notice
+hashes, and discovers comment coverage before writing outputs. Opened-file size
+checks precede bounded allocation. The final images contain 150 original notice
+files and an index; source code and helpers stay in build stages. Captured notice
+bytes, namespace, image and independent supplying-layer identities must match in
+both scopes, and the schema-6 retained checker repeats the same reconciliation.
+The supplemental policy makes 73 required evidence files.
+
+Precheck found two implementation gaps: changed source roots could hide required
+occurrences, and local source reads checked size after allocation. Fixed roots
+and per-component counts now reject empty coverage claims; bounded descriptor
+reads check size first. Regression cases cover coherent policy/index/file
+omission, wrong source/range/namespace, substituted bytes or binary, missing and
+extra copies, links, foreign layers, forged retained summaries, fetch failure and
+original C comment discovery. All 68 supplemental tests pass, including rejection
+of full SQLite source and build-helper paths in distributed images. Native lint,
+type checking, all 255 unit tests, seven builds, thirteen documentation regressions
+and traceability checks pass. The three diagnostic images build successfully;
+final real-image replays, fresh immutable CI and separate candidate review remain
+required before merge.
+
+PR #34 merged `b0a9bd2` as `5071962` after separate review, required candidate CI
+and all 72 downloaded hashes/replays passed; its merged-main CI also passed.
+It verified 187 unit, ten integration, eight browser and 17 packaged groups with
+both customer profiles. Across its rebuilds all native file metadata and other
+SHA256-inventoried contents matched; generated pnpm state/APK log differences
+were preserved explicitly without claiming complete filesystem equivalence.
+
+Supplemental coverage is not complete licence approval, binary composition or a
+signed build attestation. ncrypto's component attribution, all three literal root
+notice gaps and remaining source/header/platform/data applicability stay explicit.
+Unresolved vulnerabilities and other release gates are neither waived nor
+reclassified by source-notice collection.
+
 ## Node binary metadata and source coverage, 2026-09-08
 
 The current increment extends NFR-SEC-010 / AC-MNT-004 with exact executable and

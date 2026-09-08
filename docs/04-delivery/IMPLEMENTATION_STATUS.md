@@ -40,6 +40,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Web transfer-tool removal | [#31](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/31) | `92f184d` | `d546e14` |
 | Compiled Go source notices | [#32](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/32) | `50ffbc1` | `7c85993` |
 | Npm original notice attribution | [#33](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/33) | `ff1c301` | `6ff5c63` |
+| Node binary metadata and source coverage | [#34](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/34) | `b0a9bd2` | `5071962` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -154,7 +155,7 @@ Independent candidate review, all required CI and 65-file downloaded evidence
 verification passed before merge. It does not accept AC-MNT-004 or waive any
 release-review gate.
 
-The current Node increment binds the unchanged executable, complete original
+PR #34 binds the unchanged executable, complete original
 notice and all 44 source sections to reviewed metadata and source pins. Direct
 metadata is collected from each accepted image under bounded isolated execution;
 schema 5 retains the policy and six raw/receipt files and replays both scopes.
@@ -162,8 +163,21 @@ All 29 metadata keys remain distinct from application npm packages, with explici
 ABI/data/disabled classifications and unresolved source attribution. Local lint,
 type checking, 187 unit tests, seven builds, thirteen documentation regressions,
 traceability validation, three diagnostic probes and six scope replays passed.
-Fresh immutable candidate CI and separate review remain merge gates. No runtime dependency,
-database, permission or connector-scope change is included.
+Separate candidate review, all required CI, 72-file downloaded evidence checks
+and merged-main CI passed. No runtime dependency, database, permission or
+connector-scope change was included.
+
+The current supplement increment authenticates four original source files and
+packages nbytes's complete LICENSE plus 149 original SQLite attribution comments
+and their source index into the three existing Node images. Shared collection and
+retained replay bind all 150 notices to exact source pins, Node binary, image and
+supplying layers. Schema 6 retains the supplemental policy. All 68 new focused
+tests pass, including fixes from an independent precheck. Native lint, type
+checking, all 255 unit tests, seven builds, thirteen documentation regressions and
+traceability checks pass. Three diagnostic images build; final real-image checks,
+fresh immutable CI and separate review remain merge gates.
+ncrypto and complete licensing/composition review remain unresolved. No runtime
+dependency version, database, permission or connector scope changes.
 
 | Story | Remaining completion work |
 |---|---|
