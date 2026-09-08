@@ -81,3 +81,13 @@ LICENSE.txt from their verified physical parent package. Any child-specific
 notice is retained separately. The derived attribution preserves manifest/file
 and layer identities; native scanner license fields remain unchanged. These
 source-bound records support review and do not complete commercial licensing.
+
+The Node evidence policy in `scripts/distribution/node-components.json` preserves
+the same complete original Node LICENSE and records its root preamble plus all
+44 original source sections. Binary and runtime metadata are bound to each
+accepted image; library identities remain distinct from application npm packages.
+The original source notice includes tools/tests and material without dedicated
+runtime version keys, so section presence does not prove shipped applicability.
+Unrepresented nbytes/ncrypto/sqlite attribution, ICU-related data and the remaining
+source/header/platform review stay open. No generic notice text or legal approval
+is substituted for original evidence.

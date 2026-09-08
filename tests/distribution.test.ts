@@ -826,6 +826,7 @@ it("rejects changed or missing files in a complete evidence bundle", () => {
       "runtime-policy.json",
       "caddy-modules.json",
       "npm-notices.json",
+      "node-components.json",
       "pnpm-lock.yaml",
       "lock-inventory.json",
       "production-acceptance.json",
@@ -834,6 +835,8 @@ it("rejects changed or missing files in a complete evidence bundle", () => {
       "browser.grype.json",
       "browser.scan-receipt.json",
     ];
+    for (const target of ["api", "worker", "operations"])
+      names.push(`${target}.node-metadata.json`, `${target}.node-receipt.json`);
     for (const target of Object.keys(images))
       for (const suffix of [
         ".image.json",
@@ -851,7 +854,7 @@ it("rejects changed or missing files in a complete evidence bundle", () => {
         names.push(target + suffix);
     for (const name of names) writeFileSync(join(directory, name), name);
     const report = {
-      schemaVersion: 4,
+      schemaVersion: 5,
       status: "complete",
       images,
       files: Object.fromEntries(names.map((n) => [n, hash(n)])),

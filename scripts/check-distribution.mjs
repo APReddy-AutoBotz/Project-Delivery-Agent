@@ -6,6 +6,7 @@ import {
 } from "./distribution/evidence.mjs";
 import { verifyGoNoticeReports } from "./distribution/go-notices.mjs";
 import { verifyNpmNoticeReports } from "./distribution/npm-notices.mjs";
+import { verifyNodeComponentReports } from "./distribution/node-components.mjs";
 const report = JSON.parse(
   readFileSync("artifacts/distribution-evidence.json", "utf8"),
 );
@@ -15,6 +16,7 @@ try {
   verifyEvidenceFiles(join("artifacts", report.runId), report);
   verifyGoNoticeReports(join("artifacts", report.runId), report);
   verifyNpmNoticeReports(join("artifacts", report.runId), report);
+  verifyNodeComponentReports(join("artifacts", report.runId), report);
   if (
     process.argv.slice(2).length === 1 &&
     process.argv[2] === "--evidence-only"

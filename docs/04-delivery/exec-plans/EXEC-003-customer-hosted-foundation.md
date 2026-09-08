@@ -21,6 +21,33 @@ bundled pgvector availability and external database configuration; production
 file secrets, scoped OIDC code/PKCE login and provider logout; restricted database
 roles; backup/recovery; dependency/license/notices/SBOM and image-scan gates.
 
+### Current increment: Node binary and component attribution
+
+Under NFR-SEC-010 / AC-MNT-004, retain the current Node/runtime images and add a
+reviewed policy for its exact binary, original source notice sections and process
+metadata. Collect bounded direct Node metadata from each accepted API, worker and
+operations image, with networking disabled, a read-only root filesystem, nonroot
+execution, dropped capabilities and no application entrypoint. Verify binary and
+notice identity before executing the probe. Archive the raw output and command
+receipt, and reconcile both native scanner scopes with the policy and original
+notice bytes. Downloaded evidence repeats the same checks, including the existing
+runtime-tooling policy. Schema 5 retains the policy and six per-target raw/receipt
+files in addition to the existing 65 files.
+
+Keep built-ins distinct from application npm packages; distinguish library,
+ABI/data, disabled-feature and source-only records. Preserve all 44 original
+source sections and the Node preamble. Explicitly retain unrepresented component
+attribution and unresolved source-only membership. Operations legitimately copies
+its binary and notice in different layers. This is metadata/source coverage, not
+a complete linked-component census, legal decision or vulnerability disposition.
+
+Validate changed/surplus binary copies, wrong image/layer/target, original notice
+substitution, missing/extra/mistyped metadata, disabled QUIC values, source-section
+omission and forged retained summaries. Required native checks, six real scanner
+scope replays, fresh immutable packaged CI and non-author candidate review gate
+merge. No runtime dependency, Dockerfile, database, permission or connector-scope
+change is planned. Rollback is a reviewed evidence-tooling/policy revert.
+
 ## Out of scope
 
 Jira/AI/email, source writes, customer deployment activation, commercial release
@@ -29,7 +56,7 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `7c85993` contains the reviewed production boundary, executable foundation
+Main `6ff5c63` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout

@@ -167,3 +167,33 @@ The policy separately pins root/entrypoint manifest hashes, target coverage and
 original notice hashes. README capture and explicit RxJS parent attribution close
 the twelve identified evidence gaps only; complete npm/source-header/OS/native
 attribution and the remaining security/signing gates stay open.
+
+## Existing Node binary/component source coverage, 2026-09-08
+
+The [Node policy](../../scripts/distribution/node-components.json) records the
+existing Node 24.19.0 binary, exact process metadata, eleven reviewed original
+source-file hashes and the complete original notice partition. The source commit
+is `cdc1b38d40cb567b7ad0b39c86addf830a0af0ae`; publisher source URLs are retained
+with each file. This is source/metadata attribution for an existing dependency,
+not new package adoption or a license choice.
+
+The 29 metadata keys comprise the runtime, 21 versioned libraries, two ABI/API
+values, three ICU-related data values and two empty disabled QUIC values. Eighteen
+versioned libraries and the two disabled keys map to original source sections;
+nbytes, ncrypto and sqlite have no literal section in the root notice and remain
+unresolved. ABI/data keys are not application packages. Built-in undici, for
+example, must not borrow the identity or notice of an application npm dependency.
+
+The notice retains all 44 top-level source sections, including 24 without their
+own version keys. They include source tools/tests, removed package-manager
+material and in-tree libraries; source presence or an absent version key does not
+settle shipped membership. Full source/header/platform/data applicability and
+component notices remain explicit review work. Runtime metadata and reviewed
+source hashes do not establish a reproducible source-to-binary build.
+
+Consumers: API, worker and operations. Owner: implementation controller for
+maintenance/source evidence; legal/product approval remains required before
+commercial distribution. Replacement path: a separately reviewed Node/base-image
+update through existing runtime boundaries with fresh binary/metadata/notice pins
+and complete immutable acceptance. No source archive or new library is copied
+into customer images by this evidence increment.

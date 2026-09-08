@@ -3,9 +3,61 @@
 Requirements: NFR-SEC-010, NFR-MNT-004, TR-TEST-001/002; AC-MNT-004;
 OPEN_SOURCE_POLICY; STORY-004; Issue #5; ADR-014; EXEC-003.
 
+## Node binary metadata and source coverage, 2026-09-08
+
+The current increment extends NFR-SEC-010 / AC-MNT-004 with exact executable and
+source-notice coverage in the three existing Node targets. A reviewed policy pins
+the binary, eleven original source files, complete metadata snapshot and original
+notice partition: root preamble plus 44 sections. Every section must match its
+actual heading, source path, byte boundaries and digest. No original notice is
+rewritten or new runtime package installed.
+
+The bounded direct Node probe executes only after binary/notice image binding
+passes. It disables pulling/networking, overrides the application entrypoint,
+uses nonroot read-only execution with no mounts, drops capabilities and limits
+time/resources/output. Exact raw stdout and the complete target/image/run/argv
+receipt are retained. Failed commands trigger cleanup of their unique probe
+container. Both scopes validate every observed binary copy and original notice;
+the operations image's distinct valid supplying layers are preserved.
+
+Schema 5 adds `node-components.json`, three raw `.node-metadata.json` files and
+three `.node-receipt.json` files to the prior 65-file manifest. Downloaded checks
+replay Node metadata/receipt/source coverage, compare both derived review objects
+and repeat all runtime-tooling exclusions, alongside existing npm and Go checks.
+The native scanner records remain unchanged. Metadata/library identities are
+scoped to the exact Node binary, not inferred application npm packages.
+
+Focused tests cover wrong/surplus/missing executables, wrong image/config/layers,
+notice substitution, omitted source-only sections after span rehashing, malformed
+or mistyped metadata, extra/missing keys, disabled QUIC, full V8/zlib identities,
+weakened or cross-target receipts, bounded-command failure cleanup and forged
+retained summaries even when file hashes agree. A real diagnostic probe passed
+on all three existing local images with six native scope replays. It preserved
+29 metadata keys and 44 sections; three unrepresented library attributions remain
+explicit. A separate precheck found unrelated source-section mappings and missing
+disabled-component mappings were accepted. Both now fail, with four regression
+cases. Local lint, type checking, all 187 unit tests (52 Node cases), seven builds,
+thirteen documentation regressions and traceability validation passed. Fresh
+immutable candidate CI and non-author review still gate merge.
+
+The source notice is a superset: 24 sections have no dedicated version key and
+retain unresolved shipped membership. nbytes/ncrypto/sqlite root-notice gaps,
+ICU-related data, unversioned sources and nested/header/platform applicability
+remain review work. Metadata receipts are integrity evidence, not signed runtime
+attestations or proof of complete binary source composition. Distribution approval
+remains false, and this increment assigns no vulnerability or legal disposition.
+
+PR #33 merged reviewed `ff1c301` as `6ff5c63` after independent review, all required
+candidate CI and 65-file retained evidence verification. It passed 135 unit, ten
+database/API, eight browser and 17 packaged groups with both customer profiles.
+Generated pnpm state/APK log hashes differed between builds; their contents were
+not captured, so complete filesystem reproducibility was not established. All
+other inventoried file contents, package versions and original license/source
+contents matched. The public PR links its review and required CI results.
+
 ## Npm source notices and physical attribution, 2026-09-08
 
-The current increment fixes twelve identified capture/attribution gaps in existing
+The preceding increment fixes twelve identified capture/attribution gaps in existing
 image contents. Seven occurrences have complete original MIT notices in the
 README files of @tokenizer/token 0.3.0, pg-types 2.2.0 and pgpass 1.0.5. Five API
 RxJS entrypoint manifests already reconcile to locked rxjs 7.8.2, whose original
