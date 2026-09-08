@@ -33,10 +33,13 @@ scanned and converted to SPDX; it is not represented as scanner-discovered code.
 Grype's file-source report does not echo file digests, so an invocation receipt
 records its exact input/output hashes and the image-bound browser inventory hash.
 
-`artifacts/distribution-evidence.json` schema version 2 is published only after every target passes
+`artifacts/distribution-evidence.json` schema version 3 is published only after every target passes
 evidence validation. The same run directory contains all source reports and a
 SHA-256 file manifest. `node scripts/check-distribution.mjs --evidence-only`
-requires both scopes and rejects missing, changed, unexpected or unsafe file references. The default check
+requires both scopes and rejects missing, changed, unexpected or unsafe file references. It
+also revalidates both Go notice reports against their retained native SBOMs and
+the exact `caddy-modules.json` inventory. Schema-2 evidence cannot satisfy this
+expanded contract. The default check
 refuses release: collection is not a completed license review, vulnerability
 disposition or trusted signature. There is no option to approve distribution by
 setting a boolean, emptying a blocker list or overriding scanner configuration.
@@ -92,6 +95,53 @@ application and packaged checks remain required for the candidate.
 
 ## Remaining release gates
 
+### Compiled Go notice increment
+
+Requirements NFR-SEC-010 / AC-MNT-004; Issue #5, ADR-014 and EXEC-003. The pinned
+inventory contains Caddy plus 143 compiled dependencies, with exact versions/h1
+values and 197 original notice paths/hashes (994,442 bytes). The Go build helper
+checks binary bytes/build metadata, independently rehashes exact cached ZIPs and
+copies original attribution under network isolation. No source/cache/helper
+executable is shipped. The index records ZIP SHA-256 separately from content h1;
+neither cache metadata nor ZIP encoding is treated as a substitute for content
+verification. All modules currently have matching attribution files.
+
+The collector's Go tests cover original CRLF bytes, reordered/recompressed ZIPs,
+source/notice/h1 tampering, nested-notice omission, unsafe/duplicate/link paths,
+unsupported encoding/size, module replacement and compiler/settings drift.
+JavaScript tests cover both scopes, module identities, altered original bytes,
+omitted manifest/file pairs, mismatched binary/index/layers, extra lower-layer
+copies, source leaks, inventory drift and rechecking retained reports. Identical
+texts retain separate module identities. JSON/source files such as the verified
+mergo `testdata/license.json` are excluded by the documented matcher.
+
+The first local offline metadata lookup failed because `go mod download` attempted
+a module lookup with `GOPROXY=off`. Direct exact-cache ZIP reads succeeded under
+the same Docker network isolation while retaining independent compiled/pinned h1
+checks. All five Go test groups passed, and the build collected the expected 144
+modules and 197 files. The 58 JavaScript distribution tests passed. A diagnostic
+image built before inventory formatting was correctly rejected for a stale
+inventory-byte hash. After rebuilding with the formatted inventory, both native
+image scopes passed: 144 modules and 197 original notices, unchanged package
+versions/Caddy/BusyBox/trust-store/root-notice hashes, and rejection of the prior
+root-notices-only image. The diagnostic runs used UID 1000, a read-only filesystem,
+no network, dropped capabilities and no new privileges. They do not replace
+complete immutable candidate CI acceptance.
+
+Local lint, typecheck, all 118 unit tests in 17 files, seven workspace builds and
+13 documentation regressions passed; the focused distribution suites passed 58
+tests. Documentation validation covers 245 requirements, 91 criteria, 38 stories
+and 135 test specifications. Default CI execution, packaged customer profiles,
+all source-bound evidence files and a fresh non-author review remain final gates.
+
+Schema 3 retains the exact module inventory in its file manifest and requires
+image-bound Go notice reconciliation separately from npm `missingPackageNotices`.
+Native scanner license observations remain unchanged and legal review stays
+mandatory. This source-module superset does not establish which nested asset,
+platform, header or generated-data terms apply. Complete repository, packaged
+customer and downloaded artifact gates are required before merge; this increment
+does not complete AC-MNT-004, vulnerability dispositions or trusted signing.
+
 ### Web transfer-tool increment
 
 Requirements NFR-SEC-010 and AC-MNT-004, with NFR-SEC-003 compatibility retained;
@@ -115,6 +165,12 @@ parallel run produced no startup-control output at its child-process time limit;
 the unchanged isolated control and complete suite passed with two workers.
 The final focused tests also passed after separating package-name and
 package-origin controls. Default CI execution remains required before merge.
+
+PR #31 subsequently merged reviewed `92f184d` as `d546e14` after all required
+candidate checks, independent review and downloaded evidence verification passed.
+Its final candidate run passed 107 unit, ten database/API, eight browser and
+17 packaged groups; all 63 artifact hashes and both customer profiles verified.
+Merged-main CI passed. The public PR record links the CI and review evidence.
 
 Package removal is not an exploitability verdict. Keep complete scanner output
 and all unresolved release gates; no suppression or legal waiver is introduced.

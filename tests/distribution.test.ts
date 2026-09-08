@@ -824,6 +824,7 @@ it("rejects changed or missing files in a complete evidence bundle", () => {
     );
     const names = [
       "runtime-policy.json",
+      "caddy-modules.json",
       "pnpm-lock.yaml",
       "lock-inventory.json",
       "production-acceptance.json",
@@ -849,7 +850,7 @@ it("rejects changed or missing files in a complete evidence bundle", () => {
         names.push(target + suffix);
     for (const name of names) writeFileSync(join(directory, name), name);
     const report = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       status: "complete",
       images,
       files: Object.fromEntries(names.map((n) => [n, hash(n)])),

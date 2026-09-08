@@ -25,6 +25,7 @@ file:
       - '/srv/third-party-components.json'
       - '/srv/THIRD_PARTY_NOTICES.txt'
       - '/app/runtime-inventory.json'
+      - '/usr/share/caddy/modules/**'
 enrich: []
 exclude: []
 golang:

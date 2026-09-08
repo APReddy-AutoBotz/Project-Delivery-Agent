@@ -54,3 +54,16 @@ The web image builds Caddy 2.11.4 (Apache-2.0) with Go 1.26.8 (BSD-3-Clause).
 Their original LICENSE files are retained at `/usr/share/caddy/LICENSE` and
 `/usr/share/caddy/go/LICENSE`; the distribution runtime policy verifies both
 hashes. The complete module and OS attribution review remains a release gate.
+
+The web build also preserves 197 original attribution files from its 144 compiled
+non-stdlib Go modules under `/usr/share/caddy/modules/`, together with `index.json`.
+The [pinned module inventory](scripts/distribution/caddy-modules.json) records exact
+versions, h1 values and original file paths/sizes/hashes. The build independently
+verifies cached ZIP contents, and distribution checks reconcile the actual files
+and binary metadata in both image scopes. Original bytes and separate module
+identities are preserved, including identical texts belonging to distinct modules.
+
+This module-source notice superset supplements the root notices above. It is not
+a completed legal determination of nested asset/platform, source-header,
+generated-data or standard-library terms. All entries require review under
+OPEN_SOURCE_POLICY.md; source-specific terms are recorded in the adoption register.

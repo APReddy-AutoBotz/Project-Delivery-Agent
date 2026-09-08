@@ -121,3 +121,15 @@ ADR-014 and EXEC-003 require an exact package-set comparison, absence of removed
 payloads from both image scopes and full candidate acceptance before merge.
 This reduces the shipped dependency inventory without assigning exploitability
 verdicts or waiving distribution, legal, signing or story completion gates.
+
+## Compiled Go notice evidence, 2026-09-08
+
+Under delegated routine implementation authority, preserve original attribution
+for the existing Caddy module graph with a standard-library-only build helper.
+Pin all compiled module h1 values and discovered original notice paths/hashes;
+verify source archive contents offline and reconcile actual shipped bytes in both
+image scopes. ADR-014 records the schema-3 evidence contract and source-superset
+limits. No module, license category or runtime policy is newly adopted. Unclear
+or custom source-subtree terms remain review-required, and STORY-004/005, legal,
+security and signing gates stay open. Exact non-author review, required checks
+and immutable artifact verification are required before merge.

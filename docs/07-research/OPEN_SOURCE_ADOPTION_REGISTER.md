@@ -118,3 +118,27 @@ removed set and retained shared components are recorded in
 [FOUNDATION_IMAGE_REGISTER.md](FOUNDATION_IMAGE_REGISTER.md). Require matching
 runtime and all-layer evidence before acceptance. Remaining OS/transitive license
 and original-notice review obligations remain open.
+
+## Compiled Go attribution inventory, 2026-09-08
+
+The machine-readable [Caddy module inventory](../../scripts/distribution/caddy-modules.json)
+registers each of the existing 144 non-stdlib modules (Caddy plus 143 dependencies)
+with its exact version, compiled h1 and original attribution paths/sizes/hashes.
+All entries are **review-required**, not new dependency or license approvals.
+Consumer: the foundation HTTPS gateway. Owner: implementation controller for
+maintenance and security, with legal/product review before commercial distribution.
+Replacement path: a reviewed Caddy/module/toolchain build behind the same HTTPS
+interface; any module or notice pin change requires independent review.
+
+The 197 original files form a source-module superset. For example, the existing
+zeebo/blake3 source includes CC0, quic-go's assets notice has logo/trademark terms,
+and nebula's Windows Wintun subtree has a separate prebuilt-DLL agreement. Their
+presence in source archives does not establish that the associated platform/asset
+code is in the Linux binary. Applicability and license choice remain explicit
+review work; no new source code or DLL is copied into the product by collection.
+Generated data, source headers, complete Go standard-library attribution and all
+other OS/npm/native components require their own review.
+
+Source authenticity and collection limits are recorded in ADR-014 and
+DISTRIBUTION_EVIDENCE_VALIDATION.md. The helper reuses the pinned Go compiler and
+standard library only; it adds no dependency, service or runtime executable.

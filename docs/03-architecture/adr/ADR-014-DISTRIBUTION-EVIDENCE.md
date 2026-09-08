@@ -56,6 +56,50 @@ execution, TLS, permissions, shutdown and recovery on the resulting image IDs.
 All-layer scanner coverage remains distinct from complete attribution review;
 legal approval, unresolved findings and trusted signing continue to block release.
 
+## 2026-09-08 amendment: compiled Go module notices
+
+Require schema version 3 evidence with the committed `caddy-modules.json`
+inventory and Go notice reconciliation in both image scopes. The pinned inventory
+contains Caddy plus 143 compiled dependency coordinates, versions and h1 values,
+and 197 original notice paths/sizes/hashes. Bind it to the unchanged compiled
+binary, compiler and build settings. Updates to any pin require review.
+
+Use a first-party helper with the existing Go standard library in the build stage.
+Read compiled build information, then read each exact cached module ZIP directly
+under Docker `RUN --network=none`. Independently compute the Go h1 over sorted
+archive names and original file contents and compare with both compiled metadata
+and the pinned inventory. Also record ZIP SHA-256 as transport evidence. Do not
+trust `.ziphash`, `.info`, an extracted cache copy or a `go mod download` response
+as fresh byte authentication. The initial offline metadata lookup failed despite
+available ZIPs; direct reads avoid requiring transitive version metadata or a new
+network request. No additional GoModSum or checksum-database proof is claimed.
+
+Discover root/nested attribution text, including LICENSE/LICENCE, NOTICE,
+COPYRIGHT, COPYING, AUTHORS, PATENTS, third-party names and LICENSES directories.
+Exclude source/binary formats and JSON: the verified mergo `testdata/license.json`
+is test data, not attribution. Check all discovered paths and bytes against the
+pin, preserve original bytes under module-specific directories, and write the
+index last. A module with no matching notices must be explicitly recorded as
+missing. The present inventory has attribution for every module. Reject unsafe
+paths, duplicates, links, unsupported text and bounded size/count overruns.
+
+Ship only notices and the index at `/usr/share/caddy/modules/`. Original Caddy/Go
+root notices remain unchanged. Syft captures these files without license
+enrichment; first-party reconciliation verifies the sole expected binary, exact
+modules/h1 values and every original file/digest/layer against the trusted
+inventory. Missing nested files fail even when removed from the index too.
+Repeat this validation when checking retained evidence, not only at collection.
+
+This is a module-source notice superset. It does not determine which nested asset,
+platform or source-header terms apply to compiled code, approve license choices,
+complete standard-library/generated-data attribution, or waive existing release
+gates. No runtime module is added or upgraded. Roll back with a reviewed
+packaging/evidence revert; no schema, data or connector recovery is needed.
+
+Sources: [Go module cache and ZIP contract](https://go.dev/ref/mod),
+[compiled build information](https://pkg.go.dev/debug/buildinfo),
+[Go h1 content hashing](https://pkg.go.dev/golang.org/x/mod/sumdb/dirhash).
+
 ## Original consequences
 
 ### Web transfer-tool removal

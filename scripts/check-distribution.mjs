@@ -4,6 +4,7 @@ import {
   assertReleaseReady,
   verifyEvidenceFiles,
 } from "./distribution/evidence.mjs";
+import { verifyGoNoticeReports } from "./distribution/go-notices.mjs";
 const report = JSON.parse(
   readFileSync("artifacts/distribution-evidence.json", "utf8"),
 );
@@ -11,6 +12,7 @@ try {
   if (!/^pdaa-distribution-\d+-[a-f0-9]{8}$/.test(report.runId))
     throw new Error("Invalid distribution evidence run ID");
   verifyEvidenceFiles(join("artifacts", report.runId), report);
+  verifyGoNoticeReports(join("artifacts", report.runId), report);
   if (
     process.argv.slice(2).length === 1 &&
     process.argv[2] === "--evidence-only"
