@@ -3,6 +3,43 @@
 Requirements: NFR-SEC-010, NFR-MNT-004, TR-TEST-001/002; AC-MNT-004;
 OPEN_SOURCE_POLICY; STORY-004; Issue #5; ADR-014; EXEC-003.
 
+## Retained selected-source correspondence, 2026-09-08
+
+The reviewed source policy pins seven exact original JavaScript files from the
+existing Node source commit, with independent Git blob identities and size/SHA-256
+matches to seven observed resources. Both cp originals remain separate. Source
+preparation preserves all 78,421 bytes in one canonical base64 bundle bound to the
+exact source/resource/Node policy bytes. These two new files make schema 8 require
+82 files. No complete source body enters a customer image or gets executed.
+
+Preparation uses fixed HTTPS URLs with no redirects, expected-byte bounds,
+30-second whole-response and 120-second whole-preparation deadlines. Offline
+preparation reads opened regular files with sizes checked before allocation.
+Failure removes stale preparation output; publication occurs only after all
+seven originals validate. Collection checks the source inputs before scanner
+installation and archives those same buffers without fetching source material.
+
+The 63 new regressions exercise exact pair completeness, both cp files,
+source/commit/path/blob/hash substitutions, lossless UTF-8 and newline preservation,
+canonical base64/JSON, decode/read bounds, network/status/body/deadline failures,
+six physical target/scope bindings, policy whitespace, omitted residual records,
+ncrypto/target claims and coordinated policy/bundle/receipt/summary forgeries.
+The expanded five-suite focused run passes 284 tests. An independent precheck
+verified 34 original-byte/bundle/fake-fetch/CLI controls; the scanner-install
+ordering fix passed bounded recheck. Six retained-image diagnostic scope replays
+pass. Native lint, type checking, all 372 unit tests across 22 files, seven builds,
+thirteen documentation regressions and traceability pass. Fresh candidate CI,
+downloaded verification and independent candidate approval remain merge gates.
+
+Derived source-correspondence arrays preserve all 24 residual source identities
+and existing path candidates. Six sections carry seven exact selected-file
+observations; execution, full-component membership and licence applicability remain
+unresolved. ncrypto is unchanged. Sources and archive hashes are never normalized;
+independently trusted policy contents use the established syntax-whitespace
+contract, while candidate archived policy bytes must equal committed Git blobs.
+Existing original Node/supplement/npm/Go/browser and native scanner checks remain
+mandatory. All five release blockers and complete-release denial remain active.
+
 ## Observed Node resource evidence, 2026-09-08
 
 The current increment records 371 string resources and one own undefined `configs`
@@ -31,7 +68,13 @@ Native lint, type checking, all 309 unit tests (54 resource tests), seven builds
 thirteen documentation regressions and traceability pass. The fixed probe passes
 all three diagnostic images and six scope replays without changing inventory
 pins. Separate precheck confirmed the encoding correction and policy trust
-boundaries. Final immutable review, fresh CI and downloaded checks remain required.
+boundaries. PR #36 merged `d107997` as `889716b` after separate exact-candidate
+approval, passing required CI and all 80 downloaded file/replay checks. Ten
+integration/eight browser tests, 17 packaged groups and both customer profiles
+also passed. All ten native scope comparisons retained complete file/package/
+licence records; dynamic image/layer identities and generated SHA256 changes
+remained explicit. Full source/resource equality was researched separately and
+becomes retained implementation evidence only through the successor above.
 
 PR #35 merged `174bd8d` as `43b59f8` after separate review, all candidate checks and
 73-file downloaded verification passed. It verified 255 unit, ten integration,

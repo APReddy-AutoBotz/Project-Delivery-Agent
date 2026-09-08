@@ -186,3 +186,21 @@ all 80 files, both scopes, unchanged runtime files and full candidate validation
 Candidate resource names do not authorize source-membership or legal conclusions.
 No dependency, notice packaging or licence choice is introduced; all release
 review gates remain open.
+
+## Selected Node source/resource correspondence, 2026-09-08
+
+Under delegated routine implementation authority, retain seven independently
+authenticated JavaScript originals that match existing observed resources by
+size/SHA-256. Bind a deterministic original-byte bundle to reviewed source pins
+and both existing Node policies. Fixed-pair completeness, exact source bytes,
+bounded separate preparation and offline physical/resource replay are required
+by ADR-014 and EXEC-003. The schema-8 manifest has 82 files. A separate fetch
+receipt repeating the bundle's own assertions adds no independent authority.
+
+Preserve all residual section identities and distinguish verified selected-file
+correspondence from unresolved execution, full membership and licence applicability.
+ncrypto and all release blockers remain open. No runtime source packaging,
+dependency version, application, database, permission or connector scope changes.
+After this bounded correspondence bridge, prioritize actual vulnerability
+dispositions and release review. Required validation and separate non-author
+immutable candidate review still gate merge.

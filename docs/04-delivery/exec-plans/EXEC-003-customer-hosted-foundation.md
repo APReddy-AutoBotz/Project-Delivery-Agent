@@ -21,7 +21,42 @@ bundled pgvector availability and external database configuration; production
 file secrets, scoped OIDC code/PKCE login and provider logout; restricted database
 roles; backup/recovery; dependency/license/notices/SBOM and image-scan gates.
 
-### Current increment: Node built-in resource evidence
+### Current increment: selected Node source/resource correspondence
+
+Under NFR-SEC-010 / AC-MNT-004, retain the seven already researched JavaScript
+originals spanning six notice sections. The independent source spike matched all
+78,421 original bytes by exact size/SHA-256 to observed resources, with no
+normalization or source execution. Reuse those source pins and retained originals
+for review; do not repeat the same research downloads.
+
+Add a reviewed source policy and deterministic original-byte bundle. Require all
+seven fixed section/path/resource triples, including both cp files; derive exact
+selected-file correspondence from authenticated original bytes and fresh physical
+Node/resource evidence. A separate CI preparation command fetches only the fixed
+commit-qualified HTTPS originals with no redirects, 30-second whole-response
+deadlines and a 120-second whole-preparation deadline.
+Offline preparation from bounded regular files supports diagnostics. The collector
+and retained checker consume the bundle without source-network enrichment.
+
+Schema 8 adds these two files to the 80-file manifest. Bind exact archived policy
+hashes in the bundle and independently trusted policy content during replay.
+Permit only the existing explicit policy-syntax whitespace contract; never
+normalize source bytes. Reject omitted/duplicate/reordered pairs, wrong
+path/commit/blob/hash/resource, malformed base64/UTF-8, surplus fields, bounded
+IO/fetch failures and coherently rehashed forged archives. All six Node scopes
+must replay; web/database must not gain a source-correspondence summary.
+
+Keep the full source files out of customer images and never execute them. Preserve
+all 24 original residual identities, existing path candidates, ncrypto and open
+execution/full-component/license applicability questions. This observation proves
+selected source/resource size-hash correspondence, not license acceptance or a
+reproducible build. No dependency, image packaging, application, database,
+permission or connector-scope change is planned. A reviewed collector/policy/schema
+revert with fresh checks is the recovery path. Require native validation,
+independent immutable-candidate review, fresh CI and downloaded evidence before
+merge. Then prioritize actual disposition and release-review gates.
+
+### Completed increment: Node built-in resource evidence
 
 Under NFR-SEC-010 / AC-MNT-004, collect the exact pinned binary's native resource
 table without evaluating resource bodies or invoking accessors. The initial
@@ -57,7 +92,11 @@ Native lint/typecheck, 309 unit tests (54 new resource tests), seven builds,
 thirteen documentation regressions and traceability passed. An independent
 descriptor traversal reproduced every measured pin. Precheck's lossless-encoding
 fix passed separate recheck and final three-image/six-scope replay with unchanged
-pins. Complete immutable candidate review and fresh CI/downloaded gates next.
+pins. PR #36 merged as `889716b` after separate candidate approval, passing required
+CI and downloaded verification of all 80 files, ten native scopes and six resource
+scopes. CI also passed 10 integration/eight browser tests, 17 packaged groups and
+both customer profiles. Its duplicate merged-main foundation and documentation
+checks also passed at `889716b`.
 
 ### Completed increment: Node supplemental original notices
 
@@ -125,7 +164,7 @@ controlled provider in an isolated test deployment.
 
 ## Current state
 
-Main `5071962` contains the reviewed production boundary, executable foundation
+Main `889716b` contains the reviewed production boundary, executable foundation
 contracts, release operations, customer composition acceptance and runtime distribution hardening. STORY-001/002/003
 are accepted after exact review, matching CI and merge; STORY-004/005 remain in progress. The user authorized continued
 implementation and public branch/PR publication. Earlier TLS, scope and logout
