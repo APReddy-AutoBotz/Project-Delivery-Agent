@@ -38,6 +38,10 @@ import {
 } from "./distribution/node-resources.mjs";
 import { readBoundedNodeFile } from "./distribution/node-supplemental.mjs";
 import {
+  buildGosuDispositionReport,
+  gosuEvidenceNames,
+} from "./distribution/gosu-dispositions.mjs";
+import {
   validateNodeSourceBundle,
   validateNodeSourceEvidence,
   nodeSourcePolicyLimit,
@@ -192,7 +196,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 8,
+  schemaVersion: 9,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -207,7 +211,7 @@ const record = {
   coverageLimits: [
     "Runtime and all-layer scanner inventories require review; unrecognized binary contents are not certified",
     "Binary-bundled components and notices require reconciliation, including Node, pgvector and Caddy",
-    "Scanner findings require human triage; none are waived",
+    "Original scanner findings remain unfiltered; only exact reviewed gosu occurrences have separate code-absence dispositions",
   ],
 };
 const write = (name, value) =>
@@ -403,6 +407,21 @@ try {
     record.images[target] = image;
   }
   requireCompleteTargets(record.images);
+  for (const name of gosuEvidenceNames.slice(0, 2))
+    writeFileSync(
+      join(output, name),
+      readBoundedNodeFile(
+        new URL(`./distribution/${name}`, import.meta.url),
+        64 * 1024,
+      ),
+    );
+  const dispositions = buildGosuDispositionReport(output, record);
+  write(gosuEvidenceNames[2], dispositions);
+  record.vulnerabilityDispositions = {
+    file: gosuEvidenceNames[2],
+    notApplicable: dispositions.dispositions.length,
+    releaseApproved: false,
+  };
   record.blockers = [
     {
       code: "inventory-review",
@@ -417,7 +436,7 @@ try {
     {
       code: "vulnerability-dispositions",
       detail:
-        "Every reported finding remains unreviewed, including unfixed findings",
+        "All findings without an exact reviewed disposition remain unresolved, including unfixed findings",
     },
     {
       code: "distributed-layer-review",

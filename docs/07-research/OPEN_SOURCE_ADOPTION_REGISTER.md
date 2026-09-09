@@ -53,6 +53,20 @@ Review date:
 - Git submodules used to bypass normal dependency review
 ## Foundation package adoption
 
+Multer 2.3.0 (MIT) replaces the existing 2.2.0 NestJS transitive runtime dependency
+through an exact reviewed override on 2026-09-09. The [publisher release](https://github.com/expressjs/multer/releases/tag/v2.3.0)
+addresses the three High advisories newly reported by CI. Original published
+package bytes and MIT notice remain unmodified; Node engine and runtime dependency
+ranges are unchanged. The controller owns maintenance. Replace this override when
+NestJS adopts a reviewed patched version, with fresh audit and packaged acceptance.
+
+The current API has no multipart route or Multer interceptor. The new
+fieldArrayIndexLimit control is opt-in: any future multipart implementation must
+set explicit field/array/file limits and validate abort/error behavior. This
+dependency update and an audit pass do not authorize an upload feature or prove
+arbitrary multipart configurations safe. Exact metadata and ownership are recorded
+in DEPENDENCIES.json and DEPENDENCY_OVERRIDES.json.
+
 Go 1.26.8 (BSD-3-Clause) is approved for the foundation Caddy build under the
 delegated permissive-license policy on 2026-09-07. It replaces the embedded Go
 runtime while retaining Caddy 2.11.4 (Apache-2.0), its published module graph and

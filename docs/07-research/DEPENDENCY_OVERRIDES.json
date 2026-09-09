@@ -1,4 +1,23 @@
 [
-  {"name":"deepmerge-ts","version":"8.0.0","reason":"Prisma CLI configuration dependency: GHSA-ggr8-5vv4-36mx","runtime":false,"consumers":["prisma tooling"]},
-  {"name":"mysql2","version":"3.23.1","reason":"Prisma CLI optional database tooling: GHSA-3f6p-5ww8-9rcr and GHSA-rgwj-5xj2-c3m3","runtime":false,"consumers":["prisma tooling"]}
+  {
+    "name": "deepmerge-ts",
+    "version": "8.0.0",
+    "reason": "Prisma CLI configuration dependency: GHSA-ggr8-5vv4-36mx",
+    "runtime": false,
+    "consumers": ["prisma tooling"]
+  },
+  {
+    "name": "multer",
+    "version": "2.3.0",
+    "reason": "NestJS runtime dependency: publisher security release addressing GHSA-wc9g-mqfw-jrwm, GHSA-qfvm-cv95-jqjf and GHSA-535w-7cp7-47q4; configure fieldArrayIndexLimit before any future multipart route",
+    "runtime": true,
+    "consumers": ["@pdaa/api via @nestjs/platform-express"]
+  },
+  {
+    "name": "mysql2",
+    "version": "3.23.1",
+    "reason": "Prisma CLI optional database tooling: GHSA-3f6p-5ww8-9rcr and GHSA-rgwj-5xj2-c3m3",
+    "runtime": false,
+    "consumers": ["prisma tooling"]
+  }
 ]

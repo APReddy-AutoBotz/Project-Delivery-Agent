@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "ruleId": "gosu-go-2026-4337-code-absent-v1",
+  "targets": ["database", "operations"],
+  "scopes": ["squashed", "all-layers"],
+  "binary": {
+    "path": "/usr/local/bin/gosu",
+    "sha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0",
+    "size": 1769900,
+    "goVersion": "go1.24.6",
+    "mainModule": "github.com/tianon/gosu",
+    "moduleVersion": "v1.19.0"
+  },
+  "advisory": {
+    "id": "GO-2026-4337",
+    "namespace": "govulndb:language:go",
+    "dataSource": "https://groups.google.com/g/golang-announce/c/K09ubi9FQFk",
+    "description": "During session resumption in crypto/tls, if the underlying Config has its ClientCAs or RootCAs fields mutated between the initial handshake and the resumed handshake, the resumed handshake may succeed when it should have failed. This may happen when a user calls Config.Clone and mutates the returned Config, or uses Config.GetConfigForClient. This can cause a client to resume a session with a server that it would not have resumed with during the initial handshake, or cause a server to resume a session with a client that it would not have resumed with during the initial handshake.",
+    "fix": {
+      "versions": ["1.24.13", "1.25.7", "1.26.0-rc.3"],
+      "state": "fixed",
+      "available": [
+        {
+          "version": "1.24.13",
+          "date": "2026-02-05",
+          "kind": "advisory"
+        },
+        {
+          "version": "1.25.7",
+          "date": "2026-02-05",
+          "kind": "advisory"
+        },
+        {
+          "version": "1.26.0-rc.3",
+          "date": "2026-02-05",
+          "kind": "advisory"
+        }
+      ]
+    }
+  },
+  "primaryAdvisory": {
+    "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4337.json",
+    "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4337",
+    "retrievedAt": "2026-09-07T16:59:34.724756+00:00",
+    "bytes": 2445,
+    "sha256": "f05a9e7ba4e82ccc59014bd2b23ddec1d440ca85244bd2e723a987b44e99a938",
+    "package": "crypto/tls"
+  },
+  "disposition": "not_applicable",
+  "reason": "Required crypto/tls code is absent from the complete emitted/inline function-name table of these exact gosu bytes.",
+  "limitations": [
+    "No source reproducibility or upstream signature claim",
+    "No other binary or advisory covered",
+    "Original scanner observations remain unfiltered",
+    "Unresolved findings and release gates remain blocking"
+  ]
+}

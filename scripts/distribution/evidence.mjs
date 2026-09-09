@@ -573,7 +573,7 @@ export function assertReleaseReady(report) {
 export function verifyEvidenceFiles(directory, report) {
   assert.equal(
     report.schemaVersion,
-    8,
+    9,
     "Node resource/supplemental/component, npm/Go notice and dual-scope evidence schema required",
   );
   assert.equal(report.status, "complete", "Distribution evidence incomplete");
@@ -591,6 +591,9 @@ export function verifyEvidenceFiles(directory, report) {
     "node-resources.json",
     "node-resource-sources.json",
     "node-source-bundle.json",
+    "gosu-disposition-policy.json",
+    "gosu-static-analysis.json",
+    "vulnerability-dispositions.json",
     "pnpm-lock.yaml",
     "lock-inventory.json",
     "production-acceptance.json",

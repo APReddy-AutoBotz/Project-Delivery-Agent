@@ -31,6 +31,35 @@ collection never constitutes commercial approval. A separate release-readiness
 check must refuse an incomplete review. STORY-004 remains open until AC-MNT-004's
 complete rejection and release-review contract is independently proven.
 
+## 2026-09-09 amendment: exact binary vulnerability dispositions
+
+Schema 9 adds a reviewed gosu policy, static metadata analysis receipt and derived
+occurrence ledger to the 82 existing evidence files. Keep original scanner matches
+and their severity counts unchanged. A separate `not_applicable` record may cover
+only GO-2026-4337 in the exact reviewed gosu bytes in database/operations, each in
+squashed and all-layers scope. This is a code-absence disposition: the required
+crypto/tls package is absent from the complete function-name table, which the
+[matching Go linker](https://github.com/golang/go/blob/go1.24.6/src/cmd/link/internal/ld/pcln.go)
+populates with emitted and inlined functions. Go's standard ELF/buildinfo/gosym
+readers corroborate the metadata, counts and positive entrypoint controls.
+
+The first-party analysis utility uses the already pinned Go toolchain offline
+with read-only evidence, a nonroot user, no capabilities and disposable build
+storage. It never executes gosu. Review and pin its deterministic analysis output;
+collection does not run a target or accept arbitrary user-supplied analysis.
+Archive policy and receipt content must equal independently trusted checkout
+content, with only JSON syntax whitespace tolerated. Complete fresh native reports
+must prove image/configuration/layer, unique file digest/size, binary/module/compiler
+identity, exact advisory description/source/fix semantics and match occurrence.
+Preserve the complete raw match hash, including changing scanner risk metadata.
+
+Recompute every disposition from those inputs during offline verification. Missing,
+ambiguous, changed or forged selected evidence fails; an absent match authorizes
+nothing. Do not apply the rule to another binary, advisory, target or source scope.
+This does not establish whole-image safety, source reproducibility, signed upstream
+provenance, license acceptance or commercial release readiness. All unresolved
+findings and the five existing release gates remain blocking.
+
 ## 2026-09-07 amendment: runtime tools and distributed layers
 
 PR #24 established evidence from the accepted runtime filesystems. Retain that
