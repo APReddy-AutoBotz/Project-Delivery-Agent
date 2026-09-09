@@ -43,6 +43,17 @@ Require malformed/forged evidence regressions, native checks, independent review
 of the immutable candidate, fresh packaged CI and complete downloaded-artifact
 comparison before merge. Preserve the exact runtime/dependency payload and the
 14 previously reviewed generated SHA-value exceptions; do not add a new exception.
+The initial PR #40 collection failed on a related advisory description and daily
+EPSS refresh. Policy version 2 accepts only the two independently reviewed exact
+descriptions and validated EPSS enrichment; all other envelope fields stay pinned.
+Fresh scanner metadata differences require a separate exact old/new occurrence
+and field review receipt. This adds no payload exception and must never be reported
+as unchanged raw scanner metadata. Preserve the failed run and repeat the gates
+against the replacement immutable candidate before accepting any new rows.
+The current-database local replay also adds four web scanner observations on an
+already present module. Keep each new observation unreviewed with its own static
+triage and fresh occurrence binding; no new disposition or payload exception is
+authorized. Baseline and current scan totals must be reported separately.
 No database/migration, permission or connector change. Recovery is a reviewed
 policy/composer/schema revert with fresh evidence collection. STORY-004/005,
 foundation release acceptance and commercial deployment remain open.

@@ -44,7 +44,7 @@ export function validatePerlAnchors(policyBytes, analysisBytes) {
     parse(readPerlAnchor(perlEvidenceNames[1])),
     "Perl analysis differs from trusted checkout",
   );
-  assert.equal(policy.schemaVersion, 1);
+  assert.equal(policy.schemaVersion, 2);
   assert.equal(analysis.schemaVersion, 1);
   assert.equal(policy.analysisSha256, hash(canonical(analysis)));
   assert.equal(policy.rule.advisory.id, "CVE-2026-8376");
@@ -82,6 +82,62 @@ export function validatePerlAnchors(policyBytes, analysisBytes) {
     }
   }
   return { policy, analysis };
+}
+
+// EPSS is daily prioritization metadata, not an applicability predicate. Only
+// these reviewed description profiles and validated enrichment leaves vary in
+// the comparison copy; the source scan and each row's full match hash stay raw.
+export function capturePerlMatchEnvelope(match, rule) {
+  const envelope = globalThis.structuredClone(
+    Object.fromEntries(
+      Object.entries(match).filter(
+        ([key]) => !["artifact", "vulnerability"].includes(key),
+      ),
+    ),
+  );
+  assert(
+    Array.isArray(envelope.relatedVulnerabilities) &&
+      envelope.relatedVulnerabilities.length === 1,
+  );
+  const related = envelope.relatedVulnerabilities[0];
+  for (const key of ["id", "namespace", "dataSource"])
+    assert.equal(related[key], rule.relatedAdvisory[key]);
+  assert.equal(typeof related.description, "string");
+  assert(
+    rule.relatedAdvisory.descriptionSha256.includes(hash(related.description)),
+    "Unreviewed related Perl advisory description",
+  );
+  assert(Array.isArray(related.epss) && related.epss.length === 1);
+  const epss = related.epss[0];
+  assert.deepEqual(Object.keys(epss).sort(), [
+    "cve",
+    "date",
+    "epss",
+    "percentile",
+  ]);
+  assert.equal(epss.cve, rule.advisory.id);
+  for (const key of ["epss", "percentile"])
+    assert(
+      typeof epss[key] === "number" &&
+        Number.isFinite(epss[key]) &&
+        epss[key] >= 0 &&
+        epss[key] <= 1,
+      "Invalid related Perl EPSS probability",
+    );
+  assert(
+    typeof epss.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(epss.date),
+  );
+  const timestamp = Date.parse(epss.date + "T00:00:00Z");
+  assert(
+    Number.isFinite(timestamp) &&
+      new Date(timestamp).toISOString().slice(0, 10) === epss.date,
+    "Invalid related Perl EPSS calendar date",
+  );
+  related.description = "reviewed-perl-description";
+  epss.date = "validated-daily-date";
+  epss.epss = "validated-probability";
+  epss.percentile = "validated-percentile";
+  return envelope;
 }
 
 // Pure capture supports independent replay/tests. Only derivePerlDispositions
@@ -296,11 +352,7 @@ export function deriveReviewedPerlRows({
       expected.matchArtifacts[pkg.name],
       "Selected Perl scan artifact changed",
     );
-    const envelope = Object.fromEntries(
-      Object.entries(match).filter(
-        ([key]) => !["artifact", "vulnerability"].includes(key),
-      ),
-    );
+    const envelope = capturePerlMatchEnvelope(match, rule);
     assert.equal(
       hash(canonical(normalize(envelope))),
       expected.matchEnvelopes[pkg.name],

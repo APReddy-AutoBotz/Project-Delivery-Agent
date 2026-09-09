@@ -48,6 +48,17 @@ their inspected ordinal; preserve every other field, array and duplicate count.
 Retain changed image/file/package identities in each freshly derived occurrence.
 Pin advisory semantics and the complete remaining native match envelope.
 
+Perl policy version 2 recognizes two exact related NVD description profiles:
+the original wording and the release-range clarification already present in the
+reviewed CNA record. Both retain the 32-bit precondition. Validate the single
+advisory-bound EPSS record's exact keys, real calendar date and finite [0,1]
+score/percentile before normalizing those three enrichment leaves in a comparison
+copy. EPSS prioritization cannot establish applicability. Preserve every other
+envelope field and nested array exactly; unknown fields and unreviewed text fail.
+Original native scans and complete fresh raw match hashes retain all metadata.
+The first PR #40 collection correctly failed when these three leaves changed;
+its missing distribution artifact cannot count as successful evidence.
+
 All material bytes, imports and ownership must agree with the reviewed receipt.
 Detect additional named interpreters, libperl consumers and identical renamed
 material copies; changes require review. This proves the architecture of the

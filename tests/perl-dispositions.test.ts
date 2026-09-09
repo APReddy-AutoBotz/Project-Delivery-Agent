@@ -13,6 +13,7 @@ import { readBoundedNodeFile } from "../scripts/distribution/node-supplemental.m
 import {
   canonical,
   capturePerlScopeFacts,
+  capturePerlMatchEnvelope,
   derivePerlDispositions,
   deriveReviewedPerlRows,
   readPerlAnchor,
@@ -81,6 +82,26 @@ function fixture(target = "api", scope = "squashed"): any {
     vulnerability: structuredClone(realPolicy.rule.advisory),
     artifact: structuredClone(pkg),
     matchDetails: [{ matcher: "dpkg-matcher" }],
+    relatedVulnerabilities: [
+      {
+        id: realPolicy.rule.relatedAdvisory.id,
+        namespace: realPolicy.rule.relatedAdvisory.namespace,
+        dataSource: realPolicy.rule.relatedAdvisory.dataSource,
+        description: realPolicy.rule.primaryAdvisory.descriptions.find(
+          (d: any) => d.lang === "en",
+        ).value,
+        severity: "Critical",
+        cvss: [],
+        epss: [
+          {
+            cve: "CVE-2026-8376",
+            date: "2026-09-07",
+            epss: 0.00443,
+            percentile: 0.37164,
+          },
+        ],
+      },
+    ],
   };
   const scan = {
     matches: [
@@ -112,7 +133,9 @@ function fixture(target = "api", scope = "squashed"): any {
         matchArtifacts: { [pkg.name]: hash(canonical(normalize(pkg))) },
         matchEnvelopes: {
           [pkg.name]: hash(
-            canonical(normalize({ matchDetails: match.matchDetails })),
+            canonical(
+              normalize(capturePerlMatchEnvelope(match, realPolicy.rule)),
+            ),
           ),
         },
       },
@@ -208,6 +231,100 @@ describe("Perl architecture evidence (NFR-SEC-010 / AC-MNT-004)", () => {
     expect(
       derivePerlDispositions({ ...f, policyBytes, analysisBytes }),
     ).toEqual([]);
+  });
+  it("accepts only the two reviewed descriptions and valid daily EPSS while retaining raw hashes", () => {
+    const f = fixture(),
+      before = deriveReviewedPerlRows(f);
+    const related = f.scan.matches[0].relatedVulnerabilities[0];
+    related.description =
+      "Perl versions through 5.43.10 have a heap buffer overflow when compiling regular expressions with a repeated fixed string on 32-bit builds." +
+      related.description.slice(related.description.indexOf("\n\n"));
+    related.epss[0] = {
+      cve: "CVE-2026-8376",
+      date: "2026-09-08",
+      epss: 1,
+      percentile: 0,
+    };
+    const raw = encode(f.scan),
+      after = deriveReviewedPerlRows(f);
+    expect(after).toHaveLength(2);
+    expect(after[0].matchSha256).toBe(hash(JSON.stringify(f.scan.matches[0])));
+    expect(after[0].matchSha256).not.toBe(before[0].matchSha256);
+    expect(after[1]).toEqual(before[1]);
+    expect(encode(f.scan)).toEqual(raw);
+    related.epss[0].date = "2024-02-29";
+    expect(deriveReviewedPerlRows(f)).toHaveLength(2);
+    f.sbom.files[0].digests[0].value = hash("32-bit replacement");
+    expect(() => deriveReviewedPerlRows(f)).toThrow();
+  });
+  const envelopeMutations: [string, (r: any) => void][] = [
+    [
+      "different description",
+      (r) => (r.description = "All architectures affected"),
+    ],
+    [
+      "description marker",
+      (r) => (r.description = "reviewed-perl-description"),
+    ],
+    ["description whitespace", (r) => (r.description += " ")],
+    ["different related ID", (r) => (r.id = "CVE-2026-13221")],
+    [
+      "different related namespace",
+      (r) => (r.namespace = "debian:distro:debian:12"),
+    ],
+    ["different related source", (r) => (r.dataSource += "?changed")],
+    ["related severity", (r) => (r.severity = "Low")],
+    ["related CVSS", (r) => r.cvss.push({ version: "3.1", score: 10 })],
+    ["unknown related field", (r) => (r.knownExploited = true)],
+    ["missing EPSS", (r) => delete r.epss],
+    ["empty EPSS", (r) => (r.epss = [])],
+    ["duplicate EPSS", (r) => r.epss.push(structuredClone(r.epss[0]))],
+    ["null EPSS", (r) => (r.epss[0] = null)],
+    ["unknown EPSS field", (r) => (r.epss[0].applicability = "all")],
+    ["missing EPSS field", (r) => delete r.epss[0].date],
+    ["different EPSS CVE", (r) => (r.epss[0].cve = "CVE-2026-13221")],
+    ["non-string date", (r) => (r.epss[0].date = 20260908)],
+    ["date timestamp", (r) => (r.epss[0].date += "T00:00:00Z")],
+    ["date rollover", (r) => (r.epss[0].date = "2026-02-29")],
+    ["invalid month", (r) => (r.epss[0].date = "2026-13-01")],
+    ["date marker", (r) => (r.epss[0].date = "validated-daily-date")],
+  ];
+  for (const field of ["epss", "percentile"])
+    for (const value of [
+      -0.1,
+      1.1,
+      NaN,
+      Infinity,
+      "0.5",
+      null,
+      {},
+      "validated-probability",
+    ])
+      envelopeMutations.push([
+        `${field} value ${String(value)}`,
+        (r) => (r.epss[0][field] = value),
+      ]);
+  for (const [name, mutate] of envelopeMutations)
+    it(`rejects ${name} before granting an architecture disposition`, () => {
+      const f = fixture();
+      mutate(f.scan.matches[0].relatedVulnerabilities[0]);
+      expect(() => deriveReviewedPerlRows(f)).toThrow();
+    });
+  it("rejects missing, duplicate and object-shaped related advisory arrays", () => {
+    for (const value of [undefined, [], null]) {
+      const f = fixture();
+      f.scan.matches[0].relatedVulnerabilities = value;
+      expect(() => deriveReviewedPerlRows(f)).toThrow();
+    }
+    const f = fixture(),
+      related = f.scan.matches[0].relatedVulnerabilities[0];
+    f.scan.matches[0].relatedVulnerabilities = [
+      related,
+      structuredClone(related),
+    ];
+    expect(() => deriveReviewedPerlRows(f)).toThrow();
+    f.scan.matches[0].relatedVulnerabilities = { 0: related, length: 1 };
+    expect(() => deriveReviewedPerlRows(f)).toThrow();
   });
   const mutations: [string, (f: any) => void][] = [
     ["package version", (f) => (f.sbom.artifacts[0].version = "changed")],

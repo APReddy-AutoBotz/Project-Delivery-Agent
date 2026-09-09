@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "targets": ["api", "worker", "database", "operations"],
   "scopes": ["squashed", "all-layers"],
   "analysisSha256": "e12bfe1ac2c983f69a48acd07f551d7219a80602355d3b259dc0ee0d97fe64d4",
@@ -69,7 +69,16 @@
       ]
     },
     "disposition": "not_applicable",
-    "reason": "The specified 32-bit build precondition is absent in these exact Debian Perl package bytes: all inspected core/extension ELF files are ELF64 x86-64 and matching build configuration uses 8-byte pointers, IV, UV, size_t and long. This is not whole-image or arbitrary embedded-runtime absence proof."
+    "reason": "The specified 32-bit build precondition is absent in these exact Debian Perl package bytes: all inspected core/extension ELF files are ELF64 x86-64 and matching build configuration uses 8-byte pointers, IV, UV, size_t and long. This is not whole-image or arbitrary embedded-runtime absence proof.",
+    "relatedAdvisory": {
+      "id": "CVE-2026-8376",
+      "namespace": "nvd:cpe",
+      "dataSource": "https://nvd.nist.gov/vuln/detail/CVE-2026-8376",
+      "descriptionSha256": [
+        "00222f04f3989c21c4d4286e477518aa583a86d2dc582374b1fc2b59435739f0",
+        "bb1015bb91c98df383344cd7004b8d663498a23eb9dc3e5a04c85f7bb6e7ffda"
+      ]
+    }
   },
   "inputs": [
     {
@@ -82,7 +91,7 @@
         "perl-base": "97589e33f67307128b1a7aaa223daa7f51ede48bac986c131f13ad0c3545637c"
       },
       "matchEnvelopes": {
-        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+        "perl-base": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8"
       }
     },
     {
@@ -95,7 +104,7 @@
         "perl-base": "420d41e99741183622ddcb9eeb63c66329416a0ecb293ef0ebff60f9cb8be866"
       },
       "matchEnvelopes": {
-        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+        "perl-base": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8"
       }
     },
     {
@@ -108,7 +117,7 @@
         "perl-base": "97589e33f67307128b1a7aaa223daa7f51ede48bac986c131f13ad0c3545637c"
       },
       "matchEnvelopes": {
-        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+        "perl-base": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8"
       }
     },
     {
@@ -121,7 +130,7 @@
         "perl-base": "420d41e99741183622ddcb9eeb63c66329416a0ecb293ef0ebff60f9cb8be866"
       },
       "matchEnvelopes": {
-        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+        "perl-base": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8"
       }
     },
     {
@@ -137,10 +146,10 @@
         "perl-modules-5.36": "ba2d93a6a4d74605f98f1f11fea2bbf0c0db1a1e6c9186785d27a54a0d196f22"
       },
       "matchEnvelopes": {
-        "libperl5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
-        "perl": "9704e2eabbb7b7fe59bedc2e8daf35aad0d99a88883ae3bddd873ec3c2f90c14",
-        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
-        "perl-modules-5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+        "libperl5.36": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8",
+        "perl": "e974e7df16bbfca050b3d12aeb9e28462da13a68abe3076b56078f346a080b53",
+        "perl-base": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8",
+        "perl-modules-5.36": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8"
       }
     },
     {
@@ -156,10 +165,10 @@
         "perl-modules-5.36": "70e3bd506da2f64f030ace9de50ac77c70f0d410a11da9c04898ea89422fe91a"
       },
       "matchEnvelopes": {
-        "libperl5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
-        "perl": "9704e2eabbb7b7fe59bedc2e8daf35aad0d99a88883ae3bddd873ec3c2f90c14",
-        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
-        "perl-modules-5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+        "libperl5.36": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8",
+        "perl": "e974e7df16bbfca050b3d12aeb9e28462da13a68abe3076b56078f346a080b53",
+        "perl-base": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8",
+        "perl-modules-5.36": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8"
       }
     },
     {
@@ -175,10 +184,10 @@
         "perl-modules-5.36": "ba2d93a6a4d74605f98f1f11fea2bbf0c0db1a1e6c9186785d27a54a0d196f22"
       },
       "matchEnvelopes": {
-        "libperl5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
-        "perl": "9704e2eabbb7b7fe59bedc2e8daf35aad0d99a88883ae3bddd873ec3c2f90c14",
-        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
-        "perl-modules-5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+        "libperl5.36": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8",
+        "perl": "e974e7df16bbfca050b3d12aeb9e28462da13a68abe3076b56078f346a080b53",
+        "perl-base": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8",
+        "perl-modules-5.36": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8"
       }
     },
     {
@@ -194,10 +203,10 @@
         "perl-modules-5.36": "70e3bd506da2f64f030ace9de50ac77c70f0d410a11da9c04898ea89422fe91a"
       },
       "matchEnvelopes": {
-        "libperl5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
-        "perl": "9704e2eabbb7b7fe59bedc2e8daf35aad0d99a88883ae3bddd873ec3c2f90c14",
-        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
-        "perl-modules-5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+        "libperl5.36": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8",
+        "perl": "e974e7df16bbfca050b3d12aeb9e28462da13a68abe3076b56078f346a080b53",
+        "perl-base": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8",
+        "perl-modules-5.36": "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8"
       }
     }
   ]

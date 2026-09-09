@@ -22,6 +22,18 @@ manuals and lintian records. Original source versions are not claimed patched.
 Replay pins complete package metadata, physical coverage, aliases, supplying
 layer ordinals, relationships, advisory semantics and the remaining native match
 envelope. Original IDs and complete raw match hashes are retained in each new row.
+Policy version 2 pins two exact related NVD descriptions with the same reviewed
+32-bit precondition. Only validated daily EPSS date, score and percentile are
+normalized in a comparison copy: exact keys and CVE identity, a real ISO calendar
+date and finite probabilities in [0,1] are required. Unreviewed descriptions,
+malformed enrichment, new fields and changed matching semantics fail. Raw scans
+retain all values. Complete old/new scanner-metadata review is recorded separately
+from unchanged package/file payload comparison, with exact occurrence/field
+receipts; the existing 14 generated payload SHA exceptions do not change.
+The refreshed local scan adds four observations on an existing web module, two
+High and two Medium. Retain all four as needs-review and require their exact
+fresh bindings separately from the 2,726 baseline matches. Added observations
+are not normalized away or covered by the Perl/gosu dispositions.
 Unknown source packages, changed bytes, missing or duplicate files/relationships,
 added named/identical carriers or libperl consumers, and changed match evidence
 must fail. Trusted checkout anchors reject a mutually forged archive policy and
