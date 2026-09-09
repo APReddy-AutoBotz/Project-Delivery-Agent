@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-09
+Updated: 2026-09-10
 
 ## Accepted implementation completion
 
@@ -18,6 +18,15 @@ accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://gith
 R0 release acceptance and commercial/customer deployment remain open.
 
 ## Published and merged increments
+
+PR #41 merged the 64-case temporal model after independent review and successful
+candidate checks. Its main verification retry passed after an upstream package
+index hash failure; the production and documentation jobs also passed. The next
+Issue #6 increment implements durable human fact history and current permission
+checks over existing projects. Native 616-unit/28-integration checks and complete
+row recovery pass; packaged upgrade/restore, immutable review and CI/artifact
+gates remain pending. See PROJECT_FACT_PERSISTENCE_VALIDATION.md. This progress
+does not accept a complete R1 story or change the accepted counts above.
 
 Public publication was explicitly approved by the Product Owner on 2026-09-06.
 
@@ -47,6 +56,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | First gosu dispositions and Multer remediation | [#38](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/38) | `10ee5eb` | `24894ba` |
 | Gosu advisory applicability batch | [#39](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/39) | `b649711` | `8f66e94` |
 | Package architecture evidence | [#40](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/40) | `d678cf1` | `5d45e1d` |
+| Temporal fact history | [#41](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/41) | `28090cf` | `47d7c45` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and

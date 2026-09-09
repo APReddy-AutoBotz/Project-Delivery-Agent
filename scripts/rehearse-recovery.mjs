@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import assert from "node:assert/strict";
 import {
   createDatabase,
   DatabaseProjectRepository,
@@ -104,19 +105,53 @@ try {
   )
     throw new Error("Restored data does not match");
   const row = await restored.auditEvent.findFirstOrThrow();
+  const tables = [
+    "Customer",
+    "Portfolio",
+    "Project",
+    "AccessGrant",
+    "AuditEvent",
+    "ConnectorCredential",
+    "ServiceHeartbeat",
+    "_prisma_migrations",
+    "ProjectFact",
+    "FactSource",
+    "FactSourceAccess",
+    "FactSourceReader",
+    "FactEvidence",
+    "ProjectFactVersion",
+    "FactAppendReceipt",
+  ];
+  for (const table of tables) {
+    const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
+    assert.deepEqual(
+      await restored.$queryRawUnsafe(sql),
+      await original.$queryRawUnsafe(sql),
+      "Restored " + table + " rows must match",
+    );
+  }
+  assert((await restored.projectFactVersion.count()) > 0);
   for (const table of [
-    "project",
-    "accessGrant",
-    "auditEvent",
-    "connectorCredential",
+    "FactSource",
+    "FactEvidence",
+    "ProjectFactVersion",
+    "FactAppendReceipt",
   ]) {
-    if (
-      JSON.stringify(
-        await original[table].findMany({ orderBy: { id: "asc" } }),
-      ) !==
-      JSON.stringify(await restored[table].findMany({ orderBy: { id: "asc" } }))
-    )
-      throw new Error("Restored rows do not match");
+    for (const sql of [
+      `UPDATE "${table}" SET id=id`,
+      `DELETE FROM "${table}"`,
+      `TRUNCATE "${table}" CASCADE`,
+    ]) {
+      // The transaction always rolls back, including if a protection regresses.
+      await assert.rejects(
+        () =>
+          restored.$transaction(async (tx) => {
+            await tx.$executeRawUnsafe(sql);
+            throw new Error("History mutation unexpectedly succeeded");
+          }),
+        (error) => error.message !== "History mutation unexpectedly succeeded",
+      );
+    }
   }
   const credential = await restored.connectorCredential.findFirstOrThrow();
   if (
@@ -157,7 +192,7 @@ try {
   }
   if (!denied) throw new Error("Restored audit protection missing");
   console.log(
-    `Recovery passed: ${actual} audit events and project counts match; audit immutability remains active. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all 14 business tables and the migration ledger match exactly; audit and fact history remain immutable. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

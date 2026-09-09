@@ -161,6 +161,14 @@ and revocation, encrypted backup and quarantined restore. A future release with
 new migrations must supply its own upgrade evidence. See
 CUSTOMER_COMPOSITION_VALIDATION.md under `docs/05-quality/` for scope and evidence.
 
+The additive project-fact migration extends the database to fourteen business
+tables. Release migration reapplies finite business-table privileges as
+`pdaa_migrate`; an unchanged schema still requires that ownership. Preserve the
+original migration file and use the reviewed release's complete migration list.
+Source/evidence history rejects mutation, while access revisions advance whenever
+source readers change. PROJECT_FACT_PERSISTENCE_VALIDATION.md describes the
+separate populated-foundation upgrade and extended recovery checks.
+
 ## Restore drill and recovery
 
 Stop any clients of the restore target. On the same dedicated cluster, create a new

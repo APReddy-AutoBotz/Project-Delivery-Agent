@@ -7,6 +7,8 @@ import {
   unlinkSync,
 } from "node:fs";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createDatabase } from "../packages/data/dist/index.js";
 import { assertSyntheticDatabaseUrl } from "../packages/platform/dist/index.js";
 const source = assertSyntheticDatabaseUrl(
@@ -49,7 +51,7 @@ let ledger;
 try {
   const tables =
     await migrated.$queryRaw`SELECT tablename FROM pg_tables WHERE schemaname='public'`;
-  for (const table of [
+  const expectedTables = [
     "Customer",
     "Portfolio",
     "Project",
@@ -57,7 +59,19 @@ try {
     "AuditEvent",
     "ConnectorCredential",
     "ServiceHeartbeat",
-  ])
+    "ProjectFact",
+    "FactSource",
+    "FactSourceAccess",
+    "FactSourceReader",
+    "FactEvidence",
+    "ProjectFactVersion",
+    "FactAppendReceipt",
+  ];
+  assert.deepEqual(
+    tables.map((row) => row.tablename).sort(),
+    [...expectedTables, "_prisma_migrations"].sort(),
+  );
+  for (const table of expectedTables)
     assert(
       tables.some((row) => row.tablename === table),
       "Missing foundation table: " + table,
@@ -84,6 +98,20 @@ try {
     ),
     "Incomplete migration ledger",
   );
+  for (const row of ledger)
+    assert.equal(
+      row.checksum,
+      createHash("sha256")
+        .update(
+          readFileSync(
+            "packages/data/prisma/migrations/" +
+              row.migration_name +
+              "/migration.sql",
+          ),
+        )
+        .digest("hex"),
+      "Migration checksum must match original SQL bytes",
+    );
 } finally {
   await migrated.$disconnect();
 }
@@ -106,6 +134,8 @@ node([
   "node_modules/vitest/vitest.mjs",
   "run",
   "tests/database.integration.test.ts",
+  "tests/project-facts.integration.test.ts",
+  "--no-file-parallelism",
 ]);
 console.log(
   "Isolated database migration, repeat deployment, seed and integration checks passed.",
@@ -118,6 +148,17 @@ writeFileSync(
       testId: "INT-DATA-001",
       databaseName,
       foundationTables: 7,
+      projectFactTables: [
+        "ProjectFact",
+        "FactSource",
+        "FactSourceAccess",
+        "FactSourceReader",
+        "FactEvidence",
+        "ProjectFactVersion",
+        "FactAppendReceipt",
+      ],
+      businessTables: 14,
+      projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({
         name: row.migration_name,
         checksum: row.checksum,

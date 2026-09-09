@@ -10,6 +10,16 @@ import {
 } from "../../packages/operations/dist/migrations.js";
 import { assertEmptyTarget } from "../../packages/operations/dist/config.js";
 import { createDatabase } from "../../packages/data/dist/index.js";
+import { verifyFoundationUpgrade } from "./project-fact-upgrade.mjs";
+import {
+  projectFactProjection,
+  seedProjectFactHistory,
+  verifyProjectFactPrivileges,
+  verifyImmutableProjectFacts,
+  verifyWorkerFactDenials,
+  workerCheckpoint,
+  verifyRestoredWorker,
+} from "./project-facts.mjs";
 import {
   CredentialVault,
   loadConfig,
@@ -33,7 +43,7 @@ async function inDatabase(name, fn) {
   }
 }
 const projection = async (pool) => {
-  const result = {};
+  const result = await projectFactProjection(pool);
   for (const table of [
     "Customer",
     "Portfolio",
@@ -106,32 +116,47 @@ try {
       }),
     );
     await inDatabase("migration_ops", async (pool) => {
-      const initial = await history(pool);
-      for (const change of [
-        "checksum='bad'",
-        "finished_at=NULL",
-        "migration_name='unknown'",
-        "rolled_back_at=now()",
-        "applied_steps_count=0",
-      ]) {
-        await pool.query(`UPDATE _prisma_migrations SET ${change}`);
-        await assert.rejects(() =>
-          migrateDatabase(target("migration_ops"), migrations),
-        );
-        await pool.query(
-          "UPDATE _prisma_migrations SET checksum=$1,finished_at=$2,migration_name=$3,rolled_back_at=NULL,applied_steps_count=1",
-          [
-            initial[0].checksum,
-            initial[0].finished_at,
-            initial[0].migration_name,
-          ],
-        );
+      const fullHistory = async () =>
+        (await pool.query('SELECT * FROM "_prisma_migrations" ORDER BY id'))
+          .rows;
+      const initial = await fullHistory();
+      for (const entry of initial) {
+        for (const change of [
+          "checksum='bad'",
+          "finished_at=NULL",
+          "migration_name='unknown'",
+          "rolled_back_at=now()",
+          "applied_steps_count=0",
+        ]) {
+          await pool.query(
+            `UPDATE _prisma_migrations SET ${change} WHERE id=$1`,
+            [entry.id],
+          );
+          try {
+            await assert.rejects(() =>
+              migrateDatabase(target("migration_ops"), migrations),
+            );
+          } finally {
+            await pool.query(
+              "UPDATE _prisma_migrations SET checksum=$1,finished_at=$2,migration_name=$3,rolled_back_at=$4,applied_steps_count=$5 WHERE id=$6",
+              [
+                entry.checksum,
+                entry.finished_at,
+                entry.migration_name,
+                entry.rolled_back_at,
+                entry.applied_steps_count,
+                entry.id,
+              ],
+            );
+          }
+          assert.deepEqual(await fullHistory(), initial);
+        }
       }
     });
     const sql =
       "CREATE TABLE atomic_probe(id int); SELECT definitely_missing_function();";
     const failing = {
-      name: "202609060002_failure",
+      name: "202609090002_failure",
       sql,
       checksum: createHash("sha256").update(sql).digest("hex"),
     };
@@ -146,6 +171,34 @@ try {
       );
       assert.equal((await history(pool)).length, migrations.length);
     });
+    const upgrade = await verifyFoundationUpgrade(admin, migrations);
+    const factFixture = await seedProjectFactHistory(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      "30000000-0000-4000-8000-000000000001",
+      "packaged",
+    );
+    await verifyProjectFactPrivileges(admin);
+    await verifyImmutableProjectFacts(admin);
+    const workerRuntimeDenied = await verifyWorkerFactDenials(
+      config("database", "pdaa_worker", "worker-password").database,
+    );
+    writeFileSync(
+      output + "/project-fact-persistence.json",
+      JSON.stringify(
+        {
+          status: "awaiting-restore",
+          upgrade,
+          factFixture,
+          workerRuntimeDenied,
+          beforeBackupWorker: await workerCheckpoint(admin),
+          migrationDriftRowsChecked: migrations.length,
+        },
+        null,
+        2,
+      ),
+    );
     // Seed an encrypted credential and immutable audit row via the approved owner.
     const db = createDatabase(adminConfig);
     try {
@@ -222,6 +275,23 @@ try {
         JSON.parse(JSON.stringify(await projection(pool))),
         expected,
       );
+      await verifyProjectFactPrivileges(pool);
+      await verifyImmutableProjectFacts(pool);
+      const receipt = JSON.parse(
+        readFileSync(output + "/project-fact-persistence.json", "utf8"),
+      );
+      receipt.restore = {
+        status: "passed",
+        exactRetainedRows: true,
+        runtimeQuarantineChecked: true,
+        ownersFunctionsAndPrivilegesChecked: true,
+        immutableHistoryChecked: true,
+        workerCheckpoint: await verifyRestoredWorker(
+          admin,
+          pool,
+          receipt.beforeBackupWorker,
+        ),
+      };
       assert.equal(expected.queuedJob.length, 1);
       assert.equal(expected.queuedJob[0].queue_name, "restore-fixture");
       const sequenceName = (
@@ -266,6 +336,11 @@ try {
         cipher.decrypt(row.envelope, "restore-fixture") ===
           readFileSync("/run/secrets/connector-secret", "utf8"),
         "Restored credential must match the generated fixture",
+      );
+      receipt.status = "passed";
+      writeFileSync(
+        output + "/project-fact-persistence.json",
+        JSON.stringify(receipt, null, 2),
       );
     });
     for (const [role, file] of [
