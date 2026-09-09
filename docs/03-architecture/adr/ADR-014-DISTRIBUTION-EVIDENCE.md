@@ -31,6 +31,48 @@ collection never constitutes commercial approval. A separate release-readiness
 check must refuse an incomplete review. STORY-004 remains open until AC-MNT-004's
 complete rejection and release-review contract is independently proven.
 
+## 2026-09-09 amendment: matched Perl package architecture
+
+Schema 11 adds two trusted Perl anchors to the existing 85 files. Preserve the
+gosu builder and its 92 baseline row objects. A common composer writes a version-3
+ledger with separate proof sources and rejects duplicate occurrence keys. Replay
+reconstructs both sources; archived policy cannot become its own authority.
+
+The single Perl rule concerns CVE-2026-8376's explicit 32-bit build precondition.
+Independent static inspection of the exact original Debian archives establishes
+ELF64 x86-64 carriers and matching eight-byte pointer/IV/UV/size configuration.
+Bind the complete source-package metadata, owned physical files, material files,
+aliases, locations and relationships to reviewed fingerprints in every target and
+scope. Normalize only native identity references and supplying layer digests to
+their inspected ordinal; preserve every other field, array and duplicate count.
+Retain changed image/file/package identities in each freshly derived occurrence.
+Pin advisory semantics and the complete remaining native match envelope.
+
+Perl policy version 2 recognizes two exact related NVD description profiles:
+the original wording and the release-range clarification already present in the
+reviewed CNA record. Both retain the 32-bit precondition. Validate the single
+advisory-bound EPSS record's exact keys, real calendar date and finite [0,1]
+score/percentile before normalizing those three enrichment leaves in a comparison
+copy. EPSS prioritization cannot establish applicability. Preserve every other
+envelope field and nested array exactly; unknown fields and unreviewed text fail.
+Original native scans and complete fresh raw match hashes retain all metadata.
+The first PR #40 collection correctly failed when these three leaves changed;
+its missing distribution artifact cannot count as successful evidence.
+
+All material bytes, imports and ownership must agree with the reviewed receipt.
+Detect additional named interpreters, libperl consumers and identical renamed
+material copies; changes require review. This proves the architecture of the
+matched Debian package and its shipped carriers. It does not prove absence of
+arbitrary independent embedded runtimes elsewhere in an image. Image architecture
+alone, missing module filenames and a Debian source-version label cannot authorize
+an exclusion. All other Perl advisories remain outside this rule.
+
+Bound each Perl anchor at 64 KiB and the combined ledger at 512 KiB. Preserve
+original scans, severity counts and all five release blockers. Independent
+candidate review, native regressions, fresh packaged CI and exact occurrence
+rebinding remain mandatory. No runtime package, database, permission or connector
+change is introduced. Recover through a reviewed evidence-policy/schema revert.
+
 ## 2026-09-09 amendment: multiple independently reviewed gosu advisories
 
 Schema 10 retains the same 85 files and replaces the single-rule contract with a

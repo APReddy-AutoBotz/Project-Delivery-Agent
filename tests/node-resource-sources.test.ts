@@ -516,6 +516,8 @@ function archive(
       "runtime-policy.json",
       "gosu-disposition-policy.json",
       "gosu-static-analysis.json",
+      "perl-disposition-policy.json",
+      "perl-static-analysis.json",
       "vulnerability-dispositions.json",
       "node-supplemental.json",
       "caddy-modules.json",
@@ -565,7 +567,7 @@ function archive(
     }
     check(
       directory,
-      { schemaVersion: 10, status: "complete", runId, images, files },
+      { schemaVersion: 11, status: "complete", runId, images, files },
       rewrite,
       trusted,
     );
@@ -578,7 +580,7 @@ function archive(
 describe("retained source bundle and independent policy authority", () => {
   it("replays all85files and six scopes while rejecting the previous schema and release approval", () =>
     archive((directory, report, _rewrite, trusted) => {
-      expect(Object.keys(report.files)).toHaveLength(85);
+      expect(Object.keys(report.files)).toHaveLength(87);
       expect(() => verifyEvidenceFiles(directory, report)).not.toThrow();
       expect(() =>
         verifyNodeSourceReports(directory, report, trusted),

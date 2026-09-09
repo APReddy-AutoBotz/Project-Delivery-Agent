@@ -3,6 +3,54 @@
 Requirements: NFR-SEC-010, NFR-MNT-004, TR-TEST-001/002; AC-MNT-004;
 OPEN_SOURCE_POLICY; STORY-004; Issue #5; ADR-014; EXEC-003.
 
+## Matched Perl package architecture, 2026-09-09
+
+Schema 11 requires 87 files, including the new policy and static analysis. The
+version-3 ledger composes separately verified sources and preserves the previous
+92 gosu rows. The architecture rule may cover only the 20 independently validated
+baseline observations. Twenty-eight module-absence candidates remain deferred;
+the other 172 batch inputs retain their first-pass needs-review result.
+
+The original Debian archives match primary package SHA-256 and size metadata.
+Static ar/tar/ELF/configuration inspection, without target execution, verifies
+11,352 present owned-file comparisons and 360 material/alias bindings across
+eight scopes. All relevant ELF files are 64-bit x86-64, and matching configuration
+establishes eight-byte pointers, IV/UV, size_t and long. Four-byte C int does not
+mean a 32-bit Perl build. Missing owned entries are explicitly reviewed documents,
+manuals and lintian records. Original source versions are not claimed patched.
+
+Replay pins complete package metadata, physical coverage, aliases, supplying
+layer ordinals, relationships, advisory semantics and the remaining native match
+envelope. Original IDs and complete raw match hashes are retained in each new row.
+Policy version 2 pins two exact related NVD descriptions with the same reviewed
+32-bit precondition. Only validated daily EPSS date, score and percentile are
+normalized in a comparison copy: exact keys and CVE identity, a real ISO calendar
+date and finite probabilities in [0,1] are required. Unreviewed descriptions,
+malformed enrichment, new fields and changed matching semantics fail. Raw scans
+retain all values. Complete old/new scanner-metadata review is recorded separately
+from unchanged package/file payload comparison, with exact occurrence/field
+receipts; the existing 14 generated payload SHA exceptions do not change.
+The refreshed local scan adds four observations on an existing web module, two
+High and two Medium. Retain all four as needs-review and require their exact
+fresh bindings separately from the 2,726 baseline matches. Added observations
+are not normalized away or covered by the Perl/gosu dispositions.
+Unknown source packages, changed bytes, missing or duplicate files/relationships,
+added named/identical carriers or libperl consumers, and changed match evidence
+must fail. Trusted checkout anchors reject a mutually forged archive policy and
+analysis. The scope remains the matched package, not arbitrary whole-image absence.
+
+The new regressions cover this contract in both scopes and every target, preserve
+duplicate scanner observations separately, and exercise the actual anchors and
+64 KiB/512 KiB read boundaries. Immutable candidate review, complete native checks,
+fresh packaged CI and independent downloaded-evidence review are required before
+accepting the implementation. All original matches and five release gates remain.
+No runtime dependency, migration, authorization or connector scope changes.
+
+PR #39's previously pending gates are complete: candidate and merged-main
+foundation/documentation workflows passed, with independent exact-candidate and
+fresh-evidence reviews. Its initial collector-limit failure remains historical;
+only the corrected candidate's successful complete evidence was accepted.
+
 ## Gosu advisory batch, 2026-09-09
 
 Schema 10 keeps 85 files. Policy/analysis/ledger version 2 supports 23 independently

@@ -439,6 +439,8 @@ function archive(
       "node-source-bundle.json",
       "gosu-disposition-policy.json",
       "gosu-static-analysis.json",
+      "perl-disposition-policy.json",
+      "perl-static-analysis.json",
       "vulnerability-dispositions.json",
       "caddy-modules.json",
       "npm-notices.json",
@@ -486,7 +488,7 @@ function archive(
     }
     check(
       directory,
-      { schemaVersion: 10, status: "complete", runId, images, files },
+      { schemaVersion: 11, status: "complete", runId, images, files },
       rewrite,
       trusted,
     );
@@ -499,7 +501,7 @@ function archive(
 describe("retained resource evidence and independent trust", () => {
   it("requires all 85 files, replays six scopes and rejects the prior schema", () =>
     archive((directory, report, _rewrite, trusted) => {
-      expect(Object.keys(report.files)).toHaveLength(85);
+      expect(Object.keys(report.files)).toHaveLength(87);
       expect(() => verifyEvidenceFiles(directory, report)).not.toThrow();
       expect(() =>
         verifyNodeResourceReports(directory, report, trusted),

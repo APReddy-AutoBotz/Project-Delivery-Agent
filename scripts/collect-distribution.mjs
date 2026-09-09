@@ -38,10 +38,11 @@ import {
 } from "./distribution/node-resources.mjs";
 import { readBoundedNodeFile } from "./distribution/node-supplemental.mjs";
 import {
-  buildGosuDispositionReport,
-  gosuEvidenceNames,
-  readGosuAnchor,
-} from "./distribution/gosu-dispositions.mjs";
+  buildDispositionReport,
+  dispositionAnchorNames,
+  dispositionLedgerName,
+  readDispositionAnchor,
+} from "./distribution/vulnerability-dispositions.mjs";
 import {
   validateNodeSourceBundle,
   validateNodeSourceEvidence,
@@ -197,7 +198,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 10,
+  schemaVersion: 11,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -408,12 +409,12 @@ try {
     record.images[target] = image;
   }
   requireCompleteTargets(record.images);
-  for (const name of gosuEvidenceNames.slice(0, 2))
-    writeFileSync(join(output, name), readGosuAnchor(name));
-  const dispositions = buildGosuDispositionReport(output, record);
-  write(gosuEvidenceNames[2], dispositions);
+  for (const name of dispositionAnchorNames)
+    writeFileSync(join(output, name), readDispositionAnchor(name));
+  const dispositions = buildDispositionReport(output, record);
+  write(dispositionLedgerName, dispositions);
   record.vulnerabilityDispositions = {
-    file: gosuEvidenceNames[2],
+    file: dispositionLedgerName,
     notApplicable: dispositions.dispositions.length,
     releaseApproved: false,
   };
