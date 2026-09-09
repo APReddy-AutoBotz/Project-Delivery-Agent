@@ -60,6 +60,13 @@ review and four accepted-baseline replays pass; implementation precheck repairs
 have rejection tests. Immutable-candidate review, fresh CI and downloaded
 verification remain merge gates. All five release blockers and STORY-004/005 remain open.
 
+Fresh CI required a reviewed Multer 2.2.0 to 2.3.0 runtime override for newly
+published dependency advisories. Local audit now reports zero findings; the full
+418-test native gate passes on the replacement. Original MIT notice and entrypoint
+bytes are unchanged. Customer images must be rebuilt and reaccepted; the API still
+has no multipart route. This updated candidate supersedes the initial review/CI
+candidate and requires fresh independent approval and downloaded verification.
+
 The preceding PR #37 increment passed candidate and merged-main checks. It retains seven authenticated
 JavaScript originals and derives exact selected-source/resource size-hash
 correspondence in all six Node scopes. A reviewed policy plus canonical

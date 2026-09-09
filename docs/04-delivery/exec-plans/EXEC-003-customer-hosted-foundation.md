@@ -47,6 +47,19 @@ permission or connector changes. Recovery is a reviewed policy/evidence revert
 with fresh collection. PR #37's candidate and merged-main checks passed at
 `89f6061`, with all 82 retained files independently verified.
 
+Fresh PR #38 CI exposed newly published High-severity Multer advisories at the
+dependency audit gate. Extend this increment with a reviewed runtime override from
+2.2.0 to 2.3.0, preserving the dependency audit threshold. The publisher identifies
+2.3.0 as patched; Node engine/runtime dependency ranges and MIT licensing are
+unchanged. The current application has no Multer module/interceptor/upload route.
+The new fieldArrayIndexLimit is opt-in and must be explicitly configured before
+any future multipart feature; an audit pass does not prove safe arbitrary upload
+configuration. Rebuild and reaccept customer images, update dependency records and
+review only the concrete package/notice/lock delta. Re-review the new immutable
+candidate and rerun every CI/download gate. No database, permission or connector
+scope changes are needed. Recover with a reviewed replacement version and fresh
+acceptance; reverting to the vulnerable version cannot satisfy the release gate.
+
 ### Completed increment: selected Node source/resource correspondence
 
 Under NFR-SEC-010 / AC-MNT-004, retain the seven already researched JavaScript

@@ -49,6 +49,17 @@ identity, preserved severity totals and trusted scanner-pin assertions; denial
 tests cover each repair. Independent immutable-candidate review, fresh packaged
 CI and downloaded artifact verification remain merge requirements.
 
+The first PR #38 CI candidate passed unit checks but failed the unchanged High
+dependency-audit gate on newly published Multer advisories. The reviewed 2.3.0
+override supersedes that candidate. Fresh local audit reports zero findings and
+all 38 direct/override records reconcile. Both publisher tarballs match their
+lockfile SHA-512 pins; only six package files change, while the MIT LICENSE,
+entrypoint, Node engine and runtime dependency ranges are identical. The updated
+dependency passes all 418 unit tests, lint/type checking, seven builds and document
+checks. Fresh image acceptance and the concrete package/lock delta must still be
+verified before merge. Multipart configuration limits remain a prerequisite for
+future upload functionality; no upload route is added here.
+
 ## Retained selected-source correspondence, 2026-09-08
 
 The reviewed source policy pins seven exact original JavaScript files from the
