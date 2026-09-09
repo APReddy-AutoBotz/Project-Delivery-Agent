@@ -1,5 +1,23 @@
 # Decision Log
 
+## Synthetic canonical model activation, 2026-09-09
+
+Under delegated implementation authority, start EXEC-004 after PR #40's verified
+merge `5d45e1d0da36218f27b81c55201ec3d3affa1560`. Independent private sequencing and
+design reviews support this bounded transition. This decision explicitly supersedes
+the historical next-task interpretation in PUBLICATION_RECORD.md and status,
+applying the master plan's foundation-control/per-increment/release distinction
+and ADR-010. Real-source activation, Issue #5, STORY-004/005 and all unresolved
+security/distribution/signing criteria stay open. Accepted story counts do not change.
+
+Start with an internal deterministic temporal fact model for FR-EVD-001/002/003/
+004/006/007/010/012. It retains source versions, evidence dependencies and independent
+fact dimensions, with explicit as-of and ambiguous-tie behavior. It is not an
+authority decision or a public read/write service. Complete current authorization,
+trusted ingestion, durable versioning, policy resolution and API/browser evidence
+in subsequent reviewed increments. Tracked planning and each immutable code
+candidate require independent non-author review and applicable validation.
+
 | Decision | Date | Status | Reference |
 |---|---|---|---|
 | Build as a standalone product rather than inside AvalaOS | 2026-09-05 | Accepted | BRD, PRODUCT_SCOPE |

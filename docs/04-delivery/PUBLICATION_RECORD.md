@@ -125,6 +125,15 @@ Customer IdP registration/policy is needed for customer-specific interoperabilit
 Keep real sources disabled until this foundation gate is satisfied. Then proceed to the canonical
 model/evidence ledger in [Issue #6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6).
 
+Sequencing update, 2026-09-09: after PR #40 merged as
+`5d45e1d0da36218f27b81c55201ec3d3affa1560` with its required candidate and fresh
+evidence gates, the controller activated synthetic canonical/evidence development
+under EXEC-004. This supersedes the next-task interpretation of the preceding
+historical paragraph. The master plan distinguishes delivered foundation controls,
+per-increment checks and release acceptance; ADR-010 preserves the real-source
+dependency. Issue #5, STORY-004/005, AC-MNT-004, security/distribution/signing and
+customer activation remain open. No acceptance or release gate is waived.
+
 ## Foundation contract run and accepted stories
 
 This run started from clean merged main `fabec988a2199c8b6ac8f5bb38754e410a8edcbf`.
