@@ -1,6 +1,13 @@
 import type { Actor, Role } from "./actor.js";
 export { roles, roleSchema, type Role, type Actor } from "./actor.js";
 export * from "./project-facts.js";
+export {
+  resolveSourceAuthority,
+  sourceAuthorityPolicySchema,
+  sourceAuthoritySnapshotSchema,
+  type SourceAuthorityPolicy,
+  type SourceAuthoritySnapshot,
+} from "./source-authority.js";
 
 export { assessFact, provenanceSchema, type Provenance } from "./fact-state.js";
 export {
