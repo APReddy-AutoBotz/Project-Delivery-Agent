@@ -21,44 +21,47 @@ bundled pgvector availability and external database configuration; production
 file secrets, scoped OIDC code/PKCE login and provider logout; restricted database
 roles; backup/recovery; dependency/license/notices/SBOM and image-scan gates.
 
-### Current increment: exact gosu vulnerability dispositions
+### Current increment: gosu advisory applicability batch
 
-Under NFR-SEC-010 / AC-MNT-004, derive narrowly scoped `not_applicable`
-dispositions for the four existing GO-2026-4337 occurrences in the database and
-operations image scopes. A standard Go metadata reader corroborates absence of
-the required crypto/tls package in the exact retained gosu binary, including the
-complete function-name table used for emitted and inlined functions. Preserve the
-reviewed binary and analysis pins; no target execution or source rebuild is needed.
+Under NFR-SEC-010 / NFR-MNT-004 / AC-MNT-004, extend the reviewed exact-binary
+policy with 22 separately assessed advisories (88 original observations across
+database/operations and both scopes). Every affected import, including imports in
+multiple Go modules, must be absent from the complete emitted/inline name pool and
+source metadata. Keep GO-2026-4970's four observations open: os is present and this
+increment does not authorize function-level exclusions. Preserve the four earlier
+GO-2026-4337 dispositions, giving 23 rules and 92 separate baseline ledger rows.
 
-Schema 9 retains a trusted policy, static analysis receipt and derived occurrence
-ledger beside every original unfiltered scan. Bind each selected occurrence to its
-fresh image/configuration, supplying layer, unique physical file, package ID,
-version/purl, advisory semantics, raw match and input report hashes. Recompute the
-ledger during retained verification against independent checkout policy/analysis
-anchors. Any changed selected binary or advisory requires renewed review; absent
-matches produce no disposition. Other binaries, advisories and observations remain
-unreviewed. Reject missing evidence, ambiguous files/packages, wrong identity,
-stale scans and coherently rehashed forged archives. No caller approval flags.
+Schema 10 retains 85 files and upgrades the policy, analysis and ledger contracts
+to version 2. Pin primary advisory bytes and native advisory semantics per rule.
+The standard Go reader records affected-package queries and a present os control;
+its original subject, full list/section hashes and entrypoint controls must agree
+with independent extraction. Policy/analysis reads are bounded at 128 KiB and the
+larger occurrence ledger at 512 KiB. No generic version-based exclusion or caller
+approval flag is introduced. Original findings/severities stay unchanged.
 
-Complete independent static-evidence and immutable-candidate review, native checks,
-fresh CI and downloaded artifact comparison before merge. Preserve all five
-release blockers, including unresolved vulnerabilities. No runtime, database,
-permission or connector changes. Recovery is a reviewed policy/evidence revert
-with fresh collection. PR #37's candidate and merged-main checks passed at
-`89f6061`, with all 82 retained files independently verified.
+Require per-observation private validation, independent immutable-candidate review,
+native checks, fresh packaged CI and downloaded evidence comparison before merge.
+Compare against accepted PR #38 without a new image payload or dependency delta.
+Preserve all original notices, source bindings and five release blockers. No runtime,
+database, permission or connector change. Recovery is a reviewed policy/schema
+revert followed by fresh collection and verification. This batch leaves 734 of
+the 826 baseline High/Critical observations without a new disposition; those counts
+are scanner observations, not a count of exploitable product defects.
 
-Fresh PR #38 CI exposed newly published High-severity Multer advisories at the
-dependency audit gate. Extend this increment with a reviewed runtime override from
-2.2.0 to 2.3.0, preserving the dependency audit threshold. The publisher identifies
-2.3.0 as patched; Node engine/runtime dependency ranges and MIT licensing are
-unchanged. The current application has no Multer module/interceptor/upload route.
-The new fieldArrayIndexLimit is opt-in and must be explicitly configured before
-any future multipart feature; an audit pass does not prove safe arbitrary upload
-configuration. Rebuild and reaccept customer images, update dependency records and
-review only the concrete package/notice/lock delta. Re-review the new immutable
-candidate and rerun every CI/download gate. No database, permission or connector
-scope changes are needed. Recover with a reviewed replacement version and fresh
-acceptance; reverting to the vulnerable version cannot satisfy the release gate.
+### Completed increment: first gosu dispositions and Multer remediation
+
+PR #38 merged at `24894ba` after independent review of candidate `10ee5eb`,
+native checks, fresh CI and downloaded verification. Candidate foundation run
+34304924230 and documentation run 34304924234 passed; merged-main foundation
+34307208557 and documentation 34307208404 also passed. Schema 9 retained 85 files
+and four GO-2026-4337 code-absence dispositions, with original scans unchanged.
+
+The same accepted increment replaced Multer 2.2.0 with reviewed 2.3.0 after fresh
+CI exposed dependency advisories. All 418 unit tests, ten integration tests, eight
+browser tests, 17 packaged acceptance groups across two profiles, recovery and
+audit passed. Exact package/lock/notice changes were independently checked; no
+multipart route exists. A finite fieldArrayIndexLimit remains required before
+future multipart work. All foundation release blockers remain open.
 
 ### Completed increment: selected Node source/resource correspondence
 

@@ -486,7 +486,7 @@ function archive(
     }
     check(
       directory,
-      { schemaVersion: 9, status: "complete", runId, images, files },
+      { schemaVersion: 10, status: "complete", runId, images, files },
       rewrite,
       trusted,
     );

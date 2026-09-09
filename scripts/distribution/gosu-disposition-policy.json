@@ -1,6 +1,5 @@
 {
-  "schemaVersion": 1,
-  "ruleId": "gosu-go-2026-4337-code-absent-v1",
+  "schemaVersion": 2,
   "targets": ["database", "operations"],
   "scopes": ["squashed", "all-layers"],
   "binary": {
@@ -11,46 +10,1948 @@
     "mainModule": "github.com/tianon/gosu",
     "moduleVersion": "v1.19.0"
   },
-  "advisory": {
-    "id": "GO-2026-4337",
-    "namespace": "govulndb:language:go",
-    "dataSource": "https://groups.google.com/g/golang-announce/c/K09ubi9FQFk",
-    "description": "During session resumption in crypto/tls, if the underlying Config has its ClientCAs or RootCAs fields mutated between the initial handshake and the resumed handshake, the resumed handshake may succeed when it should have failed. This may happen when a user calls Config.Clone and mutates the returned Config, or uses Config.GetConfigForClient. This can cause a client to resume a session with a server that it would not have resumed with during the initial handshake, or cause a server to resume a session with a client that it would not have resumed with during the initial handshake.",
-    "fix": {
-      "versions": ["1.24.13", "1.25.7", "1.26.0-rc.3"],
-      "state": "fixed",
-      "available": [
-        {
-          "version": "1.24.13",
-          "date": "2026-02-05",
-          "kind": "advisory"
-        },
-        {
-          "version": "1.25.7",
-          "date": "2026-02-05",
-          "kind": "advisory"
-        },
-        {
-          "version": "1.26.0-rc.3",
-          "date": "2026-02-05",
-          "kind": "advisory"
+  "rules": [
+    {
+      "ruleId": "gosu-go-2026-4337-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4337",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://groups.google.com/g/golang-announce/c/K09ubi9FQFk",
+        "description": "During session resumption in crypto/tls, if the underlying Config has its ClientCAs or RootCAs fields mutated between the initial handshake and the resumed handshake, the resumed handshake may succeed when it should have failed. This may happen when a user calls Config.Clone and mutates the returned Config, or uses Config.GetConfigForClient. This can cause a client to resume a session with a server that it would not have resumed with during the initial handshake, or cause a server to resume a session with a client that it would not have resumed with during the initial handshake.",
+        "fix": {
+          "versions": ["1.24.13", "1.25.7", "1.26.0-rc.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.24.13",
+              "date": "2026-02-05",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.25.7",
+              "date": "2026-02-05",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.0-rc.3",
+              "date": "2026-02-05",
+              "kind": "advisory"
+            }
+          ]
         }
-      ]
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4337.json",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4337",
+        "retrievedAt": "2026-09-07T16:59:34.724756+00:00",
+        "bytes": 2445,
+        "sha256": "f05a9e7ba4e82ccc59014bd2b23ddec1d440ca85244bd2e723a987b44e99a938",
+        "package": "crypto/tls"
+      },
+      "disposition": "not_applicable",
+      "reason": "Required crypto/tls code is absent from the complete emitted/inline function-name table of these exact gosu bytes.",
+      "requiredPackages": ["crypto/tls"]
+    },
+    {
+      "ruleId": "gosu-go-2025-4006-code-absent-v1",
+      "advisory": {
+        "id": "GO-2025-4006",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/709860",
+        "description": "The ParseAddress function constructs domain-literal address components through repeated string concatenation. When parsing large domain-literal components, this can cause excessive CPU consumption.",
+        "fix": {
+          "versions": ["1.24.8", "1.25.2"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.24.8",
+              "date": "2025-10-29",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.25.2",
+              "date": "2025-10-29",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2025-4006.json",
+        "retrievedAt": "2026-09-09T04:22:29.756478+00:00",
+        "bytes": 1814,
+        "sha256": "81c23cd2e97647986f136e1b3bde3acb71a716b323dbf9afd48805372bc3e85a",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2025-4006",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.24.8"
+                  },
+                  {
+                    "introduced": "1.25.0"
+                  },
+                  {
+                    "fixed": "1.25.2"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net/mail",
+                  "symbols": [
+                    "AddressParser.Parse",
+                    "AddressParser.ParseList",
+                    "Header.AddressList",
+                    "ParseAddress",
+                    "ParseAddressList",
+                    "addrParser.consumeDomainLiteral"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["net/mail"],
+      "disposition": "not_applicable",
+      "reason": "Required net/mail code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2025-4007-code-absent-v1",
+      "advisory": {
+        "id": "GO-2025-4007",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/75681",
+        "description": "Due to the design of the name constraint checking algorithm, the processing time of some inputs scale non-linearly with respect to the size of the certificate.\n\nThis affects programs which validate arbitrary certificate chains.",
+        "fix": {
+          "versions": ["1.24.9", "1.25.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.24.9",
+              "date": "2025-10-29",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.25.3",
+              "date": "2025-10-29",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2025-4007.json",
+        "retrievedAt": "2026-09-09T04:22:29.826672+00:00",
+        "bytes": 2878,
+        "sha256": "22604296e53a45792ead5a9f551c1857890f906eefc4ccff764cbd38be8647f3",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2025-4007",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.24.9"
+                  },
+                  {
+                    "introduced": "1.25.0"
+                  },
+                  {
+                    "fixed": "1.25.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "crypto/x509",
+                  "symbols": [
+                    "CertPool.AppendCertsFromPEM",
+                    "Certificate.CheckCRLSignature",
+                    "Certificate.CheckSignature",
+                    "Certificate.CheckSignatureFrom",
+                    "Certificate.CreateCRL",
+                    "Certificate.Verify",
+                    "CertificateRequest.CheckSignature",
+                    "CreateCertificate",
+                    "CreateCertificateRequest",
+                    "CreateRevocationList",
+                    "DecryptPEMBlock",
+                    "EncryptPEMBlock",
+                    "MarshalECPrivateKey",
+                    "MarshalPKCS1PrivateKey",
+                    "MarshalPKCS1PublicKey",
+                    "MarshalPKCS8PrivateKey",
+                    "MarshalPKIXPublicKey",
+                    "ParseCRL",
+                    "ParseCertificate",
+                    "ParseCertificateRequest",
+                    "ParseCertificates",
+                    "ParseDERCRL",
+                    "ParseECPrivateKey",
+                    "ParsePKCS1PrivateKey",
+                    "ParsePKCS1PublicKey",
+                    "ParsePKCS8PrivateKey",
+                    "ParsePKIXPublicKey",
+                    "ParseRevocationList",
+                    "RevocationList.CheckSignatureFrom",
+                    "SetFallbackRoots",
+                    "SystemCertPool",
+                    "domainToReverseLabels",
+                    "parseSANExtension"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["crypto/x509"],
+      "disposition": "not_applicable",
+      "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2025-4009-code-absent-v1",
+      "advisory": {
+        "id": "GO-2025-4009",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/75676",
+        "description": "The processing time for parsing some invalid inputs scales non-linearly with respect to the size of the input.\n\nThis affects programs which parse untrusted PEM inputs.",
+        "fix": {
+          "versions": ["1.24.8", "1.25.2"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.24.8",
+              "date": "2025-10-29",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.25.2",
+              "date": "2025-10-29",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2025-4009.json",
+        "retrievedAt": "2026-09-09T04:22:29.756478+00:00",
+        "bytes": 1609,
+        "sha256": "a4d1e36f5a4ce0abea8d7051c2add27f809773fc9ba14e0deadd02af6b20085e",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2025-4009",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.24.8"
+                  },
+                  {
+                    "introduced": "1.25.0"
+                  },
+                  {
+                    "fixed": "1.25.2"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "encoding/pem",
+                  "symbols": ["Decode", "getLine"]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["encoding/pem"],
+      "disposition": "not_applicable",
+      "reason": "Required encoding/pem code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2025-4013-code-absent-v1",
+      "advisory": {
+        "id": "GO-2025-4013",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/709853",
+        "description": "Validating certificate chains which contain DSA public keys can cause programs to panic, due to a interface cast that assumes they implement the Equal method.\n\nThis affects programs which validate arbitrary certificate chains.",
+        "fix": {
+          "versions": ["1.24.8", "1.25.2"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.24.8",
+              "date": "2025-10-29",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.25.2",
+              "date": "2025-10-29",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2025-4013.json",
+        "retrievedAt": "2026-09-09T04:22:29.771985+00:00",
+        "bytes": 1687,
+        "sha256": "ad4252f2b0239827db7f600a868c16869986182576d9adc263295f71d4ed0799",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2025-4013",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.24.8"
+                  },
+                  {
+                    "introduced": "1.25.0"
+                  },
+                  {
+                    "fixed": "1.25.2"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "crypto/x509",
+                  "symbols": ["Certificate.Verify", "alreadyInChain"]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["crypto/x509"],
+      "disposition": "not_applicable",
+      "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2025-4155-code-absent-v1",
+      "advisory": {
+        "id": "GO-2025-4155",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/725920",
+        "description": "Within HostnameError.Error(), when constructing an error string, there is no limit to the number of hosts that will be printed out. Furthermore, the error string is constructed by repeated string concatenation, leading to quadratic runtime. Therefore, a certificate provided by a malicious actor can result in excessive resource consumption.",
+        "fix": {
+          "versions": ["1.24.11", "1.25.5"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.24.11",
+              "date": "2025-12-02",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.25.5",
+              "date": "2025-12-02",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2025-4155.json",
+        "retrievedAt": "2026-09-09T04:22:30.057064+00:00",
+        "bytes": 1866,
+        "sha256": "0cf31e113b90082b2d89bc94ce323c25745c2045604bbe6a6fd413fd25e06a40",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2025-4155",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.24.11"
+                  },
+                  {
+                    "introduced": "1.25.0"
+                  },
+                  {
+                    "fixed": "1.25.5"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "crypto/x509",
+                  "symbols": [
+                    "Certificate.Verify",
+                    "Certificate.VerifyHostname"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["crypto/x509"],
+      "disposition": "not_applicable",
+      "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4341-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4341",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/736712",
+        "description": "The net/url package does not set a limit on the number of query parameters in a query.\n\nWhile the maximum size of query parameters in URLs is generally limited by the maximum request header size, the net/http.Request.ParseForm method can parse large URL-encoded forms. Parsing a large form containing many unique query parameters can cause excessive memory consumption.",
+        "fix": {
+          "versions": ["1.24.12", "1.25.6"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.24.12",
+              "date": "2026-01-28",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.25.6",
+              "date": "2026-01-28",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4341.json",
+        "retrievedAt": "2026-09-09T04:22:30.152373+00:00",
+        "bytes": 1821,
+        "sha256": "01002a667c55035386c3a4fc00a8f960f11af6e553aaad17c501c1415302f1b2",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4341",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.24.12"
+                  },
+                  {
+                    "introduced": "1.25.0"
+                  },
+                  {
+                    "fixed": "1.25.6"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net/url",
+                  "symbols": ["ParseQuery", "URL.Query", "parseQuery"]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["net/url"],
+      "disposition": "not_applicable",
+      "reason": "Required net/url code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4601-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4601",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/752180",
+        "description": "url.Parse insufficiently validated the host/authority component and accepted some invalid URLs.",
+        "fix": {
+          "versions": ["1.25.8", "1.26.1"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.8",
+              "date": "2026-03-06",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.1",
+              "date": "2026-03-06",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4601.json",
+        "retrievedAt": "2026-09-09T04:22:30.109559+00:00",
+        "bytes": 1654,
+        "sha256": "7e9e9ae5d41c687f0daaef1b7de371ba46cd88a6272a13009ab07b26d879eea8",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4601",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.8"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.1"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net/url",
+                  "symbols": [
+                    "JoinPath",
+                    "Parse",
+                    "ParseRequestURI",
+                    "URL.Parse",
+                    "URL.UnmarshalBinary",
+                    "parseHost"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["net/url"],
+      "disposition": "not_applicable",
+      "reason": "Required net/url code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4870-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4870",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/763767",
+        "description": "If one side of the TLS connection sends multiple key update messages post-handshake in a single record, the connection can deadlock, causing uncontrolled consumption of resources. This can lead to a denial of service.\n\nThis only affects TLS 1.3.",
+        "fix": {
+          "versions": ["1.25.9", "1.26.2"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.9",
+              "date": "2026-04-07",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.2",
+              "date": "2026-04-07",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4870.json",
+        "retrievedAt": "2026-09-09T04:22:30.157804+00:00",
+        "bytes": 2279,
+        "sha256": "2d0dd5c4a71fddf007319316e824d509a38ef4e1c20a034c54091ba281bbd466",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4870",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.9"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.2"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "crypto/tls",
+                  "symbols": [
+                    "Conn.Handshake",
+                    "Conn.HandshakeContext",
+                    "Conn.Read",
+                    "Conn.Write",
+                    "Conn.handleKeyUpdate",
+                    "Dial",
+                    "DialWithDialer",
+                    "Dialer.Dial",
+                    "Dialer.DialContext",
+                    "QUICConn.HandleData",
+                    "QUICConn.Start",
+                    "clientHandshakeStateTLS13.establishHandshakeKeys",
+                    "clientHandshakeStateTLS13.readServerFinished",
+                    "serverHandshakeStateTLS13.readClientFinished",
+                    "serverHandshakeStateTLS13.sendServerParameters"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["crypto/tls"],
+      "disposition": "not_applicable",
+      "reason": "Required crypto/tls code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4918-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4918",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/761581",
+        "description": "When processing HTTP/2 SETTINGS frames, transport will enter an infinite loop of writing CONTINUATION frames if it receives a SETTINGS_MAX_FRAME_SIZE with a value of 0.",
+        "fix": {
+          "versions": ["1.25.10", "1.26.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.10",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.3",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4918.json",
+        "retrievedAt": "2026-09-09T04:22:30.415110+00:00",
+        "bytes": 3649,
+        "sha256": "4848925820784ed827a8d28cb3d24fe9bdb591f5655a2f378d64f01058b6baba",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4918",
+        "affected": [
+          {
+            "package": {
+              "name": "golang.org/x/net",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "0.53.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "golang.org/x/net/http2",
+                  "symbols": [
+                    "Transport.NewClientConn",
+                    "Transport.RoundTrip",
+                    "Transport.RoundTripOpt",
+                    "clientConnPool.GetClientConn",
+                    "clientConnReadLoop.processSettingsNoWrite",
+                    "noDialClientConnPool.GetClientConn",
+                    "noDialH2RoundTripper.NewClientConn",
+                    "noDialH2RoundTripper.RoundTrip",
+                    "unencryptedTransport.RoundTrip"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.10"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net/http",
+                  "symbols": [
+                    "Client.CloseIdleConnections",
+                    "Client.Do",
+                    "Client.Get",
+                    "Client.Head",
+                    "Client.Post",
+                    "Client.PostForm",
+                    "ClientConn.Close",
+                    "ClientConn.RoundTrip",
+                    "Get",
+                    "Head",
+                    "Post",
+                    "PostForm",
+                    "Transport.CloseIdleConnections",
+                    "Transport.NewClientConn",
+                    "Transport.RoundTrip",
+                    "http1ClientConn.Close",
+                    "http1ClientConn.RoundTrip",
+                    "http2Transport.NewClientConn",
+                    "http2Transport.RoundTrip",
+                    "http2Transport.RoundTripOpt",
+                    "http2clientConnPool.GetClientConn",
+                    "http2clientConnReadLoop.processSettingsNoWrite",
+                    "http2noDialClientConnPool.GetClientConn",
+                    "http2noDialH2RoundTripper.NewClientConn",
+                    "http2noDialH2RoundTripper.RoundTrip",
+                    "http2unencryptedTransport.RoundTrip"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["golang.org/x/net/http2", "net/http"],
+      "disposition": "not_applicable",
+      "reason": "Required golang.org/x/net/http2, net/http code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4946-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4946",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/758061",
+        "description": "Validating certificate chains which use policies is unexpectedly inefficient when certificates in the chain contain a very large number of policy mappings, possibly causing denial of service.\n\nThis only affects validation of otherwise trusted certificate chains, issued by a root CA in the VerifyOptions.Roots CertPool, or in the system certificate pool.",
+        "fix": {
+          "versions": ["1.25.9", "1.26.2"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.9",
+              "date": "2026-04-07",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.2",
+              "date": "2026-04-07",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4946.json",
+        "retrievedAt": "2026-09-09T04:22:30.447972+00:00",
+        "bytes": 1789,
+        "sha256": "c8f387cb168a6d575ad4eb33fcac1c38eca70b69aa1c94701bc0d8433f81c8c3",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4946",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.9"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.2"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "crypto/x509",
+                  "symbols": ["Certificate.Verify", "policiesValid"]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["crypto/x509"],
+      "disposition": "not_applicable",
+      "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4947-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4947",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/758320",
+        "description": "During chain building, the amount of work that is done is not correctly limited when a large number of intermediate certificates are passed in VerifyOptions.Intermediates, which can lead to a denial of service. This affects both direct users of crypto/x509 and users of crypto/tls.",
+        "fix": {
+          "versions": ["1.25.9", "1.26.2"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.9",
+              "date": "2026-04-07",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.2",
+              "date": "2026-04-07",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4947.json",
+        "retrievedAt": "2026-09-09T04:22:30.468430+00:00",
+        "bytes": 1732,
+        "sha256": "e53603267f3b6c409d3a02293b7afdc571a4a079f771c76e1bbbbf17ca420c65",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4947",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.9"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.2"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "crypto/x509",
+                  "symbols": ["Certificate.Verify", "Certificate.buildChains"]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["crypto/x509"],
+      "disposition": "not_applicable",
+      "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4971-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4971",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/79006",
+        "description": "The Dial and LookupPort functions panic on Windows when provided with an input containing a NUL (0).",
+        "fix": {
+          "versions": ["1.25.10", "1.26.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.10",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.3",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4971.json",
+        "retrievedAt": "2026-09-09T04:22:31.147315+00:00",
+        "bytes": 2611,
+        "sha256": "47de0939956ccbdb7d1fce4d3cbeb1ac19c1d84580dceb828bcb9e0dbcdc980c",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4971",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.10"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net",
+                  "symbols": [
+                    "Dial",
+                    "DialTimeout",
+                    "Dialer.Dial",
+                    "Dialer.DialContext",
+                    "Listen",
+                    "ListenConfig.Listen",
+                    "ListenConfig.ListenPacket",
+                    "ListenPacket",
+                    "LookupAddr",
+                    "LookupCNAME",
+                    "LookupHost",
+                    "LookupIP",
+                    "LookupMX",
+                    "LookupNS",
+                    "LookupPort",
+                    "LookupSRV",
+                    "LookupTXT",
+                    "ResolveIPAddr",
+                    "ResolveTCPAddr",
+                    "ResolveUDPAddr",
+                    "Resolver.LookupAddr",
+                    "Resolver.LookupCNAME",
+                    "Resolver.LookupHost",
+                    "Resolver.LookupIP",
+                    "Resolver.LookupIPAddr",
+                    "Resolver.LookupMX",
+                    "Resolver.LookupNS",
+                    "Resolver.LookupNetIP",
+                    "Resolver.LookupPort",
+                    "Resolver.LookupSRV",
+                    "Resolver.LookupTXT",
+                    "Resolver.lookupAddr",
+                    "Resolver.lookupMX",
+                    "Resolver.lookupNS",
+                    "Resolver.lookupPort",
+                    "Resolver.lookupSRV",
+                    "Resolver.lookupTXT"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["net"],
+      "disposition": "not_applicable",
+      "reason": "Required net code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4977-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4977",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/78987",
+        "description": "Pathological inputs could cause DoS through consumePhrase when parsing an email address according to RFC 5322.",
+        "fix": {
+          "versions": ["1.25.10", "1.26.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.10",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.3",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4977.json",
+        "retrievedAt": "2026-09-09T04:22:30.838592+00:00",
+        "bytes": 1627,
+        "sha256": "7efe60561e610d683b0429be367ec13f3efdb04503ae79857c123bcf60931660",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4977",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.10"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net/mail",
+                  "symbols": [
+                    "AddressParser.Parse",
+                    "AddressParser.ParseList",
+                    "Header.AddressList",
+                    "ParseAddress",
+                    "ParseAddressList",
+                    "addrParser.consumePhrase"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["net/mail"],
+      "disposition": "not_applicable",
+      "reason": "Required net/mail code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4981-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4981",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/78803",
+        "description": "When using LookupCNAME with the cgo DNS resolver, a very long CNAME response can trigger a double-free of C memory and a crash.",
+        "fix": {
+          "versions": ["1.25.10", "1.26.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.10",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.3",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4981.json",
+        "retrievedAt": "2026-09-09T04:22:30.795485+00:00",
+        "bytes": 1566,
+        "sha256": "b21942e90171a32ce7aef6aabc8a1e9f5800bef7f7031163a171c4e0479c94a7",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4981",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.10"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net",
+                  "symbols": [
+                    "LookupCNAME",
+                    "Resolver.LookupCNAME",
+                    "cgoResSearch"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["net"],
+      "disposition": "not_applicable",
+      "reason": "Required net code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-4986-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-4986",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/78566",
+        "description": "Well-crafted inputs reaching ParseAddress, ParseAddressList, and ParseDate were able to trigger excessive CPU exhaustion and memory allocations.",
+        "fix": {
+          "versions": ["1.25.10", "1.26.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.10",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.3",
+              "date": "2026-05-07",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4986.json",
+        "retrievedAt": "2026-09-09T04:22:30.856256+00:00",
+        "bytes": 1782,
+        "sha256": "3c3fe6abade68f20fa112a6c6bd45c0cfcf9cc28a1a882dfc201750412ef344f",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4986",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.10"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net/mail",
+                  "symbols": [
+                    "AddressParser.Parse",
+                    "AddressParser.ParseList",
+                    "Header.AddressList",
+                    "Header.Date",
+                    "ParseAddress",
+                    "ParseAddressList",
+                    "ParseDate",
+                    "addrParser.consumeComment"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["net/mail"],
+      "disposition": "not_applicable",
+      "reason": "Required net/mail code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-5026-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-5026",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/767220",
+        "description": "The ToASCII and ToUnicode functions incorrectly accept Punycode-encoded labels that decode to an ASCII-only label. For example, ToUnicode(\"xn--example-.com\") incorrectly returns the name \"example.com\" rather than an error.\n\nThis behavior can lead to privilege escalation in programs using the idna package. For example, a program which performs privilege checks on the ASCII hostname may reject \"example.com\" but permit \"xn--example-.com\". If that program subsequently converts the ASCII hostname to Unicode, it will inadvertently permits access to the Unicode name \"example.com\".",
+        "fix": {
+          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.13",
+              "date": "2026-05-22",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.6",
+              "date": "2026-05-22",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.27.0-rc.3",
+              "date": "2026-05-22",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-5026.json",
+        "retrievedAt": "2026-09-09T04:22:31.154317+00:00",
+        "bytes": 3906,
+        "sha256": "7470cc28e6269ac382e6299858977b89549a98c459a515c0f339e7490b0a4621",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-5026",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.13"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.6"
+                  },
+                  {
+                    "introduced": "1.27.0-0"
+                  },
+                  {
+                    "fixed": "1.27.0-rc.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net/http",
+                  "symbols": [
+                    "Client.CloseIdleConnections",
+                    "Client.Do",
+                    "Client.Get",
+                    "Client.Head",
+                    "Client.Post",
+                    "Client.PostForm",
+                    "ClientConn.Close",
+                    "ClientConn.RoundTrip",
+                    "Get",
+                    "Head",
+                    "Post",
+                    "PostForm",
+                    "Transport.CloseIdleConnections",
+                    "Transport.NewClientConn",
+                    "Transport.RoundTrip",
+                    "http1ClientConn.Close",
+                    "http1ClientConn.RoundTrip",
+                    "http2ClientConn.RoundTrip",
+                    "http2RoundTripper.RoundTrip",
+                    "idnaASCII"
+                  ]
+                },
+                {
+                  "path": "net/http/internal/http2",
+                  "symbols": [
+                    "Transport.AddConn",
+                    "Transport.RoundTrip",
+                    "Transport.RoundTripOpt",
+                    "authorityAddr"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "package": {
+              "name": "golang.org/x/net",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "0.55.0"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "golang.org/x/net/idna",
+                  "symbols": [
+                    "Profile.ToASCII",
+                    "Profile.ToUnicode",
+                    "Profile.process",
+                    "ToASCII",
+                    "ToUnicode"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": [
+        "golang.org/x/net/idna",
+        "net/http",
+        "net/http/internal/http2"
+      ],
+      "disposition": "not_applicable",
+      "reason": "Required golang.org/x/net/idna, net/http, net/http/internal/http2 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-5037-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-5037",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/cl/783621",
+        "description": "(*x509.Certificate).VerifyHostname previously called matchHostnames in a loop over all DNS Subject Alternative Name (SAN) entries. This caused strings.Split(host, \".\") to execute repeatedly on the same input hostname.\n\nWith a large DNS SAN list, verification costs scaled quadratically based on the number of SAN entries multiplied by the hostname's label count. Because x509.Verify validates hostnames before building the certificate chain, this overhead occurred even for untrusted certificates.",
+        "fix": {
+          "versions": ["1.25.11", "1.26.4"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.11",
+              "date": "2026-06-02",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.4",
+              "date": "2026-06-02",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-5037.json",
+        "retrievedAt": "2026-09-09T04:22:31.205413+00:00",
+        "bytes": 2027,
+        "sha256": "a61481bd02fc0f47d319ea119a2eee09cb19d1bf24f8c7a09220c8224b29d505",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-5037",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.11"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.4"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "crypto/x509",
+                  "symbols": [
+                    "Certificate.Verify",
+                    "Certificate.VerifyHostname",
+                    "HostnameError.Error",
+                    "matchHostnames"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["crypto/x509"],
+      "disposition": "not_applicable",
+      "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-5038-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-5038",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/79217",
+        "description": "Decoding a maliciously-crafted MIME header containing many invalid encoded-words can consume excessive CPU.",
+        "fix": {
+          "versions": ["1.25.11", "1.26.4"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.11",
+              "date": "2026-06-02",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.4",
+              "date": "2026-06-02",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-5038.json",
+        "retrievedAt": "2026-09-09T04:22:31.205413+00:00",
+        "bytes": 1528,
+        "sha256": "547435e04857b3a56bdf6b86219123b4597b8b43b4fed86a86c80c5377fabcce",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-5038",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.11"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.4"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "mime",
+                  "symbols": ["WordDecoder.DecodeHeader"]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["mime"],
+      "disposition": "not_applicable",
+      "reason": "Required mime code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-5972-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-5972",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/80405",
+        "description": "Enforce a recursion limit in Unmarshal to prevent stack exhaustion when parsing deeply-nested, recursive structures.",
+        "fix": {
+          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.13",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.6",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.27.0-rc.3",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-5972.json",
+        "retrievedAt": "2026-09-09T04:22:31.496253+00:00",
+        "bytes": 1754,
+        "sha256": "b29afc3e6e64a38248cdac1af1c471737e57e043e6baf086a6746db32570ea60",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-5972",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.13"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.6"
+                  },
+                  {
+                    "introduced": "1.27.0-0"
+                  },
+                  {
+                    "fixed": "1.27.0-rc.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "encoding/asn1",
+                  "symbols": [
+                    "Unmarshal",
+                    "UnmarshalWithParams",
+                    "parseField",
+                    "parseSequenceOf"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["encoding/asn1"],
+      "disposition": "not_applicable",
+      "reason": "Required encoding/asn1 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-6088-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-6088",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/80481",
+        "description": "Previously, DecodeElement would reset the depth counter causing it to never fire; this could lead to stack exhaustion.",
+        "fix": {
+          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.13",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.6",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.27.0-rc.3",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-6088.json",
+        "retrievedAt": "2026-09-09T04:22:31.498267+00:00",
+        "bytes": 1875,
+        "sha256": "aece7d85212cb95a1eeed5f71a6d20cdcee7dff2f30fae5488c9e7e2eca5c693",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-6088",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.13"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.6"
+                  },
+                  {
+                    "introduced": "1.27.0-0"
+                  },
+                  {
+                    "fixed": "1.27.0-rc.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "encoding/xml",
+                  "symbols": [
+                    "Decoder.Decode",
+                    "Decoder.DecodeElement",
+                    "Decoder.RawToken",
+                    "Decoder.Skip",
+                    "Decoder.Token",
+                    "Decoder.pop",
+                    "Decoder.push",
+                    "Decoder.unmarshal",
+                    "Decoder.unmarshalPath",
+                    "Unmarshal"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["encoding/xml"],
+      "disposition": "not_applicable",
+      "reason": "Required encoding/xml code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-6089-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-6089",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/80205",
+        "description": "When a server is configured to support unencrypted HTTP/2, it reads a few bytes from each new connection to see if they contain the HTTP/2 client preface. ReadHeaderTimeout is unexpectedly not being applied when doing this.",
+        "fix": {
+          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.13",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.6",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.27.0-rc.3",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-6089.json",
+        "retrievedAt": "2026-09-09T04:22:31.597634+00:00",
+        "bytes": 1988,
+        "sha256": "3b24856691f31dc5829945f4f77d84df1261eabd0feb04ed33585473afb48da1",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-6089",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.13"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.6"
+                  },
+                  {
+                    "introduced": "1.27.0-0"
+                  },
+                  {
+                    "fixed": "1.27.0-rc.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "net/http",
+                  "symbols": [
+                    "ListenAndServe",
+                    "ListenAndServeTLS",
+                    "Serve",
+                    "ServeTLS",
+                    "Server.ListenAndServe",
+                    "Server.ListenAndServeTLS",
+                    "Server.Serve",
+                    "Server.ServeTLS",
+                    "conn.readRequest",
+                    "conn.serve"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["net/http"],
+      "disposition": "not_applicable",
+      "reason": "Required net/http code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
+    },
+    {
+      "ruleId": "gosu-go-2026-6090-code-absent-v1",
+      "advisory": {
+        "id": "GO-2026-6090",
+        "namespace": "govulndb:language:go",
+        "dataSource": "https://go.dev/issue/80528",
+        "description": "Handshake messages, such as KeyUpdate, are always considered as state-advancing, regardless of whether a handshake has been completed or not. As a result, a malicious client can keep sending KeyUpdate messages to force the server to keep performing key derivation operations indefinitely.",
+        "fix": {
+          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "state": "fixed",
+          "available": [
+            {
+              "version": "1.25.13",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.26.6",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            },
+            {
+              "version": "1.27.0-rc.3",
+              "date": "2026-08-13",
+              "kind": "advisory"
+            }
+          ]
+        }
+      },
+      "primaryAdvisory": {
+        "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-6090.json",
+        "retrievedAt": "2026-09-09T04:22:31.601650+00:00",
+        "bytes": 2164,
+        "sha256": "07e0000e8418a4ede07162731ea705e46c13e7cf3c7542127cbbc0de3432a8aa",
+        "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-6090",
+        "affected": [
+          {
+            "package": {
+              "name": "stdlib",
+              "ecosystem": "Go"
+            },
+            "ranges": [
+              {
+                "type": "SEMVER",
+                "events": [
+                  {
+                    "introduced": "0"
+                  },
+                  {
+                    "fixed": "1.25.13"
+                  },
+                  {
+                    "introduced": "1.26.0-0"
+                  },
+                  {
+                    "fixed": "1.26.6"
+                  },
+                  {
+                    "introduced": "1.27.0-0"
+                  },
+                  {
+                    "fixed": "1.27.0-rc.3"
+                  }
+                ]
+              }
+            ],
+            "ecosystem_specific": {
+              "imports": [
+                {
+                  "path": "crypto/tls",
+                  "symbols": [
+                    "Conn.Handshake",
+                    "Conn.HandshakeContext",
+                    "Conn.Read",
+                    "Conn.Write",
+                    "Conn.readRecordOrCCS",
+                    "Dial",
+                    "DialWithDialer",
+                    "Dialer.Dial",
+                    "Dialer.DialContext",
+                    "QUICConn.HandleData",
+                    "QUICConn.Start"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "requiredPackages": ["crypto/tls"],
+      "disposition": "not_applicable",
+      "reason": "Required crypto/tls code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     }
-  },
-  "primaryAdvisory": {
-    "url": "https://raw.githubusercontent.com/golang/vulndb/master/data/osv/GO-2026-4337.json",
-    "referenceUrl": "https://pkg.go.dev/vuln/GO-2026-4337",
-    "retrievedAt": "2026-09-07T16:59:34.724756+00:00",
-    "bytes": 2445,
-    "sha256": "f05a9e7ba4e82ccc59014bd2b23ddec1d440ca85244bd2e723a987b44e99a938",
-    "package": "crypto/tls"
-  },
-  "disposition": "not_applicable",
-  "reason": "Required crypto/tls code is absent from the complete emitted/inline function-name table of these exact gosu bytes.",
+  ],
   "limitations": [
+    "Only listed advisories in this exact binary are covered",
+    "GO-2026-4970 remains unreviewed: os package is present; no function-level exclusion is authorized",
     "No source reproducibility or upstream signature claim",
-    "No other binary or advisory covered",
     "Original scanner observations remain unfiltered",
     "Unresolved findings and release gates remain blocking"
   ]
