@@ -1,6 +1,6 @@
 # EXEC-004: Canonical projects and immutable evidence
 
-Status: In progress; tracked plan independently approved and first domain component implemented, with final candidate gates pending.
+Status: In progress; temporal component merged in PR #41; project-fact persistence slice in design review.
 Owner: Implementation controller
 Updated: 2026-09-09
 Issue: #6, STORY-010/011/012; target R1; requirements FR-ADM-005,
@@ -224,3 +224,166 @@ current permission intersection and trusted ingestion, complete versioned source
 authority resolution and disclosure, and the scoped API/browser journeys. Accept
 Issue #6 criteria only after their entire planned contracts pass. Each increment
 has native checks, separate immutable review and applicable CI/artifact gates.
+
+## Next slice: durable human statements for existing projects
+
+PR #41 merged candidate `28090cf6860dafeb048cea369a8cbf8bfbdb96da` as
+`47d7c4516b906fc6e684ba04fa43dffc130c8a22`, tree
+`404c7f0df5f871836e7bc2cee0f2ae1a01bfbee7`, after all candidate checks and
+independent code/fresh-artifact reviews. Its 64 focused / 584 full tests passed.
+The subsequent main verify job failed installing browser OS dependencies because
+an upstream package index failed its hash check; production-boundary passed.
+The unchanged retry of run `34385164564`, attempt 2, passed at
+2026-09-09T18:26:31Z; preserve the first failed package-download attempt as history.
+Main documentation run `34385164595` also passed.
+
+Implement a complete internal repository path for appending a human statement,
+reading explicitly historical pages and changing source disclosure permission.
+Requirements FR-EVD-001/002/003/004/005/009, FR-MOD-007, NFR-SEC-001 and
+TR-STACK-005 are partial; no full issue criterion or story is accepted. Existing
+Project is the concrete typed subject. Programme/delivery hierarchy, policy
+versions/resolution, multi-evidence associations, frozen assessments, external
+ingestion and API/UI remain subsequent slices of this full plan. A project fact
+history page must never claim to be a current/authoritative assessment.
+
+### Storage and invariant decisions
+
+Add seven tables in one second migration, preserving the initial migration bytes:
+
+- `ProjectFact`: immutable customer/project/fact-type identity; mutable sequential
+  aggregate revision. Same-customer Project FK and unique project/fact type.
+- `FactSource`: immutable human stream, unique customer/project/fact/author.
+  Its generated ID is the stable source instance/record identity for that stream;
+  each evidence ID is a distinct server-generated source revision. Append derives
+  this stream from the authenticated subject; no caller-supplied source identity.
+- `FactSourceAccess`: current AVAILABLE/REVOKED/DELETED/UNVERIFIABLE state and
+  optimistic revision. Identity cannot be changed. DELETED is a disclosure state,
+  not a physical erasure or retention-policy implementation.
+  Revision is an opaque counter: every reader INSERT/DELETE also advances it,
+  including direct maintenance SQL, so a removed reader cannot be restored using
+  a stale expected revision. One management request can advance it several times.
+- `FactSourceReader`: explicit subject-level evidence permission, distinct from
+  project access. The author receives their own reader on first source creation.
+  Other managers/administrators gain no automatic content permission.
+- `FactEvidence`: immutable original statement, authenticated author and server
+  observation/confirmation time. Its FK includes the entire source scope and
+  author so a statement cannot be attached to another person's stream.
+- `ProjectFactVersion`: immutable typed scalar value, effective/valid-until times,
+  HUMAN_CONFIRMED provenance and one primary evidence reference. Full
+  customer/project/fact/source FK to evidence; unique evidence per version.
+  Author/observed/confirmed time are read from that immutable evidence, avoiding
+  independently mutable duplicates. Fact revision is unique and monotonic.
+- `FactAppendReceipt`: immutable customer/project/actor/idempotency key, canonical
+  request hash and scoped fact/version result IDs; never a cached response body.
+
+All business relations use customer/project-qualified FKs, with RESTRICT on
+identity changes/deletion. Preserve Project id/customer/portfolio identity with a
+trigger: a later parent update cannot move existing facts to a new access scope.
+Immutable source/evidence/version/receipt tables reject UPDATE/DELETE/TRUNCATE,
+including owner-level accidental SQL. Mutable fact/access rows reject identity
+changes. Bounded schemas and SQL checks enforce scalar types, calendar values,
+required text and consistent validity intervals. No embeddings or new dependency.
+SQL required-text checks use explicit ECMAScript whitespace without trimming the
+retained statement. JSON numbers must round-trip through PostgreSQL float8's
+shortest representation; arbitrary numeric precision that Node would change is
+rejected. UTC millisecond timestamps use years 0001 through 9999. The version
+INSERT trigger advances the aggregate revision; the repository does not advance
+it twice. Shared actor definitions live in an acyclic module with unchanged exports.
+
+### Repository, authorization and retry contract
+
+Expose a narrow domain port, implemented with Prisma transactions. It accepts
+the already-authenticated server Actor and correlation ID, never caller-supplied
+customer, author, observed time or provenance. Strict schemas reject extra fields,
+noncanonical UUIDs, invalid dates, unbounded text and unsafe scalar values. The
+public human path always derives HUMAN_CONFIRMED origin. No SYSTEM_VERIFIED entry
+point is added; controlled trusted-source ingestion is later work.
+
+`appendHumanStatement` targets an existing project/fact type with expected
+aggregate revision and an actor/project-scoped idempotency key. In one Read
+Committed transaction: lock Project FOR UPDATE, lock and verify a matching
+current action-capable AccessGrant FOR SHARE, check idempotency before expected
+revision, derive the author's source and verify its current permission, append
+evidence/version, advance revision, and insert receipt plus metadata-only audit.
+Any failure rolls back all material changes. A same key/body returns original
+references; a different normalized validated body is denied. Expected revision
+prevents two different requests silently winning the same update. Hash optional
+fields with explicit defaults and stable property order.
+
+Matching grant role must also be in the authenticated Actor roles. Append permits
+only scoped `project_manager` or `pmo_admin`; changing source readers/state permits
+only scoped `pmo_admin`. Historical reads permit scoped leadership, project_manager
+or pmo_admin and independently require a current explicit source reader to return
+content. Contributor/assigned-owner workflows and Portfolio Manager identity
+mapping remain unimplemented; operational roles confer no business authority.
+
+Reads lock Project FOR SHARE, then qualifying grants FOR SHARE. Append/access
+changes use Project FOR UPDATE first. FOR SHARE on grants conflicts with DELETE
+and non-key role UPDATE, including the existing grant-management implementation.
+Thus a revocation that wins the grant lock is observed before a write; an already
+authorized write finishes before the revocation commits. Source-access changes
+use the same project lock and expected source-access revision. All repository
+paths use this lock order and bounded timeouts; no network calls inside a write.
+
+History accepts an explicit ascending revision cursor and fixed throughRevision,
+returns at most 100 entries, and supplies a continuation cursor. It never silently
+truncates a claimed complete history or feeds a partial page to the temporal
+resolver. A denied source retains only permitted IDs/revision and a restricted,
+revalidation-required marker; value, statement, author and source content are
+absent. Do not substitute an older visible version for an inaccessible later one.
+New reads and receipt replays recheck current project and source permissions;
+copied scalar values cannot leak through a prior result. Revoked source access
+denies new append to that stream until an authorized access change restores it.
+
+Audit successful mutations and domain-level denials using validated scope IDs,
+fixed event/reason codes and correlation ID. Never copy statement/value/request
+bodies into audits or exceptions. Invalid actor input fails before persistence.
+Material-transaction rollback precedes a separate denial audit. A failed denial
+audit returns a fixed error without a raw SQL cause; it cannot commit a fact.
+
+### Deployment and validation obligations
+
+Extend explicit runtime ACLs: API SELECT/INSERT on immutable tables; only needed
+revision/access UPDATE and reader DELETE on mutable tables. No new worker
+privileges; backup can read all tables. Extract a finite public-table ACL routine
+shared by provision/restore and the migration-owner release upgrade. Only table
+ownership is required for that routine; do not invoke administrator-only database
+or Graphile grants from the migration role. A failed ACL application fails the
+release job and can be retried against the completed migration ledger. The
+migration-only job cannot silently be assumed to grant runtime access.
+Explicitly require the migration owner (or the administrative provisioning path)
+and verify public business-table ownership. A backup account must fail even on an
+unchanged schema; PostgreSQL GRANT/REVOKE warnings alone cannot prove ACL success.
+
+Exercise fresh and repeated two-migration installs, populated foundation-to-new
+upgrade, runtime privilege/trigger denials, failed migration rollback, encrypted
+backup/restore of representative old/new rows and restored immutable protections.
+Fix multi-migration fixtures to address each ledger row by name/checksum. Extend
+database evidence to report seven preserved foundation and seven added business
+tables, with complete ledger checks and executed test IDs.
+
+Meaningful integration cases include distinct-author competing streams, append
+history/provenance, same-key retry and changed-body rejection, optimistic races,
+grant deletion and role-change races, cross-customer/project/fact/source/evidence
+FK attacks, read-versus-write role intersection, source reader/state revocation,
+redacted history/replay, paging while appends occur, immutable SQL denials and
+metadata-only audit. These are repository checks, not API/browser acceptance of
+the later user workflow. Existing HTTP/browser and packaged foundation regressions
+still run, plus all native, documentation, architecture and candidate gates.
+
+Recovery: preserve the original DB/container/volume/VHD. Use isolated synthetic
+test databases and acceptance deployments. A failed migration transaction leaves
+the prior schema/history intact. After a successful additive migration, prefer a
+compatible application rollback that preserves new rows; otherwise use the tested
+quarantined encrypted restore. Do not use destructive down-migrations or reset.
+Restore a pre-upgrade archive with its matching reviewed release and exact
+migration list; do not relax archive/history matching. Any later promotion and
+upgrade follows the separate customer change process. Stable heartbeat fixtures
+are compared exactly; a live worker heartbeat is checked with recorded before,
+restored and after bounds because it advances independently during backup.
+
+Current native evidence and the remaining immutable review, packaged CI and
+artifact gates are recorded in PROJECT_FACT_PERSISTENCE_VALIDATION.md.
+
+Technical references: [PostgreSQL 17 locks](https://www.postgresql.org/docs/17/explicit-locking.html)
+and [Prisma 7 transactions](https://docs.prisma.io/docs/orm/v7/prisma-client/queries/transactions).

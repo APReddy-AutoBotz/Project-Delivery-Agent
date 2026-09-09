@@ -6,6 +6,25 @@ separate from story acceptance.
 
 ## Repository and review
 
+### Temporal fact component, 2026-09-09
+
+[PR #41](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/41)
+merged reviewed candidate `28090cf6860dafeb048cea369a8cbf8bfbdb96da` as
+`47d7c4516b906fc6e684ba04fa43dffc130c8a22`, tree
+`404c7f0df5f871836e7bc2cee0f2ae1a01bfbee7`, at 2026-09-09T17:48:24Z.
+Candidate Foundation run `34381358324` and Documentation run `34381358419`
+passed with separate code and fresh original-artifact reviews. Its 64 focused
+and 584 full native tests passed; Issue #6 records partial temporal progress.
+Main Foundation run `34385164564` initially failed because an upstream Chrome
+package index did not match its published hash. The unchanged failed-job retry
+passed as attempt 2 at 2026-09-09T18:26:31Z; the first attempt's production job
+already passed. Main Documentation run `34385164595` passed. No verification
+rule was weakened. The failure remains part of the historical run.
+
+The next project-fact persistence slice is governed by EXEC-004 and
+PROJECT_FACT_PERSISTENCE_VALIDATION.md. R0 remains 3/5 and R1 remains 0/33;
+no customer release, connector activation or complete Issue #6 criterion is accepted.
+
 The initial workspace contained a verified Git bundle/ZIP without a checkout.
 The restored bundle head was `0eb6116`; live main was reconciled at `affdbae`.
 No existing user changes were overwritten. Public origin remains

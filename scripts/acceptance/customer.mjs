@@ -7,6 +7,20 @@ import { Pool, secret } from "./common.mjs";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
 import { waitForIdentityProvider } from "./identity-readiness.mjs";
 import {
+  readMigrations,
+  validateHistory,
+} from "../../packages/operations/dist/migrations.js";
+import {
+  projectFactTables,
+  projectFactProjection,
+  seedProjectFactHistory,
+  verifyProjectFactPrivileges,
+  verifyImmutableProjectFacts,
+  verifyWorkerFactDenials,
+  workerCheckpoint,
+  verifyRestoredWorker,
+} from "./project-facts.mjs";
+import {
   createDisclosureCheck,
   readFixtureSecrets,
   observeBrowserDisclosure,
@@ -57,12 +71,13 @@ const save = (file, value) =>
 const read = (file) =>
   JSON.parse(readFileSync(`${output}/${file}.json`, "utf8"));
 async function projection(pool) {
-  const result = {};
+  const result = await projectFactProjection(pool);
   for (const table of [
     "Customer",
     "Portfolio",
     "Project",
     "AccessGrant",
+    "ConnectorCredential",
     "AuditEvent",
     "_prisma_migrations",
   ])
@@ -241,13 +256,31 @@ try {
     assert.equal(state.Customer.length, 1);
     assert.equal(state.Customer[0].id, env.CUSTOMER_ID);
     assert.equal(state.Customer[0].name, env.CUSTOMER_NAME);
-    for (const table of ["Portfolio", "Project", "AccessGrant", "AuditEvent"])
+    for (const table of [
+      "Portfolio",
+      "Project",
+      "AccessGrant",
+      "ConnectorCredential",
+      "AuditEvent",
+      ...projectFactTables,
+    ])
       assert.equal(
         state[table].length,
         0,
         "Customer install must not seed demonstration data",
       );
-    assert(state._prisma_migrations.length > 0);
+    const migrations = readMigrations(
+      "/workspace/packages/data/prisma/migrations",
+    );
+    assert.equal(migrations.length, 2);
+    assert.equal(state._prisma_migrations.length, migrations.length);
+    validateHistory(
+      [...state._prisma_migrations].sort((a, b) =>
+        a.migration_name.localeCompare(b.migration_name),
+      ),
+      migrations,
+    );
+    await verifyProjectFactPrivileges(db);
     const configResponse = await fetch(base + "/api/auth/config");
     assert.equal(configResponse.status, 200);
     const publicConfig = await configResponse.text();
@@ -309,7 +342,31 @@ try {
     const state = await projection(db);
     assert.equal(state.AccessGrant.length, 1);
     assert(state.AuditEvent.length > 0);
-    save("backup-state", state);
+    const fixture = await seedProjectFactHistory(
+      db,
+      loadDatabaseConfig({
+        ...env,
+        PDAA_DB_USER: "pdaa_api",
+        PDAA_DB_PASSWORD_FILE: "/run/secrets/api-password",
+      }).database,
+      env.CUSTOMER_ID,
+      projectId,
+      "customer-" + profile,
+    );
+    await verifyImmutableProjectFacts(db);
+    save("project-fact-persistence", {
+      status: "awaiting-restore",
+      workerRuntimeDenied: await verifyWorkerFactDenials(
+        loadDatabaseConfig({
+          ...env,
+          PDAA_DB_USER: "pdaa_worker",
+          PDAA_DB_PASSWORD_FILE: "/run/secrets/worker-password",
+        }).database,
+      ),
+      fixture,
+      beforeBackupWorker: await workerCheckpoint(db),
+    });
+    save("backup-state", await projection(db));
   } else if (phase === "after-upgrade") {
     // This phase starts after recreation; an old worker heartbeat cannot satisfy it.
     await ready(Date.now());
@@ -319,6 +376,7 @@ try {
       "Current-release upgrade must preserve data, grants, audit and migration history",
     );
     await browserCheck(true);
+    await verifyProjectFactPrivileges(db);
     const state = await projection(db);
     assert(state.AuditEvent.length > read("backup-state").AuditEvent.length);
     save("source-state", state);
@@ -332,6 +390,8 @@ try {
     });
     try {
       assert.deepEqual(await projection(restored), read("backup-state"));
+      await verifyProjectFactPrivileges(restored);
+      await verifyImmutableProjectFacts(restored);
       assert.equal(
         (
           await restored.query(
@@ -348,6 +408,21 @@ try {
         ).rows[0].allowed,
         false,
       );
+      const receipt = read("project-fact-persistence");
+      receipt.restore = {
+        status: "passed",
+        exactRetainedRows: true,
+        runtimeQuarantineChecked: true,
+        ownersFunctionsAndPrivilegesChecked: true,
+        immutableHistoryChecked: true,
+        workerCheckpoint: await verifyRestoredWorker(
+          db,
+          restored,
+          receipt.beforeBackupWorker,
+        ),
+      };
+      receipt.status = "passed";
+      save("project-fact-persistence", receipt);
     } finally {
       await restored.end();
     }

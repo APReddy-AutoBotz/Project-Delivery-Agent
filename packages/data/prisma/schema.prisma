@@ -33,6 +33,7 @@ model Project {
   reportedStatus String
   customer Customer @relation(fields: [customerId], references: [id])
   portfolio Portfolio @relation(fields: [customerId, portfolioId], references: [customerId, id])
+  facts ProjectFact[]
   @@unique([customerId, code])
   @@unique([customerId, id])
 }
@@ -70,4 +71,95 @@ model ConnectorCredential {
 model ServiceHeartbeat {
   id String @id
   occurredAt DateTime
+}
+
+model ProjectFact {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factType String @db.VarChar(96)
+  revision Int @default(0)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
+  sources FactSource[]
+  versions ProjectFactVersion[]
+  @@unique([customerId, projectId, id])
+  @@unique([customerId, projectId, factType])
+}
+model FactSource {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factId String @db.Uuid
+  providedBy String @db.VarChar(256)
+  fact ProjectFact @relation(fields: [customerId, projectId, factId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
+  access FactSourceAccess?
+  evidence FactEvidence[]
+  @@unique([customerId, projectId, factId, id])
+  @@unique([customerId, projectId, factId, id, providedBy], map: "FactSource_author_key")
+  @@unique([customerId, projectId, factId, providedBy])
+}
+model FactSourceAccess {
+  sourceId String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factId String @db.Uuid
+  state String @db.VarChar(16)
+  revision Int @default(1)
+  source FactSource @relation(fields: [customerId, projectId, factId, sourceId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
+  readers FactSourceReader[]
+  @@unique([customerId, projectId, factId, sourceId])
+}
+model FactSourceReader {
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factId String @db.Uuid
+  sourceId String @db.Uuid
+  subject String @db.VarChar(256)
+  access FactSourceAccess @relation(fields: [customerId, projectId, factId, sourceId], references: [customerId, projectId, factId, sourceId], onDelete: Restrict, onUpdate: Restrict)
+  @@id([customerId, projectId, factId, sourceId, subject], map: "FactSourceReader_pkey")
+}
+model FactEvidence {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factId String @db.Uuid
+  sourceId String @db.Uuid
+  providedBy String @db.VarChar(256)
+  observedAt DateTime @db.Timestamptz(3)
+  originalStatement String @db.VarChar(8192)
+  source FactSource @relation(fields: [customerId, projectId, factId, sourceId, providedBy], references: [customerId, projectId, factId, id, providedBy], onDelete: Restrict, onUpdate: Restrict, map: "FactEvidence_source_author_fkey")
+  version ProjectFactVersion?
+  @@unique([customerId, projectId, factId, sourceId, id], map: "FactEvidence_scope_key")
+}
+model ProjectFactVersion {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factId String @db.Uuid
+  sourceId String @db.Uuid
+  evidenceId String @unique @db.Uuid
+  revision Int
+  value Json
+  provenance String @default("HUMAN_CONFIRMED") @db.VarChar(24)
+  effectiveAt DateTime @db.Timestamptz(3)
+  validUntil DateTime? @db.Timestamptz(3)
+  fact ProjectFact @relation(fields: [customerId, projectId, factId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
+  evidence FactEvidence @relation(fields: [customerId, projectId, factId, sourceId, evidenceId], references: [customerId, projectId, factId, sourceId, id], onDelete: Restrict, onUpdate: Restrict, map: "ProjectFactVersion_evidence_fkey")
+  receipts FactAppendReceipt[]
+  @@unique([customerId, projectId, factId, id], map: "ProjectFactVersion_scope_key")
+  @@unique([customerId, projectId, factId, revision], map: "ProjectFactVersion_revision_key")
+  @@unique([customerId, projectId, factId, sourceId, evidenceId], map: "ProjectFactVersion_scoped_evidence_key")
+}
+model FactAppendReceipt {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  subject String @db.VarChar(256)
+  idempotencyKey String @db.VarChar(128)
+  requestHash String @db.Char(64)
+  factId String @db.Uuid
+  versionId String @db.Uuid
+  version ProjectFactVersion @relation(fields: [customerId, projectId, factId, versionId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict, map: "FactAppendReceipt_version_fkey")
+  @@unique([customerId, projectId, subject, idempotencyKey], map: "FactAppendReceipt_request_key")
 }

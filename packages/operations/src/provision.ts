@@ -12,6 +12,10 @@ import {
   type OperationsConfig,
 } from "./config.js";
 import { migrateDatabase, type Migration } from "./migrations.js";
+import {
+  applyBusinessTableGrants,
+  assertBusinessTableOwner,
+} from "./business-grants.js";
 
 export async function assertCustomer(client: Client, config: OperationsConfig) {
   const rows = (await client.query('SELECT id,name FROM "Customer"')).rows;
@@ -31,16 +35,11 @@ export async function grants(
   await client.query(`REVOKE ALL ON DATABASE ${db} FROM PUBLIC; REVOKE CREATE ON DATABASE ${db} FROM pdaa_api,pdaa_worker,pdaa_backup;
     REVOKE ALL ON SCHEMA public FROM PUBLIC;
     GRANT USAGE ON SCHEMA public TO pdaa_api,pdaa_worker,pdaa_backup;
-    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM pdaa_api,pdaa_worker,pdaa_backup;
-    GRANT SELECT,INSERT,UPDATE,DELETE ON "Customer","Portfolio","Project","AccessGrant","ConnectorCredential" TO pdaa_api;
-    GRANT SELECT,INSERT ON "AuditEvent" TO pdaa_api;
-    GRANT SELECT ON "ServiceHeartbeat" TO pdaa_api;
-    GRANT SELECT,INSERT,UPDATE ON "ServiceHeartbeat" TO pdaa_worker;
-    GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup;
     GRANT USAGE ON SCHEMA graphile_worker TO pdaa_backup;
     GRANT SELECT ON ALL TABLES IN SCHEMA graphile_worker TO pdaa_backup;
     GRANT SELECT ON ALL SEQUENCES IN SCHEMA graphile_worker TO pdaa_backup;
     GRANT CONNECT ON DATABASE ${db} TO pdaa_migrate,pdaa_backup`);
+  await applyBusinessTableGrants(client);
   // Graphile enables RLS on private tables. A backup-only read policy avoids
   // granting cluster-wide BYPASSRLS or worker ownership to the backup account.
   await client.query(`DO $$ DECLARE item record; BEGIN
@@ -205,6 +204,7 @@ export async function migrateRelease(
 ) {
   const client = await connect(config.database);
   try {
+    await assertBusinessTableOwner(client);
     await client.query("SELECT pg_advisory_lock(72707370)");
     const marker = (
       await client.query(
@@ -214,7 +214,9 @@ export async function migrateRelease(
     if (marker !== `pdaa.foundation.v1:${config.customerId}`)
       throw new Error("Provisioned customer ownership required");
     await assertCustomer(client, config);
-    return await migrateDatabase(config.database, migrations);
+    const applied = await migrateDatabase(config.database, migrations);
+    await applyBusinessTableGrants(client);
+    return applied;
   } finally {
     await client.end();
   }

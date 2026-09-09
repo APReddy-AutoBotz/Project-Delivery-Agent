@@ -1,4 +1,6 @@
-import { z } from "zod";
+import type { Actor, Role } from "./actor.js";
+export { roles, roleSchema, type Role, type Actor } from "./actor.js";
+export * from "./project-facts.js";
 
 export { assessFact, provenanceSchema, type Provenance } from "./fact-state.js";
 export {
@@ -7,20 +9,6 @@ export {
   type TemporalFactSnapshot,
 } from "./temporal-facts.js";
 
-export const roles = [
-  "leadership",
-  "project_manager",
-  "contributor",
-  "pmo_admin",
-  "system_admin",
-] as const;
-export const roleSchema = z.enum(roles);
-export type Role = z.infer<typeof roleSchema>;
-export interface Actor {
-  subject: string;
-  roles: Role[];
-  customerId: string;
-}
 export interface Project {
   id: string;
   portfolioId: string;

@@ -1,2 +1,5 @@
 # POSIX entrypoints are mounted directly even from Windows checkouts.
 *.sh text eol=lf
+# Migration checksums are identical on Windows and packaged PostgreSQL jobs.
+*.sql text eol=lf
+*.prisma text eol=lf

@@ -358,6 +358,15 @@ try {
     "quarantine-migrate-denied",
   );
   fixtureStep("verify");
+  record.projectFactPersistence = JSON.parse(
+    readFileSync(join(output, "project-fact-persistence.json"), "utf8"),
+  );
+  assert.equal(record.projectFactPersistence.status, "passed");
+  assert.equal(record.projectFactPersistence.upgrade.status, "passed");
+  assert.equal(record.projectFactPersistence.restore.status, "passed");
+  checks.passed.push(
+    "INT-EVD-001 partial: immutable-foundation forward upgrade under migration owner, exact retained rows and ledger, finite runtime privileges, human fact history and quarantined encrypted restore",
+  );
   checks.passed.push(
     "Release operations: packaged provision/repeat, customer/secret/TLS denial and bidirectional migration interoperability, concurrency, drift and atomic rollback",
   );

@@ -362,6 +362,11 @@ export async function customerProfiles({
           "restore",
         );
         check("restored");
+        const projectFactPersistence = JSON.parse(
+          readFileSync(join(evidence, "project-fact-persistence.json"), "utf8"),
+        );
+        assert.equal(projectFactPersistence.status, "passed");
+        assert.equal(projectFactPersistence.restore.status, "passed");
         const runtimeDisclosure = captureLogs();
         const browserDisclosure = {};
         for (const phase of ["before-upgrade", "after-upgrade"]) {
@@ -378,6 +383,7 @@ export async function customerProfiles({
           profile,
           project: name,
           status: "passed",
+          projectFactPersistence,
           ...(identityConfiguration ? { identityConfiguration } : {}),
           disclosure: {
             runtime: runtimeDisclosure,

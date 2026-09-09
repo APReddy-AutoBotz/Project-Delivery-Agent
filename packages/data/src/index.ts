@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
+export { DatabaseProjectFactRepository } from "./project-facts.js";
 import type {
   Actor,
   Grant,
