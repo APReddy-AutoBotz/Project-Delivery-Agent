@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-08
+Updated: 2026-09-09
 
 ## Accepted implementation completion
 
@@ -43,6 +43,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Node binary metadata and source coverage | [#34](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/34) | `b0a9bd2` | `5071962` |
 | Node supplemental original notices | [#35](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/35) | `174bd8d` | `43b59f8` |
 | Observed Node resource evidence | [#36](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/36) | `d107997` | `889716b` |
+| Selected Node source correspondence | [#37](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/37) | `a9e633c` | `89f6061` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -50,7 +51,16 @@ backlog links are in [PUBLICATION_RECORD.md](PUBLICATION_RECORD.md).
 
 ## Implemented and verified
 
-The current NFR-SEC-010 / AC-MNT-004 increment retains seven authenticated
+The current NFR-SEC-010 / AC-MNT-004 increment derives four exact gosu
+GO-2026-4337 code-absence dispositions with independently reviewed static evidence.
+Schema 9 requires 85 files and offline occurrence replay while preserving all
+original scans. Native lint/type checking, 418 unit tests in 23 files, seven builds,
+thirteen documentation regressions and traceability pass. Independent static
+review and four accepted-baseline replays pass; implementation precheck repairs
+have rejection tests. Immutable-candidate review, fresh CI and downloaded
+verification remain merge gates. All five release blockers and STORY-004/005 remain open.
+
+The preceding PR #37 increment passed candidate and merged-main checks. It retains seven authenticated
 JavaScript originals and derives exact selected-source/resource size-hash
 correspondence in all six Node scopes. A reviewed policy plus canonical
 original-byte bundle extends the required manifest to schema 8 / 82 files.
@@ -64,8 +74,8 @@ deadline, physical-binding and forged-archive tests. Independent precheck passes
 diagnostic replays against retained accepted PR #36 images verify all seven pairs
 and 78,421 original bytes. Native lint, type checking, 372 unit tests across 22
 files, seven builds, thirteen documentation regressions and traceability pass.
-Separate immutable candidate review, fresh CI and downloaded evidence verification
-remain merge gates for this change.
+PR #37 passed separate immutable candidate review, fresh CI and downloaded
+verification of all 82 files. Its duplicate merged-main jobs passed at `89f6061`.
 
 PR #36's candidate CI and all 80 downloaded files passed before its verified
 merge, including 309 unit, ten integration/eight browser tests, 17 packaged groups

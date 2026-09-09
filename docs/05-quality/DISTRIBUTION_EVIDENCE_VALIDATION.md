@@ -3,6 +3,52 @@
 Requirements: NFR-SEC-010, NFR-MNT-004, TR-TEST-001/002; AC-MNT-004;
 OPEN_SOURCE_POLICY; STORY-004; Issue #5; ADR-014; EXEC-003.
 
+## Scoped gosu code-absence dispositions, 2026-09-09
+
+Schema 9 requires 85 evidence files: the existing 82 plus the trusted gosu policy,
+static analysis receipt and derived vulnerability occurrence ledger. The separate
+ledger binds GO-2026-4337 to the exact reviewed binary in database/operations and
+both scopes. All original findings and severity counts remain unchanged. The other
+822 High/Critical observations in the PR #37 baseline receive no new disposition.
+
+Independent standard Go replay and an independent ELF metadata parser agree on
+2,020 emitted functions, 3,019 complete function-name entries and 271 files, with
+positive main entrypoints and no crypto/tls code. The matching Go1.24.6 linker's
+function-name table includes inlined functions. The retained binary matches the
+unique physical file hash/size in each accepted scope. Static evidence defeats
+this advisory's required-code precondition; a TLS harness using different bytes
+would not validate the shipped executable. No gosu execution, source rebuild or
+upstream signature verification is claimed.
+
+The first-party `scripts/distribution/analyze-gosu.go` utility can reproduce the
+receipt from the exact 1,769,900-byte binary using the project's pinned
+`golang:1.26.8-alpine3.23` image digest from `deploy/Dockerfile`. Run `go run` on the
+utility with the retained binary path as its only argument, inside an offline,
+nonroot container with a read-only root and inputs, all capabilities dropped,
+no-new-privileges, bounded memory/CPU/PIDs and disposable executable build tmpfs.
+Set GOTOOLCHAIN=local, GOPROXY=off, GOSUMDB=off and GOCACHE in that tmpfs. This
+executes the first-party analyzer only. Compare parsed output with the committed
+receipt; missing metadata and an unexpected subject fail before any result.
+
+Regression coverage includes all four scopes, duplicate occurrence preservation,
+foreign binary/namespace/target exclusion, advisory changes, ambiguous/missing
+physical files, package/main-module/compiler/path/layer/digest changes, stale scans,
+duplicate JSON keys, incomplete/module-only extraction and retained identity or
+analysis forgeries. Replay uses independent trusted checkout policy/receipt content,
+then derives every occurrence and raw match/input digest anew. Scan databases must
+still be fresh. Absent matches yield no disposition; every remaining vulnerability
+and all five release gates continue to block commercial release.
+
+Native lint/type checking, 418 unit tests across 23 files (46 new disposition
+regressions), seven builds, thirteen documentation regressions and traceability
+pass. The existing startup-disclosure test timed out once during a cold full run;
+it then passed in isolation and in the complete rerun without changing its timeout
+or assertion. Four real baseline occurrences replay successfully. Independent
+precheck prompted explicit primary-file/dependency relationships, main-module
+identity, preserved severity totals and trusted scanner-pin assertions; denial
+tests cover each repair. Independent immutable-candidate review, fresh packaged
+CI and downloaded artifact verification remain merge requirements.
+
 ## Retained selected-source correspondence, 2026-09-08
 
 The reviewed source policy pins seven exact original JavaScript files from the

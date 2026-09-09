@@ -831,6 +831,9 @@ it("rejects changed or missing files in a complete evidence bundle", () => {
       "node-resources.json",
       "node-resource-sources.json",
       "node-source-bundle.json",
+      "gosu-disposition-policy.json",
+      "gosu-static-analysis.json",
+      "vulnerability-dispositions.json",
       "pnpm-lock.yaml",
       "lock-inventory.json",
       "production-acceptance.json",
@@ -863,7 +866,7 @@ it("rejects changed or missing files in a complete evidence bundle", () => {
         names.push(target + suffix);
     for (const name of names) writeFileSync(join(directory, name), name);
     const report = {
-      schemaVersion: 8,
+      schemaVersion: 9,
       status: "complete",
       images,
       files: Object.fromEntries(names.map((n) => [n, hash(n)])),

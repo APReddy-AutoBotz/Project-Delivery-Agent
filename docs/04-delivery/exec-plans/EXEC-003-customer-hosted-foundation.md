@@ -5,7 +5,7 @@ Owner: Implementation controller
 Requirement IDs: TR-STACK-001, TR-STACK-002, TR-STACK-004, TR-DEP-001, TR-DEP-003, TR-AUTH-001, TR-AUTH-002, TR-AUTH-003, FR-ADM-001, FR-ADM-002, FR-ADM-003, NFR-SEC-001, NFR-SEC-003, NFR-SEC-004, NFR-SEC-005, NFR-SEC-010, NFR-MNT-004, NFR-MNT-005, NFR-PORT-001, NFR-PORT-002, NFR-PORT-004
 GitHub issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5
 Target release: R0
-Last updated: 2026-09-08
+Last updated: 2026-09-09
 
 ## Objective
 
@@ -21,7 +21,33 @@ bundled pgvector availability and external database configuration; production
 file secrets, scoped OIDC code/PKCE login and provider logout; restricted database
 roles; backup/recovery; dependency/license/notices/SBOM and image-scan gates.
 
-### Current increment: selected Node source/resource correspondence
+### Current increment: exact gosu vulnerability dispositions
+
+Under NFR-SEC-010 / AC-MNT-004, derive narrowly scoped `not_applicable`
+dispositions for the four existing GO-2026-4337 occurrences in the database and
+operations image scopes. A standard Go metadata reader corroborates absence of
+the required crypto/tls package in the exact retained gosu binary, including the
+complete function-name table used for emitted and inlined functions. Preserve the
+reviewed binary and analysis pins; no target execution or source rebuild is needed.
+
+Schema 9 retains a trusted policy, static analysis receipt and derived occurrence
+ledger beside every original unfiltered scan. Bind each selected occurrence to its
+fresh image/configuration, supplying layer, unique physical file, package ID,
+version/purl, advisory semantics, raw match and input report hashes. Recompute the
+ledger during retained verification against independent checkout policy/analysis
+anchors. Any changed selected binary or advisory requires renewed review; absent
+matches produce no disposition. Other binaries, advisories and observations remain
+unreviewed. Reject missing evidence, ambiguous files/packages, wrong identity,
+stale scans and coherently rehashed forged archives. No caller approval flags.
+
+Complete independent static-evidence and immutable-candidate review, native checks,
+fresh CI and downloaded artifact comparison before merge. Preserve all five
+release blockers, including unresolved vulnerabilities. No runtime, database,
+permission or connector changes. Recovery is a reviewed policy/evidence revert
+with fresh collection. PR #37's candidate and merged-main checks passed at
+`89f6061`, with all 82 retained files independently verified.
+
+### Completed increment: selected Node source/resource correspondence
 
 Under NFR-SEC-010 / AC-MNT-004, retain the seven already researched JavaScript
 originals spanning six notice sections. The independent source spike matched all

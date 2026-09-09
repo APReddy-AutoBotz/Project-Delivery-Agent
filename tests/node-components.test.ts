@@ -536,6 +536,9 @@ function withArchive(
     rewrite("node-resources.json", Buffer.from("{}"));
     rewrite("node-resource-sources.json", Buffer.from("{}"));
     rewrite("node-source-bundle.json", Buffer.from("{}"));
+    rewrite("gosu-disposition-policy.json", Buffer.from("{}"));
+    rewrite("gosu-static-analysis.json", Buffer.from("{}"));
+    rewrite("vulnerability-dispositions.json", Buffer.from("{}"));
     const runtime = {
       ...structuredClone(originalRuntimePolicy),
       nodeNoticeSha256: base.policy.notice.sha256,
@@ -626,7 +629,7 @@ function withArchive(
     ])
       rewrite(name, {});
     const report = {
-      schemaVersion: 8,
+      schemaVersion: 9,
       runId,
       status: "complete",
       images,
@@ -642,7 +645,7 @@ function withArchive(
 describe("retained Node evidence replay", () => {
   it("requires schema-5 raw receipts and reproduces each target and scope", () =>
     withArchive((directory, report) => {
-      expect(Object.keys(report.files as object)).toHaveLength(82);
+      expect(Object.keys(report.files as object)).toHaveLength(85);
       expect(() => verifyEvidenceFiles(directory, report)).not.toThrow();
       expect(() => verifyNodeComponentReports(directory, report)).not.toThrow();
       expect(() =>
