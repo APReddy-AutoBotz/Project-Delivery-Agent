@@ -21,12 +21,18 @@ const parse = (bytes, limit = maximum) => parseNodeResourceJson(bytes, limit);
 const trusted = (name) =>
   readBoundedNodeFile(new URL(name, import.meta.url), maximum);
 
+// Collection and replay share the same bounded reader for the fixed anchors.
+export function readGosuAnchor(name) {
+  assert(gosuEvidenceNames.slice(0, 2).includes(name), "Unknown gosu anchor");
+  return trusted(`./${name}`);
+}
+
 export function validateGosuAnchors(
   policyBytes,
   analysisBytes,
   {
-    trustedPolicyBytes = trusted("./gosu-disposition-policy.json"),
-    trustedAnalysisBytes = trusted("./gosu-static-analysis.json"),
+    trustedPolicyBytes = readGosuAnchor("gosu-disposition-policy.json"),
+    trustedAnalysisBytes = readGosuAnchor("gosu-static-analysis.json"),
   } = {},
 ) {
   const policy = parse(policyBytes),

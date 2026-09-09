@@ -36,14 +36,21 @@ larger than the previous 64 KiB bound. Policy/analysis are bounded at 128 KiB;
 ledger reads at 512 KiB. Prior image/package/file/layer/advisory/freshness and forged
 archive rejection tests remain. Original scans and all five blockers are preserved.
 
-The focused disposition/distribution gate passes 106 tests. Native lint/type
-checking, 431 unit tests in 23 files, seven builds, 13 documentation regressions
+The focused disposition/distribution gate passes 108 tests. Native lint/type
+checking, 433 unit tests in 23 files, seven builds, 13 documentation regressions
 and traceability pass. Independent static replay validates 88 exclusions and
 defers four Root observations; the checker reconstructs all 92 baseline ledger
 rows and preserves every original artifact. Independent candidate review, fresh
 packaged CI and downloaded evidence comparison remain required for this increment.
 Compare original native rows to accepted PR #38
 without new payload exceptions, preserving all source and notice evidence.
+
+The first fresh CI passed packaged acceptance and failed while copying the
+66,208-byte policy through an obsolete 64 KiB collector read bound. Collection
+and trusted replay now share the same fixed-name 128 KiB reader. Tests exercise
+the real expanded policy and reject foreign anchor paths; independent review
+reproduced both the old rejection and corrected copy/revalidation. The corrected
+candidate passed the complete native gate and requires fresh review/CI/evidence.
 
 PR #38 passed all merge gates at `24894ba`, including independent candidate and
 fresh evidence reviews, 418 unit tests, ten integration tests, eight browser tests,

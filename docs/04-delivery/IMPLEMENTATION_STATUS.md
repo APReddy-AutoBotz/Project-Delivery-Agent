@@ -68,9 +68,13 @@ and a function-level exclusion needs separate validation. The proposed ledger
 contains 92 scoped dispositions including the previous four; 734 of the 826
 baseline High/Critical observations receive no new disposition. Scanner totals
 remain intact. Independent static validation and all 92 accepted-baseline replays
-pass. Native lint/type checking, 431 unit tests in 23 files, seven builds,
+pass. Native lint/type checking, 433 unit tests in 23 files, seven builds,
 13 documentation regressions and traceability pass. Immutable review, fresh CI
 and downloaded artifact comparison remain gates for this increment.
+The initial CI passed packaged acceptance but exposed a retained 64 KiB collector
+limit. Collection and replay now share the 128 KiB reader; the real expanded-policy
+regression and independent reproduction pass. The corrected candidate requires
+fresh immutable review and CI.
 All five release blockers and STORY-004/005 remain open; accepted story counts
 above do not change.
 

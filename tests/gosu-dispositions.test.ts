@@ -14,6 +14,7 @@ import {
   validateGosuAnchors,
   buildGosuDispositionReport,
   verifyGosuDispositionReport,
+  readGosuAnchor,
 } from "../scripts/distribution/gosu-dispositions.mjs";
 import {
   hash,
@@ -196,6 +197,25 @@ function fixture(target = "database", scope = "squashed"): any {
 }
 
 describe("exact gosu occurrence dispositions (NFR-SEC-010 / AC-MNT-004)", () => {
+  it("collects the real expanded policy through the shared bounded reader", () => {
+    expect(policyBytes.length).toBeGreaterThan(64 * 1024);
+    const collectedPolicy = readGosuAnchor("gosu-disposition-policy.json");
+    const collectedAnalysis = readGosuAnchor("gosu-static-analysis.json");
+    expect(collectedPolicy).toEqual(policyBytes);
+    expect(collectedAnalysis).toEqual(analysisBytes);
+    expect(() =>
+      validateGosuAnchors(collectedPolicy, collectedAnalysis),
+    ).not.toThrow();
+  });
+  it("rejects paths outside the two fixed collection anchors", () => {
+    for (const name of [
+      "../tools.json",
+      "tools.json",
+      "vulnerability-dispositions.json",
+      "/etc/passwd",
+    ])
+      expect(() => readGosuAnchor(name)).toThrow(/Unknown gosu anchor/);
+  });
   it("binds every approved advisory separately and leaves Root and unknown matches open", () => {
     const f = fixture(),
       original = structuredClone(f.scan.matches[0]);

@@ -143,7 +143,7 @@ func main() {
 		"positiveControls": []string{"main.main", "main.SetupUser"}, "cryptoTlsFunctions": tlsFunctions, "cryptoTlsNames": tlsNames, "cryptoTlsFiles": tlsFiles,
 		"coverageBasis":   "Go1.24.6 linker walkFuncs/generateFuncnametab includes every emitted function and inlined function; no module-only fallback",
 		"subjectExecuted": false,
-		"packages": packages,
+		"packages":        packages,
 	}
 	e := json.NewEncoder(os.Stdout)
 	e.SetIndent("", "  ")

@@ -39,6 +39,11 @@ with independent extraction. Policy/analysis reads are bounded at 128 KiB and th
 larger occurrence ledger at 512 KiB. No generic version-based exclusion or caller
 approval flag is introduced. Original findings/severities stay unchanged.
 
+The first CI passed packaged acceptance but found a retained 64 KiB collector
+copy limit. Use one fixed-name bounded reader for collection and trusted replay;
+regress the real expanded policy and foreign-path denial. The corrected candidate
+must pass new independent review and fresh CI rather than inherit the failed run.
+
 Require per-observation private validation, independent immutable-candidate review,
 native checks, fresh packaged CI and downloaded evidence comparison before merge.
 Compare against accepted PR #38 without a new image payload or dependency delta.
