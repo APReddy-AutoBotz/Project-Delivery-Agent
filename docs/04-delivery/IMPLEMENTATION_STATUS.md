@@ -45,12 +45,29 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Observed Node resource evidence | [#36](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/36) | `d107997` | `889716b` |
 | Selected Node source correspondence | [#37](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/37) | `a9e633c` | `89f6061` |
 | First gosu dispositions and Multer remediation | [#38](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/38) | `10ee5eb` | `24894ba` |
+| Gosu advisory applicability batch | [#39](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/39) | `b649711` | `8f66e94` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
 backlog links are in [PUBLICATION_RECORD.md](PUBLICATION_RECORD.md).
 
 ## Implemented and verified
+
+PR #39 is accepted at `8f66e94`. The corrected candidate and merged-main CI passed,
+with independent immutable-candidate/fresh-evidence reviews, 433 unit tests, ten
+integration tests, eight browser tests, 17 packaged groups/two profiles, recovery
+and seven builds. Its 92 separate dispositions preserve all 826 original
+High/Critical scanner observations; 734 still lack a disposition. Earlier pending
+PR #39 gate statements below are historical and are superseded by this record.
+
+The current Perl batch assesses 220 observations. Independent static validation
+supports exact package-architecture counterevidence for 20 instances; 28 proposed
+module exclusions remain deferred and 172 retain their first-pass review state.
+The next implementation adds one narrow rule, two evidence anchors and a composed
+ledger. Expected replay is 112 rows while preserving every prior gosu row and
+original finding. Native tests, immutable review, fresh CI and downloaded evidence
+comparison remain gates. No accepted story percentage changes, runtime dependency,
+database/migration, permission or connector-scope change is claimed.
 
 PR #38 is accepted at `24894ba`: independent immutable-candidate review, native
 checks, fresh packaged CI and downloaded verification all passed. Candidate and

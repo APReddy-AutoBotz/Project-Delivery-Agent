@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "targets": ["api", "worker", "database", "operations"],
+  "scopes": ["squashed", "all-layers"],
+  "analysisSha256": "e12bfe1ac2c983f69a48acd07f551d7219a80602355d3b259dc0ee0d97fe64d4",
+  "rule": {
+    "ruleId": "perl-cve-2026-8376-64-bit-build-v1",
+    "advisory": {
+      "id": "CVE-2026-8376",
+      "namespace": "debian:distro:debian:12",
+      "dataSource": "https://security-tracker.debian.org/tracker/CVE-2026-8376",
+      "description": "Perl versions through 5.43.10 have a heap buffer overflow when compiling regular expressions with a repeated fixed string on 32-bit builds.  Perl_study_chunk in regcomp_study.c checked the size of the joined substring buffer in characters rather than bytes. For a quantified fixed substring with a large minimum count, the byte length mincount * l could overflow SSize_t, producing an undersized SvGROW allocation; the subsequent copy writes past the end of the buffer.  A caller that compiles an attacker-controlled regular expression on a 32-bit perl build triggers a heap buffer overflow at compile time.",
+      "fix": {
+        "versions": [],
+        "state": "wont-fix"
+      }
+    },
+    "primaryAdvisory": {
+      "url": "https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/2026/8xxx/CVE-2026-8376.json",
+      "sha256": "a083a4770e008b866e381ef59b7cb132fe889f3ed593e13a1405c55a424f2cbe",
+      "bytes": 7618,
+      "affected": [
+        {
+          "collectionURL": "https://cpan.org/modules",
+          "defaultStatus": "unaffected",
+          "modules": ["perl"],
+          "packageName": "perl",
+          "packageURL": "pkg:cpan/perl",
+          "programFiles": ["regcomp_study.c"],
+          "programRoutines": [
+            {
+              "name": "Perl_study_chunk"
+            }
+          ],
+          "repo": "https://github.com/Perl/perl5",
+          "versions": [
+            {
+              "lessThan": "5.40.5-RC1",
+              "status": "affected",
+              "version": "0",
+              "versionType": "custom"
+            },
+            {
+              "lessThan": "5.42.3-RC1",
+              "status": "affected",
+              "version": "5.41.0",
+              "versionType": "custom"
+            },
+            {
+              "lessThan": "5.43.11",
+              "status": "affected",
+              "version": "5.43.0",
+              "versionType": "custom"
+            }
+          ]
+        }
+      ],
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "Perl versions before 5.40.5-RC1, from 5.41.0 before 5.42.3-RC1, from 5.43.0 before 5.43.11 have a heap buffer overflow when compiling regular expressions with a repeated fixed string on 32-bit builds.\n\nPerl_study_chunk in regcomp_study.c checked the size of the joined substring buffer in characters rather than bytes. For a quantified fixed substring with a large minimum count, the byte length mincount * l could overflow SSize_t, producing an undersized SvGROW allocation; the subsequent copy writes past the end of the buffer.\n\nA caller that compiles an attacker-controlled regular expression on a 32-bit perl build triggers a heap buffer overflow at compile time."
+        }
+      ],
+      "references": [
+        {
+          "tags": ["patch"],
+          "url": "https://github.com/Perl/perl5/commit/5e7f119eb2bb1181be908701f22bf7068e722f1c.patch"
+        }
+      ]
+    },
+    "disposition": "not_applicable",
+    "reason": "The specified 32-bit build precondition is absent in these exact Debian Perl package bytes: all inspected core/extension ELF files are ELF64 x86-64 and matching build configuration uses 8-byte pointers, IV, UV, size_t and long. This is not whole-image or arbitrary embedded-runtime absence proof."
+  },
+  "inputs": [
+    {
+      "target": "api",
+      "scope": "squashed",
+      "packageNames": ["perl-base"],
+      "fileCount": 621,
+      "factsSha256": "60a2ebce974cba7f45bf2ba2797a94ae98d932d5fe0ddbd92221847cc12d2d07",
+      "matchArtifacts": {
+        "perl-base": "97589e33f67307128b1a7aaa223daa7f51ede48bac986c131f13ad0c3545637c"
+      },
+      "matchEnvelopes": {
+        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+      }
+    },
+    {
+      "target": "api",
+      "scope": "all-layers",
+      "packageNames": ["perl-base"],
+      "fileCount": 621,
+      "factsSha256": "f8d188ced4361ceb70a7c4c1d5c2826009c2cc5fcf886f0716bdcd1a35142d55",
+      "matchArtifacts": {
+        "perl-base": "420d41e99741183622ddcb9eeb63c66329416a0ecb293ef0ebff60f9cb8be866"
+      },
+      "matchEnvelopes": {
+        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+      }
+    },
+    {
+      "target": "worker",
+      "scope": "squashed",
+      "packageNames": ["perl-base"],
+      "fileCount": 621,
+      "factsSha256": "60a2ebce974cba7f45bf2ba2797a94ae98d932d5fe0ddbd92221847cc12d2d07",
+      "matchArtifacts": {
+        "perl-base": "97589e33f67307128b1a7aaa223daa7f51ede48bac986c131f13ad0c3545637c"
+      },
+      "matchEnvelopes": {
+        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+      }
+    },
+    {
+      "target": "worker",
+      "scope": "all-layers",
+      "packageNames": ["perl-base"],
+      "fileCount": 621,
+      "factsSha256": "f8d188ced4361ceb70a7c4c1d5c2826009c2cc5fcf886f0716bdcd1a35142d55",
+      "matchArtifacts": {
+        "perl-base": "420d41e99741183622ddcb9eeb63c66329416a0ecb293ef0ebff60f9cb8be866"
+      },
+      "matchEnvelopes": {
+        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+      }
+    },
+    {
+      "target": "database",
+      "scope": "squashed",
+      "packageNames": ["libperl5.36", "perl", "perl-base", "perl-modules-5.36"],
+      "fileCount": 2245,
+      "factsSha256": "c2e2fd2caa3df918259c7d1a9dcb077d6f82873afa2ee320416358b647d580bf",
+      "matchArtifacts": {
+        "libperl5.36": "a5d949b704b34a5761802637ac7f3fb1f92a73a48065448b43514a9743f35abf",
+        "perl": "a64f4f05009a4b6b70ac79d49dce179ecff3e9d6a65f95d68551259ea0c59cae",
+        "perl-base": "218359af79fd8bc063207ffe802040d169cfaa802cf313e1823e509b18cd4855",
+        "perl-modules-5.36": "ba2d93a6a4d74605f98f1f11fea2bbf0c0db1a1e6c9186785d27a54a0d196f22"
+      },
+      "matchEnvelopes": {
+        "libperl5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
+        "perl": "9704e2eabbb7b7fe59bedc2e8daf35aad0d99a88883ae3bddd873ec3c2f90c14",
+        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
+        "perl-modules-5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+      }
+    },
+    {
+      "target": "database",
+      "scope": "all-layers",
+      "packageNames": ["libperl5.36", "perl", "perl-base", "perl-modules-5.36"],
+      "fileCount": 2252,
+      "factsSha256": "02897e3ae81613185d906ebc52eee8feb6bc5533a88a3331e63e38ce10e0dc13",
+      "matchArtifacts": {
+        "libperl5.36": "3172733af1dd851b33b7e6cbbd596a88abb6d7e93f1b62029784990886b3221f",
+        "perl": "2da1960da41154b6c6183d1178b69b7af17ea15bb12898dca5f1be8d947baf7b",
+        "perl-base": "1207ea07eeed9e7597825a09e414120c9fce883e0e9373b02196268ebfd494ad",
+        "perl-modules-5.36": "70e3bd506da2f64f030ace9de50ac77c70f0d410a11da9c04898ea89422fe91a"
+      },
+      "matchEnvelopes": {
+        "libperl5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
+        "perl": "9704e2eabbb7b7fe59bedc2e8daf35aad0d99a88883ae3bddd873ec3c2f90c14",
+        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
+        "perl-modules-5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+      }
+    },
+    {
+      "target": "operations",
+      "scope": "squashed",
+      "packageNames": ["libperl5.36", "perl", "perl-base", "perl-modules-5.36"],
+      "fileCount": 2245,
+      "factsSha256": "c2e2fd2caa3df918259c7d1a9dcb077d6f82873afa2ee320416358b647d580bf",
+      "matchArtifacts": {
+        "libperl5.36": "a5d949b704b34a5761802637ac7f3fb1f92a73a48065448b43514a9743f35abf",
+        "perl": "a64f4f05009a4b6b70ac79d49dce179ecff3e9d6a65f95d68551259ea0c59cae",
+        "perl-base": "218359af79fd8bc063207ffe802040d169cfaa802cf313e1823e509b18cd4855",
+        "perl-modules-5.36": "ba2d93a6a4d74605f98f1f11fea2bbf0c0db1a1e6c9186785d27a54a0d196f22"
+      },
+      "matchEnvelopes": {
+        "libperl5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
+        "perl": "9704e2eabbb7b7fe59bedc2e8daf35aad0d99a88883ae3bddd873ec3c2f90c14",
+        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
+        "perl-modules-5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+      }
+    },
+    {
+      "target": "operations",
+      "scope": "all-layers",
+      "packageNames": ["libperl5.36", "perl", "perl-base", "perl-modules-5.36"],
+      "fileCount": 2252,
+      "factsSha256": "02897e3ae81613185d906ebc52eee8feb6bc5533a88a3331e63e38ce10e0dc13",
+      "matchArtifacts": {
+        "libperl5.36": "3172733af1dd851b33b7e6cbbd596a88abb6d7e93f1b62029784990886b3221f",
+        "perl": "2da1960da41154b6c6183d1178b69b7af17ea15bb12898dca5f1be8d947baf7b",
+        "perl-base": "1207ea07eeed9e7597825a09e414120c9fce883e0e9373b02196268ebfd494ad",
+        "perl-modules-5.36": "70e3bd506da2f64f030ace9de50ac77c70f0d410a11da9c04898ea89422fe91a"
+      },
+      "matchEnvelopes": {
+        "libperl5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
+        "perl": "9704e2eabbb7b7fe59bedc2e8daf35aad0d99a88883ae3bddd873ec3c2f90c14",
+        "perl-base": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e",
+        "perl-modules-5.36": "9602a46e3936bb13126350c0f166ebeff9229b2f77f5365f4c486461a2a51e9e"
+      }
+    }
+  ]
+}

@@ -10,7 +10,7 @@ import { verifyNodeComponentReports } from "./distribution/node-components.mjs";
 import { verifyNodeSupplementReports } from "./distribution/node-supplemental.mjs";
 import { verifyNodeResourceReports } from "./distribution/node-resources.mjs";
 import { verifyNodeSourceReports } from "./distribution/node-resource-sources.mjs";
-import { verifyGosuDispositionReport } from "./distribution/gosu-dispositions.mjs";
+import { verifyDispositionReport } from "./distribution/vulnerability-dispositions.mjs";
 const report = JSON.parse(
   readFileSync("artifacts/distribution-evidence.json", "utf8"),
 );
@@ -24,7 +24,7 @@ try {
   verifyNodeSupplementReports(join("artifacts", report.runId), report);
   verifyNodeResourceReports(join("artifacts", report.runId), report);
   verifyNodeSourceReports(join("artifacts", report.runId), report);
-  verifyGosuDispositionReport(join("artifacts", report.runId), report);
+  verifyDispositionReport(join("artifacts", report.runId), report);
   if (
     process.argv.slice(2).length === 1 &&
     process.argv[2] === "--evidence-only"

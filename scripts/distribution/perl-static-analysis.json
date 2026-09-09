@@ -1,0 +1,931 @@
+{
+  "schemaVersion": 1,
+  "method": "Static ar/tar and ELF header/dynamic-table inspection of exact Debian package members; every present owned file compared with original native image file hashes. Targets and package scripts were not executed.",
+  "subjectExecuted": false,
+  "wholeImageAbsenceEstablished": false,
+  "provenance": {
+    "packageRecordsSha256": "ad0c7a16f5ad6aee41b82b41b22226fd8dc0d758ba26d417532506162d80ce28",
+    "nativeBindingsSha256": "21a3d64652073e5a39c5fec47deb43afabddd14fac362d646e3959239c6d1301",
+    "readerSha256": "0318369310f2fbdea77353a57a9bff6e9345fd5daab28c4ef99e89a9f8cf6904",
+    "metadataToInReleaseHashMatch": true,
+    "signatureVerification": "Not performed; primary HTTPS provenance and exact native byte equality are the binding."
+  },
+  "packages": [
+    {
+      "name": "libperl5.36",
+      "version": "5.36.0-7+deb12u3",
+      "architecture": "amd64",
+      "debSha256": "591903643119c7e1735011369287976eccab1d79b1d2f210760e2138d0a3aa46",
+      "debBytes": 4195924,
+      "material": [
+        {
+          "path": "/usr/bin/perl5.36-x86_64-linux-gnu",
+          "type": "file",
+          "size": 14752,
+          "sha256": "1e7a20ef68bed3cf76c90bbd1557ca01c00de0b44e0cab0410d268bc397d6c72",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6", "libperl.so.5.36"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libperl.so.5.36",
+          "type": "symlink",
+          "size": 0,
+          "target": "libperl.so.5.36.0"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/libperl.so.5.36.0",
+          "type": "file",
+          "size": 3823968,
+          "sha256": "1cd3690189c3298f790bde7e5d3f9102db9804187f107ffda4f4f7ccfd0a1bd3",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": [
+              "ld-linux-x86-64.so.2",
+              "libc.so.6",
+              "libcrypt.so.1",
+              "libm.so.6"
+            ]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36",
+          "type": "symlink",
+          "size": 0,
+          "target": "5.36.0"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/CORE/config.h",
+          "type": "file",
+          "size": 167455,
+          "sha256": "983127cd975a2fd6d014744b3b20fdb28931c2dcbeae964c180a74f4ea2b32aa"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/Config.pm",
+          "type": "file",
+          "size": 3217,
+          "sha256": "ab145626ad24b1bb6b2aeb0f5e729448cb5a5599e260583f81b180339a87f9fd"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/Config_heavy.pl",
+          "type": "file",
+          "size": 55786,
+          "sha256": "1c4a678536480cef046b6c9feac356dd22e86dc88094b44433ae1cf1fd019681",
+          "buildWidths": {
+            "ptrsize": "8",
+            "ivsize": "8",
+            "uvsize": "8",
+            "sizesize": "8",
+            "longsize": "8",
+            "intsize": "4",
+            "ssizetype": "ssize_t"
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/B/B.so",
+          "type": "file",
+          "size": 92992,
+          "sha256": "5ed1e68398414745a48444285eda434d98c042e91f2c02d06e1dc46a872db3e7",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Compress/Raw/Bzip2/Bzip2.so",
+          "type": "file",
+          "size": 39344,
+          "sha256": "f0d0d3f9234c41be98436f4cf1fd9e1fa83f8d5b7998e58995b214a8131a81d3",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libbz2.so.1.0", "libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Compress/Raw/Zlib/Zlib.so",
+          "type": "file",
+          "size": 72328,
+          "sha256": "f63570614fb55657526db408c6fd8005533c565d42fb8479ff0c98cfe6cba24f",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6", "libz.so.1"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Cwd/Cwd.so",
+          "type": "file",
+          "size": 18800,
+          "sha256": "128bec462fe2977be5a6ccf32937fd6397309564330b643ec489291fb1e3c6b9",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/DB_File/DB_File.so",
+          "type": "file",
+          "size": 55760,
+          "sha256": "abc12d07dfad538347d13d0be200f1d5b38751fa48cd7b65201c814dda4d20a3",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6", "libdb-5.3.so"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Data/Dumper/Dumper.so",
+          "type": "file",
+          "size": 43712,
+          "sha256": "e88127ff767e0cbbd52fcd82cd39f63d80d330f5066c0f468999e694c03476ed",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Devel/Peek/Peek.so",
+          "type": "file",
+          "size": 18848,
+          "sha256": "e55ce47f061f99431175701921c4357cb9272537913b4f0d1f703cfcf7200e4b",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Digest/MD5/MD5.so",
+          "type": "file",
+          "size": 22912,
+          "sha256": "2ded19c9666cf6587b709e04376a25db2c22c9e5820c9114cdb9ef23ac928ff8",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Digest/SHA/SHA.so",
+          "type": "file",
+          "size": 47392,
+          "sha256": "25bff54aea796e76e534b9e6564aa7d74061d6c0db0623c5d3373f9304b6d718",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Encode/Byte/Byte.so",
+          "type": "file",
+          "size": 370936,
+          "sha256": "d8304f147b2b48963982df6a1cf530eba8b5b03608183ecd141aed1c54536038",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Encode/CN/CN.so",
+          "type": "file",
+          "size": 2099448,
+          "sha256": "ada314a03b80e72a5312e328e09d874abc062c08e12e31fefdcd6875e9fd81f4",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Encode/EBCDIC/EBCDIC.so",
+          "type": "file",
+          "size": 47352,
+          "sha256": "4a7a57fc8200b22cfbb41dc81e1c5803b05de73041c14cc04fa7f01f6f59002e",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Encode/Encode.so",
+          "type": "file",
+          "size": 47768,
+          "sha256": "a23a24d7bc8739271ed7575d78f007360c120983b115893f757d430bb4406a21",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Encode/JP/JP.so",
+          "type": "file",
+          "size": 2750712,
+          "sha256": "73940d4fa8851552c00b92acbe13693aee5cc6b56c7167200d4b40fdc23ff7f1",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Encode/KR/KR.so",
+          "type": "file",
+          "size": 2414840,
+          "sha256": "c30ec6405cb188bfc0073b1597ef81578c4676f0b54ea4334ad8fa538aeb8528",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Encode/Symbol/Symbol.so",
+          "type": "file",
+          "size": 59640,
+          "sha256": "31236658cf5a31f933cc8c133c9ac81aa71ca0d9fac8ebdc33761e71efa2c942",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Encode/TW/TW.so",
+          "type": "file",
+          "size": 2029816,
+          "sha256": "89f245e6d13c41a3b46c7580498e36a985c18153e712c05000f03abd10737715",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Encode/Unicode/Unicode.so",
+          "type": "file",
+          "size": 22864,
+          "sha256": "e1a4c954fcdc2bc01102dd5e98054fd1e6ec12f5ecdbf6648e875425f08f0bef",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Fcntl/Fcntl.so",
+          "type": "file",
+          "size": 22736,
+          "sha256": "c63621e6fcf2d91630d42ad47ea82d0978107e9daf44d906d9fcdf1820b395a5",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": []
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/File/DosGlob/DosGlob.so",
+          "type": "file",
+          "size": 14320,
+          "sha256": "5e2f1dd4701b217dcaacef9091c1df30e7ffdf71ddbde6ea2790a2360c06450b",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": []
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/File/Glob/Glob.so",
+          "type": "file",
+          "size": 31416,
+          "sha256": "8f55dacf8e73a485ce59468ed59994164892d48b6e1a79de1e46db523a02ad6a",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Filter/Util/Call/Call.so",
+          "type": "file",
+          "size": 14680,
+          "sha256": "6344c7289c0d943a3910d798b3a5fca70b4fde9f5482cb967086fa3a93351c20",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/GDBM_File/GDBM_File.so",
+          "type": "file",
+          "size": 56208,
+          "sha256": "d158f24597ee1b65910c18e95846bfb70c8deb402d7671064ca9b3d004458bd2",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6", "libgdbm.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Hash/Util/FieldHash/FieldHash.so",
+          "type": "file",
+          "size": 18848,
+          "sha256": "90bc1e94beafdc91a6a3f43597519507bb45d649797a36fdcfeb405dcc6f6ddf",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Hash/Util/Util.so",
+          "type": "file",
+          "size": 18784,
+          "sha256": "93fbeca62b4950595fb2fc9abe30e6f812801a5d1739f2254be82eaef5d57076",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/I18N/Langinfo/Langinfo.so",
+          "type": "file",
+          "size": 18760,
+          "sha256": "5af5312b5f4d94386ffdbde6f0b1df6643e8a61899aa036cdcae67ae3d5d9279",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/IO/IO.so",
+          "type": "file",
+          "size": 22976,
+          "sha256": "033873d58a979aa0d6e6ed71fa1c0b150d2ba37eb2a29c78b0630792ec186a05",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/IPC/SysV/SysV.so",
+          "type": "file",
+          "size": 26952,
+          "sha256": "fc0e4f2c13d532a1efaf1e70bf0edb9e98b627eaade9af5cc2a45e71075a7995",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/List/Util/Util.so",
+          "type": "file",
+          "size": 60208,
+          "sha256": "705793c6442f140afd51ef7b0e5f15c5a12610b71fe99cb8d81203fafcafbe6d",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/MIME/Base64/Base64.so",
+          "type": "file",
+          "size": 18664,
+          "sha256": "c254d8c929c4d2f3f0c9b9728fea1396badbe70c291ac36244df045c8962a506",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Math/BigInt/FastCalc/FastCalc.so",
+          "type": "file",
+          "size": 18720,
+          "sha256": "e3d0da2a95835084e2f503407ee7d15a3ad5874bf41fdd6588aeb4e67fac0189",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/NDBM_File/NDBM_File.so",
+          "type": "file",
+          "size": 18824,
+          "sha256": "2e748c7b4b5ff3a00525a2fcba1acc29e382995a41c259355d8ad3390fb74a47",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6", "libgdbm_compat.so.4"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/ODBM_File/ODBM_File.so",
+          "type": "file",
+          "size": 22960,
+          "sha256": "1470fcf0e2e68f35848c515940ba64ebd8c32369181f89050eb6c31b76a9387e",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6", "libgdbm_compat.so.4"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Opcode/Opcode.so",
+          "type": "file",
+          "size": 22952,
+          "sha256": "6649eb2f182cec37123887c5aae0b4212fd8bc394eac619a00a7c68b30a3dd6a",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/POSIX/POSIX.so",
+          "type": "file",
+          "size": 110256,
+          "sha256": "4dcf9e19cc194890abed71f0de75b829e5d69d558cb55fd14aecf13e31d01073",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6", "libm.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/PerlIO/encoding/encoding.so",
+          "type": "file",
+          "size": 27264,
+          "sha256": "eb02521fbeda0a0993879ef7e2232bfddba7457cba6d14cca8601536a0b5de37",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/PerlIO/mmap/mmap.so",
+          "type": "file",
+          "size": 14648,
+          "sha256": "d9bf2da811568a56f26944f129f5bc8790291e27ecf71f4c00aa044cd7edccbe",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/PerlIO/scalar/scalar.so",
+          "type": "file",
+          "size": 22928,
+          "sha256": "23149403ac321eff7dcee2638ce7dadf9f80047f754b0adff3de55fe1e06e33c",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/PerlIO/via/via.so",
+          "type": "file",
+          "size": 27256,
+          "sha256": "2c4863add9adca61d1ae4eee266c21fa4a1d3114d4a74a65876f9c3668b62650",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/SDBM_File/SDBM_File.so",
+          "type": "file",
+          "size": 31312,
+          "sha256": "142db552079114f2735805bca8ee0381f6f4c8dddf018ce91671f7fd1320aeef",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Socket/Socket.so",
+          "type": "file",
+          "size": 47640,
+          "sha256": "a9d8cf3065046c12c16e195b67e6a9f347faec515e160664510544ba6d6888e7",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Storable/Storable.so",
+          "type": "file",
+          "size": 113672,
+          "sha256": "ed31fe44a80a54e6c1d7b05bff72c4fc2cca5c9a3ae0ee5b24223f5393ceac00",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Sys/Hostname/Hostname.so",
+          "type": "file",
+          "size": 14480,
+          "sha256": "6f4fa39152face45ec758ef0574435adcfc240b6dcedb2973a62ef0237472257",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Sys/Syslog/Syslog.so",
+          "type": "file",
+          "size": 22880,
+          "sha256": "e754088e4b9a71829b5486edf0642396000f26ce82d691480612d97ad4a2bbf6",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Time/HiRes/HiRes.so",
+          "type": "file",
+          "size": 35240,
+          "sha256": "31943f23352337a08fc5bb21f0fde92edcd588a667903085cf997bd2b8097d0c",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Time/Piece/Piece.so",
+          "type": "file",
+          "size": 27016,
+          "sha256": "138420d53d62d43f989de3cd1ef5b95f2c5ab9dc24bcb3095a58ad1baa8cf542",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Unicode/Collate/Collate.so",
+          "type": "file",
+          "size": 1579352,
+          "sha256": "1f49f94673072c02db1e0ad7b890dc6f6d5ae4b9ffdc2a4113d30fcc3f01831c",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/Unicode/Normalize/Normalize.so",
+          "type": "file",
+          "size": 601032,
+          "sha256": "88676449a1b8b730501a537e0ff8eb89468aff84ea4b4d5e368db77dd92f6c62",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/attributes/attributes.so",
+          "type": "file",
+          "size": 14600,
+          "sha256": "0466f65ab4cc87f428bac2e52605169bc9cb83ca60172c6d3078ede41e4e8287",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/mro/mro.so",
+          "type": "file",
+          "size": 27200,
+          "sha256": "dda101e674a6946c916e7345d787d2ce01183b9dade4e8e956d6e04ca494b5cc",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/re/re.so",
+          "type": "file",
+          "size": 659312,
+          "sha256": "268a8fbb853f7b280af43ddb3599e0b99e860c520239889eacfb905e1ef5e71a",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/threads/shared/shared.so",
+          "type": "file",
+          "size": 43752,
+          "sha256": "37e6d9c111110ae2023bf96d5295ac99198eafda270c458b00ea8d26e3fffb99",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/5.36.0/auto/threads/threads.so",
+          "type": "file",
+          "size": 39824,
+          "sha256": "7f033c872e06a0d5a876813635cce089a6199589df72f973c832fff289fda3f9",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/cross-config-5.36.0/Config.pm",
+          "type": "symlink",
+          "size": 0,
+          "target": "../5.36.0/Config.pm"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl/cross-config-5.36.0/Config_heavy.pl",
+          "type": "symlink",
+          "size": 0,
+          "target": "../5.36.0/Config_heavy.pl"
+        }
+      ]
+    },
+    {
+      "name": "perl",
+      "version": "5.36.0-7+deb12u3",
+      "architecture": "amd64",
+      "debSha256": "afa50ec7d9b1a407cd0187dae033644ef13578d4f3792435e0c41b962ffec0c4",
+      "debBytes": 238900,
+      "material": []
+    },
+    {
+      "name": "perl-base",
+      "version": "5.36.0-7+deb12u3",
+      "architecture": "amd64",
+      "debSha256": "8ec874926e211807cde71e1b0a2311d2534ab3539dffcb2c8553633f542efc1a",
+      "debBytes": 1607712,
+      "material": [
+        {
+          "path": "/usr/bin/perl",
+          "type": "file",
+          "size": 3804464,
+          "sha256": "f01fa7776dc21c9e4b5f60b2d231ca4d96dab958b8d06aff611cb1c16f871574",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6", "libcrypt.so.1", "libm.so.6"]
+          }
+        },
+        {
+          "path": "/usr/bin/perl5.36.0",
+          "type": "hardlink",
+          "size": 3804464,
+          "sha256": "f01fa7776dc21c9e4b5f60b2d231ca4d96dab958b8d06aff611cb1c16f871574",
+          "target": "./usr/bin/perl",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6", "libcrypt.so.1", "libm.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/Config.pm",
+          "type": "file",
+          "size": 3216,
+          "sha256": "366bdeb192721fd69f150688c3abf372680b24deb173923f0d25ed6d13aad89e"
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/Config_heavy.pl",
+          "type": "file",
+          "size": 55786,
+          "sha256": "1c4a678536480cef046b6c9feac356dd22e86dc88094b44433ae1cf1fd019681",
+          "buildWidths": {
+            "ptrsize": "8",
+            "ivsize": "8",
+            "uvsize": "8",
+            "sizesize": "8",
+            "longsize": "8",
+            "intsize": "4",
+            "ssizetype": "ssize_t"
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/Cwd/Cwd.so",
+          "type": "file",
+          "size": 18800,
+          "sha256": "566097d282bc9061a202332553f3c2579d77c3e5ead2aeb615687aa7c5fda3b3",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/Fcntl/Fcntl.so",
+          "type": "file",
+          "size": 22736,
+          "sha256": "dbd33930970d8050c0ed5c9a208e2b77fb8b85d82b9afbdf80dbc82887b818c4",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": []
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/File/Glob/Glob.so",
+          "type": "file",
+          "size": 31416,
+          "sha256": "28ce9adbeea9acdb6b58838e4d27f0f07d976ff725fe36a36adb6055e36c1a04",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/Hash/Util/Util.so",
+          "type": "file",
+          "size": 18784,
+          "sha256": "feae65cfb8bbcf146809dec5a5e629c6779b675e03282198c9a96e2d43190a43",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/IO/IO.so",
+          "type": "file",
+          "size": 22976,
+          "sha256": "48d09244380dcf280a6daf1733e79f45a4e1acf7de847bb64b00e8f47de3a73d",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/List/Util/Util.so",
+          "type": "file",
+          "size": 60208,
+          "sha256": "df4acec76462de7f511563f3348a188e232dafb5b93e0747fde760c450a07373",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/POSIX/POSIX.so",
+          "type": "file",
+          "size": 110256,
+          "sha256": "ffe31c6e731e6a2e0265081d36314db98e97a70ce6d1725ab46c013e2aa0a062",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6", "libm.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/Socket/Socket.so",
+          "type": "file",
+          "size": 47640,
+          "sha256": "d9db357c0d0e3f085184e876a848ceea57d5251f44c0a85638946b8a2c1d1a35",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/attributes/attributes.so",
+          "type": "file",
+          "size": 14600,
+          "sha256": "bd1f263dbb855f7e667e92056aa42fa58e89a387dddb6210bdb6e46cb467acfd",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["libc.so.6"]
+          }
+        },
+        {
+          "path": "/usr/lib/x86_64-linux-gnu/perl-base/auto/re/re.so",
+          "type": "file",
+          "size": 659312,
+          "sha256": "a77fe1adcfd6e47ea3aa5fac60b113fc6cc48c84fd85caed310c55c1aba5c3d4",
+          "elf": {
+            "class": 64,
+            "encoding": "little",
+            "machine": 62,
+            "needed": ["ld-linux-x86-64.so.2", "libc.so.6"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "perl-modules-5.36",
+      "version": "5.36.0-7+deb12u3",
+      "architecture": "all",
+      "debSha256": "3d237ccb1ea32727b6573d43c67d78337aa928a81148d36cef54b369a07c240a",
+      "debBytes": 2815332,
+      "material": []
+    }
+  ]
+}

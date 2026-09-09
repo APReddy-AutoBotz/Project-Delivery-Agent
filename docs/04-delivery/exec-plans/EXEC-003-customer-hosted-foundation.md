@@ -21,7 +21,40 @@ bundled pgvector availability and external database configuration; production
 file secrets, scoped OIDC code/PKCE login and provider logout; restricted database
 roles; backup/recovery; dependency/license/notices/SBOM and image-scan gates.
 
-### Current increment: gosu advisory applicability batch
+### Current increment: exact Perl package architecture evidence
+
+Under NFR-SEC-010 / NFR-MNT-004 / AC-MNT-004, assess the coherent 220-observation
+Perl batch against current primary records and exact original package bytes.
+Inline triage preserves every observation. Independent validation supports the
+32-bit-precondition counterevidence for 20 matched-package occurrences; 28 proposed
+module-absence cases remain deferred because complete loader/embedded-carrier
+coverage is not established. The remaining 172 inputs retain their first-pass
+needs-review result. No filename-only or generic version exclusion is authorized.
+
+Implement the narrow architecture rule with trusted policy/analysis anchors,
+complete package/file/layer/relationship fingerprints and native match-envelope
+checks. Preserve all 92 previous gosu row objects through a common composer.
+Distribution schema 11 contains 87 files; ledger schema 3 retains independent
+proof sources, original matches and all release blockers. Expected baseline replay
+is 112 supported rows and 714 of 826 original High/Critical observations without a
+disposition. These are scanner observations, not confirmed exploitable defects.
+
+Require malformed/forged evidence regressions, native checks, independent review
+of the immutable candidate, fresh packaged CI and complete downloaded-artifact
+comparison before merge. Preserve the exact runtime/dependency payload and the
+14 previously reviewed generated SHA-value exceptions; do not add a new exception.
+No database/migration, permission or connector change. Recovery is a reviewed
+policy/composer/schema revert with fresh evidence collection. STORY-004/005,
+foundation release acceptance and commercial deployment remain open.
+
+### Completed increment: gosu advisory applicability batch
+
+PR #39 merged candidate `b649711` as `8f66e94`; candidate foundation/documentation
+runs 34313921016/34313920917 and merged-main runs 34316242320/34316242416 passed.
+Independent candidate and fresh artifact reviews passed, including 433 unit tests,
+ten integration tests, eight browser tests, 17 packaged groups, both customer
+profiles, recovery, seven builds and complete native comparisons. The following
+paragraphs retain the implementation boundary and initial failed-run history.
 
 Under NFR-SEC-010 / NFR-MNT-004 / AC-MNT-004, extend the reviewed exact-binary
 policy with 22 separately assessed advisories (88 original observations across
