@@ -44,6 +44,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Node supplemental original notices | [#35](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/35) | `174bd8d` | `43b59f8` |
 | Observed Node resource evidence | [#36](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/36) | `d107997` | `889716b` |
 | Selected Node source correspondence | [#37](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/37) | `a9e633c` | `89f6061` |
+| First gosu dispositions and Multer remediation | [#38](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/38) | `10ee5eb` | `24894ba` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -51,21 +52,31 @@ backlog links are in [PUBLICATION_RECORD.md](PUBLICATION_RECORD.md).
 
 ## Implemented and verified
 
-The current NFR-SEC-010 / AC-MNT-004 increment derives four exact gosu
-GO-2026-4337 code-absence dispositions with independently reviewed static evidence.
-Schema 9 requires 85 files and offline occurrence replay while preserving all
-original scans. Native lint/type checking, 418 unit tests in 23 files, seven builds,
-thirteen documentation regressions and traceability pass. Independent static
-review and four accepted-baseline replays pass; implementation precheck repairs
-have rejection tests. Immutable-candidate review, fresh CI and downloaded
-verification remain merge gates. All five release blockers and STORY-004/005 remain open.
+PR #38 is accepted at `24894ba`: independent immutable-candidate review, native
+checks, fresh packaged CI and downloaded verification all passed. Candidate and
+merged-main foundation/documentation workflows passed. Schema 9 retains 85 files
+and four exact GO-2026-4337 dispositions. The reviewed Multer 2.3.0 replacement
+passed the unchanged audit gate and exact package/notice/lock comparison.
+Validation includes 418 unit tests, ten integration tests, eight browser tests,
+17 packaged groups across two profiles, database recovery and seven builds.
 
-Fresh CI required a reviewed Multer 2.2.0 to 2.3.0 runtime override for newly
-published dependency advisories. Local audit now reports zero findings; the full
-418-test native gate passes on the replacement. Original MIT notice and entrypoint
-bytes are unchanged. Customer images must be rebuilt and reaccepted; the API still
-has no multipart route. This updated candidate supersedes the initial review/CI
-candidate and requires fresh independent approval and downloaded verification.
+The next NFR-SEC-010 / NFR-MNT-004 / AC-MNT-004 increment extends the narrow policy
+to 22 additional advisories (88 observations). Schema 10 keeps 85 files and
+separately binds each rule to every affected package, primary advisory and exact
+binary occurrence. Four GO-2026-4970 observations stay open because os is present
+and a function-level exclusion needs separate validation. The proposed ledger
+contains 92 scoped dispositions including the previous four; 734 of the 826
+baseline High/Critical observations receive no new disposition. Scanner totals
+remain intact. Independent static validation and all 92 accepted-baseline replays
+pass. Native lint/type checking, 433 unit tests in 23 files, seven builds,
+13 documentation regressions and traceability pass. Immutable review, fresh CI
+and downloaded artifact comparison remain gates for this increment.
+The initial CI passed packaged acceptance but exposed a retained 64 KiB collector
+limit. Collection and replay now share the 128 KiB reader; the real expanded-policy
+regression and independent reproduction pass. The corrected candidate requires
+fresh immutable review and CI.
+All five release blockers and STORY-004/005 remain open; accepted story counts
+above do not change.
 
 The preceding PR #37 increment passed candidate and merged-main checks. It retains seven authenticated
 JavaScript originals and derives exact selected-source/resource size-hash

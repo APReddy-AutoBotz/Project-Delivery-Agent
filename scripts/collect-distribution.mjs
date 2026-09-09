@@ -40,6 +40,7 @@ import { readBoundedNodeFile } from "./distribution/node-supplemental.mjs";
 import {
   buildGosuDispositionReport,
   gosuEvidenceNames,
+  readGosuAnchor,
 } from "./distribution/gosu-dispositions.mjs";
 import {
   validateNodeSourceBundle,
@@ -196,7 +197,7 @@ writeFileSync(
 );
 writeFileSync(join(output, "production-acceptance.json"), acceptanceBytes);
 const record = {
-  schemaVersion: 9,
+  schemaVersion: 10,
   runId,
   sourceRevision: acceptance.sourceRevision,
   sourceTree: acceptance.sourceTree,
@@ -408,13 +409,7 @@ try {
   }
   requireCompleteTargets(record.images);
   for (const name of gosuEvidenceNames.slice(0, 2))
-    writeFileSync(
-      join(output, name),
-      readBoundedNodeFile(
-        new URL(`./distribution/${name}`, import.meta.url),
-        64 * 1024,
-      ),
-    );
+    writeFileSync(join(output, name), readGosuAnchor(name));
   const dispositions = buildGosuDispositionReport(output, record);
   write(gosuEvidenceNames[2], dispositions);
   record.vulnerabilityDispositions = {

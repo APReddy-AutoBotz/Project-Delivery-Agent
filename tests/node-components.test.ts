@@ -629,7 +629,7 @@ function withArchive(
     ])
       rewrite(name, {});
     const report = {
-      schemaVersion: 9,
+      schemaVersion: 10,
       runId,
       status: "complete",
       images,

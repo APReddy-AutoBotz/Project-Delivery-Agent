@@ -573,7 +573,7 @@ export function assertReleaseReady(report) {
 export function verifyEvidenceFiles(directory, report) {
   assert.equal(
     report.schemaVersion,
-    9,
+    10,
     "Node resource/supplemental/component, npm/Go notice and dual-scope evidence schema required",
   );
   assert.equal(report.status, "complete", "Distribution evidence incomplete");

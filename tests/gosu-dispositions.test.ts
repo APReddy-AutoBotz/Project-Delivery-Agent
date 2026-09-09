@@ -14,6 +14,7 @@ import {
   validateGosuAnchors,
   buildGosuDispositionReport,
   verifyGosuDispositionReport,
+  readGosuAnchor,
 } from "../scripts/distribution/gosu-dispositions.mjs";
 import {
   hash,
@@ -178,7 +179,7 @@ function fixture(target = "database", scope = "squashed"): any {
         {
           artifact: structuredClone(standard),
           vulnerability: {
-            ...structuredClone(policy.advisory),
+            ...structuredClone(policy.rules[0].advisory),
             severity: "Critical",
           },
         },
@@ -196,6 +197,153 @@ function fixture(target = "database", scope = "squashed"): any {
 }
 
 describe("exact gosu occurrence dispositions (NFR-SEC-010 / AC-MNT-004)", () => {
+  it("collects the real expanded policy through the shared bounded reader", () => {
+    expect(policyBytes.length).toBeGreaterThan(64 * 1024);
+    const collectedPolicy = readGosuAnchor("gosu-disposition-policy.json");
+    const collectedAnalysis = readGosuAnchor("gosu-static-analysis.json");
+    expect(collectedPolicy).toEqual(policyBytes);
+    expect(collectedAnalysis).toEqual(analysisBytes);
+    expect(() =>
+      validateGosuAnchors(collectedPolicy, collectedAnalysis),
+    ).not.toThrow();
+  });
+  it("rejects paths outside the two fixed collection anchors", () => {
+    for (const name of [
+      "../tools.json",
+      "tools.json",
+      "vulnerability-dispositions.json",
+      "/etc/passwd",
+    ])
+      expect(() => readGosuAnchor(name)).toThrow(/Unknown gosu anchor/);
+  });
+  it("binds every approved advisory separately and leaves Root and unknown matches open", () => {
+    const f = fixture(),
+      original = structuredClone(f.scan.matches[0]);
+    f.scan.matches = policy.rules.map((r: any) => ({
+      ...structuredClone(original),
+      vulnerability: { ...structuredClone(r.advisory), severity: "High" },
+    }));
+    f.scan.matches.push({
+      ...structuredClone(original),
+      vulnerability: {
+        id: "GO-2026-4970",
+        namespace: "govulndb:language:go",
+        severity: "High",
+      },
+    });
+    f.scan.matches.push(structuredClone(f.scan.matches[0]));
+    const before = encode(f.scan),
+      rows = deriveGosuDispositions(f);
+    expect(rows).toHaveLength(24);
+    expect(rows.slice(0, 23).map((r: any) => r.advisoryId)).toEqual(
+      policy.rules.map((r: any) => r.advisory.id),
+    );
+    expect(rows.map((r: any) => r.matchIndex)).toEqual([
+      ...Array(23).keys(),
+      24,
+    ]);
+    expect(
+      rows.every(
+        (r: any) =>
+          r.matchSha256 === hash(JSON.stringify(f.scan.matches[r.matchIndex])),
+      ),
+    ).toBe(true);
+    expect(encode(f.scan)).toEqual(before);
+    expect(
+      validateImageReports(f).findings.every(
+        (r: any) => r.disposition === "unreviewed",
+      ),
+    ).toBe(true);
+  });
+  it("rejects cross-advisory semantics even when both IDs have approved rules", () => {
+    const f = fixture();
+    f.scan.matches[0].vulnerability.id = policy.rules[1].advisory.id;
+    expect(() => deriveGosuDispositions(f)).toThrow(/advisory semantics/);
+  });
+  for (const [name, mutate] of [
+    [
+      "missing second-module import",
+      (p: any, _a: any) => {
+        p.rules.find(
+          (r: any) => r.advisory.id === "GO-2026-4918",
+        ).requiredPackages = ["net/http"];
+      },
+    ],
+    [
+      "missing third affected import",
+      (p: any, _a: any) => {
+        p.rules.find(
+          (r: any) => r.advisory.id === "GO-2026-5026",
+        ).requiredPackages = ["net/http", "net/http/internal/http2"];
+      },
+    ],
+    [
+      "duplicate rule",
+      (p: any, _a: any) => {
+        p.rules[1] = structuredClone(p.rules[0]);
+      },
+    ],
+    [
+      "Root rule substitution",
+      (p: any, _a: any) => {
+        p.rules[1].advisory.id = "GO-2026-4970";
+      },
+    ],
+    [
+      "missing package metadata",
+      (_p: any, a: any) => {
+        a.packages = a.packages.filter((p: any) => p.path !== "net/mail");
+      },
+    ],
+    [
+      "ambiguous package metadata",
+      (_p: any, a: any) => {
+        a.packages.push(a.packages[0]);
+      },
+    ],
+    [
+      "present inline function",
+      (_p: any, a: any) => {
+        a.packages.find((p: any) => p.path === "net/mail").names = [
+          "net/mail.ParseAddress",
+        ];
+      },
+    ],
+    [
+      "present emitted function",
+      (_p: any, a: any) => {
+        a.packages.find((p: any) => p.path === "crypto/x509").functions = [
+          "crypto/x509.ParseCertificate",
+        ];
+      },
+    ],
+    [
+      "present trimpath source file",
+      (_p: any, a: any) => {
+        a.packages.find((p: any) => p.path === "encoding/xml").files = [
+          "encoding/xml/read.go",
+        ];
+      },
+    ],
+    [
+      "missing present-package control",
+      (_p: any, a: any) => {
+        a.packages.find((p: any) => p.path === "os").files = [];
+      },
+    ],
+  ] as [string, (p: any, a: any) => void][])
+    it(`rejects ${name} even with matching supplied trust fixtures`, () => {
+      const p = structuredClone(policy),
+        a = JSON.parse(analysisBytes.toString());
+      mutate(p, a);
+      // Exercise structural proof checks independently of archive trust rejection.
+      expect(() =>
+        validateGosuAnchors(encode(p), encode(a), {
+          trustedPolicyBytes: encode(p),
+          trustedAnalysisBytes: encode(a),
+        }),
+      ).toThrow();
+    });
   for (const target of ["database", "operations"])
     for (const scope of ["squashed", "all-layers"])
       it(`binds ${target}/${scope} without changing original findings`, () => {
@@ -444,8 +592,8 @@ describe("exact gosu occurrence dispositions (NFR-SEC-010 / AC-MNT-004)", () => 
           policyBytes
             .toString()
             .replace(
-              '"schemaVersion": 1',
-              '"schemaVersion": 1, "schemaVersion": 1',
+              '"schemaVersion": 2',
+              '"schemaVersion": 2, "schemaVersion": 2',
             ),
         ),
         analysisBytes,
@@ -466,6 +614,7 @@ function archive(
     report: any,
     rewrite: (name: string, v: any) => void,
   ) => void,
+  allRules = false,
 ) {
   const directory = mkdtempSync(join(tmpdir(), "pdaa-gosu-"));
   const report: any = {
@@ -491,8 +640,15 @@ function archive(
         ["", "squashed"],
         [".layers", "all-layers"],
       ]) {
-        const scoped = fixture(target, scope),
-          review = validateImageReports(scoped);
+        const scoped = fixture(target, scope);
+        if (allRules) {
+          const original = scoped.scan.matches[0];
+          scoped.scan.matches = policy.rules.map((r: any) => ({
+            ...structuredClone(original),
+            vulnerability: { ...structuredClone(r.advisory), severity: "High" },
+          }));
+        }
+        const review = validateImageReports(scoped);
         if (suffix) report.images[target].allLayers = review;
         else report.images[target] = review;
         for (const ext of ["syft", "spdx", "grype"])
@@ -506,7 +662,7 @@ function archive(
     rewrite("vulnerability-dispositions.json", ledger);
     report.vulnerabilityDispositions = {
       file: "vulnerability-dispositions.json",
-      notApplicable: 4,
+      notApplicable: ledger.dispositions.length,
       releaseApproved: false,
     };
     check(directory, report, rewrite);
@@ -517,6 +673,30 @@ function archive(
   }
 }
 describe("retained disposition replay", () => {
+  it("replays a complete 92-occurrence ledger beyond the prior 64 KiB limit", () =>
+    archive((directory, report, rewrite) => {
+      const bytes = readFileSync(
+        join(directory, "vulnerability-dispositions.json"),
+      );
+      expect(bytes.length).toBeGreaterThan(64 * 1024);
+      const result = verifyGosuDispositionReport(directory, report);
+      expect(result.schemaVersion).toBe(2);
+      expect(result.dispositions).toHaveLength(92);
+      expect(
+        new Set(result.dispositions.map((r: any) => r.advisoryId)).size,
+      ).toBe(23);
+      const forged = structuredClone(result);
+      forged.dispositions[1].ruleId = forged.dispositions[0].ruleId;
+      rewrite("vulnerability-dispositions.json", forged);
+      expect(() => verifyGosuDispositionReport(directory, report)).toThrow(
+        /dispositions differ/,
+      );
+      rewrite(
+        "vulnerability-dispositions.json",
+        Buffer.alloc(512 * 1024 + 1, 32),
+      );
+      expect(() => verifyGosuDispositionReport(directory, report)).toThrow();
+    }, true));
   it("rejects coherently replaced scanner versions and declared pins", () =>
     archive((directory, report, rewrite) => {
       report.tools = structuredClone(report.tools);

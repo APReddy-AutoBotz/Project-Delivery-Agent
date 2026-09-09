@@ -15,17 +15,24 @@ export const gosuEvidenceNames = [
   "gosu-static-analysis.json",
   "vulnerability-dispositions.json",
 ];
-const maximum = 64 * 1024;
-const parse = (bytes) => parseNodeResourceJson(bytes, maximum);
+const maximum = 128 * 1024;
+const ledgerMaximum = 512 * 1024;
+const parse = (bytes, limit = maximum) => parseNodeResourceJson(bytes, limit);
 const trusted = (name) =>
   readBoundedNodeFile(new URL(name, import.meta.url), maximum);
+
+// Collection and replay share the same bounded reader for the fixed anchors.
+export function readGosuAnchor(name) {
+  assert(gosuEvidenceNames.slice(0, 2).includes(name), "Unknown gosu anchor");
+  return trusted(`./${name}`);
+}
 
 export function validateGosuAnchors(
   policyBytes,
   analysisBytes,
   {
-    trustedPolicyBytes = trusted("./gosu-disposition-policy.json"),
-    trustedAnalysisBytes = trusted("./gosu-static-analysis.json"),
+    trustedPolicyBytes = readGosuAnchor("gosu-disposition-policy.json"),
+    trustedAnalysisBytes = readGosuAnchor("gosu-static-analysis.json"),
   } = {},
 ) {
   const policy = parse(policyBytes),
@@ -40,13 +47,65 @@ export function validateGosuAnchors(
     parse(trustedAnalysisBytes),
     "Gosu analysis differs from trusted checkout",
   );
-  assert.equal(policy.schemaVersion, 1);
-  assert.equal(policy.ruleId, "gosu-go-2026-4337-code-absent-v1");
+  assert.equal(policy.schemaVersion, 2);
+  assert.equal(analysis.schemaVersion, 2);
   assert.deepEqual(policy.targets, ["database", "operations"]);
   assert.deepEqual(policy.scopes, ["squashed", "all-layers"]);
-  assert.equal(policy.disposition, "not_applicable");
-  assert.equal(policy.advisory.id, "GO-2026-4337");
-  assert.equal(policy.advisory.namespace, "govulndb:language:go");
+  assert.equal(policy.rules.length, 23);
+  assert.equal(new Set(policy.rules.map((r) => r.ruleId)).size, 23);
+  assert.equal(new Set(policy.rules.map((r) => r.advisory.id)).size, 23);
+  assert.equal(
+    new Set(analysis.packages.map((p) => p.path)).size,
+    analysis.packages.length,
+  );
+  for (const rule of policy.rules) {
+    assert.equal(rule.disposition, "not_applicable");
+    assert.equal(rule.advisory.namespace, "govulndb:language:go");
+    assert.notEqual(
+      rule.advisory.id,
+      "GO-2026-4970",
+      "Root-family exclusion is not authorized",
+    );
+    assert.equal(
+      rule.ruleId,
+      `gosu-${rule.advisory.id.toLowerCase()}-code-absent-v1`,
+    );
+    assert(rule.requiredPackages.length > 0);
+    assert.equal(
+      new Set(rule.requiredPackages).size,
+      rule.requiredPackages.length,
+    );
+    // Primary imports across every module are part of the reviewed policy.
+    const imports = rule.primaryAdvisory.affected
+      ? [
+          ...new Set(
+            rule.primaryAdvisory.affected.flatMap((a) =>
+              a.ecosystem_specific.imports.map((p) => p.path),
+            ),
+          ),
+        ].sort()
+      : [rule.primaryAdvisory.package];
+    assert.deepEqual(
+      rule.requiredPackages,
+      imports,
+      "Affected import coverage differs",
+    );
+    for (const path of rule.requiredPackages) {
+      const matches = analysis.packages.filter((p) => p.path === path);
+      assert.equal(matches.length, 1, "Missing/ambiguous package analysis");
+      for (const key of ["functions", "names", "files"])
+        assert.deepEqual(
+          matches[0][key],
+          [],
+          "Required package code absence is not established",
+        );
+    }
+  }
+  const os = analysis.packages.find((p) => p.path === "os");
+  assert(os, "Missing present-package control");
+  assert.equal(os.functions.length, 36);
+  assert.equal(os.names.length, 51);
+  assert.equal(os.files.length, 15);
   assert.equal(analysis.subjectSha256, policy.binary.sha256);
   assert.equal(analysis.subjectSize, policy.binary.size);
   assert.equal(analysis.goVersion, policy.binary.goVersion);
@@ -79,16 +138,20 @@ export function deriveGosuDispositions({
   const result = [];
   for (const [matchIndex, match] of scan.matches.entries()) {
     const advisory = match.vulnerability;
+    const rule = policy.rules.find(
+      (r) =>
+        advisory.id === r.advisory.id &&
+        advisory.namespace === r.advisory.namespace,
+    );
     if (
-      advisory.id !== policy.advisory.id ||
-      advisory.namespace !== policy.advisory.namespace ||
+      !rule ||
       !match.artifact.locations?.some((l) => l.path === policy.binary.path)
     )
       continue;
-    for (const key of Object.keys(policy.advisory))
+    for (const key of Object.keys(rule.advisory))
       assert.deepEqual(
         advisory[key],
-        policy.advisory[key],
+        rule.advisory[key],
         "Selected advisory semantics changed; review required",
       );
     const packages = sbom.artifacts.filter((p) => p.id === match.artifact.id);
@@ -202,7 +265,7 @@ export function deriveGosuDispositions({
       "Gosu standard library dependency relationship differs",
     );
     result.push({
-      ruleId: policy.ruleId,
+      ruleId: rule.ruleId,
       target,
       scope,
       imageId: inspection.Id,
@@ -218,8 +281,8 @@ export function deriveGosuDispositions({
       fileId: file.id,
       binarySha256: policy.binary.sha256,
       binarySize: policy.binary.size,
-      disposition: policy.disposition,
-      reason: policy.reason,
+      disposition: rule.disposition,
+      reason: rule.reason,
     });
   }
   return result;
@@ -304,7 +367,7 @@ export function buildGosuDispositionReport(directory, report) {
       );
     }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     runId: report.runId,
     sourceTree: report.sourceTree,
     policySha256: hash(policyBytes),
@@ -319,7 +382,10 @@ export function buildGosuDispositionReport(directory, report) {
 export function verifyGosuDispositionReport(directory, report) {
   const expected = buildGosuDispositionReport(directory, report);
   assert.deepEqual(
-    parse(readBoundedNodeFile(join(directory, gosuEvidenceNames[2]), maximum)),
+    parse(
+      readBoundedNodeFile(join(directory, gosuEvidenceNames[2]), ledgerMaximum),
+      ledgerMaximum,
+    ),
     expected,
     "Retained vulnerability dispositions differ",
   );

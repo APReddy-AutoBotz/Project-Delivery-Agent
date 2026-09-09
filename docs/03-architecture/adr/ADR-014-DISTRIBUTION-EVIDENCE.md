@@ -31,6 +31,26 @@ collection never constitutes commercial approval. A separate release-readiness
 check must refuse an incomplete review. STORY-004 remains open until AC-MNT-004's
 complete rejection and release-review contract is independently proven.
 
+## 2026-09-09 amendment: multiple independently reviewed gosu advisories
+
+Schema 10 retains the same 85 files and replaces the single-rule contract with a
+finite reviewed list of 23 rules: the previous advisory and 22 additional advisory
+IDs. Each rule pins the original native advisory semantics and authenticated
+primary source, including every affected import across all modules. Independently
+validate each observation. Derive a disposition only if every required package is
+absent from complete emitted/inline names and source paths in the exact previously
+reviewed binary. A present os package is an explicit control; GO-2026-4970 is not
+authorized by this policy. No partial function-absence rule is added.
+
+Policy, analysis and ledger schema versions become 2. Bound policy/analysis at
+128 KiB and the occurrence ledger at 512 KiB. Preserve all prior subject/metadata
+hashes, source/image/package/file/layer relationships, fresh scanner checks and
+independently trusted checkout comparison. Duplicate scanner observations remain
+separate ledger records; duplicate rules or incomplete package coverage fail.
+Cross-advisory semantics cannot inherit another rule's disposition. Keep every
+native match and severity count untouched. This extends only advisory applicability
+evidence and does not clear another release gate or change customer runtime bytes.
+
 ## 2026-09-09 amendment: exact binary vulnerability dispositions
 
 Schema 9 adds a reviewed gosu policy, static metadata analysis receipt and derived

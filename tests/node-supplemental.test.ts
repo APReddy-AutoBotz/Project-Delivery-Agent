@@ -699,7 +699,7 @@ function archive(
       rewrite(`${target}.layers.review.json`, entry.allLayers);
     }
     const report = {
-      schemaVersion: 9,
+      schemaVersion: 10,
       status: "complete",
       runId: "pdaa-distribution-1234567890-12345678",
       images,

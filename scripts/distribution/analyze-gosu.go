@@ -104,6 +104,28 @@ func main() {
 	}
 	sort.Strings(files)
 	sort.Strings(tlsFiles)
+	// Query the entire emitted/inline name pool, not just exported or emitted
+	// symbols. Include a present package as a negative control for exclusions.
+	packages := []map[string]any{}
+	for _, path := range []string{"crypto/tls", "crypto/x509", "encoding/asn1", "encoding/pem", "encoding/xml", "golang.org/x/net/http2", "golang.org/x/net/idna", "mime", "net", "net/http", "net/http/internal/http2", "net/mail", "net/url", "os"} {
+		packageNames, packageFunctions, packageFiles := []string{}, []string{}, []string{}
+		for _, name := range names {
+			if strings.Contains(name, path+".") {
+				packageNames = append(packageNames, name)
+			}
+		}
+		for _, name := range functions {
+			if strings.Contains(name, path+".") {
+				packageFunctions = append(packageFunctions, name)
+			}
+		}
+		for _, name := range files {
+			if strings.HasPrefix(name, path+"/") || strings.Contains(name, "/"+path+"/") {
+				packageFiles = append(packageFiles, name)
+			}
+		}
+		packages = append(packages, map[string]any{"path": path, "names": packageNames, "functions": packageFunctions, "files": packageFiles})
+	}
 	encodeHash := func(v any) string {
 		b, e := json.Marshal(v)
 		if e != nil {
@@ -112,7 +134,7 @@ func main() {
 		return fmt.Sprintf("%x", sha256.Sum256(b))
 	}
 	result := map[string]any{
-		"schemaVersion": 1, "method": "Go debug/elf + debug/buildinfo + debug/gosym and complete funcnametab",
+		"schemaVersion": 2, "method": "Go debug/elf + debug/buildinfo + debug/gosym and complete funcnametab",
 		"toolchain": runtime.Version(), "subjectSha256": fmt.Sprintf("%x", sha256.Sum256(raw)), "subjectSize": len(raw),
 		"goVersion": bi.GoVersion, "module": bi.Main.Path, "version": bi.Main.Version, "elfSections": len(f.Sections),
 		"functions": len(functions), "files": len(files), "functionNames": len(names),
@@ -121,6 +143,7 @@ func main() {
 		"positiveControls": []string{"main.main", "main.SetupUser"}, "cryptoTlsFunctions": tlsFunctions, "cryptoTlsNames": tlsNames, "cryptoTlsFiles": tlsFiles,
 		"coverageBasis":   "Go1.24.6 linker walkFuncs/generateFuncnametab includes every emitted function and inlined function; no module-only fallback",
 		"subjectExecuted": false,
+		"packages":        packages,
 	}
 	e := json.NewEncoder(os.Stdout)
 	e.SetIndent("", "  ")

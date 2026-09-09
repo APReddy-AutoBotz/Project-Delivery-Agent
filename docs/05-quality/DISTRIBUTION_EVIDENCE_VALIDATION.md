@@ -3,62 +3,61 @@
 Requirements: NFR-SEC-010, NFR-MNT-004, TR-TEST-001/002; AC-MNT-004;
 OPEN_SOURCE_POLICY; STORY-004; Issue #5; ADR-014; EXEC-003.
 
-## Scoped gosu code-absence dispositions, 2026-09-09
+## Gosu advisory batch, 2026-09-09
 
-Schema 9 requires 85 evidence files: the existing 82 plus the trusted gosu policy,
-static analysis receipt and derived vulnerability occurrence ledger. The separate
-ledger binds GO-2026-4337 to the exact reviewed binary in database/operations and
-both scopes. All original findings and severity counts remain unchanged. The other
-822 High/Critical observations in the PR #37 baseline receive no new disposition.
+Schema 10 keeps 85 files. Policy/analysis/ledger version 2 supports 23 independently
+scoped rules, comprising the previous GO-2026-4337 rule and 22 additional advisory
+IDs. The PR #38 baseline contains 88 newly covered observations plus four previous
+dispositions; all 826 original High/Critical observations remain intact. The other
+734 observations receive no new disposition. Four GO-2026-4970 instances remain
+open: os is present and this batch does not establish a function-level exclusion.
 
-Independent standard Go replay and an independent ELF metadata parser agree on
-2,020 emitted functions, 3,019 complete function-name entries and 271 files, with
-positive main entrypoints and no crypto/tls code. The matching Go1.24.6 linker's
-function-name table includes inlined functions. The retained binary matches the
-unique physical file hash/size in each accepted scope. Static evidence defeats
-this advisory's required-code precondition; a TLS harness using different bytes
-would not validate the shipped executable. No gosu execution, source rebuild or
-upstream signature verification is claimed.
+Primary advisory evidence retains exact source hashes and all affected imports,
+symbols and version ranges, including multiple-module advisories. The first-party
+`scripts/distribution/analyze-gosu.go` reader queries complete emitted/inline names,
+emitted functions and source files, including trimpath-relative paths. It retains
+all prior full-list and ELF section hashes. Required packages have zero matches;
+the os control has 36 functions, 51 names and 15 files. Independent replay and
+per-occurrence native bindings are required before these results are accepted.
 
-The first-party `scripts/distribution/analyze-gosu.go` utility can reproduce the
-receipt from the exact 1,769,900-byte binary using the project's pinned
-`golang:1.26.8-alpine3.23` image digest from `deploy/Dockerfile`. Run `go run` on the
-utility with the retained binary path as its only argument, inside an offline,
-nonroot container with a read-only root and inputs, all capabilities dropped,
-no-new-privileges, bounded memory/CPU/PIDs and disposable executable build tmpfs.
-Set GOTOOLCHAIN=local, GOPROXY=off, GOSUMDB=off and GOCACHE in that tmpfs. This
-executes the first-party analyzer only. Compare parsed output with the committed
-receipt; missing metadata and an unexpected subject fail before any result.
+Run the utility against the exact 1,769,900-byte binary using the pinned
+`golang:1.26.8-alpine3.23` digest from `deploy/Dockerfile`. Use an offline nonroot
+container with read-only root/inputs, no capabilities, no-new-privileges, bounded
+memory/CPU/PIDs and disposable executable build tmpfs. Set GOTOOLCHAIN=local,
+GOPROXY=off, GOSUMDB=off and GOCACHE in tmpfs. Only the first-party reader executes;
+gosu is data. A replacement harness or separate PostgreSQL service would test
+different code. No target execution, reproducible build or upstream signature
+verification is claimed.
 
-Regression coverage includes all four scopes, duplicate occurrence preservation,
-foreign binary/namespace/target exclusion, advisory changes, ambiguous/missing
-physical files, package/main-module/compiler/path/layer/digest changes, stale scans,
-duplicate JSON keys, incomplete/module-only extraction and retained identity or
-analysis forgeries. Replay uses independent trusted checkout policy/receipt content,
-then derives every occurrence and raw match/input digest anew. Scan databases must
-still be fresh. Absent matches yield no disposition; every remaining vulnerability
-and all five release gates continue to block commercial release.
+Regression coverage includes every rule, all four scopes, separate duplicate
+observations, cross-advisory confusion, incomplete affected-import coverage,
+missing/ambiguous metadata, present emitted/inline/file evidence and a ledger
+larger than the previous 64 KiB bound. Policy/analysis are bounded at 128 KiB;
+ledger reads at 512 KiB. Prior image/package/file/layer/advisory/freshness and forged
+archive rejection tests remain. Original scans and all five blockers are preserved.
 
-Native lint/type checking, 418 unit tests across 23 files (46 new disposition
-regressions), seven builds, thirteen documentation regressions and traceability
-pass. The existing startup-disclosure test timed out once during a cold full run;
-it then passed in isolation and in the complete rerun without changing its timeout
-or assertion. Four real baseline occurrences replay successfully. Independent
-precheck prompted explicit primary-file/dependency relationships, main-module
-identity, preserved severity totals and trusted scanner-pin assertions; denial
-tests cover each repair. Independent immutable-candidate review, fresh packaged
-CI and downloaded artifact verification remain merge requirements.
+The focused disposition/distribution gate passes 108 tests. Native lint/type
+checking, 433 unit tests in 23 files, seven builds, 13 documentation regressions
+and traceability pass. Independent static replay validates 88 exclusions and
+defers four Root observations; the checker reconstructs all 92 baseline ledger
+rows and preserves every original artifact. Independent candidate review, fresh
+packaged CI and downloaded evidence comparison remain required for this increment.
+Compare original native rows to accepted PR #38
+without new payload exceptions, preserving all source and notice evidence.
 
-The first PR #38 CI candidate passed unit checks but failed the unchanged High
-dependency-audit gate on newly published Multer advisories. The reviewed 2.3.0
-override supersedes that candidate. Fresh local audit reports zero findings and
-all 38 direct/override records reconcile. Both publisher tarballs match their
-lockfile SHA-512 pins; only six package files change, while the MIT LICENSE,
-entrypoint, Node engine and runtime dependency ranges are identical. The updated
-dependency passes all 418 unit tests, lint/type checking, seven builds and document
-checks. Fresh image acceptance and the concrete package/lock delta must still be
-verified before merge. Multipart configuration limits remain a prerequisite for
-future upload functionality; no upload route is added here.
+The first fresh CI passed packaged acceptance and failed while copying the
+66,208-byte policy through an obsolete 64 KiB collector read bound. Collection
+and trusted replay now share the same fixed-name 128 KiB reader. Tests exercise
+the real expanded policy and reject foreign anchor paths; independent review
+reproduced both the old rejection and corrected copy/revalidation. The corrected
+candidate passed the complete native gate and requires fresh review/CI/evidence.
+
+PR #38 passed all merge gates at `24894ba`, including independent candidate and
+fresh evidence reviews, 418 unit tests, ten integration tests, eight browser tests,
+17 packaged groups/two profiles, recovery and all 85 retained files. Candidate and
+merged-main CI passed. Its reviewed Multer 2.3.0 override passed audit and exact
+package/lock/notice comparison; future multipart work still needs finite upload
+limits, including fieldArrayIndexLimit. No upload route is currently present.
 
 ## Retained selected-source correspondence, 2026-09-08
 
