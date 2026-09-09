@@ -6,6 +6,23 @@ separate from story acceptance.
 
 ## Repository and review
 
+### Durable human fact history, 2026-09-10
+
+[PR #42](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/42)
+merged reviewed candidate `4d18377551c5a88639ef4ade9d13e58b02547a58` as
+`062fcd741c74fba38a6943fb5fe95b7efee52cf9`, tree
+`1c8997710959fc65e8a4cb87304f14e5ffb88dc0`, at 2026-09-09T20:00:11Z.
+Candidate Foundation `34394598746` and Documentation `34394598828` passed;
+separate immutable code and both fresh original-artifact reviews approved the
+same candidate. Main Foundation `34398409132` and Documentation `34398409113`
+also passed. Native 616 unit/28 database cases, eight candidate browser regressions,
+18 packaged groups and seven builds passed. The additive seven-table migration
+preserves old data and validates current runtime grants and quarantined recovery.
+The [public completion record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/42#issuecomment-5607921008)
+and PROJECT_FACT_PERSISTENCE_VALIDATION.md retain scope and evidence. This
+supersedes the historical pending PR42 gates below; no full Issue #6 criterion,
+R1 story, customer release or real-source activation is accepted.
+
 ### Temporal fact component, 2026-09-09
 
 [PR #41](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/41)

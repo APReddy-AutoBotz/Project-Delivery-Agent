@@ -35,6 +35,18 @@ actor exports retain their prior contract. No runtime dependency or connector
 scope is added. There is no new route, UI, model tool, outbound action or ingestion
 path, and no SYSTEM_VERIFIED assertion can enter through this human repository.
 
+## Verified merge and final gates
+
+PR #42 merged as `062fcd741c74fba38a6943fb5fe95b7efee52cf9` after review of
+`4d18377551c5a88639ef4ade9d13e58b02547a58`. Candidate Foundation `34394598746`
+and Documentation `34394598828` passed, followed by independent original ZIP,
+database/production/distribution and source-derived payload reviews. All 18
+packaged acceptance groups and eight browser regressions passed. Main repeat
+Foundation `34398409132` and Documentation `34398409113` also passed. The final
+merge matches the reviewed tree and ordered base/candidate parents. This section
+supersedes premerge pending-gate statements retained below as execution history.
+No full R1 story or release gate is accepted by this bounded repository increment.
+
 ## Executed native checks and failure history
 
 The focused domain/error suite passes 32 cases. Fresh/repeated PostgreSQL install

@@ -1,8 +1,8 @@
 # EXEC-004: Canonical projects and immutable evidence
 
-Status: In progress; temporal component merged in PR #41; project-fact persistence slice in design review.
+Status: In progress; PR41 temporal model and PR42 persistence merged; authority resolver design reviewed.
 Owner: Implementation controller
-Updated: 2026-09-09
+Updated: 2026-09-10
 Issue: #6, STORY-010/011/012; target R1; requirements FR-ADM-005,
 FR-MOD-001/002/004/005/007, FR-EVD-001/002/003/004/006/007/010/012.
 Adjacent scope: FR-MOD-003/006, FR-EVD-005/009, NFR-SEC-001.
@@ -387,3 +387,120 @@ artifact gates are recorded in PROJECT_FACT_PERSISTENCE_VALIDATION.md.
 
 Technical references: [PostgreSQL 17 locks](https://www.postgresql.org/docs/17/explicit-locking.html)
 and [Prisma 7 transactions](https://docs.prisma.io/docs/orm/v7/prisma-client/queries/transactions).
+
+## Next slice: explicit historical source-authority resolution
+
+Base main 062fcd741c74fba38a6943fb5fe95b7efee52cf9; PR42 merged and its main
+Foundation run34398409132 now passed. Root implements; separate agent reviews.
+Partial FR-ADM-005, FR-EVD-003/004/006/007/009/010/012 under Issue6. ADR009/010,
+SOURCE_AUTHORITY_MODEL and the full EXEC004 govern; no story acceptance.
+
+Implement a complete bounded internal domain evaluator plus meaningful tests.
+Policy persistence, administrative authorization, active-policy selection, trusted
+ingestion, durable frozen assessments and API/UI follow. Never wire this function
+to a route or model tool; inputs are trusted server snapshots and the result is
+explicitly historical. No database, permission grant, connector or dependency change.
+
+Input is strict, detached and bounded: fact scope, explicit asOf, complete boolean,
+one immutable policy revision or null, up to1000 temporal versions/conflicts, source
+instance metadata and evidence permission/verification descriptors. A complete=false
+input produces INCOMPLETE and no resolved value; oversize or malformed input rejects
+with a constant generic error, never input values. The caller is responsible for
+proving completeness of source heads and unresolved-conflict dependencies; history
+pagination is never treated as an authority snapshot.
+
+Policy contains revisionId, exact customer/project/factType, recordedAt, effectiveAt,
+ordered tiers, and conflictBehavior RETAIN_CONFLICT or REQUEST_RECONCILIATION. Each
+tier has selectors with sourceType, optional instance UUID, requiredApproval
+APPROVED or NOT_REQUIRED, and optional fixed-duration freshness policy/basis. An
+absent policy or a revision not yet recorded/effective at asOf never resolves. No
+implicit default/winner, scope inheritance or hardcoded customer authority matrix.
+Selectors for a source type cannot overlap (wildcard plus specific, repeated instance)
+within/across tiers. Multiple nonoverlapping selectors in a tier have equal authority.
+
+Each version is the existing immutable temporal version plus trusted approval
+metadata: state APPROVED/PENDING/REJECTED/NOT_REQUIRED, decisionAt and decisionId
+(both required only for APPROVED/REJECTED). This represents a single immutable
+initial decision, not a mutable last-decision field or approval event history.
+Before a future decisionAt the decision is pending; later approval revocation or
+replacement cannot be represented by rewriting it and must make the supplied
+evidence UNVERIFIABLE until a later reviewed approval-history adapter exists.
+REJECTED at/before asOf always excludes even if approval is not required. Source
+types are supplied per immutable
+instance, never inferred from provenance or source text. Evidence descriptors bind
+the exact fact scope and each dependency ID to access AUTHORIZED/RESTRICTED and,
+separately, verification VALID/REVOKED/DELETED/UNVERIFIABLE. Both AUTHORIZED and
+VALID are required for content disclosure and value eligibility.
+All source instances/evidence dependencies must have exactly one descriptor; no
+orphans, duplicate identities or cross-scope references. Decision time cannot
+precede version observation. Approval is evaluated at asOf; future decisions cannot
+authorize earlier evidence. No human approval operation is introduced.
+
+Run the existing temporal evaluator across ALL versions before eligibility filters
+so an excluded/revoked/unapproved newer stream head never resurrects its predecessor.
+Retain superseded, future and tied versions. Determine each matching selector's
+freshness from its configured basis/duration and the version's explicit validity,
+taking the earliest deadline; missing validity is UNKNOWN. Preserve existing
+unresolved conflicts independently of policy eligibility, freshness and supersession.
+
+Find the first tier having temporal APPLICABLE or AMBIGUOUS, approved, authorized,
+valid, CURRENT, SYSTEM_VERIFIED/HUMAN_CONFIRMED candidates. Unknown/inferred origins
+can never supply a resolved value. All same-tier applicable alternatives participate;
+different typed values imply CONFLICTING, including empty-vs-scalar and date-vs-text.
+An ambiguous stream in that tier blocks fallback/selection rather than choosing by
+input order. Higher-tier stale/unknown/unapproved/absent candidates permit configured
+fallback; lower tiers remain secondary evidence. Previously recorded unresolved
+contradictions remain blocking across all tiers and never disappear upon expiry.
+Before a human fallback can resolve, compare it with every authorized, valid,
+approval-qualified SYSTEM_VERIFIED/HUMAN_CONFIRMED head in higher tiers, including
+STALE/UNKNOWN higher heads and ambiguous alternatives. A differing typed value
+creates a new blocking conflict retaining both dependencies and marks both rows
+CONFLICTING. A higher source expiring cannot alone promote a contradictory human
+fallback, even when no prior conflict was persisted. This guard concerns selected
+human fallback values; secondary owner proposals do not overwrite a current primary.
+New cross-source disagreement in the selected tier is returned as deterministic
+version/evidence dependency sets, not a fabricated persisted conflict ID.
+The higher-authority check unions only actual disagreement participants into one
+deterministic group. Bound aggregate conflict evidence references to 64,000 while
+constructing each group's unique set, before expanded arrays are allocated.
+Over-budget snapshots reject entirely; no truncation or partial resolution.
+
+Conservative disclosure: if any input evidence descriptor has RESTRICTED access or
+verification other than VALID (including REVOKED and DELETED), no resolved value is returned and revalidationRequired=true. Such
+versions return only version/evidence IDs and a restricted marker, with no value,
+source record text, approval metadata, timestamps, provenance or other content.
+This first evaluator does not optimize irrelevant inaccessible historical rows;
+the later authorized repository reader must supply a complete minimal snapshot.
+Frozen assessments always require fresh permission checks on later delivery.
+
+Output retains scope/asOf/explicit policy revision and HISTORICAL mode; complete,
+revalidationRequired, status (NO_POLICY/POLICY_NOT_APPLICABLE/INCOMPLETE/
+REVALIDATION_REQUIRED/CONFLICTING/AMBIGUOUS/UNKNOWN/RESOLVED), selectedTier,
+resolvedValue (only on RESOLVED), every selected supporting version/evidence ID,
+all authorized candidates with orthogonal dimensions and eligibility explanation,
+restricted envelopes and conflict dependencies. RESOLVED means only the explicit
+historical policy computation; never a settled current application fact. Deep freeze
+the detached result and preserve the complete policy for reproducible prior output.
+
+Tests: primary/instance matching, approved timing and rejected metadata, multi-source
+equal/disagreeing typed values, ordered fallback, no fallback on ambiguity/conflict,
+no predecessor resurrection, policy revision/time changes, frozen replay, scope and
+duplicate validation, missing/orphan evidence, restricted copied values, inference,
+missing validity/expiry/overflow, retained stale+conflicting human provenance,
+incomplete/oversize inputs, deterministic ordering and text treated as data.
+
+Files: packages/domain/src/source-authority.ts, domain index export,
+tests/source-authority.test.ts; EXEC004, validation/index/status/publication docs.
+Run focused and full unit, lint/typecheck/build, architecture/OpenAPI/dependencies,
+documentation validator/regressions; immutable non-author review and candidate CI
+with applicable fresh original-artifact checks remain merge gates. Recovery is a
+reviewed application revert; storage and existing migrations remain unchanged.
+
+Implementation evidence: the domain resolver and 69 focused cases are implemented.
+The full native 685-test suite, lint/typecheck, seven builds, architecture/OpenAPI,
+38 registered dependencies and documentation validation/13 regressions pass.
+Independent pre-review passes 26 additional edge probes and dense 1,000-version
+resource checks. The first full run's unchanged startup-disclosure timeout and
+successful unchanged retries are preserved in SOURCE_AUTHORITY_VALIDATION.md.
+Immutable candidate review, candidate CI and fresh original-artifact gates remain
+required before merge. No R1 acceptance criterion is claimed complete.
