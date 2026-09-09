@@ -132,6 +132,8 @@
 - `docs/04-delivery/IMPLEMENTATION_STATUS.md`: merged partial progress versus accepted stories.
 - `docs/04-delivery/exec-plans/EXEC-002-platform-foundation.md`: foundation scope and evidence.
 - `docs/04-delivery/exec-plans/EXEC-003-customer-hosted-foundation.md`: production boundary implementation and remaining release gates.
+- `docs/04-delivery/exec-plans/EXEC-004-canonical-model.md`: synthetic canonical/evidence implementation, temporal model and outstanding storage/API acceptance.
+- `docs/05-quality/TEMPORAL_FACT_MODEL_VALIDATION.md`: internal temporal assessment checks, partial requirement evidence and storage/API/disclosure limits.
 - `docs/03-architecture/adr/ADR-011-FOUNDATION-DEPLOYMENT-BOUNDARIES.md`: approved native component and production transport boundaries.
 - `docs/03-architecture/adr/ADR-012-EXECUTABLE-FOUNDATION-CONTRACTS.md`: runtime REST contracts, import boundaries and foundation acceptance gates.
 - `docs/03-architecture/adr/ADR-013-FOUNDATION-OPERATIONS.md`: provisioning, migration, encrypted backup, quarantined restore and restart boundaries.

@@ -46,12 +46,35 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Selected Node source correspondence | [#37](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/37) | `a9e633c` | `89f6061` |
 | First gosu dispositions and Multer remediation | [#38](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/38) | `10ee5eb` | `24894ba` |
 | Gosu advisory applicability batch | [#39](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/39) | `b649711` | `8f66e94` |
+| Package architecture evidence | [#40](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/40) | `d678cf1` | `5d45e1d` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
 backlog links are in [PUBLICATION_RECORD.md](PUBLICATION_RECORD.md).
 
 ## Implemented and verified
+
+PR #40 is accepted at `5d45e1d`. Candidate native/CI checks, separate immutable
+review and both independent fresh-evidence reviews passed. Validation includes
+520 unit tests, ten integration tests, eight browser tests, seven builds and 17
+packaged groups across two profiles. Schema 11 retains 87 evidence files and 112
+separate supported dispositions. All original scanner results and reviewed
+metadata changes are retained; the current scan adds four unreviewed observations.
+All release-review gates remain open. Earlier PR #40 pending statements below are
+historical. The main-branch repeat foundation and documentation workflows also
+passed (runs 34378063156 and 34378063148).
+
+The controller has activated synthetic canonical/evidence development under
+[EXEC-004](exec-plans/EXEC-004-canonical-model.md). This explicit sequencing decision
+supersedes the historical next-task sentence below and in PUBLICATION_RECORD.md;
+it applies the master plan's delivered foundation controls, per-increment checks
+and separate release gates. The first internal temporal fact model is implemented;
+64 focused cases and the full 584-test native suite pass. Independent pre-review
+verified the UUID identity correction. Final candidate review, CI and packaged
+evidence remain merge gates. Durable storage, current authorization, authority
+resolution and API/browser workflows follow. No R1 criterion or story is accepted
+by the plan or partial domain code.
+Issue #5, STORY-004/005 and customer-source activation remain open.
 
 PR #39 is accepted at `8f66e94`. The corrected candidate and merged-main CI passed,
 with independent immutable-candidate/fresh-evidence reviews, 433 unit tests, ten
