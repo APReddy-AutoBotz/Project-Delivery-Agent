@@ -11,6 +11,23 @@ export {
 
 export { assessFact, provenanceSchema, type Provenance } from "./fact-state.js";
 export {
+  authorityDefinitionSchema,
+  authorityTargetSchema,
+  authorityPolicyChangeSchema,
+  assessmentCaptureSchema,
+  assessmentReadSchema,
+  type AuthorityDefinition,
+  type AuthorityPolicyChange,
+  type AuthorityTarget,
+  type AssessmentCapture,
+  type AssessmentRead,
+  type AuthorityAssessment,
+  type AuthorityPolicyEvent,
+  type ActiveAuthorityPolicy,
+  type AssessmentDelivery,
+  type AuthorityRepository,
+} from "./authority-persistence.js";
+export {
   assessTemporalFactHistory,
   temporalFactSnapshotSchema,
   type TemporalFactSnapshot,

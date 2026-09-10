@@ -6,6 +6,29 @@ separate from story acceptance.
 
 ## Repository and review
 
+### Historical source authority, 2026-09-10
+
+[PR #43](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/43)
+merged reviewed candidate `7f3fcce746f76ccb4d17ce8318e824386fee6ee3` as
+`9c97bf98ae94043ec3cc9b88bc5dd50353f8840b`, tree
+`51150da39d64fdbf583359e009de691334204c7d`, at 2026-09-09T23:06:22Z.
+Candidate Foundation `34412670846` and Documentation `34412670830` passed,
+with separate immutable code/build review and both original-artifact reviews.
+Main Foundation `34415409978` and Documentation `34415410077` also passed.
+Native validation passed 685 unit tests, including 69 focused resolver cases;
+candidate CI passed 28 database cases, eight browser regressions, seven builds
+and 18 packaged groups. The
+[public completion record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/43#issuecomment-5609954850)
+supersedes its earlier premerge pending statements. No schema, permission,
+dependency or connector scope changed in that increment.
+
+Durable policy and captured-assessment integration follows the independently
+reviewed EXEC-004 design and AUTHORITY_PERSISTENCE_VALIDATION.md. Its additive
+migration, current authorization, frozen result integrity, genuine prior-release
+upgrade and quarantined recovery remain subject to candidate checks and review.
+Issue #6 remains open with all six criteria unchecked. R0 remains 3/5 and R1
+0/33 accepted stories; all five distribution/security/signing release gates stay open.
+
 ### Durable human fact history, 2026-09-10
 
 [PR #42](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/42)

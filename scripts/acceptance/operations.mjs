@@ -12,6 +12,15 @@ import { assertEmptyTarget } from "../../packages/operations/dist/config.js";
 import { createDatabase } from "../../packages/data/dist/index.js";
 import { verifyFoundationUpgrade } from "./project-fact-upgrade.mjs";
 import {
+  authorityProjection,
+  seedAuthorityHistory,
+  verifyAuthorityPrivileges,
+  verifyAuthorityImmutable,
+  verifyAuthorityIntegrity,
+  verifyAssessmentCommitGuards,
+  verifyAuthorityWorkerDenials,
+} from "./authority-assessments.mjs";
+import {
   projectFactProjection,
   seedProjectFactHistory,
   verifyProjectFactPrivileges,
@@ -43,7 +52,10 @@ async function inDatabase(name, fn) {
   }
 }
 const projection = async (pool) => {
-  const result = await projectFactProjection(pool);
+  const result = {
+    ...(await projectFactProjection(pool)),
+    ...(await authorityProjection(pool)),
+  };
   for (const table of [
     "Customer",
     "Portfolio",
@@ -156,7 +168,7 @@ try {
     const sql =
       "CREATE TABLE atomic_probe(id int); SELECT definitely_missing_function();";
     const failing = {
-      name: "202609090002_failure",
+      name: "202609100002_failure",
       sql,
       checksum: createHash("sha256").update(sql).digest("hex"),
     };
@@ -172,6 +184,11 @@ try {
       assert.equal((await history(pool)).length, migrations.length);
     });
     const upgrade = await verifyFoundationUpgrade(admin, migrations);
+    const authorityUpgrade = await verifyFoundationUpgrade(
+      admin,
+      migrations,
+      2,
+    );
     const factFixture = await seedProjectFactHistory(
       admin,
       config("database", "pdaa_api", "api-password").database,
@@ -181,6 +198,16 @@ try {
     );
     await verifyProjectFactPrivileges(admin);
     await verifyImmutableProjectFacts(admin);
+    const authorityFixture = await seedAuthorityHistory(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      "30000000-0000-4000-8000-000000000001",
+      "packaged",
+    );
+    await verifyAuthorityPrivileges(admin);
+    await verifyAuthorityImmutable(admin);
+    await verifyAuthorityIntegrity(admin);
     const workerRuntimeDenied = await verifyWorkerFactDenials(
       config("database", "pdaa_worker", "worker-password").database,
     );
@@ -190,6 +217,11 @@ try {
         {
           status: "awaiting-restore",
           upgrade,
+          authorityUpgrade,
+          authorityFixture,
+          authorityWorkerDenied: await verifyAuthorityWorkerDenials(
+            config("database", "pdaa_worker", "worker-password").database,
+          ),
           factFixture,
           workerRuntimeDenied,
           beforeBackupWorker: await workerCheckpoint(admin),
@@ -277,6 +309,10 @@ try {
       );
       await verifyProjectFactPrivileges(pool);
       await verifyImmutableProjectFacts(pool);
+      await verifyAuthorityPrivileges(pool);
+      await verifyAuthorityIntegrity(pool);
+      await verifyAuthorityImmutable(pool);
+      const authorityCommitGuards = await verifyAssessmentCommitGuards(pool);
       const receipt = JSON.parse(
         readFileSync(output + "/project-fact-persistence.json", "utf8"),
       );
@@ -286,6 +322,8 @@ try {
         runtimeQuarantineChecked: true,
         ownersFunctionsAndPrivilegesChecked: true,
         immutableHistoryChecked: true,
+        authorityIntegrityChecked: true,
+        authorityCommitGuards,
         workerCheckpoint: await verifyRestoredWorker(
           admin,
           pool,

@@ -34,6 +34,7 @@ model Project {
   customer Customer @relation(fields: [customerId], references: [id])
   portfolio Portfolio @relation(fields: [customerId, portfolioId], references: [customerId, id])
   facts ProjectFact[]
+  authorityPolicies AuthorityPolicy[]
   @@unique([customerId, code])
   @@unique([customerId, id])
 }
@@ -83,6 +84,9 @@ model ProjectFact {
   project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
   sources FactSource[]
   versions ProjectFactVersion[]
+  authorityConflicts FactAuthorityConflict[]
+  assessments FactAssessment[]
+  @@unique([customerId, projectId, id, factType], map: "ProjectFact_typed_scope_key")
   @@unique([customerId, projectId, id])
   @@unique([customerId, projectId, factType])
 }
@@ -147,6 +151,9 @@ model ProjectFactVersion {
   fact ProjectFact @relation(fields: [customerId, projectId, factId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
   evidence FactEvidence @relation(fields: [customerId, projectId, factId, sourceId, evidenceId], references: [customerId, projectId, factId, sourceId, id], onDelete: Restrict, onUpdate: Restrict, map: "ProjectFactVersion_evidence_fkey")
   receipts FactAppendReceipt[]
+  conflictLeft FactAuthorityConflict[] @relation("conflictLeft")
+  conflictRight FactAuthorityConflict[] @relation("conflictRight")
+  assessments FactAssessmentVersion[]
   @@unique([customerId, projectId, factId, id], map: "ProjectFactVersion_scope_key")
   @@unique([customerId, projectId, factId, revision], map: "ProjectFactVersion_revision_key")
   @@unique([customerId, projectId, factId, sourceId, evidenceId], map: "ProjectFactVersion_scoped_evidence_key")
@@ -162,4 +169,120 @@ model FactAppendReceipt {
   versionId String @db.Uuid
   version ProjectFactVersion @relation(fields: [customerId, projectId, factId, versionId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict, map: "FactAppendReceipt_version_fkey")
   @@unique([customerId, projectId, subject, idempotencyKey], map: "FactAppendReceipt_request_key")
+}
+
+model AuthorityPolicy {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factType String @db.VarChar(96)
+  revision Int @default(0)
+  project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
+  events AuthorityPolicyRevision[]
+  @@unique([customerId, projectId, factType])
+  @@unique([customerId, projectId, factType, id], map: "AuthorityPolicy_scope_key")
+}
+model AuthorityPolicyRevision {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factType String @db.VarChar(96)
+  policyId String @db.Uuid
+  revision Int
+  recordedAt DateTime @db.Timestamptz(3)
+  recordedBy String @db.VarChar(256)
+  effectiveAt DateTime @db.Timestamptz(3)
+  state String @db.VarChar(16)
+  definition Json?
+  policy AuthorityPolicy @relation(fields: [customerId, projectId, factType, policyId], references: [customerId, projectId, factType, id], onDelete: Restrict, onUpdate: Restrict)
+  receipts AuthorityPolicyReceipt[]
+  conflicts FactAuthorityConflict[]
+  selectedAssessments FactAssessment[] @relation("assessmentPolicy")
+  prefixAssessments FactAssessment[] @relation("assessmentPolicyPrefix")
+  @@unique([customerId, projectId, factType, id], map: "AuthorityPolicyRevision_scope_key")
+  @@unique([customerId, projectId, factType, policyId, revision], map: "AuthorityPolicyRevision_counter_key")
+}
+model AuthorityPolicyReceipt {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factType String @db.VarChar(96)
+  subject String @db.VarChar(256)
+  idempotencyKey String @db.VarChar(128)
+  requestHash String @db.Char(64)
+  revisionId String @db.Uuid
+  event AuthorityPolicyRevision @relation(fields: [customerId, projectId, factType, revisionId], references: [customerId, projectId, factType, id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([customerId, projectId, subject, idempotencyKey], map: "AuthorityPolicyReceipt_request_key")
+}
+model FactAuthorityConflict {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factId String @db.Uuid
+  factType String @db.VarChar(96)
+  leftVersionId String @db.Uuid
+  rightVersionId String @db.Uuid
+  policyRevisionId String @db.Uuid
+  detectedAt DateTime @db.Timestamptz(3)
+  revision Int
+  fact ProjectFact @relation(fields: [customerId, projectId, factId, factType], references: [customerId, projectId, id, factType], onDelete: Restrict, onUpdate: Restrict)
+  leftVersion ProjectFactVersion @relation("conflictLeft", fields: [customerId, projectId, factId, leftVersionId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
+  rightVersion ProjectFactVersion @relation("conflictRight", fields: [customerId, projectId, factId, rightVersionId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
+  policy AuthorityPolicyRevision @relation(fields: [customerId, projectId, factType, policyRevisionId], references: [customerId, projectId, factType, id], onDelete: Restrict, onUpdate: Restrict)
+  assessments FactAssessmentConflict[]
+  prefixAssessments FactAssessment[] @relation("assessmentConflictPrefix")
+  @@unique([customerId, projectId, factId, revision], map: "FactAuthorityConflict_revision_key")
+  @@unique([customerId, projectId, factId, id], map: "FactAuthorityConflict_scope_key")
+  @@unique([customerId, projectId, factId, leftVersionId, rightVersionId], map: "FactAuthorityConflict_pair_key")
+}
+model FactAssessment {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factId String @db.Uuid
+  factType String @db.VarChar(96)
+  factRevision Int
+  policyId String? @db.Uuid
+  policyThroughRevision Int?
+  policyRevisionId String? @db.Uuid
+  asOf DateTime @db.Timestamptz(3)
+  subject String @db.VarChar(256)
+  idempotencyKey String @db.VarChar(128)
+  requestHash String @db.Char(64)
+  evaluatorVersion Int @default(1)
+  complete Boolean
+  versionCount Int
+  conflictCount Int
+  conflictThroughRevision Int?
+  result Json
+  sealed Boolean @default(false)
+  fact ProjectFact @relation(fields: [customerId, projectId, factId, factType], references: [customerId, projectId, id, factType], onDelete: Restrict, onUpdate: Restrict)
+  policy AuthorityPolicyRevision? @relation("assessmentPolicy", fields: [customerId, projectId, factType, policyRevisionId], references: [customerId, projectId, factType, id], onDelete: Restrict, onUpdate: Restrict)
+  policyPrefix AuthorityPolicyRevision? @relation("assessmentPolicyPrefix", fields: [customerId, projectId, factType, policyId, policyThroughRevision], references: [customerId, projectId, factType, policyId, revision], onDelete: Restrict, onUpdate: Restrict)
+  versions FactAssessmentVersion[]
+  conflicts FactAssessmentConflict[]
+  conflictPrefix FactAuthorityConflict? @relation("assessmentConflictPrefix", fields: [customerId, projectId, factId, conflictThroughRevision], references: [customerId, projectId, factId, revision], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([customerId, projectId, factId, id], map: "FactAssessment_scope_key")
+  @@unique([customerId, projectId, subject, idempotencyKey], map: "FactAssessment_request_key")
+}
+model FactAssessmentVersion {
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factId String @db.Uuid
+  assessmentId String @db.Uuid
+  versionId String @db.Uuid
+  sourceAccessRevision Int
+  assessment FactAssessment @relation(fields: [customerId, projectId, factId, assessmentId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
+  version ProjectFactVersion @relation(fields: [customerId, projectId, factId, versionId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
+  @@id([assessmentId, versionId], map: "FactAssessmentVersion_pkey")
+}
+model FactAssessmentConflict {
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  factId String @db.Uuid
+  assessmentId String @db.Uuid
+  conflictId String @db.Uuid
+  assessment FactAssessment @relation(fields: [customerId, projectId, factId, assessmentId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
+  conflict FactAuthorityConflict @relation(fields: [customerId, projectId, factId, conflictId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
+  @@id([assessmentId, conflictId], map: "FactAssessmentConflict_pkey")
 }

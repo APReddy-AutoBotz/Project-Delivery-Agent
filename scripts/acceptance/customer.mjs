@@ -21,6 +21,16 @@ import {
   verifyRestoredWorker,
 } from "./project-facts.mjs";
 import {
+  authorityTables,
+  authorityProjection,
+  seedAuthorityHistory,
+  verifyAuthorityPrivileges,
+  verifyAuthorityImmutable,
+  verifyAuthorityIntegrity,
+  verifyAssessmentCommitGuards,
+  verifyAuthorityWorkerDenials,
+} from "./authority-assessments.mjs";
+import {
   createDisclosureCheck,
   readFixtureSecrets,
   observeBrowserDisclosure,
@@ -71,7 +81,10 @@ const save = (file, value) =>
 const read = (file) =>
   JSON.parse(readFileSync(`${output}/${file}.json`, "utf8"));
 async function projection(pool) {
-  const result = await projectFactProjection(pool);
+  const result = {
+    ...(await projectFactProjection(pool)),
+    ...(await authorityProjection(pool)),
+  };
   for (const table of [
     "Customer",
     "Portfolio",
@@ -263,6 +276,7 @@ try {
       "ConnectorCredential",
       "AuditEvent",
       ...projectFactTables,
+      ...authorityTables,
     ])
       assert.equal(
         state[table].length,
@@ -272,7 +286,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 2);
+    assert.equal(migrations.length, 3);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -354,6 +368,19 @@ try {
       "customer-" + profile,
     );
     await verifyImmutableProjectFacts(db);
+    const authorityFixture = await seedAuthorityHistory(
+      db,
+      loadDatabaseConfig({
+        ...env,
+        PDAA_DB_USER: "pdaa_api",
+        PDAA_DB_PASSWORD_FILE: "/run/secrets/api-password",
+      }).database,
+      env.CUSTOMER_ID,
+      projectId,
+      "customer-" + profile,
+    );
+    await verifyAuthorityPrivileges(db);
+    await verifyAuthorityImmutable(db);
     save("project-fact-persistence", {
       status: "awaiting-restore",
       workerRuntimeDenied: await verifyWorkerFactDenials(
@@ -364,6 +391,14 @@ try {
         }).database,
       ),
       fixture,
+      authorityFixture,
+      authorityWorkerDenied: await verifyAuthorityWorkerDenials(
+        loadDatabaseConfig({
+          ...env,
+          PDAA_DB_USER: "pdaa_worker",
+          PDAA_DB_PASSWORD_FILE: "/run/secrets/worker-password",
+        }).database,
+      ),
       beforeBackupWorker: await workerCheckpoint(db),
     });
     save("backup-state", await projection(db));
@@ -392,6 +427,11 @@ try {
       assert.deepEqual(await projection(restored), read("backup-state"));
       await verifyProjectFactPrivileges(restored);
       await verifyImmutableProjectFacts(restored);
+      await verifyAuthorityPrivileges(restored);
+      await verifyAuthorityIntegrity(restored);
+      await verifyAuthorityImmutable(restored);
+      const authorityCommitGuards =
+        await verifyAssessmentCommitGuards(restored);
       assert.equal(
         (
           await restored.query(
@@ -415,6 +455,8 @@ try {
         runtimeQuarantineChecked: true,
         ownersFunctionsAndPrivilegesChecked: true,
         immutableHistoryChecked: true,
+        authorityIntegrityChecked: true,
+        authorityCommitGuards,
         workerCheckpoint: await verifyRestoredWorker(
           db,
           restored,
