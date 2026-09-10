@@ -121,6 +121,13 @@ try {
     "FactEvidence",
     "ProjectFactVersion",
     "FactAppendReceipt",
+    "AuthorityPolicy",
+    "AuthorityPolicyRevision",
+    "AuthorityPolicyReceipt",
+    "FactAuthorityConflict",
+    "FactAssessment",
+    "FactAssessmentVersion",
+    "FactAssessmentConflict",
   ];
   for (const table of tables) {
     const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
@@ -131,11 +138,26 @@ try {
     );
   }
   assert((await restored.projectFactVersion.count()) > 0);
+  assert((await restored.factAssessment.count()) > 0);
+  assert.equal(
+    (
+      await restored.$queryRaw`SELECT
+    (SELECT count(*)::int FROM "AuthorityPolicy" WHERE NOT public.valid_authority_history(id)) +
+    (SELECT count(*)::int FROM "FactAuthorityConflict" WHERE NOT public.valid_authority_conflict(id)) +
+    (SELECT count(*)::int FROM (SELECT "factId" FROM "FactAuthorityConflict" GROUP BY "factId" HAVING count(*)<>max(revision)) drift) +
+    (SELECT count(*)::int FROM "FactAssessment" WHERE NOT sealed OR NOT public.valid_fact_assessment(id)) AS invalid`
+    )[0].invalid,
+    0,
+  );
   for (const table of [
     "FactSource",
     "FactEvidence",
     "ProjectFactVersion",
     "FactAppendReceipt",
+    "AuthorityPolicyRevision",
+    "AuthorityPolicyReceipt",
+    "FactAuthorityConflict",
+    "FactAssessment",
   ]) {
     for (const sql of [
       `UPDATE "${table}" SET id=id`,
@@ -192,7 +214,7 @@ try {
   }
   if (!denied) throw new Error("Restored audit protection missing");
   console.log(
-    `Recovery passed: all 14 business tables and the migration ledger match exactly; audit and fact history remain immutable. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all 21 business tables and the migration ledger match exactly; audit, fact, policy and assessment history remain immutable. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

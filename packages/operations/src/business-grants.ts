@@ -35,6 +35,9 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT UPDATE (revision) ON "ProjectFact" TO pdaa_api;
     GRANT UPDATE (state,revision) ON "FactSourceAccess" TO pdaa_api;
     GRANT SELECT,INSERT,DELETE ON "FactSourceReader" TO pdaa_api;
+    GRANT SELECT,INSERT ON "AuthorityPolicy","AuthorityPolicyRevision","AuthorityPolicyReceipt","FactAuthorityConflict","FactAssessment","FactAssessmentVersion","FactAssessmentConflict" TO pdaa_api;
+    GRANT UPDATE (revision) ON "AuthorityPolicy" TO pdaa_api;
+    GRANT UPDATE (sealed) ON "FactAssessment" TO pdaa_api;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
   `);
 }

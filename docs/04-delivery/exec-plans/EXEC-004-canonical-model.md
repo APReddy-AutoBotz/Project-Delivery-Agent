@@ -1,6 +1,6 @@
 # EXEC-004: Canonical projects and immutable evidence
 
-Status: In progress; PR41 temporal model and PR42 persistence merged; authority resolver design reviewed.
+Status: In progress; PR41 temporal model, PR42 persistence and PR43 authority resolver merged; durable policy/capture integration implemented and under validation/review.
 Owner: Implementation controller
 Updated: 2026-09-10
 Issue: #6, STORY-010/011/012; target R1; requirements FR-ADM-005,
@@ -504,3 +504,258 @@ resource checks. The first full run's unchanged startup-disclosure timeout and
 successful unchanged retries are preserved in SOURCE_AUTHORITY_VALIDATION.md.
 Immutable candidate review, candidate CI and fresh original-artifact gates remain
 required before merge. No R1 acceptance criterion is claimed complete.
+
+## Next slice: durable authority policy and captured server assessments
+
+Base main `9c97bf98ae94043ec3cc9b88bc5dd50353f8840b`; PR43 merged after all
+required candidate and independent evidence gates. Both main repeat workflows
+34415410077 and 34415409978 passed. Prior pending PR43 statements above are
+historical. Root owns tracked edits and Git; separate non-author agents review
+this design and the final immutable candidate and fresh packaged evidence.
+
+### Objective, scope and decisions
+
+Connect persisted human history to persisted project/fact-type policies and a
+trusted server-owned assessment capture. Partial FR-ADM-005,
+FR-EVD-003/004/006/007/009/010/012 and NFR-SEC-001, under Issue6, ADR009/010 and
+the approved source-authority model. No complete criterion or story is accepted.
+Canonical hierarchy, source ingestion, approval history, conflict reconciliation,
+REST/OpenAPI/browser workflows and customer activation remain subsequent work.
+
+Policy revisions are immutable configuration events, separate from fact versions
+and human approval. An ENABLED event contains the existing ordered tiers and
+conflict behavior; a DISABLED event has no definition. The server derives UUID,
+customer, author, recorded time and sequential revision. Requests specify target,
+effective time, expected aggregate revision, idempotency key and definition.
+Selectors retain existing limits and may not overlap. No implicit default,
+inheritance, human approval substitution or customer-specific authority matrix.
+
+Select the greatest causal revision whose recordedAt and effectiveAt are both
+at/before server asOf. Sequential revision is an explicit total ordering, enforced
+by SQL, not a UUID tie breaker. A later eligible disable wins without restoring an
+older configured revision. A previously scheduled older revision cannot override
+a later eligible disable when its effective date arrives. A subsequent enable
+is an explicit new revision. Recorded history prevents backdated effective
+assertions from changing earlier captures. Same-millisecond recording is ordered
+by revision; no arbitrary timestamp tie. Clock rollback below prior recorded time
+must reject, preserving chronology. Policy configuration can exist before a
+ProjectFact, but always references an existing scoped Project.
+
+This deliberately supersedes the private preparation note's tentative effective-
+then-recorded ordering. Example: revision1 schedules September20, then revision2
+becomes effective September15. On September21 revision2 still wins. A scheduled
+revision is reactivated only by a later explicit enable event, not by its old
+date arriving. Historical capture cutoffs also exclude events recorded afterward.
+Specific selector instances must already exist as immutable FactSource records
+in this exact customer/project/fact type. SQL validates those references on
+revision insertion; immutable source/fact identities and deletion denials preserve
+the binding afterward. A wildcard rule can precede the first fact/source.
+
+### Data model and migration
+
+One additive third migration preserves both original migration bytes and all 14
+business tables. Add seven tables, with customer/project-qualified RESTRICT FKs:
+
+- AuthorityPolicy: immutable project/fact-type identity and sequential counter.
+- AuthorityPolicyRevision: immutable policy event, effective/recorded time,
+  authenticated author, ENABLED/DISABLED state and bounded validated definition.
+- AuthorityPolicyReceipt: actor/project idempotency key and normalized body hash,
+  with an exact scoped policy revision reference, never cached response content.
+- FactAuthorityConflict: immutable detected pair with two distinct, ordered,
+  same-fact version FKs, original detected time and the detecting policy revision.
+  A pair is unique per fact. This slice cannot close a recorded conflict.
+- FactAssessment: immutable server-time capture, fact and through-revision pins,
+  selected policy revision (including disabled events), evaluator version, actor,
+  actor/project idempotency key/hash, original result and dependency counts.
+- FactAssessmentVersion: immutable exact evaluated version dependencies and
+  source-access revision pins; includes all evaluated rows, not only the winner.
+- FactAssessmentConflict: immutable exact recorded conflict dependencies.
+
+Assessment joins include the entire scope and use real typed foreign keys.
+Deferred database constraints require exact header/join counts at transaction
+commit; an incomplete capture cannot commit. Immutable joins plus fixed completed
+counts prevent later dependency insertion, replacement, deletion or truncation.
+The original result's version/conflict IDs must match those dependencies, and its
+scope, asOf, completeness and policy must match the immutable header/revision.
+Freeze the persisted original result; never regenerate a previous assessment with
+a changed policy, clock or future evaluator version. The result JSON is generated
+only by the trusted repository, never accepted from a caller or model.
+
+Also pin policy aggregate identity and its through-revision with a typed revision
+FK, even when all published events are future-effective and none is selected.
+Absence of any policy aggregate is distinct from an existing but not-yet-effective
+policy. Validate active selection against that pinned published prefix.
+
+An assessment starts unsealed. Initial INSERT(sealed=true) is denied. Dependency
+INSERT locks and rechecks the parent and is allowed only while unsealed. The
+single false-to-true header transition verifies all counts and bindings, allowing
+no other column change; a deferred commit trigger rejects any unsealed header.
+Once sealed, no header or dependency mutation/addition is allowed. API gains
+only UPDATE(sealed) on this header in addition to the policy counter grant.
+
+Integrity validation also binds every copied available version value, source
+identity/revision, provenance, effective/observed/valid-until time and evidence
+tuple to its typed immutable database dependency. Restricted version envelopes
+contain only the resolver's allowed marker fields. Resolved scalar values must
+match supporting versions. Result JSON is bounded to 32 MiB; definitions retain
+their independent selector/tier limits. Unsupported evaluator versions reject.
+Expose a read-only SQL integrity predicate used by sealing and restored-database
+verification so restored preexisting rows are checked, not just new inserts.
+
+Reuse immutable-history rejection and scope protections; add finite checks for
+states, valid timestamps, safe counters, definitions and receipt hashes. The API
+gets SELECT/INSERT on new history and UPDATE only on the policy counter; backup
+gets SELECT; the worker gains no new authority. Existing source grants and
+runtime credentials remain unchanged. No dependency or connector scope added.
+
+### Authorization, completeness, conflicts and disclosure
+
+Share the existing strict authenticated Actor validation and project/grant
+authorization boundary without changing the fact repository's behavior. Policy
+append requires the same current pmo_admin role in both Actor and scoped grant.
+Policy inspection and assessment capture/read require a current scoped supported
+business read role. Operational identity never confers business content access.
+
+All material work locks Project FOR UPDATE before deterministically ordered
+AccessGrant FOR SHARE; captured reads use the same exclusive project lock because
+they also preserve newly detected contradictions. Frozen reads use Project FOR
+SHARE then grants FOR SHARE. Keep bounded Read Committed transactions and the
+existing source-mutation lock order. Server time is obtained after authorization
+locks. No network call inside a transaction. Metadata-only success/denial audits,
+actor-scoped idempotency and fixed sanitized errors preserve rollback semantics.
+
+Capture accepts only project/fact type and idempotency key. It selects the active
+policy and all persisted versions through the locked aggregate revision,
+including future, superseded, expired and inaccessible rows. The paged/redacted
+history port is never an adapter. Read at most 1001 version/conflict rows to prove
+the 1000 input bound. If exceeded, capture explicit INCOMPLETE with no partial
+winner; store the fact revision and no misleading partial content. This first
+complete reader is conservative about old inaccessible history. More scalable
+minimal-history selection is a later reviewed optimization.
+
+The trusted human source type is human_statement, with stable FactSource identity
+and evidence revision ID. Existing human attribution maps to NOT_REQUIRED, never
+APPROVED. Thus only rules permitting no separate approval can use these facts.
+Source-reader access and AVAILABLE/REVOKED/DELETED/UNVERIFIABLE verification are
+independent, checked under the same transaction before resolution.
+
+Load every previously detected unresolved pair, including superseded/expired
+contributors. Convert new disagreeing groups into a linear set of genuinely
+different-value pairs using two distinct-valued anchors, retaining every
+contributor without a quadratic expansion or exceeding the temporal pair width.
+Persist detected pairs before the final capture; source expiry, permission loss
+or policy replacement cannot remove them. If accumulated pairs exceed the input
+bound, the outcome is INCOMPLETE, never a winner. No LLM chooses or clears a
+conflict; REQUEST_RECONCILIATION is an output signal, not an implemented queue.
+
+Deduplicate and insert the entire bounded prospective pair batch atomically,
+using the same server capture asOf for detectedAt. Never commit a prefix. If the
+complete accumulated set crosses 1000, retain that full newly detected batch and
+capture INCOMPLETE with no partial content. Subsequent captures stop at the
+1001-row completeness check without adding more pairs. A rolled-back capture
+rolls back its entire new conflict batch as well. This preserves a durable blocker
+when a detected group cannot fit the bounded evaluator input.
+
+The immutable captured output is explicitly historical, even when its asOf was
+server-selected just now. Replays and frozen reads reauthorize the current project
+and every captured evidence dependency. If any source is inaccessible or invalid,
+withhold the entire copied result and return permitted capture IDs/asOf plus a
+restricted, revalidation-required envelope. Never replay cached authorized
+scalars. Later access restoration does not upgrade an originally redacted result;
+a new capture is required. Current permission overlay does not mutate the frozen
+dimensions or original result. Inputs cannot select old policy, provenance,
+approval, completeness, authorization or server time.
+
+### Files, stages and validation
+
+Expected changes: domain policy/capture port and exports; shared data authorization
+helper and new repository; Prisma schema/third migration; finite operation grants;
+meaningful unit/database cases and packaged policy/assessment fixtures; clean,
+repeat, populated prior-release upgrade and full encrypted restore comparisons;
+EXEC004, indexed validation, implementation status and publication records.
+
+1. Independently review this concrete design; resolve blocking findings.
+2. Implement schemas, SQL invariants, permission-bound repository and tests.
+3. Extend three-migration installation, finite ACL, populated two-migration
+   prior-release upgrade, backup/restore and unchanged application regressions.
+4. Run native lint/type/full unit/seven builds, architecture/OpenAPI/dependencies,
+   documentation validation/regressions and applicable PostgreSQL/browser tests.
+5. Independently review the exact candidate and authenticated fresh packaged
+   artifacts; publish and merge only after all required candidate CI passes.
+
+Cases include disabled/scheduled policy precedence; no policy; invalid overlapping
+selectors; stale expected revision; identical and changed-body retries; grant role
+intersection and revocation races; human approval separation; expiry and retained
+conflicts; supersession before permission filtering; copied scalar redaction;
+capture replay after new facts/policy; every dependency FK/count/immutability;
+1000/1001 version and conflict bounds; sanitized failures and atomic denial audit.
+
+### Recovery, risk and progress
+
+Preserve the development DB, container, volume and Docker VHD. Run migration and
+recovery in isolated synthetic targets. A failed migration transaction preserves
+the prior schema. After success, revert the compatible application while keeping
+new history; otherwise restore with its matching reviewed release to a fresh
+quarantined target. Never reset or use destructive down migrations. Genuine
+upgrade starts from the complete populated two-migration release, not a current
+database with columns hidden. Verify all 21 business tables, full migration ledger
+and immutable/least-privilege protections after encrypted restore.
+
+Before restoring a target can be reported verified, evaluate the new SQL policy
+and assessment integrity predicates over all restored rows while outbound work
+remains quarantined. Packaged acceptance must then demonstrate a complete capture
+and an incomplete transaction rejected at COMMIT on the restored target. Retain
+the old foundation-to-release upgrade proof and add populated two-to-three
+migration coverage without weakening any existing assertion.
+
+Known limits: capture histories can become conservatively INCOMPLETE; conflicts
+remain open until a later explicit reconciliation workflow; no authority approval
+history or external-source ingestion; no current public claim or UI acceptance.
+All five distribution/security/signing release gates remain open. R0 remains 3/5
+and R1 0/33 accepted stories. Design review and all implementation validation are
+pending at this plan snapshot; planned tests are not passing evidence.
+
+### Implementation and review updates, 2026-09-10
+
+The revised design was independently approved before implementation (plan
+SHA256 `75d7fc8f7be2f82034d83f2bad1d4fd126ae1bf24b2206e6961d03a6943bdf01`).
+Seven-table policy/capture persistence, the narrow repository port and shared
+authorization helper are implemented. This supersedes the preceding historical
+design-pending statement, without accepting a complete requirement criterion.
+
+Independent prereview required and received these refinements:
+
+- Conflict rows have contiguous per-fact causal revisions. Each assessment pins
+  the exact conflict prefix, so later same-millisecond inserts cannot invalidate
+  its original dependency set. New headers pin current fact/policy/conflict
+  counters; restored and replayed assessments validate their historical prefixes.
+- Policy counters must equal a positive, dense revision history with nondecreasing
+  recorded times. A zero-event aggregate can exist only inside an uncommitted
+  publication transaction. Source-access revision is bound at dependency insert.
+- Database sealing derives the human selector/tier, exact expiry, temporal head,
+  eligibility, candidates, status and conflicts from immutable facts and pinned
+  policy. It rejects a forged RESOLVED claim for a human value requiring approval.
+  Available values, source/evidence tuples and redacted envelopes have exact shapes.
+- Large supported policy durations use exact UTC day/remainder arithmetic,
+  preserving milliseconds and timezone independence. The computed deadline must
+  remain in the domain's date range before taking the earlier explicit expiry.
+- Recorded conflict validation compares the complete set in one query. This
+  retains all checks while reducing repeated expansion of large captured JSON;
+  no transaction limit, bound or assertion is relaxed.
+- Genuine populated two-to-three migration upgrade joins the earlier foundation
+  upgrade fixture. Full prior rows/ledger are retained, with deterministic row
+  ordering. Recovery checks conflict continuity alongside policy and assessment
+  integrity; finite ACL checks include MAINTAIN and column grant options.
+
+Native lint/type checks, 712 unit cases in 29 files, seven builds, architecture,
+OpenAPI, all 38 registered dependencies and 13 documentation regressions passed.
+Database runs progressed from 44 passing cases to 62 passing cases after the
+boundary and review corrections. An earlier run failed two bulk test fixtures
+because they did not honor the existing one-statement fact append counter; the
+fixtures were corrected without editing either released migration. The SQL
+development syntax failure and dense-capture failed run remain recorded. The
+final native run passed all 63 database cases and exact 21-table/migration-ledger
+recovery with restored integrity and immutability. No restored application was
+started. Dependency audit and final lint/documentation checks also passed.
+Immutable review, CI, packaged upgrade/encrypted restore and original-artifact
+checks remain required. See AUTHORITY_PERSISTENCE_VALIDATION.md for current scope.

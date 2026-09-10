@@ -136,6 +136,7 @@
 - `docs/05-quality/TEMPORAL_FACT_MODEL_VALIDATION.md`: internal temporal assessment checks, partial requirement evidence and storage/API/disclosure limits.
 - `docs/05-quality/PROJECT_FACT_PERSISTENCE_VALIDATION.md`: durable human history, current permission, additive migration and recovery evidence; partial Issue #6 scope.
 - `docs/05-quality/SOURCE_AUTHORITY_VALIDATION.md`: explicit historical authority policy, approval/fallback/conflict resolution and evidence redaction; partial Issue #6 scope.
+- `docs/05-quality/AUTHORITY_PERSISTENCE_VALIDATION.md`: durable policy revisions, server assessment capture, immutable dependency integrity, current disclosure checks and upgrade/recovery evidence; partial Issue #6 scope.
 - `docs/03-architecture/adr/ADR-011-FOUNDATION-DEPLOYMENT-BOUNDARIES.md`: approved native component and production transport boundaries.
 - `docs/03-architecture/adr/ADR-012-EXECUTABLE-FOUNDATION-CONTRACTS.md`: runtime REST contracts, import boundaries and foundation acceptance gates.
 - `docs/03-architecture/adr/ADR-013-FOUNDATION-OPERATIONS.md`: provisioning, migration, encrypted backup, quarantined restore and restart boundaries.

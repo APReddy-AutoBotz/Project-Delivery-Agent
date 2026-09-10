@@ -7,6 +7,14 @@ FR-EVD-007, FR-EVD-009, FR-EVD-010, FR-EVD-012; ADR-009/010.
 
 ## Implemented boundary
 
+PR #43 merged as `9c97bf9` after the exact candidate, CI and both original-artifact
+reviews passed. Both merged-main workflows also passed. Its
+[completion record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/43#issuecomment-5609954850)
+supersedes the historical premerge pending statements below. The next repository
+integration is documented separately in
+[AUTHORITY_PERSISTENCE_VALIDATION.md](AUTHORITY_PERSISTENCE_VALIDATION.md);
+it does not change the historical scope claimed by this resolver increment.
+
 `packages/domain/src/source-authority.ts` resolves one explicit historical fact
 snapshot under a supplied immutable policy revision. Its strict contract includes
 customer/project/fact type, policy recording/effective times, source type and

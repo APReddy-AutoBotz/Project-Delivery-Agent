@@ -109,6 +109,15 @@ export async function restore(
         validateHistory(applied, migrations);
         if (applied.length !== migrations.length)
           throw new Error("Restored migration set incomplete");
+        const authorityIntegrity = (
+          await client.query(`SELECT
+          (SELECT count(*)::int FROM "AuthorityPolicy" WHERE NOT public.valid_authority_history(id)) +
+          (SELECT count(*)::int FROM "FactAuthorityConflict" WHERE NOT public.valid_authority_conflict(id)) +
+          (SELECT count(*)::int FROM (SELECT "factId" FROM "FactAuthorityConflict" GROUP BY "factId" HAVING count(*)<>max(revision)) drift) +
+          (SELECT count(*)::int FROM "FactAssessment" WHERE NOT sealed OR NOT public.valid_fact_assessment(id)) AS invalid`)
+        ).rows[0].invalid;
+        if (authorityIntegrity !== 0)
+          throw new Error("Restored authority integrity failed");
         await assertNoOtherSessions(client);
         await client.query("COMMIT");
       } catch {

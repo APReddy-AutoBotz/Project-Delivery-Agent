@@ -66,6 +66,13 @@ try {
     "FactEvidence",
     "ProjectFactVersion",
     "FactAppendReceipt",
+    "AuthorityPolicy",
+    "AuthorityPolicyRevision",
+    "AuthorityPolicyReceipt",
+    "FactAuthorityConflict",
+    "FactAssessment",
+    "FactAssessmentVersion",
+    "FactAssessmentConflict",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -135,6 +142,7 @@ node([
   "run",
   "tests/database.integration.test.ts",
   "tests/project-facts.integration.test.ts",
+  "tests/authority-persistence.integration.test.ts",
   "--no-file-parallelism",
 ]);
 console.log(
@@ -157,7 +165,17 @@ writeFileSync(
         "ProjectFactVersion",
         "FactAppendReceipt",
       ],
-      businessTables: 14,
+      authorityTables: [
+        "AuthorityPolicy",
+        "AuthorityPolicyRevision",
+        "AuthorityPolicyReceipt",
+        "FactAuthorityConflict",
+        "FactAssessment",
+        "FactAssessmentVersion",
+        "FactAssessmentConflict",
+      ],
+      businessTables: 21,
+      authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({
         name: row.migration_name,

@@ -19,17 +19,21 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Published and merged increments
 
-PR #42 merged durable human fact history and current permission checks over
-existing projects after all candidate checks and independent code/artifact
-reviews. Validation passed 616 unit tests, 28 database cases, eight browser
-regressions and 18 packaged groups, including populated foundation upgrade and
-complete fourteen-table recovery. Both post-merge main workflows passed. See
-PROJECT_FACT_PERSISTENCE_VALIDATION.md. The next Issue #6 slice is an internal
-deterministic source-authority resolver under explicit historical policy revisions;
-its 69 focused / 685 full native tests and independent pre-review pass; immutable
-candidate, CI and original-artifact gates remain pending. Policy storage and public
-workflows remain pending. This progress does not accept
-a complete R1 story or change the accepted counts above.
+PR #43 merged the historical source-authority resolver after all required checks,
+separate immutable code review and both fresh artifact reviews. Its 69 focused /
+685 full unit cases passed; candidate CI also passed database, browser and packaged
+regressions. Both merged-main workflows passed. This supersedes earlier pending
+resolver gates below and in SOURCE_AUTHORITY_VALIDATION.md. PR #42's durable human
+fact history and current source permissions are also merged and verified.
+
+The current Issue #6 increment implements durable authority policies and a trusted
+server assessment repository. Policy selection, complete input bounds, retained
+conflicts and current access checks now connect the two earlier components.
+Native validation and independent review are underway; immutable candidate, CI,
+upgrade/recovery and fresh artifact gates must pass before merge. See
+AUTHORITY_PERSISTENCE_VALIDATION.md. Canonical hierarchy, trusted source ingestion,
+reconciliation and public API/browser workflows remain pending. This partial
+progress does not accept a complete R1 story or change the counts above.
 
 Public publication was explicitly approved by the Product Owner on 2026-09-06.
 
@@ -61,6 +65,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Package architecture evidence | [#40](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/40) | `d678cf1` | `5d45e1d` |
 | Temporal fact history | [#41](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/41) | `28090cf` | `47d7c45` |
 | Durable human fact history | [#42](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/42) | `4d18377` | `062fcd7` |
+| Historical source authority | [#43](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/43) | `7f3fcce` | `9c97bf9` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
