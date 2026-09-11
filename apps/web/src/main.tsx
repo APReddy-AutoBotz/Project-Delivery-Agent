@@ -14,6 +14,20 @@ import {
   type ProjectSetup,
 } from "./canonical-project.js";
 import "./style.css";
+import { ProjectEvidence } from "./project-evidence.js";
+import { uuid, savedEvidenceLink, denied } from "./evidence-state.js";
+
+function evidenceLocation() {
+  const query = new URLSearchParams(window.location.search);
+  const projectId = query.get("project"),
+    assessmentId = query.get("assessment");
+  return projectId &&
+    assessmentId &&
+    uuid.test(projectId) &&
+    uuid.test(assessmentId)
+    ? { projectId, assessmentId }
+    : null;
+}
 
 type AuthConfig = {
   mode: "oidc" | "development";
@@ -60,7 +74,11 @@ let oidc: UserManager | undefined;
 let expireSession: (() => void) | undefined;
 function useProtectedQuery<T>(options: UseQueryOptions<T>) {
   const query = useQuery(options);
-  return { ...query, data: query.isError ? undefined : query.data };
+  return {
+    ...query,
+    lastData: query.data,
+    data: query.isError ? undefined : query.data,
+  };
 }
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const requestToken = accessToken;
@@ -81,18 +99,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   )
     void client.invalidateQueries({ queryKey: ["projects"] });
   if (!response.ok)
-    throw new Error(
-      response.status === 401
-        ? "Your session has ended. Sign out and sign in again."
-        : response.status === 404
-          ? "This project is unavailable for your account."
-          : response.status === 403
-            ? "You do not have permission for this action."
-            : response.status === 409
-              ? "This code, source reference or request conflicts with an existing record. Review the details before submitting again."
-              : response.status === 400
-                ? "Some project details are invalid. Check the required fields, dates and references."
-                : "The request could not be completed. Please try again.",
+    throw Object.assign(
+      new Error(
+        response.status === 401
+          ? "Your session has ended. Sign out and sign in again."
+          : response.status === 404
+            ? "This project is unavailable for your account."
+            : response.status === 403
+              ? "You do not have permission for this action."
+              : response.status === 409
+                ? "This code, source reference or request conflicts with an existing record. Review the details before submitting again."
+                : response.status === 400
+                  ? "Some project details are invalid. Check the required fields, dates and references."
+                  : "The request could not be completed. Please try again.",
+      ),
+      { status: response.status },
     );
   const data = response.status === 204 ? undefined : await response.json();
   if (requestToken && requestToken !== accessToken)
@@ -135,6 +156,7 @@ function App() {
   const [view, setView] = useState<"projects" | "platform">("projects");
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [linkedAssessment, setLinkedAssessment] = useState<string | null>(null);
   React.useEffect(() => {
     expireSession = () => {
       accessToken = undefined;
@@ -142,6 +164,7 @@ function App() {
       setSignedIn(false);
       setSelected(null);
       setCreating(false);
+      setLinkedAssessment(null);
       setView("projects");
       setError("Your session has ended. Please sign in again.");
       clearProtectedData();
@@ -172,6 +195,8 @@ function App() {
   const admin = me.data?.roles.some((r) =>
     ["system_admin", "pmo_admin"].includes(r),
   );
+  const retainedProject =
+    project.data ?? (!denied(project.error) ? project.lastData : undefined);
   const setup = useProtectedQuery({
     queryKey: ["project-setup"],
     queryFn: () => request<ProjectSetup>("/project-setup"),
@@ -188,7 +213,13 @@ function App() {
         });
         accessToken = result.token;
         setSignedIn(true);
-      } else if (auth.data) await manager(auth.data).signinRedirect();
+        const link = evidenceLocation();
+        if (link) {
+          setSelected(link.projectId);
+          setLinkedAssessment(link.assessmentId);
+        }
+      } else if (auth.data)
+        await manager(auth.data).signinRedirect({ state: evidenceLocation() });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -209,7 +240,29 @@ function App() {
         if (active) {
           accessToken = user.access_token;
           idToken = user.id_token;
-          window.history.replaceState({}, "", "/");
+          const state = user.state as {
+            projectId?: unknown;
+            assessmentId?: unknown;
+          } | null;
+          const linked =
+            typeof state?.projectId === "string" &&
+            typeof state?.assessmentId === "string" &&
+            uuid.test(state.projectId) &&
+            uuid.test(state.assessmentId);
+          window.history.replaceState(
+            {},
+            "",
+            linked
+              ? savedEvidenceLink(
+                  state.projectId as string,
+                  state.assessmentId as string,
+                )
+              : "/",
+          );
+          if (linked) {
+            setSelected(state.projectId as string);
+            setLinkedAssessment(state.assessmentId as string);
+          }
           setSignedIn(true);
         }
       })
@@ -228,6 +281,7 @@ function App() {
     setSignedIn(false);
     setSelected(null);
     setCreating(false);
+    setLinkedAssessment(null);
     setView("projects");
     clearProtectedData();
     if (auth.data?.mode === "oidc" && oidc) {
@@ -446,24 +500,38 @@ function App() {
             <>
               <Button
                 className="back text-button"
-                onClick={() => setSelected(null)}
+                onClick={() => {
+                  setSelected(null);
+                  setLinkedAssessment(null);
+                  window.history.replaceState({}, "", "/");
+                }}
               >
                 ← All projects
               </Button>
-              {project.error ? (
+              {project.error && (
                 <p role="alert" className="error">
                   {project.error.message}
                 </p>
-              ) : project.data ? (
+              )}
+              {retainedProject ? (
                 <>
-                  <ProjectDetail project={project.data} />
-                  <CanonicalProjectDetails
-                    id={project.data.id}
+                  {project.data && <ProjectDetail project={project.data} />}
+                  <ProjectEvidence
+                    key={retainedProject.id}
+                    projectId={retainedProject.id}
                     request={request}
+                    initialAssessmentId={linkedAssessment}
+                    visible={!project.isFetching && !project.isError}
                   />
+                  {project.data && (
+                    <CanonicalProjectDetails
+                      id={project.data.id}
+                      request={request}
+                    />
+                  )}
                 </>
               ) : (
-                <p role="status">Loading project…</p>
+                !project.error && <p role="status">Loading project…</p>
               )}
             </>
           ) : (
@@ -506,7 +574,11 @@ function App() {
                     <Button
                       key={p.id}
                       className="project-card"
-                      onClick={() => setSelected(p.id)}
+                      onClick={() => {
+                        setSelected(p.id);
+                        setLinkedAssessment(null);
+                        window.history.replaceState({}, "", "/");
+                      }}
                     >
                       <div className="card-top">
                         <span className="project-code">{p.code}</span>

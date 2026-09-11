@@ -41,6 +41,12 @@ jobs:
           name: database-contract-evidence
           path: artifacts/database-validation.json
           if-no-files-found: error
+      - name: Publish reviewed evidence workflow screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-workflow-browser
+          path: artifacts/evidence-workflow-*.png
+          if-no-files-found: error
       - if: always()
         run: docker compose down
   production-boundary:
@@ -57,7 +63,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: production-boundary-evidence
-          path: artifacts/production-acceptance.json
+          path: |
+            artifacts/production-acceptance.json
+            artifacts/pdaa-acceptance-*/customer-*/evidence-stale-conflict.png
           if-no-files-found: error
       - uses: pnpm/action-setup@v4
         with:

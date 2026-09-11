@@ -61,9 +61,9 @@ export async function authorizeFactProject(
     ORDER BY id FOR SHARE`;
   const allowed =
     action === "read" || action === "capture"
-      ? ["leadership", "project_manager", "pmo_admin"]
+      ? ["leadership", "project_manager", "portfolio_manager", "pmo_admin"]
       : action === "append"
-        ? ["project_manager", "pmo_admin"]
+        ? ["project_manager", "portfolio_manager", "pmo_admin"]
         : ["pmo_admin"];
   if (
     !grants.some(
@@ -73,4 +73,15 @@ export async function authorizeFactProject(
     )
   )
     throw new ProjectFactError("DENIED");
+  const matching = grants.filter((grant) =>
+    actor.roles.some((role) => role === grant.role),
+  );
+  return {
+    canAppend: matching.some((grant) =>
+      ["project_manager", "portfolio_manager", "pmo_admin"].includes(
+        grant.role,
+      ),
+    ),
+    canConfigure: matching.some((grant) => grant.role === "pmo_admin"),
+  };
 }

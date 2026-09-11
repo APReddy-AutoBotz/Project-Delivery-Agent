@@ -5,6 +5,8 @@ import {
   humanStatementSchema,
   projectFactValueSchema,
   sourceAccessChangeSchema,
+  factCatalogueRequestSchema,
+  sourceAccessReadSchema,
   ProjectFactError,
   type Actor,
   type FactHistoryEntry,
@@ -13,6 +15,8 @@ import {
   type HumanStatement,
   type ProjectFactRepository,
   type SourceAccessChange,
+  type FactCatalogueRequest,
+  type SourceAccessRead,
 } from "@pdaa/domain";
 import type {
   Prisma,
@@ -300,7 +304,22 @@ export class DatabaseProjectFactRepository implements ProjectFactRepository {
               },
             },
           });
-          if (!fact) return null;
+          if (!fact) {
+            if (
+              request.afterRevision !== 0 ||
+              (request.throughRevision !== null &&
+                request.throughRevision !== 0)
+            )
+              throw new ProjectFactError("INVALID_REQUEST");
+            return {
+              factId: null,
+              factType: request.factType,
+              throughRevision: 0,
+              entries: [],
+              next: null,
+              historical: true as const,
+            };
+          }
           const throughRevision = request.throughRevision ?? fact.revision;
           if (throughRevision > fact.revision)
             throw new ProjectFactError("INVALID_REQUEST");
@@ -417,5 +436,90 @@ export class DatabaseProjectFactRepository implements ProjectFactRepository {
         return { sourceId: access.sourceId, revision: finalAccess.revision };
       },
     );
+  }
+  async listFacts(actorValue: Actor, requestValue: FactCatalogueRequest) {
+    const actor = actorInput(actorValue);
+    const request = input(() => factCatalogueRequestSchema.parse(requestValue));
+    try {
+      return await this.db.$transaction(
+        async (tx) => {
+          const capabilities = await authorizeFactProject(
+            tx,
+            actor,
+            request.projectId,
+            "read",
+          );
+          const rows = await tx.projectFact.findMany({
+            where: {
+              customerId: actor.customerId,
+              projectId: request.projectId,
+              ...(request.afterFactType === null
+                ? {}
+                : { factType: { gt: request.afterFactType } }),
+            },
+            orderBy: { factType: "asc" },
+            take: request.limit + 1,
+            select: { id: true, factType: true, revision: true },
+          });
+          const page = rows.slice(0, request.limit);
+          return {
+            ...capabilities,
+            facts: page.map(({ id, ...row }) => ({ factId: id, ...row })),
+            next: rows.length > request.limit ? page.at(-1)!.factType : null,
+          };
+        },
+        { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 10000 },
+      );
+    } catch (error) {
+      if (error instanceof ProjectFactError && error.code === "DENIED")
+        return null;
+      if (error instanceof ProjectFactError) throw error;
+      // eslint-disable-next-line preserve-caught-error
+      throw new Error("Project fact catalogue unavailable");
+    }
+  }
+  async getSourceAccess(actorValue: Actor, requestValue: SourceAccessRead) {
+    const actor = actorInput(actorValue);
+    const request = input(() => sourceAccessReadSchema.parse(requestValue));
+    try {
+      return await this.db.$transaction(
+        async (tx) => {
+          await authorizeFactProject(tx, actor, request.projectId, "access");
+          const row = await tx.factSourceAccess.findFirst({
+            where: {
+              customerId: actor.customerId,
+              projectId: request.projectId,
+              sourceId: request.sourceId,
+            },
+            select: {
+              sourceId: true,
+              revision: true,
+              state: true,
+              readers: {
+                orderBy: { subject: "asc" },
+                take: 101,
+                select: { subject: true },
+              },
+            },
+          });
+          if (!row) return null;
+          if (row.readers.length > 100)
+            throw new Error("Source reader limit exceeded");
+          return {
+            sourceId: row.sourceId,
+            revision: row.revision,
+            state: sourceAccessChangeSchema.shape.state.parse(row.state),
+            readers: row.readers.map((reader) => reader.subject),
+          };
+        },
+        { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 10000 },
+      );
+    } catch (error) {
+      if (error instanceof ProjectFactError && error.code === "DENIED")
+        return null;
+      if (error instanceof ProjectFactError) throw error;
+      // eslint-disable-next-line preserve-caught-error
+      throw new Error("Source access inspection unavailable");
+    }
   }
 }

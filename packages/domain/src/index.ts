@@ -1,6 +1,7 @@
 import type { Actor, Role } from "./actor.js";
 export { roles, roleSchema, type Role, type Actor } from "./actor.js";
 export * from "./project-facts.js";
+export * from "./evidence-responses.js";
 export * from "./canonical-project.js";
 export {
   resolveSourceAuthority,

@@ -91,6 +91,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@pdaa/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@tanstack/react-query':
         specifier: 5.102.8
         version: 5.102.8(react@19.2.8)

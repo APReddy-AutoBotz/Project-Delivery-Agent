@@ -27,9 +27,10 @@ export function TextField({
   const fieldId = id ?? generated;
   return (
     <label htmlFor={fieldId}>
-      {label}
+      <span id={`${fieldId}-label`}>{label}</span>
       <input
         id={fieldId}
+        aria-labelledby={`${fieldId}-label`}
         className={`w-full ${focus} ${className}`}
         aria-describedby={help ? `${fieldId}-help` : undefined}
         {...props}
@@ -49,9 +50,10 @@ export function SelectField({
   const fieldId = id ?? generated;
   return (
     <label htmlFor={fieldId}>
-      {label}
+      <span id={`${fieldId}-label`}>{label}</span>
       <select
         id={fieldId}
+        aria-labelledby={`${fieldId}-label`}
         className={`w-full ${focus} ${className}`}
         aria-describedby={help ? `${fieldId}-help` : undefined}
         {...props}

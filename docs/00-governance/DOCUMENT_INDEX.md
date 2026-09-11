@@ -134,6 +134,8 @@
 - `docs/04-delivery/exec-plans/EXEC-003-customer-hosted-foundation.md`: production boundary implementation and remaining release gates.
 - `docs/04-delivery/exec-plans/EXEC-004-canonical-model.md`: synthetic canonical/evidence implementation, temporal model and outstanding storage/API acceptance.
 - `docs/04-delivery/exec-plans/EXEC-005-canonical-project-workflow.md`: scoped canonical project creation/detail API and browser workflow, persistence and acceptance gates.
+- `docs/04-delivery/exec-plans/EXEC-006-project-evidence-workflow.md`: scoped human evidence history, explicit source sharing and authority configuration, and saved historical assessments.
+- `docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md`: candidate user/admin workflow, strict API, browser and packaged evidence gates and remaining acceptance.
 - `docs/05-quality/TEMPORAL_FACT_MODEL_VALIDATION.md`: internal temporal assessment checks, partial requirement evidence and storage/API/disclosure limits.
 - `docs/05-quality/PROJECT_FACT_PERSISTENCE_VALIDATION.md`: durable human history, current permission, additive migration and recovery evidence; partial Issue #6 scope.
 - `docs/05-quality/SOURCE_AUTHORITY_VALIDATION.md`: explicit historical authority policy, approval/fallback/conflict resolution and evidence redaction; partial Issue #6 scope.

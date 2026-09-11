@@ -154,6 +154,7 @@ node([
   "tests/project-facts.integration.test.ts",
   "tests/authority-persistence.integration.test.ts",
   "tests/canonical-project.integration.test.ts",
+  "tests/project-evidence.integration.test.ts",
   "--no-file-parallelism",
 ]);
 console.log(
@@ -198,6 +199,7 @@ writeFileSync(
         "CanonicalCreationReceipt",
       ],
       canonicalRepositoryChecks: "passed",
+      evidenceHttpChecks: "passed",
       businessTables: 31,
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",

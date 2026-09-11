@@ -2,6 +2,8 @@ import {
   createDatabase,
   DatabaseProjectRepository,
   DatabaseCanonicalProjectRepository,
+  DatabaseProjectFactRepository,
+  DatabaseAuthorityRepository,
 } from "@pdaa/data";
 import {
   loadConfig,
@@ -18,6 +20,8 @@ try {
     new DatabaseProjectRepository(db),
     undefined,
     new DatabaseCanonicalProjectRepository(db),
+    new DatabaseProjectFactRepository(db),
+    new DatabaseAuthorityRepository(db),
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

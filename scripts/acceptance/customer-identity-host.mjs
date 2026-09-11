@@ -33,9 +33,9 @@ export async function checkIdentityConfiguration({
   const deadlineAt = Date.now() + remappingTimeoutMs;
   const originalFile = readFileSync(envFile, "utf8");
   const originalMap = settings.OIDC_GROUP_ROLE_MAP;
-  const removedMap = JSON.stringify({
-    "project-managers": ["project_manager"],
-  });
+  const remainingMappings = JSON.parse(originalMap);
+  delete remainingMappings.operators;
+  const removedMap = JSON.stringify(remainingMappings);
   const baseline = container("api");
   const dependencies = Object.fromEntries(
     ["worker", "web", "database", "identity", "identity-ingress"].map(
