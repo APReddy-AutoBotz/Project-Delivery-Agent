@@ -204,3 +204,9 @@ tests, genuine prefix upgrades and quarantined recovery remain mandatory.
   retries. The final complete 14-case browser suite passed, including all six
   canonical cases. Final candidate/packaged/review/CI gates remain pending.
 - Planned checks and mutable implementation reviews are not acceptance evidence.
+- Initial candidate `5709392` received independent immutable source approval and
+  passed native CI and all 19 packaged groups. Distribution collection then
+  correctly rejected updated selected Debian advisory text. ADR-014 records the
+  independently approved two-description amendment (NFR-SEC-010, NFR-MNT-004,
+  TR-TEST-001/002, AC-MNT-004); its 101 focused Perl tests pass. The original failed
+  CI attempt is retained. The replacement candidate needs fresh review and CI.

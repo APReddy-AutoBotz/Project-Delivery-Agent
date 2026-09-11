@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "targets": ["api", "worker", "database", "operations"],
   "scopes": ["squashed", "all-layers"],
   "analysisSha256": "e12bfe1ac2c983f69a48acd07f551d7219a80602355d3b259dc0ee0d97fe64d4",
@@ -15,6 +15,10 @@
         "state": "wont-fix"
       }
     },
+    "selectedDescriptionSha256": [
+      "1deb52331d7299880cec3c6899913fc3868fe09dfc4104b04e7ca04dfe9bcfad",
+      "6b96d79a05fc3017a6c63eea633e5bb370e5c29c9104def485c610bc392238e5"
+    ],
     "primaryAdvisory": {
       "url": "https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/2026/8xxx/CVE-2026-8376.json",
       "sha256": "a083a4770e008b866e381ef59b7cb132fe889f3ed593e13a1405c55a424f2cbe",

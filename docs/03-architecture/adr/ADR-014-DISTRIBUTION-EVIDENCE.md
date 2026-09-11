@@ -33,6 +33,30 @@ complete rejection and release-review contract is independently proven.
 
 ## 2026-09-09 amendment: matched Perl package architecture
 
+### 2026-09-11 selected advisory wording amendment
+
+PR #45's first packaged acceptance passed, then distribution collection correctly
+failed because Debian's selected CVE-2026-8376 description changed. The updated
+[Debian wording](https://security-tracker.debian.org/tracker/CVE-2026-8376)
+clarifies affected release ranges and retains the explicit 32-bit precondition.
+It matches the already pinned primary CNA description after replacing paragraph
+newlines with the scanner's spaces. A fresh retrieval reauthenticated all 7,618
+original primary bytes against SHA256
+`a083a4770e008b866e381ef59b7cb132fe889f3ed593e13a1405c55a424f2cbe`.
+
+Perl policy version 3 retains the original selected description and adds a finite
+two-hash selected-description list: original
+`1deb52331d7299880cec3c6899913fc3868fe09dfc4104b04e7ca04dfe9bcfad`
+and reviewed range clarification
+`6b96d79a05fc3017a6c63eea633e5bb370e5c29c9104def485c610bc392238e5`.
+Validate raw selected-description bytes without whitespace or semantic normalization.
+Unknown wording, changed fix metadata and every existing package/material/envelope
+mismatch still fail. Original scan descriptions and complete match hashes remain
+unaltered; the architecture proof, rule scope and all other advisories are unchanged.
+Both descriptions and rejection controls run in every target/scope. Preserve the
+failed CI attempt; it has no successful distribution artifact. A new reviewed
+candidate and complete fresh CI/artifact gates are required before merge.
+
 Schema 11 adds two trusted Perl anchors to the existing 85 files. Preserve the
 gosu builder and its 92 baseline row objects. A common composer writes a version-3
 ledger with separate proof sources and rejects duplicate occurrence keys. Replay

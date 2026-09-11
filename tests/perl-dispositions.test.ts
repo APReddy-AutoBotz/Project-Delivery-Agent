@@ -222,6 +222,44 @@ describe("Perl architecture evidence (NFR-SEC-010 / AC-MNT-004)", () => {
         f.scan.matches = [];
         expect(deriveReviewedPerlRows(f)).toEqual([]);
       });
+  for (const target of realPolicy.targets)
+    for (const scope of realPolicy.scopes)
+      it(`retains original hashes for the reviewed selected description in ${target}/${scope}`, () => {
+        const f = fixture(target, scope),
+          before = deriveReviewedPerlRows(f);
+        const description = realPolicy.rule.primaryAdvisory.descriptions
+          .find((entry: any) => entry.lang === "en")
+          .value.replaceAll("\n", " ");
+        expect(hash(description)).toBe(
+          realPolicy.rule.selectedDescriptionSha256[1],
+        );
+        f.scan.matches[0].vulnerability.description = description;
+        const raw = encode(f.scan),
+          after = deriveReviewedPerlRows(f);
+        expect(after).toHaveLength(2);
+        expect(after[0].matchSha256).toBe(
+          hash(JSON.stringify(f.scan.matches[0])),
+        );
+        expect(after[0].matchSha256).not.toBe(before[0].matchSha256);
+        expect(after[0].scopeFactsSha256).toBe(before[0].scopeFactsSha256);
+        expect(after[1]).toEqual(before[1]);
+        expect(encode(f.scan)).toEqual(raw);
+        f.scan.matches[0].vulnerability.fix.state = "fixed";
+        expect(() => deriveReviewedPerlRows(f)).toThrow(/semantics changed/);
+      });
+  for (const description of [
+    null,
+    32,
+    "all architectures",
+    realPolicy.rule.advisory.description + " ",
+    realPolicy.rule.primaryAdvisory.descriptions[0].value,
+    realPolicy.rule.advisory.description.replace("32-bit", "64-bit"),
+  ])
+    it(`rejects unreviewed selected description ${String(description).slice(0, 35)}`, () => {
+      const f = fixture();
+      f.scan.matches[0].vulnerability.description = description;
+      expect(() => deriveReviewedPerlRows(f)).toThrow();
+    });
   it("production entrypoint refuses synthetic evidence even under real anchors", () => {
     const f = fixture();
     expect(() =>

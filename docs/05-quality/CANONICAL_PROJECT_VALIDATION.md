@@ -114,8 +114,12 @@ Initial verification exposed the prior authority timeout, an import cycle and tw
 subprocess tests that timed out under parallel host load. Browser attempts found
 incorrect test selectors and a startup navigation timeout. Independent UI review
 identified the selection/reference/retry issues above; regression fixes now pass.
-Failure logs are retained. Packaged execution, immutable candidate review and CI
-are pending; native results alone do not complete those gates.
+Failure logs are retained. Initial candidate `5709392` received independent source
+approval and passed native CI plus packaged execution. Distribution collection then
+rejected changed Debian advisory wording; the finite metadata correction and its
+primary evidence are recorded in ADR-014; all 101 focused Perl tests pass, including
+14 added description/retention/rejection cases. Replacement candidate review, full CI and
+original-artifact gates are pending; earlier results alone do not complete them.
 No story is accepted by this in-progress report. R0 remains 3/5 and R1 0/33 until
 verified merge and an explicit acceptance decision. Issue #6 retains its remaining
 evidence and reconciliation criteria; all five release/distribution gates stay open.
