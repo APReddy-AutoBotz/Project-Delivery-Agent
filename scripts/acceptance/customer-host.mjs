@@ -367,6 +367,25 @@ export async function customerProfiles({
         );
         assert.equal(projectFactPersistence.status, "passed");
         assert.equal(projectFactPersistence.restore.status, "passed");
+        assert.equal(
+          projectFactPersistence.canonicalFixture.runtimeRole,
+          "pdaa_api",
+        );
+        assert.equal(projectFactPersistence.canonicalWorkerDenied, true);
+        assert.equal(projectFactPersistence.businessTableCount, 31);
+        assert.equal(projectFactPersistence.migrationCount, 4);
+        assert.equal(
+          projectFactPersistence.restore.canonicalIntegrityChecked,
+          true,
+        );
+        assert.equal(
+          projectFactPersistence.restore.canonicalImmutableChecked,
+          true,
+        );
+        assert.equal(
+          projectFactPersistence.restore.canonicalCommitGuards.actualCommit,
+          true,
+        );
         const runtimeDisclosure = captureLogs();
         const browserDisclosure = {};
         for (const phase of ["before-upgrade", "after-upgrade"]) {

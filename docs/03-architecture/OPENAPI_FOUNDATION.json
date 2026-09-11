@@ -693,7 +693,8 @@
                     "enum": [
                       "pm-atlas",
                       "leader-atlas",
-                      "operator"
+                      "operator",
+                      "pmo-portfolio"
                     ]
                   }
                 },
@@ -730,6 +731,7 @@
                         "enum": [
                           "leadership",
                           "project_manager",
+                          "portfolio_manager",
                           "contributor",
                           "pmo_admin",
                           "system_admin"
@@ -1171,6 +1173,1005 @@
         "tags": [
           "Foundation"
         ]
+      },
+      "post": {
+        "operationId": "CanonicalController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        409
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Creation conflicts with an existing request or record"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Canonical projects"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "portfolioId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "programmeId": {
+                    "nullable": true,
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 48,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160,
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 4096,
+                    "pattern": "^[^\\u0000]*$"
+                  },
+                  "reportedStatus": {
+                    "type": "string",
+                    "enum": [
+                      "GREEN",
+                      "AMBER",
+                      "RED",
+                      "UNKNOWN"
+                    ]
+                  },
+                  "dates": {
+                    "type": "object",
+                    "properties": {
+                      "baselineStart": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "baselineEnd": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "plannedStart": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "plannedEnd": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "forecastStart": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "forecastEnd": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "actualStart": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "actualEnd": {
+                        "nullable": true,
+                        "type": "string",
+                        "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                      }
+                    },
+                    "required": [
+                      "baselineStart",
+                      "baselineEnd",
+                      "plannedStart",
+                      "plannedEnd",
+                      "forecastStart",
+                      "forecastEnd",
+                      "actualStart",
+                      "actualEnd"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "responsibilities": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "SPONSOR",
+                            "PROJECT_MANAGER",
+                            "SCRUM_MASTER",
+                            "TEAM_LEAD",
+                            "RESPONSIBLE_OWNER"
+                          ]
+                        },
+                        "subject": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "role",
+                        "subject",
+                        "displayName"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "sprints": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        },
+                        "dates": {
+                          "type": "object",
+                          "properties": {
+                            "baselineStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "baselineEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "plannedStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "plannedEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "forecastStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "forecastEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "actualStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "actualEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            }
+                          },
+                          "required": [
+                            "baselineStart",
+                            "baselineEnd",
+                            "plannedStart",
+                            "plannedEnd",
+                            "forecastStart",
+                            "forecastEnd",
+                            "actualStart",
+                            "actualEnd"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "name",
+                        "dates"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "milestones": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        },
+                        "dates": {
+                          "type": "object",
+                          "properties": {
+                            "baselineStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "baselineEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "plannedStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "plannedEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "forecastStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "forecastEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "actualStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "actualEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            }
+                          },
+                          "required": [
+                            "baselineStart",
+                            "baselineEnd",
+                            "plannedStart",
+                            "plannedEnd",
+                            "forecastStart",
+                            "forecastEnd",
+                            "actualStart",
+                            "actualEnd"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "OPEN",
+                            "IN_PROGRESS",
+                            "COMPLETE",
+                            "CANCELLED"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "name",
+                        "dates",
+                        "state"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "workItems": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "OPEN",
+                            "IN_PROGRESS",
+                            "COMPLETE",
+                            "CANCELLED"
+                          ]
+                        },
+                        "sprintKey": {
+                          "nullable": true,
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "dates": {
+                          "type": "object",
+                          "properties": {
+                            "baselineStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "baselineEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "plannedStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "plannedEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "forecastStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "forecastEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "actualStart": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            },
+                            "actualEnd": {
+                              "nullable": true,
+                              "type": "string",
+                              "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                            }
+                          },
+                          "required": [
+                            "baselineStart",
+                            "baselineEnd",
+                            "plannedStart",
+                            "plannedEnd",
+                            "forecastStart",
+                            "forecastEnd",
+                            "actualStart",
+                            "actualEnd"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "title",
+                        "state",
+                        "sprintKey",
+                        "dates"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "requiredWorkItems": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "milestoneKey": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "workItemKey": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        }
+                      },
+                      "required": [
+                        "milestoneKey",
+                        "workItemKey"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "raidItems": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "RISK",
+                            "ASSUMPTION",
+                            "ISSUE",
+                            "DEPENDENCY",
+                            "DECISION",
+                            "ACTION"
+                          ]
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 4096,
+                          "pattern": "^[^\\u0000]*$"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "OPEN",
+                            "IN_PROGRESS",
+                            "COMPLETE",
+                            "CANCELLED"
+                          ]
+                        },
+                        "ownerSubject": {
+                          "nullable": true,
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "kind",
+                        "title",
+                        "description",
+                        "state",
+                        "ownerSubject"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "sourceMappings": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "sourceSystem": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        },
+                        "instanceKey": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "externalType": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        },
+                        "externalId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        },
+                        "externalRevision": {
+                          "nullable": true,
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "^[^\\u0000]*$"
+                        },
+                        "url": {
+                          "nullable": true,
+                          "type": "string",
+                          "maxLength": 2048,
+                          "pattern": "^https:\\/\\/[^/?#@\\\\\\s]+(?:[/?#][^\\s\\\\]*)?$"
+                        },
+                        "targetType": {
+                          "type": "string",
+                          "enum": [
+                            "PROJECT",
+                            "SPRINT",
+                            "MILESTONE",
+                            "WORK_ITEM",
+                            "RAID_ITEM"
+                          ]
+                        },
+                        "targetKey": {
+                          "nullable": true,
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        }
+                      },
+                      "required": [
+                        "sourceSystem",
+                        "instanceKey",
+                        "externalType",
+                        "externalId",
+                        "externalRevision",
+                        "url",
+                        "targetType",
+                        "targetKey"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9._:-]+$"
+                  }
+                },
+                "required": [
+                  "portfolioId",
+                  "programmeId",
+                  "code",
+                  "name",
+                  "description",
+                  "reportedStatus",
+                  "dates",
+                  "responsibilities",
+                  "sprints",
+                  "milestones",
+                  "workItems",
+                  "requiredWorkItems",
+                  "raidItems",
+                  "sourceMappings",
+                  "idempotencyKey"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/projects/{id}": {
@@ -2171,6 +3172,7 @@
                     "enum": [
                       "leadership",
                       "project_manager",
+                      "portfolio_manager",
                       "contributor",
                       "pmo_admin",
                       "system_admin"
@@ -2414,6 +3416,1756 @@
             }
           }
         }
+      }
+    },
+    "/api/project-setup": {
+      "get": {
+        "operationId": "CanonicalController_setup",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "portfolios": {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "programmes": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "code": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 48,
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160,
+                                  "allOf": [
+                                    {
+                                      "type": "string",
+                                      "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "code",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "programmesTruncated": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "programmes",
+                          "programmesTruncated"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "truncated",
+                    "portfolios"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Canonical projects"
+        ]
+      }
+    },
+    "/api/portfolios/{id}/programmes": {
+      "post": {
+        "operationId": "CanonicalController_programme",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 48,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160,
+                      "allOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        409
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Creation conflicts with an existing request or record"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Canonical projects"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 48,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160,
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                      }
+                    ]
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9._:-]+$"
+                  }
+                },
+                "required": [
+                  "code",
+                  "name",
+                  "idempotencyKey"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/canonical": {
+      "get": {
+        "operationId": "CanonicalController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "portfolio": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "programme": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "code": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 48,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "code",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "reportedStatus": {
+                      "type": "string"
+                    },
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "creation": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
+                        },
+                        "at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "revision": {
+                          "type": "number",
+                          "enum": [
+                            1
+                          ]
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at",
+                        "revision"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "dates": {
+                      "type": "object",
+                      "properties": {
+                        "baselineStart": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "baselineEnd": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "plannedStart": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "plannedEnd": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "forecastStart": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "forecastEnd": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "actualStart": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "actualEnd": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                        }
+                      },
+                      "required": [
+                        "baselineStart",
+                        "baselineEnd",
+                        "plannedStart",
+                        "plannedEnd",
+                        "forecastStart",
+                        "forecastEnd",
+                        "actualStart",
+                        "actualEnd"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "responsibilities": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "SPONSOR",
+                              "PROJECT_MANAGER",
+                              "SCRUM_MASTER",
+                              "TEAM_LEAD",
+                              "RESPONSIBLE_OWNER"
+                            ]
+                          },
+                          "subject": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "subject",
+                          "displayName",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "sprints": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 48,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "dates": {
+                            "type": "object",
+                            "properties": {
+                              "baselineStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "baselineEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "plannedStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "plannedEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "forecastStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "forecastEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "actualStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "actualEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              }
+                            },
+                            "required": [
+                              "baselineStart",
+                              "baselineEnd",
+                              "plannedStart",
+                              "plannedEnd",
+                              "forecastStart",
+                              "forecastEnd",
+                              "actualStart",
+                              "actualEnd"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "name",
+                          "dates",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "milestones": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 48,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "dates": {
+                            "type": "object",
+                            "properties": {
+                              "baselineStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "baselineEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "plannedStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "plannedEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "forecastStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "forecastEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "actualStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "actualEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              }
+                            },
+                            "required": [
+                              "baselineStart",
+                              "baselineEnd",
+                              "plannedStart",
+                              "plannedEnd",
+                              "forecastStart",
+                              "forecastEnd",
+                              "actualStart",
+                              "actualEnd"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "OPEN",
+                              "IN_PROGRESS",
+                              "COMPLETE",
+                              "CANCELLED"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "name",
+                          "dates",
+                          "state",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "workItems": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 48,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "OPEN",
+                              "IN_PROGRESS",
+                              "COMPLETE",
+                              "CANCELLED"
+                            ]
+                          },
+                          "sprintKey": {
+                            "nullable": true,
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 48,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                          },
+                          "dates": {
+                            "type": "object",
+                            "properties": {
+                              "baselineStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "baselineEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "plannedStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "plannedEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "forecastStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "forecastEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "actualStart": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "actualEnd": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^(?!0000)\\d{4}-\\d{2}-\\d{2}$"
+                              }
+                            },
+                            "required": [
+                              "baselineStart",
+                              "baselineEnd",
+                              "plannedStart",
+                              "plannedEnd",
+                              "forecastStart",
+                              "forecastEnd",
+                              "actualStart",
+                              "actualEnd"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "title",
+                          "state",
+                          "sprintKey",
+                          "dates",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "requiredWorkItems": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "milestoneKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 48,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                          },
+                          "workItemKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 48,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                          }
+                        },
+                        "required": [
+                          "milestoneKey",
+                          "workItemKey"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "raidItems": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 48,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "RISK",
+                              "ASSUMPTION",
+                              "ISSUE",
+                              "DEPENDENCY",
+                              "DECISION",
+                              "ACTION"
+                            ]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 4096,
+                            "pattern": "^[^\\u0000]*$"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "OPEN",
+                              "IN_PROGRESS",
+                              "COMPLETE",
+                              "CANCELLED"
+                            ]
+                          },
+                          "ownerSubject": {
+                            "nullable": true,
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "kind",
+                          "title",
+                          "description",
+                          "state",
+                          "ownerSubject",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "sourceMappings": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sourceSystem": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "instanceKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 48,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                          },
+                          "externalType": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "externalId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              }
+                            ]
+                          },
+                          "externalRevision": {
+                            "nullable": true,
+                            "type": "string",
+                            "maxLength": 128,
+                            "pattern": "^[^\\u0000]*$"
+                          },
+                          "url": {
+                            "nullable": true,
+                            "type": "string",
+                            "maxLength": 2048,
+                            "pattern": "^https:\\/\\/[^/?#@\\\\\\s]+(?:[/?#][^\\s\\\\]*)?$"
+                          },
+                          "targetType": {
+                            "type": "string",
+                            "enum": [
+                              "PROJECT",
+                              "SPRINT",
+                              "MILESTONE",
+                              "WORK_ITEM",
+                              "RAID_ITEM"
+                            ]
+                          },
+                          "targetKey": {
+                            "nullable": true,
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 48,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "required": [
+                          "sourceSystem",
+                          "instanceKey",
+                          "externalType",
+                          "externalId",
+                          "externalRevision",
+                          "url",
+                          "targetType",
+                          "targetKey",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "sourceMappingsWithheld": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "portfolio",
+                    "programme",
+                    "code",
+                    "name",
+                    "description",
+                    "reportedStatus",
+                    "configured",
+                    "creation",
+                    "dates",
+                    "responsibilities",
+                    "sprints",
+                    "milestones",
+                    "workItems",
+                    "requiredWorkItems",
+                    "raidItems",
+                    "sourceMappings",
+                    "sourceMappingsWithheld"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Canonical projects"
+        ]
       }
     }
   },

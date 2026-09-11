@@ -38,6 +38,8 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT SELECT,INSERT ON "AuthorityPolicy","AuthorityPolicyRevision","AuthorityPolicyReceipt","FactAuthorityConflict","FactAssessment","FactAssessmentVersion","FactAssessmentConflict" TO pdaa_api;
     GRANT UPDATE (revision) ON "AuthorityPolicy" TO pdaa_api;
     GRANT UPDATE (sealed) ON "FactAssessment" TO pdaa_api;
+    GRANT SELECT,INSERT ON "Programme","CanonicalProject","ProjectResponsibility","Sprint","Milestone","WorkItem","RequiredWorkItem","RaidItem","CanonicalSourceMapping","CanonicalCreationReceipt" TO pdaa_api;
+    GRANT UPDATE (sealed) ON "CanonicalProject" TO pdaa_api;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
   `);
 }

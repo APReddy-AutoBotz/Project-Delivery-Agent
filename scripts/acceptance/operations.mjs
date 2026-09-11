@@ -21,6 +21,16 @@ import {
   verifyAuthorityWorkerDenials,
 } from "./authority-assessments.mjs";
 import {
+  canonicalTables,
+  canonicalProjection,
+  seedCanonicalHistory,
+  verifyCanonicalPrivileges,
+  verifyCanonicalImmutable,
+  verifyCanonicalIntegrity,
+  verifyCanonicalCommitGuards,
+  verifyCanonicalWorkerDenials,
+} from "./canonical-projects.mjs";
+import {
   projectFactProjection,
   seedProjectFactHistory,
   verifyProjectFactPrivileges,
@@ -55,6 +65,7 @@ const projection = async (pool) => {
   const result = {
     ...(await projectFactProjection(pool)),
     ...(await authorityProjection(pool)),
+    ...(await canonicalProjection(pool)),
   };
   for (const table of [
     "Customer",
@@ -189,6 +200,11 @@ try {
       migrations,
       2,
     );
+    const canonicalUpgrade = await verifyFoundationUpgrade(
+      admin,
+      migrations,
+      3,
+    );
     const factFixture = await seedProjectFactHistory(
       admin,
       config("database", "pdaa_api", "api-password").database,
@@ -208,6 +224,16 @@ try {
     await verifyAuthorityPrivileges(admin);
     await verifyAuthorityImmutable(admin);
     await verifyAuthorityIntegrity(admin);
+    const canonicalFixture = await seedCanonicalHistory(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      "30000000-0000-4000-8000-000000000001",
+      "packaged",
+    );
+    await verifyCanonicalPrivileges(admin);
+    await verifyCanonicalImmutable(admin);
+    await verifyCanonicalIntegrity(admin);
     const workerRuntimeDenied = await verifyWorkerFactDenials(
       config("database", "pdaa_worker", "worker-password").database,
     );
@@ -218,6 +244,14 @@ try {
           status: "awaiting-restore",
           upgrade,
           authorityUpgrade,
+          canonicalUpgrade,
+          canonicalFixture,
+          canonicalTables,
+          businessTableCount: 31,
+          migrationCount: migrations.length,
+          canonicalWorkerDenied: await verifyCanonicalWorkerDenials(
+            config("database", "pdaa_worker", "worker-password").database,
+          ),
           authorityFixture,
           authorityWorkerDenied: await verifyAuthorityWorkerDenials(
             config("database", "pdaa_worker", "worker-password").database,
@@ -313,6 +347,10 @@ try {
       await verifyAuthorityIntegrity(pool);
       await verifyAuthorityImmutable(pool);
       const authorityCommitGuards = await verifyAssessmentCommitGuards(pool);
+      await verifyCanonicalPrivileges(pool);
+      await verifyCanonicalIntegrity(pool);
+      await verifyCanonicalImmutable(pool);
+      const canonicalCommitGuards = await verifyCanonicalCommitGuards(pool);
       const receipt = JSON.parse(
         readFileSync(output + "/project-fact-persistence.json", "utf8"),
       );
@@ -324,6 +362,9 @@ try {
         immutableHistoryChecked: true,
         authorityIntegrityChecked: true,
         authorityCommitGuards,
+        canonicalIntegrityChecked: true,
+        canonicalImmutableChecked: true,
+        canonicalCommitGuards,
         workerCheckpoint: await verifyRestoredWorker(
           admin,
           pool,
@@ -490,9 +531,10 @@ try {
       );
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    assert.equal(
-      (await admin.query('SELECT count(*)::int AS n FROM "Project"')).rows[0].n,
-      2,
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(await projection(admin))),
+      JSON.parse(readFileSync(output + "/restore-source.json", "utf8")),
+      "Restart must preserve the complete source projection",
     );
     console.log(
       "PASS: persisted data, API readiness and worker progress recover after database and worker restart",

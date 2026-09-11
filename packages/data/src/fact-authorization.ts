@@ -3,6 +3,7 @@ import {
   projectFactIdSchema,
   projectFactSubjectSchema,
   roleSchema,
+  roles as recognizedRoles,
   type Actor,
 } from "@pdaa/domain";
 import type { Prisma } from "./generated/prisma/client.js";
@@ -19,7 +20,7 @@ export function actorInput(value: Actor): Actor {
     if (
       !Array.isArray(value.roles) ||
       !value.roles.length ||
-      value.roles.length > 5
+      value.roles.length > recognizedRoles.length
     )
       throw new Error();
     const roles = value.roles.map((role) => roleSchema.parse(role));

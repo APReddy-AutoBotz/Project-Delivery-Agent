@@ -1,8 +1,8 @@
 # EXEC-004: Canonical projects and immutable evidence
 
-Status: In progress; PR41 temporal model, PR42 persistence and PR43 authority resolver merged; durable policy/capture integration implemented and under validation/review.
+Status: In progress; PR41 temporal model, PR42 persistence, PR43 resolver and PR44 durable policy/capture merged; canonical creation/detail journey planned in EXEC-005.
 Owner: Implementation controller
-Updated: 2026-09-10
+Updated: 2026-09-11
 Issue: #6, STORY-010/011/012; target R1; requirements FR-ADM-005,
 FR-MOD-001/002/004/005/007, FR-EVD-001/002/003/004/006/007/010/012.
 Adjacent scope: FR-MOD-003/006, FR-EVD-005/009, NFR-SEC-001.

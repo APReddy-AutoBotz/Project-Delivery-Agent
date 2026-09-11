@@ -8,6 +8,11 @@ import {
 } from "@tanstack/react-query";
 import { UserManager, WebStorageStateStore } from "oidc-client-ts";
 import { Button, TextField, SelectField, Message } from "./components.js";
+import {
+  CreateProject,
+  CanonicalProjectDetails,
+  type ProjectSetup,
+} from "./canonical-project.js";
 import "./style.css";
 
 type AuthConfig = {
@@ -66,6 +71,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...(requestToken ? { Authorization: "Bearer " + requestToken } : {}),
     },
   });
+  if (requestToken && requestToken !== accessToken)
+    throw new Error("The session changed before this request completed.");
   if (response.status === 401 && requestToken && requestToken === accessToken)
     expireSession?.();
   if (
@@ -81,11 +88,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
           ? "This project is unavailable for your account."
           : response.status === 403
             ? "You do not have permission for this action."
-            : "The request could not be completed. Please try again.",
+            : response.status === 409
+              ? "This code, source reference or request conflicts with an existing record. Review the details before submitting again."
+              : response.status === 400
+                ? "Some project details are invalid. Check the required fields, dates and references."
+                : "The request could not be completed. Please try again.",
     );
-  return response.status === 204
-    ? (undefined as T)
-    : (response.json() as Promise<T>);
+  const data = response.status === 204 ? undefined : await response.json();
+  if (requestToken && requestToken !== accessToken)
+    throw new Error("The session changed before this request completed.");
+  return data as T;
 }
 function manager(config: AuthConfig) {
   return (oidc ??= new UserManager({
@@ -122,12 +134,14 @@ function App() {
   const [error, setError] = useState("");
   const [view, setView] = useState<"projects" | "platform">("projects");
   const [selected, setSelected] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   React.useEffect(() => {
     expireSession = () => {
       accessToken = undefined;
       idToken = undefined;
       setSignedIn(false);
       setSelected(null);
+      setCreating(false);
       setView("projects");
       setError("Your session has ended. Please sign in again.");
       clearProtectedData();
@@ -158,6 +172,11 @@ function App() {
   const admin = me.data?.roles.some((r) =>
     ["system_admin", "pmo_admin"].includes(r),
   );
+  const setup = useProtectedQuery({
+    queryKey: ["project-setup"],
+    queryFn: () => request<ProjectSetup>("/project-setup"),
+    enabled: signedIn,
+  });
   async function login(persona?: string) {
     setBusy(true);
     setError("");
@@ -208,6 +227,7 @@ function App() {
     accessToken = undefined;
     setSignedIn(false);
     setSelected(null);
+    setCreating(false);
     setView("projects");
     clearProtectedData();
     if (auth.data?.mode === "oidc" && oidc) {
@@ -293,6 +313,13 @@ function App() {
                 <span>
                   <strong>Platform operator</strong>
                   <small>Manage access and check service health</small>
+                </span>
+                <span aria-hidden="true">↗</span>
+              </Button>
+              <Button disabled={busy} onClick={() => login("pmo-portfolio")}>
+                <span>
+                  <strong>PMO administrator</strong>
+                  <small>Create projects in the synthetic portfolio</small>
                 </span>
                 <span aria-hidden="true">↗</span>
               </Button>
@@ -401,6 +428,20 @@ function App() {
           )}
           {view === "platform" && admin ? (
             <PlatformView />
+          ) : creating && setup.data ? (
+            <CreateProject
+              setup={setup.data}
+              request={request}
+              onCancel={() => setCreating(false)}
+              onSetupChanged={async () => {
+                await client.invalidateQueries({ queryKey: ["project-setup"] });
+              }}
+              onCreated={(id) => {
+                setCreating(false);
+                setSelected(id);
+                void client.invalidateQueries({ queryKey: ["projects"] });
+              }}
+            />
           ) : selected ? (
             <>
               <Button
@@ -414,7 +455,13 @@ function App() {
                   {project.error.message}
                 </p>
               ) : project.data ? (
-                <ProjectDetail project={project.data} />
+                <>
+                  <ProjectDetail project={project.data} />
+                  <CanonicalProjectDetails
+                    id={project.data.id}
+                    request={request}
+                  />
+                </>
               ) : (
                 <p role="status">Loading project…</p>
               )}
@@ -439,6 +486,11 @@ function App() {
               </div>
               <div className="section-title">
                 <h2>Project workspace</h2>
+                {setup.data?.portfolios.length ? (
+                  <Button className="primary" onClick={() => setCreating(true)}>
+                    Create project
+                  </Button>
+                ) : null}
                 <span>{projects.data?.length ?? 0} visible</span>
               </div>
               {projects.error && (
@@ -521,7 +573,7 @@ function ProjectDetail({ project }: { project: Project }) {
             <dt>Reported status</dt>
             <dd>
               <span className="pill neutral">
-                {project.reportedStatus} · Synthetic seed
+                {project.reportedStatus} · Reported, unassessed
               </span>
             </dd>
           </div>
@@ -679,6 +731,7 @@ function PlatformView() {
                 {[
                   "contributor",
                   "project_manager",
+                  "portfolio_manager",
                   "leadership",
                   "pmo_admin",
                   "system_admin",

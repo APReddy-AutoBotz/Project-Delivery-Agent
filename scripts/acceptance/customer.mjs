@@ -31,6 +31,16 @@ import {
   verifyAuthorityWorkerDenials,
 } from "./authority-assessments.mjs";
 import {
+  canonicalTables,
+  canonicalProjection,
+  seedCanonicalHistory,
+  verifyCanonicalPrivileges,
+  verifyCanonicalImmutable,
+  verifyCanonicalIntegrity,
+  verifyCanonicalCommitGuards,
+  verifyCanonicalWorkerDenials,
+} from "./canonical-projects.mjs";
+import {
   createDisclosureCheck,
   readFixtureSecrets,
   observeBrowserDisclosure,
@@ -84,6 +94,7 @@ async function projection(pool) {
   const result = {
     ...(await projectFactProjection(pool)),
     ...(await authorityProjection(pool)),
+    ...(await canonicalProjection(pool)),
   };
   for (const table of [
     "Customer",
@@ -277,6 +288,7 @@ try {
       "AuditEvent",
       ...projectFactTables,
       ...authorityTables,
+      ...canonicalTables,
     ])
       assert.equal(
         state[table].length,
@@ -286,7 +298,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 3);
+    assert.equal(migrations.length, 4);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -295,6 +307,7 @@ try {
       migrations,
     );
     await verifyProjectFactPrivileges(db);
+    await verifyCanonicalPrivileges(db);
     const configResponse = await fetch(base + "/api/auth/config");
     assert.equal(configResponse.status, 200);
     const publicConfig = await configResponse.text();
@@ -381,6 +394,20 @@ try {
     );
     await verifyAuthorityPrivileges(db);
     await verifyAuthorityImmutable(db);
+    const canonicalFixture = await seedCanonicalHistory(
+      db,
+      loadDatabaseConfig({
+        ...env,
+        PDAA_DB_USER: "pdaa_api",
+        PDAA_DB_PASSWORD_FILE: "/run/secrets/api-password",
+      }).database,
+      env.CUSTOMER_ID,
+      projectId,
+      "customer-" + profile,
+    );
+    await verifyCanonicalPrivileges(db);
+    await verifyCanonicalImmutable(db);
+    await verifyCanonicalIntegrity(db);
     save("project-fact-persistence", {
       status: "awaiting-restore",
       workerRuntimeDenied: await verifyWorkerFactDenials(
@@ -392,6 +419,17 @@ try {
       ),
       fixture,
       authorityFixture,
+      canonicalFixture,
+      canonicalTables,
+      businessTableCount: 31,
+      migrationCount: 4,
+      canonicalWorkerDenied: await verifyCanonicalWorkerDenials(
+        loadDatabaseConfig({
+          ...env,
+          PDAA_DB_USER: "pdaa_worker",
+          PDAA_DB_PASSWORD_FILE: "/run/secrets/worker-password",
+        }).database,
+      ),
       authorityWorkerDenied: await verifyAuthorityWorkerDenials(
         loadDatabaseConfig({
           ...env,
@@ -410,6 +448,8 @@ try {
       read("backup-state"),
       "Current-release upgrade must preserve data, grants, audit and migration history",
     );
+    await verifyCanonicalPrivileges(db);
+    await verifyCanonicalIntegrity(db);
     await browserCheck(true);
     await verifyProjectFactPrivileges(db);
     const state = await projection(db);
@@ -432,6 +472,10 @@ try {
       await verifyAuthorityImmutable(restored);
       const authorityCommitGuards =
         await verifyAssessmentCommitGuards(restored);
+      await verifyCanonicalPrivileges(restored);
+      await verifyCanonicalIntegrity(restored);
+      await verifyCanonicalImmutable(restored);
+      const canonicalCommitGuards = await verifyCanonicalCommitGuards(restored);
       assert.equal(
         (
           await restored.query(
@@ -457,6 +501,9 @@ try {
         immutableHistoryChecked: true,
         authorityIntegrityChecked: true,
         authorityCommitGuards,
+        canonicalIntegrityChecked: true,
+        canonicalImmutableChecked: true,
+        canonicalCommitGuards,
         workerCheckpoint: await verifyRestoredWorker(
           db,
           restored,

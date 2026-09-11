@@ -918,13 +918,21 @@ tests:
   evidence: []
 - id: INT-MOD-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-MOD-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The API can create and retrieve a canonical project with hierarchy, roles, baseline/forecast dates,
     reported health and external source mappings.
-  evidence: []
+  evidence:
+  - tests/canonical-project.test.ts
+  - tests/canonical-project.integration.test.ts
+  - tests/api-contract.test.ts
+  - tests/e2e/canonical-project.spec.ts
+  - scripts/acceptance/canonical-projects.mjs
+  - scripts/acceptance/project-fact-upgrade.mjs
+  - scripts/test-production.mjs
+  - docs/05-quality/CANONICAL_PROJECT_VALIDATION.md
 - id: INT-PRV-002
   release: R1
   status: planned

@@ -133,6 +133,7 @@
 - `docs/04-delivery/exec-plans/EXEC-002-platform-foundation.md`: foundation scope and evidence.
 - `docs/04-delivery/exec-plans/EXEC-003-customer-hosted-foundation.md`: production boundary implementation and remaining release gates.
 - `docs/04-delivery/exec-plans/EXEC-004-canonical-model.md`: synthetic canonical/evidence implementation, temporal model and outstanding storage/API acceptance.
+- `docs/04-delivery/exec-plans/EXEC-005-canonical-project-workflow.md`: scoped canonical project creation/detail API and browser workflow, persistence and acceptance gates.
 - `docs/05-quality/TEMPORAL_FACT_MODEL_VALIDATION.md`: internal temporal assessment checks, partial requirement evidence and storage/API/disclosure limits.
 - `docs/05-quality/PROJECT_FACT_PERSISTENCE_VALIDATION.md`: durable human history, current permission, additive migration and recovery evidence; partial Issue #6 scope.
 - `docs/05-quality/SOURCE_AUTHORITY_VALIDATION.md`: explicit historical authority policy, approval/fallback/conflict resolution and evidence redaction; partial Issue #6 scope.
@@ -175,3 +176,4 @@ DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.
 - `docs/05-quality/PORTFOLIO_AUTHORIZATION_VALIDATION.md`: two-portfolio HTTP/repository scope, grant/revoke audit and unchanged-state denial evidence.
 
 - `docs/05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md`: conditional five-criterion decision and unresolved story-level security assessment.
+- `docs/05-quality/CANONICAL_PROJECT_VALIDATION.md`: canonical creation/detail workflow, current scope, additive migration and candidate evidence.
