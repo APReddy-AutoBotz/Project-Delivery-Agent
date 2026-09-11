@@ -1,5 +1,25 @@
 # Document Control
 
+## Project evidence workflow acceptance, 2026-09-12
+
+Under the Product Owner's existing delegation, the controller accepts the verified
+PR #47 workflow for AC-EVD-001/002/003 and AC-ADM-003, completing STORY-011.
+The exact candidate, independent reviews, successful required checks, original
+artifacts and verified merge are recorded in
+[PROJECT_EVIDENCE_WORKFLOW_VALIDATION](../05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md).
+Routine design remains EXEC-006: literal project fact keys, explicit human
+confirmation, PMO-only authority/source-reader configuration, and server-owned
+historical captures with current authorization. No canonical binding is inferred
+from a fact key. Configuration does not become human approval or verified evidence.
+
+Issue #6 stays open for AC-EVD-004 / GOLDEN-003 and STORY-012. R0 remains 3/5;
+R1 is 2/33 accepted stories. All five commercial/customer release gates and
+real-source activation remain open; no legal/security disposition is added.
+The next coherent increment needs explicit canonical state-evidence binding,
+bounded milestone contradiction checks and a durable deduplicated internal PM
+request under current recipient/source permissions. Its design and implementation
+must pass their own review and validation; this record does not approve a new plan.
+
 ## Baseline information
 
 | Field | Value |

@@ -249,9 +249,13 @@ stories:
   - AC-ADM-003
   - AC-EVD-001
   - AC-EVD-002
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/47
+  implementation_evidence:
+  - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: STORY-012
   epic: EPIC-03
   title: Implement source authority and conflict resolution
