@@ -239,13 +239,19 @@ tests:
   evidence: []
 - id: E2E-EVD-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A fact outside its configured validity period is marked STALE and cannot be presented as current without
     warning.
-  evidence: []
+  evidence:
+  - scripts/acceptance/evidence-workflow-receipt.mjs
+  - tests/project-evidence.integration.test.ts
+  - tests/e2e/project-evidence.spec.ts
+  - scripts/acceptance/evidence-workflow.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: E2E-HERO-001
   release: R1
   status: planned
@@ -594,14 +600,21 @@ tests:
   evidence: []
 - id: FAIL-028
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-002
   specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
   behavior: A human-confirmed fact that expires and conflicts retains HUMAN_CONFIRMED provenance with STALE freshness
     and CONFLICTING state. API/display expose all dimensions, derive labels deterministically, and preserve a previously
     frozen snapshot assessment.
-  evidence: []
+  evidence:
+  - tests/temporal-facts.test.ts
+  - tests/source-authority.test.ts
+  - tests/project-evidence.integration.test.ts
+  - tests/e2e/project-evidence.spec.ts
+  - scripts/acceptance/evidence-workflow.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: GOLDEN-001
   release: R1
   status: planned
@@ -707,14 +720,22 @@ tests:
   evidence: []
 - id: GOLDEN-013
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-002
   specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
   behavior: A human-confirmed fact that expires and conflicts retains HUMAN_CONFIRMED provenance with STALE freshness
     and CONFLICTING state. API/display expose all dimensions, derive labels deterministically, and preserve a previously
     frozen snapshot assessment.
-  evidence: []
+  evidence:
+  - tests/source-authority.test.ts
+  - scripts/acceptance/evidence-workflow-receipt.mjs
+  - scripts/test-production.mjs
+  - tests/project-evidence.integration.test.ts
+  - tests/e2e/project-evidence.spec.ts
+  - scripts/acceptance/evidence-workflow.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: GOLDEN-014
   release: R1
   status: planned
@@ -745,12 +766,20 @@ tests:
   - docs/05-quality/OIDC_CONFIGURATION_VALIDATION.md
 - id: INT-ADM-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-ADM-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Changing an authority rule affects subsequent fact resolution while preserving prior fact history.
-  evidence: []
+  evidence:
+  - tests/source-authority.test.ts
+  - tests/authority-persistence.integration.test.ts
+  - scripts/test-production.mjs
+  - tests/project-evidence.integration.test.ts
+  - tests/e2e/project-evidence.spec.ts
+  - scripts/acceptance/evidence-workflow.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: INT-ADM-004
   release: R1
   status: planned
@@ -876,12 +905,19 @@ tests:
   - docs/05-quality/FOUNDATION_CONTRACT_VALIDATION.md
 - id: INT-EVD-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A changed source value creates a new fact version and preserves the previous value, source and timestamps.
-  evidence: []
+  evidence:
+  - tests/project-facts.integration.test.ts
+  - scripts/test-production.mjs
+  - tests/project-evidence.integration.test.ts
+  - tests/e2e/project-evidence.spec.ts
+  - scripts/acceptance/evidence-workflow.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: INT-EVD-004
   release: R1
   status: planned
@@ -1266,23 +1302,37 @@ tests:
   evidence: []
 - id: UNIT-EVD-002
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-002
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A human-confirmed fact that expires and conflicts retains HUMAN_CONFIRMED provenance with STALE freshness
     and CONFLICTING state. API/display expose all dimensions, derive labels deterministically, and preserve a previously
     frozen snapshot assessment.
-  evidence: []
+  evidence:
+  - tests/temporal-facts.test.ts
+  - tests/source-authority.test.ts
+  - tests/project-evidence.integration.test.ts
+  - tests/e2e/project-evidence.spec.ts
+  - scripts/acceptance/evidence-workflow.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: UNIT-EVD-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A fact outside its configured validity period is marked STALE and cannot be presented as current without
     warning.
-  evidence: []
+  evidence:
+  - tests/temporal-facts.test.ts
+  - tests/source-authority.test.ts
+  - tests/project-evidence.integration.test.ts
+  - tests/e2e/project-evidence.spec.ts
+  - scripts/acceptance/evidence-workflow.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: UNIT-HLT-001
   release: R1
   status: planned

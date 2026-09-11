@@ -1,6 +1,6 @@
 # EXEC-006: Project evidence history and saved assessments
 
-Status: Design independently approved; implementation in progress.
+Status: Implemented, independently reviewed, verified and accepted after PR #47 merge.
 Owner: Implementation controller. Date: 2026-09-11.
 Issue: #6; STORY-011/012; broad approved design EXEC-004.
 Requirements: FR-ADM-005, FR-EVD-001/002/003/004/005/006/007/009/010/012,
@@ -136,7 +136,7 @@ AC-EVD-003 (configured expiry warning), AC-ADM-003 (subsequent-only policy impac
 Accept only after actual API, browser and persistence evidence and immutable
 independent review. AC-EVD-004 / GOLDEN-003's milestone versus mandatory-work
 reconciliation is outside this increment and remains open. Full STORY-012 is
-not accepted by a scalar conflict screen. No criterion is accepted by this draft.
+not accepted by a scalar conflict screen. Acceptance was withheld until the completion gates recorded below passed.
 
 Tests: strict contracts and sanitized failures; authorized empty catalogue;
 pagination bounds; source-reader management denied across roles/scopes; matching
@@ -170,10 +170,50 @@ available. Preserve the local development database, volume and Docker VHD.
   The authorized-empty history ambiguity was resolved before implementation.
 - Scoped repository reads, nine strict API operations and reviewed browser forms
   implemented. Four dedicated real browser journeys passed. Full unit suite passed
-  764 tests with two workers; no process timeout was relaxed. Required final native
-  and packaged CI/review gates remain pending.
+  764 tests with two workers; no process timeout was relaxed. Final native and packaged
+  gates subsequently passed; see the completion entry below.
 - Packaged acceptance covers both customer profiles, original response projections,
   reviewed statements/sharing, policy expiry, saved links after recreation and
-  current revocation; all writes precede backup. No released migration changed.
+  current revocation. All new evidence-fixture writes precede backup; deliberate
+  project-grant revocation occurs after recreation, and quarantined restore compares
+  the earlier backup. No released migration changed.
 - [Workflow and validation record](../../05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md)
   documents the user/admin behavior, initial failed checks and remaining scope.
+
+## Verified completion, 2026-09-12
+
+[PR #47](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/47)
+merged candidate `5ecefb11c94b9cd63077fa9ac8269e093f0e5a03` as
+`2187f3a774f1655ec34eb26dee5381ffeea3a4c4` at 2026-09-11T19:25:42Z, with tree
+`12aa5d3ca593f558cbb02ede60c7a0f0b8d7145d`. The
+[public gate record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/47#issuecomment-5639577926) binds three independent immutable source reviews,
+both original-artifact reviews and the root's retained evidence checks.
+[Foundation 34634884717](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34634884717)
+and [Documentation 34634884612](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34634884612)
+passed for that candidate: 764 unit/contract tests, 85 database/API cases, 18 browser
+workflows, seven package builds, 19 packaged groups, both customer profiles, three
+populated upgrade prefixes and exact 31-table recovery. The reviewed tree and
+ordered merge parents were verified after merge. These are completed candidate
+checks; later main-branch repeats have their own results.
+
+Under delegated controller authority, AC-EVD-001/002/003 and AC-ADM-003 are accepted,
+completing STORY-011. Typed human statements preserve original versions; explicit
+PMO authority changes subsequent captures; saved assessments retain provenance,
+freshness and conflict independently and apply current permissions on delivery.
+Issue #6 remains open with five of six criteria accepted. AC-EVD-004 / GOLDEN-003
+and STORY-012 still require canonical milestone/mandatory-work reconciliation and
+a durable request delivered to the currently authorized PM.
+
+Accepted stories: R0 3/5 (60%); R1 2/33 (6.1%). These fixed story fractions do not
+measure engineering effort or commercial readiness. The five inventory, licensing,
+vulnerability, distributed-layer and signing release gates remain open. The current
+87-file distribution evidence retains 832 High/Critical scanner occurrences,
+112 validated dispositions and 720 unresolved occurrences; no new disposition
+or customer-release approval is granted.
+
+No migration, table, database grant, external dependency version or connector scope
+changes. Current matching role/grant and source permissions protect every operation;
+known denial clears protected browser state, while transient failures retain only
+the reviewed in-memory retry request. No AI call, external write or real-data
+activation. Recovery uses a compatible application revert preserving additive
+history, or encrypted restore into a fresh quarantined target.

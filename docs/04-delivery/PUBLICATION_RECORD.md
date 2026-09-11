@@ -6,6 +6,46 @@ separate from story acceptance.
 
 ## Repository and review
 
+### Project evidence workflow acceptance, 2026-09-12
+
+[PR #47](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/47)
+merged candidate `5ecefb11c94b9cd63077fa9ac8269e093f0e5a03` as
+`2187f3a774f1655ec34eb26dee5381ffeea3a4c4` at 2026-09-11T19:25:42Z, with tree
+`12aa5d3ca593f558cbb02ede60c7a0f0b8d7145d`. The
+[public gate record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/47#issuecomment-5639577926) binds three independent immutable source reviews,
+both original-artifact reviews and the root's retained evidence checks.
+[Foundation 34634884717](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34634884717)
+and [Documentation 34634884612](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34634884612)
+passed for that candidate: 764 unit/contract tests, 85 database/API cases, 18 browser
+workflows, seven package builds, 19 packaged groups, both customer profiles, three
+populated upgrade prefixes and exact 31-table recovery. The reviewed tree and
+ordered merge parents were verified after merge. These are completed candidate
+checks; later main-branch repeats have their own results.
+
+Under delegated controller authority, AC-EVD-001/002/003 and AC-ADM-003 are accepted,
+completing STORY-011. Typed human statements preserve original versions; explicit
+PMO authority changes subsequent captures; saved assessments retain provenance,
+freshness and conflict independently and apply current permissions on delivery.
+Issue #6 remains open with five of six criteria accepted. AC-EVD-004 / GOLDEN-003
+and STORY-012 still require canonical milestone/mandatory-work reconciliation and
+a durable request delivered to the currently authorized PM.
+
+Accepted stories: R0 3/5 (60%); R1 2/33 (6.1%). These fixed story fractions do not
+measure engineering effort or commercial readiness. The five inventory, licensing,
+vulnerability, distributed-layer and signing release gates remain open. The current
+87-file distribution evidence retains 832 High/Critical scanner occurrences,
+112 validated dispositions and 720 unresolved occurrences; no new disposition
+or customer-release approval is granted.
+
+No migration, table, database grant, external dependency version or connector scope
+changes. Current matching role/grant and source permissions protect every operation;
+known denial clears protected browser state, while transient failures retain only
+the reviewed in-memory retry request. No AI call, external write or real-data
+activation. Recovery uses a compatible application revert preserving additive
+history, or encrypted restore into a fresh quarantined target.
+
+Earlier sections retain their historical state.
+
 ### Canonical project workflow acceptance, 2026-09-11
 
 [PR #45](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/45)
