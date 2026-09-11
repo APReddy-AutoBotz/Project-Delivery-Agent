@@ -5,7 +5,41 @@ Plan: [EXEC-005](../04-delivery/exec-plans/EXEC-005-canonical-project-workflow.m
 Story/criterion/test: STORY-010 / AC-MOD-001 / INT-MOD-001.
 Requirements: FR-MOD-001/002/004/005/007; adjacent FR-MOD-003/006,
 NFR-SEC-001/004 and TR-API-001. Authority regression: FR-EVD-003/010.
-Status: Implementation and candidate validation in progress; acceptance pending.
+Status: Accepted after independently reviewed PR #45 merge; other evidence/release gates remain open.
+
+## Verified completion
+
+[PR #45](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/45)
+merged candidate `1bbc01e08fcaf0d9b9754ad31f8f934694807162` as
+`ea65e37954f728b1e9a4a018cc944ad08019810a` at 2026-09-11T16:39:05Z, with tree
+`73101af0e4ad2bca9422c396bb44ba7911d671e3`. The
+[public gate record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/45#issuecomment-5637625710) binds independent immutable source review,
+source/build audit, both original-artifact reviews and all five root readers.
+[Foundation 34617274839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34617274839)
+and [Documentation 34617274810](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34617274810)
+passed for that candidate: 753 unit tests, 77 database/API cases, 14 browser cases,
+seven package builds, 19 packaged groups, both customer profiles, three populated
+upgrade prefixes and 31-table recovery. All 48 reviewed raw Git files and the
+ordered merge parents were verified after merge.
+
+Under delegated controller authority, AC-MOD-001 and STORY-010 are accepted.
+The API/browser create and retrieve hierarchy, responsibilities, dates, reported
+health and scoped manual source mappings. Missing data remains unknown and mappings
+remain unverified configuration. Issue #6 stays open for its five other criteria.
+Accepted stories: R0 3/5 (60%); R1 1/33 (3.0%). This is story acceptance, not customer
+release approval. The five inventory/licensing/vulnerability/layer/signing release
+gates remain open; current scans have 832 High/Critical observations, 112 validated
+dispositions and 720 unresolved occurrences. Four added libxml2 observations and
+other reviewed feed metadata differences grant no new disposition.
+
+The first candidate's failed distribution collection is retained. The replacement
+accepts only two exact reviewed advisory descriptions and passed fresh CI/review.
+No runtime dependency or connector scope changed. The additive fourth migration
+preserves all three released migrations. Recovery retains additive history during
+a compatible application revert or uses the matching reviewed release to restore
+into a fresh quarantined target. Next is the scoped fact-history and historical-
+assessment API/UI journey; no real-data or outbound activation is implied.
+
 
 ## User workflow
 
@@ -118,8 +152,7 @@ Failure logs are retained. Initial candidate `5709392` received independent sour
 approval and passed native CI plus packaged execution. Distribution collection then
 rejected changed Debian advisory wording; the finite metadata correction and its
 primary evidence are recorded in ADR-014; all 101 focused Perl tests pass, including
-14 added description/retention/rejection cases. Replacement candidate review, full CI and
-original-artifact gates are pending; earlier results alone do not complete them.
-No story is accepted by this in-progress report. R0 remains 3/5 and R1 0/33 until
-verified merge and an explicit acceptance decision. Issue #6 retains its remaining
-evidence and reconciliation criteria; all five release/distribution gates stay open.
+14 added description/retention/rejection cases. The verified completion record above
+confirms that replacement source review, full CI, original-artifact gates and merge
+subsequently passed. Issue #6 retains its five other evidence and reconciliation
+criteria; all five release/distribution gates stay open.

@@ -7,7 +7,7 @@ Updated: 2026-09-11
 | Release | Accepted merged stories | Total approved stories | Completion |
 |---|---:|---:|---:|
 | R0 | 3 | 5 | 60% |
-| R1 | 0 | 33 | 0% |
+| R1 | 1 | 33 | 3.0% |
 
 STORY-001 (TypeScript workspace and runtime/API contracts) and STORY-002
 (PostgreSQL foundation and repository interfaces) are accepted under delegated
@@ -18,6 +18,40 @@ accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://gith
 R0 release acceptance and commercial/customer deployment remain open.
 
 ## Published and merged increments
+
+[PR #45](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/45)
+merged candidate `1bbc01e08fcaf0d9b9754ad31f8f934694807162` as
+`ea65e37954f728b1e9a4a018cc944ad08019810a` at 2026-09-11T16:39:05Z, with tree
+`73101af0e4ad2bca9422c396bb44ba7911d671e3`. The
+[public gate record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/45#issuecomment-5637625710) binds independent immutable source review,
+source/build audit, both original-artifact reviews and all five root readers.
+[Foundation 34617274839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34617274839)
+and [Documentation 34617274810](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/34617274810)
+passed for that candidate: 753 unit tests, 77 database/API cases, 14 browser cases,
+seven package builds, 19 packaged groups, both customer profiles, three populated
+upgrade prefixes and 31-table recovery. All 48 reviewed raw Git files and the
+ordered merge parents were verified after merge.
+
+Under delegated controller authority, AC-MOD-001 and STORY-010 are accepted.
+The API/browser create and retrieve hierarchy, responsibilities, dates, reported
+health and scoped manual source mappings. Missing data remains unknown and mappings
+remain unverified configuration. Issue #6 stays open for its five other criteria.
+Accepted stories: R0 3/5 (60%); R1 1/33 (3.0%). This is story acceptance, not customer
+release approval. The five inventory/licensing/vulnerability/layer/signing release
+gates remain open; current scans have 832 High/Critical observations, 112 validated
+dispositions and 720 unresolved occurrences. Four added libxml2 observations and
+other reviewed feed metadata differences grant no new disposition.
+
+The first candidate's failed distribution collection is retained. The replacement
+accepts only two exact reviewed advisory descriptions and passed fresh CI/review.
+No runtime dependency or connector scope changed. The additive fourth migration
+preserves all three released migrations. Recovery retains additive history during
+a compatible application revert or uses the matching reviewed release to restore
+into a fresh quarantined target. Next is the scoped fact-history and historical-
+assessment API/UI journey; no real-data or outbound activation is implied.
+
+Earlier increment entries below retain their historical gate state; the PR #45
+record above supersedes canonical workflow and R1 acceptance pending statements.
 
 PR #43 merged the historical source-authority resolver after all required checks,
 separate immutable code review and both fresh artifact reviews. Its 69 focused /
@@ -31,10 +65,9 @@ as `dc606d5` after native validation, exact candidate CI, independent code/build
 review and both fresh artifact reviews passed. Validation included 712 unit tests,
 63 database cases, eight browser regressions, 18 packaged groups, both customer
 profiles and exact 21-table recovery. Both post-merge workflows also passed.
-The current Issue #6 increment implements canonical creation/detail API and UI under
-EXEC-005; candidate validation and acceptance remain pending. See
-[canonical workflow evidence](../05-quality/CANONICAL_PROJECT_VALIDATION.md). Trusted source ingestion and
-reconciliation also remain pending. This progress does not yet accept an R1 story.
+PR #45 subsequently completed the canonical creation/detail API and UI under
+EXEC-005; see [canonical workflow evidence](../05-quality/CANONICAL_PROJECT_VALIDATION.md).
+Trusted source ingestion and reconciliation remain pending.
 
 Public publication was explicitly approved by the Product Owner on 2026-09-06.
 
@@ -68,6 +101,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Durable human fact history | [#42](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/42) | `4d18377` | `062fcd7` |
 | Historical source authority | [#43](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/43) | `7f3fcce` | `9c97bf9` |
 | Durable authority assessments | [#44](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/44) | `79fdb9a` | `dc606d5` |
+| Canonical project workflow | [#45](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/45) | `1bbc01e` | `ea65e37` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -322,8 +356,10 @@ and complete the STORY-005 security assessment before foundation release accepta
 Customer-specific IdP and operations validation
 needs the customer's registration and policy; generic synthetic checks can continue.
 Real Jira/AI/email, write-back, assurance rules and reports remain unimplemented.
-Once the foundation gate is accepted, proceed to the canonical model and evidence
-ledger in [Issue #6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6).
+Synthetic canonical/evidence development continues under EXEC-004 in
+[Issue #6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6).
+The next increment exposes scoped fact history and historical assessments while
+foundation release and real-data activation remain gated.
 
 ## Security, data and recovery
 

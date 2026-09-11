@@ -176,4 +176,4 @@ DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.
 - `docs/05-quality/PORTFOLIO_AUTHORIZATION_VALIDATION.md`: two-portfolio HTTP/repository scope, grant/revoke audit and unchanged-state denial evidence.
 
 - `docs/05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md`: conditional five-criterion decision and unresolved story-level security assessment.
-- `docs/05-quality/CANONICAL_PROJECT_VALIDATION.md`: canonical creation/detail workflow, current scope, additive migration and candidate evidence.
+- `docs/05-quality/CANONICAL_PROJECT_VALIDATION.md`: accepted canonical creation/detail workflow, current scope, additive migration and verified PR45 evidence.

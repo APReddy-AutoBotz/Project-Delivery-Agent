@@ -225,9 +225,13 @@ stories:
   - FR-MOD-007
   acceptance_criteria:
   - AC-MOD-001
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/45
+  implementation_evidence:
+  - docs/05-quality/CANONICAL_PROJECT_VALIDATION.md
 - id: STORY-011
   epic: EPIC-03
   title: Implement fact and evidence versioning
