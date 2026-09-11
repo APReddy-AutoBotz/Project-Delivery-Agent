@@ -50,8 +50,9 @@ or customer-release approval is granted.
 
 No migration, table, database grant, external dependency version or connector scope
 changes. Current matching role/grant and source permissions protect every operation;
-known denial clears protected browser state, while transient failures retain only
-the reviewed in-memory retry request. No AI call, external write or real-data
+known denial clears protected browser state. Transient failures hide protected
+content and disable mutations while retaining in-memory state for safe retry.
+No AI call, external write or real-data
 activation. Recovery uses a compatible application revert preserving additive
 history, or encrypted restore into a fresh quarantined target.
 
