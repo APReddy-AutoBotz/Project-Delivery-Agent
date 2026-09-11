@@ -68,8 +68,19 @@ try {
       update: {},
     });
   }
+  const pmoGrant = {
+    customerId,
+    subject: "pmo-portfolio",
+    scopeType: "portfolio",
+    scopeId: portfolioId,
+  };
+  await db.accessGrant.upsert({
+    where: { customerId_subject_scopeType_scopeId: pmoGrant },
+    create: { ...pmoGrant, role: "pmo_admin" },
+    update: {},
+  });
   console.log(
-    "Synthetic Atlas/Draco seed ready. Only Atlas is granted to demo business identities.",
+    "Synthetic Atlas/Draco seed ready. Atlas identities retain project scope; the synthetic PMO has an explicit portfolio grant.",
   );
 } finally {
   await db.$disconnect();

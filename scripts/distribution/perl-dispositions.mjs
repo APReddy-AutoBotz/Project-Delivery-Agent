@@ -44,11 +44,19 @@ export function validatePerlAnchors(policyBytes, analysisBytes) {
     parse(readPerlAnchor(perlEvidenceNames[1])),
     "Perl analysis differs from trusted checkout",
   );
-  assert.equal(policy.schemaVersion, 2);
+  assert.equal(policy.schemaVersion, 3);
   assert.equal(analysis.schemaVersion, 1);
   assert.equal(policy.analysisSha256, hash(canonical(analysis)));
   assert.equal(policy.rule.advisory.id, "CVE-2026-8376");
   assert.equal(policy.rule.advisory.namespace, "debian:distro:debian:12");
+  assert.deepEqual(policy.rule.selectedDescriptionSha256, [
+    hash(policy.rule.advisory.description),
+    hash(
+      policy.rule.primaryAdvisory.descriptions
+        .find((description) => description.lang === "en")
+        .value.replaceAll("\n", " "),
+    ),
+  ]);
   assert.equal(policy.rule.disposition, "not_applicable");
   assert.equal(analysis.subjectExecuted, false);
   assert.equal(analysis.wholeImageAbsenceEstablished, false);
@@ -341,12 +349,22 @@ export function deriveReviewedPerlRows({
       continue;
     const pkg = packages.find((p) => p.id === match.artifact.id);
     if (!pkg) continue;
-    for (const [key, value] of Object.entries(rule.advisory))
-      assert.deepEqual(
-        match.vulnerability[key],
-        value,
-        "Selected Perl advisory semantics changed; review required",
-      );
+    for (const [key, value] of Object.entries(rule.advisory)) {
+      if (key === "description") {
+        assert.equal(typeof match.vulnerability.description, "string");
+        assert(
+          rule.selectedDescriptionSha256.includes(
+            hash(match.vulnerability.description),
+          ),
+          "Unreviewed selected Perl advisory description",
+        );
+      } else
+        assert.deepEqual(
+          match.vulnerability[key],
+          value,
+          "Selected Perl advisory semantics changed; review required",
+        );
+    }
     assert.equal(
       hash(canonical(normalize(match.artifact))),
       expected.matchArtifacts[pkg.name],

@@ -5,7 +5,14 @@ import type {
   OperationObject,
 } from "@nestjs/swagger";
 import { z } from "zod";
-import { roleSchema } from "@pdaa/domain";
+import {
+  roleSchema,
+  canonicalSetupSchema,
+  canonicalProgrammeSchema,
+  canonicalProgrammeCreateSchema,
+  canonicalProjectCreateSchema,
+  canonicalProjectDetailSchema,
+} from "@pdaa/domain";
 
 // The wire pattern preserves the existing 1..200 limit after trimming. A raw
 // maxLength would incorrectly reject a valid subject padded with whitespace.
@@ -24,7 +31,7 @@ export const grantSchema = z.strictObject({
 });
 export const revokeSchema = grantSchema.omit({ role: true });
 export const developmentSchema = z.strictObject({
-  persona: z.enum(["pm-atlas", "leader-atlas", "operator"]),
+  persona: z.enum(["pm-atlas", "leader-atlas", "operator", "pmo-portfolio"]),
 });
 const project = z.strictObject({
   id: z.uuid(),
@@ -45,6 +52,30 @@ export type RouteContract = {
   parameters?: Record<string, z.ZodType>;
 };
 export const contracts: Record<string, RouteContract> = {
+  "get /api/project-setup": {
+    status: 200,
+    response: canonicalSetupSchema,
+    errors: [503],
+  },
+  "post /api/portfolios/{id}/programmes": {
+    status: 201,
+    request: canonicalProgrammeCreateSchema,
+    response: canonicalProgrammeSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 409, 503],
+  },
+  "post /api/projects": {
+    status: 201,
+    request: canonicalProjectCreateSchema,
+    response: z.strictObject({ id: z.uuid() }),
+    errors: [404, 409, 503],
+  },
+  "get /api/projects/{id}/canonical": {
+    status: 200,
+    response: canonicalProjectDetailSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 503],
+  },
   "get /api/health/live": {
     status: 200,
     public: true,
@@ -136,6 +167,7 @@ export const errorMessages = {
   401: "Sign-in required",
   403: "Access denied",
   404: "Resource unavailable",
+  409: "Creation conflicts with an existing request or record",
   413: "Request body too large",
   415: "Unsupported media type",
   500: "Internal server error",

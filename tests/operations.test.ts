@@ -55,6 +55,12 @@ it("DEP-001: preserves complete SQL and rejects divergent or incomplete migratio
   expect(migrations[0]!.checksum).toBe(
     "9738bed726d754be02fb157ce2ee787def280d5e6e4c5319d778080d8b040aca",
   );
+  expect(migrations[1]!.checksum).toBe(
+    "64defd6bee6d86978f99a360e4f3c19f46b60bc6d8b76bea154c02970cff555e",
+  );
+  expect(migrations[2]!.checksum).toBe(
+    "33fce28b45790d75c6922650336baaa2145c52143dc2dfecbf615224dda3fd3d",
+  );
   const valid = {
     migration_name: migrations[0]!.name,
     checksum: migrations[0]!.checksum,

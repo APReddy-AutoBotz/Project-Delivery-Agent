@@ -1,4 +1,8 @@
-import { createDatabase, DatabaseProjectRepository } from "@pdaa/data";
+import {
+  createDatabase,
+  DatabaseProjectRepository,
+  DatabaseCanonicalProjectRepository,
+} from "@pdaa/data";
 import {
   loadConfig,
   operationalLog,
@@ -9,7 +13,12 @@ installFatalHandlers("api");
 try {
   const config = loadConfig(process.env);
   const db = createDatabase(config.database);
-  const { app } = await createApp(config, new DatabaseProjectRepository(db));
+  const { app } = await createApp(
+    config,
+    new DatabaseProjectRepository(db),
+    undefined,
+    new DatabaseCanonicalProjectRepository(db),
+  );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);
   operationalLog("api.started");

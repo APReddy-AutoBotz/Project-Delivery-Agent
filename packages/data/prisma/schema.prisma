@@ -16,6 +16,8 @@ model Customer {
   credentials ConnectorCredential[]
 }
 model Portfolio {
+  programme_portfolio Programme[]
+  canonicalCreationReceipt_portfolio CanonicalCreationReceipt[]
   id String @id @db.Uuid
   customerId String @db.Uuid
   name String
@@ -24,6 +26,8 @@ model Portfolio {
   @@unique([customerId, id])
 }
 model Project {
+  @@unique([customerId, portfolioId, id], map: "Project_canonical_parent_key")
+  canonicalProject_project CanonicalProject?
   id String @id @db.Uuid
   customerId String @db.Uuid
   portfolioId String @db.Uuid
@@ -285,4 +289,206 @@ model FactAssessmentConflict {
   assessment FactAssessment @relation(fields: [customerId, projectId, factId, assessmentId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
   conflict FactAuthorityConflict @relation(fields: [customerId, projectId, factId, conflictId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
   @@id([assessmentId, conflictId], map: "FactAssessmentConflict_pkey")
+}
+
+model Programme {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  portfolioId String @db.Uuid
+  code String @db.VarChar(48)
+  name String @db.VarChar(160)
+  createdBy String @db.VarChar(200)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, portfolioId, id], map: "Programme_u0")
+  @@unique([customerId, portfolioId, code], map: "Programme_u1")
+  portfolio Portfolio @relation(fields: [customerId, portfolioId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "Programme_portfolio_fk")
+  canonicalProject_programme CanonicalProject[]
+  canonicalCreationReceipt_programme CanonicalCreationReceipt?
+}
+
+model CanonicalProject {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  portfolioId String @db.Uuid
+  programmeId String? @db.Uuid
+  baselineStart DateTime? @db.Date
+  baselineEnd DateTime? @db.Date
+  plannedStart DateTime? @db.Date
+  plannedEnd DateTime? @db.Date
+  forecastStart DateTime? @db.Date
+  forecastEnd DateTime? @db.Date
+  actualStart DateTime? @db.Date
+  actualEnd DateTime? @db.Date
+  createdBy String @db.VarChar(200)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  revision Int @default(1)
+  sealed Boolean @default(false)
+  responsibilitiesCount Int
+  sprintsCount Int
+  milestonesCount Int
+  workItemsCount Int
+  requiredWorkItemsCount Int
+  raidItemsCount Int
+  sourceMappingsCount Int
+  @@unique([customerId, id], map: "CanonicalProject_u0")
+  @@unique([customerId, portfolioId, id], map: "CanonicalProject_u1")
+  project Project @relation(fields: [customerId, portfolioId, id], references: [customerId, portfolioId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalProject_project_fk")
+  programme Programme? @relation(fields: [customerId, portfolioId, programmeId], references: [customerId, portfolioId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalProject_programme_fk")
+  projectResponsibility_project ProjectResponsibility[]
+  sprint_project Sprint[]
+  milestone_project Milestone[]
+  workItem_project WorkItem[]
+  requiredWorkItem_project RequiredWorkItem[]
+  raidItem_project RaidItem[]
+  canonicalSourceMapping_project CanonicalSourceMapping[]
+  canonicalCreationReceipt_project CanonicalCreationReceipt?
+}
+
+model ProjectResponsibility {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  role String @db.VarChar(32)
+  subject String @db.VarChar(200)
+  displayName String @db.VarChar(160)
+  @@unique([customerId, projectId, role, subject], map: "ProjectResponsibility_u0")
+  project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ProjectResponsibility_project_fk")
+}
+
+model Sprint {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  key String @db.VarChar(48)
+  name String @db.VarChar(160)
+  baselineStart DateTime? @db.Date
+  baselineEnd DateTime? @db.Date
+  plannedStart DateTime? @db.Date
+  plannedEnd DateTime? @db.Date
+  forecastStart DateTime? @db.Date
+  forecastEnd DateTime? @db.Date
+  actualStart DateTime? @db.Date
+  actualEnd DateTime? @db.Date
+  @@unique([customerId, projectId, id], map: "Sprint_u0")
+  @@unique([customerId, projectId, key], map: "Sprint_u1")
+  project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "Sprint_project_fk")
+  workItem_sprint WorkItem[]
+  canonicalSourceMapping_sprint CanonicalSourceMapping[]
+}
+
+model Milestone {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  key String @db.VarChar(48)
+  name String @db.VarChar(160)
+  state String @db.VarChar(16)
+  baselineStart DateTime? @db.Date
+  baselineEnd DateTime? @db.Date
+  plannedStart DateTime? @db.Date
+  plannedEnd DateTime? @db.Date
+  forecastStart DateTime? @db.Date
+  forecastEnd DateTime? @db.Date
+  actualStart DateTime? @db.Date
+  actualEnd DateTime? @db.Date
+  @@unique([customerId, projectId, id], map: "Milestone_u0")
+  @@unique([customerId, projectId, key], map: "Milestone_u1")
+  project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "Milestone_project_fk")
+  requiredWorkItem_milestone RequiredWorkItem[]
+  canonicalSourceMapping_milestone CanonicalSourceMapping[]
+}
+
+model WorkItem {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  key String @db.VarChar(48)
+  title String @db.VarChar(160)
+  state String @db.VarChar(16)
+  sprintId String? @db.Uuid
+  baselineStart DateTime? @db.Date
+  baselineEnd DateTime? @db.Date
+  plannedStart DateTime? @db.Date
+  plannedEnd DateTime? @db.Date
+  forecastStart DateTime? @db.Date
+  forecastEnd DateTime? @db.Date
+  actualStart DateTime? @db.Date
+  actualEnd DateTime? @db.Date
+  @@unique([customerId, projectId, id], map: "WorkItem_u0")
+  @@unique([customerId, projectId, key], map: "WorkItem_u1")
+  project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "WorkItem_project_fk")
+  sprint Sprint? @relation(fields: [customerId, projectId, sprintId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "WorkItem_sprint_fk")
+  requiredWorkItem_workItem RequiredWorkItem[]
+  canonicalSourceMapping_workItem CanonicalSourceMapping[]
+}
+
+model RequiredWorkItem {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  milestoneId String @db.Uuid
+  workItemId String @db.Uuid
+  @@unique([customerId, projectId, milestoneId, workItemId], map: "RequiredWorkItem_u0")
+  project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "RequiredWorkItem_project_fk")
+  milestone Milestone @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "RequiredWorkItem_milestone_fk")
+  workItem WorkItem @relation(fields: [customerId, projectId, workItemId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "RequiredWorkItem_workItem_fk")
+}
+
+model RaidItem {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  key String @db.VarChar(48)
+  kind String @db.VarChar(16)
+  title String @db.VarChar(160)
+  description String @db.VarChar(4096)
+  state String @db.VarChar(16)
+  ownerSubject String? @db.VarChar(200)
+  @@unique([customerId, projectId, id], map: "RaidItem_u0")
+  @@unique([customerId, projectId, key], map: "RaidItem_u1")
+  project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "RaidItem_project_fk")
+  canonicalSourceMapping_raidItem CanonicalSourceMapping[]
+}
+
+model CanonicalSourceMapping {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  sourceSystem String @db.VarChar(64)
+  instanceKey String @db.VarChar(48)
+  externalType String @db.VarChar(64)
+  externalId String @db.VarChar(200)
+  externalRevision String? @db.VarChar(128)
+  url String? @db.VarChar(2048)
+  targetType String @db.VarChar(16)
+  sprintId String? @db.Uuid
+  milestoneId String? @db.Uuid
+  workItemId String? @db.Uuid
+  raidItemId String? @db.Uuid
+  @@unique([customerId, sourceSystem, instanceKey, externalType, externalId], map: "CanonicalSourceMapping_u0")
+  project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalSourceMapping_project_fk")
+  sprint Sprint? @relation(fields: [customerId, projectId, sprintId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalSourceMapping_sprint_fk")
+  milestone Milestone? @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalSourceMapping_milestone_fk")
+  workItem WorkItem? @relation(fields: [customerId, projectId, workItemId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalSourceMapping_workItem_fk")
+  raidItem RaidItem? @relation(fields: [customerId, projectId, raidItemId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalSourceMapping_raidItem_fk")
+}
+
+model CanonicalCreationReceipt {
+  @@unique([customerId, portfolioId, programmeId], map: "CanonicalCreationReceipt_programme_scope_key")
+  @@unique([customerId, portfolioId, projectId], map: "CanonicalCreationReceipt_project_scope_key")
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  portfolioId String @db.Uuid
+  subject String @db.VarChar(200)
+  idempotencyKey String @db.VarChar(128)
+  operation String @db.VarChar(16)
+  requestHash String @db.VarChar(64)
+  programmeId String? @db.Uuid
+  projectId String? @db.Uuid
+  @@unique([customerId, portfolioId, subject, idempotencyKey], map: "CanonicalCreationReceipt_u0")
+  @@unique([programmeId], map: "CanonicalCreationReceipt_u1")
+  @@unique([projectId], map: "CanonicalCreationReceipt_u2")
+  portfolio Portfolio @relation(fields: [customerId, portfolioId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalCreationReceipt_portfolio_fk")
+  programme Programme? @relation(fields: [customerId, portfolioId, programmeId], references: [customerId, portfolioId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalCreationReceipt_programme_fk")
+  project CanonicalProject? @relation(fields: [customerId, portfolioId, projectId], references: [customerId, portfolioId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalCreationReceipt_project_fk")
 }

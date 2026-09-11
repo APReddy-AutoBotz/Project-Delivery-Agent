@@ -1,5 +1,10 @@
 import "reflect-metadata";
 import {
+  CanonicalController,
+  CANONICAL_REPOSITORY,
+  unavailableCanonicalRepository,
+} from "./canonical-controller.js";
+import {
   completeContract,
   grantSchema,
   revokeSchema,
@@ -33,7 +38,11 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { z } from "zod";
-import { type Actor, type ProjectRepository } from "@pdaa/domain";
+import {
+  type Actor,
+  type ProjectRepository,
+  type CanonicalProjectRepository,
+} from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
 type Request = {
@@ -164,12 +173,14 @@ export async function createApp(
   config: Config,
   repository: ProjectRepository,
   identity = new IdentityService(config),
+  canonical: CanonicalProjectRepository = unavailableCanonicalRepository,
 ) {
   @Module({
-    controllers: [FoundationController],
+    controllers: [FoundationController, CanonicalController],
     providers: [
       { provide: CONFIG, useValue: config },
       { provide: REPOSITORY, useValue: repository },
+      { provide: CANONICAL_REPOSITORY, useValue: canonical },
       { provide: IdentityService, useValue: identity },
     ],
   })

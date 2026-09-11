@@ -17,6 +17,11 @@ import {
   compileContract,
   assertContractSnapshot,
 } from "../scripts/validate-openapi.mjs";
+import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
+import {
+  emptyCanonicalDates,
+  type CanonicalProjectRepository,
+} from "../packages/domain/src/index.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const project: Project = {
@@ -34,6 +39,45 @@ const grant = {
   role: "contributor",
 };
 let ready = true;
+const canonical: CanonicalProjectRepository = {
+  setup: async () => ({
+    truncated: false,
+    portfolios: [
+      {
+        id: project.portfolioId,
+        name: "Synthetic portfolio",
+        programmes: [],
+        programmesTruncated: false,
+      },
+    ],
+  }),
+  createProgramme: async () => ({
+    id: project.portfolioId,
+    code: "PROG",
+    name: "Synthetic programme",
+  }),
+  createProject: async () => ({ id: project.id }),
+  detail: async () => ({
+    id: project.id,
+    code: project.code,
+    name: project.name,
+    description: project.description,
+    reportedStatus: project.reportedStatus,
+    portfolio: { id: project.portfolioId, name: "Synthetic portfolio" },
+    configured: false,
+    creation: null,
+    programme: null,
+    dates: emptyCanonicalDates(),
+    responsibilities: [],
+    sprints: [],
+    milestones: [],
+    workItems: [],
+    requiredWorkItems: [],
+    raidItems: [],
+    sourceMappings: [],
+    sourceMappingsWithheld: true,
+  }),
+};
 const repository: ProjectRepository = {
   listProjects: vi.fn(async () => [project]),
   getProject: vi.fn(async (_actor, id) => (id === project.id ? project : null)),
@@ -72,7 +116,7 @@ let base: string, operator: string, manager: string;
 let check: ReturnType<typeof compileContract>;
 const covered = new Set<string>();
 beforeAll(async () => {
-  ({ app, spec } = await createApp(config, repository));
+  ({ app, spec } = await createApp(config, repository, undefined, canonical));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();
@@ -99,7 +143,13 @@ async function request(
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   expect(response.status).toBe(status);
-  const route = path.startsWith("/api/projects/") ? "/api/projects/{id}" : path;
+  const route = path.endsWith("/canonical")
+    ? "/api/projects/{id}/canonical"
+    : path.startsWith("/api/portfolios/")
+      ? "/api/portfolios/{id}/programmes"
+      : path.startsWith("/api/projects/")
+        ? "/api/projects/{id}"
+        : path;
   const text = await response.text();
   const parsed = check.response(
     method,
@@ -126,6 +176,26 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request("/api/me", 200, manager);
   await request("/api/projects", 200, manager);
   await request("/api/projects/" + project.id, 200, manager);
+  await request("/api/project-setup", 200, manager);
+  await request(
+    "/api/portfolios/" + project.portfolioId + "/programmes",
+    201,
+    manager,
+    "POST",
+    {
+      code: "PROG",
+      name: "Synthetic programme",
+      idempotencyKey: "contract-key",
+    },
+  );
+  await request(
+    "/api/projects",
+    201,
+    manager,
+    "POST",
+    canonicalFixture(project.portfolioId),
+  );
+  await request("/api/projects/" + project.id + "/canonical", 200, manager);
   await request("/api/platform", 200, operator);
   await request("/api/audit", 200, operator);
   await request("/api/access-grants", 204, operator, "POST", grant);
@@ -140,7 +210,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(11);
+  expect(covered.size).toBe(15);
   assertContractSnapshot(
     spec,
     JSON.parse(

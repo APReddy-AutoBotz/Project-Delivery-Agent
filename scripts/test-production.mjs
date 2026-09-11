@@ -364,6 +364,41 @@ try {
   assert.equal(record.projectFactPersistence.status, "passed");
   assert.equal(record.projectFactPersistence.upgrade.status, "passed");
   assert.equal(record.projectFactPersistence.restore.status, "passed");
+  const canonicalPersistence = record.projectFactPersistence;
+  assert.equal(canonicalPersistence.businessTableCount, 31);
+  assert.equal(canonicalPersistence.migrationCount, 4);
+  assert.equal(canonicalPersistence.canonicalTables.length, 10);
+  assert.equal(canonicalPersistence.canonicalFixture.runtimeRole, "pdaa_api");
+  assert.equal(canonicalPersistence.canonicalFixture.revokedReplayDenied, true);
+  assert.equal(canonicalPersistence.canonicalWorkerDenied, true);
+  for (const [index, upgrade] of [
+    canonicalPersistence.upgrade,
+    canonicalPersistence.authorityUpgrade,
+    canonicalPersistence.canonicalUpgrade,
+  ].entries()) {
+    assert.equal(upgrade.status, "passed");
+    assert.equal(upgrade.priorMigrationCount, index + 1);
+    assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
+    assert.equal(upgrade.migrations.length, 4);
+    assert.equal(upgrade.businessTableCount, 31);
+    assert.equal(upgrade.canonicalFixture.runtimeRole, "pdaa_api");
+    assert.equal(upgrade.canonicalCommitGuards.actualCommit, true);
+    assert.equal(Object.keys(upgrade.canonicalRows).length, 10);
+    assert(Object.values(upgrade.canonicalRows).every((count) => count > 0));
+  }
+  assert.equal(
+    canonicalPersistence.canonicalUpgrade.priorAuthorityRetained,
+    true,
+  );
+  assert.equal(canonicalPersistence.restore.canonicalIntegrityChecked, true);
+  assert.equal(canonicalPersistence.restore.canonicalImmutableChecked, true);
+  assert.equal(
+    canonicalPersistence.restore.canonicalCommitGuards.actualCommit,
+    true,
+  );
+  checks.passed.push(
+    "INT-MOD-001: complete canonical creation through API credentials, scoped references and revoked retry denials, three genuine prior-release upgrades, 31-table encrypted restore and real sealed aggregate COMMIT guards",
+  );
   checks.passed.push(
     "INT-EVD-001 partial: immutable-foundation forward upgrade under migration owner, exact retained rows and ledger, finite runtime privileges, human fact history and quarantined encrypted restore",
   );
@@ -500,6 +535,18 @@ try {
     project,
     record,
   });
+  assert.equal(record.customerProfiles.length, 2);
+  for (const profile of record.customerProfiles) {
+    const persistence = profile.projectFactPersistence;
+    assert.equal(persistence.canonicalFixture.runtimeRole, "pdaa_api");
+    assert.equal(persistence.canonicalFixture.sourceMappingsWithheld, true);
+    assert.equal(persistence.canonicalWorkerDenied, true);
+    assert.equal(persistence.businessTableCount, 31);
+    assert.equal(persistence.migrationCount, 4);
+    assert.equal(persistence.restore.canonicalIntegrityChecked, true);
+    assert.equal(persistence.restore.canonicalImmutableChecked, true);
+    assert.equal(persistence.restore.canonicalCommitGuards.actualCommit, true);
+  }
   assert.equal(
     record.customerProfiles.find((profile) => profile.profile === "bundled")
       ?.identityConfiguration?.status,

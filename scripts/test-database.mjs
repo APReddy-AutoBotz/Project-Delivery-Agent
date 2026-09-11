@@ -73,6 +73,16 @@ try {
     "FactAssessment",
     "FactAssessmentVersion",
     "FactAssessmentConflict",
+    "Programme",
+    "CanonicalProject",
+    "ProjectResponsibility",
+    "Sprint",
+    "Milestone",
+    "WorkItem",
+    "RequiredWorkItem",
+    "RaidItem",
+    "CanonicalSourceMapping",
+    "CanonicalCreationReceipt",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -143,6 +153,7 @@ node([
   "tests/database.integration.test.ts",
   "tests/project-facts.integration.test.ts",
   "tests/authority-persistence.integration.test.ts",
+  "tests/canonical-project.integration.test.ts",
   "--no-file-parallelism",
 ]);
 console.log(
@@ -174,7 +185,20 @@ writeFileSync(
         "FactAssessmentVersion",
         "FactAssessmentConflict",
       ],
-      businessTables: 21,
+      canonicalTables: [
+        "Programme",
+        "CanonicalProject",
+        "ProjectResponsibility",
+        "Sprint",
+        "Milestone",
+        "WorkItem",
+        "RequiredWorkItem",
+        "RaidItem",
+        "CanonicalSourceMapping",
+        "CanonicalCreationReceipt",
+      ],
+      canonicalRepositoryChecks: "passed",
+      businessTables: 31,
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({

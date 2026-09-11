@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-10
+Updated: 2026-09-11
 
 ## Accepted implementation completion
 
@@ -26,14 +26,15 @@ regressions. Both merged-main workflows passed. This supersedes earlier pending
 resolver gates below and in SOURCE_AUTHORITY_VALIDATION.md. PR #42's durable human
 fact history and current source permissions are also merged and verified.
 
-The current Issue #6 increment implements durable authority policies and a trusted
-server assessment repository. Policy selection, complete input bounds, retained
-conflicts and current access checks now connect the two earlier components.
-Native validation and independent review are underway; immutable candidate, CI,
-upgrade/recovery and fresh artifact gates must pass before merge. See
-AUTHORITY_PERSISTENCE_VALIDATION.md. Canonical hierarchy, trusted source ingestion,
-reconciliation and public API/browser workflows remain pending. This partial
-progress does not accept a complete R1 story or change the counts above.
+PR #44 merged durable authority policies and server-owned historical assessments
+as `dc606d5` after native validation, exact candidate CI, independent code/build
+review and both fresh artifact reviews passed. Validation included 712 unit tests,
+63 database cases, eight browser regressions, 18 packaged groups, both customer
+profiles and exact 21-table recovery. Both post-merge workflows also passed.
+The current Issue #6 increment implements canonical creation/detail API and UI under
+EXEC-005; candidate validation and acceptance remain pending. See
+[canonical workflow evidence](../05-quality/CANONICAL_PROJECT_VALIDATION.md). Trusted source ingestion and
+reconciliation also remain pending. This progress does not yet accept an R1 story.
 
 Public publication was explicitly approved by the Product Owner on 2026-09-06.
 
@@ -66,6 +67,7 @@ Public publication was explicitly approved by the Product Owner on 2026-09-06.
 | Temporal fact history | [#41](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/41) | `28090cf` | `47d7c45` |
 | Durable human fact history | [#42](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/42) | `4d18377` | `062fcd7` |
 | Historical source authority | [#43](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/43) | `7f3fcce` | `9c97bf9` |
+| Durable authority assessments | [#44](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/44) | `79fdb9a` | `dc606d5` |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const roles = [
   "leadership",
   "project_manager",
+  "portfolio_manager",
   "contributor",
   "pmo_admin",
   "system_admin",

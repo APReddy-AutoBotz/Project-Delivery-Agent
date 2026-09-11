@@ -64,7 +64,7 @@ export class IdentityService {
     };
   }
   async developmentToken(
-    persona: "pm-atlas" | "leader-atlas" | "operator",
+    persona: "pm-atlas" | "leader-atlas" | "operator" | "pmo-portfolio",
   ): Promise<string> {
     if (
       this.config.AUTH_MODE !== "development" ||
@@ -75,9 +75,11 @@ export class IdentityService {
     const roles: Role[] =
       persona === "operator"
         ? ["system_admin"]
-        : persona === "leader-atlas"
-          ? ["leadership"]
-          : ["project_manager"];
+        : persona === "pmo-portfolio"
+          ? ["pmo_admin"]
+          : persona === "leader-atlas"
+            ? ["leadership"]
+            : ["project_manager"];
     return new SignJWT({ roles })
       .setProtectedHeader({ alg: "HS256" })
       .setSubject(persona)

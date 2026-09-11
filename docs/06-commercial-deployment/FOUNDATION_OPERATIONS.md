@@ -88,6 +88,19 @@ reverse a mapping change. See [the acceptance scope](../05-quality/OIDC_CONFIGUR
 
 ## Backup and upgrade
 
+The canonical project increment adds the explicit `portfolio_manager` role.
+Map an approved OIDC group to `portfolio_manager` or `pmo_admin` and assign the
+matching portfolio grant before enabling project creation for that identity.
+A project-only grant cannot create sibling projects, and responsibility labels
+do not assign application roles. See the [canonical workflow](../05-quality/CANONICAL_PROJECT_VALIDATION.md).
+
+Its fourth migration adds ten immutable canonical tables (31 business tables in
+total) and preserves all three released migration files. It also caches two arrays
+inside the existing authority integrity predicate without changing its checks.
+The current API grants add SELECT/INSERT and only the canonical seal column UPDATE;
+the worker gains no new business access. Apply the migration and finite grants
+through the maintenance operation below before starting the new application image.
+
 ```sh
 docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml run --rm backup
 ```
