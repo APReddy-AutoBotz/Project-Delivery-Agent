@@ -855,6 +855,106 @@
 .canonical-detail {
   margin-top: 1.5rem;
 }
+
+/* FR-EVD-003/009/010: readable history, explicit dimensions and review steps. */
+.project-evidence {
+  margin-top: 1.5rem;
+  overflow-wrap: anywhere;
+}
+.evidence-targets,
+.evidence-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+.evidence-target-form {
+  max-width: 650px;
+  margin: 1.5rem 0;
+}
+.evidence-entry,
+.evidence-editor,
+.evidence-assessment,
+.evidence-policy {
+  border-top: 1px solid #dce5e3;
+  padding: 1.25rem 0;
+  margin-top: 1rem;
+}
+.evidence-entry h4 {
+  margin-bottom: 0.75rem;
+}
+.evidence-entry blockquote,
+.evidence-review blockquote {
+  margin: 1rem 0;
+  padding: 0.9rem;
+  border-left: 3px solid #417b70;
+  background: #f4f7f7;
+  white-space: pre-wrap;
+}
+.evidence-warning {
+  background: #fff4db;
+  color: #6a4717;
+  border-radius: 0.5rem;
+  padding: 0.8rem 1rem;
+}
+.evidence-metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+.evidence-metadata > div {
+  display: block !important;
+}
+.evidence-metadata dd {
+  text-align: left !important;
+  margin-left: 0;
+}
+.fact-value {
+  font-weight: 650;
+  white-space: pre-wrap;
+}
+.fact-value small {
+  font-weight: 400;
+}
+.project-evidence textarea {
+  display: block;
+  width: 100%;
+  min-height: 6rem;
+  border: 1px solid #bbcbc7;
+  border-radius: 0.4rem;
+  padding: 0.65rem;
+  font: inherit;
+}
+.project-evidence textarea:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 2px;
+}
+.evidence-form-group {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.evidence-review {
+  background: #f4f7f7;
+  border: 1px solid #dce5e3;
+  border-radius: 0.7rem;
+  padding: 1rem;
+}
+.project-evidence details {
+  margin: 0.8rem 0;
+}
+.project-evidence summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.project-evidence a {
+  color: #075e50;
+  text-decoration: underline;
+}
+@media (max-width: 650px) {
+  .evidence-metadata {
+    grid-template-columns: 1fr;
+  }
+}
 .canonical-detail h3 {
   margin-top: 1.8rem;
 }

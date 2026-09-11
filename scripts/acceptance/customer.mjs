@@ -7,6 +7,11 @@ import { Pool, secret } from "./common.mjs";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
 import { waitForIdentityProvider } from "./identity-readiness.mjs";
 import {
+  exerciseEvidenceWorkflow,
+  openSavedEvidence,
+  verifyEvidenceProjectRevocation,
+} from "./evidence-workflow.mjs";
+import {
   readMigrations,
   validateHistory,
 } from "../../packages/operations/dist/migrations.js";
@@ -163,7 +168,7 @@ async function browserCheck(afterUpgrade) {
   );
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   try {
-    async function login(name) {
+    async function login(name, path = "/") {
       const context = await browser.newContext();
       const capture = await observeBrowserDisclosure(
         context,
@@ -172,7 +177,7 @@ async function browserCheck(afterUpgrade) {
         "https://identity-ingress:8443",
       );
       const page = await capture.newPage();
-      await page.goto(base);
+      await page.goto(base + path);
       await capture.settle(page);
       await page
         .getByRole("button", { name: "Sign in with your organization" })
@@ -182,10 +187,34 @@ async function browserCheck(afterUpgrade) {
       await page.locator("#username").fill(name);
       await page.locator("#password").fill(secret("login-password"));
       await capture.settle(page);
+      const tokenResponse = page.waitForResponse(
+        (response) =>
+          response.url() ===
+            "https://identity-ingress:8443/identity/realms/pdaa/protocol/openid-connect/token" &&
+          response.request().method() === "POST",
+      );
       await page.locator("#kc-login").click();
-      await page.getByRole("heading", { name: "Your projects" }).waitFor();
-      return { context, page, capture };
+      const token = (await (await tokenResponse).json()).access_token;
+      assert.equal(typeof token, "string");
+      if (path === "/")
+        await page.getByRole("heading", { name: "Your projects" }).waitFor();
+      else
+        await page
+          .getByRole("region", { name: "Saved assessment", exact: true })
+          .waitFor();
+      return { context, page, capture, token, disclosure };
     }
+    const evidenceFixture = afterUpgrade
+      ? read("evidence-workflow-fixture")
+      : null;
+    const savedViewer = afterUpgrade
+      ? await openSavedEvidence({
+          login,
+          base,
+          projectId,
+          original: evidenceFixture.original,
+        })
+      : null;
     const operator = await login("operator");
     await operator.page
       .getByText("No projects are shared with this account")
@@ -194,6 +223,9 @@ async function browserCheck(afterUpgrade) {
       .getByRole("button", { name: /Platform & access/ })
       .click();
     await operator.page.getByLabel("Account subject").fill("pm-atlas");
+    await operator.page
+      .getByLabel("Role", { exact: true })
+      .selectOption("project_manager");
     await operator.page.getByLabel("Scope identifier").fill(projectId);
     await operator.page
       .getByRole("button", {
@@ -204,6 +236,34 @@ async function browserCheck(afterUpgrade) {
       .getByRole("status")
       .filter({ hasText: afterUpgrade ? "Access revoked" : "Access granted" })
       .waitFor();
+    if (afterUpgrade) {
+      await verifyEvidenceProjectRevocation({
+        session: savedViewer,
+        base,
+        projectId,
+        original: evidenceFixture.original,
+      });
+      const persistence = read("project-fact-persistence");
+      persistence.evidenceWorkflow = {
+        ...evidenceFixture.receipt,
+        status: "passed",
+        savedLinkAfterRecreation: true,
+        projectRevocationDenied: true,
+      };
+      save("project-fact-persistence", persistence);
+    } else {
+      await operator.page.getByLabel("Account subject").fill("pmo-atlas");
+      await operator.page
+        .getByLabel("Role", { exact: true })
+        .selectOption("pmo_admin");
+      await operator.page
+        .getByRole("button", { name: "Grant access", exact: true })
+        .click();
+      await operator.page
+        .getByRole("status")
+        .filter({ hasText: "Access granted" })
+        .waitFor();
+    }
     await operator.capture(operator.page);
     const logout = operator.page.waitForRequest((request) =>
       request.url().includes("/protocol/openid-connect/logout?"),
@@ -240,6 +300,11 @@ async function browserCheck(afterUpgrade) {
         .waitFor();
     await pm.capture(pm.page);
     await pm.capture.close();
+    if (!afterUpgrade)
+      save(
+        "evidence-workflow-fixture",
+        await exerciseEvidenceWorkflow({ login, base, projectId, output }),
+      );
     await scanBrowserAssets(base, disclosure);
     save("disclosure-" + phase, {
       status: "passed",
@@ -250,6 +315,8 @@ async function browserCheck(afterUpgrade) {
         "browser-storage",
         "assets",
         "asset-headers",
+        "evidence-api-headers",
+        "evidence-api-bodies",
       ]),
     });
   } finally {
@@ -367,7 +434,7 @@ try {
     );
     await browserCheck(false);
     const state = await projection(db);
-    assert.equal(state.AccessGrant.length, 1);
+    assert.equal(state.AccessGrant.length, 2);
     assert(state.AuditEvent.length > 0);
     const fixture = await seedProjectFactHistory(
       db,
@@ -420,6 +487,7 @@ try {
       fixture,
       authorityFixture,
       canonicalFixture,
+      evidenceWorkflow: read("evidence-workflow-fixture").receipt,
       canonicalTables,
       businessTableCount: 31,
       migrationCount: 4,

@@ -125,7 +125,7 @@ export type FactHistoryEntry = {
     }
 );
 export interface FactHistoryPage {
-  factId: string;
+  factId: string | null;
   factType: string;
   throughRevision: number;
   entries: FactHistoryEntry[];
@@ -151,6 +151,14 @@ export class ProjectFactError extends Error {
   }
 }
 export interface ProjectFactRepository {
+  listFacts(
+    actor: Actor,
+    request: FactCatalogueRequest,
+  ): Promise<FactCatalogue | null>;
+  getSourceAccess(
+    actor: Actor,
+    request: SourceAccessRead,
+  ): Promise<SourceAccessView | null>;
   appendHumanStatement(
     actor: Actor,
     request: HumanStatement,
@@ -166,3 +174,38 @@ export interface ProjectFactRepository {
     context: FactMutationContext,
   ): Promise<{ sourceId: string; revision: number }>;
 }
+
+// FR-EVD-009 / NFR-SEC-001: discovery is metadata-only and independently scoped.
+export const factCatalogueRequestSchema = z.strictObject({
+  projectId: projectFactIdSchema,
+  afterFactType: scope.factType.nullable().default(null),
+  limit: z.number().int().min(1).max(100).default(50),
+});
+export const factCatalogueSchema = z.strictObject({
+  canAppend: z.boolean(),
+  canConfigure: z.boolean(),
+  facts: z
+    .array(
+      z.strictObject({
+        factId: projectFactIdSchema,
+        factType: scope.factType,
+        revision: z.number().int().min(1).max(2147483647),
+      }),
+    )
+    .max(100),
+  next: scope.factType.nullable(),
+});
+export const sourceAccessReadSchema = sourceAccessChangeSchema.pick({
+  projectId: true,
+  sourceId: true,
+});
+export const sourceAccessViewSchema = z.strictObject({
+  sourceId: projectFactIdSchema,
+  revision: z.number().int().min(1).max(2147483647),
+  state: sourceAccessChangeSchema.shape.state,
+  readers: sourceAccessChangeSchema.shape.readers,
+});
+export type FactCatalogueRequest = z.input<typeof factCatalogueRequestSchema>;
+export type FactCatalogue = z.infer<typeof factCatalogueSchema>;
+export type SourceAccessRead = z.infer<typeof sourceAccessReadSchema>;
+export type SourceAccessView = z.infer<typeof sourceAccessViewSchema>;

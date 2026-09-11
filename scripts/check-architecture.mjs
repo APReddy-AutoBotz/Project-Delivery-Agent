@@ -41,7 +41,7 @@ const policies = {
     node: true,
   },
   "@pdaa/web": {
-    workspace: [],
+    workspace: ["@pdaa/domain"],
     external: ["react", "react-dom", "@tanstack/react-query", "oidc-client-ts"],
   },
 };
@@ -64,7 +64,7 @@ export function assertAcyclic(graph) {
   for (const name of graph.keys()) visit(name);
 }
 
-function imports(file, content) {
+function imports(file, content, typeOnly = []) {
   const source = ts.createSourceFile(
     file,
     content,
@@ -76,17 +76,27 @@ function imports(file, content) {
   if (source.referencedFiles.length || source.typeReferenceDirectives.length)
     throw new Error("Reference directives bypass package imports: " + file);
   const found = [];
-  const literal = (node) => {
+  const literal = (node, erased = false) => {
     if (
       !node ||
       !(ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
     )
       throw new Error("Computed module loading is not allowed: " + file);
+    if (typeOnly.includes(node.text) && !erased)
+      throw new Error(
+        "Workspace dependency must be type-only: " + file + " -> " + node.text,
+      );
     found.push(node.text);
   };
   function walk(node) {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
-      if (node.moduleSpecifier) literal(node.moduleSpecifier);
+      if (node.moduleSpecifier)
+        literal(
+          node.moduleSpecifier,
+          ts.isImportDeclaration(node)
+            ? node.importClause?.isTypeOnly === true
+            : node.isTypeOnly,
+        );
     } else if (
       ts.isImportEqualsDeclaration(node) &&
       ts.isExternalModuleReference(node.moduleReference)
@@ -95,7 +105,7 @@ function imports(file, content) {
     } else if (ts.isImportTypeNode(node)) {
       if (!ts.isLiteralTypeNode(node.argument))
         throw new Error("Computed import type: " + file);
-      literal(node.argument.literal);
+      literal(node.argument.literal, true);
     } else if (
       ts.isCallExpression(node) &&
       (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
@@ -156,7 +166,11 @@ export function checkArchitecture(packages) {
       const edges = new Set();
       fileGraph.set(file, edges);
       const task = name === "@pdaa/worker" && file !== "src/main.ts";
-      for (const specifier of imports(file, content)) {
+      for (const specifier of imports(
+        file,
+        content,
+        name === "@pdaa/web" ? ["@pdaa/domain"] : [],
+      )) {
         if (specifier.startsWith(".")) {
           const target = posix.normalize(
             posix.join(posix.dirname(file), specifier),

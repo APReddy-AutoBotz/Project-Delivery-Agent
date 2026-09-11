@@ -1,5 +1,12 @@
 import "reflect-metadata";
 import {
+  EvidenceController,
+  FACT_REPOSITORY,
+  AUTHORITY_REPOSITORY,
+  unavailableFactRepository,
+  unavailableAuthorityRepository,
+} from "./evidence-controller.js";
+import {
   CanonicalController,
   CANONICAL_REPOSITORY,
   unavailableCanonicalRepository,
@@ -42,6 +49,8 @@ import {
   type Actor,
   type ProjectRepository,
   type CanonicalProjectRepository,
+  type ProjectFactRepository,
+  type AuthorityRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
@@ -174,13 +183,21 @@ export async function createApp(
   repository: ProjectRepository,
   identity = new IdentityService(config),
   canonical: CanonicalProjectRepository = unavailableCanonicalRepository,
+  facts: ProjectFactRepository = unavailableFactRepository,
+  authority: AuthorityRepository = unavailableAuthorityRepository,
 ) {
   @Module({
-    controllers: [FoundationController, CanonicalController],
+    controllers: [
+      FoundationController,
+      CanonicalController,
+      EvidenceController,
+    ],
     providers: [
       { provide: CONFIG, useValue: config },
       { provide: REPOSITORY, useValue: repository },
       { provide: CANONICAL_REPOSITORY, useValue: canonical },
+      { provide: FACT_REPOSITORY, useValue: facts },
+      { provide: AUTHORITY_REPOSITORY, useValue: authority },
       { provide: IdentityService, useValue: identity },
     ],
   })

@@ -19,6 +19,10 @@ import {
 } from "../scripts/validate-openapi.mjs";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 import {
+  evidenceContractFixture,
+  exerciseEvidenceContracts,
+} from "./fixtures/evidence-contract.js";
+import {
   emptyCanonicalDates,
   type CanonicalProjectRepository,
 } from "../packages/domain/src/index.js";
@@ -115,8 +119,16 @@ let spec: Awaited<ReturnType<typeof createApp>>["spec"];
 let base: string, operator: string, manager: string;
 let check: ReturnType<typeof compileContract>;
 const covered = new Set<string>();
+const evidence = evidenceContractFixture();
 beforeAll(async () => {
-  ({ app, spec } = await createApp(config, repository, undefined, canonical));
+  ({ app, spec } = await createApp(
+    config,
+    repository,
+    undefined,
+    canonical,
+    evidence.facts,
+    evidence.authority,
+  ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();
@@ -143,13 +155,12 @@ async function request(
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   expect(response.status).toBe(status);
-  const route = path.endsWith("/canonical")
-    ? "/api/projects/{id}/canonical"
-    : path.startsWith("/api/portfolios/")
-      ? "/api/portfolios/{id}/programmes"
-      : path.startsWith("/api/projects/")
-        ? "/api/projects/{id}"
-        : path;
+  const route = Object.keys(spec.paths).find((template) =>
+    new RegExp(
+      "^" + template.replace(/\{[A-Za-z]+\}/g, "[^/]+") + "$",
+      "u",
+    ).test(path.split("?")[0]!),
+  )!;
   const text = await response.text();
   const parsed = check.response(
     method,
@@ -204,13 +215,14 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     scopeType: grant.scopeType,
     scopeId: grant.scopeId,
   });
+  await exerciseEvidenceContracts(request, manager);
   const declared = Object.entries(spec.paths).flatMap(([path, item]) =>
     Object.keys(item)
       .filter((method) => ["get", "post", "delete"].includes(method))
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(15);
+  expect(covered.size).toBe(24);
   assertContractSnapshot(
     spec,
     JSON.parse(

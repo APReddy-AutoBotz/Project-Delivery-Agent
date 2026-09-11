@@ -42,8 +42,12 @@ test("Revoked project access removes cached project names and details", async ({
     ).toHaveCount(0);
     await page.getByRole("button", { name: "All projects" }).click();
     await expect(
-      page.getByText("No projects are shared with this account"),
+      page.getByRole("heading", { name: "Your projects", exact: true }),
     ).toBeVisible();
+    // Other independently granted synthetic projects may remain accessible.
+    await expect(
+      page.getByRole("button", { name: /Atlas · Customer platform/ }),
+    ).toHaveCount(0);
   } finally {
     expect(
       (

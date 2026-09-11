@@ -95,9 +95,11 @@ const realm = {
   registrationAllowed: false,
   resetPasswordAllowed: false,
   accessTokenLifespan: 120,
-  groups: ["project-managers", "leadership", "operators"].map((name) => ({
-    name,
-  })),
+  groups: ["project-managers", "leadership", "operators", "pmo-admins"].map(
+    (name) => ({
+      name,
+    }),
+  ),
   clients: [
     {
       clientId: "pdaa-web",
@@ -144,6 +146,7 @@ const realm = {
     ["pm-atlas", "project-managers"],
     ["leader-atlas", "leadership"],
     ["operator", "operators"],
+    ["pmo-atlas", "pmo-admins"],
   ].map(([id, group]) => ({
     id,
     username: id,

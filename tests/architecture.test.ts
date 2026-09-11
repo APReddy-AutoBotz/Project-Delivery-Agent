@@ -65,3 +65,13 @@ it("CI-FND-001: worker tasks cannot import database infrastructure", () => {
     'import { createDatabase } from "@pdaa/data";';
   expect(() => checkArchitecture(packages)).toThrow(/composition root/);
 });
+it("CI-FND-001: the web/domain workspace edge carries only erased public types", () => {
+  const packages = loadWorkspace(process.cwd());
+  const web = packages.find((pkg) => pkg.manifest.name === "@pdaa/web")!;
+  web.sources["src/evidence-boundary.ts"] =
+    'import type { AssessmentDelivery } from "@pdaa/domain"; export type Result = AssessmentDelivery;';
+  expect(checkArchitecture(packages).packages).toBe(7);
+  web.sources["src/evidence-boundary.ts"] =
+    'import { resolveSourceAuthority } from "@pdaa/domain"; export const evaluate = resolveSourceAuthority;';
+  expect(() => checkArchitecture(packages)).toThrow(/type-only/);
+});

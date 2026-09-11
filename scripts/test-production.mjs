@@ -14,6 +14,7 @@ import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { customerProfiles } from "./acceptance/customer-host.mjs";
+import { assertEvidenceWorkflowReceipt } from "./acceptance/evidence-workflow-receipt.mjs";
 import {
   expiryCheckName,
   validateExpiryReceipt,
@@ -539,6 +540,7 @@ try {
   for (const profile of record.customerProfiles) {
     const persistence = profile.projectFactPersistence;
     assert.equal(persistence.canonicalFixture.runtimeRole, "pdaa_api");
+    assertEvidenceWorkflowReceipt(persistence.evidenceWorkflow);
     assert.equal(persistence.canonicalFixture.sourceMappingsWithheld, true);
     assert.equal(persistence.canonicalWorkerDenied, true);
     assert.equal(persistence.businessTableCount, 31);

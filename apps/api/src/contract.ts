@@ -12,7 +12,22 @@ import {
   canonicalProgrammeCreateSchema,
   canonicalProjectCreateSchema,
   canonicalProjectDetailSchema,
+  factCatalogueSchema,
+  humanStatementSchema,
+  factHistoryPageSchema,
+  humanStatementResultSchema,
+  sourceAccessViewSchema,
+  sourceAccessChangeSchema,
+  activeAuthorityPolicySchema,
+  authorityPolicyChangeSchema,
+  policyChangeResultSchema,
+  assessmentCaptureSchema,
+  assessmentDeliverySchema,
 } from "@pdaa/domain";
+import {
+  catalogueQuerySchema,
+  historyQuerySchema,
+} from "./evidence-controller.js";
 
 // The wire pattern preserves the existing 1..200 limit after trimming. A raw
 // maxLength would incorrectly reject a valid subject padded with whitespace.
@@ -50,8 +65,72 @@ export type RouteContract = {
   public?: boolean;
   errors?: number[];
   parameters?: Record<string, z.ZodType>;
+  query?: Record<string, z.ZodType>;
 };
 export const contracts: Record<string, RouteContract> = {
+  "get /api/projects/{id}/facts": {
+    status: 200,
+    response: factCatalogueSchema,
+    parameters: { id: z.uuid() },
+    query: catalogueQuerySchema.shape,
+    errors: [404, 503],
+  },
+  "get /api/projects/{id}/facts/{factType}/history": {
+    status: 200,
+    response: factHistoryPageSchema,
+    parameters: { id: z.uuid(), factType: humanStatementSchema.shape.factType },
+    query: historyQuerySchema.shape,
+    errors: [404, 503],
+  },
+  "post /api/projects/{id}/fact-statements": {
+    status: 201,
+    request: humanStatementSchema,
+    response: humanStatementResultSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 409, 503],
+  },
+  "get /api/projects/{id}/fact-sources/{sourceId}/access": {
+    status: 200,
+    response: sourceAccessViewSchema,
+    parameters: { id: z.uuid(), sourceId: z.uuid() },
+    errors: [404, 503],
+  },
+  "post /api/projects/{id}/fact-sources/{sourceId}/access": {
+    status: 200,
+    request: sourceAccessChangeSchema,
+    response: z.strictObject({
+      sourceId: z.uuid(),
+      revision: z.number().int().min(1).max(2147483647),
+    }),
+    parameters: { id: z.uuid(), sourceId: z.uuid() },
+    errors: [404, 409, 503],
+  },
+  "get /api/projects/{id}/facts/{factType}/authority": {
+    status: 200,
+    response: activeAuthorityPolicySchema,
+    parameters: { id: z.uuid(), factType: humanStatementSchema.shape.factType },
+    errors: [404, 503],
+  },
+  "post /api/projects/{id}/authority-policies": {
+    status: 201,
+    request: authorityPolicyChangeSchema,
+    response: policyChangeResultSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 409, 503],
+  },
+  "post /api/projects/{id}/assessments": {
+    status: 201,
+    request: assessmentCaptureSchema,
+    response: assessmentDeliverySchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 409, 503],
+  },
+  "get /api/projects/{id}/assessments/{assessmentId}": {
+    status: 200,
+    response: assessmentDeliverySchema,
+    parameters: { id: z.uuid(), assessmentId: z.uuid() },
+    errors: [404, 503],
+  },
   "get /api/project-setup": {
     status: 200,
     response: canonicalSetupSchema,
@@ -156,11 +235,30 @@ export const contracts: Record<string, RouteContract> = {
   },
 };
 export function wireSchema(schema: z.ZodType): SchemaObject {
-  return z.toJSONSchema(schema, {
+  const generated = z.toJSONSchema(schema, {
     target: "openapi-3.0",
     cycles: "throw",
     io: "input",
-  }) as SchemaObject;
+  });
+  // OpenAPI 3.0 requires a type beside nullable. Preserve nullable unions as
+  // their original alternatives plus a null-only branch, without weakening them.
+  function normalize(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(normalize);
+    if (value === null || typeof value !== "object") return value;
+    const object = Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, normalize(child)]),
+    );
+    if (object.nullable === true && object.type === undefined) {
+      if (!Array.isArray(object.oneOf) && !Array.isArray(object.anyOf))
+        throw new Error("Unsupported nullable OpenAPI schema");
+      delete object.nullable;
+      return {
+        anyOf: [object, { type: "string", nullable: true, enum: [null] }],
+      };
+    }
+    return object;
+  }
+  return normalize(generated) as SchemaObject;
 }
 export const errorMessages = {
   400: "Invalid request",
@@ -247,6 +345,16 @@ export function completeContract(document: OpenAPIObject) {
           schema: wireSchema(schema),
         }),
       );
+    if (contract.query)
+      operation.parameters = [
+        ...(operation.parameters ?? []),
+        ...Object.entries(contract.query).map(([name, schema]) => ({
+          name,
+          in: "query" as const,
+          required: false,
+          schema: wireSchema(schema),
+        })),
+      ];
   }
   return document;
 }

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { checkIdentityConfiguration } from "./customer-identity-host.mjs";
+import { assertEvidenceWorkflowReceipt } from "./evidence-workflow-receipt.mjs";
 import {
   createHostDisclosure,
   scanExecutionLogs,
@@ -48,7 +49,7 @@ export async function customerProfiles({
         OIDC_AUDIENCE: "pdaa-api",
         OIDC_SCOPE: "openid pdaa.read",
         OIDC_GROUP_ROLE_MAP:
-          '{"project-managers":["project_manager"],"operators":["system_admin"]}',
+          '{"project-managers":["project_manager"],"operators":["system_admin"],"pmo-admins":["pmo_admin"]}',
       };
       for (const target of ["api", "worker", "web", "operations"])
         settings[`PDAA_${target.toUpperCase()}_IMAGE`] = record.images[target];
@@ -366,6 +367,7 @@ export async function customerProfiles({
           readFileSync(join(evidence, "project-fact-persistence.json"), "utf8"),
         );
         assert.equal(projectFactPersistence.status, "passed");
+        assertEvidenceWorkflowReceipt(projectFactPersistence.evidenceWorkflow);
         assert.equal(projectFactPersistence.restore.status, "passed");
         assert.equal(
           projectFactPersistence.canonicalFixture.runtimeRole,
