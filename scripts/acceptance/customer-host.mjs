@@ -374,8 +374,8 @@ export async function customerProfiles({
           "pdaa_api",
         );
         assert.equal(projectFactPersistence.canonicalWorkerDenied, true);
-        assert.equal(projectFactPersistence.businessTableCount, 31);
-        assert.equal(projectFactPersistence.migrationCount, 4);
+        assert.equal(projectFactPersistence.businessTableCount, 36);
+        assert.equal(projectFactPersistence.migrationCount, 5);
         assert.equal(
           projectFactPersistence.restore.canonicalIntegrityChecked,
           true,

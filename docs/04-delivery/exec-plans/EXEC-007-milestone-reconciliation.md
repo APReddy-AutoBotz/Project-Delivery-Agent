@@ -1,6 +1,6 @@
 # EXEC-007: Canonical milestone reconciliation
 
-Status: Stage 1 design approved; implementation candidate in validation.
+Status: Stage 1 merged; Stage 2 design approved and implementation in progress.
 Owner: Implementation controller. Last updated: 2026-09-12.
 Requirement IDs: FR-EVD-001/002/003/004/006/007/009/010/012, FR-ADM-005,
 FR-MOD-001/002/004, FR-HLT-008/009, NFR-SEC-001/004/005, NFR-REL-001/002.
@@ -17,19 +17,20 @@ not implement the required request and does not complete the criterion/story.
 
 ## Current state
 
-PR47/48 merged the reviewed evidence workflow and its acceptance records. Main
-`9cc0873bfd8bf0a0d21541f59cdbbe21a87a83a2` has accepted STORY-010/011; R0 3/5,
-R1 2/33. RequiredWorkItem already links canonical milestones to mandatory work.
+PR47/48 merged the reviewed evidence workflow and its acceptance records. PR49
+merged Stage 1 as `bfac958b0af9805c6b3109f7aedf109ccdec3618`; its candidate and
+post-merge Foundation/Documentation checks passed. Main has accepted STORY-010/011;
+R0 is 3/5 and R1 is 2/33. RequiredWorkItem already links canonical milestones
+to mandatory work.
 Canonical states and source mappings are configuration, not evidence. ProjectFact
 currently has only project plus literal fact-type identity; no child binding.
 The existing source-authority evaluator is deterministic and bounded. Its scalar
 conflict/assessment foreign keys cannot store cross-fact contributors.
 
-The latest main repeat (Foundation 34641338774) passed application verification
-but failed disclosure capture during bundled customer revocation. The original
-failure has response=1 and continuation=1, with no header/body failure. The
-recorder closes its browser context before draining queued CDP work. Preserve the
-failed run; do not classify its unknown response as harmless or waive capture.
+The earlier main repeat Foundation 34641338774 remains failed evidence: its
+original response contents were unavailable and are not reclassified. PR49 repaired
+the recorder ordering. Candidate Foundation 34663772792 and Documentation
+34663772811 passed; the main repeats 34665245478 and 34665245473 also passed.
 
 ## Scope and implementation stages
 
@@ -115,27 +116,253 @@ and assignee from that identity. Unchanged unresolved evidence is one case; chan
 contributors are a new retained case. No request creation or automatic closure is
 performed by this function.
 
-## Persistence and delivery contract for later stages
+## Stage 2 persistence design candidate
 
-Use a separate immutable state binding with typed milestone/work-item foreign keys,
-same-customer/project/fact relations and uniqueness on target+field and fact ID.
-Create a new server-named fact and its first confirmed statement atomically; never
-adopt an occupied arbitrary fact key. Every append path, including generic REST
-and direct runtime-role database writes, must enforce the bound state vocabulary.
-Unbound generic facts and sealed canonical configuration remain compatible.
+This section is the concrete design review input. No migration may be written until
+a fresh non-author review approves it or all findings are resolved and the updated
+text is reviewed again. Migration 5 is additive; the exact bytes and checksums of
+the four released migrations remain unchanged.
 
-Load all required links, bindings and history under one bounded ReadCommitted
-transaction. Project lock first, deterministic grant order, then sorted fact/
-binding locks; take one server clock after coordination locks. Do not call public
-repository methods that start separate transactions. Preserve the 10-second limit
-and prove aggregate bounds before loading 51 independently maximal histories.
+### Binding identity and Prisma shape
 
-Create a separately sealed cross-fact proof with exact contributor/target/link FKs,
-immutable per-fact prefixes/policy/as-of/rule and complete dependency counts.
-Validate completeness and receipt at COMMIT, forbid mutation or post-seal inserts,
-and expose integrity checks for restored rows. Existing single-fact constraints
-remain unchanged. Specify exact tables, privileges and SQL predicates before the
-fifth migration; preserve all four released migration bytes.
+Add nullable `bindingBirthId uuid` to `ProjectFact`. It is immutable from row birth,
+unique when non-null, and has a deferred same-scope foreign key to
+`CanonicalStateBinding(customerId, projectId, id)`. Existing facts remain null and
+cannot be converted. A new binding command first inserts a new `ProjectFact` with
+`bindingBirthId` equal to the planned binding ID, then inserts the binding and its
+first version before COMMIT. This mutual relation is the durable birth proof; a
+revision-zero fact, matching prefix, timestamp or application `create` call is not.
+
+Add `CanonicalStateBinding` with `id`, customer/project, `targetKind`, nullable
+typed `milestoneId`/`workItemId`, literal `field='state'`, `factId`, `factType`,
+`createdBy`, one database `createdAt`, and `sealed`. It has same-scope FKs to
+`CanonicalProject`, `Milestone`, `WorkItem`, and the typed `ProjectFact` key. Its
+shape check requires exactly one typed target matching `targetKind`. Composite
+unique keys cover `(customerId,projectId,id)`, `(customerId,projectId,factId)`,
+the typed fact tuple, and each target+field tuple; therefore one fact and one state
+binding serve exactly one canonical target. The `ProjectFact.bindingBirthId` value
+must equal the binding ID and the fact's type/scope must match.
+
+Add `CanonicalStateBindingReceipt` with `id`, customer/project, subject,
+idempotency key, SHA-256 request hash, binding/fact/source/evidence/version IDs,
+`initialSourceAccessRevision=2`, `initialSourceAccessState='AVAILABLE'`,
+`initialReaderSubject`, and `auditEventId`. Its request key is unique independently of `FactAppendReceipt`;
+each referenced identity is also unique to one binding receipt. Composite FKs bind
+the exact binding, first revision/evidence/source tuple and same-customer
+`AuditEvent`. Add named immutable composite unique keys on `ProjectFactVersion`
+for `(customerId,projectId,factId,id,sourceId,evidenceId)`, on the binding for its
+typed target/fact tuples, and on `AuditEvent` for `(customerId,id)`. The validation
+function requires fact-version revision 1, HUMAN_CONFIRMED provenance, creator-owned
+source, matching immutable birth snapshot/receipt and a `fact.binding.created`
+audit by the same actor. The receipt INSERT guard verifies access revision 2,
+AVAILABLE state and the sole creator reader at command time: the access row starts
+at 1 and the existing reader-insert trigger advances it to 2. Restore validation
+checks that the durable snapshot is exactly that birth state and that current access
+revision is at least 2; it deliberately does not require current availability or
+creator readership. Later access/reader changes therefore remain valid through
+their existing revision guards without rewriting the historical birth snapshot.
+
+The server naming convention is `canonical.state.` plus a lowercase UUID without
+hyphens. The prefix is admission control, not proof. After migration, generic fact
+creation under it is rejected unless a non-null birth ID is supplied, and new
+authority aggregates under it require an already sealed valid binding. Pre-existing
+facts or policies with that prefix are grandfathered but are never bindings. The
+repository tries at most eight generated candidates, checking both ProjectFact and
+AuthorityPolicy under the project lock; any occupied fact-only, policy-only or
+paired key is skipped. Exhaustion returns the fixed persistence failure. Binding
+creation never adopts a fact and never creates, copies or enables authority policy.
+
+Replace the existing ProjectFact admission/revision trigger function so every
+INSERT/UPDATE/DELETE first locks the same-scope Project `FOR UPDATE`, before any
+fact or binding lookup. It enforces birth-ID immutability, reserved-prefix shape and
+fact/policy collision checks. Replace the version append guard so it also locks
+Project first and then its fact. Binding, receipt, authority-prefix and cross-proof
+header/child guards follow the same Project-first order before their lower-level
+locks. Thus direct `pdaa_api` DML cannot race or invert the repository's eight-key
+collision loop for supported creation workflows. A Project-first FactSource INSERT
+guard prevents its fact FK lock from preceding Project. A BEFORE STATEMENT trigger
+rejects standalone ProjectFact UPDATE before tuple acquisition (WHEN trigger depth
+is zero), retaining only nested append-driven revision advancement. Arbitrary raw
+row locks and pre-existing raw reader/access maintenance can still deadlock and must
+roll back/retry the whole transaction; they are not a no-deadlock guarantee.
+Concurrent actual-role COMMIT probes exercise generic fact,
+policy-only, reserved binding creation and capture races.
+
+`guard_bound_state_version` applies on every `ProjectFactVersion` INSERT, including
+generic REST/repository and direct `pdaa_api` SQL. When the parent fact has a birth
+binding, the value must be exactly a text `OPEN`, `IN_PROGRESS`, `COMPLETE` or
+`CANCELLED`; unrelated generic facts retain all existing value types. Binding,
+receipt and birth identity are immutable and non-truncatable. The binding receipt
+can be inserted only while its binding is unsealed; ordinary later FactSource,
+FactEvidence and ProjectFactVersion appends remain governed by their existing
+history/revision guards. The only binding update is false to true after
+`valid_canonical_state_binding(id)`. A deferred constraint trigger requires every
+inserted binding to be sealed and valid at COMMIT.
+
+### Binding command and retry semantics
+
+The internal TypeScript port accepts project, typed target, initial state,
+effective/optional-valid-until instants, original statement and a binding-command
+idempotency key. The normalized request hash covers those caller-controlled fields
+in fixed property order and excludes generated IDs, clock, actor roles and
+correlation ID. Authorization uses the existing append-capable roles
+`project_manager`, `portfolio_manager` or `pmo_admin`; leadership is excluded.
+Project authorization/lock happens before receipt lookup, so a replay reauthorizes
+current delivery. An identical replay returns the original binding, fact key and
+first entry; altered reuse is `IDEMPOTENCY_CONFLICT`. The command uses one
+ReadCommitted transaction with the existing five-second wait and ten-second limit,
+one server millisecond clock, inserts fact/binding/source/access/reader/evidence/
+version/receipt/audit, seals the binding and returns only after SQL validation.
+
+### Coherent scalar capture primitive
+
+Extract a data-package-private transaction primitive used by both the current
+single-fact capture and Stage 2. It accepts the existing Prisma transaction,
+authorized actor, sorted fact targets and explicit database `asOf`; it never opens
+a transaction or reads a clock. It bulk-loads fact/policy prefixes, at most 1001
+aggregate versions, conflicts and sources, then applies the existing resolver.
+Prospective generated scalar conflict pairs are computed for all facts before any
+insert. Existing plus prospective conflicts, all version/evidence references and
+the Stage 1 conservative derived-reference calculation must fit the shared 51
+target, 1000 version/source/conflict and 64000 evidence/reference/derived budgets.
+Overflow yields one minimal cross-fact INCOMPLETE proof and commits no new scalar
+conflict or scalar assessment. Otherwise new pairs are inserted in fact-ID/pair
+order with contiguous per-fact revisions at the common `asOf`, all facts are
+reevaluated, and one ordinary sealed `FactAssessment` per bound fact is persisted
+with the existing complete prefix, policy, conflict and access-revision semantics.
+The public scalar method calls the same primitive for one fact, retaining its
+current response, authorization, idempotency and side effects.
+
+Extend `FactAssessment` with `captureKind`, defaulting existing/public rows to
+`SCALAR`, plus nullable `milestoneAssessmentId`. Replace its current request unique
+key with `(customerId,projectId,subject,captureKind,idempotencyKey)`. SCALAR rows
+must have no parent. Stage 2 rows use `MILESTONE`, a deferred same-scope parent FK,
+and a unique `(milestoneAssessmentId,factId)` relation. Their deterministic child
+key is `mc_` plus the parent UUID and binding UUID without hyphens; their request
+hash covers `MILESTONE`, parent/binding IDs, project, fact type and common `asOf`.
+This isolates them structurally from public scalar retries. Existing public request
+hashes and replay behavior remain unchanged under SCALAR.
+
+The FactAssessment INSERT guard treats MILESTONE rows as cross-proof children:
+it first locks Project, then the unsealed same-scope parent header, and rejects a
+missing/sealed parent, mismatched actor/as-of, non-bound fact or duplicate fact.
+SCALAR keeps its existing Project/prefix checks and cannot supply a parent. The
+cross-proof validator requires a bijection: every MILESTONE scalar child is
+referenced exactly once by one non-null target, and every non-null target references
+exactly one valid child; no unreferenced parent scalar may survive the seal.
+
+The cross-capture request hash covers caller-controlled project ID, milestone ID,
+literal rule revision and enabled flag in fixed order. Current append authorization
+occurs before its receipt/header lookup. An identical retry returns the original
+cross proof and rechecks current dependency access; changing any hashed field under
+the same key raises `IDEMPOTENCY_CONFLICT`. The parent header is the authoritative
+replay receipt, so sealed child scalar rows are never independently recreated.
+
+Capture coordination is Project `FOR UPDATE` first, current matching grants by ID
+`FOR SHARE`, ordinary reads of immutable canonical header/creation receipt and focal
+Milestone, exact RequiredWorkItem rows by ID, bindings by ID, then facts by ID
+`FOR UPDATE`. Immutable tables receive no UPDATE grants merely to lock rows. A second
+read after locks must match the first identities. This is one bounded SQL statement
+comparing ordered receipt/milestone/link/binding/fact tuples with structural JSONB
+equality, including fact type, revision and birth identity; it must return true.
+Take the one database clock only
+after coordination. Do not use the mutable configured `Milestone.state` or
+`WorkItem.state` values as evidence.
+
+### Sealed cross-fact proof
+
+Add `MilestoneConsistencyAssessment` with customer/project/focal milestone,
+`canonicalReceiptId`, rule revision, enabled flag, database `asOf`, subject,
+idempotency key, request hash, status, completeness and exact target/link/version/
+evidence/conflict/contributor counts, result JSON, `auditEventId` and `sealed`.
+The unique request key is actor-scoped and separate from binding, append and scalar
+keys. The canonical receipt FK pins the actual immutable sealed project creation;
+there is no invented mutable canonical revision.
+
+Add `MilestoneConsistencyTarget` rows. A milestone row has its typed milestone and
+no required-link ID. Each work-item row has the exact `RequiredWorkItem.id`, focal
+milestone and typed work-item pair. Binding/fact/scalar-assessment fields are all
+null only for a genuinely missing binding; otherwise composite FKs prove the exact
+typed binding/fact and sealed `FactAssessment`. Every scalar assessment has the
+same `asOf`; its fact/policy/conflict prefixes and version/access dependencies are
+therefore reused rather than copied or weakened. Add the required immutable
+five-column unique key to RequiredWorkItem for the exact link FK.
+
+Missing-binding admission is checked at target INSERT and again at header seal
+under the Project lock. The immutable null target is the historical absence
+snapshot, analogous to the binding's birth-access receipt. Restore verifies its
+sealed graph, not absence in today's binding set; later binding creation must not
+invalidate an earlier UNKNOWN proof. Timestamp comparison is not an ordering proof
+because separate commands can share a millisecond.
+
+Add a named exact RequiredWorkItem compound unique key and exact compound target/
+binding/FactAssessment keys for every FK described here. Add
+`MilestoneConsistencyContributorVersion` only for a positive contradiction,
+with assessment, target/binding/fact, version and evidence IDs. Composite FKs bind
+it to a non-null target, the exact fact version and its one current evidence row.
+It records every supporting version/evidence association, not only their unions.
+The complete evaluated dependency set remains the target-to-scalar-assessment set;
+contributors are the positive subset used by the canonical case identity.
+
+`valid_milestone_consistency_assessment(id)` is a bounded, security-invoker restore
+predicate. For a complete row it verifies valid canonical project/receipt, exact
+live required-link membership, one milestone target plus every required link,
+valid sealed bindings, common-as-of valid scalar assessments, all declared counts,
+and exact result scope/rule/status. It reconstructs evaluation/dependency arrays
+from scalar results. UNKNOWN requires zero required links, a missing binding, a
+non-RESOLVED scalar, or any resolved `CANCELLED` state;
+NOT_DETECTED requires all states resolved and no COMPLETE-versus-OPEN/IN_PROGRESS
+pair; CONFLICTING requires that pair and exact contributor rows/identity;
+REVALIDATION_REQUIRED is the minimal whole-result envelope when any scalar proof
+was restricted. A disabled result is minimal. An aggregate-bound failure is a
+sealed minimal INCOMPLETE header with zero child/dependency/contributor counts and
+no scalar side effects. The validator rejects extra JSON fields, unbound IDs,
+partial target sets, wrong counts, altered contributor tuples and cross-scope FKs.
+
+The capture insert order is final-output unsealed header, deterministic MILESTONE scalar
+assessments,
+target rows, contributor rows, audit event, header seal, independently validated
+delivery, then COMMIT. The redundant post-seal validity query is omitted: BEFORE
+seal, delivery and deferred COMMIT still each validate the graph. Writes return
+only IDs when their row bodies are discarded, avoiding repeated transfer of large
+proof JSON. The header starts unsealed. MILESTONE scalar/target/contributor INSERT
+is allowed only while it is unsealed; UPDATE/DELETE and TRUNCATE always fail. The
+only header update changes false to true after the BEFORE trigger validates the
+completed graph. A deferred constraint trigger requires a newly
+inserted header to be sealed and valid at COMMIT, and the audit FK/validator binds
+the `milestone.consistency.captured` event. No child may be added after seal.
+
+### Delivery, privileges and restoration
+
+Capture uses append-capable project authority rather than leadership capture
+permission, anticipating the Stage 3 request side effect without widening it.
+Receipt lookup precedes no authorization. Replay/read delivery verifies the actual
+actor's current matching role/grant and current AVAILABLE reader access to every
+source retained by every scalar assessment. Lost access returns a fixed restricted
+envelope with no stored result; a stored REVALIDATION_REQUIRED result is never
+upgraded after access changes. No model/API route is added in Stage 2.
+
+`pdaa_api` receives SELECT/INSERT on the binding, receipt, assessment, target and
+contributor tables, plus column-only UPDATE of the two `sealed` flags. It retains
+the existing finite ProjectFact revision and scalar-assessment grants; it receives
+no UPDATE/DELETE/TRUNCATE on immutable rows and no policy shortcut. `pdaa_worker`
+receives no new business DML. `pdaa_backup` receives SELECT through the existing
+all-table grant. Every new or replaced function is schema-qualified, owned by
+`pdaa_migrate`, uses security-invoker semantics and fixes `search_path` to
+`pg_catalog, public`. Revoke PUBLIC execution on all new validation/trigger functions;
+grant only the two restore predicates to `pdaa_api` (the migration owner retains
+owner execution). Trigger invocation does not require caller EXECUTE.
+
+Restore/recovery inventory expands from 31 to 36 business tables and calls both
+new validity predicates for every sealed row while runtime CONNECT remains revoked.
+Acceptance must exercise clean migration, repeat/no-op, populated genuine prefixes
+1-to-5 through 4-to-5, exact prior ledger/checksum retention, actual `pdaa_api`
+positive and negative COMMIT probes, and encrypted full-table restore into a fresh
+quarantined database. Rollback is application-compatible: keep additive history and
+run the matching reviewed release, or restore the pre-upgrade encrypted backup into
+a separate quarantined target. There is no destructive down migration.
+
+### Stage 3 delivery boundary
 
 Deduplicate the durable unresolved request independently from actor-scoped HTTP
 retries; compare exact canonical contributor tuples on hash reuse. Capture and
@@ -196,8 +423,9 @@ relogin, copied-link/source revocation and cleanup, across both packaged profile
 
 ## Rollback and recovery
 
-Current stage can revert compatible application/test code without changing data.
-Later additive history remains during compatible revert or encrypted restore into
+Stage 1 can revert compatible application/test code without changing data. Stage 2
+adds durable history: retain that additive schema and history during a compatible
+application revert, or use encrypted restore into
 a fresh quarantined target with the matching reviewed release. Preserve the local
 development database, volumes, Docker VHD and failed evidence. No destructive down
 migration. Extend the full-table and genuine four-to-five upgrade contracts before
@@ -215,9 +443,70 @@ Issue #5 and real-data activation remain open. No new story is accepted by this 
 The independent non-author design review approved Stage 1 on 2026-09-12 after
 clarifying the shared derived-reference budget, whole-result withholding and all
 agreeing-source support in dedupe. The controller adopts those routine decisions
-under delegated authority. Implementation and focused regressions are present;
-full validation, immutable candidate review, fresh packaged evidence and merge are
-pending. Later stages require their separate concrete design reviews.
+under delegated authority. Stage 1 implementation, full validation, immutable
+review, packaged evidence and merge are complete. The Stage 2 candidate above
+records the concrete DDL, transaction, privilege and recovery choices. It
+was independently approved on 2026-09-12 after three passes resolved seven P1
+findings; implementation is now in progress.
+
+### Stage 2 implementation checkpoint (2026-09-12, unmerged)
+
+The working candidate contains migration 5, strict binding/capture contracts,
+atomic fresh binding receipts, coherent cross-fact persistence, runtime grants,
+restore predicates and acceptance coverage for all four released upgrade prefixes.
+The four released migrations remain byte-for-byte unchanged. Formative review
+has driven null-safe typed-target checks, complete child/count validation, historical
+missing-binding semantics and Project-first raw append coordination. This is not
+an immutable-candidate approval or a release gate pass.
+
+Lightweight validation has passed lint, 25 new domain-contract tests, documentation
+validation and 13 documentation regression tests. The latest isolated focused
+database run passed 7 of 8 cases; the 1,000-version cross-fact capture failed the
+unchanged 10-second transaction deadline (P2028). A prior complete database run
+passed 89 of 92 cases; two fixture/assertion defects were subsequently corrected,
+but the scalar boundary and full suite still require a fresh successful run.
+Sanitized profiling reproduced the cross-fact timeout after bounded read/return
+optimizations. Host diagnostics also found 93% physical memory use; that does not
+prove resource pressure is the sole cause. Unfamiliar processes and all existing
+development databases and retained evidence are preserved.
+
+After narrowing the evidence projection and batching sorted fact locks, direct
+data-package TypeScript compilation passed. A subsequent focused rerun passed all
+34 Stage 2 unit tests: 25 domain contracts, six prior-schema adapter tests and three
+acceptance-helper contracts. The helper contracts initially stopped at the local
+isolation guard; their setup was corrected to exercise the intended role/source
+assertions, without bypassing that guard. Full repository lint subsequently passed.
+Documentation validation and all 13
+documentation regressions also passed. A broader one-worker unit attempt encountered
+startup/worker termination timeouts and was interrupted; it is not passing evidence.
+
+Acceptance COMMIT probes now use a pinned positive assessment and assert the actual
+transaction role is pdaa_api, including under restore quarantine. Positive complete
+DISABLED and minimal INCOMPLETE controls accompany isolated typed-binding,
+incomplete-scalar-child and hidden-scalar rejection cases. Every genuine prior-prefix
+upgrade must check those receipt flags. Formative source review found no defect in
+the corrected probes; their real database execution remains pending. An additional
+public-scalar regression constructs 1,002 conflicts whose UUID-ordered sample omits
+revision 1,002, requiring the stored immutable prefix to retain the true maximum
+without adding conflicts or partial dependencies. That integration test is unrun.
+
+A read-only schema comparison found only two new foreign-key naming mismatches;
+explicit Prisma relation maps now match migration 5. Its first recheck could not
+reach the local database (P1001); after verifying the existing container was healthy,
+a read-only retry against the same disposable database returned an empty diff and
+exit zero. Two further read-only
+profiles aborted before the first parent INSERT was sent and confirmed substantial,
+variable client/startup overhead; they are not successful capture evidence. The
+10-second capture deadline and all integrity checks remain unchanged. A draft
+candidate is being prepared for the existing clean-host CI and exact-SHA review;
+neither draft publication nor passing focused tests authorize merge.
+
+Outstanding gates include remaining adversarial database cases, executable
+prior-schema adapter/upgrade and actual-role COMMIT probes, clean migration/schema
+consistency, full native checks, encrypted 36-table recovery, both packaged customer
+profiles, exact-SHA non-author review and required remote CI. No Stage 2 PR has
+been merged. STORY-012, Issue #6 and all customer/distribution release gates remain
+open; no PM delivery or external messaging has been added.
 
 The close race is source-proven; the failed original response's contents remain
 unavailable and are not presumed safe. The initial native Chromium fixture needed

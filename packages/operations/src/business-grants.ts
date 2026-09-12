@@ -40,6 +40,9 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT UPDATE (sealed) ON "FactAssessment" TO pdaa_api;
     GRANT SELECT,INSERT ON "Programme","CanonicalProject","ProjectResponsibility","Sprint","Milestone","WorkItem","RequiredWorkItem","RaidItem","CanonicalSourceMapping","CanonicalCreationReceipt" TO pdaa_api;
     GRANT UPDATE (sealed) ON "CanonicalProject" TO pdaa_api;
+    GRANT SELECT,INSERT ON "CanonicalStateBinding","CanonicalStateBindingReceipt","MilestoneConsistencyAssessment","MilestoneConsistencyTarget","MilestoneConsistencyContributorVersion" TO pdaa_api;
+    GRANT UPDATE (sealed) ON "CanonicalStateBinding","MilestoneConsistencyAssessment" TO pdaa_api;
+    GRANT EXECUTE ON FUNCTION public.valid_canonical_state_binding(uuid),public.valid_milestone_consistency_assessment(uuid) TO pdaa_api;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
   `);
 }

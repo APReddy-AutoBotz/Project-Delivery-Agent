@@ -84,3 +84,4 @@ export interface WorkerHeartbeatRepository {
   recordHeartbeat(occurredAt: Date): Promise<void>;
 }
 export * from "./milestone-consistency.js";
+export * from "./milestone-persistence.js";

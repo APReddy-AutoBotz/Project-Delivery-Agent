@@ -46,6 +46,16 @@ import {
   verifyCanonicalWorkerDenials,
 } from "./canonical-projects.mjs";
 import {
+  milestonePersistenceTables,
+  milestonePersistenceProjection,
+  seedMilestonePersistence,
+  verifyMilestonePersistencePrivileges,
+  verifyMilestonePersistenceImmutable,
+  verifyMilestonePersistenceIntegrity,
+  verifyMilestonePersistenceCommitGuards,
+  verifyMilestonePersistenceWorkerDenials,
+} from "./milestone-persistence.mjs";
+import {
   createDisclosureCheck,
   readFixtureSecrets,
   observeBrowserDisclosure,
@@ -100,6 +110,7 @@ async function projection(pool) {
     ...(await projectFactProjection(pool)),
     ...(await authorityProjection(pool)),
     ...(await canonicalProjection(pool)),
+    ...(await milestonePersistenceProjection(pool)),
   };
   for (const table of [
     "Customer",
@@ -356,6 +367,7 @@ try {
       ...projectFactTables,
       ...authorityTables,
       ...canonicalTables,
+      ...milestonePersistenceTables,
     ])
       assert.equal(
         state[table].length,
@@ -365,7 +377,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 4);
+    assert.equal(migrations.length, 5);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -375,6 +387,7 @@ try {
     );
     await verifyProjectFactPrivileges(db);
     await verifyCanonicalPrivileges(db);
+    await verifyMilestonePersistencePrivileges(db);
     const configResponse = await fetch(base + "/api/auth/config");
     assert.equal(configResponse.status, 200);
     const publicConfig = await configResponse.text();
@@ -475,6 +488,20 @@ try {
     await verifyCanonicalPrivileges(db);
     await verifyCanonicalImmutable(db);
     await verifyCanonicalIntegrity(db);
+    const milestonePersistenceFixture = await seedMilestonePersistence(
+      db,
+      loadDatabaseConfig({
+        ...env,
+        PDAA_DB_USER: "pdaa_api",
+        PDAA_DB_PASSWORD_FILE: "/run/secrets/api-password",
+      }).database,
+      env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+      "customer-" + profile,
+    );
+    await verifyMilestonePersistencePrivileges(db);
+    await verifyMilestonePersistenceImmutable(db);
+    await verifyMilestonePersistenceIntegrity(db);
     save("project-fact-persistence", {
       status: "awaiting-restore",
       workerRuntimeDenied: await verifyWorkerFactDenials(
@@ -487,10 +514,20 @@ try {
       fixture,
       authorityFixture,
       canonicalFixture,
+      milestonePersistenceFixture,
       evidenceWorkflow: read("evidence-workflow-fixture").receipt,
       canonicalTables,
-      businessTableCount: 31,
-      migrationCount: 4,
+      milestonePersistenceTables,
+      businessTableCount: 36,
+      migrationCount: 5,
+      milestonePersistenceWorkerDenied:
+        await verifyMilestonePersistenceWorkerDenials(
+          loadDatabaseConfig({
+            ...env,
+            PDAA_DB_USER: "pdaa_worker",
+            PDAA_DB_PASSWORD_FILE: "/run/secrets/worker-password",
+          }).database,
+        ),
       canonicalWorkerDenied: await verifyCanonicalWorkerDenials(
         loadDatabaseConfig({
           ...env,
@@ -518,6 +555,8 @@ try {
     );
     await verifyCanonicalPrivileges(db);
     await verifyCanonicalIntegrity(db);
+    await verifyMilestonePersistencePrivileges(db);
+    await verifyMilestonePersistenceIntegrity(db);
     await browserCheck(true);
     await verifyProjectFactPrivileges(db);
     const state = await projection(db);
@@ -543,7 +582,15 @@ try {
       await verifyCanonicalPrivileges(restored);
       await verifyCanonicalIntegrity(restored);
       await verifyCanonicalImmutable(restored);
+      await verifyMilestonePersistencePrivileges(restored);
+      await verifyMilestonePersistenceIntegrity(restored);
+      await verifyMilestonePersistenceImmutable(restored);
       const canonicalCommitGuards = await verifyCanonicalCommitGuards(restored);
+      const milestonePersistenceCommitGuards =
+        await verifyMilestonePersistenceCommitGuards(restored, {
+          assessmentId: read("project-fact-persistence")
+            .milestonePersistenceFixture.assessmentId,
+        });
       assert.equal(
         (
           await restored.query(
@@ -572,6 +619,9 @@ try {
         canonicalIntegrityChecked: true,
         canonicalImmutableChecked: true,
         canonicalCommitGuards,
+        milestonePersistenceIntegrityChecked: true,
+        milestonePersistenceImmutableChecked: true,
+        milestonePersistenceCommitGuards,
         workerCheckpoint: await verifyRestoredWorker(
           db,
           restored,

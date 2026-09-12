@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Pool, config, guard, secret } from "./common.mjs";
+import { createPriorReleaseDatabase } from "./prior-schema.mjs";
 import { migrateDatabase } from "../../packages/operations/dist/migrations.js";
 import { migrateRelease } from "../../packages/operations/dist/provision.js";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
@@ -34,6 +35,14 @@ import {
   verifyCanonicalIntegrity,
   verifyCanonicalCommitGuards,
 } from "./canonical-projects.mjs";
+import {
+  milestonePersistenceTables,
+  milestonePersistenceProjection,
+  seedMilestonePersistence,
+  verifyMilestonePersistencePrivileges,
+  verifyMilestonePersistenceImmutable,
+  verifyMilestonePersistenceIntegrity,
+} from "./milestone-persistence.mjs";
 
 export async function verifyFoundationUpgrade(
   admin,
@@ -41,8 +50,13 @@ export async function verifyFoundationUpgrade(
   priorCount = 1,
 ) {
   guard();
-  assert([1, 2, 3].includes(priorCount));
-  assert.equal(migrations.length, 4);
+  assert([1, 2, 3, 4].includes(priorCount));
+  assert.equal(migrations.length, 5);
+  assert.equal(migrations[3].name, "202609110001_canonical_projects");
+  assert.equal(
+    migrations[3].checksum,
+    "6c48d2e8777924ff49089be9aa89e6e98e3f1ea1a89be24bc3fd7150b44cb184",
+  );
   assert.equal(migrations[2].name, "202609100001_authority_assessments");
   assert.equal(
     migrations[2].checksum,
@@ -62,6 +76,7 @@ export async function verifyFoundationUpgrade(
       "migration_upgrade",
       "migration_authority_upgrade",
       "migration_canonical_upgrade",
+      "migration_milestone_persistence_upgrade",
     ][priorCount - 1],
     customerId = process.env.CUSTOMER_ID;
   const projectId = randomUUID(),
@@ -143,6 +158,7 @@ export async function verifyFoundationUpgrade(
     ]);
     let priorFixture = null;
     let priorAuthorityFixture = null;
+    let priorCanonicalFixture = null;
     const apiConnection = {
       ...config("database", "pdaa_api", "api-password").database,
       database,
@@ -169,11 +185,12 @@ export async function verifyFoundationUpgrade(
         customerId,
         projectId,
         "prior-authority",
+        createPriorReleaseDatabase,
       );
       await verifyProjectFactPrivileges(owner);
       await verifyImmutableProjectFacts(owner);
     }
-    if (priorCount === 3) {
+    if (priorCount >= 3) {
       // Released three-migration ACL, before the new canonical tables exist.
       await owner.query(`GRANT SELECT,INSERT ON "AuthorityPolicy","AuthorityPolicyRevision","AuthorityPolicyReceipt","FactAuthorityConflict","FactAssessment","FactAssessmentVersion","FactAssessmentConflict" TO pdaa_api;
         GRANT UPDATE (revision) ON "AuthorityPolicy" TO pdaa_api;
@@ -184,10 +201,26 @@ export async function verifyFoundationUpgrade(
         customerId,
         projectId,
         "prior-canonical",
+        createPriorReleaseDatabase,
       );
       await verifyAuthorityPrivileges(owner);
       await verifyAuthorityImmutable(owner);
       await verifyAuthorityIntegrity(owner);
+    }
+    if (priorCount === 4) {
+      await owner.query(`GRANT SELECT,INSERT ON "Programme","CanonicalProject","ProjectResponsibility","Sprint","Milestone","WorkItem","RequiredWorkItem","RaidItem","CanonicalSourceMapping","CanonicalCreationReceipt" TO pdaa_api;
+        GRANT UPDATE (sealed) ON "CanonicalProject" TO pdaa_api;
+        GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup`);
+      priorCanonicalFixture = await seedCanonicalHistory(
+        owner,
+        apiConnection,
+        customerId,
+        projectId,
+        "prior-milestone-persistence",
+      );
+      await verifyCanonicalPrivileges(owner);
+      await verifyCanonicalImmutable(owner);
+      await verifyCanonicalIntegrity(owner);
     }
     const oldTables = [
       "Customer",
@@ -199,13 +232,27 @@ export async function verifyFoundationUpgrade(
       "ServiceHeartbeat",
       ...(priorCount >= 2 ? projectFactTables : []),
       ...(priorCount >= 3 ? authorityTables : []),
+      ...(priorCount >= 4 ? canonicalTables : []),
     ];
+    // Freeze the old column inventory before adding nullable/defaulted columns.
+    // Compare every old value byte-for-value after upgrade, then separately
+    // assert the deterministic values of the newly added columns.
+    const oldColumns = {};
+    for (const table of oldTables)
+      oldColumns[table] = (
+        await owner.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position",
+          [table],
+        )
+      ).rows
+        .map(({ column_name }) => '"' + column_name.replaceAll('"', '""') + '"')
+        .join(",");
     const oldProjection = async () => {
       const result = {};
       for (const table of oldTables)
         result[table] = (
           await owner.query(
-            `SELECT * FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`,
+            `SELECT * FROM (SELECT ${oldColumns[table]} FROM "${table}") t ORDER BY to_jsonb(t)::text COLLATE "C"`,
           )
         ).rows;
       return result;
@@ -232,8 +279,24 @@ export async function verifyFoundationUpgrade(
       oldTables.length + 1,
     );
     const applied = await migrateRelease(release, migrations);
-    assert.equal(applied.length, 4);
+    assert.equal(applied.length, 5);
     assert.deepEqual(await oldProjection(), before);
+    assert.equal(
+      (
+        await owner.query(
+          'SELECT count(*)::int AS n FROM "ProjectFact" WHERE "bindingBirthId" IS NOT NULL',
+        )
+      ).rows[0].n,
+      0,
+    );
+    assert.equal(
+      (
+        await owner.query(
+          'SELECT count(*)::int AS n FROM "FactAssessment" WHERE "captureKind"<>\'SCALAR\' OR "milestoneAssessmentId" IS NOT NULL',
+        )
+      ).rows[0].n,
+      0,
+    );
     const upgradedHistory = await fullHistory();
     assert.deepEqual(upgradedHistory.slice(0, priorCount), initialHistory);
     assert.deepEqual(
@@ -243,7 +306,8 @@ export async function verifyFoundationUpgrade(
     const addedTables = [
       ...(priorCount < 2 ? projectFactTables : []),
       ...(priorCount < 3 ? authorityTables : []),
-      ...canonicalTables,
+      ...(priorCount < 4 ? canonicalTables : []),
+      ...milestonePersistenceTables,
     ];
     for (const table of addedTables)
       assert.equal(
@@ -281,17 +345,31 @@ export async function verifyFoundationUpgrade(
     await verifyAuthorityImmutable(owner);
     await verifyAuthorityIntegrity(owner);
     const commitGuards = await verifyAssessmentCommitGuards(owner);
-    const canonicalFixture = await seedCanonicalHistory(
-      owner,
-      apiConnection,
-      customerId,
-      projectId,
-      "upgrade-" + priorCount,
-    );
+    const canonicalFixture =
+      priorCanonicalFixture ??
+      (await seedCanonicalHistory(
+        owner,
+        apiConnection,
+        customerId,
+        projectId,
+        "upgrade-" + priorCount,
+      ));
     await verifyCanonicalPrivileges(owner);
     await verifyCanonicalImmutable(owner);
     await verifyCanonicalIntegrity(owner);
     const canonicalCommitGuards = await verifyCanonicalCommitGuards(owner);
+    const milestonePersistenceFixture = await seedMilestonePersistence(
+      owner,
+      apiConnection,
+      customerId,
+      canonicalFixture.projectId,
+      "upgrade-" + priorCount,
+    );
+    await verifyMilestonePersistencePrivileges(owner);
+    await verifyMilestonePersistenceImmutable(owner);
+    await verifyMilestonePersistenceIntegrity(owner);
+    const milestonePersistencePopulated =
+      await milestonePersistenceProjection(owner);
     const canonicalPopulated = await canonicalProjection(owner);
     const authorityPopulated = await authorityProjection(owner);
     const populated = await projectFactProjection(owner);
@@ -302,6 +380,10 @@ export async function verifyFoundationUpgrade(
     assert.deepEqual(await projectFactProjection(owner), populated);
     assert.deepEqual(await authorityProjection(owner), authorityPopulated);
     assert.deepEqual(await canonicalProjection(owner), canonicalPopulated);
+    assert.deepEqual(
+      await milestonePersistenceProjection(owner),
+      milestonePersistencePopulated,
+    );
     await assert.rejects(
       () =>
         migrateRelease(
@@ -362,7 +444,12 @@ export async function verifyFoundationUpgrade(
     );
     await applyBusinessTableGrants(owner);
     await verifyCanonicalPrivileges(owner);
+    await verifyMilestonePersistencePrivileges(owner);
     assert.deepEqual(await canonicalProjection(owner), canonicalPopulated);
+    assert.deepEqual(
+      await milestonePersistenceProjection(owner),
+      milestonePersistencePopulated,
+    );
     assert.deepEqual(await authorityProjection(owner), authorityPopulated);
     assert.deepEqual(await projectFactProjection(owner), populated);
     assert(
@@ -388,6 +475,7 @@ export async function verifyFoundationUpgrade(
       authorityFixture,
       authorityCommitGuards: commitGuards,
       canonicalFixture,
+      milestonePersistenceFixture,
       canonicalCommitGuards,
       canonicalRows: Object.fromEntries(
         Object.entries(canonicalPopulated).map(([name, rows]) => [
@@ -396,7 +484,8 @@ export async function verifyFoundationUpgrade(
         ]),
       ),
       businessTableCount: oldTables.length + addedTables.length,
-      priorAuthorityRetained: priorCount === 3,
+      priorAuthorityRetained: priorCount >= 3,
+      priorCanonicalRetained: priorCount === 4,
       retainedRows: Object.fromEntries(
         Object.entries(populated).map(([name, rows]) => [name, rows.length]),
       ),

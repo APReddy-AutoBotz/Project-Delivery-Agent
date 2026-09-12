@@ -139,6 +139,11 @@ try {
     "RaidItem",
     "CanonicalSourceMapping",
     "CanonicalCreationReceipt",
+    "CanonicalStateBinding",
+    "CanonicalStateBindingReceipt",
+    "MilestoneConsistencyAssessment",
+    "MilestoneConsistencyTarget",
+    "MilestoneConsistencyContributorVersion",
   ];
   for (const table of tables) {
     const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
@@ -167,7 +172,9 @@ try {
     (SELECT count(*)::int FROM (SELECT "factId" FROM "FactAuthorityConflict" GROUP BY "factId" HAVING count(*)<>max(revision)) drift) +
     (SELECT count(*)::int FROM "FactAssessment" WHERE NOT sealed OR NOT public.valid_fact_assessment(id)) +
     (SELECT count(*)::int FROM "Programme" WHERE NOT public.valid_canonical_programme(id)) +
-    (SELECT count(*)::int FROM "CanonicalProject" WHERE NOT sealed OR NOT public.valid_canonical_project(id)) AS invalid`
+    (SELECT count(*)::int FROM "CanonicalProject" WHERE NOT sealed OR NOT public.valid_canonical_project(id)) +
+    (SELECT count(*)::int FROM "CanonicalStateBinding" WHERE NOT sealed OR NOT public.valid_canonical_state_binding(id)) +
+    (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" WHERE NOT sealed OR NOT public.valid_milestone_consistency_assessment(id)) AS invalid`
     )[0].invalid,
     0,
   );
@@ -180,10 +187,15 @@ try {
     "AuthorityPolicyReceipt",
     "FactAuthorityConflict",
     "FactAssessment",
+    "CanonicalStateBinding",
+    "CanonicalStateBindingReceipt",
+    "MilestoneConsistencyAssessment",
+    "MilestoneConsistencyTarget",
+    "MilestoneConsistencyContributorVersion",
     ...canonicalTables,
   ]) {
     for (const sql of [
-      `UPDATE "${table}" SET id=id`,
+      `UPDATE "${table}" SET "${table === "MilestoneConsistencyContributorVersion" ? "assessmentId" : "id"}"="${table === "MilestoneConsistencyContributorVersion" ? "assessmentId" : "id"}"`,
       `DELETE FROM "${table}"`,
       `TRUNCATE "${table}" CASCADE`,
     ]) {
@@ -237,7 +249,7 @@ try {
   }
   if (!denied) throw new Error("Restored audit protection missing");
   console.log(
-    `Recovery passed: all 31 business tables and the migration ledger match exactly; audit, fact, policy, assessment and canonical history remain immutable. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all 36 business tables and the migration ledger match exactly; audit, fact, policy, assessment, binding and canonical history remain immutable. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

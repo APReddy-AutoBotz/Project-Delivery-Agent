@@ -308,6 +308,7 @@ export async function seedAuthorityHistory(
   customerId,
   projectId,
   prefix,
+  databaseFactory = createDatabase,
 ) {
   guard();
   const pmo = {
@@ -332,7 +333,7 @@ export async function seedAuthorityHistory(
         actor.roles[0],
       ],
     );
-  const database = createDatabase(connection);
+  const database = databaseFactory(connection);
   try {
     const authority = new DatabaseAuthorityRepository(database),
       facts = new DatabaseProjectFactRepository(database);
