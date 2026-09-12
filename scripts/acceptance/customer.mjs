@@ -55,6 +55,7 @@ import {
   verifyMilestonePersistenceCommitGuards,
   verifyMilestonePersistenceWorkerDenials,
 } from "./milestone-persistence.mjs";
+import { verifyStateBindingBirthGuards } from "./state-binding-birth.mjs";
 import {
   createDisclosureCheck,
   readFixtureSecrets,
@@ -498,6 +499,7 @@ try {
       env.CUSTOMER_ID,
       canonicalFixture.projectId,
       "customer-" + profile,
+      { reserveForRestore: true },
     );
     await verifyMilestonePersistencePrivileges(db);
     await verifyMilestonePersistenceImmutable(db);
@@ -591,6 +593,12 @@ try {
           assessmentId: read("project-fact-persistence")
             .milestonePersistenceFixture.assessmentId,
         });
+      milestonePersistenceCommitGuards.bindingBirthGuards =
+        await verifyStateBindingBirthGuards(
+          restored,
+          read("project-fact-persistence").milestonePersistenceFixture
+            .restoreBindingBirthProbe,
+        );
       assert.equal(
         (
           await restored.query(

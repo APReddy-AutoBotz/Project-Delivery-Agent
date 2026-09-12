@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Pool, config, guard, secret } from "./common.mjs";
 import { createPriorReleaseDatabase } from "./prior-schema.mjs";
+import {
+  seedLegacyBindingCollision,
+  verifyLegacyBindingCollision,
+} from "./legacy-binding-collision.mjs";
 import { migrateDatabase } from "../../packages/operations/dist/migrations.js";
 import { migrateRelease } from "../../packages/operations/dist/provision.js";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
@@ -159,6 +163,7 @@ export async function verifyFoundationUpgrade(
     let priorFixture = null;
     let priorAuthorityFixture = null;
     let priorCanonicalFixture = null;
+    let legacyBindingFixture = null;
     const apiConnection = {
       ...config("database", "pdaa_api", "api-password").database,
       database,
@@ -221,6 +226,12 @@ export async function verifyFoundationUpgrade(
       await verifyCanonicalPrivileges(owner);
       await verifyCanonicalImmutable(owner);
       await verifyCanonicalIntegrity(owner);
+      legacyBindingFixture = await seedLegacyBindingCollision(
+        owner,
+        apiConnection,
+        customerId,
+        projectId,
+      );
     }
     const oldTables = [
       "Customer",
@@ -315,6 +326,13 @@ export async function verifyFoundationUpgrade(
           .n,
         0,
       );
+    const legacyOccupiedBindingCollision = legacyBindingFixture
+      ? await verifyLegacyBindingCollision(
+          owner,
+          apiConnection,
+          legacyBindingFixture,
+        )
+      : null;
     await verifyProjectFactPrivileges(owner);
     const fixture =
       priorFixture ??
@@ -476,6 +494,7 @@ export async function verifyFoundationUpgrade(
       authorityCommitGuards: commitGuards,
       canonicalFixture,
       milestonePersistenceFixture,
+      legacyOccupiedBindingCollision,
       canonicalCommitGuards,
       canonicalRows: Object.fromEntries(
         Object.entries(canonicalPopulated).map(([name, rows]) => [

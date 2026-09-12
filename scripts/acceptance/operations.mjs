@@ -40,6 +40,8 @@ import {
   verifyMilestonePersistenceWorkerDenials,
   verifyMilestonePersistenceCommitGuards,
 } from "./milestone-persistence.mjs";
+import { verifyStateBindingBirthGuards } from "./state-binding-birth.mjs";
+import { verifyMilestoneConcurrency } from "./milestone-concurrency.mjs";
 import {
   projectFactProjection,
   seedProjectFactHistory,
@@ -256,6 +258,14 @@ try {
       process.env.CUSTOMER_ID,
       canonicalFixture.projectId,
       "packaged",
+      { reserveForRestore: true },
+    );
+    const milestoneConcurrency = await verifyMilestoneConcurrency(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+      adminConfig,
     );
     await verifyMilestonePersistencePrivileges(admin);
     await verifyMilestonePersistenceImmutable(admin);
@@ -274,6 +284,7 @@ try {
           milestonePersistenceUpgrade,
           canonicalFixture,
           milestonePersistenceFixture,
+          milestoneConcurrency,
           canonicalTables,
           milestonePersistenceTables,
           businessTableCount: 36,
@@ -394,6 +405,11 @@ try {
         await verifyMilestonePersistenceCommitGuards(pool, {
           assessmentId: receipt.milestonePersistenceFixture.assessmentId,
         });
+      milestonePersistenceCommitGuards.bindingBirthGuards =
+        await verifyStateBindingBirthGuards(
+          pool,
+          receipt.milestonePersistenceFixture.restoreBindingBirthProbe,
+        );
       receipt.restore = {
         status: "passed",
         exactRetainedRows: true,

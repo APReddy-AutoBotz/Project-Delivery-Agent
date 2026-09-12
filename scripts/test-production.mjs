@@ -43,6 +43,16 @@ function assertMilestoneCommitGuards(receipt, sourceAssessmentId) {
     "postSealInsertDenied",
   ])
     assert.equal(receipt[field], true, field);
+  const birth = receipt.bindingBirthGuards;
+  assert.equal(birth.executedAs, "pdaa_api");
+  for (const field of [
+    "completeBirthCommitPassed",
+    "unsealedCommitDenied",
+    "missingReceiptSealDenied",
+    "alteredReceiptSealDenied",
+    "noPartialBirthRows",
+  ])
+    assert.equal(birth[field], true, field);
 }
 
 const root = resolve(import.meta.dirname, "..");
@@ -395,6 +405,47 @@ try {
     "pdaa_api",
   );
   assert.equal(canonicalPersistence.milestonePersistenceWorkerDenied, true);
+  assert.equal(
+    canonicalPersistence.milestoneConcurrency.executedAs,
+    "pdaa_api",
+  );
+  for (const [kind, flags] of Object.entries({
+    append: ["contended", "oneCommitOneReplay", "exactRowsAndAudit"],
+    policy: ["contended", "oneCommitOneReplay", "exactRowsAndAudit"],
+    binding: ["contended", "oneCommitOneReplay", "exactRowsAndAudit"],
+    capture: ["contended", "oneCommitOneReplay", "exactRowsAndAudit"],
+    distinctBindingCollision: [
+      "contended",
+      "skippedOccupiedCandidate",
+      "distinctFreshFacts",
+      "noAdoptionOrPolicy",
+    ],
+    appendWinsCapture: ["contended", "winningRevisionPinned", "commonAsOf"],
+    policyWinsCapture: [
+      "contended",
+      "winningRevisionPinned",
+      "commonAsOf",
+      "exactProofAndAudit",
+    ],
+    sourceWinsCapture: [
+      "contended",
+      "winningRevisionPinned",
+      "commonAsOf",
+      "exactProofAndAudit",
+    ],
+    grantRevocationWinsCapture: [
+      "contended",
+      "denied",
+      "noProofOrScalarWrites",
+      "exactDenialAudit",
+    ],
+  }))
+    for (const flag of flags)
+      assert.equal(
+        canonicalPersistence.milestoneConcurrency[kind][flag],
+        true,
+        kind + "/" + flag,
+      );
   assertMilestoneCommitGuards(
     canonicalPersistence.milestonePersistenceFixture.commitGuards,
     canonicalPersistence.milestonePersistenceFixture.assessmentId,
@@ -441,6 +492,17 @@ try {
     canonicalPersistence.milestonePersistenceUpgrade.priorCanonicalRetained,
     true,
   );
+  const legacyCollision =
+    canonicalPersistence.milestonePersistenceUpgrade
+      .legacyOccupiedBindingCollision;
+  assert.equal(legacyCollision.executedAs, "pdaa_api");
+  assert.equal(legacyCollision.skippedCandidates, 2);
+  for (const flag of [
+    "snapshotRetained",
+    "noAdoptionOrPolicy",
+    "replayAllocatedNothing",
+  ])
+    assert.equal(legacyCollision[flag], true, flag);
   assert.equal(canonicalPersistence.restore.canonicalImmutableChecked, true);
   assert.equal(
     canonicalPersistence.restore.canonicalCommitGuards.actualCommit,

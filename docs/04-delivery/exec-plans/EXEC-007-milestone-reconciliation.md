@@ -512,3 +512,69 @@ The close race is source-proven; the failed original response's contents remain
 unavailable and are not presumed safe. The initial native Chromium fixture needed
 both expected token fields and native base64 decoding; after those fixture repairs,
 both real-browser regressions passed. See MILESTONE_CONSISTENCY_VALIDATION.md.
+
+### Stage 2 review remediation (2026-09-12, PR #50 remains draft)
+
+Candidate `131ba9268ee2aab224c521831b436b4eb8d4563b` was published to draft PR #50.
+Documentation CI 34687589046 passed. Foundation 34687589048 failed: its native
+build/architecture/contracts/lint/types/unit/dependency checks passed, and database
+tests passed 93/94, including the 1,002-conflict prefix regression. The sole database
+failure was UNKNOWN instead of CONFLICTING at the 1,000-version boundary. Fixture
+evidence timestamps were millisecond-truncated and every effective timestamp was
+identical, producing tied same-source temporal heads. Review confirmed the fixture
+already has the full required-work set. The remediation orders evidence by observed
+time then ID and gives revisions 2–500 strictly increasing past effective times;
+counts, expected CONFLICTING and production/test deadlines are unchanged.
+
+The same candidate's packaged job passed TLS/OIDC/runtime and forward-upgrade
+checks but failed restored function privileges. Independent review requested four
+changes: rebuilding migration-5 function ACLs after `pg_restore --no-acl`, actual-API
+contention/admission tests, binding-birth COMMIT/receipt probes, and strict local
+recovery error classification. No reviewer approved that candidate for merge.
+
+The correction reapplies all 14 exact function revocations before granting only
+the two API validation predicates. Recovery probes now require the observed Prisma
+PostgreSQL P2010/P0001 structured error and the exact relevant guard message; FK,
+transport, timeout, unrelated P0001 and unsupported wrapper errors do not pass.
+Even unexpectedly successful probe mutations roll back. Binding-birth controls
+commit under pdaa_api; complete unsealed births fail at COMMIT and missing/altered
+receipts fail at sealing, with every generated negative-probe row proven absent.
+Initial and quarantined-restore probes receive separate, pre-reserved canonical
+projects. No runtime CONNECT privilege or production caller ID input is added.
+
+New packaged coverage uses real API credentials, transaction-local role/PID
+observation, exact blocking chains and bounded latches for identical append,
+policy-only, binding and capture commands; distinct namespace collisions; and
+append/policy/source/grant changes winning against capture. Genuine v4 fixtures
+also retain fact-only and policy-only occupied reserved keys, then prove the fresh
+binding allocator skips both without adoption, implicit policy or replay allocation.
+These expanded database scenarios are implemented but not yet passing evidence.
+
+Twenty focused remediation contracts passed (4 ACL, 11 immutable-history,
+2 birth-helper and 3 transaction-latch tests). An earlier sandbox invocation failed
+before test collection with an EPERM cache-write error; a scoped authorized rerun
+passed. Interim non-author source review found no new blocker in the birth,
+recovery and timestamp corrections, but does not replace immutable-SHA review.
+Full corrected-candidate native checks, database/recovery/customer-profile runs,
+original evidence review and exact-SHA approvals remain required. The default pdaa
+database, released migration bytes, story/issue status and release gates are unchanged.
+
+After the contention-harness recheck, observer credentials are supplied through the
+original explicit admin transport (pg-pool hides its stored password from object
+spread). Cleanup now releases locks, drains all started operations before closing
+clients, and retains primary plus cleanup failures. A stalled-observer regression
+enforces the three-second latch independently of database response time. No
+repository deadline was increased. Interim re-review found no remaining defect in
+that bounded correction; final immutable-SHA review is still required.
+
+Current corrected-tree native validation passed full build, typecheck, architecture,
+lint, all 887 unit tests across 41 files, OpenAPI contract matching, documentation
+validation and all 13 documentation regressions. Raw Git-object comparison again
+confirmed all four released migration files unchanged. The fresh isolated database
+`pdaa_test_1789218137780` applied all five migrations and repeated deployment cleanly,
+but its suite passed only 73/94: one authority test deadline, one query read timeout,
+18 connection-timeout failures, and the 1,000-version cross-capture's sanitized
+persistence failure. Its underlying exception was not exposed and is not presumed.
+The conditional recovery rehearsal did not run, and no successful database receipt
+was produced. These failures remain recorded; clean-host corrected-candidate CI,
+actual-API races, upgrade/restore probes and original-artifact review remain gates.

@@ -649,6 +649,8 @@ it("pins the true conflict prefix beyond the 1001-row scalar sample", async () =
 
 it("enforces 1000/1001 versions across two facts with no scalar side effects on overflow", async () => {
   const f = await boundFixture();
+  expect(f.links).toHaveLength(1);
+  expect(f.bindings).toHaveLength(2);
   for (const binding of f.bindings) {
     await db.$transaction(
       async (tx) => {
@@ -660,10 +662,10 @@ it("enforces 1000/1001 versions across two facts with no scalar side effects on 
       DECLARE item record; next_revision integer;
       BEGIN
         SELECT revision+1 INTO next_revision FROM public."ProjectFact" WHERE id=fid;
-        FOR item IN SELECT e.* FROM public."FactEvidence" e WHERE e."factId"=fid AND NOT EXISTS (SELECT 1 FROM public."ProjectFactVersion" v WHERE v."evidenceId"=e.id) ORDER BY e.id LOOP
+        FOR item IN SELECT e.* FROM public."FactEvidence" e WHERE e."factId"=fid AND NOT EXISTS (SELECT 1 FROM public."ProjectFactVersion" v WHERE v."evidenceId"=e.id) ORDER BY e."observedAt",e.id LOOP
           INSERT INTO public."ProjectFactVersion" (id,"customerId","projectId","factId","sourceId","evidenceId",revision,value,"effectiveAt","validUntil")
           VALUES (gen_random_uuid(),item."customerId",item."projectId",item."factId",item."sourceId",item.id,next_revision,
-            jsonb_build_object('type','text','value',state_value),'2026-09-01'::timestamptz,'2027-09-01'::timestamptz);
+            jsonb_build_object('type','text','value',state_value),'2026-09-01'::timestamptz + (next_revision - 1) * interval '1 millisecond','2027-09-01'::timestamptz);
           next_revision:=next_revision+1;
         END LOOP;
       END $$`);

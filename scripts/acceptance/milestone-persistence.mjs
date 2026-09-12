@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import {
+  reserveStateBindingBirthFixture,
+  verifyStateBindingBirthGuards,
+} from "./state-binding-birth.mjs";
 
 export const milestonePersistenceTables = [
   "CanonicalStateBinding",
@@ -543,6 +547,7 @@ export async function seedMilestonePersistence(
   customerId,
   projectId,
   prefix,
+  { reserveForRestore = false } = {},
 ) {
   guard();
   const {
@@ -699,6 +704,22 @@ export async function seedMilestonePersistence(
       },
       context,
     );
+    const initialBirthFixture = await reserveStateBindingBirthFixture(
+      owner,
+      connection,
+      customerId,
+      projectId,
+      prefix + "-birth-initial",
+    );
+    const restoreBindingBirthProbe = reserveForRestore
+      ? await reserveStateBindingBirthFixture(
+          owner,
+          connection,
+          customerId,
+          projectId,
+          prefix + "-birth-restore",
+        )
+      : null;
     const { Pool } = await import("./common.mjs");
     const runtime = new Pool(connection);
     let commitGuards;
@@ -706,6 +727,10 @@ export async function seedMilestonePersistence(
       commitGuards = await verifyMilestonePersistenceCommitGuards(runtime, {
         assessmentId: saved.assessmentId,
       });
+      commitGuards.bindingBirthGuards = await verifyStateBindingBirthGuards(
+        runtime,
+        initialBirthFixture,
+      );
     } finally {
       await runtime.end();
     }
@@ -717,6 +742,7 @@ export async function seedMilestonePersistence(
       replayed: true,
       revokedDeliveryRestricted: true,
       commitGuards,
+      restoreBindingBirthProbe,
     };
   } finally {
     await db.$disconnect();
