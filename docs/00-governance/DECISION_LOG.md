@@ -1,5 +1,21 @@
 # Decision Log
 
+## Milestone consistency kernel, 2026-09-12
+
+Under delegated routine authority and independent Stage 1 design approval, adopt
+EXEC-007's explicit state bindings, shared budgets and conservative historical
+predicate. COMPLETE versus mandatory OPEN/IN_PROGRESS is a cross-fact contradiction
+only when every required state independently resolves from current readable
+evidence. CANCELLED, missing links/bindings/policy or another unresolved target
+cannot yield that conclusion. Retain all agreeing-source support and independent
+scalar dimensions; restriction withholds the entire result. A negative check does
+not close an old case. This internal component creates no PM request or new story
+acceptance. Concrete persistence, permissions and delivery designs remain gated.
+
+Also repair queued browser-disclosure work before context destruction, preserving
+bounded failure and late-close checks. The failed main run remains failed evidence;
+new required CI and independent exact-candidate review must pass before merge.
+
 ## Project evidence workflow acceptance, 2026-09-12
 
 Under the Product Owner's existing delegation, the controller accepts the verified

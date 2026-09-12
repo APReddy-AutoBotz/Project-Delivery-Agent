@@ -315,6 +315,94 @@ it("SEC-SECRET-001: original responses remain paused until delayed and newly que
   ).toBe(2);
 });
 
+it.each(["public", "body", "header"])(
+  "SEC-SECRET-001: close drains pending bodies, acknowledgements and newly queued responses (%s)",
+  async (leak) => {
+    const f = await observer();
+    f.response(tokenPath, f.tokens);
+    await f.capture(f.page);
+    let closed = false;
+    f.context.on("closed", () => {
+      closed = true;
+    });
+    let releaseBody!: () => void;
+    let releaseContinuation!: () => void;
+    let started!: () => void;
+    const continuationStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const acknowledgement = new Promise<void>((resolve) => {
+      releaseContinuation = resolve;
+    });
+    const original = f.session.send.getMockImplementation()!;
+    let delayedId: string;
+    f.session.send.mockImplementation(async (method, args) => {
+      if (method === "Fetch.continueRequest" && args?.requestId === delayedId) {
+        started();
+        await acknowledgement;
+      }
+      if (closed) throw new Error(f.canary);
+      return original(method, args);
+    });
+    delayedId = f.pause(
+      {},
+      () =>
+        new Promise((resolve) => {
+          releaseBody = () =>
+            resolve({ body: "first public response", base64Encoded: false });
+        }),
+    );
+    const completion = f.capture.close();
+    void completion.catch(() => {});
+    expect(closed).toBe(false);
+    releaseBody();
+    await continuationStarted;
+    expect(closed).toBe(false);
+    const second = f.response(
+      "/late",
+      { value: leak === "body" ? f.canary : "public" },
+      leak === "header" ? { private: f.canary } : {},
+    );
+    releaseContinuation();
+    await completion;
+    expect(closed).toBe(true);
+    expect(f.session.send.mock.calls).toContainEqual([
+      "Fetch.continueRequest",
+      { requestId: second },
+    ]);
+    const channels = ["browser-response-bodies", "browser-response-headers"];
+    if (leak === "public")
+      expect(f.check.verify(channels)["browser-response-bodies"].captures).toBe(
+        2,
+      );
+    else
+      expect(() => f.check.verify(channels)).toThrow(
+        /^Secret disclosure detected$/,
+      );
+  },
+);
+
+it("SEC-SECRET-001: close still destroys the context after a bounded pre-close failure", async () => {
+  vi.useFakeTimers();
+  try {
+    const f = await observer();
+    f.response(tokenPath, f.tokens);
+    await f.capture(f.page);
+    const closed = vi.fn();
+    f.context.on("closed", closed);
+    f.pause({}, () => new Promise(() => {}));
+    const completion = expect(f.capture.close()).rejects.toThrow(
+      /^Browser disclosure capture incomplete$/,
+    );
+    await vi.advanceTimersByTimeAsync(10001);
+    await completion;
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it("SEC-SECRET-001: bodyless and redirect responses retain duplicate-header disclosure checks", async () => {
   for (const leaked of [false, true]) {
     const f = await observer();

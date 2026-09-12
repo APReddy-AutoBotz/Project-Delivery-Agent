@@ -348,7 +348,14 @@ export async function observeBrowserDisclosure(
     return page;
   };
   capture.close = async () => {
-    await context.close();
+    // Finish already queued original-body reads and continuation acknowledgements
+    // before destroying their CDP target. Cleanup still runs if capture failed.
+    try {
+      await drain();
+      assertComplete();
+    } finally {
+      await context.close();
+    }
     await drain();
     assertComplete();
   };
