@@ -83,6 +83,11 @@ try {
     "RaidItem",
     "CanonicalSourceMapping",
     "CanonicalCreationReceipt",
+    "CanonicalStateBinding",
+    "CanonicalStateBindingReceipt",
+    "MilestoneConsistencyAssessment",
+    "MilestoneConsistencyTarget",
+    "MilestoneConsistencyContributorVersion",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -154,6 +159,7 @@ node([
   "tests/project-facts.integration.test.ts",
   "tests/authority-persistence.integration.test.ts",
   "tests/canonical-project.integration.test.ts",
+  "tests/milestone-persistence.integration.test.ts",
   "tests/project-evidence.integration.test.ts",
   "--no-file-parallelism",
 ]);
@@ -198,9 +204,17 @@ writeFileSync(
         "CanonicalSourceMapping",
         "CanonicalCreationReceipt",
       ],
+      milestonePersistenceTables: [
+        "CanonicalStateBinding",
+        "CanonicalStateBindingReceipt",
+        "MilestoneConsistencyAssessment",
+        "MilestoneConsistencyTarget",
+        "MilestoneConsistencyContributorVersion",
+      ],
       canonicalRepositoryChecks: "passed",
+      milestonePersistenceChecks: "passed",
       evidenceHttpChecks: "passed",
-      businessTables: 31,
+      businessTables: 36,
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({

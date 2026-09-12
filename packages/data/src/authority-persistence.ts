@@ -35,10 +35,18 @@ import {
 type Tx = Prisma.TransactionClient;
 type Event = Prisma.AuthorityPolicyRevisionGetPayload<Record<string, never>>;
 type Version = Prisma.ProjectFactVersionGetPayload<{
-  include: { evidence: true };
+  include: { evidence: { select: { observedAt: true } } };
 }>;
 type Conflict = Prisma.FactAuthorityConflictGetPayload<Record<string, never>>;
 type Access = Prisma.FactSourceAccessGetPayload<{ include: { readers: true } }>;
+type FactPrefix = {
+  aggregate: Prisma.AuthorityPolicyGetPayload<Record<string, never>> | null;
+  event: Event | null;
+  versions: Version[];
+  conflicts: Conflict[];
+  access: Access[];
+  conflictThroughRevision: number;
+};
 type Scope = SourceAuthoritySnapshot["scope"];
 const transactionOptions = {
   isolationLevel: "ReadCommitted" as const,
@@ -441,6 +449,373 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       result: row.result as unknown as AuthorityAssessment,
     });
   }
+  // A single bounded history load for the entire cross-fact capture. Callers
+  // hold Project and all fact locks before taking asOf. No scalar conflicts or
+  // assessment rows are written until every prefix and derived budget passes.
+  async loadAssessmentPrefixesInTransaction(
+    tx: Tx,
+    actor: Actor,
+    projectId: string,
+    facts: { id: string; factType: string; revision: number }[],
+    asOf: Date,
+  ): Promise<Map<string, FactPrefix> | null> {
+    if (facts.reduce((sum, fact) => sum + fact.revision, 0) > 1000) return null;
+    const scope = { customerId: actor.customerId, projectId };
+    const factId = { in: facts.map((fact) => fact.id) };
+    const [versions, conflicts] = await Promise.all([
+      tx.projectFactVersion.findMany({
+        where: { ...scope, factId },
+        orderBy: [{ factId: "asc" }, { revision: "asc" }],
+        take: 1001,
+        include: { evidence: { select: { observedAt: true } } },
+      }),
+      tx.factAuthorityConflict.findMany({
+        where: { ...scope, factId },
+        orderBy: [{ factId: "asc" }, { id: "asc" }],
+        take: 1001,
+      }),
+    ]);
+    if (
+      versions.length > 1000 ||
+      conflicts.length > 1000 ||
+      conflicts.some((row) => row.detectedAt > asOf)
+    )
+      return null;
+    const access = await tx.factSourceAccess.findMany({
+      where: {
+        ...scope,
+        factId,
+        sourceId: { in: versions.map((row) => row.sourceId) },
+      },
+      take: 1001,
+      include: { readers: { where: { subject: actor.subject } } },
+    });
+    if (access.length > 1000) return null;
+    const prefixes = new Map<string, FactPrefix>();
+    for (const fact of facts) {
+      const policy = await this.active(
+        tx,
+        actor,
+        { projectId, factType: fact.factType },
+        asOf,
+      );
+      const factConflicts = conflicts.filter((row) => row.factId === fact.id);
+      prefixes.set(fact.id, {
+        ...policy,
+        versions: versions.filter((row) => row.factId === fact.id),
+        conflicts: factConflicts,
+        access: access.filter((row) => row.factId === fact.id),
+        conflictThroughRevision: Math.max(
+          0,
+          ...factConflicts.map((row) => row.revision),
+        ),
+      });
+    }
+    return prefixes;
+  }
+
+  // The prepare phase is read-only. Cross-fact callers prepare every sorted
+  // prefix against one clock, enforce aggregate budgets, and only then persist.
+  async prepareAssessmentInTransaction(
+    tx: Tx,
+    actor: Actor,
+    input: {
+      projectId: string;
+      fact: { id: string; factType: string; revision: number };
+      asOf: Date;
+      prefix?: FactPrefix;
+    },
+  ) {
+    const { projectId, fact, asOf } = input;
+    const scope = {
+      customerId: actor.customerId,
+      projectId,
+      factId: fact.id,
+      factType: fact.factType,
+    };
+    const { aggregate, event } =
+      input.prefix ??
+      (await this.active(
+        tx,
+        actor,
+        { projectId, factType: fact.factType },
+        asOf,
+      ));
+    const versions =
+      input.prefix?.versions ??
+      (await tx.projectFactVersion.findMany({
+        where: {
+          customerId: actor.customerId,
+          projectId,
+          factId: fact.id,
+          revision: { lte: fact.revision },
+        },
+        orderBy: { revision: "asc" },
+        take: 1001,
+        include: { evidence: { select: { observedAt: true } } },
+      }));
+    const conflictWhere = {
+      customerId: actor.customerId,
+      projectId,
+      factId: fact.id,
+    };
+    let conflicts =
+      input.prefix?.conflicts ??
+      (await tx.factAuthorityConflict.findMany({
+        where: conflictWhere,
+        orderBy: { id: "asc" },
+        take: 1001,
+      }));
+    // An incomplete scalar capture still pins the real conflict prefix, not
+    // the maximum revision of the arbitrarily ID-sorted bounded sample.
+    let conflictThroughRevision =
+      input.prefix?.conflictThroughRevision ??
+      (
+        await tx.factAuthorityConflict.aggregate({
+          where: conflictWhere,
+          _max: { revision: true },
+        })
+      )._max.revision ??
+      0;
+    let complete =
+      versions.length <= 1000 &&
+      conflicts.length <= 1000 &&
+      conflicts.every((row) => row.detectedAt <= asOf);
+    const access =
+      input.prefix?.access ??
+      (complete
+        ? await tx.factSourceAccess.findMany({
+            where: { customerId: actor.customerId, projectId, factId: fact.id },
+            include: { readers: { where: { subject: actor.subject } } },
+          })
+        : []);
+    const policy = resolverPolicy(event);
+    let authoritySnapshot = snapshot(
+      scope,
+      asOf.toISOString(),
+      policy,
+      versions,
+      conflicts,
+      access,
+      complete,
+    );
+    let result = resolveSourceAuthority(authoritySnapshot);
+    let newConflicts: Conflict[] = [];
+    if (
+      complete &&
+      event &&
+      result.conflicts.some((item) => item.kind !== "RECORDED")
+    ) {
+      const values = new Map(
+        versions.map((row) => [
+          row.id,
+          projectFactValueSchema.parse(row.value),
+        ]),
+      );
+      const valueKey = (id: string) => {
+        const value = values.get(id)!;
+        return JSON.stringify([value.type, value.value]);
+      };
+      const pairs = new Map<
+        string,
+        { leftVersionId: string; rightVersionId: string }
+      >();
+      for (const group of result.conflicts.filter(
+        (item) => item.kind !== "RECORDED",
+      )) {
+        const first = group.versionIds[0]!;
+        const other = group.versionIds.find(
+          (id) => valueKey(id) !== valueKey(first),
+        );
+        if (!other) throw new Error("Conflict has no differing values");
+        for (const id of group.versionIds.filter((id) => id !== first)) {
+          const anchor = valueKey(id) === valueKey(first) ? other : first;
+          const [leftVersionId, rightVersionId] = [id, anchor].sort() as [
+            string,
+            string,
+          ];
+          pairs.set(leftVersionId + rightVersionId, {
+            leftVersionId,
+            rightVersionId,
+          });
+        }
+      }
+      const existing = new Set(
+        conflicts.map((row) => row.leftVersionId + row.rightVersionId),
+      );
+      const newPairs = [...pairs.entries()]
+        .filter(([pair]) => !existing.has(pair))
+        .map(([, pair]) => pair)
+        .sort((a, b) =>
+          (a.leftVersionId + a.rightVersionId).localeCompare(
+            b.leftVersionId + b.rightVersionId,
+          ),
+        );
+      const through = conflictThroughRevision;
+      newConflicts = newPairs.map((pair, index) => ({
+        ...scope,
+        ...pair,
+        id: randomUUID(),
+        revision: through + index + 1,
+        policyRevisionId: event.id,
+        detectedAt: asOf,
+      }));
+      conflicts = [...conflicts, ...newConflicts].sort((a, b) =>
+        a.id.localeCompare(b.id),
+      );
+      conflictThroughRevision += newConflicts.length;
+      complete = conflicts.length <= 1000;
+      authoritySnapshot = snapshot(
+        scope,
+        asOf.toISOString(),
+        policy,
+        versions,
+        conflicts,
+        access,
+        complete,
+      );
+      result = resolveSourceAuthority(authoritySnapshot);
+    }
+    return {
+      scope,
+      aggregate,
+      event,
+      fact,
+      asOf,
+      versions,
+      conflicts,
+      newConflicts,
+      conflictThroughRevision,
+      access,
+      complete,
+      snapshot: authoritySnapshot,
+      result,
+    };
+  }
+
+  async persistPreparedAssessmentInTransaction(
+    tx: Tx,
+    actor: Actor,
+    input: {
+      prepared: Awaited<
+        ReturnType<
+          DatabaseAuthorityRepository["prepareAssessmentInTransaction"]
+        >
+      >;
+      subject: string;
+      idempotencyKey: string;
+      requestHash: string;
+      captureKind: "SCALAR" | "MILESTONE";
+      milestoneAssessmentId: string | null;
+    },
+  ) {
+    const prepared = input.prepared;
+    const {
+      scope,
+      aggregate,
+      event,
+      fact,
+      asOf,
+      versions,
+      conflicts,
+      newConflicts,
+      conflictThroughRevision,
+      access,
+      complete,
+      result,
+    } = prepared;
+    if (newConflicts.length)
+      await tx.factAuthorityConflict.createMany({ data: newConflicts });
+    const id = randomUUID();
+    await tx.factAssessment.create({
+      data: {
+        ...scope,
+        id,
+        subject: input.subject,
+        idempotencyKey: input.idempotencyKey,
+        requestHash: input.requestHash,
+        captureKind: input.captureKind,
+        milestoneAssessmentId: input.milestoneAssessmentId,
+        factRevision: fact.revision,
+        policyId: aggregate?.id ?? null,
+        policyThroughRevision: aggregate?.revision ?? null,
+        policyRevisionId: event?.id ?? null,
+        asOf,
+        complete,
+        versionCount: complete ? versions.length : 0,
+        conflictCount: complete ? conflicts.length : 0,
+        conflictThroughRevision:
+          conflicts.length === 0 ? null : conflictThroughRevision,
+        result: JSON.parse(JSON.stringify(result)) as Prisma.InputJsonObject,
+      },
+      select: { id: true },
+    });
+    if (complete && versions.length) {
+      const accessRevision = new Map(
+        access.map((item) => [item.sourceId, item.revision]),
+      );
+      await tx.factAssessmentVersion.createMany({
+        data: versions.map((row) => ({
+          customerId: actor.customerId,
+          projectId: scope.projectId,
+          factId: fact.id,
+          assessmentId: id,
+          versionId: row.id,
+          sourceAccessRevision: accessRevision.get(row.sourceId) ?? 0,
+        })),
+      });
+    }
+    if (complete && conflicts.length)
+      await tx.factAssessmentConflict.createMany({
+        data: conflicts.map((row) => ({
+          customerId: actor.customerId,
+          projectId: scope.projectId,
+          factId: fact.id,
+          assessmentId: id,
+          conflictId: row.id,
+        })),
+      });
+    await tx.factAssessment.update({
+      where: { id },
+      data: { sealed: true },
+      select: { id: true },
+    });
+    return {
+      ...prepared,
+      id,
+    };
+  }
+
+  // Transaction-scoped scalar primitive. It never opens a transaction or reads
+  // a clock; the public one-fact path and coherent cross-fact path share it.
+  async captureAssessmentInTransaction(
+    tx: Tx,
+    actor: Actor,
+    input: {
+      projectId: string;
+      fact: { id: string; factType: string; revision: number };
+      asOf: Date;
+      subject: string;
+      idempotencyKey: string;
+      requestHash: string;
+      captureKind: "SCALAR" | "MILESTONE";
+      milestoneAssessmentId: string | null;
+    },
+  ) {
+    const prepared = await this.prepareAssessmentInTransaction(
+      tx,
+      actor,
+      input,
+    );
+    return this.persistPreparedAssessmentInTransaction(tx, actor, {
+      prepared,
+      subject: input.subject,
+      idempotencyKey: input.idempotencyKey,
+      requestHash: input.requestHash,
+      captureKind: input.captureKind,
+      milestoneAssessmentId: input.milestoneAssessmentId,
+    });
+  }
   async captureAssessment(
     actorValue: Actor,
     requestValue: AssessmentCapture,
@@ -460,10 +835,11 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         customerId: actor.customerId,
         projectId,
         subject: actor.subject,
+        captureKind: "SCALAR",
         idempotencyKey,
       };
       const previous = await tx.factAssessment.findUnique({
-        where: { customerId_projectId_subject_idempotencyKey: key },
+        where: { customerId_projectId_subject_captureKind_idempotencyKey: key },
       });
       if (previous) {
         if (previous.requestHash !== requestHash)
@@ -488,186 +864,18 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         },
       });
       if (!fact) throw new ProjectFactError("DENIED");
-      const scope = {
-        customerId: actor.customerId,
-        projectId,
-        factId: fact.id,
-        factType,
-      };
       const asOf = await this.time(tx);
-      const { aggregate, event } = await this.active(
-        tx,
-        actor,
-        { projectId, factType },
-        asOf,
-      );
-      const versions = await tx.projectFactVersion.findMany({
-        where: {
-          customerId: actor.customerId,
-          projectId,
-          factId: fact.id,
-          revision: { lte: fact.revision },
-        },
-        orderBy: { revision: "asc" },
-        take: 1001,
-        include: { evidence: true },
-      });
-      const conflictWhere = {
-        customerId: actor.customerId,
+      const captured = await this.captureAssessmentInTransaction(tx, actor, {
         projectId,
-        factId: fact.id,
-      };
-      let conflicts = await tx.factAuthorityConflict.findMany({
-        where: conflictWhere,
-        orderBy: { id: "asc" },
-        take: 1001,
+        fact,
+        asOf,
+        subject: actor.subject,
+        captureKind: "SCALAR",
+        idempotencyKey,
+        requestHash,
+        milestoneAssessmentId: null,
       });
-      let complete =
-        versions.length <= 1000 &&
-        conflicts.length <= 1000 &&
-        conflicts.every((row) => row.detectedAt <= asOf);
-      const access = complete
-        ? await tx.factSourceAccess.findMany({
-            where: { customerId: actor.customerId, projectId, factId: fact.id },
-            include: { readers: { where: { subject: actor.subject } } },
-          })
-        : [];
-      const policy = resolverPolicy(event);
-      let result = resolveSourceAuthority(
-        snapshot(
-          scope,
-          asOf.toISOString(),
-          policy,
-          versions,
-          conflicts,
-          access,
-          complete,
-        ),
-      );
-      if (
-        complete &&
-        event &&
-        result.conflicts.some((item) => item.kind !== "RECORDED")
-      ) {
-        const values = new Map(
-          versions.map((row) => [
-            row.id,
-            projectFactValueSchema.parse(row.value),
-          ]),
-        );
-        const valueKey = (id: string) => {
-          const value = values.get(id)!;
-          return JSON.stringify([value.type, value.value]);
-        };
-        const pairs = new Map<
-          string,
-          { leftVersionId: string; rightVersionId: string }
-        >();
-        for (const group of result.conflicts.filter(
-          (item) => item.kind !== "RECORDED",
-        )) {
-          const first = group.versionIds[0]!;
-          const other = group.versionIds.find(
-            (id) => valueKey(id) !== valueKey(first),
-          );
-          if (!other) throw new Error("Conflict has no differing values");
-          for (const id of group.versionIds.filter((id) => id !== first)) {
-            const anchor = valueKey(id) === valueKey(first) ? other : first;
-            const [leftVersionId, rightVersionId] = [id, anchor].sort() as [
-              string,
-              string,
-            ];
-            pairs.set(leftVersionId + rightVersionId, {
-              leftVersionId,
-              rightVersionId,
-            });
-          }
-        }
-        const existing = new Set(
-          conflicts.map((row) => row.leftVersionId + row.rightVersionId),
-        );
-        const newPairs = [...pairs.entries()]
-          .filter(([pair]) => !existing.has(pair))
-          .map(([, pair]) => pair);
-        const through = Math.max(0, ...conflicts.map((row) => row.revision));
-        if (newPairs.length)
-          await tx.factAuthorityConflict.createMany({
-            data: newPairs.map((pair, index) => ({
-              ...scope,
-              ...pair,
-              id: randomUUID(),
-              revision: through + index + 1,
-              policyRevisionId: event.id,
-              detectedAt: asOf,
-            })),
-          });
-        conflicts = await tx.factAuthorityConflict.findMany({
-          where: conflictWhere,
-          orderBy: { id: "asc" },
-          take: 1001,
-        });
-        complete = conflicts.length <= 1000;
-        result = resolveSourceAuthority(
-          snapshot(
-            scope,
-            asOf.toISOString(),
-            policy,
-            versions,
-            conflicts,
-            access,
-            complete,
-          ),
-        );
-      }
-      const id = randomUUID();
-      const conflictPrefix = await tx.factAuthorityConflict.aggregate({
-        where: conflictWhere,
-        _max: { revision: true },
-      });
-      await tx.factAssessment.create({
-        data: {
-          ...scope,
-          ...key,
-          id,
-          factRevision: fact.revision,
-          policyId: aggregate?.id ?? null,
-          policyThroughRevision: aggregate?.revision ?? null,
-          policyRevisionId: event?.id ?? null,
-          asOf,
-          requestHash,
-          complete,
-          versionCount: complete ? versions.length : 0,
-          conflictCount: complete ? conflicts.length : 0,
-          conflictThroughRevision: conflictPrefix._max.revision,
-          result: JSON.parse(JSON.stringify(result)) as Prisma.InputJsonObject,
-        },
-      });
-      if (complete && versions.length) {
-        const accessRevision = new Map(
-          access.map((item) => [item.sourceId, item.revision]),
-        );
-        await tx.factAssessmentVersion.createMany({
-          data: versions.map((row) => ({
-            customerId: actor.customerId,
-            projectId,
-            factId: fact.id,
-            assessmentId: id,
-            versionId: row.id,
-            sourceAccessRevision: accessRevision.get(row.sourceId) ?? 0,
-          })),
-        });
-      }
-      if (complete && conflicts.length)
-        await tx.factAssessmentConflict.createMany({
-          data: conflicts.map((row) => ({
-            customerId: actor.customerId,
-            projectId,
-            factId: fact.id,
-            assessmentId: id,
-            conflictId: row.id,
-          })),
-        });
-      await tx.factAssessment.update({ where: { id }, data: { sealed: true } });
+      const { id, result, complete, event } = captured;
       await this.audit(
         tx,
         actor,

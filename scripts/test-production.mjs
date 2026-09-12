@@ -24,6 +24,37 @@ import {
   scanExecutionLogs,
   rejectLoggedTokens,
 } from "./acceptance/disclosure.mjs";
+
+function assertMilestoneCommitGuards(receipt, sourceAssessmentId) {
+  assert.equal(receipt.executedAs, "pdaa_api");
+  assert.equal(receipt.sourceAssessmentId, sourceAssessmentId);
+  assert.notEqual(receipt.assessmentId, sourceAssessmentId);
+  for (const field of [
+    "actualCommit",
+    "completeCommitPassed",
+    "disabledCommitPassed",
+    "incompleteCommitPassed",
+    "unsealedCommitDenied",
+    "nullMetadataDenied",
+    "missingContributorDenied",
+    "typedBindingDenied",
+    "incompleteScalarDenied",
+    "hiddenScalarDenied",
+    "postSealInsertDenied",
+  ])
+    assert.equal(receipt[field], true, field);
+  const birth = receipt.bindingBirthGuards;
+  assert.equal(birth.executedAs, "pdaa_api");
+  for (const field of [
+    "completeBirthCommitPassed",
+    "unsealedCommitDenied",
+    "missingReceiptSealDenied",
+    "alteredReceiptSealDenied",
+    "noPartialBirthRows",
+  ])
+    assert.equal(birth[field], true, field);
+}
+
 const root = resolve(import.meta.dirname, "..");
 const project =
   "pdaa-acceptance-" + Date.now() + "-" + randomUUID().slice(0, 8);
@@ -366,8 +397,59 @@ try {
   assert.equal(record.projectFactPersistence.upgrade.status, "passed");
   assert.equal(record.projectFactPersistence.restore.status, "passed");
   const canonicalPersistence = record.projectFactPersistence;
-  assert.equal(canonicalPersistence.businessTableCount, 31);
-  assert.equal(canonicalPersistence.migrationCount, 4);
+  assert.equal(canonicalPersistence.businessTableCount, 36);
+  assert.equal(canonicalPersistence.migrationCount, 5);
+  assert.equal(canonicalPersistence.milestonePersistenceTables.length, 5);
+  assert.equal(
+    canonicalPersistence.milestonePersistenceFixture.runtimeRole,
+    "pdaa_api",
+  );
+  assert.equal(canonicalPersistence.milestonePersistenceWorkerDenied, true);
+  assert.equal(
+    canonicalPersistence.milestoneConcurrency.executedAs,
+    "pdaa_api",
+  );
+  for (const [kind, flags] of Object.entries({
+    append: ["contended", "oneCommitOneReplay", "exactRowsAndAudit"],
+    policy: ["contended", "oneCommitOneReplay", "exactRowsAndAudit"],
+    binding: ["contended", "oneCommitOneReplay", "exactRowsAndAudit"],
+    capture: ["contended", "oneCommitOneReplay", "exactRowsAndAudit"],
+    distinctBindingCollision: [
+      "contended",
+      "skippedOccupiedCandidate",
+      "distinctFreshFacts",
+      "noAdoptionOrPolicy",
+    ],
+    appendWinsCapture: ["contended", "winningRevisionPinned", "commonAsOf"],
+    policyWinsCapture: [
+      "contended",
+      "winningRevisionPinned",
+      "commonAsOf",
+      "exactProofAndAudit",
+    ],
+    sourceWinsCapture: [
+      "contended",
+      "winningRevisionPinned",
+      "commonAsOf",
+      "exactProofAndAudit",
+    ],
+    grantRevocationWinsCapture: [
+      "contended",
+      "denied",
+      "noProofOrScalarWrites",
+      "exactDenialAudit",
+    ],
+  }))
+    for (const flag of flags)
+      assert.equal(
+        canonicalPersistence.milestoneConcurrency[kind][flag],
+        true,
+        kind + "/" + flag,
+      );
+  assertMilestoneCommitGuards(
+    canonicalPersistence.milestonePersistenceFixture.commitGuards,
+    canonicalPersistence.milestonePersistenceFixture.assessmentId,
+  );
   assert.equal(canonicalPersistence.canonicalTables.length, 10);
   assert.equal(canonicalPersistence.canonicalFixture.runtimeRole, "pdaa_api");
   assert.equal(canonicalPersistence.canonicalFixture.revokedReplayDenied, true);
@@ -376,12 +458,18 @@ try {
     canonicalPersistence.upgrade,
     canonicalPersistence.authorityUpgrade,
     canonicalPersistence.canonicalUpgrade,
+    canonicalPersistence.milestonePersistenceUpgrade,
   ].entries()) {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 4);
-    assert.equal(upgrade.businessTableCount, 31);
+    assert.equal(upgrade.migrations.length, 5);
+    assert.equal(upgrade.businessTableCount, 36);
+    assert.equal(upgrade.milestonePersistenceFixture.runtimeRole, "pdaa_api");
+    assertMilestoneCommitGuards(
+      upgrade.milestonePersistenceFixture.commitGuards,
+      upgrade.milestonePersistenceFixture.assessmentId,
+    );
     assert.equal(upgrade.canonicalFixture.runtimeRole, "pdaa_api");
     assert.equal(upgrade.canonicalCommitGuards.actualCommit, true);
     assert.equal(Object.keys(upgrade.canonicalRows).length, 10);
@@ -392,13 +480,36 @@ try {
     true,
   );
   assert.equal(canonicalPersistence.restore.canonicalIntegrityChecked, true);
+  assert.equal(
+    canonicalPersistence.restore.milestonePersistenceIntegrityChecked,
+    true,
+  );
+  assertMilestoneCommitGuards(
+    canonicalPersistence.restore.milestonePersistenceCommitGuards,
+    canonicalPersistence.milestonePersistenceFixture.assessmentId,
+  );
+  assert.equal(
+    canonicalPersistence.milestonePersistenceUpgrade.priorCanonicalRetained,
+    true,
+  );
+  const legacyCollision =
+    canonicalPersistence.milestonePersistenceUpgrade
+      .legacyOccupiedBindingCollision;
+  assert.equal(legacyCollision.executedAs, "pdaa_api");
+  assert.equal(legacyCollision.skippedCandidates, 2);
+  for (const flag of [
+    "snapshotRetained",
+    "noAdoptionOrPolicy",
+    "replayAllocatedNothing",
+  ])
+    assert.equal(legacyCollision[flag], true, flag);
   assert.equal(canonicalPersistence.restore.canonicalImmutableChecked, true);
   assert.equal(
     canonicalPersistence.restore.canonicalCommitGuards.actualCommit,
     true,
   );
   checks.passed.push(
-    "INT-MOD-001: complete canonical creation through API credentials, scoped references and revoked retry denials, three genuine prior-release upgrades, 31-table encrypted restore and real sealed aggregate COMMIT guards",
+    "INT-MOD-001: complete canonical creation through API credentials, scoped references and revoked retry denials, four genuine prior-release upgrades, 36-table encrypted restore and real sealed aggregate COMMIT guards",
   );
   checks.passed.push(
     "INT-EVD-001 partial: immutable-foundation forward upgrade under migration owner, exact retained rows and ledger, finite runtime privileges, human fact history and quarantined encrypted restore",
@@ -543,11 +654,28 @@ try {
     assertEvidenceWorkflowReceipt(persistence.evidenceWorkflow);
     assert.equal(persistence.canonicalFixture.sourceMappingsWithheld, true);
     assert.equal(persistence.canonicalWorkerDenied, true);
-    assert.equal(persistence.businessTableCount, 31);
-    assert.equal(persistence.migrationCount, 4);
+    assert.equal(persistence.businessTableCount, 36);
+    assert.equal(persistence.migrationCount, 5);
     assert.equal(persistence.restore.canonicalIntegrityChecked, true);
     assert.equal(persistence.restore.canonicalImmutableChecked, true);
     assert.equal(persistence.restore.canonicalCommitGuards.actualCommit, true);
+    assert.equal(
+      persistence.milestonePersistenceFixture.runtimeRole,
+      "pdaa_api",
+    );
+    assertMilestoneCommitGuards(
+      persistence.milestonePersistenceFixture.commitGuards,
+      persistence.milestonePersistenceFixture.assessmentId,
+    );
+    assert.equal(persistence.milestonePersistenceWorkerDenied, true);
+    assert.equal(
+      persistence.restore.milestonePersistenceIntegrityChecked,
+      true,
+    );
+    assertMilestoneCommitGuards(
+      persistence.restore.milestonePersistenceCommitGuards,
+      persistence.milestonePersistenceFixture.assessmentId,
+    );
   }
   assert.equal(
     record.customerProfiles.find((profile) => profile.profile === "bundled")

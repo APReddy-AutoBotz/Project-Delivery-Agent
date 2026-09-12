@@ -116,7 +116,9 @@ export async function restore(
           (SELECT count(*)::int FROM (SELECT "factId" FROM "FactAuthorityConflict" GROUP BY "factId" HAVING count(*)<>max(revision)) drift) +
           (SELECT count(*)::int FROM "FactAssessment" WHERE NOT sealed OR NOT public.valid_fact_assessment(id)) +
           (SELECT count(*)::int FROM "Programme" WHERE NOT public.valid_canonical_programme(id)) +
-          (SELECT count(*)::int FROM "CanonicalProject" WHERE NOT sealed OR NOT public.valid_canonical_project(id)) AS invalid`)
+          (SELECT count(*)::int FROM "CanonicalProject" WHERE NOT sealed OR NOT public.valid_canonical_project(id)) +
+          (SELECT count(*)::int FROM "CanonicalStateBinding" WHERE NOT sealed OR NOT public.valid_canonical_state_binding(id)) +
+          (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" WHERE NOT sealed OR NOT public.valid_milestone_consistency_assessment(id)) AS invalid`)
         ).rows[0].invalid;
         if (authorityIntegrity !== 0)
           throw new Error("Restored authority integrity failed");

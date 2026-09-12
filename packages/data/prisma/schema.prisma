@@ -62,6 +62,9 @@ model AuditEvent {
   detail Json
   occurredAt DateTime @default(now())
   customer Customer @relation(fields: [customerId], references: [id])
+  canonicalStateBindingReceipts CanonicalStateBindingReceipt[]
+  milestoneConsistencyAssessments MilestoneConsistencyAssessment[]
+  @@unique([customerId, id], map: "AuditEvent_customer_key")
   @@index([customerId, occurredAt])
 }
 model ConnectorCredential {
@@ -83,6 +86,7 @@ model ProjectFact {
   customerId String @db.Uuid
   projectId String @db.Uuid
   factType String @db.VarChar(96)
+  bindingBirthId String? @unique @db.Uuid
   revision Int @default(0)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
@@ -90,9 +94,12 @@ model ProjectFact {
   versions ProjectFactVersion[]
   authorityConflicts FactAuthorityConflict[]
   assessments FactAssessment[]
+  bindingBirth CanonicalStateBinding? @relation("BindingBirth", fields: [customerId, projectId, bindingBirthId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "ProjectFact_binding_birth_fkey")
+  canonicalStateBinding CanonicalStateBinding? @relation("BindingFact")
   @@unique([customerId, projectId, id, factType], map: "ProjectFact_typed_scope_key")
   @@unique([customerId, projectId, id])
   @@unique([customerId, projectId, factType])
+  @@unique([customerId, projectId, bindingBirthId], map: "ProjectFact_binding_birth_key")
 }
 model FactSource {
   id String @id @db.Uuid
@@ -103,6 +110,7 @@ model FactSource {
   fact ProjectFact @relation(fields: [customerId, projectId, factId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
   access FactSourceAccess?
   evidence FactEvidence[]
+  canonicalStateBindingReceipts CanonicalStateBindingReceipt[]
   @@unique([customerId, projectId, factId, id])
   @@unique([customerId, projectId, factId, id, providedBy], map: "FactSource_author_key")
   @@unique([customerId, projectId, factId, providedBy])
@@ -138,6 +146,8 @@ model FactEvidence {
   originalStatement String @db.VarChar(8192)
   source FactSource @relation(fields: [customerId, projectId, factId, sourceId, providedBy], references: [customerId, projectId, factId, id, providedBy], onDelete: Restrict, onUpdate: Restrict, map: "FactEvidence_source_author_fkey")
   version ProjectFactVersion?
+  canonicalStateBindingReceipts CanonicalStateBindingReceipt[]
+  milestoneConsistencyContributors MilestoneConsistencyContributorVersion[]
   @@unique([customerId, projectId, factId, sourceId, id], map: "FactEvidence_scope_key")
 }
 model ProjectFactVersion {
@@ -158,9 +168,12 @@ model ProjectFactVersion {
   conflictLeft FactAuthorityConflict[] @relation("conflictLeft")
   conflictRight FactAuthorityConflict[] @relation("conflictRight")
   assessments FactAssessmentVersion[]
+  canonicalStateBindingReceipts CanonicalStateBindingReceipt[]
+  milestoneConsistencyContributors MilestoneConsistencyContributorVersion[]
   @@unique([customerId, projectId, factId, id], map: "ProjectFactVersion_scope_key")
   @@unique([customerId, projectId, factId, revision], map: "ProjectFactVersion_revision_key")
   @@unique([customerId, projectId, factId, sourceId, evidenceId], map: "ProjectFactVersion_scoped_evidence_key")
+  @@unique([customerId, projectId, factId, id, sourceId, evidenceId], map: "ProjectFactVersion_exact_evidence_key")
 }
 model FactAppendReceipt {
   id String @id @db.Uuid
@@ -253,6 +266,8 @@ model FactAssessment {
   subject String @db.VarChar(256)
   idempotencyKey String @db.VarChar(128)
   requestHash String @db.Char(64)
+  captureKind String @default("SCALAR") @db.VarChar(16)
+  milestoneAssessmentId String? @db.Uuid
   evaluatorVersion Int @default(1)
   complete Boolean
   versionCount Int
@@ -266,8 +281,11 @@ model FactAssessment {
   versions FactAssessmentVersion[]
   conflicts FactAssessmentConflict[]
   conflictPrefix FactAuthorityConflict? @relation("assessmentConflictPrefix", fields: [customerId, projectId, factId, conflictThroughRevision], references: [customerId, projectId, factId, revision], onDelete: Restrict, onUpdate: Restrict)
+  milestoneAssessment MilestoneConsistencyAssessment? @relation("MilestoneScalarChildren", fields: [customerId, projectId, milestoneAssessmentId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "FactAssessment_milestone_parent_fk")
+  milestoneTarget MilestoneConsistencyTarget?
   @@unique([customerId, projectId, factId, id], map: "FactAssessment_scope_key")
-  @@unique([customerId, projectId, subject, idempotencyKey], map: "FactAssessment_request_key")
+  @@unique([customerId, projectId, subject, captureKind, idempotencyKey], map: "FactAssessment_request_kind_key")
+  @@unique([milestoneAssessmentId, factId], map: "FactAssessment_milestone_fact_key")
 }
 model FactAssessmentVersion {
   customerId String @db.Uuid
@@ -342,6 +360,8 @@ model CanonicalProject {
   raidItem_project RaidItem[]
   canonicalSourceMapping_project CanonicalSourceMapping[]
   canonicalCreationReceipt_project CanonicalCreationReceipt?
+  canonicalStateBindings CanonicalStateBinding[]
+  milestoneConsistencyAssessments MilestoneConsistencyAssessment[]
 }
 
 model ProjectResponsibility {
@@ -396,6 +416,9 @@ model Milestone {
   project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "Milestone_project_fk")
   requiredWorkItem_milestone RequiredWorkItem[]
   canonicalSourceMapping_milestone CanonicalSourceMapping[]
+  canonicalStateBindings CanonicalStateBinding[]
+  milestoneConsistencyAssessments MilestoneConsistencyAssessment[]
+  milestoneConsistencyTargets MilestoneConsistencyTarget[]
 }
 
 model WorkItem {
@@ -420,6 +443,8 @@ model WorkItem {
   sprint Sprint? @relation(fields: [customerId, projectId, sprintId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "WorkItem_sprint_fk")
   requiredWorkItem_workItem RequiredWorkItem[]
   canonicalSourceMapping_workItem CanonicalSourceMapping[]
+  canonicalStateBindings CanonicalStateBinding[]
+  milestoneConsistencyTargets MilestoneConsistencyTarget[]
 }
 
 model RequiredWorkItem {
@@ -432,6 +457,8 @@ model RequiredWorkItem {
   project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "RequiredWorkItem_project_fk")
   milestone Milestone @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "RequiredWorkItem_milestone_fk")
   workItem WorkItem @relation(fields: [customerId, projectId, workItemId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "RequiredWorkItem_workItem_fk")
+  milestoneConsistencyTargets MilestoneConsistencyTarget[]
+  @@unique([customerId, projectId, milestoneId, workItemId, id], map: "RequiredWorkItem_exact_key")
 }
 
 model RaidItem {
@@ -488,7 +515,141 @@ model CanonicalCreationReceipt {
   @@unique([customerId, portfolioId, subject, idempotencyKey], map: "CanonicalCreationReceipt_u0")
   @@unique([programmeId], map: "CanonicalCreationReceipt_u1")
   @@unique([projectId], map: "CanonicalCreationReceipt_u2")
+  @@unique([customerId, projectId, id], map: "CanonicalCreationReceipt_assessment_key")
   portfolio Portfolio @relation(fields: [customerId, portfolioId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalCreationReceipt_portfolio_fk")
   programme Programme? @relation(fields: [customerId, portfolioId, programmeId], references: [customerId, portfolioId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalCreationReceipt_programme_fk")
   project CanonicalProject? @relation(fields: [customerId, portfolioId, projectId], references: [customerId, portfolioId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalCreationReceipt_project_fk")
+  milestoneConsistencyAssessments MilestoneConsistencyAssessment[]
+}
+
+model CanonicalStateBinding {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  targetKind String @db.VarChar(16)
+  milestoneId String? @db.Uuid
+  workItemId String? @db.Uuid
+  field String @default("state") @db.VarChar(16)
+  factId String @unique @db.Uuid
+  factType String @db.VarChar(96)
+  createdBy String @db.VarChar(256)
+  createdAt DateTime @db.Timestamptz(3)
+  sealed Boolean @default(false)
+  project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
+  milestone Milestone? @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
+  workItem WorkItem? @relation(fields: [customerId, projectId, workItemId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
+  fact ProjectFact @relation("BindingFact", fields: [customerId, projectId, factId, factType], references: [customerId, projectId, id, factType], onDelete: Restrict, onUpdate: Restrict)
+  birthFact ProjectFact? @relation("BindingBirth")
+  receipt CanonicalStateBindingReceipt?
+  milestoneTargets MilestoneConsistencyTarget[]
+  contributors MilestoneConsistencyContributorVersion[]
+  @@unique([customerId, projectId, id], map: "CanonicalStateBinding_scope_key")
+  @@unique([customerId, projectId, factId], map: "CanonicalStateBinding_fact_key")
+  @@unique([customerId, projectId, factId, factType], map: "CanonicalStateBinding_typed_fact_key")
+  @@unique([customerId, projectId, id, factId], map: "CanonicalStateBinding_exact_fact_key")
+  @@unique([customerId, projectId, milestoneId, field], map: "CanonicalStateBinding_milestone_key")
+  @@unique([customerId, projectId, workItemId, field], map: "CanonicalStateBinding_work_item_key")
+}
+
+model CanonicalStateBindingReceipt {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  subject String @db.VarChar(256)
+  idempotencyKey String @db.VarChar(128)
+  requestHash String @db.Char(64)
+  bindingId String @unique @db.Uuid
+  factId String @db.Uuid
+  sourceId String @db.Uuid
+  evidenceId String @db.Uuid
+  versionId String @db.Uuid
+  initialSourceAccessRevision Int
+  initialSourceAccessState String @db.VarChar(16)
+  initialReaderSubject String @db.VarChar(256)
+  auditEventId String @unique @db.Uuid
+  binding CanonicalStateBinding @relation(fields: [customerId, projectId, bindingId, factId], references: [customerId, projectId, id, factId], onDelete: Restrict, onUpdate: Restrict, map: "StateBindingReceipt_binding_fk")
+  source FactSource @relation(fields: [customerId, projectId, factId, sourceId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict, map: "StateBindingReceipt_source_fk")
+  evidence FactEvidence @relation(fields: [customerId, projectId, factId, sourceId, evidenceId], references: [customerId, projectId, factId, sourceId, id], onDelete: Restrict, onUpdate: Restrict, map: "StateBindingReceipt_evidence_fk")
+  version ProjectFactVersion @relation(fields: [customerId, projectId, factId, versionId, sourceId, evidenceId], references: [customerId, projectId, factId, id, sourceId, evidenceId], onDelete: Restrict, onUpdate: Restrict, map: "StateBindingReceipt_version_fk")
+  audit AuditEvent @relation(fields: [customerId, auditEventId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "StateBindingReceipt_audit_fk")
+  @@unique([customerId, projectId, subject, idempotencyKey], map: "CanonicalStateBindingReceipt_request_key")
+  @@unique([customerId, projectId, bindingId, factId], map: "CanonicalStateBindingReceipt_binding_key")
+}
+
+model MilestoneConsistencyAssessment {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  milestoneId String @db.Uuid
+  canonicalReceiptId String @db.Uuid
+  ruleRevision String @db.VarChar(48)
+  enabled Boolean
+  asOf DateTime @db.Timestamptz(3)
+  subject String @db.VarChar(256)
+  idempotencyKey String @db.VarChar(128)
+  requestHash String @db.Char(64)
+  status String @db.VarChar(32)
+  complete Boolean
+  targetCount Int
+  requiredLinkCount Int
+  versionCount Int
+  evidenceCount Int
+  conflictCount Int
+  contributorCount Int
+  result Json
+  auditEventId String @unique @db.Uuid
+  sealed Boolean @default(false)
+  project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
+  milestone Milestone @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneConsistencyAssessmen_customerId_projectId_milesto_fkey")
+  canonicalReceipt CanonicalCreationReceipt @relation(fields: [customerId, projectId, canonicalReceiptId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneConsistencyAssessmen_customerId_projectId_canonic_fkey")
+  audit AuditEvent @relation(fields: [customerId, auditEventId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneConsistencyAssessment_audit_fk")
+  scalarAssessments FactAssessment[] @relation("MilestoneScalarChildren")
+  targets MilestoneConsistencyTarget[]
+  contributors MilestoneConsistencyContributorVersion[]
+  @@unique([customerId, projectId, id], map: "MilestoneConsistencyAssessment_scope_key")
+  @@unique([customerId, projectId, subject, idempotencyKey], map: "MilestoneConsistencyAssessment_request_key")
+}
+
+model MilestoneConsistencyTarget {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  assessmentId String @db.Uuid
+  targetKind String @db.VarChar(16)
+  milestoneId String? @db.Uuid
+  workItemId String? @db.Uuid
+  requiredWorkItemId String? @db.Uuid
+  bindingId String? @db.Uuid
+  factId String? @db.Uuid
+  factType String? @db.VarChar(96)
+  scalarAssessmentId String? @unique @db.Uuid
+  assessment MilestoneConsistencyAssessment @relation(fields: [customerId, projectId, assessmentId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
+  milestone Milestone? @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneConsistencyTarget_milestone_fk")
+  workItem WorkItem? @relation(fields: [customerId, projectId, workItemId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
+  requiredWorkItem RequiredWorkItem? @relation(fields: [customerId, projectId, milestoneId, workItemId, requiredWorkItemId], references: [customerId, projectId, milestoneId, workItemId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneConsistencyTarget_required_fk")
+  binding CanonicalStateBinding? @relation(fields: [customerId, projectId, bindingId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
+  scalarAssessment FactAssessment? @relation(fields: [customerId, projectId, factId, scalarAssessmentId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict)
+  contributors MilestoneConsistencyContributorVersion[]
+  @@unique([customerId, projectId, assessmentId, id], map: "MilestoneConsistencyTarget_scope_key")
+  @@unique([assessmentId, targetKind, milestoneId, workItemId], map: "MilestoneConsistencyTarget_identity_key")
+  @@unique([assessmentId, bindingId, factId], map: "MilestoneConsistencyTarget_binding_key")
+  @@unique([customerId, projectId, factId, scalarAssessmentId], map: "MilestoneConsistencyTarget_scalar_key")
+}
+
+model MilestoneConsistencyContributorVersion {
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  assessmentId String @db.Uuid
+  targetRowId String @db.Uuid
+  bindingId String @db.Uuid
+  factId String @db.Uuid
+  versionId String @db.Uuid
+  sourceId String @db.Uuid
+  evidenceId String @db.Uuid
+  assessment MilestoneConsistencyAssessment @relation(fields: [customerId, projectId, assessmentId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneContributor_assessment_fk")
+  target MilestoneConsistencyTarget @relation(fields: [customerId, projectId, assessmentId, targetRowId], references: [customerId, projectId, assessmentId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneContributor_target_fk")
+  binding CanonicalStateBinding @relation(fields: [customerId, projectId, bindingId, factId], references: [customerId, projectId, id, factId], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneContributor_binding_fk")
+  version ProjectFactVersion @relation(fields: [customerId, projectId, factId, versionId, sourceId, evidenceId], references: [customerId, projectId, factId, id, sourceId, evidenceId], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneContributor_version_fk")
+  evidence FactEvidence @relation(fields: [customerId, projectId, factId, sourceId, evidenceId], references: [customerId, projectId, factId, sourceId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneContributor_evidence_fk")
+  @@id([assessmentId, targetRowId, versionId, evidenceId])
 }

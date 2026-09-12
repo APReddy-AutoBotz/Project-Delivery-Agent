@@ -31,6 +31,18 @@ import {
   verifyCanonicalWorkerDenials,
 } from "./canonical-projects.mjs";
 import {
+  milestonePersistenceTables,
+  milestonePersistenceProjection,
+  seedMilestonePersistence,
+  verifyMilestonePersistencePrivileges,
+  verifyMilestonePersistenceImmutable,
+  verifyMilestonePersistenceIntegrity,
+  verifyMilestonePersistenceWorkerDenials,
+  verifyMilestonePersistenceCommitGuards,
+} from "./milestone-persistence.mjs";
+import { verifyStateBindingBirthGuards } from "./state-binding-birth.mjs";
+import { verifyMilestoneConcurrency } from "./milestone-concurrency.mjs";
+import {
   projectFactProjection,
   seedProjectFactHistory,
   verifyProjectFactPrivileges,
@@ -66,6 +78,7 @@ const projection = async (pool) => {
     ...(await projectFactProjection(pool)),
     ...(await authorityProjection(pool)),
     ...(await canonicalProjection(pool)),
+    ...(await milestonePersistenceProjection(pool)),
   };
   for (const table of [
     "Customer",
@@ -205,6 +218,11 @@ try {
       migrations,
       3,
     );
+    const milestonePersistenceUpgrade = await verifyFoundationUpgrade(
+      admin,
+      migrations,
+      4,
+    );
     const factFixture = await seedProjectFactHistory(
       admin,
       config("database", "pdaa_api", "api-password").database,
@@ -234,6 +252,24 @@ try {
     await verifyCanonicalPrivileges(admin);
     await verifyCanonicalImmutable(admin);
     await verifyCanonicalIntegrity(admin);
+    const milestonePersistenceFixture = await seedMilestonePersistence(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+      "packaged",
+      { reserveForRestore: true },
+    );
+    const milestoneConcurrency = await verifyMilestoneConcurrency(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+      adminConfig,
+    );
+    await verifyMilestonePersistencePrivileges(admin);
+    await verifyMilestonePersistenceImmutable(admin);
+    await verifyMilestonePersistenceIntegrity(admin);
     const workerRuntimeDenied = await verifyWorkerFactDenials(
       config("database", "pdaa_worker", "worker-password").database,
     );
@@ -245,13 +281,21 @@ try {
           upgrade,
           authorityUpgrade,
           canonicalUpgrade,
+          milestonePersistenceUpgrade,
           canonicalFixture,
+          milestonePersistenceFixture,
+          milestoneConcurrency,
           canonicalTables,
-          businessTableCount: 31,
+          milestonePersistenceTables,
+          businessTableCount: 36,
           migrationCount: migrations.length,
           canonicalWorkerDenied: await verifyCanonicalWorkerDenials(
             config("database", "pdaa_worker", "worker-password").database,
           ),
+          milestonePersistenceWorkerDenied:
+            await verifyMilestonePersistenceWorkerDenials(
+              config("database", "pdaa_worker", "worker-password").database,
+            ),
           authorityFixture,
           authorityWorkerDenied: await verifyAuthorityWorkerDenials(
             config("database", "pdaa_worker", "worker-password").database,
@@ -351,9 +395,21 @@ try {
       await verifyCanonicalIntegrity(pool);
       await verifyCanonicalImmutable(pool);
       const canonicalCommitGuards = await verifyCanonicalCommitGuards(pool);
+      await verifyMilestonePersistencePrivileges(pool);
+      await verifyMilestonePersistenceIntegrity(pool);
+      await verifyMilestonePersistenceImmutable(pool);
       const receipt = JSON.parse(
         readFileSync(output + "/project-fact-persistence.json", "utf8"),
       );
+      const milestonePersistenceCommitGuards =
+        await verifyMilestonePersistenceCommitGuards(pool, {
+          assessmentId: receipt.milestonePersistenceFixture.assessmentId,
+        });
+      milestonePersistenceCommitGuards.bindingBirthGuards =
+        await verifyStateBindingBirthGuards(
+          pool,
+          receipt.milestonePersistenceFixture.restoreBindingBirthProbe,
+        );
       receipt.restore = {
         status: "passed",
         exactRetainedRows: true,
@@ -365,6 +421,9 @@ try {
         canonicalIntegrityChecked: true,
         canonicalImmutableChecked: true,
         canonicalCommitGuards,
+        milestonePersistenceIntegrityChecked: true,
+        milestonePersistenceImmutableChecked: true,
+        milestonePersistenceCommitGuards,
         workerCheckpoint: await verifyRestoredWorker(
           admin,
           pool,

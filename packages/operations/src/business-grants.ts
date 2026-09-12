@@ -40,6 +40,12 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT UPDATE (sealed) ON "FactAssessment" TO pdaa_api;
     GRANT SELECT,INSERT ON "Programme","CanonicalProject","ProjectResponsibility","Sprint","Milestone","WorkItem","RequiredWorkItem","RaidItem","CanonicalSourceMapping","CanonicalCreationReceipt" TO pdaa_api;
     GRANT UPDATE (sealed) ON "CanonicalProject" TO pdaa_api;
+    GRANT SELECT,INSERT ON "CanonicalStateBinding","CanonicalStateBindingReceipt","MilestoneConsistencyAssessment","MilestoneConsistencyTarget","MilestoneConsistencyContributorVersion" TO pdaa_api;
+    GRANT UPDATE (sealed) ON "CanonicalStateBinding","MilestoneConsistencyAssessment" TO pdaa_api;
+    -- pg_restore --no-acl recreates the default PUBLIC function EXECUTE grant.
+    -- Rebuild migration 5's finite function boundary before its two API grants.
+    REVOKE ALL ON FUNCTION public.guard_project_fact_revision(),public.guard_fact_version_append(),public.guard_authority_policy(),public.valid_canonical_state_binding(uuid),public.guard_canonical_state_binding(),public.guard_canonical_state_binding_receipt(),public.require_canonical_state_binding_sealed(),public.valid_milestone_consistency_assessment(uuid),public.guard_assessment_header(),public.guard_milestone_consistency_header(),public.guard_milestone_consistency_child(),public.require_milestone_consistency_sealed(),public.reject_direct_fact_revision(),public.guard_fact_source_birth() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+    GRANT EXECUTE ON FUNCTION public.valid_canonical_state_binding(uuid),public.valid_milestone_consistency_assessment(uuid) TO pdaa_api;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
   `);
 }

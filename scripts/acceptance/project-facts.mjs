@@ -198,6 +198,7 @@ export async function seedProjectFactHistory(
   customerId,
   projectId,
   prefix,
+  databaseFactory = createDatabase,
 ) {
   guard();
   const actor = {
@@ -226,7 +227,7 @@ export async function seedProjectFactHistory(
     'INSERT INTO "ServiceHeartbeat" (id,"occurredAt") VALUES ($1,$2)',
     [prefix + "-restore-checkpoint", "2026-09-09T00:00:00.000Z"],
   );
-  const database = createDatabase(runtimeConnection);
+  const database = databaseFactory(runtimeConnection);
   const api = new Pool(runtimeConnection);
   try {
     const repository = new DatabaseProjectFactRepository(database);
