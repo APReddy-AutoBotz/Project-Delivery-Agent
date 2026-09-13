@@ -34,6 +34,23 @@ the recorder ordering. Candidate Foundation 34663772792 and Documentation
 
 ## Scope and implementation stages
 
+Stage 3 PR51 candidate `fe2010c08bdbd93532e5ac136f8003b467a00c9e` has a
+failed required packaged gate. Foundation run 34748198858 passed its native verify
+job: 1,089 unit tests, 107 integration tests, 22 browser tests and exact recovery
+of all 39 business tables plus the ledger. Documentation run 34748198873 passed.
+The original GitHub ZIP digests, logs, candidate tree and two-parent CI merge tree
+were authenticated and preserved privately. A separate non-author review covered
+all 53 changed files and found no confirmed P0/P1 source defect, but withheld merge
+approval because intact packaged acceptance was not established.
+
+The packaged run failed `SEC-AUTH-001` in the broad `loaded-details` phase before
+the new PM workflows. Neither its original log nor static review establishes which
+await failed or a product/authentication defect. The next diagnostic candidate adds
+only fixed, non-sensitive substage labels for AC-AUTH-001 / SEC-AUTH-001; every
+expiry, permission, disclosure and database assertion and both existing deadlines
+remain unchanged. This is instrumentation, not a claimed fix or passing rerun.
+PR51 remains draft; Issue #6, R0 3/5, R1 2/33 and all release gates remain unchanged.
+
 1. Repair the demonstrated capture-close ordering and add a deterministic delayed
    response regression, preserving all fail-closed and post-close checks. Implement
    a pure, internal milestone consistency evaluator and its adversarial tests.
