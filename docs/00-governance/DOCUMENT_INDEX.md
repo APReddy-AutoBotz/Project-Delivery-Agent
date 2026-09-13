@@ -136,6 +136,7 @@
 - `docs/04-delivery/exec-plans/EXEC-005-canonical-project-workflow.md`: scoped canonical project creation/detail API and browser workflow, persistence and acceptance gates.
 - `docs/04-delivery/exec-plans/EXEC-006-project-evidence-workflow.md`: scoped human evidence history, explicit source sharing and authority configuration, and saved historical assessments.
 - `docs/04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md`: Stages 1-3 merged; full acceptance and generic scalar-conflict request design/implementation remain gated.
+- `docs/04-delivery/exec-plans/EXEC-008-scalar-reconciliation.md`: proposed durable generic scalar request, identity, permissions, native integrity and recovery design; independent review and implementation pending.
 - `docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md`: verified canonical PM request/COMMIT/race/upgrade/restore evidence and the remaining sole-owner FAIL-009 scalar-request gate; no new story acceptance.
 - `docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md`: candidate user/admin workflow, strict API, browser and packaged evidence gates and remaining acceptance.
 - `docs/05-quality/TEMPORAL_FACT_MODEL_VALIDATION.md`: internal temporal assessment checks, partial requirement evidence and storage/API/disclosure limits.
