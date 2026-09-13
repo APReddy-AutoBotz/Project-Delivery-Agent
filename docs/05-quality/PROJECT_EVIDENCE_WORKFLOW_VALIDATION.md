@@ -9,6 +9,12 @@ NFR-SEC-001/004 and TR-API-001.
 
 ## Verified completion
 
+Continuation note, 2026-09-13: [milestone reconciliation validation](MILESTONE_CONSISTENCY_VALIDATION.md)
+records later PR #49/#50/#51 integration and canonical PM presentation. Generic
+scalar-conflict requests and FAIL-009 remain incomplete, so STORY-012 and Issue #6
+remain open. The PR #47 observations below are historical and do not claim that
+its scalar reconciliation-needed flag creates a durable request.
+
 [PR #47](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/47)
 merged candidate `5ecefb11c94b9cd63077fa9ac8269e093f0e5a03` as
 `2187f3a774f1655ec34eb26dee5381ffeea3a4c4` at 2026-09-11T19:25:42Z, with tree

@@ -417,7 +417,8 @@ tests:
   - AC-EVD-004
   specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
   behavior: When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING.
-  evidence: []
+  evidence:
+  - docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md
 - id: FAIL-010
   release: R1
   status: planned
@@ -644,7 +645,8 @@ tests:
   behavior: When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING.
     A completed milestone with mandatory open linked issues creates a contradiction signal and a PM reconciliation
     action. The answer describes both conflicting values and does not silently choose one.
-  evidence: []
+  evidence:
+  - docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md
 - id: GOLDEN-004
   release: R1
   status: planned
@@ -920,12 +922,21 @@ tests:
   - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: INT-EVD-004
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-004
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING.
-  evidence: []
+  evidence:
+  - tests/source-authority.test.ts
+  - tests/authority-persistence.integration.test.ts
+  - tests/project-evidence.integration.test.ts
+  - tests/e2e/project-evidence.spec.ts
+  - tests/milestone-reconciliation.integration.test.ts
+  - tests/e2e/milestone-reconciliation.spec.ts
+  - scripts/acceptance/milestone-reconciliation-workflow.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md
 - id: INT-EVD-006
   release: R1
   status: planned
