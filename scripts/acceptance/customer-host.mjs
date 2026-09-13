@@ -1,9 +1,14 @@
 // DEP-001/002: run the actual customer deployment with additive test services.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { checkIdentityConfiguration } from "./customer-identity-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./evidence-workflow-receipt.mjs";
+import { assertMilestoneReconciliationWorkflowReceipt } from "./milestone-reconciliation-workflow-receipt.mjs";
+import { validateReconciliationCommitReceipt } from "./reconciliation-commit-receipt.mjs";
+import { reportRestoreFailure } from "./restore-diagnostic.mjs";
+import { assertReconciliationRacesReceipt } from "./reconciliation-races-receipt.mjs";
 import {
   createHostDisclosure,
   scanExecutionLogs,
@@ -355,27 +360,93 @@ export async function customerProfiles({
         }
         check("after-upgrade");
         check("restore-target");
-        run(
-          service("operations", ["restore", backupName], {
-            PDAA_DB_NAME: "pdaa_restore",
-            PDAA_OPS_TARGET: `${dbHost}:5432/pdaa_restore`,
-          }),
-          "restore",
-        );
+        try {
+          run(
+            service("operations", ["restore", backupName], {
+              PDAA_DB_NAME: "pdaa_restore",
+              PDAA_OPS_TARGET: `${dbHost}:5432/pdaa_restore`,
+            }),
+            "restore",
+          );
+        } catch (error) {
+          try {
+            reportRestoreFailure(
+              join(output, `customer-${profile}-restore.log`),
+              profile,
+            );
+          } catch {
+            // Preserve the original failed gate even if diagnostic output fails.
+          }
+          throw error;
+        }
         check("restored");
         const projectFactPersistence = JSON.parse(
           readFileSync(join(evidence, "project-fact-persistence.json"), "utf8"),
         );
         assert.equal(projectFactPersistence.status, "passed");
         assertEvidenceWorkflowReceipt(projectFactPersistence.evidenceWorkflow);
+        assertMilestoneReconciliationWorkflowReceipt(
+          projectFactPersistence.milestoneReconciliationWorkflow,
+          { expectedCustomerId: "10000000-0000-4000-8000-000000000002" },
+        );
+        for (const screenshot of [
+          projectFactPersistence.milestoneReconciliationWorkflow.screenshot,
+          projectFactPersistence.milestoneReconciliationWorkflow.recreatedProof
+            .screenshot,
+          projectFactPersistence.milestoneReconciliationWorkflow
+            .projectScopeWithdrawal.screenshot,
+        ]) {
+          // The pure reader validates the finite filenames before filesystem use.
+          const bytes = readFileSync(join(evidence, screenshot.file));
+          assert(bytes.length > 0);
+          assert.equal(
+            createHash("sha256").update(bytes).digest("hex"),
+            screenshot.sha256,
+          );
+        }
         assert.equal(projectFactPersistence.restore.status, "passed");
+        const reconciliation =
+          projectFactPersistence.milestoneReconciliationFixture;
+        assert.equal(reconciliation.runtimeRole, "pdaa_api");
+        assert.equal(
+          projectFactPersistence.milestoneReconciliationWorkerDenied,
+          true,
+        );
+        validateReconciliationCommitReceipt(reconciliation.commitGuards, {
+          expectedCustomerId: "10000000-0000-4000-8000-000000000002",
+          expectedSessionUser: "pdaa_api",
+        });
+        assertReconciliationRacesReceipt(reconciliation.raceGuards, {
+          expectedCustomerId: "10000000-0000-4000-8000-000000000002",
+        });
+        validateReconciliationCommitReceipt(
+          projectFactPersistence.restore.milestoneReconciliationCommitGuards,
+          {
+            expectedCustomerId: "10000000-0000-4000-8000-000000000002",
+            expectedSessionUser: "postgres",
+            expectedPositiveProjectId:
+              reconciliation.restoreProbes.positiveFixture.projectId,
+            expectedNegativeProjectId:
+              reconciliation.restoreProbes.negativeFixture.projectId,
+          },
+        );
+        assert.equal(
+          projectFactPersistence.restore
+            .milestoneReconciliationIntegrityChecked,
+          true,
+        );
+        assert.equal(
+          projectFactPersistence.restore
+            .milestoneReconciliationImmutableChecked,
+          true,
+        );
         assert.equal(
           projectFactPersistence.canonicalFixture.runtimeRole,
           "pdaa_api",
         );
         assert.equal(projectFactPersistence.canonicalWorkerDenied, true);
-        assert.equal(projectFactPersistence.businessTableCount, 36);
-        assert.equal(projectFactPersistence.migrationCount, 5);
+        assert.equal(projectFactPersistence.businessTableCount, 39);
+        assert.equal(projectFactPersistence.migrationCount, 6);
         assert.equal(
           projectFactPersistence.restore.canonicalIntegrityChecked,
           true,

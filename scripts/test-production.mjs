@@ -15,6 +15,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { customerProfiles } from "./acceptance/customer-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./acceptance/evidence-workflow-receipt.mjs";
+import { assertMilestoneReconciliationWorkflowReceipt } from "./acceptance/milestone-reconciliation-workflow-receipt.mjs";
+import { validateReconciliationCommitReceipt } from "./acceptance/reconciliation-commit-receipt.mjs";
+import { assertReconciliationRacesReceipt } from "./acceptance/reconciliation-races-receipt.mjs";
 import {
   expiryCheckName,
   validateExpiryReceipt,
@@ -25,6 +28,50 @@ import {
   rejectLoggedTokens,
 } from "./acceptance/disclosure.mjs";
 
+const reconciliationTables = [
+  "MilestoneReconciliationRequest",
+  "MilestoneReconciliationCheck",
+  "MilestoneReconciliationAssignment",
+];
+function assertReconciliationPersistence(
+  persistence,
+  customerId,
+  restoreLogin,
+) {
+  assert.deepEqual(
+    persistence.milestoneReconciliationTables,
+    reconciliationTables,
+  );
+  const fixture = persistence.milestoneReconciliationFixture;
+  assertReconciliationRacesReceipt(fixture.raceGuards, {
+    expectedCustomerId: customerId,
+  });
+  assert.equal(fixture.runtimeRole, "pdaa_api");
+  assert.equal(persistence.milestoneReconciliationWorkerDenied, true);
+  validateReconciliationCommitReceipt(fixture.commitGuards, {
+    expectedCustomerId: customerId,
+    expectedSessionUser: "pdaa_api",
+  });
+  validateReconciliationCommitReceipt(
+    persistence.restore.milestoneReconciliationCommitGuards,
+    {
+      expectedCustomerId: customerId,
+      expectedSessionUser: restoreLogin,
+      expectedPositiveProjectId:
+        fixture.restoreProbes.positiveFixture.projectId,
+      expectedNegativeProjectId:
+        fixture.restoreProbes.negativeFixture.projectId,
+    },
+  );
+  assert.equal(
+    persistence.restore.milestoneReconciliationIntegrityChecked,
+    true,
+  );
+  assert.equal(
+    persistence.restore.milestoneReconciliationImmutableChecked,
+    true,
+  );
+}
 function assertMilestoneCommitGuards(receipt, sourceAssessmentId) {
   assert.equal(receipt.executedAs, "pdaa_api");
   assert.equal(receipt.sourceAssessmentId, sourceAssessmentId);
@@ -397,8 +444,13 @@ try {
   assert.equal(record.projectFactPersistence.upgrade.status, "passed");
   assert.equal(record.projectFactPersistence.restore.status, "passed");
   const canonicalPersistence = record.projectFactPersistence;
-  assert.equal(canonicalPersistence.businessTableCount, 36);
-  assert.equal(canonicalPersistence.migrationCount, 5);
+  assertReconciliationPersistence(
+    canonicalPersistence,
+    "10000000-0000-4000-8000-000000000001",
+    "fixture_admin",
+  );
+  assert.equal(canonicalPersistence.businessTableCount, 39);
+  assert.equal(canonicalPersistence.migrationCount, 6);
   assert.equal(canonicalPersistence.milestonePersistenceTables.length, 5);
   assert.equal(
     canonicalPersistence.milestonePersistenceFixture.runtimeRole,
@@ -459,12 +511,65 @@ try {
     canonicalPersistence.authorityUpgrade,
     canonicalPersistence.canonicalUpgrade,
     canonicalPersistence.milestonePersistenceUpgrade,
+    canonicalPersistence.milestoneReconciliationUpgrade,
   ].entries()) {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 5);
-    assert.equal(upgrade.businessTableCount, 36);
+    assert.equal(upgrade.migrations.length, 6);
+    assert(Number.isFinite(upgrade.upgradeMeasurement.elapsedMs));
+    assert(upgrade.upgradeMeasurement.elapsedMs > 0);
+    assert(
+      Number.isInteger(upgrade.upgradeMeasurement.priorProjectFactVersionRows),
+    );
+    if (upgrade.priorMigrationCount === 1)
+      assert.equal(upgrade.upgradeMeasurement.priorProjectFactVersionRows, 0);
+    else assert(upgrade.upgradeMeasurement.priorProjectFactVersionRows > 0);
+    assert.deepEqual(
+      upgrade.upgradeMeasurement.appliedLedgerRows.map((row) => ({
+        name: row.migration_name,
+        checksum: row.checksum,
+      })),
+      upgrade.migrations.slice(index + 1),
+    );
+    for (const row of upgrade.upgradeMeasurement.appliedLedgerRows) {
+      assert(Number.isFinite(Date.parse(row.started_at)));
+      assert(Number.isFinite(Date.parse(row.finished_at)));
+      assert(Date.parse(row.finished_at) >= Date.parse(row.started_at));
+      assert.equal(row.rolled_back_at, null);
+      assert.equal(row.applied_steps_count, 1);
+    }
+    assert.equal(upgrade.businessTableCount, 39);
+    assert.equal(
+      upgrade.milestoneReconciliationFixture.runtimeRole,
+      "pdaa_api",
+    );
+    assert.equal(upgrade.milestoneReconciliationWorkerDenied, true);
+    assertReconciliationRacesReceipt(
+      upgrade.milestoneReconciliationFixture.raceGuards,
+      { expectedCustomerId: "10000000-0000-4000-8000-000000000001" },
+    );
+    validateReconciliationCommitReceipt(
+      upgrade.milestoneReconciliationFixture.commitGuards,
+      {
+        expectedCustomerId: "10000000-0000-4000-8000-000000000001",
+        expectedSessionUser: "pdaa_api",
+      },
+    );
+    assert.deepEqual(
+      upgrade.milestoneReconciliationTables,
+      reconciliationTables,
+    );
+    assert.deepEqual(
+      Object.keys(upgrade.milestoneReconciliationRows).sort(),
+      [...reconciliationTables].sort(),
+    );
+    assert(
+      Object.values(upgrade.milestoneReconciliationRows).every(
+        (count) => Number.isInteger(count) && count > 0,
+      ),
+    );
+    assert.equal(upgrade.priorMilestoneRetained, index === 4);
     assert.equal(upgrade.milestonePersistenceFixture.runtimeRole, "pdaa_api");
     assertMilestoneCommitGuards(
       upgrade.milestonePersistenceFixture.commitGuards,
@@ -509,7 +614,7 @@ try {
     true,
   );
   checks.passed.push(
-    "INT-MOD-001: complete canonical creation through API credentials, scoped references and revoked retry denials, four genuine prior-release upgrades, 36-table encrypted restore and real sealed aggregate COMMIT guards",
+    "INT-MOD-001: complete canonical creation through API credentials, scoped references and revoked retry denials, five genuine prior-release upgrades, 39-table encrypted restore and real sealed aggregate COMMIT guards",
   );
   checks.passed.push(
     "INT-EVD-001 partial: immutable-foundation forward upgrade under migration owner, exact retained rows and ledger, finite runtime privileges, human fact history and quarantined encrypted restore",
@@ -650,12 +755,21 @@ try {
   assert.equal(record.customerProfiles.length, 2);
   for (const profile of record.customerProfiles) {
     const persistence = profile.projectFactPersistence;
+    assertReconciliationPersistence(
+      persistence,
+      "10000000-0000-4000-8000-000000000002",
+      "postgres",
+    );
     assert.equal(persistence.canonicalFixture.runtimeRole, "pdaa_api");
     assertEvidenceWorkflowReceipt(persistence.evidenceWorkflow);
+    assertMilestoneReconciliationWorkflowReceipt(
+      persistence.milestoneReconciliationWorkflow,
+      { expectedCustomerId: "10000000-0000-4000-8000-000000000002" },
+    );
     assert.equal(persistence.canonicalFixture.sourceMappingsWithheld, true);
     assert.equal(persistence.canonicalWorkerDenied, true);
-    assert.equal(persistence.businessTableCount, 36);
-    assert.equal(persistence.migrationCount, 5);
+    assert.equal(persistence.businessTableCount, 39);
+    assert.equal(persistence.migrationCount, 6);
     assert.equal(persistence.restore.canonicalIntegrityChecked, true);
     assert.equal(persistence.restore.canonicalImmutableChecked, true);
     assert.equal(persistence.restore.canonicalCommitGuards.actualCommit, true);

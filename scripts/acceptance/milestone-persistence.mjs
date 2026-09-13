@@ -547,7 +547,7 @@ export async function seedMilestonePersistence(
   customerId,
   projectId,
   prefix,
-  { reserveForRestore = false } = {},
+  { reserveForRestore = false, databaseFactory } = {},
 ) {
   guard();
   const {
@@ -585,7 +585,7 @@ export async function seedMilestonePersistence(
     )
   ).rows;
   assert(focal && required.length > 0);
-  const db = createDatabase(connection);
+  const db = (databaseFactory ?? createDatabase)(connection);
   try {
     assert.equal(
       (await db.$queryRaw`SELECT current_user AS role`)[0].role,

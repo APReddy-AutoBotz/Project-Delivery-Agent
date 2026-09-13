@@ -23,11 +23,21 @@ import {
   policyChangeResultSchema,
   assessmentCaptureSchema,
   assessmentDeliverySchema,
+  stateBindingCreateSchema,
+  stateBindingViewSchema,
+  reconciliationContextSchema,
+  milestoneConsistencyCaptureSchema,
+  reconciliationCheckResultSchema,
+  reconciliationPageSchema,
+  reconciliationDeliverySchema,
+  reconciliationAssignmentRefreshSchema,
+  reconciliationAssignmentResultSchema,
 } from "@pdaa/domain";
 import {
   catalogueQuerySchema,
   historyQuerySchema,
 } from "./evidence-controller.js";
+import { reconciliationQuerySchema } from "./milestone-controller.js";
 
 // The wire pattern preserves the existing 1..200 limit after trimming. A raw
 // maxLength would incorrectly reject a valid subject padded with whitespace.
@@ -68,6 +78,53 @@ export type RouteContract = {
   query?: Record<string, z.ZodType>;
 };
 export const contracts: Record<string, RouteContract> = {
+  "post /api/projects/{id}/state-bindings": {
+    status: 201,
+    request: stateBindingCreateSchema,
+    response: stateBindingViewSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 409, 503],
+  },
+  "get /api/projects/{id}/milestones/{milestoneId}/reconciliation-context": {
+    status: 200,
+    response: reconciliationContextSchema,
+    parameters: { id: z.uuid(), milestoneId: z.uuid() },
+    errors: [404, 503],
+  },
+  "post /api/projects/{id}/milestone-reconciliation-checks": {
+    status: 201,
+    request: milestoneConsistencyCaptureSchema,
+    response: reconciliationCheckResultSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 409, 503],
+  },
+  "get /api/projects/{id}/reconciliation-requests/manage": {
+    status: 200,
+    response: reconciliationPageSchema,
+    query: reconciliationQuerySchema.shape,
+    parameters: { id: z.uuid() },
+    errors: [404, 503],
+  },
+  "get /api/projects/{id}/reconciliation-requests": {
+    status: 200,
+    response: reconciliationPageSchema,
+    query: reconciliationQuerySchema.shape,
+    parameters: { id: z.uuid() },
+    errors: [404, 503],
+  },
+  "get /api/projects/{id}/reconciliation-requests/{requestId}": {
+    status: 200,
+    response: reconciliationDeliverySchema,
+    parameters: { id: z.uuid(), requestId: z.uuid() },
+    errors: [404, 503],
+  },
+  "post /api/projects/{id}/reconciliation-requests/{requestId}/assignment": {
+    status: 201,
+    request: reconciliationAssignmentRefreshSchema,
+    response: reconciliationAssignmentResultSchema,
+    parameters: { id: z.uuid(), requestId: z.uuid() },
+    errors: [404, 409, 503],
+  },
   "get /api/projects/{id}/facts": {
     status: 200,
     response: factCatalogueSchema,

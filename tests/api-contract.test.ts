@@ -26,6 +26,16 @@ import {
   emptyCanonicalDates,
   type CanonicalProjectRepository,
 } from "../packages/domain/src/index.js";
+import {
+  reconciliationContractFixture,
+  exerciseReconciliationContracts,
+  reconciliationPrefix,
+  milestoneId,
+  requestId,
+  checkInput,
+  bindingInput,
+  refreshInput,
+} from "./fixtures/reconciliation-contract.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const project: Project = {
@@ -120,6 +130,7 @@ let base: string, operator: string, manager: string;
 let check: ReturnType<typeof compileContract>;
 const covered = new Set<string>();
 const evidence = evidenceContractFixture();
+const reconciliation = reconciliationContractFixture();
 beforeAll(async () => {
   ({ app, spec } = await createApp(
     config,
@@ -128,6 +139,7 @@ beforeAll(async () => {
     canonical,
     evidence.facts,
     evidence.authority,
+    reconciliation.repository,
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -216,18 +228,142 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     scopeId: grant.scopeId,
   });
   await exerciseEvidenceContracts(request, manager);
+  await exerciseReconciliationContracts(request, manager);
   const declared = Object.entries(spec.paths).flatMap(([path, item]) =>
     Object.keys(item)
       .filter((method) => ["get", "post", "delete"].includes(method))
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(24);
+  expect(covered.size).toBe(31);
   assertContractSnapshot(
     spec,
     JSON.parse(
       readFileSync("docs/03-architecture/OPENAPI_FOUNDATION.json", "utf8"),
     ),
+  );
+});
+it("FR-EVD-009: reconciliation routes use bearer identity, fixed queue modes and strict commands", async () => {
+  const prefix = reconciliationPrefix;
+  await request(prefix + "/reconciliation-requests", 401);
+  await request(prefix + "/reconciliation-requests/not-a-uuid", 404, manager);
+  for (const query of [
+    "mode=manage",
+    "actor=operator",
+    "limit=21",
+    "limit=01",
+    "afterId=" + requestId,
+    "afterCreatedAt=" + encodeURIComponent(checkInput.projectId),
+  ])
+    await request(prefix + "/reconciliation-requests?" + query, 400, manager);
+  await request(
+    prefix +
+      "/reconciliation-requests/manage?limit=1&afterCreatedAt=" +
+      encodeURIComponent("2026-09-11T00:00:00.000Z") +
+      "&afterId=" +
+      requestId,
+    200,
+    manager,
+  );
+  expect(reconciliation.repository.list).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      subject: "pm-atlas",
+      roles: ["project_manager"],
+    }),
+    {
+      projectId: project.id,
+      limit: 1,
+      after: { createdAt: "2026-09-11T00:00:00.000Z", id: requestId },
+    },
+    "manage",
+  );
+  await request(prefix + "/reconciliation-requests", 200, manager);
+  expect(reconciliation.repository.list.mock.calls.at(-1)?.[2]).toBe(
+    "recipient",
+  );
+  for (const [path, body] of [
+    ["/state-bindings", { ...bindingInput, providedBy: "operator" }],
+    ["/milestone-reconciliation-checks", { ...checkInput, actor: "operator" }],
+    [
+      "/milestone-reconciliation-checks",
+      { ...checkInput, projectId: requestId },
+    ],
+    [
+      "/milestone-reconciliation-checks",
+      { ...checkInput, asOf: "2026-09-11T00:00:00.000Z" },
+    ],
+    [
+      "/reconciliation-requests/" + requestId + "/assignment",
+      { ...refreshInput, recipientSubject: "operator" },
+    ],
+    [
+      "/reconciliation-requests/" + requestId + "/assignment",
+      { ...refreshInput, requestId: milestoneId },
+    ],
+  ] as const)
+    await request(prefix + path, 400, manager, "POST", body);
+  // Import the same compiled error class used by the controller at runtime.
+  const { ProjectFactError: RuntimeFactError } = await import(
+    "../packages/domain/dist/index.js"
+  );
+  for (const [code, status] of [
+    ["DENIED", 404],
+    ["SOURCE_RESTRICTED", 404],
+    ["REVISION_CONFLICT", 409],
+    ["IDEMPOTENCY_CONFLICT", 409],
+    ["INVALID_REQUEST", 400],
+  ] as const) {
+    reconciliation.repository.check.mockRejectedValueOnce(
+      new RuntimeFactError(code),
+    );
+    await request(
+      prefix + "/milestone-reconciliation-checks",
+      status,
+      manager,
+      "POST",
+      checkInput,
+    );
+  }
+  reconciliation.repository.get.mockRejectedValueOnce(
+    new Error("private-reconciliation-detail"),
+  );
+  expect(
+    await request(
+      prefix + "/reconciliation-requests/" + requestId,
+      503,
+      manager,
+    ),
+  ).toEqual({ statusCode: 503, message: "Service unavailable" });
+});
+it("FR-EVD-009: malformed reconciliation payloads fail closed before serialization", async () => {
+  const malformed = [
+    { ...reconciliation.checked, secret: "private-contract-value" },
+    { ...reconciliation.checked, outcome: "CREATED" },
+    { ...reconciliation.checked, request: reconciliation.request },
+  ];
+  for (const body of malformed) {
+    reconciliation.repository.check.mockResolvedValueOnce(body as never);
+    expect(
+      await request(
+        reconciliationPrefix + "/milestone-reconciliation-checks",
+        500,
+        manager,
+        "POST",
+        checkInput,
+      ),
+    ).toEqual({ statusCode: 500, message: "Internal server error" });
+  }
+  reconciliation.repository.get.mockResolvedValueOnce({
+    request: reconciliation.request,
+    assessment: {
+      ...reconciliation.restricted,
+      result: { secret: "private-proof" },
+    },
+  } as never);
+  await request(
+    reconciliationPrefix + "/reconciliation-requests/" + requestId,
+    500,
+    manager,
   );
 });
 it("CI-FND-001: published errors cover authentication, scope, strict input and readiness denials", async () => {

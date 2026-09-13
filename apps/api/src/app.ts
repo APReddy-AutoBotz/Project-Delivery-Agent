@@ -1,5 +1,10 @@
 import "reflect-metadata";
 import {
+  MilestoneController,
+  RECONCILIATION_REPOSITORY,
+  unavailableReconciliationRepository,
+} from "./milestone-controller.js";
+import {
   EvidenceController,
   FACT_REPOSITORY,
   AUTHORITY_REPOSITORY,
@@ -51,6 +56,7 @@ import {
   type CanonicalProjectRepository,
   type ProjectFactRepository,
   type AuthorityRepository,
+  type MilestoneReconciliationRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
@@ -185,12 +191,14 @@ export async function createApp(
   canonical: CanonicalProjectRepository = unavailableCanonicalRepository,
   facts: ProjectFactRepository = unavailableFactRepository,
   authority: AuthorityRepository = unavailableAuthorityRepository,
+  reconciliation: MilestoneReconciliationRepository = unavailableReconciliationRepository,
 ) {
   @Module({
     controllers: [
       FoundationController,
       CanonicalController,
       EvidenceController,
+      MilestoneController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -198,6 +206,7 @@ export async function createApp(
       { provide: CANONICAL_REPOSITORY, useValue: canonical },
       { provide: FACT_REPOSITORY, useValue: facts },
       { provide: AUTHORITY_REPOSITORY, useValue: authority },
+      { provide: RECONCILIATION_REPOSITORY, useValue: reconciliation },
       { provide: IdentityService, useValue: identity },
     ],
   })

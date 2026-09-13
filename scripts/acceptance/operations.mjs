@@ -40,6 +40,16 @@ import {
   verifyMilestonePersistenceWorkerDenials,
   verifyMilestonePersistenceCommitGuards,
 } from "./milestone-persistence.mjs";
+import {
+  milestoneReconciliationTables,
+  milestoneReconciliationProjection,
+  seedMilestoneReconciliation,
+  verifyMilestoneReconciliationPrivileges,
+  verifyMilestoneReconciliationImmutable,
+  verifyMilestoneReconciliationIntegrity,
+  verifyMilestoneReconciliationWorkerDenials,
+  runMilestoneReconciliationCommitProbes,
+} from "./milestone-reconciliation.mjs";
 import { verifyStateBindingBirthGuards } from "./state-binding-birth.mjs";
 import { verifyMilestoneConcurrency } from "./milestone-concurrency.mjs";
 import {
@@ -79,6 +89,7 @@ const projection = async (pool) => {
     ...(await authorityProjection(pool)),
     ...(await canonicalProjection(pool)),
     ...(await milestonePersistenceProjection(pool)),
+    ...(await milestoneReconciliationProjection(pool)),
   };
   for (const table of [
     "Customer",
@@ -223,6 +234,11 @@ try {
       migrations,
       4,
     );
+    const milestoneReconciliationUpgrade = await verifyFoundationUpgrade(
+      admin,
+      migrations,
+      5,
+    );
     const factFixture = await seedProjectFactHistory(
       admin,
       config("database", "pdaa_api", "api-password").database,
@@ -270,6 +286,17 @@ try {
     await verifyMilestonePersistencePrivileges(admin);
     await verifyMilestonePersistenceImmutable(admin);
     await verifyMilestonePersistenceIntegrity(admin);
+    const milestoneReconciliationFixture = await seedMilestoneReconciliation(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+      "packaged-reconciliation",
+      { reserveForRestore: true },
+    );
+    await verifyMilestoneReconciliationPrivileges(admin);
+    await verifyMilestoneReconciliationImmutable(admin);
+    await verifyMilestoneReconciliationIntegrity(admin);
     const workerRuntimeDenied = await verifyWorkerFactDenials(
       config("database", "pdaa_worker", "worker-password").database,
     );
@@ -282,18 +309,25 @@ try {
           authorityUpgrade,
           canonicalUpgrade,
           milestonePersistenceUpgrade,
+          milestoneReconciliationUpgrade,
           canonicalFixture,
           milestonePersistenceFixture,
+          milestoneReconciliationFixture,
           milestoneConcurrency,
           canonicalTables,
           milestonePersistenceTables,
-          businessTableCount: 36,
+          milestoneReconciliationTables,
+          businessTableCount: 39,
           migrationCount: migrations.length,
           canonicalWorkerDenied: await verifyCanonicalWorkerDenials(
             config("database", "pdaa_worker", "worker-password").database,
           ),
           milestonePersistenceWorkerDenied:
             await verifyMilestonePersistenceWorkerDenials(
+              config("database", "pdaa_worker", "worker-password").database,
+            ),
+          milestoneReconciliationWorkerDenied:
+            await verifyMilestoneReconciliationWorkerDenials(
               config("database", "pdaa_worker", "worker-password").database,
             ),
           authorityFixture,
@@ -410,6 +444,17 @@ try {
           pool,
           receipt.milestonePersistenceFixture.restoreBindingBirthProbe,
         );
+      await verifyMilestoneReconciliationPrivileges(pool);
+      await verifyMilestoneReconciliationIntegrity(pool);
+      await verifyMilestoneReconciliationImmutable(pool);
+      // Connect only as fixture owner while quarantined; each probe SET LOCAL
+      // ROLEs to pdaa_api. Runtime CONNECT remains denied throughout recovery.
+      const milestoneReconciliationCommitGuards =
+        await runMilestoneReconciliationCommitProbes(
+          target("restore_target"),
+          receipt.milestoneReconciliationFixture.restoreProbes,
+        );
+      await verifyMilestoneReconciliationIntegrity(pool);
       receipt.restore = {
         status: "passed",
         exactRetainedRows: true,
@@ -424,6 +469,9 @@ try {
         milestonePersistenceIntegrityChecked: true,
         milestonePersistenceImmutableChecked: true,
         milestonePersistenceCommitGuards,
+        milestoneReconciliationIntegrityChecked: true,
+        milestoneReconciliationImmutableChecked: true,
+        milestoneReconciliationCommitGuards,
         workerCheckpoint: await verifyRestoredWorker(
           admin,
           pool,

@@ -1,7 +1,5 @@
-// Acceptance-only adapter for genuinely populated pre-Stage-2 databases. It
-// adapts additive column projections, INSERTs and the renamed unique lookup;
-// all statements still execute against the unchanged released schema and its
-// real runtime-role constraints. No migration, trigger or data is bypassed.
+// Acceptance-only adaptation of genuinely populated released prefixes. No
+// migration, forward column, trigger, role or stored row is bypassed.
 import assert from "node:assert/strict";
 import { createDatabase } from "../../packages/data/dist/index.js";
 
@@ -42,6 +40,35 @@ const priorColumns = {
       sealed: "boolean",
     },
   },
+  milestoneConsistencyAssessment: {
+    table: "MilestoneConsistencyAssessment",
+    // Exact released-v5 scalar columns. In particular, reconciliationCheckId
+    // is not projected or INSERTed, even as SQL NULL.
+    columns: {
+      id: "uuid",
+      customerId: "uuid",
+      projectId: "uuid",
+      milestoneId: "uuid",
+      canonicalReceiptId: "uuid",
+      ruleRevision: "text",
+      enabled: "boolean",
+      asOf: "timestamptz",
+      subject: "text",
+      idempotencyKey: "text",
+      requestHash: "text",
+      status: "text",
+      complete: "boolean",
+      targetCount: "integer",
+      requiredLinkCount: "integer",
+      versionCount: "integer",
+      evidenceCount: "integer",
+      conflictCount: "integer",
+      contributorCount: "integer",
+      result: "jsonb",
+      auditEventId: "uuid",
+      sealed: "boolean",
+    },
+  },
 };
 
 function insertPriorRow(target, property, args) {
@@ -69,36 +96,41 @@ function insertPriorRow(target, property, args) {
   const values = supplied.map((column) =>
     column === "result" ? JSON.stringify(args.data[column]) : args.data[column],
   );
-  const placeholders = supplied.map(
-    (column, index) => "$" + (index + 1) + "::" + columns[column],
-  );
-  // All identifiers and casts come from the released-column allowlist above;
-  // values remain bound parameters. Database defaults and triggers still run.
-  return target
-    .$queryRawUnsafe(
-      `INSERT INTO "${table}" (${supplied.map((column) => '"' + column + '"').join(",")}) VALUES (${placeholders.join(",")}) RETURNING ${returned.map((column) => '"' + column + '"').join(",")}`,
-      ...values,
-    )
-    .then((rows) => rows[0]);
+  const sql = `INSERT INTO "${table}" (${supplied
+    .map((column) => `"${column}"`)
+    .join(",")}) VALUES (${supplied
+    .map((column, index) => `$${index + 1}::${columns[column]}`)
+    .join(",")}) RETURNING ${returned
+    .map((column) => `"${column}"`)
+    .join(",")}`;
+  return target.$queryRawUnsafe(sql, ...values).then((rows) => rows[0]);
 }
 
-export function createPriorReleaseDatabase(connection) {
+export function createPriorReleaseDatabase(connection, prefixCount) {
   assert.equal(process.env.PDAA_ACCEPTANCE, "isolated");
+  assert(
+    [2, 3, 4, 5].includes(prefixCount),
+    "A populated prior fixture must name its exact released migration prefix",
+  );
+  const preMilestone = prefixCount < 5;
+  const adaptedModels = preMilestone
+    ? ["projectFact", "factAssessment"]
+    : ["milestoneConsistencyAssessment"];
+
   const adapt = (database) =>
     new Proxy(database, {
       get(target, property) {
-        if (property === "$transaction")
+        if (property === "$transaction") {
           return (execute, options) =>
             target.$transaction((tx) => execute(adapt(tx)), options);
-        if (["projectFact", "factAssessment"].includes(property)) {
-          const delegate = target[property];
-          return new Proxy(delegate, {
-            get(model, operation) {
-              if (typeof model[operation] !== "function")
-                return model[operation];
+        }
+        if (adaptedModels.includes(property)) {
+          const model = target[property];
+          return new Proxy(model, {
+            get(delegate, operation) {
+              if (typeof delegate[operation] !== "function")
+                return delegate[operation];
               return (input = {}) => {
-                // Do not silently adapt aggregate/count/nested operations that
-                // these released-history fixtures have never exercised.
                 assert(
                   [
                     "create",
@@ -107,39 +139,62 @@ export function createPriorReleaseDatabase(connection) {
                     "findMany",
                     "update",
                   ].includes(operation),
+                  `Unsupported prior fixture operation: ${String(property)}.${String(operation)}`,
                 );
                 const args = globalThis.structuredClone(input);
-                if (!args.select)
-                  args.omit = {
-                    ...args.omit,
-                    ...(property === "projectFact"
-                      ? { bindingBirthId: true }
-                      : { captureKind: true, milestoneAssessmentId: true }),
-                  };
-                if (property === "factAssessment" && args.data) {
-                  assert([undefined, "SCALAR"].includes(args.data.captureKind));
-                  assert(args.data.milestoneAssessmentId == null);
-                  delete args.data.captureKind;
-                  delete args.data.milestoneAssessmentId;
-                }
-                const key =
-                  args.where
-                    ?.customerId_projectId_subject_captureKind_idempotencyKey;
-                if (key) {
-                  assert.equal(operation, "findUnique");
-                  assert.equal(key.captureKind, "SCALAR");
-                  const priorKey = { ...key };
-                  delete priorKey.captureKind;
-                  args.where = priorKey;
-                  return model.findFirst(args);
+                if (!preMilestone) {
+                  // The released fifth schema already has bindingBirthId and
+                  // both scalar/MILESTONE assessment kinds and retry keys.
+                  // Only this new nullable sixth-migration field is absent.
+                  assert(
+                    [undefined, false].includes(
+                      args.select?.reconciliationCheckId,
+                    ),
+                    "A v5 fixture cannot select reconciliation ownership",
+                  );
+                  if (args.data) {
+                    assert(
+                      args.data.reconciliationCheckId == null,
+                      "A v5 fixture cannot create or adopt reconciliation ownership",
+                    );
+                    delete args.data.reconciliationCheckId;
+                  }
+                  if (!args.select) {
+                    args.omit = { ...args.omit, reconciliationCheckId: true };
+                  }
+                } else {
+                  // Preserve the existing genuine-prefix2-4 adaptations.
+                  if (!args.select) {
+                    args.omit = {
+                      ...args.omit,
+                      ...(property === "projectFact"
+                        ? { bindingBirthId: true }
+                        : { captureKind: true, milestoneAssessmentId: true }),
+                    };
+                  }
+                  if (property === "factAssessment" && args.data) {
+                    assert(
+                      [undefined, "SCALAR"].includes(args.data.captureKind),
+                    );
+                    assert(args.data.milestoneAssessmentId == null);
+                    delete args.data.captureKind;
+                    delete args.data.milestoneAssessmentId;
+                  }
+                  const retryKey =
+                    args.where
+                      ?.customerId_projectId_subject_captureKind_idempotencyKey;
+                  if (property === "factAssessment" && retryKey) {
+                    assert.equal(operation, "findUnique");
+                    assert.equal(retryKey.captureKind, "SCALAR");
+                    delete retryKey.captureKind;
+                    args.where = retryKey;
+                    return delegate.findFirst(args);
+                  }
                 }
                 if (operation === "create") {
-                  // The current Prisma model has a new non-null default column;
-                  // an ORM INSERT may materialize that default even when omitted.
-                  // Insert only the explicit released columns in this fixture.
                   return insertPriorRow(target, property, args);
                 }
-                return model[operation](args);
+                return delegate[operation](args);
               };
             },
           });

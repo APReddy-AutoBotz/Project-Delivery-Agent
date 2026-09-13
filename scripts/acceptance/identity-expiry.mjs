@@ -146,19 +146,22 @@ export async function checkIdentityExpiry(browser) {
       name: /Atlas · Customer platform/,
     });
     await card.waitFor();
-    stage = "loaded-details";
+    stage = "loaded-details-listener";
     const loaded = page.waitForResponse(
       (response) =>
         response.url() === base + "/api/projects/" + projectId &&
         response.request().method() === "GET",
     );
+    stage = "loaded-details-click";
     await card.click();
+    stage = "loaded-details-response";
     const detail = await loaded;
     assert.equal(detail.status(), 200);
     assert.equal(
       await detail.request().headerValue("authorization"),
       authorization,
     );
+    stage = "loaded-details-heading";
     await expect(
       page.getByRole("heading", {
         name: "Atlas · Customer platform",
@@ -166,13 +169,17 @@ export async function checkIdentityExpiry(browser) {
         exact: true,
       }),
     ).toBeVisible();
+    stage = "loaded-details-description";
     await expect(
       page.getByText("Isolated synthetic TLS/OIDC acceptance fixture", {
         exact: true,
       }),
     ).toBeVisible();
+    stage = "loaded-details-disclosure";
     await capture(page);
+    stage = "loaded-details-return-navigation";
     await page.getByRole("button", { name: "← All projects" }).click();
+    stage = "loaded-details-return-card";
     await card.waitFor();
     // This manager has business read scope but never had grant authority.
     // Identical valid payloads move from authorization 403 to authentication 401.

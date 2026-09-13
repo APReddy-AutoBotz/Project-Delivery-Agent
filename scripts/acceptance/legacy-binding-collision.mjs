@@ -78,7 +78,7 @@ export async function seedLegacyBindingCollision(
   ).rows;
   assert.equal(targets.length, 1);
   f.milestoneId = targets[0].id;
-  const db = createPriorReleaseDatabase(connection);
+  const db = createPriorReleaseDatabase(connection, 4);
   try {
     assert.equal(
       (await db.$queryRaw`SELECT current_user AS role`)[0].role,

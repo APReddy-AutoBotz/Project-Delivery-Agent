@@ -2,7 +2,8 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { chromium, expect } from "@playwright/test";
+import { chromium } from "@playwright/test";
+import { closeCustomerBrowserSession } from "./customer-session.mjs";
 import { Pool, secret } from "./common.mjs";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
 import { waitForIdentityProvider } from "./identity-readiness.mjs";
@@ -11,6 +12,11 @@ import {
   openSavedEvidence,
   verifyEvidenceProjectRevocation,
 } from "./evidence-workflow.mjs";
+import {
+  exerciseMilestoneReconciliationWorkflow,
+  openSavedMilestoneReconciliation,
+  verifyMilestoneReconciliationProjectWithdrawal,
+} from "./milestone-reconciliation-workflow.mjs";
 import {
   readMigrations,
   validateHistory,
@@ -55,6 +61,16 @@ import {
   verifyMilestonePersistenceCommitGuards,
   verifyMilestonePersistenceWorkerDenials,
 } from "./milestone-persistence.mjs";
+import {
+  milestoneReconciliationTables,
+  milestoneReconciliationProjection,
+  seedMilestoneReconciliation,
+  verifyMilestoneReconciliationPrivileges,
+  verifyMilestoneReconciliationImmutable,
+  verifyMilestoneReconciliationIntegrity,
+  verifyMilestoneReconciliationWorkerDenials,
+  runMilestoneReconciliationCommitProbes,
+} from "./milestone-reconciliation.mjs";
 import { verifyStateBindingBirthGuards } from "./state-binding-birth.mjs";
 import {
   createDisclosureCheck,
@@ -112,6 +128,7 @@ async function projection(pool) {
     ...(await authorityProjection(pool)),
     ...(await canonicalProjection(pool)),
     ...(await milestonePersistenceProjection(pool)),
+    ...(await milestoneReconciliationProjection(pool)),
   };
   for (const table of [
     "Customer",
@@ -180,7 +197,12 @@ async function browserCheck(afterUpgrade) {
   );
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   try {
-    async function login(name, path = "/") {
+    async function login(
+      name,
+      path = "/",
+      readyKind = path === "/" ? "projects" : "assessment",
+      responseSuffix = null,
+    ) {
       const context = await browser.newContext();
       const capture = await observeBrowserDisclosure(
         context,
@@ -189,6 +211,19 @@ async function browserCheck(afterUpgrade) {
         "https://identity-ingress:8443",
       );
       const page = await capture.newPage();
+      // Observe the original saved-link response before navigation. Never issue
+      // a substitute GET to manufacture the browser's proof observation.
+      const initialResponse = responseSuffix
+        ? page.waitForResponse(
+            (response) =>
+              response.url().endsWith(responseSuffix) &&
+              response.request().method() === "GET",
+            { timeout: 90_000 },
+          )
+        : null;
+      // Navigation can fail before the awaited response; preserve that failure
+      // without an unhandled rejection while the owning browser is cleaned up.
+      initialResponse?.catch(() => {});
       await page.goto(base + path);
       await capture.settle(page);
       await page
@@ -208,13 +243,28 @@ async function browserCheck(afterUpgrade) {
       await page.locator("#kc-login").click();
       const token = (await (await tokenResponse).json()).access_token;
       assert.equal(typeof token, "string");
-      if (path === "/")
+      if (readyKind === "projects")
         await page.getByRole("heading", { name: "Your projects" }).waitFor();
-      else
+      else if (readyKind === "assessment")
         await page
           .getByRole("region", { name: "Saved assessment", exact: true })
           .waitFor();
-      return { context, page, capture, token, disclosure };
+      else if (readyKind === "reconciliation")
+        await page
+          .getByRole("region", {
+            name: "PM reconciliation request",
+            exact: true,
+          })
+          .waitFor();
+      else throw new Error("Unknown customer browser readiness kind");
+      return {
+        context,
+        page,
+        capture,
+        token,
+        disclosure,
+        initialResponse: initialResponse ? await initialResponse : null,
+      };
     }
     const evidenceFixture = afterUpgrade
       ? read("evidence-workflow-fixture")
@@ -227,6 +277,19 @@ async function browserCheck(afterUpgrade) {
           original: evidenceFixture.original,
         })
       : null;
+    let reconciliationFixture = afterUpgrade
+      ? read("milestone-reconciliation-workflow-fixture")
+      : null;
+    const savedReconciliation = afterUpgrade
+      ? await openSavedMilestoneReconciliation({
+          login,
+          base,
+          fixture: reconciliationFixture,
+          output,
+        })
+      : null;
+    let reconciliationReceipt;
+    let persistence;
     const operator = await login("operator");
     await operator.page
       .getByText("No projects are shared with this account")
@@ -255,14 +318,21 @@ async function browserCheck(afterUpgrade) {
         projectId,
         original: evidenceFixture.original,
       });
-      const persistence = read("project-fact-persistence");
+      persistence = read("project-fact-persistence");
       persistence.evidenceWorkflow = {
         ...evidenceFixture.receipt,
         status: "passed",
         savedLinkAfterRecreation: true,
         projectRevocationDenied: true,
       };
-      save("project-fact-persistence", persistence);
+      reconciliationReceipt =
+        await verifyMilestoneReconciliationProjectWithdrawal({
+          operator,
+          saved: savedReconciliation,
+          base,
+          fixture: reconciliationFixture,
+          output,
+        });
     } else {
       await operator.page.getByLabel("Account subject").fill("pmo-atlas");
       await operator.page
@@ -276,31 +346,7 @@ async function browserCheck(afterUpgrade) {
         .filter({ hasText: "Access granted" })
         .waitFor();
     }
-    await operator.capture(operator.page);
-    const logout = operator.page.waitForRequest((request) =>
-      request.url().includes("/protocol/openid-connect/logout?"),
-    );
-    const returned = operator.page.waitForEvent("framenavigated", {
-      predicate: (frame) =>
-        frame === operator.page.mainFrame() && frame.url() === base + "/",
-    });
-    await operator.page.getByRole("button", { name: "Sign out" }).click();
-    assert.equal(
-      new URL((await logout).url()).origin,
-      "https://identity-ingress:8443",
-    );
-    await returned;
-    await operator.page.waitForLoadState("domcontentloaded");
-    await operator.page
-      .getByRole("heading", { name: "Welcome to your workspace" })
-      .waitFor();
-    await expect(
-      operator.page.getByRole("button", {
-        name: "Sign in with your organization",
-      }),
-    ).toBeEnabled();
-    await operator.capture(operator.page);
-    await operator.capture.close();
+    await closeCustomerBrowserSession(operator, base);
     const pm = await login("pm-atlas");
     if (afterUpgrade)
       await pm.page
@@ -310,13 +356,20 @@ async function browserCheck(afterUpgrade) {
       await pm.page
         .getByRole("button", { name: /Customer installation fixture/ })
         .waitFor();
-    await pm.capture(pm.page);
-    await pm.capture.close();
-    if (!afterUpgrade)
+    await closeCustomerBrowserSession(pm, base);
+    if (!afterUpgrade) {
       save(
         "evidence-workflow-fixture",
         await exerciseEvidenceWorkflow({ login, base, projectId, output }),
       );
+      reconciliationFixture = await exerciseMilestoneReconciliationWorkflow({
+        login,
+        base,
+        portfolioId: "20000000-0000-4000-8000-000000000003",
+        customerId: env.CUSTOMER_ID,
+        output,
+      });
+    }
     await scanBrowserAssets(base, disclosure);
     save("disclosure-" + phase, {
       status: "passed",
@@ -329,8 +382,18 @@ async function browserCheck(afterUpgrade) {
         "asset-headers",
         "evidence-api-headers",
         "evidence-api-bodies",
+        "reconciliation-api-headers",
+        "reconciliation-api-bodies",
       ]),
     });
+    // Retain response bytes only after the independent disclosure recorder has
+    // drained original browser responses and checked the full fixture secret set.
+    if (afterUpgrade) {
+      persistence.milestoneReconciliationWorkflow = reconciliationReceipt;
+      save("project-fact-persistence", persistence);
+    } else {
+      save("milestone-reconciliation-workflow-fixture", reconciliationFixture);
+    }
   } finally {
     await browser.close();
   }
@@ -369,6 +432,7 @@ try {
       ...authorityTables,
       ...canonicalTables,
       ...milestonePersistenceTables,
+      ...milestoneReconciliationTables,
     ])
       assert.equal(
         state[table].length,
@@ -378,7 +442,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 5);
+    assert.equal(migrations.length, 6);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -389,6 +453,7 @@ try {
     await verifyProjectFactPrivileges(db);
     await verifyCanonicalPrivileges(db);
     await verifyMilestonePersistencePrivileges(db);
+    await verifyMilestoneReconciliationPrivileges(db);
     const configResponse = await fetch(base + "/api/auth/config");
     assert.equal(configResponse.status, 200);
     const publicConfig = await configResponse.text();
@@ -448,7 +513,7 @@ try {
     );
     await browserCheck(false);
     const state = await projection(db);
-    assert.equal(state.AccessGrant.length, 2);
+    assert.equal(state.AccessGrant.length, 4);
     assert(state.AuditEvent.length > 0);
     const fixture = await seedProjectFactHistory(
       db,
@@ -504,6 +569,21 @@ try {
     await verifyMilestonePersistencePrivileges(db);
     await verifyMilestonePersistenceImmutable(db);
     await verifyMilestonePersistenceIntegrity(db);
+    const milestoneReconciliationFixture = await seedMilestoneReconciliation(
+      db,
+      loadDatabaseConfig({
+        ...env,
+        PDAA_DB_USER: "pdaa_api",
+        PDAA_DB_PASSWORD_FILE: "/run/secrets/api-password",
+      }).database,
+      env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+      "customer-reconciliation-" + profile,
+      { reserveForRestore: true },
+    );
+    await verifyMilestoneReconciliationPrivileges(db);
+    await verifyMilestoneReconciliationImmutable(db);
+    await verifyMilestoneReconciliationIntegrity(db);
     save("project-fact-persistence", {
       status: "awaiting-restore",
       workerRuntimeDenied: await verifyWorkerFactDenials(
@@ -517,11 +597,24 @@ try {
       authorityFixture,
       canonicalFixture,
       milestonePersistenceFixture,
+      milestoneReconciliationFixture,
       evidenceWorkflow: read("evidence-workflow-fixture").receipt,
+      milestoneReconciliationWorkflow: read(
+        "milestone-reconciliation-workflow-fixture",
+      ).receipt,
       canonicalTables,
       milestonePersistenceTables,
-      businessTableCount: 36,
-      migrationCount: 5,
+      milestoneReconciliationTables,
+      businessTableCount: 39,
+      migrationCount: 6,
+      milestoneReconciliationWorkerDenied:
+        await verifyMilestoneReconciliationWorkerDenials(
+          loadDatabaseConfig({
+            ...env,
+            PDAA_DB_USER: "pdaa_worker",
+            PDAA_DB_PASSWORD_FILE: "/run/secrets/worker-password",
+          }).database,
+        ),
       milestonePersistenceWorkerDenied:
         await verifyMilestonePersistenceWorkerDenials(
           loadDatabaseConfig({
@@ -559,6 +652,8 @@ try {
     await verifyCanonicalIntegrity(db);
     await verifyMilestonePersistencePrivileges(db);
     await verifyMilestonePersistenceIntegrity(db);
+    await verifyMilestoneReconciliationPrivileges(db);
+    await verifyMilestoneReconciliationIntegrity(db);
     await browserCheck(true);
     await verifyProjectFactPrivileges(db);
     const state = await projection(db);
@@ -616,6 +711,15 @@ try {
         false,
       );
       const receipt = read("project-fact-persistence");
+      await verifyMilestoneReconciliationPrivileges(restored);
+      await verifyMilestoneReconciliationIntegrity(restored);
+      await verifyMilestoneReconciliationImmutable(restored);
+      const milestoneReconciliationCommitGuards =
+        await runMilestoneReconciliationCommitProbes(
+          { ...connection, database: "pdaa_restore" },
+          receipt.milestoneReconciliationFixture.restoreProbes,
+        );
+      await verifyMilestoneReconciliationIntegrity(restored);
       receipt.restore = {
         status: "passed",
         exactRetainedRows: true,
@@ -630,6 +734,9 @@ try {
         milestonePersistenceIntegrityChecked: true,
         milestonePersistenceImmutableChecked: true,
         milestonePersistenceCommitGuards,
+        milestoneReconciliationIntegrityChecked: true,
+        milestoneReconciliationImmutableChecked: true,
+        milestoneReconciliationCommitGuards,
         workerCheckpoint: await verifyRestoredWorker(
           db,
           restored,

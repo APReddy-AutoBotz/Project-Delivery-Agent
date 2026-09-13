@@ -85,3 +85,4 @@ export interface WorkerHeartbeatRepository {
 }
 export * from "./milestone-consistency.js";
 export * from "./milestone-persistence.js";
+export * from "./milestone-reconciliation.js";

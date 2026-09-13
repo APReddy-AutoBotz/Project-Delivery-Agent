@@ -64,6 +64,9 @@ model AuditEvent {
   customer Customer @relation(fields: [customerId], references: [id])
   canonicalStateBindingReceipts CanonicalStateBindingReceipt[]
   milestoneConsistencyAssessments MilestoneConsistencyAssessment[]
+  reconciliationRequests MilestoneReconciliationRequest[]
+  reconciliationChecks MilestoneReconciliationCheck[]
+  reconciliationAssignments MilestoneReconciliationAssignment[]
   @@unique([customerId, id], map: "AuditEvent_customer_key")
   @@index([customerId, occurredAt])
 }
@@ -174,6 +177,7 @@ model ProjectFactVersion {
   @@unique([customerId, projectId, factId, revision], map: "ProjectFactVersion_revision_key")
   @@unique([customerId, projectId, factId, sourceId, evidenceId], map: "ProjectFactVersion_scoped_evidence_key")
   @@unique([customerId, projectId, factId, id, sourceId, evidenceId], map: "ProjectFactVersion_exact_evidence_key")
+  @@index([sourceId, effectiveAt(sort: Desc), revision], map: "ProjectFactVersion_source_temporal_idx")
 }
 model FactAppendReceipt {
   id String @id @db.Uuid
@@ -371,6 +375,8 @@ model ProjectResponsibility {
   role String @db.VarChar(32)
   subject String @db.VarChar(200)
   displayName String @db.VarChar(160)
+  reconciliationAssignments MilestoneReconciliationAssignment[]
+  @@unique([customerId, projectId, id], map: "ReconciliationResponsibility_scope_key")
   @@unique([customerId, projectId, role, subject], map: "ProjectResponsibility_u0")
   project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ProjectResponsibility_project_fk")
 }
@@ -397,6 +403,7 @@ model Sprint {
 }
 
 model Milestone {
+  reconciliationRequests MilestoneReconciliationRequest[]
   id String @id @db.Uuid
   customerId String @db.Uuid
   projectId String @db.Uuid
@@ -599,6 +606,10 @@ model MilestoneConsistencyAssessment {
   result Json
   auditEventId String @unique @db.Uuid
   sealed Boolean @default(false)
+  reconciliationCheckId String? @unique @db.Uuid
+  reconciliationCheck MilestoneReconciliationCheck? @relation("AssessmentCheck", fields: [customerId, projectId, id, reconciliationCheckId], references: [customerId, projectId, assessmentId, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationAssessment_check_fk")
+  ownedCheck MilestoneReconciliationCheck? @relation("CheckAssessment")
+  reconciliationRequest MilestoneReconciliationRequest?
   project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
   milestone Milestone @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneConsistencyAssessmen_customerId_projectId_milesto_fkey")
   canonicalReceipt CanonicalCreationReceipt @relation(fields: [customerId, projectId, canonicalReceiptId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneConsistencyAssessmen_customerId_projectId_canonic_fkey")
@@ -607,6 +618,7 @@ model MilestoneConsistencyAssessment {
   targets MilestoneConsistencyTarget[]
   contributors MilestoneConsistencyContributorVersion[]
   @@unique([customerId, projectId, id], map: "MilestoneConsistencyAssessment_scope_key")
+  @@unique([customerId, projectId, id, reconciliationCheckId], map: "ReconciliationAssessment_owner_key")
   @@unique([customerId, projectId, subject, idempotencyKey], map: "MilestoneConsistencyAssessment_request_key")
 }
 
@@ -652,4 +664,87 @@ model MilestoneConsistencyContributorVersion {
   version ProjectFactVersion @relation(fields: [customerId, projectId, factId, versionId, sourceId, evidenceId], references: [customerId, projectId, factId, id, sourceId, evidenceId], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneContributor_version_fk")
   evidence FactEvidence @relation(fields: [customerId, projectId, factId, sourceId, evidenceId], references: [customerId, projectId, factId, sourceId, id], onDelete: Restrict, onUpdate: Restrict, map: "MilestoneContributor_evidence_fk")
   @@id([assessmentId, targetRowId, versionId, evidenceId])
+}
+
+model MilestoneReconciliationRequest {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  milestoneId String @db.Uuid
+  ruleRevision String @db.VarChar(48)
+  originalAssessmentId String @unique @db.Uuid
+  originCommandId String @unique @db.Uuid
+  contributorHash String @db.Char(64)
+  contributorIdentity String
+  createdBy String @db.VarChar(256)
+  createdAt DateTime @db.Timestamptz(3)
+  state String @default("OPEN") @db.VarChar(16)
+  auditEventId String @unique @db.Uuid
+  sealed Boolean @default(false)
+  milestone Milestone @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationRequest_milestone_fk")
+  originalAssessment MilestoneConsistencyAssessment @relation(fields: [customerId, projectId, originalAssessmentId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationRequest_assessment_fk")
+  originCheck MilestoneReconciliationCheck @relation("RequestBirth", fields: [customerId, projectId, id, originCommandId, originalAssessmentId], references: [customerId, projectId, requestId, id, assessmentId], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationRequest_birth_fk")
+  audit AuditEvent @relation(fields: [customerId, auditEventId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationRequest_audit_fk")
+  checks MilestoneReconciliationCheck[] @relation("RequestChecks")
+  assignments MilestoneReconciliationAssignment[]
+  @@unique([customerId, projectId, id], map: "ReconciliationRequest_scope_key")
+  @@unique([customerId, projectId, originalAssessmentId], map: "ReconciliationRequest_proof_key")
+  @@unique([customerId, projectId, id, originCommandId, originalAssessmentId], map: "ReconciliationRequest_birth_key")
+  @@unique([customerId, projectId, milestoneId, ruleRevision, contributorHash], map: "ReconciliationRequest_business_key")
+  @@index([customerId, projectId, createdAt, id], map: "ReconciliationRequest_page_idx")
+}
+
+model MilestoneReconciliationCheck {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  subject String @db.VarChar(256)
+  idempotencyKey String @db.VarChar(128)
+  requestHash String @db.Char(64)
+  assessmentId String @unique @db.Uuid
+  requestId String? @db.Uuid
+  outcome String @db.VarChar(16)
+  occurredAt DateTime @db.Timestamptz(3)
+  auditEventId String @unique @db.Uuid
+  assessment MilestoneConsistencyAssessment @relation("CheckAssessment", fields: [customerId, projectId, assessmentId, id], references: [customerId, projectId, id, reconciliationCheckId], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationCheck_assessment_fk")
+  ownedAssessment MilestoneConsistencyAssessment? @relation("AssessmentCheck")
+  request MilestoneReconciliationRequest? @relation("RequestChecks", fields: [customerId, projectId, requestId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationCheck_request_fk")
+  bornRequest MilestoneReconciliationRequest? @relation("RequestBirth")
+  audit AuditEvent @relation(fields: [customerId, auditEventId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationCheck_audit_fk")
+  @@unique([customerId, projectId, subject, idempotencyKey], map: "ReconciliationCheck_retry_key")
+  @@unique([customerId, projectId, assessmentId, id], map: "ReconciliationCheck_owner_key")
+  @@unique([customerId, projectId, requestId, id, assessmentId], map: "ReconciliationCheck_birth_key")
+}
+
+model MilestoneReconciliationAssignment {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  requestId String @db.Uuid
+  revision Int
+  expectedRevision Int
+  previousAssignmentId String? @db.Uuid
+  kind String @db.VarChar(16)
+  recipientSubject String? @db.VarChar(256)
+  responsibilityId String? @db.Uuid
+  reason String @db.VarChar(32)
+  actor String @db.VarChar(256)
+  occurredAt DateTime @db.Timestamptz(3)
+  auditEventId String @unique @db.Uuid
+  idempotencyKey String? @db.VarChar(128)
+  requestHash String? @db.Char(64)
+  grantId String? @db.Uuid
+  grantCustomerId String? @db.Uuid
+  grantSubject String? @db.VarChar(256)
+  grantScopeType String? @db.VarChar(16)
+  grantScopeId String? @db.Uuid
+  grantRole String? @db.VarChar(32)
+  request MilestoneReconciliationRequest @relation(fields: [customerId, projectId, requestId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationAssignment_request_fk")
+  responsibility ProjectResponsibility? @relation(fields: [customerId, projectId, responsibilityId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationAssignment_responsibility_fk")
+  previous MilestoneReconciliationAssignment? @relation("AssignmentPredecessor", fields: [customerId, projectId, requestId, expectedRevision, previousAssignmentId], references: [customerId, projectId, requestId, revision, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationAssignment_previous_fk")
+  successors MilestoneReconciliationAssignment[] @relation("AssignmentPredecessor")
+  audit AuditEvent @relation(fields: [customerId, auditEventId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ReconciliationAssignment_audit_fk")
+  @@unique([customerId, projectId, requestId, revision], map: "ReconciliationAssignment_revision_key")
+  @@unique([customerId, projectId, requestId, revision, id], map: "ReconciliationAssignment_predecessor_key")
+  @@unique([customerId, projectId, requestId, actor, idempotencyKey], map: "ReconciliationAssignment_retry_key")
 }

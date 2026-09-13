@@ -86,6 +86,50 @@ until renewed or expired. Administrative roles do not grant project/portfolio
 business access. Restore the prior environment mapping and recreate the API to
 reverse a mapping change. See [the acceptance scope](../05-quality/OIDC_CONFIGURATION_VALIDATION.md).
 
+## Internal milestone reconciliation candidate
+
+FR-EVD-004/009/012, FR-MOD-002, FR-ADM-005, NFR-SEC-001/004/005 and
+NFR-REL-001/002; Issue #6. This is the unmerged Stage 3 candidate described in
+[EXEC-007](../04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md), not
+customer activation or story acceptance.
+
+In a canonical project's milestone workspace, a scoped PMO administrator can
+review the milestone and required-work metadata and explicitly bind each target's
+state to a fact. Creating a binding records a HUMAN_CONFIRMED statement; it never
+turns configured state into SYSTEM_VERIFIED evidence. Authority policies and
+source-reader access remain separate controls. Missing or ambiguous evidence
+cannot establish a contradiction.
+
+An identity with a matching project or inherited portfolio grant and the
+`project_manager`, `portfolio_manager` or `pmo_admin` role can run a check and
+view the management queue. A fresh check captures its own immutable proof.
+Complete milestones with resolved Open/In-progress mandatory work can create an
+internal OPEN reconciliation request. The same exact contributing evidence reuses
+the existing request and original proof; changed contributors can create a new
+request. A later disabled or non-conflicting check does not close an older request.
+
+Routing requires exactly one configured project manager before checking that
+person's scope grant. Missing, ambiguous or inaccessible recipients leave an
+explicit unassigned request. Assignment refresh is an explicit, revision-checked
+action that reevaluates configuration and grants; it does not accept an arbitrary
+recipient. After an uncertain response, retry the same command key. Replaying an
+older refresh returns its original assignment receipt, while the live queue shows
+the latest assignment.
+
+Only the currently assigned, sole configured PM with the `project_manager` role,
+matching scope and access to every original proof source can use the PM saved-link
+endpoint to read the full proof. The proof retains its original as-of time,
+provenance, freshness and conflict dimensions. Loss of access to any original
+source withholds the whole proof, including noncontributing required-work sources.
+Losing recipient identity or scope makes
+the saved resource unavailable. The browser revalidates on refresh/focus and
+periodically; server checks apply on every read. Do not treat a previously loaded
+page as continuing authorization.
+
+There is no sent/read acknowledgement, email, external message, automatic
+follow-up, resolution, closure or approval action in this candidate. A successful
+GET or queue entry does not attest that a person read or acted on a request.
+
 ## Backup and upgrade
 
 The canonical project increment adds the explicit `portfolio_manager` role.
@@ -100,6 +144,16 @@ inside the existing authority integrity predicate without changing its checks.
 The current API grants add SELECT/INSERT and only the canonical seal column UPDATE;
 the worker gains no new business access. Apply the migration and finite grants
 through the maintenance operation below before starting the new application image.
+
+The milestone persistence release adds five tables in migration5 (36 business
+tables). The Stage 3 candidate adds three reconciliation history tables in
+migration6 (39 total), mutual check/capture ownership constraints, and a nonunique
+`ProjectFactVersion_source_temporal_idx` index. All five released migration files
+remain byte-for-byte unchanged. The new index uses ordinary transactional creation,
+which blocks writes while building. Keep API/worker stopped during maintenance;
+size the window using representative data, not the small synthetic upgrade fixture.
+Runtime grants remain finite and the worker gains no reconciliation access.
+Restore validates all new histories and retains runtime CONNECT quarantine.
 
 ```sh
 docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml run --rm backup
@@ -128,8 +182,8 @@ and run `operations migrate` with `PDAA_DB_USER=pdaa_migrate` and
 only after the job passes. The job uses the existing Prisma ledger, rejects unknown,
 unfinished or changed migrations, serializes concurrent adapters and applies each
 complete SQL file transactionally. Nontransactional migrations require a separate
-approved recovery design. Current schema is unchanged by this increment; the first
-release migration is packaged exactly as before. There is no automatic SQL down path.
+approved recovery design. Use the reviewed release's complete migration set and
+preserve every released migration byte string. There is no automatic SQL down path.
 
 Use explicit `run -e` options for the migration account; assigning `PDAA_DB_USER`
 in the host shell does not override the service's configured administrator. For
@@ -209,9 +263,14 @@ separately retained key, Graphile ownership and absence of application sessions.
 Do not start a worker on restored queue contents automatically. Promotion requires
 the customer's incident/change procedure, explicit source/target choice, credential
 review and later external-action reconciliation (STORY-036). There is deliberately
-no automatic promotion command. For a code-only rollback, deploy the previous
-reviewed image set; for a failed data upgrade, retain the source and restore the
-pre-upgrade archive into a separate quarantined target with its matching release.
+no automatic promotion command. A code-only rollback may use previous reviewed
+API/worker/web images only after their compatibility with the retained schema is
+explicitly validated. Keep operations tooling compatible with that schema: after
+migration6, the previous five-migration/36-table operations image is not a valid
+replacement for the current six-migration/39-table tooling. To recover the complete
+previous image set after a data upgrade, retain the source and restore the
+pre-upgrade archive into a separate quarantined target with its matching release;
+promotion still requires the customer's explicit recovery procedure.
 
 Limits: PostgreSQL 17 only; no point-in-time recovery or cross-cluster bootstrap;
 backup jobs have a five-minute PostgreSQL client deadline and restore capacity is

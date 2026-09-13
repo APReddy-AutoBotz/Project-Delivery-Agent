@@ -1,9 +1,152 @@
 import { test, expect } from "@playwright/test";
+import { randomBytes } from "node:crypto";
+import {
+  createDisclosureCheck,
+  observeBrowserDisclosure,
+} from "../../scripts/acceptance/disclosure.mjs";
 test.beforeAll(async ({ request }) => {
   expect(
     (await request.get("/api/health/ready")).status(),
     "Synthetic API/database must be ready before browser workflows",
   ).toBe(200);
+});
+test("FR-EVD-009 / SEC-SECRET-001: expected queue denials finish their original bodies on load and revalidation", async ({
+  browser,
+  baseURL,
+}) => {
+  if (!baseURL) throw new Error("Synthetic browser origin is required");
+  const origin = new URL(baseURL).origin;
+  const queuePath =
+    "/api/projects/30000000-0000-4000-8000-000000000001/reconciliation-requests";
+  const check = createDisclosureCheck([randomBytes(32).toString("base64url")]);
+  const context = await browser.newContext();
+  const capture = await observeBrowserDisclosure(context, origin, check);
+  try {
+    const page = await capture.newPage();
+    let finished = 0;
+    let pageErrors = 0;
+    page.on("pageerror", () => pageErrors++);
+    const statuses: number[] = [];
+    page.on("response", (response) => {
+      if (response.url() === origin + queuePath)
+        statuses.push(response.status());
+    });
+    page.on("requestfinished", (request) => {
+      if (request.url() === origin + queuePath) finished++;
+    });
+    await page.clock.install();
+    await page.goto(origin);
+    await page.getByRole("button", { name: "Project manager" }).click();
+    await page
+      .getByRole("button", { name: /Atlas · Customer platform/ })
+      .click();
+    await expect(page.getByText("Unknown — no source connected")).toBeVisible();
+    await expect.poll(() => statuses).toEqual([404]);
+    await expect.poll(() => finished).toBe(1);
+    // No response routing/replacement: the recorder reads and continues the
+    // server's original 404. settle also requires zero failed/unresolved captures.
+    // Development sign-in has no OIDC token response; full expiry/disclosure is
+    // separately required by the unchanged real-OIDC acceptance workflow.
+    await capture.settle(page);
+    await page.clock.fastForward(15001);
+    await expect.poll(() => statuses).toEqual([404, 404]);
+    await expect.poll(() => finished).toBe(2);
+    await capture.settle(page);
+    const reconciliation = page.getByRole("region", {
+      name: "Milestone reconciliation",
+      exact: true,
+    });
+    await expect(
+      reconciliation.getByText(
+        "This evidence or action is unavailable for your account. Refresh to check current access.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      reconciliation.getByText("Not Found", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Delivery structure", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+    expect(pageErrors).toBe(0);
+    await page.screenshot({
+      path: test.info().outputPath("queue-revalidation.png"),
+      fullPage: true,
+    });
+    await capture.close();
+    const channels = check.verify([
+      "browser-response-headers",
+      "browser-response-bodies",
+    ]);
+    expect(channels["browser-response-bodies"].captures).toBeGreaterThan(2);
+  } catch (error) {
+    const page = context.pages()[0];
+    if (page)
+      await page.screenshot({
+        path: test.info().outputPath("queue-failure.png"),
+        fullPage: true,
+      });
+    throw error;
+  } finally {
+    await context.close();
+  }
+});
+test("FR-EVD-009 / SEC-SECRET-001: sign-out stops protected polling before disclosure teardown", async ({
+  browser,
+  baseURL,
+}) => {
+  if (!baseURL) throw new Error("Synthetic browser origin is required");
+  const origin = new URL(baseURL).origin;
+  const context = await browser.newContext();
+  const check = createDisclosureCheck([randomBytes(32).toString("base64url")]);
+  const capture = await observeBrowserDisclosure(context, origin, check);
+  try {
+    const page = await capture.newPage();
+    let protectedRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().startsWith(origin + "/api/projects"))
+        protectedRequests++;
+    });
+    await page.clock.install();
+    await page.goto(origin);
+    await page.getByRole("button", { name: "Project manager" }).click();
+    await page
+      .getByRole("button", { name: /Atlas · Customer platform/ })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Delivery structure", exact: true }),
+    ).toBeVisible();
+    await capture.settle(page);
+    const initial = protectedRequests;
+    await page.clock.fastForward(15001);
+    await expect.poll(() => protectedRequests).toBeGreaterThan(initial);
+    await capture.settle(page);
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expect(
+      page.getByRole("heading", {
+        name: "Welcome to your workspace",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("region", {
+        name: "Milestone reconciliation",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("region", { name: "Project evidence", exact: true }),
+    ).toHaveCount(0);
+    const signedOut = protectedRequests;
+    await page.clock.fastForward(31000);
+    await capture.settle(page);
+    expect(protectedRequests).toBe(signedOut);
+    await capture.close();
+    check.verify(["browser-response-headers", "browser-response-bodies"]);
+  } finally {
+    await context.close();
+  }
 });
 test("Revoked project access removes cached project names and details", async ({
   page,
@@ -34,9 +177,11 @@ test("Revoked project access removes cached project names and details", async ({
     await page.evaluate(() =>
       window.dispatchEvent(new Event("visibilitychange")),
     );
-    await expect(page.getByRole("alert")).toContainText(
-      "unavailable for your account",
-    );
+    await expect(
+      page.getByRole("alert").filter({
+        hasText: /^This project is unavailable for your account\.$/,
+      }),
+    ).toBeVisible();
     await expect(
       page.getByText("Atlas · Customer platform", { exact: true }),
     ).toHaveCount(0);
@@ -59,34 +204,68 @@ test("Revoked project access removes cached project names and details", async ({
     ).toBe(204);
   }
 });
-test("Expired identity clears cached protected data and returns to sign-in", async ({
-  page,
-}) => {
-  await page.clock.install();
-  await page.goto("/");
-  await page.getByRole("button", { name: "Project manager" }).click();
-  await expect(
-    page.getByRole("button", { name: /Atlas · Customer platform/ }),
-  ).toBeVisible();
-  await page.route("**/api/projects", (route) =>
-    route.fulfill({
-      status: 401,
-      contentType: "application/json",
-      body: '{"message":"Session expired"}',
-    }),
-  );
-  await page.clock.fastForward(16000);
-  await page.evaluate(() =>
-    window.dispatchEvent(new Event("visibilitychange")),
-  );
-  await expect(
-    page.getByRole("heading", { name: "Welcome to your workspace" }),
-  ).toBeVisible();
-  await expect(page.getByRole("alert")).toContainText("Your session has ended");
-  await expect(
-    page.getByRole("button", { name: /Atlas · Customer platform/ }),
-  ).toHaveCount(0);
-});
+for (const bodyDelivery of ["complete", "interrupted", "pending"] as const) {
+  test(`Expired identity clears cached protected data and returns to sign-in (${bodyDelivery} body)`, async ({
+    page,
+  }) => {
+    if (bodyDelivery !== "complete") {
+      // UI fault injection only, not real OIDC expiry/disclosure acceptance. A
+      // known 401 must clear protected state even if its discarded body fails or
+      // never settles. No response body is used to decide the session outcome.
+      await page.addInitScript((delivery) => {
+        const read = Response.prototype.arrayBuffer;
+        Response.prototype.arrayBuffer = function () {
+          if (this.status === 401 && this.url.endsWith("/api/projects")) {
+            (
+              window as Window & { denialBodyReadAttempted?: boolean }
+            ).denialBodyReadAttempted = true;
+            return delivery === "interrupted"
+              ? Promise.reject(new TypeError("Synthetic body read failure"))
+              : new Promise<ArrayBuffer>(() => {});
+          }
+          return read.call(this);
+        };
+      }, bodyDelivery);
+    }
+    await page.clock.install();
+    await page.goto("/");
+    await page.getByRole("button", { name: "Project manager" }).click();
+    await expect(
+      page.getByRole("button", { name: /Atlas · Customer platform/ }),
+    ).toBeVisible();
+    await page.route("**/api/projects", (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: '{"message":"Session expired"}',
+      }),
+    );
+    await page.clock.fastForward(16000);
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("visibilitychange")),
+    );
+    await expect(
+      page.getByRole("heading", { name: "Welcome to your workspace" }),
+    ).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText(
+      "Your session has ended",
+    );
+    if (bodyDelivery !== "complete")
+      expect(
+        await page.evaluate(
+          () =>
+            (window as Window & { denialBodyReadAttempted?: boolean })
+              .denialBodyReadAttempted,
+        ),
+      ).toBe(true);
+    await expect(
+      page.getByText("Synthetic body read failure", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Atlas · Customer platform/ }),
+    ).toHaveCount(0);
+  });
+}
 test("Project manager can inspect scoped synthetic evidence and sign out", async ({
   page,
 }) => {
