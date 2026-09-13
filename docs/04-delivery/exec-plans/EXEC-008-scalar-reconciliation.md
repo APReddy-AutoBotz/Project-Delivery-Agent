@@ -489,6 +489,34 @@ external action. Cost/timeout -> bounded prefixes/identity/queues and real-role 
 
 ## Validation evidence
 
+2026-09-13 populated-upgrade checkpoint: the release-six fixture now uses frozen
+v6 grants and the prior-schema adapter to create genuine CREATED/REUSED/NO_REQUEST,
+assigned/unassigned and revoked-recipient history before migration seven. This
+retained-data producer is distinct from the current-release native/race producer;
+it explicitly reports that native probes were not executed before upgrade.
+Upgrade verification freezes all old columns and complete ledger rows, preserves
+v6 milestone ownership, checks new scalar owners are null and only actually new
+tables are empty, then verifies original-command replay and original PM proof.
+Regrant alone does not reroute the historical assignment; explicit refresh does.
+
+The first isolated restricted-role run failed because its preflight incorrectly
+read the migration ledger as pdaa_api. The check was moved to the fixture owner;
+no API permissions changed. A new generated TLS cluster then passed the populated
+prefix-six to seven rehearsal: 39 original populated business tables retained,
+42 current tables, original proof/retry/recipient checks and the existing released
+milestone native COMMIT/race controls. Original receipt SHA256:
+`29ea4a36514cabf59fd9e42d44031e355fa9f3ad4b924e0fb0503813d17b7145`.
+It is retained under run `pdaa-acceptance-1789313832345-27d65e06`. This private
+composite-code rehearsal is not intact-image or new scalar-native-matrix acceptance.
+
+Added the sixth packaged upgrade invocation and matching host checks for exact
+prior table/row-count inventory and original retained IDs. The first successful
+receipt predates the new row-count field; a fresh six-prefix repeat is in progress
+with source hashes checked before/after execution. Full unit regression passed
+1191 tests, lint and documentation validation passed. Full 42-table scalar data
+population/recovery inventories and both packaged profiles remain outstanding;
+none of these checkpoints closes a release or story gate.
+
 2026-09-13 next-step checkpoint: independent persistence correction review of
 `82fd51e` resolved the previous UTC, year-range and broad-error findings in source,
 with no P0/P1 in that bounded review. Report SHA256:

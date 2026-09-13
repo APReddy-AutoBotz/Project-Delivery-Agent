@@ -239,6 +239,11 @@ try {
       migrations,
       5,
     );
+    const scalarReconciliationUpgrade = await verifyFoundationUpgrade(
+      admin,
+      migrations,
+      6,
+    );
     const factFixture = await seedProjectFactHistory(
       admin,
       config("database", "pdaa_api", "api-password").database,
@@ -310,6 +315,7 @@ try {
           canonicalUpgrade,
           milestonePersistenceUpgrade,
           milestoneReconciliationUpgrade,
+          scalarReconciliationUpgrade,
           canonicalFixture,
           milestonePersistenceFixture,
           milestoneReconciliationFixture,
