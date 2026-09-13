@@ -19,6 +19,7 @@ import { assertMilestoneReconciliationWorkflowReceipt } from "./acceptance/miles
 import { validateReconciliationCommitReceipt } from "./acceptance/reconciliation-commit-receipt.mjs";
 import { assertReconciliationRacesReceipt } from "./acceptance/reconciliation-races-receipt.mjs";
 import { assertUpgradeInventory } from "./acceptance/upgrade-inventory-receipt.mjs";
+import { assertScalarRecoveryReceipt } from "./acceptance/scalar-reconciliation-recovery-receipt.mjs";
 import {
   expiryCheckName,
   validateExpiryReceipt,
@@ -450,8 +451,10 @@ try {
     "10000000-0000-4000-8000-000000000001",
     "fixture_admin",
   );
-  assert.equal(canonicalPersistence.businessTableCount, 39);
-  assert.equal(canonicalPersistence.migrationCount, 6);
+  assertScalarRecoveryReceipt(
+    canonicalPersistence,
+    "10000000-0000-4000-8000-000000000001",
+  );
   assert.equal(canonicalPersistence.milestonePersistenceTables.length, 5);
   assert.equal(
     canonicalPersistence.milestonePersistenceFixture.runtimeRole,
@@ -660,7 +663,7 @@ try {
     true,
   );
   checks.passed.push(
-    "INT-MOD-001: complete canonical creation through API credentials, scoped references and revoked retry denials, five genuine prior-release upgrades, 39-table encrypted restore and real sealed aggregate COMMIT guards",
+    "INT-MOD-001: complete canonical creation through API credentials, scoped references and revoked retry denials, six genuine prior-release upgrades, 42-table encrypted restore and real sealed aggregate COMMIT guards",
   );
   checks.passed.push(
     "INT-EVD-001 partial: immutable-foundation forward upgrade under migration owner, exact retained rows and ledger, finite runtime privileges, human fact history and quarantined encrypted restore",
@@ -814,8 +817,10 @@ try {
     );
     assert.equal(persistence.canonicalFixture.sourceMappingsWithheld, true);
     assert.equal(persistence.canonicalWorkerDenied, true);
-    assert.equal(persistence.businessTableCount, 39);
-    assert.equal(persistence.migrationCount, 6);
+    assertScalarRecoveryReceipt(
+      persistence,
+      "10000000-0000-4000-8000-000000000002",
+    );
     assert.equal(persistence.restore.canonicalIntegrityChecked, true);
     assert.equal(persistence.restore.canonicalImmutableChecked, true);
     assert.equal(persistence.restore.canonicalCommitGuards.actualCommit, true);

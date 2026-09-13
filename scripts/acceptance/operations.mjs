@@ -51,6 +51,18 @@ import {
   runMilestoneReconciliationCommitProbes,
 } from "./milestone-reconciliation.mjs";
 import { verifyStateBindingBirthGuards } from "./state-binding-birth.mjs";
+import {
+  scalarReconciliationTables,
+  scalarReconciliationProjection,
+  verifyScalarReconciliationPrivileges,
+  verifyScalarReconciliationIntegrity,
+  verifyScalarReconciliationImmutable,
+  verifyScalarReconciliationWorkerDenials,
+} from "./scalar-reconciliation.mjs";
+import {
+  seedScalarReconciliation,
+  verifyRestoredScalarReconciliation,
+} from "./scalar-reconciliation-fixture.mjs";
 import { verifyMilestoneConcurrency } from "./milestone-concurrency.mjs";
 import {
   projectFactProjection,
@@ -90,6 +102,7 @@ const projection = async (pool) => {
     ...(await canonicalProjection(pool)),
     ...(await milestonePersistenceProjection(pool)),
     ...(await milestoneReconciliationProjection(pool)),
+    ...(await scalarReconciliationProjection(pool)),
   };
   for (const table of [
     "Customer",
@@ -302,6 +315,21 @@ try {
     await verifyMilestoneReconciliationPrivileges(admin);
     await verifyMilestoneReconciliationImmutable(admin);
     await verifyMilestoneReconciliationIntegrity(admin);
+    const scalarReconciliationFixture = await seedScalarReconciliation(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+      "packaged-scalar",
+    );
+    await verifyScalarReconciliationPrivileges(admin);
+    await verifyScalarReconciliationIntegrity(admin);
+    const scalarOwner = createDatabase(adminConfig);
+    try {
+      await verifyScalarReconciliationImmutable(scalarOwner);
+    } finally {
+      await scalarOwner.$disconnect();
+    }
     const workerRuntimeDenied = await verifyWorkerFactDenials(
       config("database", "pdaa_worker", "worker-password").database,
     );
@@ -319,12 +347,18 @@ try {
           canonicalFixture,
           milestonePersistenceFixture,
           milestoneReconciliationFixture,
+          scalarReconciliationFixture,
           milestoneConcurrency,
           canonicalTables,
           milestonePersistenceTables,
           milestoneReconciliationTables,
-          businessTableCount: 39,
+          scalarReconciliationTables,
+          businessTableCount: 42,
           migrationCount: migrations.length,
+          scalarReconciliationWorkerDenied:
+            await verifyScalarReconciliationWorkerDenials(
+              config("database", "pdaa_worker", "worker-password").database,
+            ),
           canonicalWorkerDenied: await verifyCanonicalWorkerDenials(
             config("database", "pdaa_worker", "worker-password").database,
           ),
@@ -461,6 +495,20 @@ try {
           receipt.milestoneReconciliationFixture.restoreProbes,
         );
       await verifyMilestoneReconciliationIntegrity(pool);
+      await verifyScalarReconciliationPrivileges(pool);
+      await verifyScalarReconciliationIntegrity(pool);
+      const restoredScalarOwner = createDatabase(target("restore_target"));
+      try {
+        await verifyScalarReconciliationImmutable(restoredScalarOwner);
+      } finally {
+        await restoredScalarOwner.$disconnect();
+      }
+      const scalarReconciliationOriginalProof =
+        await verifyRestoredScalarReconciliation(
+          pool,
+          target("restore_target"),
+          receipt.scalarReconciliationFixture,
+        );
       receipt.restore = {
         status: "passed",
         exactRetainedRows: true,
@@ -478,6 +526,9 @@ try {
         milestoneReconciliationIntegrityChecked: true,
         milestoneReconciliationImmutableChecked: true,
         milestoneReconciliationCommitGuards,
+        scalarReconciliationIntegrityChecked: true,
+        scalarReconciliationImmutableChecked: true,
+        scalarReconciliationOriginalProof,
         workerCheckpoint: await verifyRestoredWorker(
           admin,
           pool,

@@ -584,5 +584,33 @@ execution or approval of this scalar design. No additional story is accepted.
 
 ## Completion summary
 
+2026-09-13 populated-recovery implementation checkpoint (FR-EVD-007/009/012,
+NFR-SEC-001/REL-001): added actual API-role scalar fixtures covering CREATED,
+REUSED, exact retries, explicit opt-out, legacy unassigned requests, original
+source withdrawal/restoration and revoked recipients. Added worker denials and
+extended local and packaged recovery inventories to all 42 business tables and
+seven migrations. Packaged recovery now verifies original-command replay and
+original proof delivery after explicit reassignment, with runtime CONNECT still
+denied. Independent host readers reject missing scalar evidence and mismatched
+original request/check/assessment identities; six focused helper tests passed.
+
+Generated TLS run `pdaa-acceptance-1789317010093-8d260655` passed actual API-role
+population, exact privileges, worker denials, native immutable guards, native
+dump/restore scalar-row equality, revoked-recipient denial, regrant without
+rerouting and explicit refresh delivering the original proof. Restore application
+checks ran as fixture_admin while runtime remained quarantined. This focused
+composite-runtime run is NOT intact-image or encrypted 42-table packaged recovery
+acceptance. The earlier tooling run lacked pg_dump; its original artifacts and
+database were retained, and the successful run used existing database-image
+clients without adding dependencies or changing runtime permissions.
+
+The first current full integration run applied and repeated all seven migrations:
+116/117 tests passed; an existing milestone contributor-change test exceeded its
+unchanged 20-second test limit. Its isolated rerun passed in 10.66 seconds. The
+failed database `pdaa_test_1789316653473` remains retained; a new complete run is
+in progress. No timeout was increased and the earlier failure is not waived.
+Native scalar COMMIT/race/load controls and all three packaged restore runs
+remain required. No issue, story or release gate is closed by this checkpoint.
+
 Not complete. FAIL-009 and Issue6 closure require the implemented, reviewed and
 executed generic request workflow; planning and domain flags do not satisfy them.

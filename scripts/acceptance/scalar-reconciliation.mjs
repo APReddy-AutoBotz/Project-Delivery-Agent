@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { reconciliationAcceptanceGuard } from "./milestone-reconciliation.mjs";
 import { verifyImmutableHistoryMutation } from "./immutable-history.mjs";
+import { Pool } from "./common.mjs";
 
 export const scalarReconciliationTables = [
   "ScalarReconciliationRequest",
@@ -156,4 +157,27 @@ export async function verifyScalarReconciliationImmutable(database) {
     for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
       await verifyImmutableHistoryMutation(database, table, operation);
   return true;
+}
+
+export async function verifyScalarReconciliationWorkerDenials(connection) {
+  reconciliationAcceptanceGuard();
+  const pool = new Pool({
+    ...connection,
+    connectionTimeoutMillis: 5000,
+    query_timeout: 10000,
+  });
+  try {
+    assert.equal(
+      (await pool.query("SELECT current_user AS role")).rows[0].role,
+      "pdaa_worker",
+    );
+    for (const table of scalarReconciliationTables)
+      await assert.rejects(
+        () => pool.query(`SELECT * FROM "${table}" LIMIT 1`),
+        (error) => error.code === "42501",
+      );
+    return true;
+  } finally {
+    await pool.end();
+  }
 }

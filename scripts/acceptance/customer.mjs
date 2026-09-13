@@ -5,6 +5,19 @@ import { execFileSync } from "node:child_process";
 import { chromium } from "@playwright/test";
 import { closeCustomerBrowserSession } from "./customer-session.mjs";
 import { Pool, secret } from "./common.mjs";
+import { createDatabase } from "../../packages/data/dist/index.js";
+import {
+  scalarReconciliationTables,
+  scalarReconciliationProjection,
+  verifyScalarReconciliationPrivileges,
+  verifyScalarReconciliationIntegrity,
+  verifyScalarReconciliationImmutable,
+  verifyScalarReconciliationWorkerDenials,
+} from "./scalar-reconciliation.mjs";
+import {
+  seedScalarReconciliation,
+  verifyRestoredScalarReconciliation,
+} from "./scalar-reconciliation-fixture.mjs";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
 import { waitForIdentityProvider } from "./identity-readiness.mjs";
 import {
@@ -129,6 +142,7 @@ async function projection(pool) {
     ...(await canonicalProjection(pool)),
     ...(await milestonePersistenceProjection(pool)),
     ...(await milestoneReconciliationProjection(pool)),
+    ...(await scalarReconciliationProjection(pool)),
   };
   for (const table of [
     "Customer",
@@ -433,6 +447,7 @@ try {
       ...canonicalTables,
       ...milestonePersistenceTables,
       ...milestoneReconciliationTables,
+      ...scalarReconciliationTables,
     ])
       assert.equal(
         state[table].length,
@@ -442,7 +457,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 6);
+    assert.equal(migrations.length, 7);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -454,6 +469,7 @@ try {
     await verifyCanonicalPrivileges(db);
     await verifyMilestonePersistencePrivileges(db);
     await verifyMilestoneReconciliationPrivileges(db);
+    await verifyScalarReconciliationPrivileges(db);
     const configResponse = await fetch(base + "/api/auth/config");
     assert.equal(configResponse.status, 200);
     const publicConfig = await configResponse.text();
@@ -584,6 +600,25 @@ try {
     await verifyMilestoneReconciliationPrivileges(db);
     await verifyMilestoneReconciliationImmutable(db);
     await verifyMilestoneReconciliationIntegrity(db);
+    const scalarReconciliationFixture = await seedScalarReconciliation(
+      db,
+      loadDatabaseConfig({
+        ...env,
+        PDAA_DB_USER: "pdaa_api",
+        PDAA_DB_PASSWORD_FILE: "/run/secrets/api-password",
+      }).database,
+      env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+      "customer-scalar-" + profile,
+    );
+    await verifyScalarReconciliationPrivileges(db);
+    await verifyScalarReconciliationIntegrity(db);
+    const scalarOwner = createDatabase(connection);
+    try {
+      await verifyScalarReconciliationImmutable(scalarOwner);
+    } finally {
+      await scalarOwner.$disconnect();
+    }
     save("project-fact-persistence", {
       status: "awaiting-restore",
       workerRuntimeDenied: await verifyWorkerFactDenials(
@@ -598,6 +633,7 @@ try {
       canonicalFixture,
       milestonePersistenceFixture,
       milestoneReconciliationFixture,
+      scalarReconciliationFixture,
       evidenceWorkflow: read("evidence-workflow-fixture").receipt,
       milestoneReconciliationWorkflow: read(
         "milestone-reconciliation-workflow-fixture",
@@ -605,8 +641,17 @@ try {
       canonicalTables,
       milestonePersistenceTables,
       milestoneReconciliationTables,
-      businessTableCount: 39,
-      migrationCount: 6,
+      scalarReconciliationTables,
+      businessTableCount: 42,
+      migrationCount: 7,
+      scalarReconciliationWorkerDenied:
+        await verifyScalarReconciliationWorkerDenials(
+          loadDatabaseConfig({
+            ...env,
+            PDAA_DB_USER: "pdaa_worker",
+            PDAA_DB_PASSWORD_FILE: "/run/secrets/worker-password",
+          }).database,
+        ),
       milestoneReconciliationWorkerDenied:
         await verifyMilestoneReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -654,6 +699,8 @@ try {
     await verifyMilestonePersistenceIntegrity(db);
     await verifyMilestoneReconciliationPrivileges(db);
     await verifyMilestoneReconciliationIntegrity(db);
+    await verifyScalarReconciliationPrivileges(db);
+    await verifyScalarReconciliationIntegrity(db);
     await browserCheck(true);
     await verifyProjectFactPrivileges(db);
     const state = await projection(db);
@@ -721,6 +768,27 @@ try {
         );
       await verifyMilestoneReconciliationIntegrity(restored);
       receipt.restore = {
+        scalarReconciliationOriginalProof: await (async () => {
+          await verifyScalarReconciliationPrivileges(restored);
+          await verifyScalarReconciliationIntegrity(restored);
+          const restoredConnection = {
+            ...connection,
+            database: "pdaa_restore",
+          };
+          const scalarOwner = createDatabase(restoredConnection);
+          try {
+            await verifyScalarReconciliationImmutable(scalarOwner);
+          } finally {
+            await scalarOwner.$disconnect();
+          }
+          return verifyRestoredScalarReconciliation(
+            restored,
+            restoredConnection,
+            receipt.scalarReconciliationFixture,
+          );
+        })(),
+        scalarReconciliationIntegrityChecked: true,
+        scalarReconciliationImmutableChecked: true,
         status: "passed",
         exactRetainedRows: true,
         runtimeQuarantineChecked: true,
@@ -744,6 +812,16 @@ try {
         ),
       };
       receipt.status = "passed";
+      for (const role of ["pdaa_api", "pdaa_worker"])
+        assert.equal(
+          (
+            await restored.query(
+              "SELECT has_database_privilege($1,current_database(),'CONNECT') AS allowed",
+              [role],
+            )
+          ).rows[0].allowed,
+          false,
+        );
       save("project-fact-persistence", receipt);
     } finally {
       await restored.end();

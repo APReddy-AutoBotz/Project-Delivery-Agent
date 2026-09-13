@@ -4,10 +4,10 @@ import {
   writeFileSync,
   readdirSync,
   existsSync,
-  unlinkSync,
+  renameSync,
 } from "node:fs";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createDatabase } from "../packages/data/dist/index.js";
 import { assertSyntheticDatabaseUrl } from "../packages/platform/dist/index.js";
@@ -25,7 +25,11 @@ if (
     "Database rehearsal requires local synthetic pdaa configuration",
   );
 const evidencePath = "artifacts/database-validation.json";
-if (existsSync(evidencePath)) unlinkSync(evidencePath);
+if (existsSync(evidencePath))
+  renameSync(
+    evidencePath,
+    "artifacts/database-validation-retained-" + randomUUID() + ".json",
+  );
 const admin = createDatabase(source.toString());
 const databaseName = "pdaa_test_" + Date.now();
 await admin.$executeRawUnsafe('CREATE DATABASE "' + databaseName + '"');
@@ -91,6 +95,9 @@ try {
     "MilestoneReconciliationRequest",
     "MilestoneReconciliationCheck",
     "MilestoneReconciliationAssignment",
+    "ScalarReconciliationRequest",
+    "ScalarReconciliationCheck",
+    "ScalarReconciliationAssignment",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -164,6 +171,7 @@ node([
   "tests/canonical-project.integration.test.ts",
   "tests/milestone-persistence.integration.test.ts",
   "tests/milestone-reconciliation.integration.test.ts",
+  "tests/scalar-reconciliation.integration.test.ts",
   "tests/project-evidence.integration.test.ts",
   "--no-file-parallelism",
 ]);
@@ -224,7 +232,13 @@ writeFileSync(
       ],
       milestoneReconciliationChecks: "passed",
       evidenceHttpChecks: "passed",
-      businessTables: 39,
+      scalarReconciliationTables: [
+        "ScalarReconciliationRequest",
+        "ScalarReconciliationCheck",
+        "ScalarReconciliationAssignment",
+      ],
+      scalarReconciliationChecks: "passed",
+      businessTables: 42,
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({

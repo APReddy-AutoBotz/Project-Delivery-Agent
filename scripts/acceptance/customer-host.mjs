@@ -9,6 +9,7 @@ import { assertMilestoneReconciliationWorkflowReceipt } from "./milestone-reconc
 import { validateReconciliationCommitReceipt } from "./reconciliation-commit-receipt.mjs";
 import { reportRestoreFailure } from "./restore-diagnostic.mjs";
 import { assertReconciliationRacesReceipt } from "./reconciliation-races-receipt.mjs";
+import { assertScalarRecoveryReceipt } from "./scalar-reconciliation-recovery-receipt.mjs";
 import {
   createHostDisclosure,
   scanExecutionLogs,
@@ -445,8 +446,10 @@ export async function customerProfiles({
           "pdaa_api",
         );
         assert.equal(projectFactPersistence.canonicalWorkerDenied, true);
-        assert.equal(projectFactPersistence.businessTableCount, 39);
-        assert.equal(projectFactPersistence.migrationCount, 6);
+        assertScalarRecoveryReceipt(
+          projectFactPersistence,
+          "10000000-0000-4000-8000-000000000002",
+        );
         assert.equal(
           projectFactPersistence.restore.canonicalIntegrityChecked,
           true,
