@@ -489,6 +489,32 @@ external action. Cost/timeout -> bounded prefixes/identity/queues and real-role 
 
 ## Validation evidence
 
+2026-09-13 next-step checkpoint: independent persistence correction review of
+`82fd51e` resolved the previous UTC, year-range and broad-error findings in source,
+with no P0/P1 in that bounded review. Report SHA256:
+`d22c20fef0c8a46ef7f6dd08f1353454125ecbe6ce4e5f5d42fc9b18dcdbbf4c`.
+Its remaining P2 test-lifecycle finding is addressed by finite connection/query
+budgets, protected observer acquisition and existing failure-retaining cleanup.
+Ten scalar integration and 18 guard-helper tests passed after this change.
+
+Prior-schema adaptation now supports exact prefixes 2-6, omits the absent scalar
+owner in top-level and nested milestone scalar projections, preserves released
+v5/v6 ownership and retry keys, and rejects attempts to select or adopt forward
+ownership. Added a guarded, frozen release-six ACL helper without changing the
+release-five helper. The adapter, frozen-ACL and cleanup suites passed 29 tests.
+The frozen ACL helper has not yet been executed under actual packaged roles.
+
+Local-principal native compatibility smoke ran on newly created
+`pdaa_test_1789312781770` (prefix five) and `pdaa_test_1789312787790` (prefix six).
+Both genuinely installed only their prior migration prefix before repository
+operations, then applied migration seven. Actual reads/inserts/nested projections,
+exact retained scalar row and prior-ledger comparison, and old-command replay
+passed. Prefix six also preserved a request-owned milestone NO_REQUEST check.
+Databases were retained. This smoke does not populate every old table, exercise
+the complete positive/negative assignment history, or establish actual API-role
+privileges. Wiring the complete six-prefix producer/consumer upgrade evidence,
+42-table recovery inventory and native-role/packaged acceptance remains pending.
+
 Pending for this increment. Prior Stage3/PR52 evidence is historical, not new
 execution or approval of this scalar design. No additional story is accepted.
 

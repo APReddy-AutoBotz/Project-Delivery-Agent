@@ -4,6 +4,10 @@ import { createRequire } from "node:module";
 import { PrismaClient } from "../packages/data/dist/generated/prisma/client.js";
 import { watchCommits } from "../scripts/acceptance/reconciliation-commit-probes.mjs";
 import {
+  runWithCleanup,
+  drainAndClose,
+} from "../scripts/acceptance/fixture-cleanup.mjs";
+import {
   createDatabase,
   DatabaseCanonicalProjectRepository,
   DatabaseProjectFactRepository,
@@ -392,9 +396,17 @@ it("NFR-REL-001: native COMMIT rejects orphan owned proof and rolls back conflic
   );
   const { Pool } = requireData("pg");
   const { PrismaPg } = requireData("@prisma/adapter-pg");
-  const writerPool = new Pool({ connectionString: url, max: 1 });
-  const observerPool = new Pool({ connectionString: url, max: 1 });
-  const observer = await observerPool.connect();
+  const poolOptions = {
+    connectionString: url,
+    max: 1,
+    connectionTimeoutMillis: 5000,
+    query_timeout: 10000,
+    idleTimeoutMillis: 10000,
+  };
+  const writerPool = new Pool(poolOptions);
+  const observerPool = new Pool(poolOptions);
+  let observer: Awaited<ReturnType<typeof observerPool.connect>>;
+  let writer: PrismaClient | undefined;
   const record = {
     nativeCommitAttempts: 0,
     callbackReturned: false,
@@ -411,73 +423,84 @@ it("NFR-REL-001: native COMMIT rejects orphan owned proof and rolls back conflic
     () => record,
     () => observer,
   );
-  const writer = new PrismaClient({
-    adapter: new PrismaPg(writerPool, { disposeExternalPool: false }),
-  });
   let reachedCommit = false;
-  try {
-    await expect(
-      writer.$transaction(async (tx) => {
-        const principal = (
-          await tx.$queryRaw<{ pid: number; sessionUser: string }[]>`
+  await runWithCleanup(
+    async () => {
+      observer = await observerPool.connect();
+      writer = new PrismaClient({
+        adapter: new PrismaPg(writerPool, { disposeExternalPool: false }),
+      });
+      await expect(
+        writer.$transaction(async (tx) => {
+          const principal = (
+            await tx.$queryRaw<{ pid: number; sessionUser: string }[]>`
         SELECT pg_backend_pid() AS pid,session_user AS "sessionUser"`
-        )[0]!;
-        record.pid = principal.pid;
-        record.sessionUser = principal.sessionUser;
-        await tx.$queryRaw`SELECT id FROM public."Project" WHERE id=${f.projectId}::uuid FOR UPDATE`;
-        const fact = (
-          await tx.$queryRaw<
-            { id: string; factType: string; revision: number }[]
-          >`SELECT id,"factType",revision FROM public."ProjectFact" WHERE id=${f.input.factId}::uuid FOR UPDATE`
-        )[0]!;
-        const asOf = (
-          await tx.$queryRaw<
-            { now: Date }[]
-          >`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`
-        )[0]!.now;
-        const prepared = await authority.prepareAssessmentInTransaction(
-          tx,
-          f.pmo,
-          { projectId: f.projectId, fact, asOf },
-        );
-        await authority.persistPreparedAssessmentInTransaction(tx, f.pmo, {
-          prepared,
-          subject: f.pmo.subject,
-          idempotencyKey: randomUUID(),
-          requestHash: "0".repeat(64),
-          captureKind: "SCALAR_REQUEST",
-          milestoneAssessmentId: null,
-          scalarReconciliationCheckId: randomUUID(),
-        });
-        reachedCommit = true;
-        record.callbackReturned = true;
-      }),
-    ).rejects.toThrow();
-    expect(reachedCommit).toBe(true);
-    // A Prisma timeout/connection error alone is never evidence of this guard.
-    // The observer records the actual unchanged native COMMIT transport result.
-    expect(record.nativeCommitAttempts).toBe(1);
-    expect(record.callbackReturnedAtCommit).toBe(true);
-    expect(record.commitObserver?.phase).toBe("native-commit-settled");
-    expect([
-      {
-        code: "P0001",
-        message: "Unowned scalar reconciliation assessment cannot commit",
-        constraint: undefined,
-      },
-      {
-        code: "23503",
-        message:
-          'insert or update on table "FactAssessment" violates foreign key constraint "ScalarAssessment_check_fk"',
-        constraint: "ScalarAssessment_check_fk",
-      },
-    ]).toContainEqual(record.native);
-    expect(await projection()).toEqual(before);
-  } finally {
-    await writer.$disconnect();
-    observer.release();
-    await Promise.all([writerPool.end(), observerPool.end()]);
-  }
+          )[0]!;
+          record.pid = principal.pid;
+          record.sessionUser = principal.sessionUser;
+          await tx.$queryRaw`SELECT id FROM public."Project" WHERE id=${f.projectId}::uuid FOR UPDATE`;
+          const fact = (
+            await tx.$queryRaw<
+              { id: string; factType: string; revision: number }[]
+            >`SELECT id,"factType",revision FROM public."ProjectFact" WHERE id=${f.input.factId}::uuid FOR UPDATE`
+          )[0]!;
+          const asOf = (
+            await tx.$queryRaw<
+              { now: Date }[]
+            >`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`
+          )[0]!.now;
+          const prepared = await authority.prepareAssessmentInTransaction(
+            tx,
+            f.pmo,
+            { projectId: f.projectId, fact, asOf },
+          );
+          await authority.persistPreparedAssessmentInTransaction(tx, f.pmo, {
+            prepared,
+            subject: f.pmo.subject,
+            idempotencyKey: randomUUID(),
+            requestHash: "0".repeat(64),
+            captureKind: "SCALAR_REQUEST",
+            milestoneAssessmentId: null,
+            scalarReconciliationCheckId: randomUUID(),
+          });
+          reachedCommit = true;
+          record.callbackReturned = true;
+        }),
+      ).rejects.toThrow();
+      expect(reachedCommit).toBe(true);
+      // A Prisma timeout/connection error alone is never evidence of this guard.
+      // The observer records the actual unchanged native COMMIT transport result.
+      expect(record.nativeCommitAttempts).toBe(1);
+      expect(record.callbackReturnedAtCommit).toBe(true);
+      expect(record.commitObserver?.phase).toBe("native-commit-settled");
+      expect([
+        {
+          code: "P0001",
+          message: "Unowned scalar reconciliation assessment cannot commit",
+          constraint: undefined,
+        },
+        {
+          code: "23503",
+          message:
+            'insert or update on table "FactAssessment" violates foreign key constraint "ScalarAssessment_check_fk"',
+          constraint: "ScalarAssessment_check_fk",
+        },
+      ]).toContainEqual(record.native);
+      expect(await projection()).toEqual(before);
+    },
+    () =>
+      drainAndClose(
+        [],
+        [
+          () => writer?.$disconnect(),
+          async () => {
+            observer?.release();
+            await observerPool.end();
+          },
+          () => writerPool.end(),
+        ],
+      ),
+  );
 });
 
 it("NFR-REL-001: committed scalar history cannot be adopted, mutated, deleted or truncated", async () => {

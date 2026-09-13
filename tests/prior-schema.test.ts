@@ -37,19 +37,25 @@ it("requires the isolated acceptance environment", () => {
   expect(() => createPriorReleaseDatabase("unused")).toThrow();
 });
 it("requires an explicit genuine supported prefix", () => {
-  for (const prefix of [undefined, 0, 1, 6, "5"])
+  for (const prefix of [undefined, 0, 1, 7, "5"])
     expect(() => createPriorReleaseDatabase("unused", prefix)).toThrow();
 });
-it("leaves released v5 scalar and binding delegates unchanged", async () => {
+it("preserves released v5 scalar ownership and binding fields without selecting v7 ownership", async () => {
   const database = createPriorReleaseDatabase("unused", 5);
   const data = { captureKind: "MILESTONE", milestoneAssessmentId: "parent" };
   await database.factAssessment.create({ data });
-  expect(mock.factAssessment.create).toHaveBeenCalledWith({ data });
+  expect(mock.$queryRawUnsafe.mock.calls[0]![0]).toContain(
+    '"captureKind","milestoneAssessmentId"',
+  );
+  expect(mock.$queryRawUnsafe.mock.calls[0]![0]).not.toContain(
+    "scalarReconciliationCheckId",
+  );
+  expect(mock.factAssessment.create).not.toHaveBeenCalled();
   await database.projectFact.create({ data: { bindingBirthId: "binding" } });
   expect(mock.projectFact.create).toHaveBeenCalledWith({
     data: { bindingBirthId: "binding" },
   });
-  expect(mock.$queryRawUnsafe).not.toHaveBeenCalled();
+  expect(mock.$queryRawUnsafe).toHaveBeenCalledTimes(1);
 });
 it("omits only v6 ownership from v5 milestone reads and update return projections", async () => {
   const database = createPriorReleaseDatabase("unused", 5);
@@ -177,8 +183,104 @@ it("maps scalar idempotency to the exact released identity, including inside tra
       subject: "pm",
       idempotencyKey: "request",
     },
-    omit: { captureKind: true, milestoneAssessmentId: true },
+    omit: {
+      scalarReconciliationCheckId: true,
+      captureKind: true,
+      milestoneAssessmentId: true,
+    },
   });
+});
+
+it.each([2, 3, 4, 5, 6])(
+  "excludes new scalar ownership from prefix %s reads and refuses adoption",
+  async (prefix) => {
+    const database = createPriorReleaseDatabase("unused", prefix);
+    await database.factAssessment.findMany({ include: { versions: true } });
+    expect(
+      mock.factAssessment.findMany.mock.calls[0]![0].omit
+        .scalarReconciliationCheckId,
+    ).toBe(true);
+    for (const operation of ["create", "update"])
+      expect(() =>
+        database.factAssessment[operation]({
+          data: { scalarReconciliationCheckId: "forged" },
+        }),
+      ).toThrow();
+    expect(() =>
+      database.factAssessment.findFirst({
+        select: { scalarReconciliationCheckId: true },
+      }),
+    ).toThrow();
+    expect(() =>
+      database.factAssessment.findFirst({
+        omit: { scalarReconciliationCheckId: false },
+      }),
+    ).toThrow();
+  },
+);
+
+it.each([5, 6])(
+  "adapts nested scalar projections in prefix %s without mutating caller input",
+  async (prefix) => {
+    const database = createPriorReleaseDatabase("unused", prefix);
+    const input = {
+      include: { scalarAssessments: { include: { versions: true } } },
+    };
+    await database.milestoneConsistencyAssessment.findFirst(input);
+    expect(
+      mock.milestoneConsistencyAssessment.findFirst.mock.calls[0]![0].include
+        .scalarAssessments,
+    ).toEqual({
+      include: { versions: true },
+      omit: { scalarReconciliationCheckId: true },
+    });
+    expect(input).toEqual({
+      include: { scalarAssessments: { include: { versions: true } } },
+    });
+    await database.milestoneConsistencyAssessment.findMany({
+      select: { id: true, scalarAssessments: true },
+    });
+    expect(
+      mock.milestoneConsistencyAssessment.findMany.mock.calls[0]![0].select
+        .scalarAssessments,
+    ).toEqual({ omit: { scalarReconciliationCheckId: true } });
+    expect(() =>
+      database.milestoneConsistencyAssessment.findFirst({
+        include: {
+          scalarAssessments: { select: { scalarReconciliationCheckId: true } },
+        },
+      }),
+    ).toThrow();
+  },
+);
+
+it("preserves genuine v6 milestone request ownership and v5/v6 kind-partitioned retry identity", async () => {
+  const database = createPriorReleaseDatabase("unused", 6);
+  await database.milestoneConsistencyAssessment.create({
+    data: { id: "proof", reconciliationCheckId: "check" },
+    select: { id: true },
+  });
+  expect(mock.$queryRawUnsafe).toHaveBeenCalledWith(
+    'INSERT INTO "MilestoneConsistencyAssessment" ("id","reconciliationCheckId") VALUES ($1::uuid,$2::uuid) RETURNING "id"',
+    "proof",
+    "check",
+  );
+  for (const prefix of [5, 6]) {
+    const key = {
+      customerId_projectId_subject_captureKind_idempotencyKey: {
+        captureKind: "MILESTONE",
+        idempotencyKey: "key",
+      },
+    };
+    await createPriorReleaseDatabase(
+      "unused",
+      prefix,
+    ).factAssessment.findUnique({ where: key });
+    expect(mock.factAssessment.findUnique).toHaveBeenLastCalledWith({
+      where: key,
+      omit: { scalarReconciliationCheckId: true },
+    });
+  }
 });
 
 it("rejects milestone child inserts and unsupported fixture operations", () => {
