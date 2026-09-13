@@ -1,6 +1,6 @@
 # EXEC-008: Durable scalar-conflict reconciliation
 
-Status: Draft; concrete design review required before implementation.
+Status: Design approved under delegated controller authority; implementation in progress.
 Owner: Implementation controller.
 Requirement IDs: FR-EVD-001/002/003/004/006/007/009/010/012, FR-ADM-005,
 FR-MOD-004, NFR-SEC-001/002/005/009, NFR-REL-001/002/005, NFR-MNT-002/004/005.
@@ -383,6 +383,19 @@ Never resume application/worker automatically after restore.
 
 ## Progress log
 
+2026-09-13: independent non-author workflow/API/authorization/UI and persistence/
+DDL/COMMIT reviewers accepted design candidate
+`5e5987a343c9c7cc6fcf876fd2f9b6451473a593`, tree
+`a90aa74c929194a72ddc0b7bc9b77cc8db4e2d74`, with no P0/P1 findings.
+Controller approves the routine design under existing delegation and starts stage2.
+This is design approval only; implementation, native execution, acceptance and
+release gates remain open. Preserve pinned historical routing and exact older
+schema projections, including implicit Prisma reads/writes of nullable columns.
+Retained independent workflow report SHA256:
+`f974c895fbaba0f214f205cdc53d725372e3b2eb8e2b226098abb44228bc48d9`;
+persistence report SHA256:
+`85fc66f41cd1c5ba4413cda4fe5018ddc6fe0f9b83c54bd42aec9679bc91438a`.
+
 2026-09-13: verified clean main and successful postmerge repeat; created
 `codex/scalar-reconciliation-requests`. Read scalar source/authorization/persistence,
 approved requirements/ADRs and private feasibility/routing inputs. This proposal is
@@ -394,8 +407,8 @@ One fact-level request over the full conflict participant union; explicit policy
 opt-in and manager action; separate scalar family rather than weakening milestone
 predicates; immutable routing snapshot permits honest legacy unassigned history.
 Existing configured PM routing suffices without a new responsibility editor.
-These proposed routine choices become effective only after design review findings
-are resolved under delegated controller authority.
+These routine design choices are approved for implementation under delegated
+controller authority after the independent design reviews recorded above.
 
 ## Risks and mitigations
 

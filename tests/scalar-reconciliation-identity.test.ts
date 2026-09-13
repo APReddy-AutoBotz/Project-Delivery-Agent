@@ -1,0 +1,210 @@
+import { describe, expect, it } from "vitest";
+import {
+  resolveSourceAuthority,
+  scalarReconciliationIdentity,
+  type SourceAuthoritySnapshot,
+} from "../packages/domain/src/index.js";
+import {
+  scalarId as id,
+  scalarSnapshot,
+  scalarScope,
+  scalarTime,
+} from "./fixtures/scalar-reconciliation.js";
+
+const identity = (input = scalarSnapshot()) =>
+  scalarReconciliationIdentity(resolveSourceAuthority(input));
+describe("FR-EVD-007/009/012 / FR-ADM-005: scalar conflict identity", () => {
+  it("serializes the exact revisioned ASCII tuple without changing the frozen proof", () => {
+    const result = resolveSourceAuthority(scalarSnapshot());
+    const before = JSON.stringify(result);
+    expect(scalarReconciliationIdentity(result)).toBe(
+      JSON.stringify([
+        "scalar-authority-conflict/v1",
+        id(1),
+        id(2),
+        id(3),
+        id(5),
+        [
+          [id(10), id(110), "date", [id(210)]],
+          [id(11), id(111), "date", [id(211)]],
+        ],
+      ]),
+    );
+    expect(JSON.stringify(result)).toBe(before);
+    expect(result.resolvedValue).toBeNull();
+  });
+  it("ignores input order, new capture time and duplicate recorded conflict representation", () => {
+    const input = scalarSnapshot(),
+      original = identity(input);
+    input.versions.reverse();
+    input.sources.reverse();
+    input.evidence.reverse();
+    input.asOf = "2026-09-14T00:00:00.000Z";
+    input.conflicts.push({
+      id: id(20),
+      scope: scalarScope,
+      detectedAt: scalarTime,
+      resolvedAt: null,
+      versionIds: [id(11), id(10)],
+    });
+    expect(identity(input)).toBe(original);
+    const result = structuredClone(resolveSourceAuthority(input));
+    result.conflicts.reverse();
+    for (const conflict of result.conflicts) {
+      conflict.versionIds.reverse();
+      conflict.evidenceIds.reverse();
+    }
+    expect(scalarReconciliationIdentity(result)).toBe(original);
+  });
+  it.each(["policy", "version", "source", "evidence", "type"])(
+    "changes identity for changed %s binding",
+    (kind) => {
+      const input = scalarSnapshot(),
+        original = identity(input);
+      if (kind === "policy") input.policy!.revisionId = id(50);
+      if (kind === "version") input.versions[0]!.id = id(50);
+      if (kind === "source") {
+        input.versions[0]!.source.instanceId = id(50);
+        input.sources[0]!.instanceId = id(50);
+      }
+      if (kind === "evidence") {
+        input.versions[0]!.evidenceIds = [id(50)];
+        input.evidence[0]!.id = id(50);
+      }
+      if (kind === "type")
+        input.versions[0]!.value = { type: "text", value: "2026-10-01" };
+      expect(identity(input)).not.toBe(original);
+    },
+  );
+  it.each([
+    { type: "text", value: '非ASCII "quotes" \\ \n' },
+    { type: "number", value: 1e-100 },
+    { type: "number", value: 1e100 },
+    { type: "number", value: -0 },
+    { type: "boolean", value: false },
+    { type: "empty", value: null },
+  ] as const)(
+    "does not serialize arbitrary original typed content %j",
+    (value) => {
+      const input = scalarSnapshot();
+      input.versions[0]!.value = value;
+      const result = resolveSourceAuthority(input),
+        key = scalarReconciliationIdentity(result)!;
+      expect(key).toMatch(/^[\x20-\x7e]+$/);
+      expect(JSON.parse(key)[5][0]).toEqual([
+        id(10),
+        id(110),
+        value.type,
+        [id(210)],
+      ]);
+      expect(result.versions[0]).toMatchObject({ value });
+    },
+  );
+  it.each([
+    "retain",
+    "missing",
+    "future",
+    "incomplete",
+    "restricted",
+    "resolved",
+    "unknown",
+  ])("returns no identity for valid %s output", (kind) => {
+    const input = scalarSnapshot();
+    if (kind === "retain") input.policy!.conflictBehavior = "RETAIN_CONFLICT";
+    if (kind === "missing") input.policy = null;
+    if (kind === "future")
+      input.policy!.effectiveAt = "2026-10-01T00:00:00.000Z";
+    if (kind === "incomplete") input.complete = false;
+    if (kind === "restricted") input.evidence[0]!.access = "RESTRICTED";
+    if (kind === "resolved")
+      input.versions[1]!.value = input.versions[0]!.value;
+    if (kind === "unknown") {
+      input.versions = [];
+      input.sources = [];
+      input.evidence = [];
+    }
+    expect(identity(input)).toBeNull();
+  });
+  it("keeps stale recorded contributors eligible", () => {
+    const input = scalarSnapshot(),
+      original = identity(input);
+    input.asOf = "2026-10-02T00:00:00.000Z";
+    input.conflicts = [
+      {
+        id: id(20),
+        scope: scalarScope,
+        detectedAt: scalarTime,
+        resolvedAt: null,
+        versionIds: [id(10), id(11)],
+      },
+    ];
+    const result = resolveSourceAuthority(input);
+    expect(result.candidateVersionIds).toEqual([]);
+    expect(scalarReconciliationIdentity(result)).toBe(original);
+  });
+  it("supports 1002 bounded output groups, including recorded/derived duplicates", () => {
+    const result = structuredClone(resolveSourceAuthority(scalarSnapshot()));
+    result.conflicts = Array.from({ length: 1002 }, () =>
+      structuredClone(result.conflicts[0]!),
+    );
+    expect(scalarReconciliationIdentity(result)).toBe(identity());
+  });
+  it.each([
+    "unknown-version",
+    "missing-evidence",
+    "duplicate-version",
+    "duplicate-evidence",
+    "wrong-scope",
+    "uppercase",
+    "flag",
+    "empty-conflict",
+    "over-groups",
+  ])("rejects malformed %s with one finite error", (kind) => {
+    const result = structuredClone(resolveSourceAuthority(scalarSnapshot()));
+    if (kind === "unknown-version") result.conflicts[0]!.versionIds[0] = id(99);
+    if (kind === "missing-evidence") result.conflicts[0]!.evidenceIds.pop();
+    if (kind === "duplicate-version") result.versions.push(result.versions[0]!);
+    if (kind === "duplicate-evidence")
+      result.versions[0]!.evidenceIds.push(result.versions[0]!.evidenceIds[0]!);
+    if (
+      kind === "wrong-scope" &&
+      result.versions[0]!.visibility === "available"
+    )
+      result.versions[0]!.scope.factId = id(99);
+    if (kind === "uppercase")
+      result.scope.factId = result.scope.factId.toUpperCase();
+    if (kind === "flag") result.reconciliationRequired = false;
+    if (kind === "empty-conflict") result.conflicts = [];
+    if (kind === "over-groups")
+      result.conflicts = Array(1003).fill(result.conflicts[0]);
+    expect(() => scalarReconciliationIdentity(result)).toThrow(
+      "Invalid scalar reconciliation assessment",
+    );
+  });
+  it("bounds arrays before parsing their contents, even for negative outcomes", () => {
+    const result = {
+      ...resolveSourceAuthority(scalarSnapshot()),
+      complete: false,
+      versions: new Array(1001),
+    };
+    Object.defineProperty(result.versions, "0", {
+      get() {
+        throw new Error("unbounded traversal");
+      },
+    });
+    expect(() => scalarReconciliationIdentity(result)).toThrow(
+      "Invalid scalar reconciliation assessment",
+    );
+  });
+  it("includes all evidence references in sorted unique contributor tuples", () => {
+    const input: SourceAuthoritySnapshot = scalarSnapshot();
+    input.versions[0]!.evidenceIds.push(id(199));
+    input.evidence.push({
+      id: id(199),
+      scope: scalarScope,
+      access: "AUTHORIZED",
+      verification: "VALID",
+    });
+    expect(JSON.parse(identity(input)!)[5][0][3]).toEqual([id(199), id(210)]);
+  });
+});
