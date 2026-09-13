@@ -15,17 +15,22 @@ import {
 } from "./canonical-project.js";
 import "./style.css";
 import { ProjectEvidence } from "./project-evidence.js";
+import {
+  MilestoneReconciliation,
+  savedReconciliationLink,
+} from "./milestone-reconciliation.js";
 import { uuid, savedEvidenceLink, denied } from "./evidence-state.js";
 
 function evidenceLocation() {
   const query = new URLSearchParams(window.location.search);
   const projectId = query.get("project"),
-    assessmentId = query.get("assessment");
+    assessmentId = query.get("assessment"),
+    requestId = query.get("reconciliation");
   return projectId &&
-    assessmentId &&
     uuid.test(projectId) &&
-    uuid.test(assessmentId)
-    ? { projectId, assessmentId }
+    ((assessmentId && !requestId && uuid.test(assessmentId)) ||
+      (requestId && !assessmentId && uuid.test(requestId)))
+    ? { projectId, assessmentId, requestId }
     : null;
 }
 
@@ -157,6 +162,7 @@ function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [linkedAssessment, setLinkedAssessment] = useState<string | null>(null);
+  const [linkedRequest, setLinkedRequest] = useState<string | null>(null);
   React.useEffect(() => {
     expireSession = () => {
       accessToken = undefined;
@@ -165,6 +171,7 @@ function App() {
       setSelected(null);
       setCreating(false);
       setLinkedAssessment(null);
+      setLinkedRequest(null);
       setView("projects");
       setError("Your session has ended. Please sign in again.");
       clearProtectedData();
@@ -217,6 +224,7 @@ function App() {
         if (link) {
           setSelected(link.projectId);
           setLinkedAssessment(link.assessmentId);
+          setLinkedRequest(link.requestId);
         }
       } else if (auth.data)
         await manager(auth.data).signinRedirect({ state: evidenceLocation() });
@@ -243,25 +251,42 @@ function App() {
           const state = user.state as {
             projectId?: unknown;
             assessmentId?: unknown;
+            requestId?: unknown;
           } | null;
           const linked =
             typeof state?.projectId === "string" &&
-            typeof state?.assessmentId === "string" &&
             uuid.test(state.projectId) &&
-            uuid.test(state.assessmentId);
+            ((typeof state?.assessmentId === "string" &&
+              !state.requestId &&
+              uuid.test(state.assessmentId)) ||
+              (typeof state?.requestId === "string" &&
+                !state.assessmentId &&
+                uuid.test(state.requestId)));
           window.history.replaceState(
             {},
             "",
             linked
-              ? savedEvidenceLink(
-                  state.projectId as string,
-                  state.assessmentId as string,
-                )
+              ? typeof state?.requestId === "string"
+                ? savedReconciliationLink(
+                    state.projectId as string,
+                    state.requestId,
+                  )
+                : savedEvidenceLink(
+                    state.projectId as string,
+                    state.assessmentId as string,
+                  )
               : "/",
           );
           if (linked) {
             setSelected(state.projectId as string);
-            setLinkedAssessment(state.assessmentId as string);
+            setLinkedAssessment(
+              typeof state.assessmentId === "string"
+                ? state.assessmentId
+                : null,
+            );
+            setLinkedRequest(
+              typeof state.requestId === "string" ? state.requestId : null,
+            );
           }
           setSignedIn(true);
         }
@@ -282,6 +307,7 @@ function App() {
     setSelected(null);
     setCreating(false);
     setLinkedAssessment(null);
+    setLinkedRequest(null);
     setView("projects");
     clearProtectedData();
     if (auth.data?.mode === "oidc" && oidc) {
@@ -294,6 +320,14 @@ function App() {
         );
       }
     }
+  }
+  function navigateProject(id: string | null = null) {
+    setView("projects");
+    setCreating(false);
+    setSelected(id);
+    setLinkedAssessment(null);
+    setLinkedRequest(null);
+    window.history.replaceState({}, "", "/");
   }
   const displayName =
     me.data?.subject === "pm-atlas"
@@ -410,17 +444,17 @@ function App() {
         <nav aria-label="Main navigation">
           <Button
             className={view === "projects" ? "active" : ""}
-            onClick={() => {
-              setView("projects");
-              setSelected(null);
-            }}
+            onClick={() => navigateProject()}
           >
             <span aria-hidden="true">▦</span> Projects
           </Button>
           {admin && (
             <Button
               className={view === "platform" ? "active" : ""}
-              onClick={() => setView("platform")}
+              onClick={() => {
+                navigateProject();
+                setView("platform");
+              }}
             >
               <span aria-hidden="true">⚙</span> Platform & access
             </Button>
@@ -491,8 +525,7 @@ function App() {
                 await client.invalidateQueries({ queryKey: ["project-setup"] });
               }}
               onCreated={(id) => {
-                setCreating(false);
-                setSelected(id);
+                navigateProject(id);
                 void client.invalidateQueries({ queryKey: ["projects"] });
               }}
             />
@@ -500,11 +533,7 @@ function App() {
             <>
               <Button
                 className="back text-button"
-                onClick={() => {
-                  setSelected(null);
-                  setLinkedAssessment(null);
-                  window.history.replaceState({}, "", "/");
-                }}
+                onClick={() => navigateProject()}
               >
                 ← All projects
               </Button>
@@ -516,6 +545,13 @@ function App() {
               {retainedProject ? (
                 <>
                   {project.data && <ProjectDetail project={project.data} />}
+                  <MilestoneReconciliation
+                    key={`reconciliation:${retainedProject.id}`}
+                    projectId={retainedProject.id}
+                    request={request}
+                    initialRequestId={linkedRequest}
+                    visible={!project.isFetching && !project.isError}
+                  />
                   <ProjectEvidence
                     key={retainedProject.id}
                     projectId={retainedProject.id}
@@ -555,7 +591,13 @@ function App() {
               <div className="section-title">
                 <h2>Project workspace</h2>
                 {setup.data?.portfolios.length ? (
-                  <Button className="primary" onClick={() => setCreating(true)}>
+                  <Button
+                    className="primary"
+                    onClick={() => {
+                      navigateProject();
+                      setCreating(true);
+                    }}
+                  >
                     Create project
                   </Button>
                 ) : null}
@@ -574,11 +616,7 @@ function App() {
                     <Button
                       key={p.id}
                       className="project-card"
-                      onClick={() => {
-                        setSelected(p.id);
-                        setLinkedAssessment(null);
-                        window.history.replaceState({}, "", "/");
-                      }}
+                      onClick={() => navigateProject(p.id)}
                     >
                       <div className="card-top">
                         <span className="project-code">{p.code}</span>

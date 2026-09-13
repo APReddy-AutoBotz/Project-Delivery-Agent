@@ -3,6 +3,7 @@ import { PrismaClient } from "./generated/prisma/client.js";
 export { DatabaseProjectFactRepository } from "./project-facts.js";
 export { DatabaseAuthorityRepository } from "./authority-persistence.js";
 export { DatabaseMilestoneConsistencyRepository } from "./milestone-persistence.js";
+export { DatabaseMilestoneReconciliationRepository } from "./milestone-reconciliation.js";
 export { DatabaseCanonicalProjectRepository } from "./canonical-project.js";
 import type {
   Actor,

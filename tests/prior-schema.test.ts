@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => {
   return {
     projectFact: delegate(),
     factAssessment: delegate(),
+    milestoneConsistencyAssessment: delegate(),
     $queryRawUnsafe: vi.fn(),
     $transaction: vi.fn(),
   };
@@ -35,9 +36,78 @@ it("requires the isolated acceptance environment", () => {
   vi.stubEnv("PDAA_ACCEPTANCE", "production");
   expect(() => createPriorReleaseDatabase("unused")).toThrow();
 });
+it("requires an explicit genuine supported prefix", () => {
+  for (const prefix of [undefined, 0, 1, 6, "5"])
+    expect(() => createPriorReleaseDatabase("unused", prefix)).toThrow();
+});
+it("leaves released v5 scalar and binding delegates unchanged", async () => {
+  const database = createPriorReleaseDatabase("unused", 5);
+  const data = { captureKind: "MILESTONE", milestoneAssessmentId: "parent" };
+  await database.factAssessment.create({ data });
+  expect(mock.factAssessment.create).toHaveBeenCalledWith({ data });
+  await database.projectFact.create({ data: { bindingBirthId: "binding" } });
+  expect(mock.projectFact.create).toHaveBeenCalledWith({
+    data: { bindingBirthId: "binding" },
+  });
+  expect(mock.$queryRawUnsafe).not.toHaveBeenCalled();
+});
+it("omits only v6 ownership from v5 milestone reads and update return projections", async () => {
+  const database = createPriorReleaseDatabase("unused", 5);
+  const input = { where: { id: "proof" }, include: { targets: true } };
+  await database.milestoneConsistencyAssessment.findUnique(input);
+  expect(mock.milestoneConsistencyAssessment.findUnique).toHaveBeenCalledWith({
+    ...input,
+    omit: { reconciliationCheckId: true },
+  });
+  await database.$transaction((tx) =>
+    tx.milestoneConsistencyAssessment.update({
+      where: { id: "proof" },
+      data: { sealed: true },
+    }),
+  );
+  expect(mock.milestoneConsistencyAssessment.update).toHaveBeenCalledWith({
+    where: { id: "proof" },
+    data: { sealed: true },
+    omit: { reconciliationCheckId: true },
+  });
+  expect(input).not.toHaveProperty("omit");
+});
+it("inserts v5 milestone proof through released columns without an ownership column", async () => {
+  const database = createPriorReleaseDatabase("unused", 5);
+  await database.milestoneConsistencyAssessment.create({
+    data: {
+      id: "proof",
+      reconciliationCheckId: null,
+      result: { status: "DISABLED" },
+    },
+    select: { id: true },
+  });
+  expect(mock.$queryRawUnsafe).toHaveBeenCalledWith(
+    'INSERT INTO "MilestoneConsistencyAssessment" ("id","result") VALUES ($1::uuid,$2::jsonb) RETURNING "id"',
+    "proof",
+    '{"status":"DISABLED"}',
+  );
+  expect(mock.milestoneConsistencyAssessment.create).not.toHaveBeenCalled();
+});
+it("cannot create, adopt or select v6 reconciliation ownership through the v5 adapter", () => {
+  const database = createPriorReleaseDatabase("unused", 5);
+  for (const operation of ["create", "update"])
+    expect(() =>
+      database.milestoneConsistencyAssessment[operation]({
+        data: { reconciliationCheckId: "forged" },
+      }),
+    ).toThrow();
+  expect(() =>
+    database.milestoneConsistencyAssessment.findUnique({
+      select: { reconciliationCheckId: true },
+    }),
+  ).toThrow();
+  expect(mock.$queryRawUnsafe).not.toHaveBeenCalled();
+  expect(mock.milestoneConsistencyAssessment.update).not.toHaveBeenCalled();
+});
 
 it("inserts only released ProjectFact columns with bound values and database defaults", async () => {
-  const database = createPriorReleaseDatabase("unused");
+  const database = createPriorReleaseDatabase("unused", 4);
   const data = {
     id: "fact",
     customerId: "customer",
@@ -57,7 +127,7 @@ it("inserts only released ProjectFact columns with bound values and database def
 });
 
 it("removes additive scalar defaults from the prior-schema INSERT and respects select", async () => {
-  const database = createPriorReleaseDatabase("unused");
+  const database = createPriorReleaseDatabase("unused", 4);
   await database.factAssessment.create({
     data: {
       id: "assessment",
@@ -76,7 +146,7 @@ it("removes additive scalar defaults from the prior-schema INSERT and respects s
 });
 
 it("adapts released projections without mutating the caller's request", async () => {
-  const database = createPriorReleaseDatabase("unused");
+  const database = createPriorReleaseDatabase("unused", 4);
   const input = { where: { id: "fact" } };
   await database.projectFact.findUnique(input);
   expect(mock.projectFact.findUnique).toHaveBeenCalledWith({
@@ -87,7 +157,7 @@ it("adapts released projections without mutating the caller's request", async ()
 });
 
 it("maps scalar idempotency to the exact released identity, including inside transactions", async () => {
-  const database = createPriorReleaseDatabase("unused");
+  const database = createPriorReleaseDatabase("unused", 4);
   const key = {
     customerId: "customer",
     projectId: "project",
@@ -112,7 +182,7 @@ it("maps scalar idempotency to the exact released identity, including inside tra
 });
 
 it("rejects milestone child inserts and unsupported fixture operations", () => {
-  const database = createPriorReleaseDatabase("unused");
+  const database = createPriorReleaseDatabase("unused", 4);
   expect(() =>
     database.factAssessment.create({
       data: { captureKind: "MILESTONE", milestoneAssessmentId: "parent" },

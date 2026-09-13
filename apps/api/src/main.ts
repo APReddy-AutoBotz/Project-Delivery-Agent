@@ -4,6 +4,7 @@ import {
   DatabaseCanonicalProjectRepository,
   DatabaseProjectFactRepository,
   DatabaseAuthorityRepository,
+  DatabaseMilestoneReconciliationRepository,
 } from "@pdaa/data";
 import {
   loadConfig,
@@ -22,6 +23,7 @@ try {
     new DatabaseCanonicalProjectRepository(db),
     new DatabaseProjectFactRepository(db),
     new DatabaseAuthorityRepository(db),
+    new DatabaseMilestoneReconciliationRepository(db),
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

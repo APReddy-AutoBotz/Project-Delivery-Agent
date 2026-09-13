@@ -20,6 +20,9 @@ const immutableMessages = {
   MilestoneConsistencyTarget: "Milestone consistency dependency is immutable",
   MilestoneConsistencyContributorVersion:
     "Milestone consistency dependency is immutable",
+  MilestoneReconciliationRequest: "Reconciliation request is immutable",
+  MilestoneReconciliationCheck: "Reconciliation check is immutable",
+  MilestoneReconciliationAssignment: "Reconciliation assignment is immutable",
   ...Object.fromEntries(
     canonicalTables.map((table) => [
       table,
@@ -31,6 +34,7 @@ const sealMessages = {
   FactAssessment: "Invalid assessment seal",
   CanonicalStateBinding: "Invalid state binding seal",
   MilestoneConsistencyAssessment: "Invalid milestone consistency seal",
+  MilestoneReconciliationRequest: "Invalid reconciliation request seal",
   CanonicalProject: "Canonical seal unavailable",
 };
 // CASCADE can visit a dependent table's statement trigger first. Only the

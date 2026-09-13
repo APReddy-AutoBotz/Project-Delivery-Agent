@@ -118,7 +118,13 @@ export async function restore(
           (SELECT count(*)::int FROM "Programme" WHERE NOT public.valid_canonical_programme(id)) +
           (SELECT count(*)::int FROM "CanonicalProject" WHERE NOT sealed OR NOT public.valid_canonical_project(id)) +
           (SELECT count(*)::int FROM "CanonicalStateBinding" WHERE NOT sealed OR NOT public.valid_canonical_state_binding(id)) +
-          (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" WHERE NOT sealed OR NOT public.valid_milestone_consistency_assessment(id)) AS invalid`)
+          (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" WHERE NOT sealed OR NOT public.valid_milestone_consistency_assessment(id)) +
+          (SELECT count(*)::int FROM "MilestoneReconciliationRequest" WHERE sealed IS NOT TRUE OR public.valid_milestone_reconciliation_request(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "MilestoneReconciliationCheck" WHERE public.valid_milestone_reconciliation_check(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "MilestoneReconciliationAssignment" WHERE public.valid_milestone_reconciliation_assignment(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" a WHERE a."reconciliationCheckId" IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM "MilestoneReconciliationCheck" c WHERE c.id=a."reconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId"
+          )) AS invalid`)
         ).rows[0].invalid;
         if (authorityIntegrity !== 0)
           throw new Error("Restored authority integrity failed");

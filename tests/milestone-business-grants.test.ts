@@ -15,7 +15,7 @@ function client(name: string, rolsuper = false, invalid = 0) {
   };
 }
 
-it("rebuilds every migration-5 function revocation before granting only the two API predicates", async () => {
+it("rebuilds both finite migration-5/6 function boundaries before granting only the five API predicates", async () => {
   const owner = client("pdaa_migrate");
   await applyBusinessTableGrants(owner as unknown as GrantClient);
   const sql = owner.query.mock.calls[2]![0] as string;
@@ -32,25 +32,72 @@ it("rebuilds every migration-5 function revocation before granting only the two 
     .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
     .sort();
   expect(signatures).toHaveLength(14);
-  const revoked = sql.match(
-    /REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;/,
+  const stage3 = readFileSync(
+    new URL(
+      "../packages/data/prisma/migrations/202609120002_milestone_reconciliation_requests/migration.sql",
+      import.meta.url,
+    ),
+    "utf8",
   );
-  expect(revoked).not.toBeNull();
+  const newSignatures = [
+    ...stage3.matchAll(/REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC;/g),
+  ]
+    .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
+    .sort();
+  expect(newSignatures).toHaveLength(7);
+  const revoked = [
+    ...sql.matchAll(
+      /REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;/g,
+    ),
+  ];
+  expect(revoked).toHaveLength(2);
   expect(
-    revoked![1]!
-      .split(",")
-      .map((part) => part.trim())
+    revoked
+      .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
       .sort(),
-  ).toEqual(signatures);
-  const granted = sql.match(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/);
-  expect(granted?.[1]?.split(",")).toEqual([
-    "public.valid_canonical_state_binding(uuid)",
-    "public.valid_milestone_consistency_assessment(uuid)",
-  ]);
-  expect(sql.indexOf(revoked![0])).toBeLessThan(sql.indexOf(granted![0]));
+  ).toEqual([...signatures, ...newSignatures].sort());
+  const granted = [
+    ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
+  ];
+  expect(granted).toHaveLength(2);
+  expect(granted.flatMap((match) => match[1]!.split(",")).sort()).toEqual(
+    [
+      "public.valid_canonical_state_binding(uuid)",
+      "public.valid_milestone_consistency_assessment(uuid)",
+      "public.valid_milestone_reconciliation_assignment(uuid)",
+      "public.valid_milestone_reconciliation_check(uuid)",
+      "public.valid_milestone_reconciliation_request(uuid)",
+    ].sort(),
+  );
+  for (const grant of granted)
+    for (const signature of grant[1]!.split(",")) {
+      const revoke = revoked.find((match) =>
+        match[1]!.split(",").includes(signature),
+      );
+      expect(revoke).toBeDefined();
+      expect(revoke!.index).toBeLessThan(grant.index!);
+    }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(2);
+  ]).toHaveLength(4);
+});
+
+it("removes independent column ACL drift before the finite least-privilege grants", async () => {
+  const owner = client("pdaa_migrate");
+  await applyBusinessTableGrants(owner as unknown as GrantClient);
+  const sql = owner.query.mock.calls[2]![0] as string;
+  // PostgreSQL table REVOKE also removes corresponding column privileges.
+  // https://www.postgresql.org/docs/17/sql-revoke.html
+  expect(sql).toContain(
+    "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM pdaa_api,pdaa_worker,pdaa_backup",
+  );
+  expect(sql.indexOf("REVOKE ALL ON ALL TABLES")).toBeLessThan(
+    sql.indexOf("GRANT SELECT,INSERT,UPDATE,DELETE"),
+  );
+  expect(sql).toContain(
+    'GRANT UPDATE (sealed) ON "MilestoneReconciliationRequest" TO pdaa_api',
+  );
+  expect(sql).not.toContain('GRANT UPDATE ("reconciliationCheckId")');
 });
 
 it("also rebuilds function permissions for the authorized restore superuser", async () => {

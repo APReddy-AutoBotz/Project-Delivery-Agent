@@ -88,6 +88,9 @@ try {
     "MilestoneConsistencyAssessment",
     "MilestoneConsistencyTarget",
     "MilestoneConsistencyContributorVersion",
+    "MilestoneReconciliationRequest",
+    "MilestoneReconciliationCheck",
+    "MilestoneReconciliationAssignment",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -160,6 +163,7 @@ node([
   "tests/authority-persistence.integration.test.ts",
   "tests/canonical-project.integration.test.ts",
   "tests/milestone-persistence.integration.test.ts",
+  "tests/milestone-reconciliation.integration.test.ts",
   "tests/project-evidence.integration.test.ts",
   "--no-file-parallelism",
 ]);
@@ -213,8 +217,14 @@ writeFileSync(
       ],
       canonicalRepositoryChecks: "passed",
       milestonePersistenceChecks: "passed",
+      milestoneReconciliationTables: [
+        "MilestoneReconciliationRequest",
+        "MilestoneReconciliationCheck",
+        "MilestoneReconciliationAssignment",
+      ],
+      milestoneReconciliationChecks: "passed",
       evidenceHttpChecks: "passed",
-      businessTables: 36,
+      businessTables: 39,
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({

@@ -144,6 +144,9 @@ try {
     "MilestoneConsistencyAssessment",
     "MilestoneConsistencyTarget",
     "MilestoneConsistencyContributorVersion",
+    "MilestoneReconciliationRequest",
+    "MilestoneReconciliationCheck",
+    "MilestoneReconciliationAssignment",
   ];
   for (const table of tables) {
     const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
@@ -155,7 +158,12 @@ try {
   }
   assert((await restored.projectFactVersion.count()) > 0);
   assert((await restored.factAssessment.count()) > 0);
-  for (const table of canonicalTables)
+  for (const table of [
+    ...canonicalTables,
+    "MilestoneReconciliationRequest",
+    "MilestoneReconciliationCheck",
+    "MilestoneReconciliationAssignment",
+  ])
     assert(
       (
         await restored.$queryRawUnsafe(
@@ -174,7 +182,13 @@ try {
     (SELECT count(*)::int FROM "Programme" WHERE NOT public.valid_canonical_programme(id)) +
     (SELECT count(*)::int FROM "CanonicalProject" WHERE NOT sealed OR NOT public.valid_canonical_project(id)) +
     (SELECT count(*)::int FROM "CanonicalStateBinding" WHERE NOT sealed OR NOT public.valid_canonical_state_binding(id)) +
-    (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" WHERE NOT sealed OR NOT public.valid_milestone_consistency_assessment(id)) AS invalid`
+    (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" WHERE NOT sealed OR NOT public.valid_milestone_consistency_assessment(id)) +
+    (SELECT count(*)::int FROM "MilestoneReconciliationRequest" WHERE sealed IS NOT TRUE OR public.valid_milestone_reconciliation_request(id) IS NOT TRUE) +
+    (SELECT count(*)::int FROM "MilestoneReconciliationCheck" WHERE public.valid_milestone_reconciliation_check(id) IS NOT TRUE) +
+    (SELECT count(*)::int FROM "MilestoneReconciliationAssignment" WHERE public.valid_milestone_reconciliation_assignment(id) IS NOT TRUE) +
+    (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" a WHERE a."reconciliationCheckId" IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM "MilestoneReconciliationCheck" c WHERE c.id=a."reconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId"
+    )) AS invalid`
     )[0].invalid,
     0,
   );
@@ -193,6 +207,9 @@ try {
     "MilestoneConsistencyAssessment",
     "MilestoneConsistencyTarget",
     "MilestoneConsistencyContributorVersion",
+    "MilestoneReconciliationRequest",
+    "MilestoneReconciliationCheck",
+    "MilestoneReconciliationAssignment",
     ...canonicalTables,
   ]) {
     for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
@@ -214,7 +231,7 @@ try {
   if (visible.length !== 1 || visible[0].code !== "ATL")
     throw new Error("Restored permissions differ");
   console.log(
-    `Recovery passed: all 36 business tables and the migration ledger match exactly; audit, fact, policy, assessment, binding and canonical history remain immutable. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all 39 business tables and the migration ledger match exactly; audit, fact, policy, assessment, binding, reconciliation and canonical history remain immutable. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

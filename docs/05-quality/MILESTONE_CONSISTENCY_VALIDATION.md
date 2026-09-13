@@ -5,6 +5,36 @@ Plan: [EXEC-007](../04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md)
 Partial requirements: FR-EVD-004/009/010/012, FR-ADM-005; recorder repair:
 NFR-SEC-004/005, NFR-REL-001/002, SEC-SECRET-001. ADR-009/010/014 apply.
 
+## Current continuation status (2026-09-13)
+
+The sections below retain the original Stage 1 kernel scope and evidence. Stages
+1 and 2 have since merged; Stage 3 durable requests, assignment history and PM
+proof delivery are an unmerged candidate. See EXEC-007 for the approved design,
+current original-run identifiers and failed attempts retained during validation.
+Historical statements below that introduce no database or UI describe Stage 1
+only, not the complete current candidate.
+
+The Stage 3 candidate passed the full native database suite (107/107), exact
+39-table recovery, three native browser journeys, full build/typecheck and schema
+comparison. Composite runtime `pdaa-acceptance-1789286752740-5e77eda8` passed six
+actual-API-role race scenarios and ten native COMMIT controls on a new TLS fixture
+and all five genuine upgrade prefixes. All six original receipt sets also passed
+independent host readers. The composite explicitly mounts current code and is not
+intact packaged-image evidence. The expanded run
+`pdaa-acceptance-1789287570689-b33b7dc9` subsequently passed twelve native COMMIT
+controls (three positive/nine negative), six races and all five genuine upgrade
+prefixes. Every original receipt set passed both host readers. The new negatives
+isolate changed-identity REUSED and coherent predecessor-time corruption and prove
+fourteen-family rollback; prior ten-case receipts cannot satisfy this contract.
+
+The full serial unit run passed 1,039 tests before subsequent reader refinements;
+later focused runs passed 37 harness controls and 138 receipt-reader controls
+separately. The final complete serial suite then passed 1,089/1,089 in 46 files
+(262.79 seconds), with no deadline changes. Both packaged PM
+profiles, current exact-candidate review and required remote CI remain pending.
+No additional story, customer activation, release gate or external delivery is
+accepted. Accepted totals remain R0 3/5 and R1 2/33.
+
 ## Implemented boundary
 
 `evaluateMilestoneConsistency` accepts an internal trusted complete canonical

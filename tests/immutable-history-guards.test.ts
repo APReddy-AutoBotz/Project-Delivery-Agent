@@ -93,3 +93,52 @@ it("FR-EVD-004: distinguishes sealed-header guards from ordinary immutable rows"
     ),
   ).rejects.toThrow("must fail at its verified history guard");
 });
+it.each([
+  ["MilestoneReconciliationRequest", "Reconciliation request is immutable"],
+  ["MilestoneReconciliationCheck", "Reconciliation check is immutable"],
+  [
+    "MilestoneReconciliationAssignment",
+    "Reconciliation assignment is immutable",
+  ],
+])("FR-EVD-012: accepts only the exact %s guard", async (table, message) => {
+  for (const operation of ["UPDATE", "DELETE"])
+    await verifyImmutableHistoryMutation(
+      database(
+        guardError(
+          table === "MilestoneReconciliationRequest" && operation === "UPDATE"
+            ? "Invalid reconciliation request seal"
+            : message,
+        ),
+      ),
+      table,
+      operation,
+    );
+  await expect(
+    verifyImmutableHistoryMutation(
+      database(guardError("Invalid reconciliation request seal")),
+      table,
+      "DELETE",
+    ),
+  ).rejects.toThrow("must fail at its verified history guard");
+  await expect(
+    verifyImmutableHistoryMutation(
+      database(guardError("State binding is immutable")),
+      table,
+      "UPDATE",
+    ),
+  ).rejects.toThrow("must fail at its verified history guard");
+});
+it("FR-EVD-012: recognizes the request seal guard without widening other table errors", async () => {
+  await verifyImmutableHistoryMutation(
+    database(guardError("Invalid reconciliation request seal")),
+    "MilestoneReconciliationRequest",
+    "UPDATE",
+  );
+  await expect(
+    verifyImmutableHistoryMutation(
+      database(guardError("Invalid reconciliation request seal")),
+      "MilestoneReconciliationCheck",
+      "UPDATE",
+    ),
+  ).rejects.toThrow("must fail at its verified history guard");
+});

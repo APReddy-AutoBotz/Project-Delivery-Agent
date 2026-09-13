@@ -248,6 +248,20 @@ export class DatabaseMilestoneConsistencyRepository
                 select: { id: true },
               });
         if (!canonical || !target) throw new ProjectFactError("DENIED");
+        // FR-MOD-002 / NFR-REL-002: the project lock serializes competing
+        // bindings. A fresh retry key cannot replace an already bound target.
+        const bound = await tx.canonicalStateBinding.findFirst({
+          where: {
+            customerId: actor.customerId,
+            projectId: request.projectId,
+            targetKind: request.targetKind,
+            ...(request.targetKind === "MILESTONE"
+              ? { milestoneId: request.targetId }
+              : { workItemId: request.targetId }),
+          },
+          select: { id: true },
+        });
+        if (bound) throw new ProjectFactError("REVISION_CONFLICT");
         const bindingId = this.idFactory();
         let factType: string | null = null;
         for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -411,7 +425,7 @@ export class DatabaseMilestoneConsistencyRepository
     }
   }
 
-  private async deliver(
+  async deliverInTransaction(
     tx: Tx,
     actor: Actor,
     request: MilestoneConsistencyRead,
@@ -491,403 +505,10 @@ export class DatabaseMilestoneConsistencyRepository
     const context = factInput(() =>
       factMutationContextSchema.parse(contextValue),
     );
-    const requestHash = digest({
-      projectId: request.projectId,
-      milestoneId: request.milestoneId,
-      ruleRevision: request.ruleRevision,
-      enabled: request.enabled,
-    });
     try {
       return await this.db.$transaction(async (tx) => {
         await authorizeFactProject(tx, actor, request.projectId, "append");
-        const key = {
-          customerId: actor.customerId,
-          projectId: request.projectId,
-          subject: actor.subject,
-          idempotencyKey: request.idempotencyKey,
-        };
-        const previous = await tx.milestoneConsistencyAssessment.findUnique({
-          where: { customerId_projectId_subject_idempotencyKey: key },
-        });
-        if (previous) {
-          if (previous.requestHash !== requestHash)
-            throw new ProjectFactError("IDEMPOTENCY_CONFLICT");
-          const delivery = await this.deliver(
-            tx,
-            actor,
-            { projectId: request.projectId, assessmentId: previous.id },
-            true,
-          );
-          if (!delivery) throw new Error("Milestone assessment unavailable");
-          return delivery;
-        }
-        const canonical = await tx.canonicalProject.findFirst({
-          where: {
-            customerId: actor.customerId,
-            id: request.projectId,
-            sealed: true,
-          },
-          include: { canonicalCreationReceipt_project: true },
-        });
-        const milestone = await tx.milestone.findFirst({
-          where: {
-            customerId: actor.customerId,
-            projectId: request.projectId,
-            id: request.milestoneId,
-          },
-          select: { id: true },
-        });
-        if (!canonical?.canonicalCreationReceipt_project || !milestone)
-          throw new ProjectFactError("DENIED");
-        const links = await tx.requiredWorkItem.findMany({
-          where: {
-            customerId: actor.customerId,
-            projectId: request.projectId,
-            milestoneId: request.milestoneId,
-          },
-          orderBy: { id: "asc" },
-          take: 51,
-        });
-        const slots = [
-          { targetKind: "MILESTONE" as const, targetId: request.milestoneId },
-          ...links.map((row) => ({
-            targetKind: "WORK_ITEM" as const,
-            targetId: row.workItemId,
-          })),
-        ];
-        const bindings = await tx.canonicalStateBinding.findMany({
-          where: {
-            customerId: actor.customerId,
-            projectId: request.projectId,
-            sealed: true,
-            OR: [
-              { milestoneId: request.milestoneId },
-              { workItemId: { in: links.map((row) => row.workItemId) } },
-            ],
-          },
-          orderBy: { id: "asc" },
-        });
-        const byTarget = new Map(
-          bindings.map((row) => [
-            `${row.targetKind}:${row.milestoneId ?? row.workItemId}`,
-            row,
-          ]),
-        );
-        const facts = await tx.projectFact.findMany({
-          where: {
-            customerId: actor.customerId,
-            projectId: request.projectId,
-            id: { in: bindings.map((row) => row.factId) },
-          },
-          orderBy: { id: "asc" },
-        });
-        if (facts.length)
-          await tx.$queryRaw`SELECT id FROM public."ProjectFact"
-            WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid
-              AND id IN (${Prisma.join(facts.map((fact) => Prisma.sql`${fact.id}::uuid`))})
-            ORDER BY id FOR UPDATE`;
-        const expected = {
-          receipt: canonical.canonicalCreationReceipt_project.id,
-          milestone: milestone.id,
-          links: links.map((row) => [row.id, row.milestoneId, row.workItemId]),
-          bindings: bindings.map((row) => [
-            row.id,
-            row.targetKind,
-            row.milestoneId,
-            row.workItemId,
-            row.factId,
-            row.factType,
-          ]),
-          facts: facts.map((row) => [
-            row.id,
-            row.factType,
-            row.revision,
-            row.bindingBirthId,
-          ]),
-        };
-        // One bounded re-read statement, after coordination and before asOf.
-        // JSONB equality is structural; neither JSON property order nor hashes
-        // are substituted for comparison of the actual database identities.
-        const coherent = await tx.$queryRaw<{ valid: boolean }[]>`
-          WITH required AS (
-            SELECT id,"milestoneId","workItemId" FROM public."RequiredWorkItem"
-            WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid AND "milestoneId"=${request.milestoneId}::uuid ORDER BY id LIMIT 51
-          ), bound AS (
-            SELECT * FROM public."CanonicalStateBinding" WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid AND sealed
-              AND ("milestoneId"=${request.milestoneId}::uuid OR "workItemId" IN (SELECT "workItemId" FROM required))
-          )
-          SELECT jsonb_build_object(
-            'receipt',(SELECT r.id FROM public."CanonicalProject" p JOIN public."CanonicalCreationReceipt" r ON r."projectId"=p.id AND r."customerId"=p."customerId" WHERE p."customerId"=${actor.customerId}::uuid AND p.id=${request.projectId}::uuid AND p.sealed),
-            'milestone',(SELECT id FROM public."Milestone" WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid AND id=${request.milestoneId}::uuid),
-            'links',(SELECT COALESCE(jsonb_agg(jsonb_build_array(id,"milestoneId","workItemId") ORDER BY id),'[]'::jsonb) FROM required),
-            'bindings',(SELECT COALESCE(jsonb_agg(jsonb_build_array(id,"targetKind","milestoneId","workItemId","factId","factType") ORDER BY id),'[]'::jsonb) FROM bound),
-            'facts',(SELECT COALESCE(jsonb_agg(jsonb_build_array(id,"factType",revision,"bindingBirthId") ORDER BY id),'[]'::jsonb) FROM public."ProjectFact" WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid AND id IN (SELECT "factId" FROM bound))
-          )=${JSON.stringify(expected)}::jsonb AS valid`;
-        if (coherent[0]?.valid !== true)
-          throw new Error("Milestone capture coordination changed");
-        const asOf = await this.time(tx);
-        const assessmentId = this.idFactory();
-        const auditEventId = this.idFactory();
-        const minimal = {
-          scope: {
-            customerId: actor.customerId,
-            projectId: request.projectId,
-            milestoneId: request.milestoneId,
-          },
-          asOf: asOf.toISOString(),
-          ruleRevision: request.ruleRevision,
-          status: "INCOMPLETE" as const,
-        };
-        const factById = new Map(facts.map((row) => [row.id, row]));
-        const prepared = new Map<
-          string,
-          Awaited<
-            ReturnType<
-              DatabaseAuthorityRepository["prepareAssessmentInTransaction"]
-            >
-          >
-        >();
-        let complete = links.length <= 50 && facts.length === bindings.length;
-        const prefixes = complete
-          ? await this.authority.loadAssessmentPrefixesInTransaction(
-              tx,
-              actor,
-              request.projectId,
-              facts,
-              asOf,
-            )
-          : null;
-        complete = complete && prefixes !== null;
-        if (complete) {
-          for (const binding of [...bindings].sort((a, b) =>
-            a.factId.localeCompare(b.factId),
-          )) {
-            const fact = factById.get(binding.factId)!;
-            const plan = await this.authority.prepareAssessmentInTransaction(
-              tx,
-              actor,
-              {
-                projectId: request.projectId,
-                fact,
-                asOf,
-                prefix: prefixes!.get(fact.id)!,
-              },
-            );
-            prepared.set(binding.id, plan);
-            if (!plan.complete) complete = false;
-          }
-        }
-        const preparedRows = [...prepared.values()];
-        const versionCount = preparedRows.reduce(
-          (sum, plan) => sum + plan.versions.length,
-          0,
-        );
-        const conflictCount = preparedRows.reduce(
-          (sum, plan) => sum + plan.conflicts.length,
-          0,
-        );
-        const sourceCount = preparedRows.reduce(
-          (sum, plan) => sum + plan.access.length,
-          0,
-        );
-        const referenceCount = versionCount;
-        const derivedCount = 4 * versionCount + 4 * conflictCount;
-        complete =
-          complete &&
-          versionCount <= 1000 &&
-          conflictCount <= 1000 &&
-          sourceCount <= 1000 &&
-          referenceCount <= 64000 &&
-          derivedCount <= 64000;
-        const result = complete
-          ? evaluateMilestoneConsistency({
-              scope: minimal.scope,
-              asOf: minimal.asOf,
-              ruleRevision: request.ruleRevision,
-              enabled: request.enabled,
-              complete: true,
-              requiredWorkItemIds: links.map((row) => row.workItemId),
-              targets: slots.map((slot) => {
-                const binding = byTarget.get(
-                  `${slot.targetKind}:${slot.targetId}`,
-                );
-                const child = binding ? prepared.get(binding.id) : undefined;
-                return {
-                  ...slot,
-                  binding: binding
-                    ? {
-                        id: binding.id,
-                        customerId: binding.customerId,
-                        projectId: binding.projectId,
-                        targetKind: slot.targetKind,
-                        targetId: slot.targetId,
-                        field: "state",
-                        factId: binding.factId,
-                        factType: binding.factType,
-                      }
-                    : null,
-                  snapshot: child?.snapshot ?? null,
-                };
-              }),
-            })
-          : minimal;
-        const resultRecord = result as unknown as Record<string, unknown>;
-        const contributorCount =
-          resultRecord.status === "CONFLICTING"
-            ? (
-                resultRecord.contributors as Array<{
-                  supportingVersionIds: string[];
-                }>
-              ).reduce(
-                (sum, contributor) =>
-                  sum + contributor.supportingVersionIds.length,
-                0,
-              )
-            : 0;
-        await tx.milestoneConsistencyAssessment.create({
-          data: {
-            id: assessmentId,
-            ...key,
-            milestoneId: request.milestoneId,
-            canonicalReceiptId: canonical.canonicalCreationReceipt_project.id,
-            ruleRevision: request.ruleRevision,
-            enabled: request.enabled,
-            asOf,
-            requestHash,
-            status: resultRecord.status as string,
-            complete,
-            targetCount: complete ? slots.length : 0,
-            requiredLinkCount: complete ? links.length : 0,
-            versionCount: complete ? versionCount : 0,
-            evidenceCount: complete ? versionCount : 0,
-            conflictCount: complete ? conflictCount : 0,
-            contributorCount: complete ? contributorCount : 0,
-            result: json(result),
-            auditEventId,
-          },
-          select: { id: true },
-        });
-        const captured = new Map<
-          string,
-          Awaited<
-            ReturnType<
-              DatabaseAuthorityRepository["persistPreparedAssessmentInTransaction"]
-            >
-          >
-        >();
-        if (complete)
-          for (const binding of [...bindings].sort((a, b) =>
-            a.factId.localeCompare(b.factId),
-          )) {
-            const child =
-              await this.authority.persistPreparedAssessmentInTransaction(
-                tx,
-                actor,
-                {
-                  prepared: prepared.get(binding.id)!,
-                  subject: actor.subject,
-                  idempotencyKey: childKey(assessmentId, binding.id),
-                  requestHash: digest({
-                    captureKind: "MILESTONE",
-                    assessmentId,
-                    bindingId: binding.id,
-                    projectId: request.projectId,
-                    factType: binding.factType,
-                    asOf: asOf.toISOString(),
-                  }),
-                  captureKind: "MILESTONE",
-                  milestoneAssessmentId: assessmentId,
-                },
-              );
-            captured.set(binding.id, child);
-          }
-        const targetRows = slots.map((slot) => {
-          const binding = byTarget.get(`${slot.targetKind}:${slot.targetId}`);
-          const child = binding ? captured.get(binding.id) : undefined;
-          const link =
-            slot.targetKind === "WORK_ITEM"
-              ? links.find((row) => row.workItemId === slot.targetId)
-              : undefined;
-          return {
-            id: this.idFactory(),
-            customerId: actor.customerId,
-            projectId: request.projectId,
-            assessmentId,
-            targetKind: slot.targetKind,
-            milestoneId: request.milestoneId,
-            workItemId: slot.targetKind === "WORK_ITEM" ? slot.targetId : null,
-            requiredWorkItemId: link?.id ?? null,
-            bindingId: binding?.id ?? null,
-            factId: binding?.factId ?? null,
-            factType: binding?.factType ?? null,
-            scalarAssessmentId: child?.id ?? null,
-          };
-        });
-        if (complete)
-          await tx.milestoneConsistencyTarget.createMany({ data: targetRows });
-        const contributorRows: Prisma.MilestoneConsistencyContributorVersionCreateManyInput[] =
-          [];
-        if (resultRecord.status === "CONFLICTING") {
-          const contributors = resultRecord.contributors as Array<{
-            bindingId: string;
-            supportingVersionIds: string[];
-          }>;
-          for (const contributor of contributors) {
-            const target = targetRows.find(
-              (row) => row.bindingId === contributor.bindingId,
-            )!;
-            const child = captured.get(contributor.bindingId)!;
-            for (const versionId of contributor.supportingVersionIds) {
-              const version = child.versions.find(
-                (row) => row.id === versionId,
-              )!;
-              contributorRows.push({
-                customerId: actor.customerId,
-                projectId: request.projectId,
-                assessmentId,
-                targetRowId: target.id,
-                bindingId: contributor.bindingId,
-                factId: target.factId!,
-                versionId,
-                sourceId: version.sourceId,
-                evidenceId: version.evidenceId,
-              });
-            }
-          }
-          if (contributorRows.length)
-            await tx.milestoneConsistencyContributorVersion.createMany({
-              data: contributorRows,
-            });
-        }
-        await tx.auditEvent.create({
-          data: {
-            id: auditEventId,
-            customerId: actor.customerId,
-            actor: actor.subject,
-            correlationId: context.correlationId,
-            event: "milestone.consistency.captured",
-            occurredAt: asOf,
-            detail: {
-              projectId: request.projectId,
-              assessmentId,
-              milestoneId: request.milestoneId,
-              status: resultRecord.status as string,
-            },
-          },
-        });
-        await tx.milestoneConsistencyAssessment.update({
-          where: { id: assessmentId },
-          data: { sealed: true },
-          select: { id: true },
-        });
-        const delivery = await this.deliver(
-          tx,
-          actor,
-          { projectId: request.projectId, assessmentId },
-          false,
-        );
-        if (!delivery) throw new Error("Milestone assessment unavailable");
-        return delivery;
+        return this.captureInTransaction(tx, actor, request, context);
       }, transactionOptions);
     } catch (error) {
       if (error instanceof ProjectFactError) {
@@ -905,6 +526,412 @@ export class DatabaseMilestoneConsistencyRepository
     }
   }
 
+  // Internal composition seam: the caller owns authorization, lock ordering and
+  // COMMIT. This is not a model tool or a public caller-supplied proof surface.
+  async captureInTransaction(
+    tx: Tx,
+    actor: Actor,
+    request: MilestoneConsistencyCapture,
+    context: FactMutationContext,
+    reconciliationCheckId: string | null = null,
+  ): Promise<MilestoneConsistencyDelivery> {
+    const requestHash = digest({
+      projectId: request.projectId,
+      milestoneId: request.milestoneId,
+      ruleRevision: request.ruleRevision,
+      enabled: request.enabled,
+    });
+    const key = {
+      customerId: actor.customerId,
+      projectId: request.projectId,
+      subject: actor.subject,
+      idempotencyKey: request.idempotencyKey,
+    };
+    const previous = await tx.milestoneConsistencyAssessment.findUnique({
+      where: { customerId_projectId_subject_idempotencyKey: key },
+    });
+    if (previous) {
+      if (
+        reconciliationCheckId !== null ||
+        previous.reconciliationCheckId != null
+      )
+        throw new Error("Reserved reconciliation capture key occupied");
+      if (previous.requestHash !== requestHash)
+        throw new ProjectFactError("IDEMPOTENCY_CONFLICT");
+      const delivery = await this.deliverInTransaction(
+        tx,
+        actor,
+        { projectId: request.projectId, assessmentId: previous.id },
+        true,
+      );
+      if (!delivery) throw new Error("Milestone assessment unavailable");
+      return delivery;
+    }
+    const canonical = await tx.canonicalProject.findFirst({
+      where: {
+        customerId: actor.customerId,
+        id: request.projectId,
+        sealed: true,
+      },
+      include: { canonicalCreationReceipt_project: true },
+    });
+    const milestone = await tx.milestone.findFirst({
+      where: {
+        customerId: actor.customerId,
+        projectId: request.projectId,
+        id: request.milestoneId,
+      },
+      select: { id: true },
+    });
+    if (!canonical?.canonicalCreationReceipt_project || !milestone)
+      throw new ProjectFactError("DENIED");
+    const links = await tx.requiredWorkItem.findMany({
+      where: {
+        customerId: actor.customerId,
+        projectId: request.projectId,
+        milestoneId: request.milestoneId,
+      },
+      orderBy: { id: "asc" },
+      take: 51,
+    });
+    const slots = [
+      { targetKind: "MILESTONE" as const, targetId: request.milestoneId },
+      ...links.map((row) => ({
+        targetKind: "WORK_ITEM" as const,
+        targetId: row.workItemId,
+      })),
+    ];
+    const bindings = await tx.canonicalStateBinding.findMany({
+      where: {
+        customerId: actor.customerId,
+        projectId: request.projectId,
+        sealed: true,
+        OR: [
+          { milestoneId: request.milestoneId },
+          { workItemId: { in: links.map((row) => row.workItemId) } },
+        ],
+      },
+      orderBy: { id: "asc" },
+    });
+    const byTarget = new Map(
+      bindings.map((row) => [
+        `${row.targetKind}:${row.milestoneId ?? row.workItemId}`,
+        row,
+      ]),
+    );
+    const facts = await tx.projectFact.findMany({
+      where: {
+        customerId: actor.customerId,
+        projectId: request.projectId,
+        id: { in: bindings.map((row) => row.factId) },
+      },
+      orderBy: { id: "asc" },
+    });
+    if (facts.length)
+      await tx.$queryRaw`SELECT id FROM public."ProjectFact"
+            WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid
+              AND id IN (${Prisma.join(facts.map((fact) => Prisma.sql`${fact.id}::uuid`))})
+            ORDER BY id FOR UPDATE`;
+    const expected = {
+      receipt: canonical.canonicalCreationReceipt_project.id,
+      milestone: milestone.id,
+      links: links.map((row) => [row.id, row.milestoneId, row.workItemId]),
+      bindings: bindings.map((row) => [
+        row.id,
+        row.targetKind,
+        row.milestoneId,
+        row.workItemId,
+        row.factId,
+        row.factType,
+      ]),
+      facts: facts.map((row) => [
+        row.id,
+        row.factType,
+        row.revision,
+        row.bindingBirthId,
+      ]),
+    };
+    // One bounded re-read statement, after coordination and before asOf.
+    // JSONB equality is structural; neither JSON property order nor hashes
+    // are substituted for comparison of the actual database identities.
+    const coherent = await tx.$queryRaw<{ valid: boolean }[]>`
+          WITH required AS (
+            SELECT id,"milestoneId","workItemId" FROM public."RequiredWorkItem"
+            WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid AND "milestoneId"=${request.milestoneId}::uuid ORDER BY id LIMIT 51
+          ), bound AS (
+            SELECT * FROM public."CanonicalStateBinding" WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid AND sealed
+              AND ("milestoneId"=${request.milestoneId}::uuid OR "workItemId" IN (SELECT "workItemId" FROM required))
+          )
+          SELECT jsonb_build_object(
+            'receipt',(SELECT r.id FROM public."CanonicalProject" p JOIN public."CanonicalCreationReceipt" r ON r."projectId"=p.id AND r."customerId"=p."customerId" WHERE p."customerId"=${actor.customerId}::uuid AND p.id=${request.projectId}::uuid AND p.sealed),
+            'milestone',(SELECT id FROM public."Milestone" WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid AND id=${request.milestoneId}::uuid),
+            'links',(SELECT COALESCE(jsonb_agg(jsonb_build_array(id,"milestoneId","workItemId") ORDER BY id),'[]'::jsonb) FROM required),
+            'bindings',(SELECT COALESCE(jsonb_agg(jsonb_build_array(id,"targetKind","milestoneId","workItemId","factId","factType") ORDER BY id),'[]'::jsonb) FROM bound),
+            'facts',(SELECT COALESCE(jsonb_agg(jsonb_build_array(id,"factType",revision,"bindingBirthId") ORDER BY id),'[]'::jsonb) FROM public."ProjectFact" WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${request.projectId}::uuid AND id IN (SELECT "factId" FROM bound))
+          )=${JSON.stringify(expected)}::jsonb AS valid`;
+    if (coherent[0]?.valid !== true)
+      throw new Error("Milestone capture coordination changed");
+    const asOf = await this.time(tx);
+    const assessmentId = this.idFactory();
+    const auditEventId = this.idFactory();
+    const minimal = {
+      scope: {
+        customerId: actor.customerId,
+        projectId: request.projectId,
+        milestoneId: request.milestoneId,
+      },
+      asOf: asOf.toISOString(),
+      ruleRevision: request.ruleRevision,
+      status: "INCOMPLETE" as const,
+    };
+    const factById = new Map(facts.map((row) => [row.id, row]));
+    const prepared = new Map<
+      string,
+      Awaited<
+        ReturnType<
+          DatabaseAuthorityRepository["prepareAssessmentInTransaction"]
+        >
+      >
+    >();
+    let complete = links.length <= 50 && facts.length === bindings.length;
+    const prefixes = complete
+      ? await this.authority.loadAssessmentPrefixesInTransaction(
+          tx,
+          actor,
+          request.projectId,
+          facts,
+          asOf,
+        )
+      : null;
+    complete = complete && prefixes !== null;
+    if (complete) {
+      for (const binding of [...bindings].sort((a, b) =>
+        a.factId.localeCompare(b.factId),
+      )) {
+        const fact = factById.get(binding.factId)!;
+        const plan = await this.authority.prepareAssessmentInTransaction(
+          tx,
+          actor,
+          {
+            projectId: request.projectId,
+            fact,
+            asOf,
+            prefix: prefixes!.get(fact.id)!,
+          },
+        );
+        prepared.set(binding.id, plan);
+        if (!plan.complete) complete = false;
+      }
+    }
+    const preparedRows = [...prepared.values()];
+    const versionCount = preparedRows.reduce(
+      (sum, plan) => sum + plan.versions.length,
+      0,
+    );
+    const conflictCount = preparedRows.reduce(
+      (sum, plan) => sum + plan.conflicts.length,
+      0,
+    );
+    const sourceCount = preparedRows.reduce(
+      (sum, plan) => sum + plan.access.length,
+      0,
+    );
+    const referenceCount = versionCount;
+    const derivedCount = 4 * versionCount + 4 * conflictCount;
+    complete =
+      complete &&
+      versionCount <= 1000 &&
+      conflictCount <= 1000 &&
+      sourceCount <= 1000 &&
+      referenceCount <= 64000 &&
+      derivedCount <= 64000;
+    const result = complete
+      ? evaluateMilestoneConsistency({
+          scope: minimal.scope,
+          asOf: minimal.asOf,
+          ruleRevision: request.ruleRevision,
+          enabled: request.enabled,
+          complete: true,
+          requiredWorkItemIds: links.map((row) => row.workItemId),
+          targets: slots.map((slot) => {
+            const binding = byTarget.get(`${slot.targetKind}:${slot.targetId}`);
+            const child = binding ? prepared.get(binding.id) : undefined;
+            return {
+              ...slot,
+              binding: binding
+                ? {
+                    id: binding.id,
+                    customerId: binding.customerId,
+                    projectId: binding.projectId,
+                    targetKind: slot.targetKind,
+                    targetId: slot.targetId,
+                    field: "state",
+                    factId: binding.factId,
+                    factType: binding.factType,
+                  }
+                : null,
+              snapshot: child?.snapshot ?? null,
+            };
+          }),
+        })
+      : minimal;
+    const resultRecord = result as unknown as Record<string, unknown>;
+    const contributorCount =
+      resultRecord.status === "CONFLICTING"
+        ? (
+            resultRecord.contributors as Array<{
+              supportingVersionIds: string[];
+            }>
+          ).reduce(
+            (sum, contributor) => sum + contributor.supportingVersionIds.length,
+            0,
+          )
+        : 0;
+    await tx.milestoneConsistencyAssessment.create({
+      data: {
+        id: assessmentId,
+        reconciliationCheckId,
+        ...key,
+        milestoneId: request.milestoneId,
+        canonicalReceiptId: canonical.canonicalCreationReceipt_project.id,
+        ruleRevision: request.ruleRevision,
+        enabled: request.enabled,
+        asOf,
+        requestHash,
+        status: resultRecord.status as string,
+        complete,
+        targetCount: complete ? slots.length : 0,
+        requiredLinkCount: complete ? links.length : 0,
+        versionCount: complete ? versionCount : 0,
+        evidenceCount: complete ? versionCount : 0,
+        conflictCount: complete ? conflictCount : 0,
+        contributorCount: complete ? contributorCount : 0,
+        result: json(result),
+        auditEventId,
+      },
+      select: { id: true },
+    });
+    const captured = new Map<
+      string,
+      Awaited<
+        ReturnType<
+          DatabaseAuthorityRepository["persistPreparedAssessmentInTransaction"]
+        >
+      >
+    >();
+    if (complete)
+      for (const binding of [...bindings].sort((a, b) =>
+        a.factId.localeCompare(b.factId),
+      )) {
+        const child =
+          await this.authority.persistPreparedAssessmentInTransaction(
+            tx,
+            actor,
+            {
+              prepared: prepared.get(binding.id)!,
+              subject: actor.subject,
+              idempotencyKey: childKey(assessmentId, binding.id),
+              requestHash: digest({
+                captureKind: "MILESTONE",
+                assessmentId,
+                bindingId: binding.id,
+                projectId: request.projectId,
+                factType: binding.factType,
+                asOf: asOf.toISOString(),
+              }),
+              captureKind: "MILESTONE",
+              milestoneAssessmentId: assessmentId,
+            },
+          );
+        captured.set(binding.id, child);
+      }
+    const targetRows = slots.map((slot) => {
+      const binding = byTarget.get(`${slot.targetKind}:${slot.targetId}`);
+      const child = binding ? captured.get(binding.id) : undefined;
+      const link =
+        slot.targetKind === "WORK_ITEM"
+          ? links.find((row) => row.workItemId === slot.targetId)
+          : undefined;
+      return {
+        id: this.idFactory(),
+        customerId: actor.customerId,
+        projectId: request.projectId,
+        assessmentId,
+        targetKind: slot.targetKind,
+        milestoneId: request.milestoneId,
+        workItemId: slot.targetKind === "WORK_ITEM" ? slot.targetId : null,
+        requiredWorkItemId: link?.id ?? null,
+        bindingId: binding?.id ?? null,
+        factId: binding?.factId ?? null,
+        factType: binding?.factType ?? null,
+        scalarAssessmentId: child?.id ?? null,
+      };
+    });
+    if (complete)
+      await tx.milestoneConsistencyTarget.createMany({ data: targetRows });
+    const contributorRows: Prisma.MilestoneConsistencyContributorVersionCreateManyInput[] =
+      [];
+    if (resultRecord.status === "CONFLICTING") {
+      const contributors = resultRecord.contributors as Array<{
+        bindingId: string;
+        supportingVersionIds: string[];
+      }>;
+      for (const contributor of contributors) {
+        const target = targetRows.find(
+          (row) => row.bindingId === contributor.bindingId,
+        )!;
+        const child = captured.get(contributor.bindingId)!;
+        for (const versionId of contributor.supportingVersionIds) {
+          const version = child.versions.find((row) => row.id === versionId)!;
+          contributorRows.push({
+            customerId: actor.customerId,
+            projectId: request.projectId,
+            assessmentId,
+            targetRowId: target.id,
+            bindingId: contributor.bindingId,
+            factId: target.factId!,
+            versionId,
+            sourceId: version.sourceId,
+            evidenceId: version.evidenceId,
+          });
+        }
+      }
+      if (contributorRows.length)
+        await tx.milestoneConsistencyContributorVersion.createMany({
+          data: contributorRows,
+        });
+    }
+    await tx.auditEvent.create({
+      data: {
+        id: auditEventId,
+        customerId: actor.customerId,
+        actor: actor.subject,
+        correlationId: context.correlationId,
+        event: "milestone.consistency.captured",
+        occurredAt: asOf,
+        detail: {
+          projectId: request.projectId,
+          assessmentId,
+          milestoneId: request.milestoneId,
+          status: resultRecord.status as string,
+        },
+      },
+    });
+    await tx.milestoneConsistencyAssessment.update({
+      where: { id: assessmentId },
+      data: { sealed: true },
+      select: { id: true },
+    });
+    const delivery = await this.deliverInTransaction(
+      tx,
+      actor,
+      { projectId: request.projectId, assessmentId },
+      false,
+    );
+    if (!delivery) throw new Error("Milestone assessment unavailable");
+    return delivery;
+  }
+
   async getMilestoneConsistency(
     actorValue: Actor,
     requestValue: MilestoneConsistencyRead,
@@ -916,7 +943,7 @@ export class DatabaseMilestoneConsistencyRepository
     try {
       return await this.db.$transaction(async (tx) => {
         await authorizeFactProject(tx, actor, request.projectId, "append");
-        return this.deliver(tx, actor, request, false);
+        return this.deliverInTransaction(tx, actor, request, false);
       }, transactionOptions);
     } catch (error) {
       if (error instanceof ProjectFactError && error.code === "DENIED")
