@@ -59,6 +59,7 @@ CREATE TABLE public."ScalarReconciliationAssignment" (
   CONSTRAINT "ScalarAssignment_shape" CHECK (
     revision BETWEEN 1 AND 2147483647 AND "expectedRevision" BETWEEN 0 AND 2147483646 AND revision::bigint="expectedRevision"::bigint+1
     AND length(btrim(actor))>0 AND isfinite("occurredAt")
+    AND "occurredAt">=TIMESTAMPTZ '0001-01-01 00:00:00+00' AND "occurredAt"<TIMESTAMPTZ '10000-01-01 00:00:00+00'
     AND ((kind='INITIAL' AND revision=1 AND "previousAssignmentId" IS NULL AND "idempotencyKey" IS NULL AND "requestHash" IS NULL)
       OR (kind='REFRESH' AND revision>1 AND "previousAssignmentId" IS NOT NULL AND "idempotencyKey" IS NOT NULL AND "idempotencyKey" ~ '^[A-Za-z0-9_-]{1,128}$' AND "requestHash" IS NOT NULL AND "requestHash" ~ '^[a-f0-9]{64}$'))
     AND ((reason='ASSIGNED' AND "recipientSubject" IS NOT NULL AND length(btrim("recipientSubject"))>0 AND "responsibilityId" IS NOT NULL
@@ -112,7 +113,7 @@ BEGIN
   IF NOT FOUND THEN RETURN false; END IF;
   SELECT * INTO r FROM public."ScalarReconciliationRequest" WHERE id=a."requestId" AND "customerId"=a."customerId" AND "projectId"=a."projectId" AND "factId"=a."factId";
   IF NOT FOUND OR r.state<>'OPEN' THEN RETURN false; END IF;
-  IF NOT EXISTS (SELECT 1 FROM public."AuditEvent" WHERE id=a."auditEventId" AND "customerId"=a."customerId" AND actor=a.actor AND "occurredAt"=a."occurredAt" AND event='scalar.reconciliation.assigned'
+  IF NOT EXISTS (SELECT 1 FROM public."AuditEvent" WHERE id=a."auditEventId" AND "customerId"=a."customerId" AND actor=a.actor AND ("occurredAt" AT TIME ZONE 'UTC')=a."occurredAt" AND event='scalar.reconciliation.assigned'
     AND detail=jsonb_build_object('projectId',a."projectId",'factId',a."factId",'requestId',a."requestId",'assignmentId',a.id,'revision',a.revision,'reason',a.reason)) THEN RETURN false; END IF;
   IF a.kind='INITIAL' THEN
     IF a.revision<>1 OR a."expectedRevision"<>0 OR a."previousAssignmentId" IS NOT NULL OR a.actor<>r."createdBy" OR a."occurredAt"<>r."createdAt" THEN RETURN false; END IF;
@@ -144,9 +145,9 @@ BEGIN
   SELECT * INTO c FROM public."ScalarReconciliationCheck" WHERE id=r."originCommandId" AND "customerId"=r."customerId" AND "projectId"=r."projectId" AND "factId"=r."factId";
   IF NOT FOUND OR c.outcome<>'CREATED' OR c."requestId" IS DISTINCT FROM r.id OR c."assessmentId"<>a.id OR c.subject<>a.subject OR c."occurredAt"<>a."asOf" OR c."requestHash"<>a."requestHash" THEN RETURN false; END IF;
   IF c."requestHash" IS DISTINCT FROM encode(sha256(convert_to(format('{"projectId":"%s","factId":"%s"}',c."projectId",c."factId"),'UTF8')),'hex') THEN RETURN false; END IF;
-  IF NOT EXISTS (SELECT 1 FROM public."AuditEvent" WHERE id=r."auditEventId" AND "customerId"=r."customerId" AND actor=r."createdBy" AND "occurredAt"=r."createdAt" AND event='scalar.reconciliation.requested'
+  IF NOT EXISTS (SELECT 1 FROM public."AuditEvent" WHERE id=r."auditEventId" AND "customerId"=r."customerId" AND actor=r."createdBy" AND ("occurredAt" AT TIME ZONE 'UTC')=r."createdAt" AND event='scalar.reconciliation.requested'
     AND detail=jsonb_build_object('projectId',r."projectId",'factId',r."factId",'requestId',r.id,'assessmentId',r."originalAssessmentId",'checkId',r."originCommandId")) THEN RETURN false; END IF;
-  IF NOT EXISTS (SELECT 1 FROM public."AuditEvent" WHERE id=c."auditEventId" AND "customerId"=c."customerId" AND actor=c.subject AND "occurredAt"=c."occurredAt" AND event='scalar.reconciliation.checked'
+  IF NOT EXISTS (SELECT 1 FROM public."AuditEvent" WHERE id=c."auditEventId" AND "customerId"=c."customerId" AND actor=c.subject AND ("occurredAt" AT TIME ZONE 'UTC')=c."occurredAt" AND event='scalar.reconciliation.checked'
     AND detail=jsonb_build_object('projectId',c."projectId",'factId',c."factId",'checkId',c.id,'assessmentId',c."assessmentId",'requestId',c."requestId",'outcome',c.outcome)) THEN RETURN false; END IF;
   SELECT id INTO initial_id FROM public."ScalarReconciliationAssignment" WHERE "customerId"=r."customerId" AND "projectId"=r."projectId" AND "factId"=r."factId" AND "requestId"=r.id AND revision=1;
   RETURN initial_id IS NOT NULL AND public.valid_scalar_reconciliation_assignment(initial_id) IS TRUE;
@@ -162,7 +163,7 @@ BEGIN
   SELECT * INTO a FROM public."FactAssessment" WHERE id=c."assessmentId" AND "customerId"=c."customerId" AND "projectId"=c."projectId" AND "factId"=c."factId";
   IF NOT FOUND OR NOT a.sealed OR a."captureKind"<>'SCALAR_REQUEST' OR a."scalarReconciliationCheckId" IS DISTINCT FROM c.id OR a.subject<>c.subject OR a."asOf"<>c."occurredAt" OR a."requestHash"<>c."requestHash" THEN RETURN false; END IF;
   IF c."requestHash" IS DISTINCT FROM encode(sha256(convert_to(format('{"projectId":"%s","factId":"%s"}',c."projectId",c."factId"),'UTF8')),'hex') THEN RETURN false; END IF;
-  IF NOT EXISTS (SELECT 1 FROM public."AuditEvent" WHERE id=c."auditEventId" AND "customerId"=c."customerId" AND actor=c.subject AND "occurredAt"=c."occurredAt" AND event='scalar.reconciliation.checked'
+  IF NOT EXISTS (SELECT 1 FROM public."AuditEvent" WHERE id=c."auditEventId" AND "customerId"=c."customerId" AND actor=c.subject AND ("occurredAt" AT TIME ZONE 'UTC')=c."occurredAt" AND event='scalar.reconciliation.checked'
     AND detail=jsonb_build_object('projectId',c."projectId",'factId',c."factId",'checkId',c.id,'assessmentId',c."assessmentId",'requestId',c."requestId",'outcome',c.outcome)) THEN RETURN false; END IF;
   identity:=public.scalar_reconciliation_identity(a.id);
   IF c.outcome='NO_REQUEST' THEN RETURN c."requestId" IS NULL AND identity IS NULL; END IF;

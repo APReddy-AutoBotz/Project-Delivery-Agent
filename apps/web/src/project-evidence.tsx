@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
+import {
+  ScalarReconciliationCheck,
+  ScalarReconciliationQueue,
+} from "./scalar-reconciliation.js";
 import type {
   FactCatalogue,
   FactHistoryPage,
@@ -30,6 +34,7 @@ type Props = {
   projectId: string;
   request: RequestFn;
   initialAssessmentId?: string | null;
+  initialScalarRequestId?: string | null;
   visible?: boolean;
 };
 function ResourceStatus({
@@ -61,6 +66,7 @@ export function ProjectEvidence({
   projectId,
   request,
   initialAssessmentId,
+  initialScalarRequestId,
   visible = true,
 }: Props) {
   const [after, setAfter] = useState<string | null>(null),
@@ -68,6 +74,7 @@ export function ProjectEvidence({
     [target, setTarget] = useState<string | null>(null);
   const [assessmentId, setAssessmentId] = useState(initialAssessmentId ?? null),
     [generation, setGeneration] = useState(0);
+  const [scalarGeneration, setScalarGeneration] = useState(0);
   const catalogue = useEvidenceResource(
     `catalogue:${projectId}:${after ?? ""}`,
     () =>
@@ -184,6 +191,7 @@ export function ProjectEvidence({
           onDenied={clearDeniedTarget}
           onSavedCatalogue={() => void catalogue.refresh()}
           onCapture={captured}
+          onScalarChange={() => setScalarGeneration((value) => value + 1)}
         />
       )}
       {catalogue.last && assessmentId && (
@@ -197,6 +205,17 @@ export function ProjectEvidence({
           onDenied={clearDeniedTarget}
         />
       )}
+      {catalogue.last ? (
+        <ScalarReconciliationQueue
+          key={`scalar-queue:${generation}`}
+          projectId={projectId}
+          request={request}
+          visible={visible && catalogue.phase === "ready"}
+          canAppend={canAppend}
+          generation={scalarGeneration}
+          initialRequestId={initialScalarRequestId}
+        />
+      ) : null}
     </section>
   );
 }
@@ -268,6 +287,7 @@ function EvidenceTarget({
   onDenied,
   onSavedCatalogue,
   onCapture,
+  onScalarChange,
 }: Props & {
   factType: string;
   canAppend: boolean;
@@ -276,6 +296,7 @@ function EvidenceTarget({
   onDenied: () => void;
   onSavedCatalogue: () => void;
   onCapture: (id: string) => void;
+  onScalarChange: () => void;
 }) {
   const [cursor, setCursor] = useState<{
       afterRevision: number;
@@ -421,6 +442,18 @@ function EvidenceTarget({
             disabled={!shown || captureBusy}
             className="evidence-form-group"
           >
+            {canAppend && last.history.factId ? (
+              <ScalarReconciliationCheck
+                key={`scalar:${last.history.factId}:${generation}`}
+                projectId={projectId}
+                factId={last.history.factId}
+                request={request}
+                visible={shown}
+                onCapture={onCapture}
+                onDenied={onDenied}
+                changed={onScalarChange}
+              />
+            ) : null}
             {canAppend && (
               <StatementForm
                 key={`statement:${generation}`}

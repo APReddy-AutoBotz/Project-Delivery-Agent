@@ -1,5 +1,10 @@
 import "reflect-metadata";
 import {
+  ScalarReconciliationController,
+  SCALAR_RECONCILIATION_REPOSITORY,
+  unavailableScalarReconciliationRepository,
+} from "./scalar-reconciliation-controller.js";
+import {
   MilestoneController,
   RECONCILIATION_REPOSITORY,
   unavailableReconciliationRepository,
@@ -57,6 +62,7 @@ import {
   type ProjectFactRepository,
   type AuthorityRepository,
   type MilestoneReconciliationRepository,
+  type ScalarReconciliationRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
@@ -192,6 +198,7 @@ export async function createApp(
   facts: ProjectFactRepository = unavailableFactRepository,
   authority: AuthorityRepository = unavailableAuthorityRepository,
   reconciliation: MilestoneReconciliationRepository = unavailableReconciliationRepository,
+  scalarReconciliation: ScalarReconciliationRepository = unavailableScalarReconciliationRepository,
 ) {
   @Module({
     controllers: [
@@ -199,6 +206,7 @@ export async function createApp(
       CanonicalController,
       EvidenceController,
       MilestoneController,
+      ScalarReconciliationController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -207,6 +215,10 @@ export async function createApp(
       { provide: FACT_REPOSITORY, useValue: facts },
       { provide: AUTHORITY_REPOSITORY, useValue: authority },
       { provide: RECONCILIATION_REPOSITORY, useValue: reconciliation },
+      {
+        provide: SCALAR_RECONCILIATION_REPOSITORY,
+        useValue: scalarReconciliation,
+      },
       { provide: IdentityService, useValue: identity },
     ],
   })

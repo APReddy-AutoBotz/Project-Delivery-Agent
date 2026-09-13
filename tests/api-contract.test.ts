@@ -4,6 +4,10 @@ import { randomBytes } from "node:crypto";
 import { Console } from "node:console";
 import { createDisclosureCheck } from "../scripts/acceptance/disclosure.mjs";
 import { createApp } from "../apps/api/dist/app.js";
+import {
+  scalarContractFixture,
+  scalarScope,
+} from "./fixtures/scalar-reconciliation.js";
 import { completeContract, grantSchema } from "../apps/api/dist/contract.js";
 import {
   loadConfig,
@@ -131,6 +135,24 @@ let check: ReturnType<typeof compileContract>;
 const covered = new Set<string>();
 const evidence = evidenceContractFixture();
 const reconciliation = reconciliationContractFixture();
+const scalar = scalarContractFixture();
+const scalarRepository = {
+  check: vi.fn(async () => scalar.checked),
+  list: vi.fn(async () => ({
+    requests: [scalar.request],
+    next: null,
+    live: true as const,
+  })),
+  get: vi.fn(async () => ({
+    request: scalar.request,
+    assessment: scalar.assessment,
+  })),
+  refreshAssignment: vi.fn(async () => ({
+    requestId: scalar.request.id,
+    assignment: scalar.request.assignment,
+    replayed: false,
+  })),
+};
 beforeAll(async () => {
   ({ app, spec } = await createApp(
     config,
@@ -140,6 +162,7 @@ beforeAll(async () => {
     evidence.facts,
     evidence.authority,
     reconciliation.repository,
+    scalarRepository,
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -229,18 +252,96 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   });
   await exerciseEvidenceContracts(request, manager);
   await exerciseReconciliationContracts(request, manager);
+  const scalarPrefix = "/api/projects/" + scalarScope.projectId;
+  await request(
+    scalarPrefix + "/scalar-reconciliation-checks",
+    201,
+    manager,
+    "POST",
+    { factId: scalarScope.factId, idempotencyKey: "scalar-http" },
+  );
+  await request(
+    scalarPrefix + "/managed-scalar-reconciliation-requests",
+    200,
+    manager,
+  );
+  await request(scalarPrefix + "/scalar-reconciliation-requests", 200, manager);
+  await request(
+    scalarPrefix + "/scalar-reconciliation-requests/" + scalar.request.id,
+    200,
+    manager,
+  );
+  await request(
+    scalarPrefix +
+      "/scalar-reconciliation-requests/" +
+      scalar.request.id +
+      "/assignment",
+    201,
+    manager,
+    "POST",
+    { expectedAssignmentRevision: 1, idempotencyKey: "scalar-assignment-http" },
+  );
   const declared = Object.entries(spec.paths).flatMap(([path, item]) =>
     Object.keys(item)
       .filter((method) => ["get", "post", "delete"].includes(method))
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(31);
+  expect(covered.size).toBe(36);
   assertContractSnapshot(
     spec,
     JSON.parse(
       readFileSync("docs/03-architecture/OPENAPI_FOUNDATION.json", "utf8"),
     ),
+  );
+});
+it("FR-EVD-009: scalar commands cannot override URL scope, identity or routing", async () => {
+  const prefix = "/api/projects/" + scalarScope.projectId;
+  await request(prefix + "/scalar-reconciliation-requests", 401);
+  await request(
+    prefix + "/scalar-reconciliation-requests/not-a-uuid",
+    404,
+    manager,
+  );
+  const before = scalarRepository.check.mock.calls.length;
+  for (const extra of [
+    { projectId: project.id },
+    { recipientSubject: "other-pm" },
+    { enabled: true },
+    { policyId: project.id },
+  ])
+    await request(
+      prefix + "/scalar-reconciliation-checks",
+      400,
+      manager,
+      "POST",
+      { factId: scalarScope.factId, idempotencyKey: "scalar-http", ...extra },
+    );
+  expect(scalarRepository.check.mock.calls.length).toBe(before);
+  for (const query of [
+    "?limit=21",
+    "?limit=01",
+    "?afterId=" + scalar.request.id,
+    "?recipient=pm",
+  ])
+    await request(
+      prefix + "/scalar-reconciliation-requests" + query,
+      400,
+      manager,
+    );
+  await request(
+    prefix +
+      "/scalar-reconciliation-requests/" +
+      scalar.request.id +
+      "/assignment",
+    400,
+    manager,
+    "POST",
+    {
+      expectedAssignmentRevision: 1,
+      idempotencyKey: "scalar-refresh",
+      recipientSubject: "override",
+    },
   );
 });
 it("FR-EVD-009: reconciliation routes use bearer identity, fixed queue modes and strict commands", async () => {

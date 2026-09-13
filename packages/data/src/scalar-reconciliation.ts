@@ -287,6 +287,10 @@ export class DatabaseScalarReconciliationRepository
     });
     try {
       return await this.db.$transaction(async (tx) => {
+        // Prisma's timestamp parameters and retained assessment guards must use
+        // the same UTC convention, irrespective of the connection's timezone.
+        // LOCAL expires at transaction end; no pooled-session state is changed.
+        await tx.$executeRaw`SET LOCAL TIME ZONE 'UTC'`;
         const routing = await this.routing(tx, actor, request.projectId);
         const key = {
           customerId: actor.customerId,
@@ -602,6 +606,7 @@ export class DatabaseScalarReconciliationRepository
     });
     try {
       return await this.db.$transaction(async (tx) => {
+        await tx.$executeRaw`SET LOCAL TIME ZONE 'UTC'`;
         const routing = await this.routing(tx, actor, request.projectId);
         const row = await tx.scalarReconciliationRequest.findFirst({
           where: {

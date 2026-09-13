@@ -25,11 +25,18 @@ export const scalarReconciliationCheckSchema = z.strictObject({
   idempotencyKey: humanStatementSchema.shape.idempotencyKey,
 });
 export const scalarReconciliationReadSchema = reconciliationReadSchema;
+export const scalarReconciliationCheckBodySchema =
+  scalarReconciliationCheckSchema.omit({ projectId: true });
 export const scalarReconciliationListSchema = reconciliationListSchema;
 export const scalarReconciliationAssignmentRefreshSchema =
   reconciliationAssignmentRefreshSchema;
 export const scalarReconciliationAssignmentResultSchema =
   reconciliationAssignmentResultSchema;
+export const scalarReconciliationAssignmentBodySchema =
+  scalarReconciliationAssignmentRefreshSchema.omit({
+    projectId: true,
+    requestId: true,
+  });
 export const scalarReconciliationRequestSummarySchema = z.strictObject({
   id,
   projectId: id,

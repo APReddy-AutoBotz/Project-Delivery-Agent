@@ -9,8 +9,114 @@ import { canonicalFixture } from "../../scripts/acceptance/canonical-projects.mj
 
 const portfolioId = "20000000-0000-4000-8000-000000000001";
 test.setTimeout(90000); // Multi-actor review/retry journeys, including independent saved-link login.
+
+test("FR-EVD-007/012: scalar requests retain original PM proof, deduplicate and recheck source access", async ({
+  page,
+  request,
+  browser,
+}) => {
+  const f = await fixture(request, true);
+  const first = await f.append(
+    "pmo-portfolio",
+    0,
+    "Scalar disputed forecast A",
+  );
+  const second = await f.append("pm-atlas", 1, "Scalar disputed forecast B");
+  await f.share(first.entry.sourceId);
+  await f.share(second.entry.sourceId);
+  expect(
+    (
+      await f.api(
+        "pmo-portfolio",
+        f.prefix + "/authority-policies",
+        "POST",
+        f.policy(0),
+      )
+    ).status(),
+  ).toBe(201);
+  await open(page, f.payload.name);
+  await openFact(page);
+  const check = page.getByRole("region", {
+    name: "Scalar reconciliation check",
+    exact: true,
+  });
+  const response = page.waitForResponse(
+    (value) =>
+      value.url().endsWith("/scalar-reconciliation-checks") &&
+      value.request().method() === "POST",
+  );
+  await check
+    .getByRole("button", {
+      name: "Check and request reconciliation",
+      exact: true,
+    })
+    .click();
+  const createdResponse = await response;
+  expect(createdResponse.status()).toBe(201);
+  const created = await createdResponse.json();
+  expect(created.outcome).toBe("CREATED");
+  await expect(check).toContainText("Assigned to pm-atlas");
+  const secondResponse = page.waitForResponse(
+    (value) =>
+      value.url().endsWith("/scalar-reconciliation-checks") &&
+      value.request().method() === "POST",
+  );
+  await check
+    .getByRole("button", {
+      name: "Check and request reconciliation",
+      exact: true,
+    })
+    .click();
+  const reused = await (await secondResponse).json();
+  expect(reused.outcome).toBe("REUSED");
+  expect(reused.request.id).toBe(created.request.id);
+  expect(reused.assessment.assessmentId).not.toBe(
+    created.assessment.assessmentId,
+  );
+  await page
+    .getByLabel("Scalar request queue", { exact: true })
+    .selectOption("manage");
+  await expect(
+    page.getByRole("region", {
+      name: "Scalar reconciliation queue",
+      exact: true,
+    }),
+  ).toContainText(f.factType);
+  const pmContext = await browser.newContext(),
+    pm = await pmContext.newPage();
+  try {
+    await pm.goto(
+      `/?project=${f.projectId}&scalarReconciliation=${created.request.id}`,
+    );
+    await pm.getByRole("button", { name: /^Project manager / }).click();
+    const proof = pm.getByRole("region", {
+      name: "PM scalar reconciliation request",
+      exact: true,
+    });
+    await expect(proof).toContainText("Scalar disputed forecast A");
+    await expect(proof).toContainText("Scalar disputed forecast B");
+    await expect(
+      proof.getByRole("link", {
+        name: "Open saved assessment link",
+        exact: true,
+      }),
+    ).toHaveAttribute("href", new RegExp(created.assessment.assessmentId));
+    await f.share(first.entry.sourceId, ["pmo-portfolio", "leader-atlas"]);
+    await proof
+      .getByRole("button", {
+        name: "Refresh scalar request access",
+        exact: true,
+      })
+      .click();
+    await expect(proof).toContainText("Saved result withheld");
+    await expect(proof).not.toContainText("Scalar disputed forecast A");
+    await expect(proof).not.toContainText("Scalar disputed forecast B");
+  } finally {
+    await pmContext.close();
+  }
+});
 const epoch = () => new Date(Date.now() - 3600000).toISOString();
-async function fixture(request: APIRequestContext) {
+async function fixture(request: APIRequestContext, scalarPm = false) {
   const tokens: Record<string, string> = {};
   for (const persona of [
     "pmo-portfolio",
@@ -51,6 +157,14 @@ async function fixture(request: APIRequestContext) {
     code: "EVD-" + randomUUID().slice(0, 12),
     name: "Synthetic evidence " + randomUUID().slice(0, 8),
   };
+  if (scalarPm)
+    payload.responsibilities = [
+      {
+        role: "PROJECT_MANAGER",
+        subject: "pm-atlas",
+        displayName: "Configured scalar PM",
+      },
+    ];
   const created = await api("pmo-portfolio", "/projects", "POST", payload);
   expect(created.status()).toBe(201);
   const projectId = (await created.json()).id,
@@ -190,11 +304,9 @@ async function enterStatement(page: Page, value: string, effectiveAt: string) {
     .click();
 }
 async function publishRule(page: Page, effectiveAt: string, seconds: string) {
-  const form = page
-    .locator("details")
-    .filter({
-      has: page.getByText("Configure authority (PMO)", { exact: true }),
-    });
+  const form = page.locator("details").filter({
+    has: page.getByText("Configure authority (PMO)", { exact: true }),
+  });
   if ((await form.getAttribute("open")) === null)
     await page.getByText("Configure authority (PMO)", { exact: true }).click();
   await page
@@ -434,7 +546,7 @@ test("GOLDEN-013 / E2E-EVD-003: authority changes show human, stale and conflict
   ).toHaveCount(2);
   await expect(saved).toContainText("Expired at capture");
   await expect(saved).toContainText(
-    "A reconciliation request has not been created",
+    "This assessment flag alone is not a durable reconciliation request",
   );
   await page.screenshot({
     path: "artifacts/evidence-workflow-stale-conflict.png",

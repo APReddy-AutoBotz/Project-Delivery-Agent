@@ -420,6 +420,39 @@ not design approval or implementation evidence. Independent review is next.
 
 ## Decisions made
 
+2026-09-13 implementation checkpoint: five scalar API routes and the explicit
+check action, management/PM queues, original-proof detail and saved request links
+are implemented in the local candidate. The focused Chromium journey passed:
+create, fresh-check business reuse, assigned PM saved-link login, original proof,
+and whole-proof withholding after source access withdrawal. This is one local
+browser regression, not packaged-profile or full workflow acceptance.
+
+Persistence review of `7f3b0e0` requested corrections. Four audit comparisons in
+the unreleased seventh migration now interpret retained timestamp-without-zone
+audit fields explicitly as UTC; a fresh isolated database
+`pdaa_test_1789309024135` passed historical predicate validation under Asia/Kolkata.
+The same negative control failed on the retained pre-fix database. New-write
+testing additionally reached the retained assessment seal guard under a non-UTC
+connection; scalar check/refresh transactions now establish transaction-local UTC
+without changing pooled-session defaults. Assignment timestamps are constrained
+to the DTO's year range. Exact native history-guard assertions replace broad
+mutation failures; genuine orphan-COMMIT transport evidence, coherent year-range
+negative control and independent correction review remain pending.
+
+The full unit run initially reported 1173 passes and one obsolete finite-function
+inventory assertion. That assertion now covers all three migration-5/6/7 revoke
+sets and only the nine allowed API functions; this does not substitute for actual
+role execution. Six-prefix populated upgrades, 42-table inventories, native-role
+COMMIT/races, bounded-load checks, three restores and both packaged profiles still
+remain. No acceptance counts, issue closure or release gates change here.
+
+Focused rerun: all 1174 unit tests across 51 files passed; nine scalar integration
+tests and 15 history-guard helper tests passed. Data build, API/web type checks,
+lint, diff whitespace checks and documentation validation passed. The non-UTC
+write test verifies creation, refresh, subsequent PM delivery and restoration of
+the original connection timezone. These counts describe only the executed suites,
+not the pending native-role/upgrade/restore/packaged acceptance matrix.
+
 One fact-level request over the full conflict participant union; explicit policy
 opt-in and manager action; separate scalar family rather than weakening milestone
 predicates; immutable routing snapshot permits honest legacy unassigned history.

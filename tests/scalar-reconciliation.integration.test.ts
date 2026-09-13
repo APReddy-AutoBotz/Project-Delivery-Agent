@@ -12,6 +12,7 @@ import {
   type Actor,
 } from "../packages/domain/src/index.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
+import { verifyImmutableHistoryMutation } from "../scripts/acceptance/immutable-history.mjs";
 
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_\d+$/.test(new URL(url).pathname))
@@ -304,6 +305,58 @@ it("NFR-REL-002: changed fact under the same key conflicts before capture", asyn
   ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
 });
 
+it("NFR-REL-005: UTC audit linkage survives a non-UTC validation session", async () => {
+  const f = await fixture(),
+    checked = await reconciliation.check(f.pmo, f.input, context);
+  const result = await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL TIME ZONE 'Asia/Kolkata'");
+    return tx.$queryRaw<
+      { request: boolean; check: boolean; assignment: boolean }[]
+    >`
+      SELECT public.valid_scalar_reconciliation_request(${checked.request!.id}::uuid) AS request,
+        public.valid_scalar_reconciliation_check(${checked.checkId}::uuid) AS check,
+        public.valid_scalar_reconciliation_assignment(${checked.request!.assignment.id}::uuid) AS assignment`;
+  });
+  expect(result).toEqual([{ request: true, check: true, assignment: true }]);
+});
+
+it("NFR-REL-005: a non-UTC session commits new checks and assignment refreshes", async () => {
+  const f = await fixture();
+  const zonedUrl = new URL(url);
+  zonedUrl.searchParams.set("options", "-c timezone=Asia/Kolkata");
+  const zoned = createDatabase(zonedUrl.toString());
+  try {
+    expect(await zoned.$queryRawUnsafe("SHOW TIME ZONE")).toEqual([
+      { TimeZone: "Asia/Kolkata" },
+    ]);
+    const repository = new DatabaseScalarReconciliationRepository(zoned);
+    const checked = await repository.check(f.pmo, f.input, context);
+    expect(checked.outcome).toBe("CREATED");
+    const refreshed = await repository.refreshAssignment(
+      f.pmo,
+      {
+        projectId: f.projectId,
+        requestId: checked.request!.id,
+        expectedAssignmentRevision: 1,
+        idempotencyKey: randomUUID(),
+      },
+      context,
+    );
+    expect(refreshed.assignment.revision).toBe(2);
+    expect(
+      await reconciliation.get(f.pm, {
+        projectId: f.projectId,
+        requestId: checked.request!.id,
+      }),
+    ).toMatchObject({ request: { assignment: refreshed.assignment } });
+    expect(await zoned.$queryRawUnsafe("SHOW TIME ZONE")).toEqual([
+      { TimeZone: "Asia/Kolkata" },
+    ]);
+  } finally {
+    await zoned.$disconnect();
+  }
+});
+
 it("NFR-REL-001: native COMMIT rejects orphan owned proof and rolls back conflicts and dependencies", async () => {
   const f = await fixture();
   const projection = async () => ({
@@ -370,11 +423,26 @@ it("NFR-REL-001: committed scalar history cannot be adopted, mutated, deleted or
   const f = await fixture(),
     result = await reconciliation.check(f.pmo, f.input, context);
   await expect(
-    db.factAssessment.update({
-      where: { id: result.assessment.assessmentId },
-      data: { scalarReconciliationCheckId: randomUUID() },
+    db.$transaction(async (tx) => {
+      await tx.$executeRaw`UPDATE public."FactAssessment"
+        SET "scalarReconciliationCheckId"=${randomUUID()}::uuid
+        WHERE id=${result.assessment.assessmentId}::uuid`;
+      throw new Error("Assessment ownership mutation unexpectedly succeeded");
     }),
-  ).rejects.toThrow();
+  ).rejects.toMatchObject({
+    code: "P2010",
+    meta: {
+      driverAdapterError: {
+        cause: {
+          kind: "postgres",
+          code: "P0001",
+          originalCode: "P0001",
+          message: "Invalid assessment seal",
+          originalMessage: "Invalid assessment seal",
+        },
+      },
+    },
+  });
   for (const table of [
     "ScalarReconciliationRequest",
     "ScalarReconciliationCheck",
@@ -386,14 +454,8 @@ it("NFR-REL-001: committed scalar history cannot be adopted, mutated, deleted or
         '" t WHERE "projectId"=$1::uuid ORDER BY id',
       f.projectId,
     );
-    for (const sql of [
-      'UPDATE public."' + table + '" SET id=id WHERE "projectId"=$1::uuid',
-      'DELETE FROM public."' + table + '" WHERE "projectId"=$1::uuid',
-    ])
-      await expect(db.$executeRawUnsafe(sql, f.projectId)).rejects.toThrow();
-    await expect(
-      db.$executeRawUnsafe('TRUNCATE public."' + table + '" CASCADE'),
-    ).rejects.toThrow();
+    for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
+      await verifyImmutableHistoryMutation(db, table, operation);
     expect(
       await db.$queryRawUnsafe(
         'SELECT to_jsonb(t) AS row FROM public."' +

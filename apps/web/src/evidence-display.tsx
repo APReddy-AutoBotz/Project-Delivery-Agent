@@ -127,8 +127,9 @@ export function PolicyDisplay({ policy }: { policy: ActiveAuthorityPolicy }) {
             ))}
           </ol>
           <p>
-            Conflict behavior: {policy.event.definition.conflictBehavior}.
-            Reconciliation assignment is not available in this workflow.
+            Conflict behavior: {policy.event.definition.conflictBehavior}. Use
+            the separate scalar check action to create or reuse an eligible
+            internal request.
           </p>
         </>
       ) : (
@@ -209,8 +210,9 @@ export function AssessmentView({
           )}
           {result.reconciliationRequired && (
             <p className="evidence-warning">
-              Project-manager reconciliation is needed. A reconciliation request
-              has not been created.
+              Project-manager reconciliation is needed. This assessment flag
+              alone is not a durable reconciliation request; check the separate
+              request outcome.
             </p>
           )}
           <p>
