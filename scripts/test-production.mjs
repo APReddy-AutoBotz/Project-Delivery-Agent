@@ -18,6 +18,7 @@ import { assertEvidenceWorkflowReceipt } from "./acceptance/evidence-workflow-re
 import { assertMilestoneReconciliationWorkflowReceipt } from "./acceptance/milestone-reconciliation-workflow-receipt.mjs";
 import { validateReconciliationCommitReceipt } from "./acceptance/reconciliation-commit-receipt.mjs";
 import { assertReconciliationRacesReceipt } from "./acceptance/reconciliation-races-receipt.mjs";
+import { assertUpgradeInventory } from "./acceptance/upgrade-inventory-receipt.mjs";
 import {
   expiryCheckName,
   validateExpiryReceipt,
@@ -514,6 +515,7 @@ try {
     canonicalPersistence.milestoneReconciliationUpgrade,
     canonicalPersistence.scalarReconciliationUpgrade,
   ].entries()) {
+    assertUpgradeInventory(upgrade, index + 1);
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);

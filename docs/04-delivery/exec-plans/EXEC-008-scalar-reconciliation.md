@@ -489,6 +489,42 @@ external action. Cost/timeout -> bounded prefixes/identity/queues and real-role 
 
 ## Validation evidence
 
+2026-09-13 finalized upgrade repeat: run
+`pdaa-acceptance-1789314047945-8b7d00af` passed all six genuine populated prefixes
+to migration seven, retaining respectively 7/14/21/31/36/39 prior business tables
+and producing 42 current tables. Every receipt includes positive pre-upgrade
+row counts and unchanged-source hashes. Root separately read the original six
+receipts with the native COMMIT/race readers and an independent finite per-prefix
+table-inventory reader. All passed; each contains 12 released milestone-family
+native COMMIT cases. These are not the still-pending new scalar native matrix.
+Prefix six retained original check/request/proof identities and passed recipient
+revocation, regrant-without-reroute and explicit-refresh original-proof delivery.
+All generated clusters, volumes and original diagnostics were retained.
+
+Original receipt SHA256s, by prefix:
+
+- 1: `81a7071a7ece664d1bc5c92e02810c6829082be75b7d0ee9805e97fce82956b6`
+- 2: `6b24d0e3665d6d4924e1ab3dc5006f93fff5aa805225e6a90ddda0b12b55687b`
+- 3: `7d3b23e63b81a68da0761ad9163aded1cac9c2c97e3c96e2bcdaf2c6805fc4a3`
+- 4: `e1168ccded283be0178dc7e5a10a18473b4477c6f2e4e7f67ee28e60f1c2eaee`
+- 5: `0d71c4e6aa2c5c6e625a30baaa4e779a332fc12295db0339c1ad84b7daf82875`
+- 6: `405a969dd99528daaaf432db95ecf3d13c61aaf16744ae2833a06dddbf8fcdd0`
+
+Independent source review of `c76dd64` found no P0/P1 in the bounded upgrade slice.
+Its nonblocking host-inventory hardening suggestion is implemented: expected table
+names are now independently enumerated rather than taken from producer fields;
+a self-consistent renamed-table negative control fails. The three reader tests
+and all six real original receipts pass this checker. Whole-increment review and
+intact packaged execution remain separate requirements.
+
+Added a reusable scalar-family full-row projection, finite table/column/function
+privilege checks, strict restored-integrity total and shared immutable-guard
+invocation. Four focused helper tests passed. Native read-only privilege/inventory
+checks passed in the isolated current schema with all three scalar tables empty;
+this does not prove populated scalar recovery or native scalar mutation controls.
+Final unit regression for these additions passed 1198 tests across 54 files;
+lint, diff whitespace and documentation validation passed.
+
 2026-09-13 populated-upgrade checkpoint: the release-six fixture now uses frozen
 v6 grants and the prior-schema adapter to create genuine CREATED/REUSED/NO_REQUEST,
 assigned/unassigned and revoked-recipient history before migration seven. This
