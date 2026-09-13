@@ -197,6 +197,8 @@ originalAssessmentId UNIQUE; originCommandId UNIQUE; contributorHash; contributo
 text (1..4194304 octets, SHA256 equality); createdBy, createdAt; state varchar(16)
 fixed OPEN; auditEventId UNIQUE; sealed boolean default false.
 Unique `(customerId,projectId,factId,id)` and
+`(customerId,projectId,factId,originalAssessmentId)` (redundant scoped uniqueness
+required for Prisma's one-to-one proof relation) and
 `(customerId,projectId,factId,id,originCommandId,originalAssessmentId)`;
 business unique `(customerId,projectId,factId,ruleRevision,contributorHash)`;
 page index `(customerId,projectId,createdAt,id)`.
@@ -395,6 +397,21 @@ Retained independent workflow report SHA256:
 `f974c895fbaba0f214f205cdc53d725372e3b2eb8e2b226098abb44228bc48d9`;
 persistence report SHA256:
 `85fc66f41cd1c5ba4413cda4fe5018ddc6fe0f9b83c54bd42aec9679bc91438a`.
+
+2026-09-13: domain identity/contracts implemented at `46bf9f5`; independent bounded
+kernel review found no P0/P1 and one P2 test-sensitivity issue. Corrected that test
+to assert zero array getter accesses and added a four-contributor union vector.
+The original kernel's 39 new unit tests and expanded 114 tests across five files
+passed; domain types/lint/architecture and documentation validation passed.
+Migration7, Prisma ownership relations, scalar repository and finite ACL/restore
+predicate additions are drafted. Generated-client validation initially required
+the redundant scoped proof unique key above; generation and domain/data/operations
+builds then passed. All seven migrations applied in new isolated synthetic database
+`pdaa_test_1789308047968`; default `pdaa` untouched. The first integration run had
+three fixture failures because assertions lacked an explicit validity period;
+no eligibility rule was changed. Corrected synthetic validity and reran: five
+integration tests passed. Broader native-role/COMMIT/race/upgrade/restore/API/UI
+and exact-candidate review remain pending; no full-stage acceptance claim.
 
 2026-09-13: verified clean main and successful postmerge repeat; created
 `codex/scalar-reconciliation-requests`. Read scalar source/authorization/persistence,

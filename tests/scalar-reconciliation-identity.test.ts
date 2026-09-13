@@ -187,14 +187,17 @@ describe("FR-EVD-007/009/012 / FR-ADM-005: scalar conflict identity", () => {
       complete: false,
       versions: new Array(1001),
     };
+    let accesses = 0;
     Object.defineProperty(result.versions, "0", {
       get() {
+        accesses++;
         throw new Error("unbounded traversal");
       },
     });
     expect(() => scalarReconciliationIdentity(result)).toThrow(
       "Invalid scalar reconciliation assessment",
     );
+    expect(accesses).toBe(0);
   });
   it("includes all evidence references in sorted unique contributor tuples", () => {
     const input: SourceAuthoritySnapshot = scalarSnapshot();
@@ -206,5 +209,40 @@ describe("FR-EVD-007/009/012 / FR-ADM-005: scalar conflict identity", () => {
       verification: "VALID",
     });
     expect(JSON.parse(identity(input)!)[5][0][3]).toEqual([id(199), id(210)]);
+  });
+  it("unions disjoint and overlapping groups instead of selecting the first pair", () => {
+    const input = scalarSnapshot();
+    for (const n of [12, 13]) {
+      const version = structuredClone(input.versions[0]!);
+      version.id = id(n);
+      version.source.instanceId = id(n + 100);
+      version.evidenceIds = [id(n + 200)];
+      input.versions.push(version);
+      input.sources.push({ instanceId: id(n + 100), sourceType: "portfolio" });
+      input.evidence.push({
+        id: id(n + 200),
+        scope: scalarScope,
+        access: "AUTHORIZED",
+        verification: "VALID",
+      });
+    }
+    input.conflicts = [
+      [10, 11],
+      [12, 13],
+      [11, 12],
+    ].map((pair, index) => ({
+      id: id(50 + index),
+      scope: scalarScope,
+      detectedAt: scalarTime,
+      resolvedAt: null,
+      versionIds: pair.map(id),
+    }));
+    const original = identity(input)!;
+    expect(JSON.parse(original)[5].map((tuple: string[]) => tuple[0])).toEqual(
+      [10, 11, 12, 13].map(id),
+    );
+    input.conflicts.reverse();
+    input.versions.reverse();
+    expect(identity(input)).toBe(original);
   });
 });

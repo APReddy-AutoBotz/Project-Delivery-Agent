@@ -44,6 +44,10 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT UPDATE (sealed) ON "CanonicalStateBinding","MilestoneConsistencyAssessment" TO pdaa_api;
     GRANT SELECT,INSERT ON "MilestoneReconciliationRequest","MilestoneReconciliationCheck","MilestoneReconciliationAssignment" TO pdaa_api;
     GRANT UPDATE (sealed) ON "MilestoneReconciliationRequest" TO pdaa_api;
+    GRANT SELECT,INSERT ON "ScalarReconciliationRequest","ScalarReconciliationCheck","ScalarReconciliationAssignment" TO pdaa_api;
+    GRANT UPDATE (sealed) ON "ScalarReconciliationRequest" TO pdaa_api;
+    REVOKE ALL ON FUNCTION public.scalar_reconciliation_identity(uuid),public.valid_scalar_reconciliation_assignment(uuid),public.valid_scalar_reconciliation_request(uuid),public.valid_scalar_reconciliation_check(uuid),public.guard_scalar_reconciliation_request(),public.guard_scalar_reconciliation_check(),public.guard_scalar_reconciliation_assignment(),public.require_scalar_reconciliation_complete() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+    GRANT EXECUTE ON FUNCTION public.scalar_reconciliation_identity(uuid),public.valid_scalar_reconciliation_assignment(uuid),public.valid_scalar_reconciliation_request(uuid),public.valid_scalar_reconciliation_check(uuid) TO pdaa_api;
     REVOKE ALL ON FUNCTION public.valid_milestone_reconciliation_assignment(uuid),public.valid_milestone_reconciliation_request(uuid),public.valid_milestone_reconciliation_check(uuid),public.guard_milestone_reconciliation_request(),public.guard_milestone_reconciliation_check(),public.guard_milestone_reconciliation_assignment(),public.require_milestone_reconciliation_complete() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT EXECUTE ON FUNCTION public.valid_milestone_reconciliation_assignment(uuid),public.valid_milestone_reconciliation_request(uuid),public.valid_milestone_reconciliation_check(uuid) TO pdaa_api;
     -- pg_restore --no-acl recreates the default PUBLIC function EXECUTE grant.
