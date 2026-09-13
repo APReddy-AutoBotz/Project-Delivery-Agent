@@ -121,9 +121,11 @@ test("Revoked project access removes cached project names and details", async ({
     await page.evaluate(() =>
       window.dispatchEvent(new Event("visibilitychange")),
     );
-    await expect(page.getByRole("alert")).toContainText(
-      "unavailable for your account",
-    );
+    await expect(
+      page.getByRole("alert").filter({
+        hasText: /^This project is unavailable for your account\.$/,
+      }),
+    ).toBeVisible();
     await expect(
       page.getByText("Atlas · Customer platform", { exact: true }),
     ).toHaveCount(0);
@@ -146,34 +148,68 @@ test("Revoked project access removes cached project names and details", async ({
     ).toBe(204);
   }
 });
-test("Expired identity clears cached protected data and returns to sign-in", async ({
-  page,
-}) => {
-  await page.clock.install();
-  await page.goto("/");
-  await page.getByRole("button", { name: "Project manager" }).click();
-  await expect(
-    page.getByRole("button", { name: /Atlas · Customer platform/ }),
-  ).toBeVisible();
-  await page.route("**/api/projects", (route) =>
-    route.fulfill({
-      status: 401,
-      contentType: "application/json",
-      body: '{"message":"Session expired"}',
-    }),
-  );
-  await page.clock.fastForward(16000);
-  await page.evaluate(() =>
-    window.dispatchEvent(new Event("visibilitychange")),
-  );
-  await expect(
-    page.getByRole("heading", { name: "Welcome to your workspace" }),
-  ).toBeVisible();
-  await expect(page.getByRole("alert")).toContainText("Your session has ended");
-  await expect(
-    page.getByRole("button", { name: /Atlas · Customer platform/ }),
-  ).toHaveCount(0);
-});
+for (const bodyDelivery of ["complete", "interrupted", "pending"] as const) {
+  test(`Expired identity clears cached protected data and returns to sign-in (${bodyDelivery} body)`, async ({
+    page,
+  }) => {
+    if (bodyDelivery !== "complete") {
+      // UI fault injection only, not real OIDC expiry/disclosure acceptance. A
+      // known 401 must clear protected state even if its discarded body fails or
+      // never settles. No response body is used to decide the session outcome.
+      await page.addInitScript((delivery) => {
+        const read = Response.prototype.arrayBuffer;
+        Response.prototype.arrayBuffer = function () {
+          if (this.status === 401 && this.url.endsWith("/api/projects")) {
+            (
+              window as Window & { denialBodyReadAttempted?: boolean }
+            ).denialBodyReadAttempted = true;
+            return delivery === "interrupted"
+              ? Promise.reject(new TypeError("Synthetic body read failure"))
+              : new Promise<ArrayBuffer>(() => {});
+          }
+          return read.call(this);
+        };
+      }, bodyDelivery);
+    }
+    await page.clock.install();
+    await page.goto("/");
+    await page.getByRole("button", { name: "Project manager" }).click();
+    await expect(
+      page.getByRole("button", { name: /Atlas · Customer platform/ }),
+    ).toBeVisible();
+    await page.route("**/api/projects", (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: '{"message":"Session expired"}',
+      }),
+    );
+    await page.clock.fastForward(16000);
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("visibilitychange")),
+    );
+    await expect(
+      page.getByRole("heading", { name: "Welcome to your workspace" }),
+    ).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText(
+      "Your session has ended",
+    );
+    if (bodyDelivery !== "complete")
+      expect(
+        await page.evaluate(
+          () =>
+            (window as Window & { denialBodyReadAttempted?: boolean })
+              .denialBodyReadAttempted,
+        ),
+      ).toBe(true);
+    await expect(
+      page.getByText("Synthetic body read failure", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Atlas · Customer platform/ }),
+    ).toHaveCount(0);
+  });
+}
 test("Project manager can inspect scoped synthetic evidence and sign out", async ({
   page,
 }) => {

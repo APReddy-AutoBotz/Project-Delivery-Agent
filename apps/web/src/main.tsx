@@ -94,11 +94,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...(requestToken ? { Authorization: "Bearer " + requestToken } : {}),
     },
   });
-  // FR-EVD-009 / SEC-SECRET-001: finish the original error response before
-  // invalidation or an early throw. Its body is discarded, never displayed.
-  // Leaving it unread can keep Chromium's intercepted request outstanding.
+  // FR-EVD-009 / SEC-SECRET-001: consume discarded bodies on early exits, too.
+  // Start the reader before throwing, but never delay a known denial/session
+  // clear on body delivery. The recorder independently requires complete bytes.
   if (!response.ok || (requestToken && requestToken !== accessToken))
-    await response.arrayBuffer();
+    void response.arrayBuffer().catch(() => {});
   if (requestToken && requestToken !== accessToken)
     throw new Error("The session changed before this request completed.");
   if (response.status === 401 && requestToken && requestToken === accessToken)

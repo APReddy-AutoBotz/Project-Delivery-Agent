@@ -59,9 +59,8 @@ by the web client before query invalidation and its fixed error. A controlled
 Chromium experiment reproduced the outstanding request with an unread body and
 completed with that same body consumed. The recorder is not relaxed or replaced.
 
-The client now consumes and discards non-OK responses, and responses whose session
-already changed, before any early throw or status side effect. The existing token
-identity checks, denial messages and authorization behavior remain. A real-API/CDP
+The initial client correction awaited discarded non-OK responses, and responses
+whose session already changed, before any early throw or status side effect. A real-API/CDP
 browser regression requires original queue 404 requests to finish both initially
 and after the existing 15-second revalidation. Removing only this fix through a
 private Vite control failed at the intended completion assertion; fixed source
@@ -78,6 +77,32 @@ Original evidence and the stopped generated fixture are retained privately. All
 parallel attempt had two startup-output timeouts; full lint, typecheck, build,
 documentation validation and all 13 documentation regressions also passed. Both shipped
 customer profiles, current-candidate CI and immutable review remain required.
+
+Candidate `83ccfa14bfb42c7757a14b5c31b1933aec9c7053` was rejected by independent
+immutable review: awaiting the discarded body could skip a known 401's session
+clearing, or a 403/404's denial handling, if delivery failed or never settled.
+Two UI fault controls reproduced this defect with rejecting and pending body-read
+promises. The correction starts the native reader and attaches a rejection handler
+without awaiting it. Known header status and the existing token guard therefore
+retain their immediate effects; no discarded body is parsed, rendered or logged.
+This does not relax the independent recorder's original-byte completion checks.
+
+The same candidate's local browser run passed 22/23, and Foundation 34751622122's
+native job passed 1,089 unit and 107 integration tests but failed the same broad
+revocation-alert selector. Its original log and exact source/CI merge metadata
+were authenticated and retained. The selector now requires the exact project
+denial, preserving every cached-data clearing assertion and existing timeout.
+Documentation 34751622134 passed; packaged CI remained in progress at this
+checkpoint. No failed run is relabeled as successful.
+
+Corrected source passed all 25 native browser tests, including the unchanged
+original queue-response completion test and complete/rejected/pending 401-body
+UI cases. Those injected UI cases are not transport or OIDC acceptance proof.
+Uninstrumented composite `pdaa-acceptance-1789295214435-37b8ddb3` separately passed
+the complete original TLS/OIDC/natural-expiry/disclosure workflow with the same
+one-exchange, three-read/two-write denial, unchanged-database and cleared-browser
+assertions. All its generated services were stopped and private originals retained.
+It remains composite development evidence, not intact shipped customer acceptance.
 
 1. Repair the demonstrated capture-close ordering and add a deterministic delayed
    response regression, preserving all fail-closed and post-close checks. Implement
