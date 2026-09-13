@@ -51,6 +51,34 @@ expiry, permission, disclosure and database assertion and both existing deadline
 remain unchanged. This is instrumentation, not a claimed fix or passing rerun.
 PR51 remains draft; Issue #6, R0 3/5, R1 2/33 and all release gates remain unchanged.
 
+The follow-up `a31f9bcb1356201137b4c83593ee70e52cb73e87` passed Documentation
+34749065706; Foundation 34749065648 reported queued with no jobs. Private
+healthy-image diagnosis localized the failure to `loaded-details-disclosure`:
+both canonical reads finished, but the expected PM-queue 404 bodies were abandoned
+by the web client before query invalidation and its fixed error. A controlled
+Chromium experiment reproduced the outstanding request with an unread body and
+completed with that same body consumed. The recorder is not relaxed or replaced.
+
+The client now consumes and discards non-OK responses, and responses whose session
+already changed, before any early throw or status side effect. The existing token
+identity checks, denial messages and authorization behavior remain. A real-API/CDP
+browser regression requires original queue 404 requests to finish both initially
+and after the existing 15-second revalidation. Removing only this fix through a
+private Vite control failed at the intended completion assertion; fixed source
+passed. No response routing/replacement is used. These development checks do not
+substitute for actual OIDC expiry or prove secret non-disclosure by themselves.
+
+The original uninstrumented TLS/OIDC/expiry workflow passed in isolated composite
+run `pdaa-acceptance-1789294198985-36b51b0e`: one token exchange, natural expiry,
+three denied reads, two denied writes, unchanged database projection, cleared
+browser state and successful disclosure checks. Current runtime files were mounted
+read-only and byte-verified; this is **not intact packaged/customer acceptance**.
+Original evidence and the stopped generated fixture are retained privately. All
+1,089 unit tests passed with two workers and unchanged deadlines after the default
+parallel attempt had two startup-output timeouts; full lint, typecheck, build,
+documentation validation and all 13 documentation regressions also passed. Both shipped
+customer profiles, current-candidate CI and immutable review remain required.
+
 1. Repair the demonstrated capture-close ordering and add a deterministic delayed
    response regression, preserving all fail-closed and post-close checks. Implement
    a pure, internal milestone consistency evaluator and its adversarial tests.
