@@ -86,12 +86,15 @@ until renewed or expired. Administrative roles do not grant project/portfolio
 business access. Restore the prior environment mapping and recreate the API to
 reverse a mapping change. See [the acceptance scope](../05-quality/OIDC_CONFIGURATION_VALIDATION.md).
 
-## Internal milestone reconciliation candidate
+## Internal milestone reconciliation
 
 FR-EVD-004/009/012, FR-MOD-002, FR-ADM-005, NFR-SEC-001/004/005 and
-NFR-REL-001/002; Issue #6. This is the unmerged Stage 3 candidate described in
-[EXEC-007](../04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md), not
-customer activation or story acceptance.
+NFR-REL-001/002; Issue #6. Stage 3 merged through
+[PR #51](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/51),
+with [verified evidence](../05-quality/MILESTONE_CONSISTENCY_VALIDATION.md).
+This is not customer activation or full story acceptance. Generic scalar conflicts
+still display reconciliation-needed without creating a request; that separate
+FAIL-009 path and all customer release gates remain open.
 
 In a canonical project's milestone workspace, a scoped PMO administrator can
 review the milestone and required-work metadata and explicitly bind each target's
@@ -127,7 +130,7 @@ periodically; server checks apply on every read. Do not treat a previously loade
 page as continuing authorization.
 
 There is no sent/read acknowledgement, email, external message, automatic
-follow-up, resolution, closure or approval action in this candidate. A successful
+follow-up, resolution, closure or approval action in this increment. A successful
 GET or queue entry does not attest that a person read or acted on a request.
 
 ## Backup and upgrade
@@ -146,7 +149,7 @@ the worker gains no new business access. Apply the migration and finite grants
 through the maintenance operation below before starting the new application image.
 
 The milestone persistence release adds five tables in migration5 (36 business
-tables). The Stage 3 candidate adds three reconciliation history tables in
+tables). The merged Stage 3 increment adds three reconciliation history tables in
 migration6 (39 total), mutual check/capture ownership constraints, and a nonunique
 `ProjectFactVersion_source_temporal_idx` index. All five released migration files
 remain byte-for-byte unchanged. The new index uses ordinary transactional creation,

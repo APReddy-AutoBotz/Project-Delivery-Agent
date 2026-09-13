@@ -6,6 +6,42 @@ separate from story acceptance.
 
 ## Repository and review
 
+### Canonical milestone request integration, 2026-09-13
+
+Stage 3 [PR #51](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/51)
+merged candidate `9b33dec67ff65c2e6e24fe139353780618ca3e85` as
+`42bcd1104a709fc2adab5368f277144f390f42c9` at 2026-09-13T12:15:23Z.
+The reviewed tree, ordered parents, all 62 changed raw files and all five preserved
+released migrations were verified after merge. Separate exact-SHA source and both
+original-artifact reviews passed; Foundation 34754258547 and Documentation
+34754258540 passed. The [public gate](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/51#issuecomment-5653200161)
+and [validation record](../05-quality/MILESTONE_CONSISTENCY_VALIDATION.md) bind the
+1,133 unit, 107 database/API, 26 browser and 19 packaged checks, both customer PM
+profiles, five prior-prefix upgrades and three quarantined 39-table restores.
+
+This completes the approved canonical milestone integration after PR #49/#50, not
+STORY-012. The closure review found generic scalar source conflicts still flag
+reconciliation without creating a durable request. FAIL-009's complete recovery
+contract remains unimplemented; it belongs solely to AC-EVD-004 and cannot be
+waived as a shared health/Q&A test. INT-EVD-004's literal preservation/nonselection
+behavior is implemented. GOLDEN-003 remains planned for its broader shared scope.
+No test definition or ownership is narrowed; no new criterion/story is accepted.
+Issue #6 remains open, R0 3/5 (60%) and R1 2/33 (6.1%).
+
+Current distribution evidence retains 840 High/Critical scanner occurrences,
+112 existing dispositions and 728 unresolved occurrences. All five release gates
+remain open; no customer activation, new connector scope, AI call, external write,
+message, acknowledgement, human approval or conflict resolution is granted.
+Migration 6 adds three append-only histories and the transactional source-temporal
+index. Recovery preserves additive history with a compatible application revert,
+or restores an encrypted backup with matching reviewed tooling into a fresh
+runtime-quarantined target. All six merged migrations are now immutable.
+
+Next is independently reviewed design and implementation of generic scalar-conflict
+requests, preserving current configured-PM/all-source authorization and explicit
+unassigned handling. Main-branch repeats have separate outcomes; this record does
+not infer their success from candidate CI. Earlier entries retain historical state.
+
 ### Project evidence workflow acceptance, 2026-09-12
 
 [PR #47](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/47)

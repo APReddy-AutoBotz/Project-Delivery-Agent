@@ -1,6 +1,6 @@
 # EXEC-007: Canonical milestone reconciliation
 
-Status: Stages 1-2 merged; Stage 3 design approved, implementation and validation in progress.
+Status: Stages 1-3 merged; Stage 4 acceptance withheld for generic scalar-conflict requests.
 Owner: Implementation controller. Last updated: 2026-09-13.
 Requirement IDs: FR-EVD-001/002/003/004/006/007/009/010/012, FR-ADM-005,
 FR-MOD-001/002/004, FR-HLT-008/009, NFR-SEC-001/004/005, NFR-REL-001/002.
@@ -15,7 +15,43 @@ request delivered to the currently authorized assigned PM. Never choose a settle
 winner or change a source record. A scalar conflict or a domain result alone does
 not implement the required request and does not complete the criterion/story.
 
-## Current state
+## Verified continuation and remaining scope
+
+Stage 3 [PR #51](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/51)
+merged as `42bcd1104a709fc2adab5368f277144f390f42c9` at 2026-09-13T12:15:23Z.
+Exact candidate `9b33dec67ff65c2e6e24fe139353780618ca3e85`, tree
+`7f812b867ebfbda7c92b290cd34ded5a0865538a`, required candidate CI, separate
+immutable source/original-artifact reviews and actual merge/raw-source verification
+passed. See [the complete integration evidence](../../05-quality/MILESTONE_CONSISTENCY_VALIDATION.md)
+for 1,133 unit, 107 integration, 26 browser, 19 packaged groups, both PM profiles,
+five genuine prior-prefix upgrades and three quarantined 39-table restores.
+
+Stage 4 does not yet accept AC-EVD-004/STORY-012 or close Issue #6. Review of the
+complete referenced FAIL-009 recovery contract found that generic scalar conflicts
+still only set `reconciliationRequired`; the UI correctly states no request has
+been created. Canonical milestone requests cannot fill that path because scalar
+conflicts make the canonical rule UNKNOWN/NO_REQUEST. FAIL-009 is solely owned by
+AC-EVD-004, not a shared health/Q&A test, and remains planned. INT-EVD-004's literal
+conflict-retention behavior is implemented. Global GOLDEN-003 also remains planned
+for its separate health/leadership-answer scope. Preserve all definitions/ownership;
+do not narrow a test to obtain acceptance. R0 remains 3/5 and R1 2/33.
+
+The next implementation increment must define and independently review generic
+scalar-conflict reconciliation before code: when explicit authority policy permits
+request creation, append-capable creator permissions, exact retained scalar proof
+and contributor identity, durable retry/dedupe and assignment histories, current
+sole-PM/role/grant/all-source delivery, finite SQL/COMMIT integrity and additive
+migration/upgrade/quarantined recovery. Do not invent a milestone, select a winner,
+turn a capture flag into delivery, silently share sources, or add messaging,
+acknowledgement, human approval or resolution. The existing canonical design and
+all six now-released migrations stay immutable. This is a remaining implementation
+gate, not an approved new DDL/API design or a customer activation decision.
+
+Earlier checkpoints below preserve their observed premerge states and failed runs.
+All five distribution release gates and the default development database remain
+unchanged. Main-repeat checks have their own observed outcomes.
+
+## Original Stage 1 intake state (historical)
 
 PR47/48 merged the reviewed evidence workflow and its acceptance records. PR49
 merged Stage 1 as `bfac958b0af9805c6b3109f7aedf109ccdec3618`; its candidate and

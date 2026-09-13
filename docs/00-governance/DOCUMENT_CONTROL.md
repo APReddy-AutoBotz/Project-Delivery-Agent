@@ -1,5 +1,31 @@
 # Document Control
 
+## Canonical reconciliation integration; acceptance withheld, 2026-09-13
+
+Under the existing implementation delegation, record verified canonical milestone
+request integration through PR #51, not full AC-EVD-004/STORY-012 acceptance.
+[Milestone reconciliation validation](../05-quality/MILESTONE_CONSISTENCY_VALIDATION.md)
+binds the exact candidate, independent source/acceptance/distribution reviews,
+required passing CI, original artifacts and verified merge
+`42bcd1104a709fc2adab5368f277144f390f42c9`.
+
+The post-integration acceptance review identified a remaining generic scalar
+request path. FR-EVD-007/012's retention/nonselection behavior is implemented, but
+FAIL-009's referenced recovery specification additionally requires requesting
+reconciliation. A scalar flag is not a durable request, and the canonical rule
+correctly refuses unresolved scalar targets. FAIL-009 belongs only to AC-EVD-004;
+it is not the shared GOLDEN-003 health/Q&A remainder. Keep FAIL-009/STORY-012
+planned and Issue #6 open. Mark only INT-EVD-004's complete literal test behavior
+implemented. Do not narrow the recovery specification or change test ownership
+as an acceptance shortcut.
+
+Next, prepare a concrete generic scalar-conflict request design under the existing
+approved requirements, with independent schema/permission/API/UI/recovery review
+before implementation. No generic request DDL or new product behavior is approved
+by this progress record. Accepted counts stay R0 3/5 and R1 2/33. All five customer
+release gates, 728 unresolved High/Critical scanner occurrences and real-source
+activation remain open. Earlier decisions below retain their historical scope.
+
 ## Project evidence workflow acceptance, 2026-09-12
 
 Under the Product Owner's existing delegation, the controller accepts the verified
