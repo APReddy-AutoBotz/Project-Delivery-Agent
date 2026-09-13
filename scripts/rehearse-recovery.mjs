@@ -93,6 +93,9 @@ try {
 docker(["pg_dump", "-U", "pdaa", "-d", sourceName, "-Fc", "-f", dump]);
 docker(["createdb", "-U", "pdaa", target]);
 docker(["pg_restore", "-U", "pdaa", "-d", target, "--exit-on-error", dump]);
+console.log(
+  `Native dump restored into retained isolated database ${target}; checking exact rows.`,
+);
 url.pathname = "/" + sourceName;
 const original = createDatabase(url.toString());
 url.pathname = "/" + target;
@@ -178,6 +181,9 @@ try {
       )[0].n > 0,
       "Canonical recovery fixture must populate " + table,
     );
+  console.log(
+    "Exact rows and populated families checked; validating native integrity predicates.",
+  );
   assert.equal(
     (
       await restored.$queryRaw`SELECT

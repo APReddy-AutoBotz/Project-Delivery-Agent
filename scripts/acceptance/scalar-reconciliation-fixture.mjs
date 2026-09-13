@@ -11,6 +11,7 @@ import {
 import { canonicalFixture } from "./canonical-projects.mjs";
 import { reconciliationAcceptanceGuard } from "./milestone-reconciliation.mjs";
 import { verifyScalarReconciliationIntegrity } from "./scalar-reconciliation.mjs";
+import { assertAvailableScalarOriginal } from "./scalar-reconciliation-recovery-receipt.mjs";
 
 export async function reserveScalarFixture(
   owner,
@@ -205,6 +206,17 @@ export async function seedScalarReconciliation(
     );
     const read = { projectId: f.projectId, requestId: first.request.id };
     const original = await repository.get(f.pm, read);
+    assertAvailableScalarOriginal(original.assessment, customerId, f.command);
+    assert.deepEqual(
+      original.assessment.result.versions.map((version) => version.id).sort(),
+      f.versions.map((version) => version.id).sort(),
+    );
+    assert.deepEqual(
+      original.assessment.result.versions
+        .flatMap((version) => version.evidenceIds)
+        .sort(),
+      f.versions.map((version) => version.evidenceId).sort(),
+    );
     assert.equal(
       original.assessment.assessmentId,
       first.assessment.assessmentId,
@@ -230,8 +242,18 @@ export async function seedScalarReconciliation(
         f.context,
       );
       const delivered = await repository.get(f.pm, read);
-      if (withdraw) assert.equal(delivered.assessment.result, null);
-      else assert.deepEqual(delivered.assessment, original.assessment);
+      if (withdraw) {
+        assert.equal(delivered.assessment.visibility, "restricted");
+        assert.equal(delivered.assessment.revalidationRequired, true);
+        assert.equal(delivered.assessment.result, null);
+      } else {
+        assertAvailableScalarOriginal(
+          delivered.assessment,
+          customerId,
+          f.command,
+        );
+        assert.deepEqual(delivered.assessment, original.assessment);
+      }
     }
     const refresh = {
       ...read,
@@ -328,13 +350,42 @@ export async function verifyRestoredScalarReconciliation(
 ) {
   reconciliationAcceptanceGuard();
   assert.equal(fixture.family, "scalar-reconciliation/v1");
+  assertAvailableScalarOriginal(
+    fixture.originalAssessment,
+    fixture.actor.customerId,
+    fixture.command,
+  );
   const db = createDatabase(connection);
   try {
     const principal = (await db.$queryRaw`SELECT current_user AS role`)[0].role;
     // Restores stay runtime-quarantined: caller supplies the authorized restore
     // administrator, never temporarily enables API CONNECT to make this pass.
     assert.equal(principal, "fixture_admin");
-    const repository = new DatabaseScalarReconciliationRepository(db);
+    let runtimeTransactions = 0;
+    const restrictedTransaction = (callback, options) =>
+      db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+        const role = (
+          await tx.$queryRaw`SELECT current_user AS role, session_user AS login`
+        )[0];
+        assert.equal(role.role, "pdaa_api");
+        assert.equal(role.login, "fixture_admin");
+        runtimeTransactions += 1;
+        return callback(tx);
+      }, options);
+    const restricted = {
+      $transaction: restrictedTransaction,
+      // Repository error audits must not accidentally regain owner privileges.
+      auditEvent: {
+        create: (args) =>
+          restrictedTransaction((tx) => tx.auditEvent.create(args), {
+            isolationLevel: "ReadCommitted",
+            maxWait: 5000,
+            timeout: 10000,
+          }),
+      },
+    };
+    const repository = new DatabaseScalarReconciliationRepository(restricted);
     const result = await repository.check(
       fixture.actor,
       fixture.command,
@@ -383,6 +434,8 @@ export async function verifyRestoredScalarReconciliation(
     return {
       family: fixture.family,
       executedAs: principal,
+      runtimeRole: "pdaa_api",
+      runtimeTransactions,
       originalRequestId: fixture.requestId,
       originalCheckId: fixture.checkId,
       originalAssessmentId: fixture.originalAssessmentId,

@@ -4,10 +4,17 @@ import { assertScalarRecoveryReceipt } from "../scripts/acceptance/scalar-reconc
 
 function receipt() {
   const customerId = randomUUID();
+  const command = { projectId: randomUUID(), factId: randomUUID() };
+  const versions = ["2026-10-01", "2026-10-02"].map((value) => ({
+    id: randomUUID(),
+    value: { type: "date", value },
+    evidenceIds: [randomUUID()],
+  }));
   const fixture = {
     family: "scalar-reconciliation/v1",
     runtimeRole: "pdaa_api",
     actor: { customerId },
+    command,
     pm: { customerId },
     requestId: randomUUID(),
     checkId: randomUUID(),
@@ -36,7 +43,33 @@ function receipt() {
       scalarReconciliationWorkerDenied: true,
       scalarReconciliationFixture: {
         ...fixture,
-        originalAssessment: { assessmentId: fixture.originalAssessmentId },
+        originalAssessment: {
+          assessmentId: fixture.originalAssessmentId,
+          factId: command.factId,
+          visibility: "available",
+          historical: true,
+          revalidationRequired: false,
+          result: {
+            complete: true,
+            status: "CONFLICTING",
+            revalidationRequired: false,
+            resolvedValue: null,
+            policy: {
+              conflictBehavior: "REQUEST_RECONCILIATION",
+              customerId,
+              projectId: command.projectId,
+              factType: "project.forecast",
+            },
+            scope: { customerId, ...command, factType: "project.forecast" },
+            versions,
+            conflicts: [
+              {
+                versionIds: versions.map((version) => version.id),
+                evidenceIds: versions.flatMap((version) => version.evidenceIds),
+              },
+            ],
+          },
+        },
       },
       restore: {
         status: "passed",
@@ -47,6 +80,8 @@ function receipt() {
         scalarReconciliationOriginalProof: {
           family: fixture.family,
           executedAs: "fixture_admin",
+          runtimeRole: "pdaa_api",
+          runtimeTransactions: 5,
           originalRequestId: fixture.requestId,
           originalCheckId: fixture.checkId,
           originalAssessmentId: fixture.originalAssessmentId,
@@ -85,6 +120,9 @@ it("NFR-REL-001: rejects omitted population, privileges, quarantine and delivery
     ["restore", "scalarReconciliationOriginalProof", "originalProofDelivered"],
     ["restore", "scalarReconciliationOriginalProof", "regrantDidNotReroute"],
     ["scalarReconciliationFixture", "sourceWithdrawalWithheld"],
+    ["scalarReconciliationFixture", "originalAssessment", "result"],
+    ["restore", "scalarReconciliationOriginalProof", "runtimeRole"],
+    ["restore", "scalarReconciliationOriginalProof", "runtimeTransactions"],
   ]) {
     const changed = structuredClone(persistence);
     let parent: Record<string, unknown> = changed;
@@ -96,4 +134,15 @@ it("NFR-REL-001: rejects omitted population, privileges, quarantine and delivery
   expect(() =>
     assertScalarRecoveryReceipt(persistence, randomUUID()),
   ).toThrow();
+});
+
+it("FR-EVD-012: rejects an always-restricted original and owner-role application checks", () => {
+  const { persistence, customerId } = receipt();
+  const restricted = structuredClone(persistence);
+  restricted.scalarReconciliationFixture.originalAssessment.visibility =
+    "restricted";
+  expect(() => assertScalarRecoveryReceipt(restricted, customerId)).toThrow();
+  const owner = structuredClone(persistence);
+  owner.restore.scalarReconciliationOriginalProof.runtimeRole = "fixture_admin";
+  expect(() => assertScalarRecoveryReceipt(owner, customerId)).toThrow();
 });

@@ -612,5 +612,37 @@ in progress. No timeout was increased and the earlier failure is not waived.
 Native scalar COMMIT/race/load controls and all three packaged restore runs
 remain required. No issue, story or release gate is closed by this checkpoint.
 
+2026-09-13 recovery correction checkpoint: independent review of `4a851c7`
+identified two P1 acceptance false-positive risks (report SHA256
+`ff64eed34f36ce59a1742f77ffc4b491d40ef812658da2a9790cce3cc249e4f4`).
+Restore business transactions now SET LOCAL ROLE pdaa_api and assert both effective
+role and fixture-admin transport, preserving original transaction budgets; denial
+audits have the same restricted wrapper rather than exposed owner delegates.
+Original PM proof must be available, complete CONFLICTING, scoped correctly, and
+retain both original date values and evidence/version references. Withdrawal must
+be restricted/revalidation-required/null. The host reader rejects missing proof,
+owner-runtime-role and mismatched original identity evidence.
+
+Fresh run `pdaa-acceptance-1789317573391-aa45a59c` passed the corrected native
+scalar restore with all five business transactions asserted as pdaa_api, retained
+runtime quarantine and original available proof. Original population SHA256:
+`c840e67a03da137992f064cc5866885ba178ee2779e67b337bbcbc3e63f95255`;
+restored receipt SHA256:
+`352f1abbbe3aa1cc864c08a01890b199c068f13267301f763d086c5d11116e30`.
+The final additional policy-scope/null-resolved-value reader assertions also passed
+against that retained original. Seven focused helper tests passed.
+
+The fresh complete database run on `pdaa_test_1789317097171` passed 117/117 tests
+with unchanged limits. The 42-table local native recovery rehearsal passed into
+`pdaa_restore_1789317550973`: exact full rows/ledger, populated scalar families,
+native integrity, immutable guards, credential decryption and restored project
+scope. A preceding recovery query timed out and remains a retained failed attempt;
+the repeat passed without timeout changes. Neither local native recovery nor the
+focused scalar dump replaces any of the three encrypted packaged recovery gates.
+The proper unit selection passed 1201 tests across 55 files; lint and documentation
+validation passed. An earlier invocation omitted the unit-only exclusion and
+correctly failed all eight integration-suite environment guards without a database;
+it is not represented as an integration run or a successful full command.
+
 Not complete. FAIL-009 and Issue6 closure require the implemented, reviewed and
 executed generic request workflow; planning and domain flags do not satisfy them.
