@@ -453,6 +453,24 @@ write test verifies creation, refresh, subsequent PM delivery and restoration of
 the original connection timezone. These counts describe only the executed suites,
 not the pending native-role/upgrade/restore/packaged acceptance matrix.
 
+Independent API/UI review of `170c2ee` found no P0/P1 in that bounded scope and
+one P2: resetting the management queue could strand a pending page-two assignment
+retry. The reset is now disabled while a command is pending. Both focused browser
+journeys passed, including controlled second-page metadata with real API assignment
+requests, an aborted first attempt and an exact-body/key retry. This controlled
+pagination test is not evidence of native database pagination correctness.
+Retained review report SHA256:
+`bbbcea1ab74067880878fcee7aded5daac2098a9f90672c1d9745134f29db424`.
+
+The orphan negative control now observes the unchanged native COMMIT transport
+with the existing acceptance observer and an independent connection, requires the
+exact scalar guard/FK error, verifies the returned callback and settled COMMIT,
+and compares the full relevant rollback projection. A coherent year-10000 refresh
+and matching audit is rejected by the exact assignment shape constraint, with
+audit and assignment rollback verified. Ten scalar integration and 18 helper
+tests passed. These are isolated local-principal probes, not the remaining actual
+API-role matrix or independent persistence correction approval.
+
 One fact-level request over the full conflict participant union; explicit policy
 opt-in and manager action; separate scalar family rather than weakening milestone
 predicates; immutable routing snapshot permits honest legacy unassigned history.

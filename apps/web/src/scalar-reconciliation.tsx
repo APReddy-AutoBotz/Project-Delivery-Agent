@@ -308,6 +308,7 @@ export function ScalarReconciliationQueue({
         </SelectField>
         <Button
           className="secondary"
+          disabled={busy || pending !== null}
           onClick={() => {
             setAfter(null);
             void queue.refresh();

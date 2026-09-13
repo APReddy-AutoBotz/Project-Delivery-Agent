@@ -71,7 +71,7 @@ const expected = {
 // results, error objects, transaction options, or the decision to COMMIT/ROLLBACK.
 // The installed Prisma PG adapter uses the promise form of client.query(config).
 // Callback-form COMMIT is deliberately unsupported and fails evidence validation.
-function watchCommits(pool, activeCase, observerClient) {
+export function watchCommits(pool, activeCase, observerClient) {
   pool.on("connect", (client) => {
     const query = client.query;
     client.query = function (...args) {

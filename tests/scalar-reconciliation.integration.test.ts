@@ -1,5 +1,8 @@
 import { afterAll, expect, it } from "vitest";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
+import { PrismaClient } from "../packages/data/dist/generated/prisma/client.js";
+import { watchCommits } from "../scripts/acceptance/reconciliation-commit-probes.mjs";
 import {
   createDatabase,
   DatabaseCanonicalProjectRepository,
@@ -384,39 +387,97 @@ it("NFR-REL-001: native COMMIT rejects orphan owned proof and rolls back conflic
     }),
   });
   const before = await projection();
+  const requireData = createRequire(
+    new URL("../packages/data/package.json", import.meta.url),
+  );
+  const { Pool } = requireData("pg");
+  const { PrismaPg } = requireData("@prisma/adapter-pg");
+  const writerPool = new Pool({ connectionString: url, max: 1 });
+  const observerPool = new Pool({ connectionString: url, max: 1 });
+  const observer = await observerPool.connect();
+  const record = {
+    nativeCommitAttempts: 0,
+    callbackReturned: false,
+    pid: 0,
+    sessionUser: "",
+    callbackReturnedAtCommit: false,
+    native: undefined as
+      | undefined
+      | { code: string; message: string; constraint?: string },
+    commitObserver: undefined as undefined | { phase: string },
+  };
+  watchCommits(
+    writerPool,
+    () => record,
+    () => observer,
+  );
+  const writer = new PrismaClient({
+    adapter: new PrismaPg(writerPool, { disposeExternalPool: false }),
+  });
   let reachedCommit = false;
-  await expect(
-    db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM public."Project" WHERE id=${f.projectId}::uuid FOR UPDATE`;
-      const fact = (
-        await tx.$queryRaw<
-          { id: string; factType: string; revision: number }[]
-        >`SELECT id,"factType",revision FROM public."ProjectFact" WHERE id=${f.input.factId}::uuid FOR UPDATE`
-      )[0]!;
-      const asOf = (
-        await tx.$queryRaw<
-          { now: Date }[]
-        >`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`
-      )[0]!.now;
-      const prepared = await authority.prepareAssessmentInTransaction(
-        tx,
-        f.pmo,
-        { projectId: f.projectId, fact, asOf },
-      );
-      await authority.persistPreparedAssessmentInTransaction(tx, f.pmo, {
-        prepared,
-        subject: f.pmo.subject,
-        idempotencyKey: randomUUID(),
-        requestHash: "0".repeat(64),
-        captureKind: "SCALAR_REQUEST",
-        milestoneAssessmentId: null,
-        scalarReconciliationCheckId: randomUUID(),
-      });
-      reachedCommit = true;
-    }),
-  ).rejects.toThrow();
-  expect(reachedCommit).toBe(true);
-  expect(await projection()).toEqual(before);
+  try {
+    await expect(
+      writer.$transaction(async (tx) => {
+        const principal = (
+          await tx.$queryRaw<{ pid: number; sessionUser: string }[]>`
+        SELECT pg_backend_pid() AS pid,session_user AS "sessionUser"`
+        )[0]!;
+        record.pid = principal.pid;
+        record.sessionUser = principal.sessionUser;
+        await tx.$queryRaw`SELECT id FROM public."Project" WHERE id=${f.projectId}::uuid FOR UPDATE`;
+        const fact = (
+          await tx.$queryRaw<
+            { id: string; factType: string; revision: number }[]
+          >`SELECT id,"factType",revision FROM public."ProjectFact" WHERE id=${f.input.factId}::uuid FOR UPDATE`
+        )[0]!;
+        const asOf = (
+          await tx.$queryRaw<
+            { now: Date }[]
+          >`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`
+        )[0]!.now;
+        const prepared = await authority.prepareAssessmentInTransaction(
+          tx,
+          f.pmo,
+          { projectId: f.projectId, fact, asOf },
+        );
+        await authority.persistPreparedAssessmentInTransaction(tx, f.pmo, {
+          prepared,
+          subject: f.pmo.subject,
+          idempotencyKey: randomUUID(),
+          requestHash: "0".repeat(64),
+          captureKind: "SCALAR_REQUEST",
+          milestoneAssessmentId: null,
+          scalarReconciliationCheckId: randomUUID(),
+        });
+        reachedCommit = true;
+        record.callbackReturned = true;
+      }),
+    ).rejects.toThrow();
+    expect(reachedCommit).toBe(true);
+    // A Prisma timeout/connection error alone is never evidence of this guard.
+    // The observer records the actual unchanged native COMMIT transport result.
+    expect(record.nativeCommitAttempts).toBe(1);
+    expect(record.callbackReturnedAtCommit).toBe(true);
+    expect(record.commitObserver?.phase).toBe("native-commit-settled");
+    expect([
+      {
+        code: "P0001",
+        message: "Unowned scalar reconciliation assessment cannot commit",
+        constraint: undefined,
+      },
+      {
+        code: "23503",
+        message:
+          'insert or update on table "FactAssessment" violates foreign key constraint "ScalarAssessment_check_fk"',
+        constraint: "ScalarAssessment_check_fk",
+      },
+    ]).toContainEqual(record.native);
+    expect(await projection()).toEqual(before);
+  } finally {
+    await writer.$disconnect();
+    observer.release();
+    await Promise.all([writerPool.end(), observerPool.end()]);
+  }
 });
 
 it("NFR-REL-001: committed scalar history cannot be adopted, mutated, deleted or truncated", async () => {
@@ -465,4 +526,68 @@ it("NFR-REL-001: committed scalar history cannot be adopted, mutated, deleted or
       ),
     ).toEqual(before);
   }
+});
+
+it("NFR-REL-005: the year-range constraint rejects a coherently dated refresh and audit", async () => {
+  const f = await fixture(false);
+  const checked = await reconciliation.check(f.pmo, f.input, context);
+  const request = checked.request!,
+    previous = request.assignment;
+  const id = randomUUID(),
+    auditEventId = randomUUID();
+  const requestHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        projectId: f.projectId,
+        requestId: request.id,
+        expectedAssignmentRevision: 1,
+      }),
+    )
+    .digest("hex");
+  const overrides = JSON.stringify({
+    id,
+    auditEventId,
+    kind: "REFRESH",
+    revision: 2,
+    expectedRevision: 1,
+    previousAssignmentId: previous.id,
+    idempotencyKey: randomUUID(),
+    requestHash,
+    occurredAt: "10000-01-01T00:00:00Z",
+  });
+  let auditInserted = false;
+  await expect(
+    db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM public."Project" WHERE id=${f.projectId}::uuid FOR UPDATE`;
+      await tx.$executeRaw`INSERT INTO public."AuditEvent" (id,"customerId",actor,"correlationId","occurredAt",event,detail)
+      VALUES (${auditEventId}::uuid,${f.pmo.customerId}::uuid,${f.pmo.subject},${context.correlationId},
+        TIMESTAMP '10000-01-01 00:00:00','scalar.reconciliation.assigned',
+        jsonb_build_object('projectId',${f.projectId}::text,'factId',${f.input.factId}::text,
+          'requestId',${request.id}::text,'assignmentId',${id}::text,'revision',2,'reason','NO_CONFIGURED_PM'))`;
+      auditInserted = true;
+      await tx.$executeRaw`INSERT INTO public."ScalarReconciliationAssignment"
+      SELECT (jsonb_populate_record(NULL::public."ScalarReconciliationAssignment",to_jsonb(a) || ${overrides}::jsonb)).*
+      FROM public."ScalarReconciliationAssignment" a WHERE id=${previous.id}::uuid`;
+      throw new Error("Out-of-range refresh unexpectedly succeeded");
+    }),
+  ).rejects.toMatchObject({
+    code: "P2010",
+    meta: {
+      driverAdapterError: {
+        cause: {
+          originalCode: "23514",
+          originalMessage:
+            'new row for relation "ScalarReconciliationAssignment" violates check constraint "ScalarAssignment_shape"',
+        },
+      },
+    },
+  });
+  expect(auditInserted).toBe(true);
+  expect(await db.auditEvent.count({ where: { id: auditEventId } })).toBe(0);
+  expect(
+    await db.scalarReconciliationAssignment.findMany({
+      where: { requestId: request.id },
+      select: { id: true },
+    }),
+  ).toEqual([{ id: previous.id }]);
 });

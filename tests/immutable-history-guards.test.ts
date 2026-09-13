@@ -142,3 +142,44 @@ it("FR-EVD-012: recognizes the request seal guard without widening other table e
     ),
   ).rejects.toThrow("must fail at its verified history guard");
 });
+
+it.each([
+  [
+    "ScalarReconciliationRequest",
+    "Scalar reconciliation request is immutable",
+    "Invalid scalar reconciliation request seal",
+  ],
+  [
+    "ScalarReconciliationCheck",
+    "Scalar reconciliation check is immutable",
+    "Scalar reconciliation check is immutable",
+  ],
+  [
+    "ScalarReconciliationAssignment",
+    "Scalar reconciliation assignment is immutable",
+    "Scalar reconciliation assignment is immutable",
+  ],
+])(
+  "FR-EVD-007/012: matches only the exact scalar history guard for %s",
+  async (table, deleted, updated) => {
+    await verifyImmutableHistoryMutation(
+      database(guardError(updated)),
+      table,
+      "UPDATE",
+    );
+    await verifyImmutableHistoryMutation(
+      database(guardError(deleted)),
+      table,
+      "DELETE",
+    );
+    for (const unrelated of [
+      guardError("Reconciliation check is immutable"),
+      Object.assign(new Error("Transaction timed out"), { code: "P2028" }),
+      Object.assign(new Error("Connection lost"), { code: "ECONNRESET" }),
+    ]) {
+      await expect(
+        verifyImmutableHistoryMutation(database(unrelated), table, "UPDATE"),
+      ).rejects.toThrow("must fail at its verified history guard");
+    }
+  },
+);

@@ -116,6 +116,117 @@ test("FR-EVD-007/012: scalar requests retain original PM proof, deduplicate and 
   }
 });
 const epoch = () => new Date(Date.now() - 3600000).toISOString();
+test("FR-EVD-009: a controlled second-page queue retains the exact assignment retry", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request, true);
+  const first = await f.append("pmo-portfolio", 0, "Scalar retry forecast A");
+  const second = await f.append("pm-atlas", 1, "Scalar retry forecast B");
+  await f.share(first.entry.sourceId);
+  await f.share(second.entry.sourceId);
+  expect(
+    (
+      await f.api(
+        "pmo-portfolio",
+        f.prefix + "/authority-policies",
+        "POST",
+        f.policy(0),
+      )
+    ).status(),
+  ).toBe(201);
+  const createdResponse = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/scalar-reconciliation-checks",
+    "POST",
+    {
+      factId: first.factId,
+      idempotencyKey: randomUUID(),
+    },
+  );
+  expect(createdResponse.status()).toBe(201);
+  const created = await createdResponse.json();
+  // Controlled pagination isolates the retry UI: commands still reach the real
+  // API, and the second page contains the real request. This is not DB-page proof.
+  await page.route(
+    "**/managed-scalar-reconciliation-requests*",
+    async (route) => {
+      const secondPage = new URL(route.request().url()).searchParams.has(
+        "afterId",
+      );
+      await route.fulfill({
+        json: {
+          requests: [
+            secondPage
+              ? created.request
+              : {
+                  ...created.request,
+                  id: "00000000-0000-4000-8000-000000000001",
+                },
+          ],
+          next: secondPage
+            ? null
+            : {
+                createdAt: created.request.createdAt,
+                id: "00000000-0000-4000-8000-000000000001",
+              },
+        },
+      });
+    },
+  );
+  const commands: unknown[] = [];
+  await page.route(
+    `**/scalar-reconciliation-requests/${created.request.id}/assignment`,
+    async (route) => {
+      commands.push(route.request().postDataJSON());
+      if (commands.length === 1) await route.abort("failed");
+      else await route.continue();
+    },
+  );
+  await open(page, f.payload.name);
+  const queue = page.getByRole("region", {
+    name: "Scalar reconciliation queue",
+    exact: true,
+  });
+  await queue
+    .getByLabel("Scalar request queue", { exact: true })
+    .selectOption("manage");
+  await queue
+    .getByRole("button", { name: "Next scalar request page", exact: true })
+    .click();
+  await queue
+    .getByRole("button", {
+      name: "Refresh configured scalar PM assignment",
+      exact: true,
+    })
+    .click();
+  const retry = queue.getByRole("button", {
+    name: "Retry same scalar assignment refresh",
+    exact: true,
+  });
+  await expect(retry).toBeEnabled();
+  await expect(
+    queue.getByRole("button", { name: "Refresh scalar queue", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    queue.getByRole("button", {
+      name: "First scalar request page",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  const refreshed = page.waitForResponse(
+    (value) =>
+      value.url().endsWith(`/${created.request.id}/assignment`) &&
+      value.request().method() === "POST",
+  );
+  await retry.click();
+  expect((await refreshed).status()).toBe(201);
+  expect(commands).toHaveLength(2);
+  expect(commands[1]).toEqual(commands[0]);
+  await expect(
+    queue.getByRole("button", { name: "Refresh scalar queue", exact: true }),
+  ).toBeEnabled();
+});
 async function fixture(request: APIRequestContext, scalarPm = false) {
   const tokens: Record<string, string> = {};
   for (const persona of [
