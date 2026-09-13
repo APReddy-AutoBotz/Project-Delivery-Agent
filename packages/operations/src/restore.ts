@@ -12,6 +12,7 @@ import { assertCustomer, grants, verifyRoles } from "./provision.js";
 import { history, validateHistory, type Migration } from "./migrations.js";
 import { archivePath, openArchive, requireRestoreTmpfs } from "./archive.js";
 import { postgresTool } from "./backup.js";
+import { createRestoreDiagnostic } from "./restore-diagnostic.js";
 
 async function restoreOwners(client: Awaited<ReturnType<typeof connect>>) {
   // Extension objects retain extension ownership. All first-party objects receive
@@ -49,13 +50,43 @@ export async function restore(
   name: string,
   key: Buffer,
 ) {
+  const diagnostic = createRestoreDiagnostic();
+  try {
+    return await restoreArchive(
+      config,
+      migrations,
+      directory,
+      name,
+      key,
+      diagnostic,
+    );
+  } catch (error) {
+    diagnostic.failed();
+    try {
+      diagnostic.report();
+    } catch {
+      // Diagnostic output must never replace the original restore failure.
+    }
+    throw error;
+  }
+}
+async function restoreArchive(
+  config: OperationsConfig,
+  migrations: Migration[],
+  directory: string,
+  name: string,
+  key: Buffer,
+  diagnostic: ReturnType<typeof createRestoreDiagnostic>,
+) {
   requireRestoreTmpfs();
   const source = archivePath(directory, name);
   const temporary = mkdtempSync("/tmp/pdaa-restore-");
   const plaintext = join(temporary, "archive.dump");
   try {
     // Authentication must finish before any target connection or SQL execution.
+    diagnostic.enter("archive_authentication");
     const metadata = await openArchive(source, plaintext, key);
+    diagnostic.enter("archive_identity");
     if (
       metadata.customerId !== config.customerId ||
       JSON.stringify(metadata.migrations) !==
@@ -71,18 +102,23 @@ export async function restore(
       metadata.source.port === config.database.port
     )
       throw new Error("Source cannot be the restore target");
+    diagnostic.enter("target_connection");
     const client = await connect(config.database);
     const db = identifier(config.database.database);
     try {
+      diagnostic.enter("target_validation");
       await assertPostgres17(client);
       await verifyRoles(client);
       await client.query("SELECT pg_advisory_lock(72707370)");
       await assertEmptyTarget(client);
+      diagnostic.enter("quarantine");
       await client.query(`REVOKE ALL ON DATABASE ${db} FROM PUBLIC,pdaa_api,pdaa_worker;
         COMMENT ON DATABASE ${db} IS 'pdaa.restore.quarantine.v1:${config.customerId}'`);
       // CONNECT is checked only during login: commit denial first, then reject
       // sessions that raced that boundary. Never terminate unrelated clients.
+      diagnostic.enter("sessions_before_restore");
       await assertNoOtherSessions(client);
+      diagnostic.enter("postgres_restore");
       const { child, completed } = postgresTool(
         "pg_restore",
         [
@@ -99,16 +135,22 @@ export async function restore(
       );
       child.stdout.resume();
       await completed;
+      diagnostic.enter("sessions_after_restore");
       await assertNoOtherSessions(client);
       await client.query("BEGIN");
       try {
+        diagnostic.enter("ownership");
         await restoreOwners(client);
+        diagnostic.enter("grants");
         await grants(client, config, true);
+        diagnostic.enter("customer");
         await assertCustomer(client, config);
+        diagnostic.enter("history");
         const applied = await history(client);
         validateHistory(applied, migrations);
         if (applied.length !== migrations.length)
           throw new Error("Restored migration set incomplete");
+        diagnostic.enter("integrity");
         const authorityIntegrity = (
           await client.query(`SELECT
           (SELECT count(*)::int FROM "AuthorityPolicy" WHERE NOT public.valid_authority_history(id)) +
@@ -128,14 +170,18 @@ export async function restore(
         ).rows[0].invalid;
         if (authorityIntegrity !== 0)
           throw new Error("Restored authority integrity failed");
+        diagnostic.enter("sessions_before_commit");
         await assertNoOtherSessions(client);
+        diagnostic.enter("commit");
         await client.query("COMMIT");
       } catch {
+        diagnostic.failed();
         await client.query("ROLLBACK");
         throw new Error(
           "Restored ownership or integrity validation failed; target remains quarantined",
         );
       }
+      diagnostic.enter("quarantine_verification");
       for (const role of ["pdaa_api", "pdaa_worker"]) {
         if (
           (
@@ -152,10 +198,18 @@ export async function restore(
         quarantine: true,
         applicationStarted: false,
       };
+    } catch (error) {
+      diagnostic.failed();
+      throw error;
     } finally {
+      diagnostic.enter("connection_cleanup");
       await client.end();
     }
+  } catch (error) {
+    diagnostic.failed();
+    throw error;
   } finally {
+    diagnostic.enter("plaintext_cleanup");
     rmSync(temporary, { recursive: true, force: true });
   }
 }

@@ -104,6 +104,61 @@ one-exchange, three-read/two-write denial, unchanged-database and cleared-browse
 assertions. All its generated services were stopped and private originals retained.
 It remains composite development evidence, not intact shipped customer acceptance.
 
+The rejected `83ccfa1` candidate's packaged job ultimately failed during saved
+evidence project-revocation teardown: the original recorder passed its pre-close
+checks, then its post-close check recorded one response-continuation failure.
+The exact response and original error bytes are unavailable and are not presumed
+safe. Live protected-view polling can overlap context destruction. The follow-up
+fixture change preserves the final protected/restricted capture, completes normal
+OIDC logout and return navigation, proves the welcome and enabled sign-in state,
+captures that signed-out page, and only then invokes the unchanged recorder close.
+Both original recorder assertions remain mandatory, and all workflow/logout/close
+failures are retained. No response replacement, capture exception or longer
+deadline is introduced. Evidence and reconciliation sessions share this teardown.
+
+The current published `ac54be769506eb9c3e213d00f4506f4173038e8c` passed independent
+immutable source review with the prior P1 resolved. Documentation 34752353927 and
+Foundation 34752353938's native job passed: 1,089 unit, 107 integration and 25
+browser tests, plus exact 39-table and ledger recovery. Its authenticated packaged
+log records successful TLS/OIDC/expiry, primary recovery, bundled install/upgrade/
+restore, and external install/upgrade workflows. It then failed at external
+customer restore; that command's private diagnostics were not published, so its
+cause remains unestablished. Successful customer workflow log lines do not replace
+the unpublished intact acceptance receipts. Original metadata, ZIPs, logs and
+member hashes are retained, and this run remains failed evidence.
+
+The new teardown helper's focused contracts and unchanged disclosure/receipt
+tests passed 36/36. Real-API/CDP browser validation passed all 26 cases, including
+proof that protected polling occurs before sign-out and stops for two subsequent
+15-second intervals before the unchanged recorder close. This development test
+does not exercise OIDC helper integration; both shipped customer profiles remain
+the authoritative gate. Formative non-author review found no P0/P1 in this delta.
+Full corrected native checks, a new immutable candidate review and intact packaged
+CI remain required. Issue #6, story fractions and all release gates stay open.
+
+To localize a repeat external restore failure without exposing private diagnostics,
+the restore operation now records a runtime-whitelisted, fixed first-failure phase
+before existing rollback and connection/plaintext cleanup. Cleanup-only failures
+retain their own phase; later cleanup cannot overwrite an earlier one. Only that
+fixed event and phase are emitted, and the original operation remains failed.
+The customer host reads at most 64 KiB from the exact private step log and relays
+only one recognized phase; absent, malformed, duplicate, unknown or oversized
+diagnostics yield `unavailable`. Diagnostic read/output failure cannot replace
+the failed acceptance gate. This labels the last entered phase, not a proven root
+cause or quarantine outcome. SQL, predicates, ACLs, deadlines, command arguments,
+restore targets, conservative PostgreSQL warning rejection and all gates are
+unchanged. Controlled failure tests cover archive/import/owner/grant/integrity/
+COMMIT and cleanup paths without real database or filesystem operations.
+
+Final local checks for this correction passed lint, 1,133 unit tests across 49
+files with two workers, all package typechecks/builds, architecture boundaries,
+the unchanged generated OpenAPI contract, 38 exact dependency records, formatting,
+documentation validation and 13 documentation regressions. The 26-browser pass
+includes the unchanged product source and new sign-out regression; mocked restore
+phase tests are not actual restore execution. The disclosure recorder and all six
+migration files are byte-identical to the previous candidate. New exact-SHA review
+and intact packaged CI remain mandatory before merge.
+
 1. Repair the demonstrated capture-close ordering and add a deterministic delayed
    response regression, preserving all fail-closed and post-close checks. Implement
    a pure, internal milestone consistency evaluator and its adversarial tests.

@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
 import { expect } from "@playwright/test";
+import { closeCustomerBrowserSession } from "./customer-session.mjs";
 
 const factType = "acceptance.forecast";
 const savedRegion = (page) =>
@@ -101,6 +102,8 @@ export async function exerciseEvidenceWorkflow({
     pmo = await login("pmo-atlas");
   const prefix = `/projects/${projectId}`,
     effectiveAt = new Date(Date.now() - 3600000).toISOString();
+  let primaryError, result;
+  let cleanupFailures;
   try {
     for (const session of [pm, pmo]) {
       await session.page
@@ -366,7 +369,7 @@ export async function exerciseEvidenceWorkflow({
     );
     await pm.capture(pm.page);
     await pmo.capture(pmo.page);
-    return {
+    result = {
       original,
       receipt: {
         status: "awaiting-upgrade",
@@ -399,10 +402,24 @@ export async function exerciseEvidenceWorkflow({
         },
       },
     };
+  } catch (error) {
+    primaryError = error;
   } finally {
-    await pm.capture.close();
-    await pmo.capture.close();
+    const results = await Promise.allSettled(
+      [pm, pmo].map((session) => closeCustomerBrowserSession(session, base)),
+    );
+    cleanupFailures = results
+      .filter((result) => result.status === "rejected")
+      .map((result) => result.reason);
   }
+  if (cleanupFailures.length)
+    throw new AggregateError(
+      [primaryError, ...cleanupFailures].filter(Boolean),
+      "Evidence session cleanup failed",
+      { cause: primaryError ?? cleanupFailures[0] },
+    );
+  if (primaryError) throw primaryError;
+  return result;
 }
 export async function openSavedEvidence({ login, base, projectId, original }) {
   const session = await login(
@@ -443,5 +460,5 @@ export async function verifyEvidenceProjectRevocation({
     404,
   );
   await session.capture(session.page);
-  await session.capture.close();
+  await closeCustomerBrowserSession(session, base);
 }

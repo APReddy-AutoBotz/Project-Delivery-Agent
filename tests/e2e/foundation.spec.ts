@@ -92,6 +92,62 @@ test("FR-EVD-009 / SEC-SECRET-001: expected queue denials finish their original 
     await context.close();
   }
 });
+test("FR-EVD-009 / SEC-SECRET-001: sign-out stops protected polling before disclosure teardown", async ({
+  browser,
+  baseURL,
+}) => {
+  if (!baseURL) throw new Error("Synthetic browser origin is required");
+  const origin = new URL(baseURL).origin;
+  const context = await browser.newContext();
+  const check = createDisclosureCheck([randomBytes(32).toString("base64url")]);
+  const capture = await observeBrowserDisclosure(context, origin, check);
+  try {
+    const page = await capture.newPage();
+    let protectedRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().startsWith(origin + "/api/projects"))
+        protectedRequests++;
+    });
+    await page.clock.install();
+    await page.goto(origin);
+    await page.getByRole("button", { name: "Project manager" }).click();
+    await page
+      .getByRole("button", { name: /Atlas · Customer platform/ })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Delivery structure", exact: true }),
+    ).toBeVisible();
+    await capture.settle(page);
+    const initial = protectedRequests;
+    await page.clock.fastForward(15001);
+    await expect.poll(() => protectedRequests).toBeGreaterThan(initial);
+    await capture.settle(page);
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expect(
+      page.getByRole("heading", {
+        name: "Welcome to your workspace",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("region", {
+        name: "Milestone reconciliation",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("region", { name: "Project evidence", exact: true }),
+    ).toHaveCount(0);
+    const signedOut = protectedRequests;
+    await page.clock.fastForward(31000);
+    await capture.settle(page);
+    expect(protectedRequests).toBe(signedOut);
+    await capture.close();
+    check.verify(["browser-response-headers", "browser-response-bodies"]);
+  } finally {
+    await context.close();
+  }
+});
 test("Revoked project access removes cached project names and details", async ({
   page,
   request,

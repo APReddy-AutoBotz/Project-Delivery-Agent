@@ -2,7 +2,8 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { chromium, expect } from "@playwright/test";
+import { chromium } from "@playwright/test";
+import { closeCustomerBrowserSession } from "./customer-session.mjs";
 import { Pool, secret } from "./common.mjs";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
 import { waitForIdentityProvider } from "./identity-readiness.mjs";
@@ -345,31 +346,7 @@ async function browserCheck(afterUpgrade) {
         .filter({ hasText: "Access granted" })
         .waitFor();
     }
-    await operator.capture(operator.page);
-    const logout = operator.page.waitForRequest((request) =>
-      request.url().includes("/protocol/openid-connect/logout?"),
-    );
-    const returned = operator.page.waitForEvent("framenavigated", {
-      predicate: (frame) =>
-        frame === operator.page.mainFrame() && frame.url() === base + "/",
-    });
-    await operator.page.getByRole("button", { name: "Sign out" }).click();
-    assert.equal(
-      new URL((await logout).url()).origin,
-      "https://identity-ingress:8443",
-    );
-    await returned;
-    await operator.page.waitForLoadState("domcontentloaded");
-    await operator.page
-      .getByRole("heading", { name: "Welcome to your workspace" })
-      .waitFor();
-    await expect(
-      operator.page.getByRole("button", {
-        name: "Sign in with your organization",
-      }),
-    ).toBeEnabled();
-    await operator.capture(operator.page);
-    await operator.capture.close();
+    await closeCustomerBrowserSession(operator, base);
     const pm = await login("pm-atlas");
     if (afterUpgrade)
       await pm.page
@@ -379,8 +356,7 @@ async function browserCheck(afterUpgrade) {
       await pm.page
         .getByRole("button", { name: /Customer installation fixture/ })
         .waitFor();
-    await pm.capture(pm.page);
-    await pm.capture.close();
+    await closeCustomerBrowserSession(pm, base);
     if (!afterUpgrade) {
       save(
         "evidence-workflow-fixture",

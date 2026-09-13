@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { expect } from "@playwright/test";
 import { canonicalFixture } from "./canonical-projects.mjs";
+import { closeCustomerBrowserSession } from "./customer-session.mjs";
 
 const ruleRevision = "milestone-required-state/v1";
 const pmRegion = (page) =>
@@ -256,28 +257,6 @@ async function changeSourceReaders(
     command: changed.observation,
     after: after.observation,
   };
-}
-
-async function finishSession(session) {
-  if (!session) return;
-  let primary;
-  try {
-    await session.capture(session.page);
-  } catch (error) {
-    primary = error;
-  }
-  try {
-    await session.capture.close();
-  } catch (error) {
-    if (primary)
-      throw new AggregateError(
-        [primary, error],
-        "Reconciliation disclosure cleanup failed",
-        { cause: error },
-      );
-    throw error;
-  }
-  if (primary) throw primary;
 }
 
 export async function exerciseMilestoneReconciliationWorkflow({
@@ -753,7 +732,7 @@ export async function exerciseMilestoneReconciliationWorkflow({
   } finally {
     for (const session of [...sessions].reverse())
       try {
-        await finishSession(session);
+        await closeCustomerBrowserSession(session, base);
       } catch (error) {
         cleanupErrors.push(error);
       }
@@ -831,7 +810,7 @@ export async function openSavedMilestoneReconciliation({
     };
   } catch (error) {
     try {
-      await finishSession(session);
+      await closeCustomerBrowserSession(session, base);
     } catch (cleanupError) {
       throw new AggregateError(
         [error, cleanupError],
@@ -937,7 +916,7 @@ export async function verifyMilestoneReconciliationProjectWithdrawal({
     primaryError = error;
   } finally {
     try {
-      await finishSession(saved.session);
+      await closeCustomerBrowserSession(saved.session, base);
     } catch (error) {
       cleanupError = error;
     }

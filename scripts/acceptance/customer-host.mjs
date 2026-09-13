@@ -7,6 +7,7 @@ import { checkIdentityConfiguration } from "./customer-identity-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./evidence-workflow-receipt.mjs";
 import { assertMilestoneReconciliationWorkflowReceipt } from "./milestone-reconciliation-workflow-receipt.mjs";
 import { validateReconciliationCommitReceipt } from "./reconciliation-commit-receipt.mjs";
+import { reportRestoreFailure } from "./restore-diagnostic.mjs";
 import { assertReconciliationRacesReceipt } from "./reconciliation-races-receipt.mjs";
 import {
   createHostDisclosure,
@@ -359,13 +360,25 @@ export async function customerProfiles({
         }
         check("after-upgrade");
         check("restore-target");
-        run(
-          service("operations", ["restore", backupName], {
-            PDAA_DB_NAME: "pdaa_restore",
-            PDAA_OPS_TARGET: `${dbHost}:5432/pdaa_restore`,
-          }),
-          "restore",
-        );
+        try {
+          run(
+            service("operations", ["restore", backupName], {
+              PDAA_DB_NAME: "pdaa_restore",
+              PDAA_OPS_TARGET: `${dbHost}:5432/pdaa_restore`,
+            }),
+            "restore",
+          );
+        } catch (error) {
+          try {
+            reportRestoreFailure(
+              join(output, `customer-${profile}-restore.log`),
+              profile,
+            );
+          } catch {
+            // Preserve the original failed gate even if diagnostic output fails.
+          }
+          throw error;
+        }
         check("restored");
         const projectFactPersistence = JSON.parse(
           readFileSync(join(evidence, "project-fact-persistence.json"), "utf8"),
