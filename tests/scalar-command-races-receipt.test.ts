@@ -71,6 +71,28 @@ function raceReceipt() {
       const factId = randomUUID(),
         previousId = randomUUID();
       const projectId = randomUUID();
+      const keys = [randomUUID(), randomUUID()];
+      if (name === "same-command" || name === "refresh-retry")
+        keys[1] = keys[0]!;
+      const requestAuditId = randomUUID(),
+        assignmentAuditId = randomUUID();
+      const checkAuditIds = [randomUUID(), randomUUID()];
+      const scopedParticipants = participants.map((p, index) => ({
+        ...p,
+        operation:
+          index === 0 ? "list" : refresh ? "refreshAssignment" : "check",
+        command:
+          index === 0
+            ? { projectId, limit: 20 }
+            : refresh
+              ? {
+                  projectId,
+                  requestId: value.requestId,
+                  expectedAssignmentRevision: 1,
+                  idempotencyKey: keys[index - 1],
+                }
+              : { projectId, factId, idempotencyKey: keys[index - 1] },
+      }));
       const audits = [value, second].flatMap((o, index) => {
         const participant = participants[index + 1]!;
         const rejected = o.status === "rejected";
@@ -88,10 +110,41 @@ function raceReceipt() {
                   ]
                 : ["scalar.reconciliation.checked"];
         return events.map((event) => ({
+          id: event.endsWith("checked")
+            ? checkAuditIds[index]
+            : event.endsWith("requested")
+              ? requestAuditId
+              : assignmentAuditId,
           event,
           actor: participant.actor,
           correlationId: participant.correlationId,
-          detail: rejected ? { projectId, reason: "REVISION_CONFLICT" } : {},
+          detail: rejected
+            ? { projectId, reason: "REVISION_CONFLICT" }
+            : event.endsWith("checked")
+              ? {
+                  projectId,
+                  factId,
+                  checkId: (o as typeof value).checkId,
+                  assessmentId: (o as typeof value).assessmentId,
+                  requestId: value.requestId,
+                  outcome: (o as typeof value).outcome,
+                }
+              : event.endsWith("requested")
+                ? {
+                    projectId,
+                    factId,
+                    requestId: value.requestId,
+                    assessmentId: value.assessmentId,
+                    checkId: value.checkId,
+                  }
+                : {
+                    projectId,
+                    factId,
+                    requestId: value.requestId,
+                    assignmentId: value.assignmentId,
+                    revision: refresh ? 2 : 1,
+                    reason: "ASSIGNED",
+                  },
         }));
       });
       const committedChecks = refresh
@@ -99,11 +152,14 @@ function raceReceipt() {
         : [
             value,
             ...(name === "same-business" ? [second as typeof value] : []),
-          ].map((o) => ({
+          ].map((o, index) => ({
             id: o.checkId,
             requestId: o.requestId,
             assessmentId: o.assessmentId,
             outcome: o.outcome,
+            subject: participants[index + 1]!.actor,
+            idempotencyKey: keys[index],
+            auditEventId: checkAuditIds[index],
           }));
       return {
         name,
@@ -111,7 +167,7 @@ function raceReceipt() {
         factId,
         committed: {
           audits,
-          requests: [{ id: value.requestId }],
+          requests: [{ id: value.requestId, auditEventId: requestAuditId }],
           assignments: [
             {
               id: value.assignmentId,
@@ -119,6 +175,10 @@ function raceReceipt() {
               revision: refresh ? 2 : 1,
               expectedRevision: refresh ? 1 : 0,
               previousAssignmentId: refresh ? previousId : null,
+              actor: participants[1]!.actor,
+              idempotencyKey: refresh ? keys[0] : null,
+              auditEventId: assignmentAuditId,
+              reason: "ASSIGNED",
             },
             ...(refresh
               ? [
@@ -139,7 +199,7 @@ function raceReceipt() {
             factId,
           })),
         },
-        participants,
+        participants: scopedParticipants,
         blocked: participants.map((p, i) => ({
           pid: p.pid,
           application_name: p.tag,
@@ -187,6 +247,15 @@ it("NFR-REL-001: accepts only the complete observed scalar command race inventor
   const wrongAudit = structuredClone(r);
   wrongAudit.cases[0]!.committed.audits[0]!.actor = "wrong-actor";
   expect(() => assertScalarCommandRaces(wrongAudit, r.customerId)).toThrow();
+  const wrongEvent = structuredClone(r);
+  wrongEvent.cases[0]!.committed.audits[0]!.event = "wrong.event";
+  expect(() => assertScalarCommandRaces(wrongEvent, r.customerId)).toThrow();
+  const wrongDetail = structuredClone(r);
+  wrongDetail.cases[0]!.committed.audits[0]!.detail = { ...wrongDetail.cases[0]!.committed.audits[0]!.detail, factId: randomUUID() };
+  expect(() => assertScalarCommandRaces(wrongDetail, r.customerId)).toThrow();
+  const wrongCommand = structuredClone(r);
+  wrongCommand.cases[0]!.participants[2]!.command.idempotencyKey = randomUUID();
+  expect(() => assertScalarCommandRaces(wrongCommand, r.customerId)).toThrow();
 });
 it("FR-EVD-012: refuses missing native scalar load identities or changed deadlines", () => {
   const r = {

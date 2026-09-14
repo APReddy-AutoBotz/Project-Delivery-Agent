@@ -38,6 +38,21 @@ export function assertScalarCommandRaces(receipt, customerId) {
     );
     const refresh = c.name.startsWith("refresh"),
       checks = c.name === "same-business" ? 2 : refresh ? 0 : 1;
+    assert.equal(c.participants[0].operation, "list");
+    const commands = c.participants.slice(1).map((p) => p.command);
+    for (const p of c.participants.slice(1)) {
+      assert.equal(p.operation, refresh ? "refreshAssignment" : "check");
+      assert.equal(p.command.projectId, c.projectId);
+      assert.equal(typeof p.command.idempotencyKey, "string");
+      if (refresh) assert.equal(p.command.expectedAssignmentRevision, 1);
+      else assert.equal(p.command.factId, c.factId);
+    }
+    if (c.name === "same-command" || c.name === "refresh-retry")
+      assert.deepEqual(commands[0], commands[1]);
+    else
+      assert.notEqual(commands[0].idempotencyKey, commands[1].idempotencyKey);
+    if (c.name !== "same-business")
+      assert.equal(c.participants[1].actor, c.participants[2].actor);
     const expected = {
       ScalarReconciliationRequest: refresh ? 0 : 1,
       ScalarReconciliationCheck: checks,
@@ -103,6 +118,78 @@ export function assertScalarCommandRaces(receipt, customerId) {
           projectId: c.projectId,
           reason: "REVISION_CONFLICT",
         });
+      } else {
+        const assignment = c.committed.assignments.find(
+          (a) => a.id === outcome.assignmentId,
+        );
+        const requireAudit = (id, event, detail) => {
+          const audit = audits.find((a) => a.id === id);
+          assert(audit);
+          assert.equal(audit.event, event);
+          assert.deepEqual(audit.detail, detail);
+        };
+        const assignedDetail = {
+          projectId: c.projectId,
+          factId: c.factId,
+          requestId: outcome.requestId,
+          assignmentId: assignment.id,
+          revision: assignment.revision,
+          reason: assignment.reason,
+        };
+        if (refresh) {
+          assert.equal(participant.command.requestId, outcome.requestId);
+          assert.equal(assignment.actor, participant.actor);
+          assert.equal(
+            assignment.idempotencyKey,
+            participant.command.idempotencyKey,
+          );
+          if (!outcome.replayed)
+            requireAudit(
+              assignment.auditEventId,
+              "scalar.reconciliation.assigned",
+              assignedDetail,
+            );
+        } else {
+          const check = c.committed.checks.find(
+            (row) => row.id === outcome.checkId,
+          );
+          assert.equal(check.subject, participant.actor);
+          assert.equal(
+            check.idempotencyKey,
+            participant.command.idempotencyKey,
+          );
+          if (!outcome.replayed) {
+            requireAudit(check.auditEventId, "scalar.reconciliation.checked", {
+              projectId: c.projectId,
+              factId: c.factId,
+              checkId: check.id,
+              assessmentId: check.assessmentId,
+              requestId: check.requestId,
+              outcome: check.outcome,
+            });
+            if (outcome.outcome === "CREATED") {
+              const request = c.committed.requests.find(
+                (r) => r.id === outcome.requestId,
+              );
+              requireAudit(
+                request.auditEventId,
+                "scalar.reconciliation.requested",
+                {
+                  projectId: c.projectId,
+                  factId: c.factId,
+                  requestId: request.id,
+                  assessmentId: check.assessmentId,
+                  checkId: check.id,
+                },
+              );
+              requireAudit(
+                assignment.auditEventId,
+                "scalar.reconciliation.assigned",
+                assignedDetail,
+              );
+            }
+          }
+        }
       }
     }
     const good = c.outcomes.filter((o) => o.status === "fulfilled");

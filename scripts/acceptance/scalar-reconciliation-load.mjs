@@ -64,6 +64,7 @@ export async function verifyScalarVersionBoundary(
         throw new AggregateError(
           [error, cleanupError],
           "Scalar load setup and rollback failed",
+          { cause: cleanupError },
         );
       }
       throw error;

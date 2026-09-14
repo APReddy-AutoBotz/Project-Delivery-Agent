@@ -682,5 +682,25 @@ native scalar COMMIT controls, full identity/conflict-prefix bounds, scalar
 HTTP/browser journeys and all three encrypted packaged restores remain required.
 No issue, story, merge or customer-release gate closes at this checkpoint.
 
+Independent review of `7f54c1b` found no P0/P1 in this bounded submatrix (report
+SHA256 `132820bc9b99e0118ea7b3db8ca4acb725265926248dc0a906ee8cba9c605c1d`).
+Its P2 host-reader gap is addressed: emitted operations, command keys/scopes,
+stored actor/key links and successful checked/requested/assigned audit IDs and
+exact detail now participate in validation. Wrong successful audit event/detail
+and wrong same-command key controls were added. The strengthened reader passes
+the retained original race receipt without regenerating it. The rollback aggregate
+also retains the secondary caught error as its lint-required cause while keeping
+both original and rollback failures in the error list.
+
+Full unit validation is not yet green: two runs returned 1202/1203, with the
+existing production-config Prisma subprocess reaching its unchanged 15-second
+spawn timeout. A separate diagnostic eventually returned the correct configuration
+denial after 23.95 seconds; subsequent unchanged startup took 4.48 seconds. The
+reason for this startup variability is unproven; no update-check setting or timeout
+change was adopted. A one-worker complete repeat is in progress to reduce test
+contention. Existing failed runs are not waived. Lint passed after the cause fix;
+documentation validation and the focused reader tests passed before the final
+additional wrong-detail negative. Required broader validation remains open.
+
 Not complete. FAIL-009 and Issue6 closure require the implemented, reviewed and
 executed generic request workflow; planning and domain flags do not satisfy them.
