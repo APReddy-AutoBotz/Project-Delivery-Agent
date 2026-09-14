@@ -1227,3 +1227,15 @@ whitespace checks passed. No browser workflow changed or browser run is claimed.
 The PostgreSQL performance guidance informed plan-led diagnosis and scoped batching;
 no index or infrastructure change was introduced. Independent immutable-candidate
 review is the remaining gate for this bounded implementation milestone.
+
+Independent non-author review approved implementation candidate
+`973167093dbf2fa5d7f6c562946ef24ee4341009`, tree
+`3e82bedf98e02e70943df8ec540b8c8c7d50ede9`, with no material required correction.
+Report SHA256: `a6a8315024f94b7f7a3b382c74c0552d662215cf6c01fdd4fcf2080605cf0e1b`.
+The root fully read the report and verified its hash. The reviewer independently
+matched the raw migration8 bytes, all seven unchanged prior migrations, the
+documented receipt hashes and all 98 runtime-manifest files, and checked semantic
+equivalence/fail-closed behavior. Some preserved table projections were empty;
+this does not stand in for the fully populated packaged upgrade matrix. This
+closes only the bounded validator-performance implementation review. Full scalar,
+packaged/browser/release acceptance and Issue 6 remain open. No push or merge.
