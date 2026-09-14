@@ -8,6 +8,7 @@ import { Pool, secret } from "./common.mjs";
 import { createDatabase } from "../../packages/data/dist/index.js";
 import { verifyScalarCommandRaces } from "./scalar-reconciliation-races.mjs";
 import { verifyScalarAccessRaces } from "./scalar-access-races.mjs";
+import { verifyScalarCommitGuards } from "./scalar-commit-probes.mjs";
 import { verifyScalarVersionBoundary } from "./scalar-reconciliation-load.mjs";
 import {
   scalarReconciliationTables,
@@ -627,6 +628,12 @@ try {
       env.CUSTOMER_ID,
       canonicalFixture.projectId,
     );
+    const scalarCommitGuards = await verifyScalarCommitGuards(
+      db,
+      scalarRuntime,
+      env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
     const scalarAccessRaces = await verifyScalarAccessRaces(
       db,
       scalarRuntime,
@@ -662,6 +669,7 @@ try {
       scalarReconciliationFixture,
       scalarCommandRaces,
       scalarAccessRaces,
+      scalarCommitGuards,
       scalarVersionBoundary,
       evidenceWorkflow: read("evidence-workflow-fixture").receipt,
       milestoneReconciliationWorkflow: read(

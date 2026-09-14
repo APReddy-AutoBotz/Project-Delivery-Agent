@@ -385,6 +385,18 @@ Never resume application/worker automatically after restore.
 
 ## Progress log
 
+2026-09-14 scalar native COMMIT acceptance block (FR-EVD-009/012,
+NFR-REL-001/002): implement four native positive controls (CREATED, REUSED,
+NO_REQUEST, REFRESH) and fifteen deferred negatives. Use fresh owned proofs,
+actual pdaa_api sessions, unchanged ReadCommitted/maxWait5000/timeout10000,
+the existing native transport observer and a separate settled-COMMIT connection.
+Record full before/pending/after eleven-table projections, actual generated IDs
+including authority-owned proof/conflict UUIDs, exact case-specific PostgreSQL
+errors and customer-wide generated-row absence. Audit-scope negatives separately
+pin the attempted out-of-project audit and its rollback. No forced constraints,
+trigger bypass, privilege expansion, early insert failure or timeout counts as a
+native COMMIT result. Pending immutable review and final execution results below.
+
 2026-09-14 current-authorization acceptance slice (FR-EVD-009/012,
 NFR-SEC-001/REL-001): extend the actual-API contention harness with source-first,
 read-first, creator/recipient PM-grant-first and policy-first cases, plus a separate
@@ -760,3 +772,35 @@ The complete one-worker unit repeat passed 1,205 tests across 57 files in
 whitespace checks passed. Application/test transaction deadlines remain unchanged.
 These are current acceptance-script checks, not a new application build, HTTP/IdP
 run or full packaged acceptance result. Immutable source/original review is pending.
+
+2026-09-14 native COMMIT checkpoint: 19 actual pdaa_api cases passed in generated
+TLS run `pdaa-acceptance-1789363669138-a136c3c7`: four positives and fifteen deferred
+negatives. Every callback returned before exactly one native COMMIT, a separate
+connection observed the settled writer, and negative errors matched the finite
+case-specific guard/FK inventory. Full pending rows identify the attempted proof,
+check, assignment and audits; all eleven before/after table families and generated
+ID absence prove rollback, including the intentionally wrong-project audit.
+Original COMMIT receipt SHA256:
+`413910a5b2d56e8332e7af865b3f0daf42821bc9a1a4b20e602f0ed020b06751`.
+The closed host reader passes this unchanged original and rejects fourteen
+independent mutated receipts (native phase/error/observer, rollback, audit,
+assignment, outcome and inventory failures). Seven focused reader unit tests pass.
+
+The first enclosing attempt, `pdaa-acceptance-1789363349084-dd3ef4e9`, passed the
+COMMIT cases but failed the previous source-access reader: changing revision can
+change the full-JSON SQL sort order. Its original failure and volume remain retained.
+The reader now compares those exact rows by stable source ID; a regression proves
+both row permutations pass while missing/unchanged/incorrect rows fail. The fresh
+enclosing run above passed access/command races, the 1000/1001 boundary and focused
+native dump/restore without transaction or test-timeout changes. Both generated
+databases were stopped; no default database, volumes or original artifacts deleted.
+
+Primary and both customer-profile producers/host readers now require this native
+receipt. This is wiring plus composite current-code execution, not an intact-image,
+encrypted packaged restore or fresh browser/HTTP acceptance run. No runtime code,
+schema, migration, role permission, connector scope or dependency changed. Reverting
+the acceptance scripts is the implementation rollback; retained data stays intact.
+Borrowed/cross-scope proof and wrong-REUSED-identity controls, remaining immediate
+shape/privilege/seal controls, changed-key/contributor races and full packaged
+acceptance remain open. Full unit/lint/docs and exact-candidate review are pending
+at this checkpoint. No story, issue, merge or customer-release gate closes here.

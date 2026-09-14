@@ -25,6 +25,22 @@ const controls = [
   "AccessGrant",
 ];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export function assertScalarSourceAccessTransition(
+  before,
+  after,
+  sourceId,
+  revision,
+) {
+  const selected = before.filter((a) => a.sourceId === sourceId);
+  assert.equal(selected.length, 1);
+  assert(Number.isSafeInteger(revision) && revision > selected[0].revision);
+  const sort = (rows) =>
+    [...rows].sort((a, b) => a.sourceId.localeCompare(b.sourceId));
+  assert.deepEqual(
+    sort(after),
+    sort(before.map((a) => (a.sourceId === sourceId ? { ...a, revision } : a))),
+  );
+}
 const value = (o) => {
   assert.equal(o.status, "fulfilled");
   return o.value;
@@ -376,11 +392,11 @@ export function assertScalarAccessCase(c, customerId, observerPid) {
     });
     assert.equal(write.sourceId, old.sourceId);
     assert(write.revision > old.revision);
-    assert.deepEqual(
+    assertScalarSourceAccessTransition(
+      c.controlBefore.FactSourceAccess,
       c.controlAfter.FactSourceAccess,
-      c.controlBefore.FactSourceAccess.map((a) =>
-        a.sourceId === old.sourceId ? { ...a, revision: write.revision } : a,
-      ),
+      old.sourceId,
+      write.revision,
     );
     const readers = c.controlBefore.FactSourceReader.filter(
       (r) => r.sourceId === old.sourceId,
