@@ -10,6 +10,7 @@ import { validateReconciliationCommitReceipt } from "./reconciliation-commit-rec
 import { reportRestoreFailure } from "./restore-diagnostic.mjs";
 import { assertReconciliationRacesReceipt } from "./reconciliation-races-receipt.mjs";
 import { assertScalarRecoveryReceipt } from "./scalar-reconciliation-recovery-receipt.mjs";
+import { assertScalarConcurrencyAndLoad } from "./scalar-command-races-receipt.mjs";
 import {
   createHostDisclosure,
   scanExecutionLogs,
@@ -446,6 +447,10 @@ export async function customerProfiles({
           "pdaa_api",
         );
         assert.equal(projectFactPersistence.canonicalWorkerDenied, true);
+        assertScalarConcurrencyAndLoad(
+          projectFactPersistence,
+          "10000000-0000-4000-8000-000000000002",
+        );
         assertScalarRecoveryReceipt(
           projectFactPersistence,
           "10000000-0000-4000-8000-000000000002",

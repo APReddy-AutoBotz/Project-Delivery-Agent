@@ -51,6 +51,8 @@ import {
   runMilestoneReconciliationCommitProbes,
 } from "./milestone-reconciliation.mjs";
 import { verifyStateBindingBirthGuards } from "./state-binding-birth.mjs";
+import { verifyScalarCommandRaces } from "./scalar-reconciliation-races.mjs";
+import { verifyScalarVersionBoundary } from "./scalar-reconciliation-load.mjs";
 import {
   scalarReconciliationTables,
   scalarReconciliationProjection,
@@ -323,6 +325,18 @@ try {
       "packaged-scalar",
     );
     await verifyScalarReconciliationPrivileges(admin);
+    const scalarCommandRaces = await verifyScalarCommandRaces(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
+    const scalarVersionBoundary = await verifyScalarVersionBoundary(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
     await verifyScalarReconciliationIntegrity(admin);
     const scalarOwner = createDatabase(adminConfig);
     try {
@@ -348,6 +362,8 @@ try {
           milestonePersistenceFixture,
           milestoneReconciliationFixture,
           scalarReconciliationFixture,
+          scalarCommandRaces,
+          scalarVersionBoundary,
           milestoneConcurrency,
           canonicalTables,
           milestonePersistenceTables,

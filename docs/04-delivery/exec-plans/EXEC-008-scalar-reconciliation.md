@@ -5,7 +5,7 @@ Owner: Implementation controller.
 Requirement IDs: FR-EVD-001/002/003/004/006/007/009/010/012, FR-ADM-005,
 FR-MOD-004, NFR-SEC-001/002/005/009, NFR-REL-001/002/005, NFR-MNT-002/004/005.
 GitHub issue: #6; STORY-012, AC-EVD-004, FAIL-009 and INT-EVD-004.
-Target release: R1. Last updated: 2026-09-13.
+Target release: R1. Last updated: 2026-09-14.
 Applicable ADRs: 001-014; no new infrastructure, dependency or autonomous action.
 
 ## Objective
@@ -643,6 +643,44 @@ The proper unit selection passed 1201 tests across 55 files; lint and documentat
 validation passed. An earlier invocation omitted the unit-only exclusion and
 correctly failed all eight integration-suite environment guards without a database;
 it is not represented as an integration run or a successful full command.
+
+2026-09-14 scalar command contention and retained-version boundary: added an
+actual pdaa_api recipient-queue transaction holder and two independently observed
+API contenders, preserving production transaction options and the existing
+three-second lock-observer bound. Four cases exercise identical command retry,
+actor-independent business reuse, competing assignment CAS and identical refresh
+retry. Full scoped row fingerprints/deltas, retained-row equality, returned
+check/proof/request/assignment mappings and per-contender audit attribution are
+checked against committed SQL rows. Independent host readers reject missing cases,
+absent contention, changed input rows, wrong proof IDs and misattributed audits.
+
+The scalar load control persists 1,000 retained versions on one real scalar fact,
+checks a complete positive owned proof under the unchanged 10-second application
+deadline and exact SQL/TypeScript identity, then appends version 1,001 and requires
+a genuinely owned INCOMPLETE/NO_REQUEST check with zero dependency rows. It pins
+actual persisted fact revisions/counts, preserves conflict/assignment history and
+the original OPEN request, and replays the original proof. This is 1,000 retained
+proof versions, not 1,000 distinct identity contributors or a 64,000-reference test.
+
+Fresh isolated TLS run `pdaa-acceptance-1789356345243-604d2b4b` passed these four
+races and the boundary (positive command 4,917.856 ms), then the existing focused
+native scalar dump/restore. Original race receipt SHA256:
+`4ab8333ffaae82460cce2fb9d55c2ca4a3b6c2e883e4e7fa034827d3ba32d7d1`;
+boundary receipt SHA256:
+`0b92538b3dcc0b34eaabc06d2983732f9d2c52a64372caaedb111e98cf3439d1`.
+Both originals passed the separate host readers. Earlier runs are retained:
+Docker initially unavailable, an unsuccessful missing-request latch, and a denied
+temporary-object setup. The corrected holder is a successful real queue read;
+load setup uses guarded individual append statements without extra TEMP grants.
+No production permission, migration, deadline or evaluator changed.
+
+Primary and both customer-profile acceptance producers/readers now require these
+scalar command/load receipts. This wiring is not fresh packaged execution evidence:
+the runs above mount current code on inspected tooling and remain composite native
+tests. Source/grant/policy/role-loss races, changed-key/fact contention, remaining
+native scalar COMMIT controls, full identity/conflict-prefix bounds, scalar
+HTTP/browser journeys and all three encrypted packaged restores remain required.
+No issue, story, merge or customer-release gate closes at this checkpoint.
 
 Not complete. FAIL-009 and Issue6 closure require the implemented, reviewed and
 executed generic request workflow; planning and domain flags do not satisfy them.

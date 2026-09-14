@@ -6,6 +6,8 @@ import { chromium } from "@playwright/test";
 import { closeCustomerBrowserSession } from "./customer-session.mjs";
 import { Pool, secret } from "./common.mjs";
 import { createDatabase } from "../../packages/data/dist/index.js";
+import { verifyScalarCommandRaces } from "./scalar-reconciliation-races.mjs";
+import { verifyScalarVersionBoundary } from "./scalar-reconciliation-load.mjs";
 import {
   scalarReconciliationTables,
   scalarReconciliationProjection,
@@ -613,6 +615,23 @@ try {
     );
     await verifyScalarReconciliationPrivileges(db);
     await verifyScalarReconciliationIntegrity(db);
+    const scalarRuntime = loadDatabaseConfig({
+      ...env,
+      PDAA_DB_USER: "pdaa_api",
+      PDAA_DB_PASSWORD_FILE: "/run/secrets/api-password",
+    }).database;
+    const scalarCommandRaces = await verifyScalarCommandRaces(
+      db,
+      scalarRuntime,
+      env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
+    const scalarVersionBoundary = await verifyScalarVersionBoundary(
+      db,
+      scalarRuntime,
+      env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
     const scalarOwner = createDatabase(connection);
     try {
       await verifyScalarReconciliationImmutable(scalarOwner);
@@ -634,6 +653,8 @@ try {
       milestonePersistenceFixture,
       milestoneReconciliationFixture,
       scalarReconciliationFixture,
+      scalarCommandRaces,
+      scalarVersionBoundary,
       evidenceWorkflow: read("evidence-workflow-fixture").receipt,
       milestoneReconciliationWorkflow: read(
         "milestone-reconciliation-workflow-fixture",

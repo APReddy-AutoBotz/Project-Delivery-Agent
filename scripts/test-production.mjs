@@ -20,6 +20,7 @@ import { validateReconciliationCommitReceipt } from "./acceptance/reconciliation
 import { assertReconciliationRacesReceipt } from "./acceptance/reconciliation-races-receipt.mjs";
 import { assertUpgradeInventory } from "./acceptance/upgrade-inventory-receipt.mjs";
 import { assertScalarRecoveryReceipt } from "./acceptance/scalar-reconciliation-recovery-receipt.mjs";
+import { assertScalarConcurrencyAndLoad } from "./acceptance/scalar-command-races-receipt.mjs";
 import {
   expiryCheckName,
   validateExpiryReceipt,
@@ -446,6 +447,10 @@ try {
   assert.equal(record.projectFactPersistence.upgrade.status, "passed");
   assert.equal(record.projectFactPersistence.restore.status, "passed");
   const canonicalPersistence = record.projectFactPersistence;
+  assertScalarConcurrencyAndLoad(
+    canonicalPersistence,
+    "10000000-0000-4000-8000-000000000001",
+  );
   assertReconciliationPersistence(
     canonicalPersistence,
     "10000000-0000-4000-8000-000000000001",
@@ -814,6 +819,10 @@ try {
     assertMilestoneReconciliationWorkflowReceipt(
       persistence.milestoneReconciliationWorkflow,
       { expectedCustomerId: "10000000-0000-4000-8000-000000000002" },
+    );
+    assertScalarConcurrencyAndLoad(
+      persistence,
+      "10000000-0000-4000-8000-000000000002",
     );
     assert.equal(persistence.canonicalFixture.sourceMappingsWithheld, true);
     assert.equal(persistence.canonicalWorkerDenied, true);
