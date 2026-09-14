@@ -385,6 +385,20 @@ Never resume application/worker automatically after restore.
 
 ## Progress log
 
+2026-09-14 current-authorization acceptance slice (FR-EVD-009/012,
+NFR-SEC-001/REL-001): extend the actual-API contention harness with source-first,
+read-first, creator/recipient PM-grant-first and policy-first cases, plus a separate
+current authenticated actor-role-loss control. The latter supplies leadership
+instead of project_manager with the same subject and unchanged grants; it is not
+an IdP event or mutation of an in-flight JWT. Select the removed source through
+original persisted proof/version/evidence joins. Require exact retained histories,
+fresh owned negative checks, original IDs and values, source/grant/policy snapshots,
+per-operation audits and observed backend blocking paths. Preserve repository
+transaction options, roles, migrations and all original run evidence. Independent
+closed-inventory readers accompany primary and both customer-profile wiring.
+Execution and review results will be recorded below; wiring alone is not packaged
+acceptance. Native scalar COMMIT controls remain a separate outstanding block.
+
 2026-09-13: independent non-author workflow/API/authorization/UI and persistence/
 DDL/COMMIT reviewers accepted design candidate
 `5e5987a343c9c7cc6fcf876fd2f9b6451473a593`, tree
@@ -710,3 +724,33 @@ configuration change was made to obtain this pass.
 
 Not complete. FAIL-009 and Issue6 closure require the implemented, reviewed and
 executed generic request workflow; planning and domain flags do not satisfy them.
+
+2026-09-14 authorization-race native evidence: generated TLS run
+`pdaa-acceptance-1789359353312-2905f236` passed source-first, read-first,
+PM creator/recipient grant-first and policy-first contention, plus current-role
+denial with unchanged grants. Actual pdaa_api connections and exact blocking paths
+were observed. Fresh source-restricted proofs retain their two versions/one conflict
+and are sealed REVALIDATION_REQUIRED/NO_REQUEST; their public delivery is restricted
+with null result. Policy opt-out produces an available owned NO_REQUEST while
+original proof/retry remains unchanged. Grant loss denies fresh/retry and PM detail;
+role-loss denial does not mutate the grant or the earlier authenticated identity.
+
+Original access receipt SHA256:
+`7bcc91ea6c6eb8a14cce458001494ae6670d464f15dea17082bb70408468101c`.
+The strengthened reader passes that unchanged original and rejects twelve separate
+mutations covering source/policy audit detail, SQL audit mismatch, fresh dependency
+owner/access revision/conflict, absent blocking, unchanged source/grant, incorrect
+role and a read-first fixture that always withholds. Four focused reader unit tests
+passed; focused lint, documentation and whitespace checks passed. Full unit repeat
+and immutable candidate review are pending at this checkpoint.
+
+The enclosing run also passed the existing command races, 1000/1001 boundary and
+focused native dump/restore, stopping its generated database and retaining all
+volumes/originals. This is composite current-code native evidence, not intact-image
+or encrypted packaged acceptance. Primary and both customer-profile producers and
+host readers now require the new access receipt, but those full packaged workflows
+have not been rerun. No runtime, SQL migration, API permission, connector scope,
+dependency or transaction deadline changed. Rollback is reverting these acceptance
+scripts; do not delete retained history. Native COMMIT corruption controls,
+changed-fact/key/contributor races, further identity bounds and full packaged/browser
+acceptance remain open; no story or release gate closes here.

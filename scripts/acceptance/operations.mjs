@@ -52,6 +52,7 @@ import {
 } from "./milestone-reconciliation.mjs";
 import { verifyStateBindingBirthGuards } from "./state-binding-birth.mjs";
 import { verifyScalarCommandRaces } from "./scalar-reconciliation-races.mjs";
+import { verifyScalarAccessRaces } from "./scalar-access-races.mjs";
 import { verifyScalarVersionBoundary } from "./scalar-reconciliation-load.mjs";
 import {
   scalarReconciliationTables,
@@ -331,6 +332,12 @@ try {
       process.env.CUSTOMER_ID,
       canonicalFixture.projectId,
     );
+    const scalarAccessRaces = await verifyScalarAccessRaces(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
     const scalarVersionBoundary = await verifyScalarVersionBoundary(
       admin,
       config("database", "pdaa_api", "api-password").database,
@@ -363,6 +370,7 @@ try {
           milestoneReconciliationFixture,
           scalarReconciliationFixture,
           scalarCommandRaces,
+          scalarAccessRaces,
           scalarVersionBoundary,
           milestoneConcurrency,
           canonicalTables,

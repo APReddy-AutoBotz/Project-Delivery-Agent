@@ -1,8 +1,10 @@
 // FR-EVD-012/NFR-REL-001: independent finite scalar race evidence reader.
 import assert from "node:assert/strict";
 import { assertRaceSnapshot } from "./reconciliation-races.mjs";
+import { assertScalarAccessRaces } from "./scalar-access-races-receipt.mjs";
 export function assertScalarConcurrencyAndLoad(persistence, customerId) {
   assertScalarCommandRaces(persistence.scalarCommandRaces, customerId);
+  assertScalarAccessRaces(persistence.scalarAccessRaces, customerId);
   assertScalarVersionBoundary(persistence.scalarVersionBoundary, customerId);
 }
 export function assertScalarCommandRaces(receipt, customerId) {
