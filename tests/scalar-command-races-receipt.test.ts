@@ -251,7 +251,10 @@ it("NFR-REL-001: accepts only the complete observed scalar command race inventor
   wrongEvent.cases[0]!.committed.audits[0]!.event = "wrong.event";
   expect(() => assertScalarCommandRaces(wrongEvent, r.customerId)).toThrow();
   const wrongDetail = structuredClone(r);
-  wrongDetail.cases[0]!.committed.audits[0]!.detail = { ...wrongDetail.cases[0]!.committed.audits[0]!.detail, factId: randomUUID() };
+  wrongDetail.cases[0]!.committed.audits[0]!.detail = {
+    ...wrongDetail.cases[0]!.committed.audits[0]!.detail,
+    factId: randomUUID(),
+  };
   expect(() => assertScalarCommandRaces(wrongDetail, r.customerId)).toThrow();
   const wrongCommand = structuredClone(r);
   wrongCommand.cases[0]!.participants[2]!.command.idempotencyKey = randomUUID();

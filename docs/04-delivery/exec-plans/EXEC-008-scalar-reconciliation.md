@@ -702,5 +702,11 @@ contention. Existing failed runs are not waived. Lint passed after the cause fix
 documentation validation and the focused reader tests passed before the final
 additional wrong-detail negative. Required broader validation remains open.
 
+The one-worker full repeat completed successfully: 1,203 tests across 56 files,
+171.99 seconds, with every test/subprocess/application timeout unchanged. This
+reduces parallel test contention; it does not establish the root cause of the
+earlier startup variability or erase either failed two-worker run. No runtime
+configuration change was made to obtain this pass.
+
 Not complete. FAIL-009 and Issue6 closure require the implemented, reviewed and
 executed generic request workflow; planning and domain flags do not satisfy them.
