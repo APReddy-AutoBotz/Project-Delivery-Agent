@@ -463,7 +463,10 @@ The earlier full-suite startup/configuration failures remain recorded above, wit
 no root-cause or performance-fix claim. Whole-workspace typecheck/build, full lint,
 architecture and documentation validation passed before the final reader-only
 correction; full lint/architecture/docs/whitespace also passed after that correction.
-Exact-child review is pending at this recorded checkpoint.
+Exact source/reader candidate `51754b3cb896b1159c4288840a4f1a394ed8e1bf` received
+independent non-author approval for this bounded batch with no material findings;
+the report was fully read and its SHA256 verified:
+`3929cbc06c4c109cdef98c789a96c961c825a83b9923e3aa5fa266e4ee24d5b2`.
 The initial `a041d5a` review disposition was explicitly superseded by the host
 timezone finding, not treated as final approval. No runtime/schema/migration,
 permission, connector scope, dependency or deadline changes were made. Rollback is
