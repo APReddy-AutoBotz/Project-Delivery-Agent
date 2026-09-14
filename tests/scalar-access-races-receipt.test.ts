@@ -690,6 +690,17 @@ function contributorCase() {
   return c;
 }
 
+it("interprets native offsetless audit timestamps as UTC on any acceptance host", () => {
+  const c = contributorCase();
+  for (const rows of [c.audits, c.after.AuditEvent])
+    for (const row of rows) row.occurredAt = row.occurredAt.replace(/Z$/, "");
+  expect(() => assertScalarAccessCase(c, c.pm.customerId, 99)).not.toThrow();
+  for (const rows of [c.audits, c.after.AuditEvent])
+    for (const row of rows)
+      if (row.event === "scalar.reconciliation.checked")
+        row.occurredAt = "2026-09-14T01:00:03.000";
+  expect(() => assertScalarAccessCase(c, c.pm.customerId, 99)).toThrow();
+});
 it("binds an observed public contributor append to a new request while preserving the historical proof", () => {
   const c = contributorCase();
   expect(() => assertScalarAccessCase(c, c.pm.customerId, 99)).not.toThrow();

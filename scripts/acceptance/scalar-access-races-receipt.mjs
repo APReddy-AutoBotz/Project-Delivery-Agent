@@ -564,9 +564,14 @@ export function assertScalarAccessCase(c, customerId, observerPid) {
 // to distinct business identity, without re-running the domain evaluator.
 function assertScalarContributorCase(c, customerId, observerPid) {
   const iso = (s) => {
-    assert(Number.isFinite(Date.parse(s)));
-    return new Date(s).toISOString();
+    // AuditEvent uses SQL timestamp without time zone, serialized as UTC by
+    // the repository. Host acceptance must not reinterpret it in local time.
+    assert.equal(typeof s, "string");
+    const value = /Z$|[+-]\d\d:\d\d$/.test(s) ? s : s + "Z";
+    assert(Number.isFinite(Date.parse(value)));
+    return new Date(value).toISOString();
   };
+  const time = (s) => Date.parse(iso(s));
   const byId = (rows) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
   const digest = (text) => createHash("sha256").update(text).digest("hex");
   const added = (table) =>
@@ -697,10 +702,8 @@ function assertScalarContributorCase(c, customerId, observerPid) {
   assert.equal(iso(version.effectiveAt), command.effectiveAt);
   assert.equal(iso(version.validUntil), command.validUntil);
   assert.equal(evidence.originalStatement, command.originalStatement);
-  assert(
-    Date.parse(version.effectiveAt) > Date.parse(selectedVersion.effectiveAt),
-  );
-  assert(Date.parse(version.effectiveAt) <= Date.parse(evidence.observedAt));
+  assert(time(version.effectiveAt) > time(selectedVersion.effectiveAt));
+  assert(time(version.effectiveAt) <= time(evidence.observedAt));
   assert.deepEqual(appended.entry, {
     id: version.id,
     revision: version.revision,
@@ -959,7 +962,7 @@ function assertScalarContributorCase(c, customerId, observerPid) {
     auditEventId: request.auditEventId,
   });
   assert.equal(request.ruleRevision, "scalar-authority-conflict/v1");
-  assert(Date.parse(evidence.observedAt) <= Date.parse(proof.asOf));
+  assert(time(evidence.observedAt) <= time(proof.asOf));
   const auditSpecs = [
     [
       append,
@@ -1028,7 +1031,7 @@ function assertScalarContributorCase(c, customerId, observerPid) {
       assert.equal(audit.id, eventId);
       assert.equal(iso(audit.occurredAt), iso(proof.asOf));
     } else {
-      assert(Date.parse(audit.occurredAt) <= Date.parse(proof.asOf));
+      assert(time(audit.occurredAt) <= time(proof.asOf));
     }
   }
   assert.deepEqual(byId(added("AuditEvent")), byId(c.audits));

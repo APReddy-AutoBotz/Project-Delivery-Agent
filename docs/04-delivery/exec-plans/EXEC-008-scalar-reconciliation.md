@@ -429,6 +429,49 @@ focused startup/configuration tests then passed in isolation. These are retained
 failures, not waived deadlines or a full-suite pass. Final validation and separate
 immutable-candidate review remain pending.
 
+Final combined native evidence: `pdaa-acceptance-1789373187089-7a6ff71a` passed
+seal6, access/input6, command5, COMMIT22, boundary30, the unchanged 1000/1001
+boundary and focused native dump/restore with runtime quarantine. Original hashes:
+seal `d51ccae58ded96b974b28b9abc9e0a7fdae2530a31da77eb901ccd331ac917dd`;
+access `1e76524677c7fe5d7cc83fce606960fc0d0803c75809e0bd90b73b563d8c3196`;
+command `ff99c0761e430c230abdb604897bd47146028abe6ba9931eb6f10fe0db1e61fe`.
+One seal control genuinely committed; the five negative controls produced exactly
+two request-seal and three proof-seal P0001 failures, zero COMMIT attempts and full
+rollback. Changed-fact contention produced one CREATED and one IDEMPOTENCY_CONFLICT;
+contributor contention retained the original proof and created a distinct request.
+
+This run used optional private content-free query profiling, not an uninstrumented
+timing claim. The 1000-version command measured 6018.27ms; COMMIT 3466.44ms, proof
+seal 492.88ms, delivery validation 348.05ms, request seal 339.90ms and request INSERT
+327.35ms. Profile hash:
+`1a2383a7fdb0094aa81b01297de60c2f67301e2e5df8c613c3b0338e8a361f63`.
+The passing repeat neither diagnoses nor erases the 12041.27ms failure or earlier
+intermittent failures. Both generated databases are stopped, with all originals,
+volumes and networks retained; default local `pdaa` remains untouched.
+
+Cross-host replay found and fixed an acceptance-reader timezone defect: offsetless
+AuditEvent timestamps must be interpreted as UTC, not the Windows host's timezone.
+The reader-only correction covers equality and ordering; a native-shaped regression
+accepts UTC-equivalent timestamps and rejects a changed clock. No original receipt
+was modified. The corrected host reader accepts all six unchanged original families
+and rejects 46 corrupted copies; control-report hash:
+`935d830fdd1e59780057a37cd1e449d09932d4e60040423de16b43fa282f9cdb`.
+
+Final full unit repeat passed 1229 tests across 61 files in 165.58 seconds with one
+worker and unchanged individual test deadlines; ten focused tests also passed.
+The earlier full-suite startup/configuration failures remain recorded above, with
+no root-cause or performance-fix claim. Whole-workspace typecheck/build, full lint,
+architecture and documentation validation passed before the final reader-only
+correction; full lint/architecture/docs/whitespace also passed after that correction.
+Exact-child review is pending at this recorded checkpoint.
+The initial `a041d5a` review disposition was explicitly superseded by the host
+timezone finding, not treated as final approval. No runtime/schema/migration,
+permission, connector scope, dependency or deadline changes were made. Rollback is
+reverting this acceptance-only batch while preserving all original evidence.
+Remaining identity/conflict-prefix vectors and full HTTP/browser/natural-OIDC,
+both-profile intact builds and three encrypted 42-table packaged restores remain
+open. Issue6/STORY-012/FAIL-009 and customer release gates are not closed.
+
 2026-09-14 ownership and immediate SQL-boundary block (FR-EVD-009/012,
 NFR-SEC-001/REL-001): use independently committed opt-out SCALAR proofs with matching
 canonical check hash/subject/time to isolate missing ownership, plus a real other
