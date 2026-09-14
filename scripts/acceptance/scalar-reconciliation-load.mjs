@@ -1,6 +1,9 @@
 // FR-EVD-012, NFR-REL-001: complete scalar prefix at the real production deadline.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { measureScalarLoad } from "./scalar-load-diagnostics.mjs";
 import {
   createDatabase,
   DatabaseScalarReconciliationRepository,
@@ -72,13 +75,27 @@ export async function verifyScalarVersionBoundary(
       client.release();
     }
     const repository = new DatabaseScalarReconciliationRepository(db);
-    const started = performance.now();
-    const complete = await repository.check(f.actor, f.command, f.context);
-    const durationMs = performance.now() - started;
-    assert(
-      durationMs < 10000,
-      "Scalar command exceeded unchanged production deadline",
+    const { value: complete, measurement } = await measureScalarLoad(
+      () => repository.check(f.actor, f.command, f.context),
+      (timing) =>
+        writeFileSync(
+          join(process.env.PDAA_ARTIFACT_DIR, `scalar-load-${f.factId}.json`),
+          JSON.stringify(
+            {
+              runId: process.env.PDAA_ACCEPTANCE_RUN_ID,
+              customerId,
+              projectId: f.projectId,
+              factId: f.factId,
+              correlationId: f.context.correlationId,
+              measurement: timing,
+            },
+            null,
+            2,
+          ),
+          { flag: "wx" },
+        ),
     );
+    const durationMs = measurement.durationMs;
     assert.equal(complete.outcome, "CREATED");
     assert.equal(complete.assessment.visibility, "available");
     assert.equal(complete.assessment.result.complete, true);
@@ -187,6 +204,7 @@ export async function verifyScalarVersionBoundary(
       projectId: f.projectId,
       factId: f.factId,
       durationMs,
+      measurement,
       completeVersionCount: 1000,
       incompletePrefix: 1001,
       originalCheckId: complete.checkId,

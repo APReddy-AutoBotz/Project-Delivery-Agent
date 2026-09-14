@@ -929,3 +929,56 @@ candidate `437693cafca79432fdbb90a00fc8810f377bad60` with no unresolved material
 findings. No runtime build, fresh HTTP/browser or final-run restore is claimed.
 The recurring load-budget failure remains open; this checkpoint does not close
 STORY-012, FAIL-009, Issue #6, full acceptance, merge or customer-release gates.
+
+2026-09-14 load-failure investigation (NFR-REL-001, NFR-OBS-001): source review
+identifies approximately nine full proof validations on CREATED, including repeated
+same-proof validation through deferred request/check/owner guards. The effective
+released validator already caches JSON arrays and has the source-temporal index;
+neither is a missing optimization. No proof predicate, released migration, SQL
+statement, runtime configuration or deadline is changed by this investigation.
+
+Private diagnostic run `pdaa-acceptance-1789369691297-0f8011cd` passed the enclosing
+native/load/restore workflow. Query-duration observation preserved transport bytes
+and results and recorded statement categories only, not SQL/parameters/content.
+The 1000-version command took 3580.49ms: COMMIT 1225.51ms, request seal 458.51ms,
+proof seal 394.49ms, request INSERT 340.49ms and delivery proof validation 246.14ms.
+This locates costs in a successful instrumented run; it does NOT explain the prior
+failures or waive them. Speculative validator simplification/caching is not applied.
+
+Acceptance now retains a unique create-only `scalar-load-<factId>.json` diagnostic
+before raising the unchanged deadline assertion, including when the repository
+command rejects. A closed record contains wall elapsed time, process user/system
+CPU and event-loop active/idle deltas, returned/rejected state and the fixed
+10000ms limit. These are process-wide interval measurements, not database CPU,
+native COMMIT/rollback proof or a diagnosis of contention. No SQL, parameters,
+returned proof, raw error text or credentials enter this record. Publication is
+outside the measured command interval; a diagnostic failure retains any command
+or deadline failure rather than replacing it. Existing artifacts are never
+overwritten. Successful host receipts require the same exact measurement and a
+returned command below the unchanged deadline. Both shipped profile consumers
+inherit this requirement; full packaged execution is not claimed by wiring.
+
+This acceptance-only diagnostic change leaves the performance investigation and
+remaining sealing/race/packaged gates open. Rollback is reverting these acceptance
+changes; preserve every generated database, volume and original diagnostic.
+
+Diagnostic verification: `pdaa-acceptance-1789370117405-98b702bd`, with private
+query profiling disabled, passed native COMMIT22, boundary30, access/command races,
+the unchanged 1000/1001 limit and focused native dump/restore. The 1000-version
+command measured 7515.94ms, process user/system CPU 2650.12/196.85ms and event-loop
+active/idle 1989.51/5526.78ms. The original retained diagnostic and successful
+receipt contain exactly the same measurement. Receipt SHA256:
+`2c1caac3a5d35789f5833b701d66be245a479c2148a97aec1b7013596ea8d9be`;
+diagnostic SHA256:
+`acb698fe84919e7eee5f84dbc6b932da53b1e1d32ed87a84ced76e3bb9b27ad1`.
+The reader accepts both unchanged originals and rejects nine corrupted receipt
+copies. Real command rejection/deadline/publication-failure behavior is covered by
+deterministic unit controls, not claimed as newly observed native timeout evidence.
+The private passing profile hash is
+`6ff729704751461bad753f54d15e61833fc914d7c826edc2e1f4edb6e823173f`.
+Both generated databases were stopped with originals/volumes retained; fresh
+non-overlapping subnets 10.250.253.0/24 and 10.250.252.0/24 were used without pruning
+or changing existing networks. These runs remain composite current-code evidence,
+not intact-image/encrypted packaged/browser acceptance. Prior failing runs remain
+valid failures and their root cause remains unproven. Full unit validation and
+exact-candidate review are pending at this checkpoint.

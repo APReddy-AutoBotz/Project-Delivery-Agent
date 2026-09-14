@@ -4,6 +4,7 @@ import { assertRaceSnapshot } from "./reconciliation-races.mjs";
 import { assertScalarAccessRaces } from "./scalar-access-races-receipt.mjs";
 import { assertScalarCommitReceipt } from "./scalar-commit-receipt.mjs";
 import { assertScalarBoundaryReceipt } from "./scalar-boundary-receipt.mjs";
+import { assertScalarLoadMeasurement } from "./scalar-load-diagnostics.mjs";
 export function assertScalarConcurrencyAndLoad(persistence, customerId) {
   assertScalarCommandRaces(persistence.scalarCommandRaces, customerId);
   assertScalarAccessRaces(persistence.scalarAccessRaces, customerId);
@@ -279,6 +280,10 @@ export function assertScalarVersionBoundary(receipt, customerId) {
       receipt.durationMs > 0 &&
       receipt.durationMs < 10000,
   );
+  assertScalarLoadMeasurement(receipt.measurement);
+  assert.equal(receipt.measurement.durationMs, receipt.durationMs);
+  assert.equal(receipt.measurement.commandState, "returned");
+  assert.equal(receipt.measurement.deadlineExceeded, false);
   assert.equal(receipt.completeVersionCount, 1000);
   assert.equal(receipt.incompletePrefix, 1001);
   for (const flag of [

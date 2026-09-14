@@ -273,6 +273,17 @@ it("FR-EVD-012: refuses missing native scalar load identities or changed deadlin
     projectId: randomUUID(),
     factId: randomUUID(),
     durationMs: 200,
+    measurement: {
+      family: "scalar-load-measurement/v1",
+      deadlineMs: 10000,
+      commandState: "returned",
+      durationMs: 200,
+      deadlineExceeded: false,
+      cpuUserMs: 1,
+      cpuSystemMs: 1,
+      eventLoopActiveMs: 5,
+      eventLoopIdleMs: 195,
+    },
     completeVersionCount: 1000,
     incompletePrefix: 1001,
     originalCheckId: randomUUID(),
@@ -286,6 +297,14 @@ it("FR-EVD-012: refuses missing native scalar load identities or changed deadlin
     originalReplayPreserved: true,
   };
   expect(assertScalarVersionBoundary(r, r.customerId)).toBe(true);
+  for (const patch of [
+    { measurement: undefined },
+    { measurement: { ...r.measurement, commandState: "rejected" } },
+    { measurement: { ...r.measurement, durationMs: 199 } },
+  ])
+    expect(() =>
+      assertScalarVersionBoundary({ ...r, ...patch }, r.customerId),
+    ).toThrow();
   expect(() =>
     assertScalarVersionBoundary({ ...r, durationMs: 10000 }, r.customerId),
   ).toThrow();
