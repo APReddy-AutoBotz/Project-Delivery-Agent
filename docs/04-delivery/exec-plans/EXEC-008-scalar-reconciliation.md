@@ -804,3 +804,9 @@ Borrowed/cross-scope proof and wrong-REUSED-identity controls, remaining immedia
 shape/privilege/seal controls, changed-key/contributor races and full packaged
 acceptance remain open. Full unit/lint/docs and exact-candidate review are pending
 at this checkpoint. No story, issue, merge or customer-release gate closes here.
+
+The complete one-worker repeat passed 1,210 unit tests across 58 files in
+91.40 seconds. Full lint, architecture boundaries, documentation validation and
+whitespace checks passed. No application build, fresh HTTP/browser run or intact
+packaged acceptance is claimed for this acceptance-only delta. Independent immutable
+source/original review remains in progress.
