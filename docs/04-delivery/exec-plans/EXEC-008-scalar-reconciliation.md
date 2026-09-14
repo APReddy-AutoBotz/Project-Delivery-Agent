@@ -920,3 +920,12 @@ private runner override. No shipped composition, existing network, default datab
 or retained volume was modified/deleted. Generated databases are stopped and all
 originals retained. This remains composite current-code native evidence, not an
 intact-image, encrypted packaged restore or browser/HTTP acceptance claim.
+
+Identity continuation validation completed: 1,216 unit tests across 59 files passed
+in 237.18 seconds; full lint, architecture, documentation and whitespace checks
+passed. The unchanged original receipt passed the final reader and 26 independently
+corrupted copies were rejected. Independent source/original review approved bounded
+candidate `437693cafca79432fdbb90a00fc8810f377bad60` with no unresolved material
+findings. No runtime build, fresh HTTP/browser or final-run restore is claimed.
+The recurring load-budget failure remains open; this checkpoint does not close
+STORY-012, FAIL-009, Issue #6, full acceptance, merge or customer-release gates.
