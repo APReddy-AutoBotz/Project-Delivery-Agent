@@ -754,3 +754,9 @@ dependency or transaction deadline changed. Rollback is reverting these acceptan
 scripts; do not delete retained history. Native COMMIT corruption controls,
 changed-fact/key/contributor races, further identity bounds and full packaged/browser
 acceptance remain open; no story or release gate closes here.
+
+The complete one-worker unit repeat passed 1,205 tests across 57 files in
+87.66 seconds. Full lint, architecture boundaries, documentation validation and
+whitespace checks passed. Application/test transaction deadlines remain unchanged.
+These are current acceptance-script checks, not a new application build, HTTP/IdP
+run or full packaged acceptance result. Immutable source/original review is pending.
