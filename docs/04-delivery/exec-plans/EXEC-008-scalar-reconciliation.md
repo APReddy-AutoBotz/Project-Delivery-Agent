@@ -841,7 +841,11 @@ Eight focused boundary/cleanup unit tests passed; focused lint passed.
 
 An earlier run `pdaa-acceptance-1789364728676-81b2333a` passed the same boundary
 cases before explicit generated-ID evidence and failure-preserving rollback cleanup
-were added. Both runs' artifacts remain retained. The cleanup helper now preserves
+were added. Its enclosing run subsequently failed the existing 1000-version
+wall-clock assertion at the unchanged 10-second budget, after all boundary, COMMIT,
+access and command cases passed. The reason for this variability is unproven;
+no timeout or runtime setting was changed. Both runs' artifacts remain retained.
+The cleanup helper now preserves
 both the original SQL error and a failed ROLLBACK; unit controls cover primary plus
 cleanup failure, cleanup failure alone and successful rollback. No original failure
 is suppressed or converted to successful evidence. Full suite, enclosing restore
@@ -856,3 +860,19 @@ Wrong REUSED identity with changed-input rollback, negative-proof positive label
 coherently altered identity/seal and missing-dependency controls, changed-key and
 contributor races, expanded identity bounds and full packaged/browser acceptance
 remain outstanding. No story, issue, merge or customer-release gate closes here.
+
+The final enclosing run `pdaa-acceptance-1789365041975-ea408a78` completed
+successfully, including the unchanged 1000/1001 boundary and focused native
+dump/restore. It is a distinct successful repeat, not a waiver or relabeling of the
+earlier load-budget failure. Both generated databases were stopped with volumes
+and all original evidence retained. Full unit and independent review remain pending.
+
+Final boundary validation: the complete one-worker suite passed 1,214 unit tests
+across 59 files in 215.57 seconds. Full lint, architecture boundaries, documentation
+validation and whitespace checks passed. Independent bounded source/original review
+approved `577516e385becff2d3fa10bafcffefdba8abcd6b` with no unresolved material
+findings; this is not whole-feature or merge approval. A subsequent reader-only
+safeguard rejects native-command metadata on immediate statement failures. Its four
+focused tests passed, the unchanged original receipt still passed, and all sixteen
+corrupted-receipt controls were rejected. No database rerun or full-suite rerun is
+claimed for that final reader-only delta; its exact-candidate review is pending.

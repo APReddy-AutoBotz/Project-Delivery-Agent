@@ -110,6 +110,9 @@ export function assertScalarBoundaryError(c) {
     }
   } else {
     assert.equal(c.native, undefined);
+    assert.equal(c.nativeCommand, undefined);
+    assert.equal(c.nativePid, undefined);
+    assert.equal(c.callbackReturnedAtCommit, undefined);
     assert.equal(c.commitObserver, undefined);
     if (c.name.startsWith("api-")) {
       assert.equal(error.code, "42501");

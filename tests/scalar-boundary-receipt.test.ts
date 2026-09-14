@@ -55,6 +55,7 @@ it("distinguishes immediate seal rejection from deferred owner rejection", () =>
     { phase: "commit" },
     { callbackReturned: true },
     { nativeCommitAttempts: 1 },
+    { nativeCommand: "COMMIT" },
     { rollbackCommand: "COMMIT" },
     { role: "fixture_admin" },
   ])
