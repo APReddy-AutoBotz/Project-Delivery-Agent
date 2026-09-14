@@ -56,6 +56,8 @@ import { verifyScalarAccessRaces } from "./scalar-access-races.mjs";
 import { verifyScalarCommitGuards } from "./scalar-commit-probes.mjs";
 import { verifyScalarBoundaries } from "./scalar-boundary-probes.mjs";
 import { verifyScalarSeals } from "./scalar-seal-probes.mjs";
+import { verifyScalarIdentityVectors } from "./scalar-identity-vectors.mjs";
+import { verifyScalarConflictPrefix } from "./scalar-conflict-prefix.mjs";
 import { verifyScalarVersionBoundary } from "./scalar-reconciliation-load.mjs";
 import {
   scalarReconciliationTables,
@@ -365,6 +367,18 @@ try {
       process.env.CUSTOMER_ID,
       canonicalFixture.projectId,
     );
+    const scalarConflictPrefix = await verifyScalarConflictPrefix(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
+    const scalarIdentityVectors = await verifyScalarIdentityVectors(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
     await verifyScalarReconciliationIntegrity(admin);
     const scalarOwner = createDatabase(adminConfig);
     try {
@@ -395,6 +409,8 @@ try {
           scalarCommitGuards,
           scalarBoundaries,
           scalarSeals,
+          scalarIdentityVectors,
+          scalarConflictPrefix,
           scalarVersionBoundary,
           milestoneConcurrency,
           canonicalTables,

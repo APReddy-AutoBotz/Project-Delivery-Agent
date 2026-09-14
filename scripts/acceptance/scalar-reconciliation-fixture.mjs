@@ -19,9 +19,17 @@ export async function reserveScalarFixture(
   customerId,
   referenceProjectId,
   prefix,
-  { configured = true, optedIn = true } = {},
+  {
+    configured = true,
+    optedIn = true,
+    values = [
+      { type: "date", value: "2026-10-01" },
+      { type: "date", value: "2026-10-02" },
+    ],
+  } = {},
 ) {
   reconciliationAcceptanceGuard();
+  assert.equal(values.length, 2);
   const reference = (
     await owner.query(
       'SELECT "portfolioId" FROM "Project" WHERE "customerId"=$1 AND id=$2',
@@ -97,10 +105,7 @@ export async function reserveScalarFixture(
         effectiveAt,
         validUntil: new Date(Date.now() + 86400000).toISOString(),
         originalStatement: "Synthetic disputed scalar forecast " + revision,
-        value: {
-          type: "date",
-          value: revision === 0 ? "2026-10-01" : "2026-10-02",
-        },
+        value: values[revision],
       },
       context,
     );

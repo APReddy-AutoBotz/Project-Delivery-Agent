@@ -6,6 +6,8 @@ import { assertScalarAccessRaces } from "./scalar-access-races-receipt.mjs";
 import { assertScalarCommitReceipt } from "./scalar-commit-receipt.mjs";
 import { assertScalarBoundaryReceipt } from "./scalar-boundary-receipt.mjs";
 import { assertScalarSealReceipt } from "./scalar-seal-receipt.mjs";
+import { assertScalarIdentityVectors } from "./scalar-identity-vectors-receipt.mjs";
+import { assertScalarConflictPrefix } from "./scalar-conflict-prefix-receipt.mjs";
 import { assertScalarLoadMeasurement } from "./scalar-load-diagnostics.mjs";
 export function assertScalarConcurrencyAndLoad(persistence, customerId) {
   assertScalarCommandRaces(persistence.scalarCommandRaces, customerId);
@@ -13,6 +15,8 @@ export function assertScalarConcurrencyAndLoad(persistence, customerId) {
   assertScalarCommitReceipt(persistence.scalarCommitGuards, customerId);
   assertScalarBoundaryReceipt(persistence.scalarBoundaries, customerId);
   assertScalarSealReceipt(persistence.scalarSeals, customerId);
+  assertScalarIdentityVectors(persistence.scalarIdentityVectors, customerId);
+  assertScalarConflictPrefix(persistence.scalarConflictPrefix, customerId);
   assertScalarVersionBoundary(persistence.scalarVersionBoundary, customerId);
 }
 export function assertScalarCommandRaces(receipt, customerId) {

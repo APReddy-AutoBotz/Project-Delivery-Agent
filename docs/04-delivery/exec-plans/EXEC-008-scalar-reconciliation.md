@@ -1079,3 +1079,54 @@ Independent source/original review approved bounded candidate
 `c5390003941fc4f0d8b770804d2326d824ba57df` with no material findings. The historical
 timeout cause remains unresolved; no performance fix or whole-feature completion
 is claimed. Remaining sealing/concurrency, full packaged and browser gates stay open.
+
+### Combined identity and conflict-prefix acceptance milestone
+
+FR-EVD-007/009/012, FR-ADM-005 and NFR-REL-001: extend actual API-role
+acceptance with date, number, boolean and arbitrary-text SQL/TypeScript identity
+vectors, actor-independent reuse, recorded-group equivalence, irrelevant future
+policy publication and a changed selected policy. Add the 1002-conflict control
+whose maximum revision lies outside the UUID-ordered 1001-row sample. Require an
+owned INCOMPLETE negative check with the true prefix and preserved original OPEN
+request, proof and retry. Wire independent receipt readers and corrupted-copy
+controls into both profiles, then execute in a fresh isolated synthetic cluster.
+Keep runtime limits, authorization, migrations and production behavior unchanged.
+Do not infer native stale-participant or impossible 64-evidence-per-version
+coverage from domain tests. Historical load variability, intact-image/encrypted
+packaged acceptance and remaining browser gates stay open. Rollback is reverting
+these acceptance-only changes; retain all original diagnostics and fixture volumes.
+
+Native evidence for this milestone: isolated composite run
+`pdaa-acceptance-1789375343450-a7c8edc3` passed all sixteen typed identity commands,
+including actor-independent recorded reuse, future-policy reuse and new selected
+policy identity, and the five-command 1002-conflict prefix/original-proof control.
+The independent readers accepted the unchanged originals and rejected 25 identity
+and 17 prefix corrupted copies. Original identity receipt SHA256:
+`5e2e836cc997baed1334dda694df92630016a42382a6bafc05352bf43e524c95`;
+prefix receipt SHA256:
+`1d16a64f9367fdc9e868774f23d556b98dfd375b7a638498b4f1ad6a338421d5`.
+Both receipt families are mandatory in operations and customer profile readers.
+The native text receipt includes a real newline, Unicode, quotes and backslash;
+number vectors retain both `1e-100` and `1e100`. Source-access dependency revisions
+are checked against actual saved access rows, not an assumed revision of one.
+
+The same run passed the existing boundary30, COMMIT22, seal6, access/input6 and
+command-race5 controls, then FAILED the existing 1000-version command: rejected
+after 11359.91ms against the unchanged 10000ms deadline. No restore ran after that
+failure; no performance fix, full matrix pass or release acceptance is claimed.
+The earlier run `pdaa-acceptance-1789374952848-c0e47979` failed the reader's incorrect
+source-access revision assumption; that assumption was corrected without runtime
+changes. Both generated databases were stopped and all volumes/originals retained.
+Current-code scripts/runtime mounts remain composite evidence, not intact-image or
+encrypted packaged acceptance. Full unit validation and immutable-candidate review
+are being completed; stale-recorded-participant native vectors and the historical
+load reliability issue remain open along with packaged/browser gates.
+
+Local validation: all 1241 unit tests across 63 files passed in 132.61 seconds
+with two workers. Full type checking, build, lint, architecture, documentation and
+whitespace checks passed. The initial `pnpm test --maxWorkers=2` invocation was
+rejected by pnpm before test execution; the successful full run used Vitest's
+actual unit command with the integration exclusion and `--maxWorkers=2`.
+The eleven focused tests passed before the final offsetless-UTC control; the full
+suite includes that additional control. No runtime dependency, connector scope,
+authorization rule, transaction limit or migration changed in this milestone.
