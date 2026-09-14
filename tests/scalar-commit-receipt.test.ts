@@ -1,6 +1,9 @@
 // NFR-REL-001/002: these unit controls cannot substitute for actual native SQL.
 import { expect, it } from "vitest";
-import { assertScalarNativeCommit } from "../scripts/acceptance/scalar-commit-receipt.mjs";
+import {
+  assertScalarNativeCommit,
+  assertScalarIdentityTransition,
+} from "../scripts/acceptance/scalar-commit-receipt.mjs";
 import { assertScalarSourceAccessTransition } from "../scripts/acceptance/scalar-access-races-receipt.mjs";
 
 const native = () => ({
@@ -25,6 +28,139 @@ const native = () => ({
     state: "idle",
     query: "COMMIT",
   },
+});
+
+it("requires native deferred rejection for wrong reuse and successful COMMIT for changed contributors", () => {
+  for (const name of ["wrong-reused-identity", "negative-proof-reused"]) {
+    expect(() => assertScalarNativeCommit({ ...native(), name })).not.toThrow();
+    for (const patch of [
+      { callbackReturned: false },
+      { nativeCommitAttempts: 0 },
+      {
+        native: {
+          code: "P0001",
+          message: "Invalid scalar reconciliation check birth",
+        },
+      },
+      { native: { code: "P2028", message: "Transaction expired" } },
+    ])
+      expect(() =>
+        assertScalarNativeCommit({ ...native(), name, ...patch }),
+      ).toThrow();
+  }
+  expect(() =>
+    assertScalarNativeCommit({
+      ...native(),
+      name: "positive-changed-contributor",
+      rejected: false,
+      native: undefined,
+      nativeCommand: "COMMIT",
+    }),
+  ).not.toThrow();
+  expect(() =>
+    assertScalarNativeCommit({
+      ...native(),
+      name: "positive-changed-contributor",
+    }),
+  ).toThrow();
+});
+
+it("binds a negative reuse proof to the actual opt-out policy and still-valid original request", () => {
+  // Pure reader unit fixture; not native database evidence.
+  const tables = [
+    "ScalarReconciliationRequest",
+    "ScalarReconciliationCheck",
+    "ScalarReconciliationAssignment",
+    "FactAssessment",
+    "FactAssessmentVersion",
+    "FactAssessmentConflict",
+    "FactAuthorityConflict",
+    "AuditEvent",
+    "ProjectFact",
+    "ProjectFactVersion",
+    "FactEvidence",
+  ];
+  const prior = {
+    id: "old-request",
+    originalAssessmentId: "old-proof",
+    factId: "fact",
+    sealed: true,
+    state: "OPEN",
+  };
+  const original = { id: "old-proof", policyRevisionId: "old-policy" };
+  const policy = {
+    id: "new-policy",
+    customerId: "customer",
+    projectId: "project",
+    factType: "project.forecast",
+    state: "ENABLED",
+    definition: { conflictBehavior: "RETAIN_CONFLICT" },
+    recordedAt: "2026-09-14T00:00:00Z",
+    effectiveAt: "2026-09-14T00:00:00Z",
+  };
+  const proof = {
+    id: "new-proof",
+    factType: "project.forecast",
+    policyRevisionId: policy.id,
+    asOf: "2026-09-14T00:00:01Z",
+    result: {
+      complete: true,
+      status: "CONFLICTING",
+      resolvedValue: null,
+      revalidationRequired: false,
+      reconciliationRequired: false,
+      versions: [],
+      policy: { revisionId: policy.id, conflictBehavior: "RETAIN_CONFLICT" },
+    },
+  };
+  const before = Object.fromEntries(
+    tables.map((t) => [
+      t,
+      t === "ScalarReconciliationRequest"
+        ? [prior]
+        : t === "FactAssessment"
+          ? [original]
+          : [],
+    ]),
+  );
+  const pending = structuredClone(before);
+  pending.FactAssessment = [original, proof];
+  const receipt = {
+    name: "negative-proof-reused",
+    customerId: "customer",
+    projectId: "project",
+    factId: "fact",
+    priorRequestId: prior.id,
+    priorRequestValid: true,
+    priorRequestValidAfter: true,
+    predicates: { request: true },
+    proofValid: true,
+    assessmentId: proof.id,
+    checkId: "new-check",
+    requestId: prior.id,
+    before,
+    pending,
+    generatedIds: ["new-check", "new-proof"],
+    attemptAudits: [],
+    selectedPolicy: policy,
+    identity: null,
+    identitySql: null,
+  };
+  expect(() => assertScalarIdentityTransition(receipt)).not.toThrow();
+  for (const patch of [
+    { priorRequestValidAfter: false },
+    { predicates: { request: false } },
+    { proofValid: false },
+    { generatedIds: ["new-check"] },
+    { identity: "old identity", identitySql: "old identity" },
+    { selectedPolicy: { ...policy, id: "old-policy" } },
+    { selectedPolicy: { ...policy, state: "DISABLED" } },
+    { selectedPolicy: { ...policy, projectId: "other" } },
+    { selectedPolicy: { ...policy, effectiveAt: "2026-09-15T00:00:00Z" } },
+  ])
+    expect(() =>
+      assertScalarIdentityTransition({ ...receipt, ...patch }),
+    ).toThrow();
 });
 
 it("requires actual callback completion, native COMMIT and an independent settled observer", () => {

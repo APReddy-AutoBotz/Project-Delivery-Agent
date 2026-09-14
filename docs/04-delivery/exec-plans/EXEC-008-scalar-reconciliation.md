@@ -876,3 +876,47 @@ safeguard rejects native-command metadata on immediate statement failures. Its f
 focused tests passed, the unchanged original receipt still passed, and all sixteen
 corrupted-receipt controls were rejected. No database rerun or full-suite rerun is
 claimed for that final reader-only delta; its exact-candidate review is pending.
+
+2026-09-14 identity-reuse continuation (FR-EVD-004/007/009/012,
+NFR-REL-001/002): expand the native COMMIT matrix from 19 to 22 cases. A direct
+guarded version/evidence append under the authorized Project/grants/fact lock order
+prepares a fresh eligible proof with different contributor identity. Attaching it
+as REUSED to the old valid request must fail only at actual native COMMIT, rolling
+back the fact revision, appended input, derived conflict, proof, check and audit.
+The complementary coherent CREATED graph commits a distinct request while retaining
+the original request, proof and assignment. A subsequently committed actual
+RETAIN_CONFLICT policy yields a valid ineligible same-fact proof; attaching it as
+REUSED to the older positive request must likewise fail at native COMMIT.
+
+The reader reconstructs exact identity bytes from original SQL version/source/
+evidence rows and all retained output participants, distinguishes eligibility from
+proof validity, binds exact append/conflict scope and time, and requires the old
+request's historical predicate to remain true after full graph assembly. Closed
+eleven-family projections and an exact generated-ID inventory prove rollback.
+These direct transaction-scoped persistence controls do not claim execution of a
+public append command, its receipt, or the separate changed-contributor race.
+No runtime, schema, migration, role, connector scope or deadline changed. Rollback
+is reverting acceptance changes, with databases and original evidence retained.
+Focused seven reader tests and lint passed; final native evidence, wider checks and
+exact-candidate review remain pending at this implementation checkpoint.
+
+Native identity evidence: `pdaa-acceptance-1789367975472-5b93d1c4` passed all
+22 native COMMIT cases and the unchanged boundary/access/command matrices. Its
+original COMMIT receipt SHA256 is
+`d2d5ba810bb928e340a057bb5df93006344047372a18d85c0ba6b8ec704f1e42`.
+The final reader accepts this unchanged original, including post-assembly historical
+request validity and complete version/conflict dependency prefixes. The enclosing
+run FAILED later at the existing 1000-version wall-clock assertion (10-second
+budget); restore did not execute for this run. Cause is unproven, no deadline was
+increased, and this remains an open full-acceptance performance risk.
+
+The earlier `pdaa-acceptance-1789367619540-d538635a` passed the 22 cases and enclosing
+load/restore before the added post-assembly validity observation and final reader
+bindings. It is not substitute evidence for those additions. The intervening
+`pdaa-acceptance-1789367790836-2f1f6acf` failed before database execution because
+Docker's automatic subnet pool was exhausted. The final isolated run used an
+explicit, locally inspected non-overlapping `10.250.254.0/24` network through a
+private runner override. No shipped composition, existing network, default database
+or retained volume was modified/deleted. Generated databases are stopped and all
+originals retained. This remains composite current-code native evidence, not an
+intact-image, encrypted packaged restore or browser/HTTP acceptance claim.

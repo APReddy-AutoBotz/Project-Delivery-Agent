@@ -17,6 +17,9 @@ const tables = [
 const modes = [
   "positive-created",
   "positive-reused",
+  "wrong-reused-identity",
+  "positive-changed-contributor",
+  "negative-proof-reused",
   "positive-no-request",
   "positive-refresh",
   "orphan-owned-assessment",
@@ -103,6 +106,186 @@ export function assertScalarNativeCommit(c) {
   }
 }
 
+// Independent reconstruction from retained SQL rows, not the producer's identity.
+export function assertScalarIdentityTransition(c) {
+  const changed = [
+    "wrong-reused-identity",
+    "positive-changed-contributor",
+  ].includes(c.name);
+  assert(changed || c.name === "negative-proof-reused");
+  const prior = c.before.ScalarReconciliationRequest.find(
+    (r) => r.id === c.priorRequestId,
+  );
+  assert(prior && prior.sealed && prior.state === "OPEN");
+  assert.equal(prior.factId, c.factId);
+  assert.equal(c.priorRequestValid, true);
+  assert.equal(c.priorRequestValidAfter, true);
+  assert.equal(c.predicates.request, true);
+  assert.deepEqual(
+    c.pending.ScalarReconciliationRequest.find((r) => r.id === prior.id),
+    prior,
+  );
+  const original = c.before.FactAssessment.find(
+    (r) => r.id === prior.originalAssessmentId,
+  );
+  const proof = c.pending.FactAssessment.find((r) => r.id === c.assessmentId);
+  assert(original && proof && original.id !== proof.id);
+  assert.deepEqual(
+    c.pending.FactAssessment.find((r) => r.id === original.id),
+    original,
+  );
+  assert.equal(c.proofValid, true);
+  assert.equal(proof.result.complete, true);
+  assert.equal(proof.result.status, "CONFLICTING");
+  assert.equal(proof.result.resolvedValue, null);
+  assert.equal(proof.result.revalidationRequired, false);
+  assert(proof.result.versions.every((v) => v.visibility === "available"));
+  assert.equal(proof.policyRevisionId, proof.result.policy.revisionId);
+  assert.equal(c.identitySql, c.identity);
+  const versionIds = c.pending.ProjectFactVersion.filter(
+    (v) => v.factId === c.factId && v.revision <= proof.factRevision,
+  )
+    .map((v) => v.id)
+    .sort();
+  const dependencyIds = c.pending.FactAssessmentVersion.filter(
+    (v) => v.assessmentId === proof.id,
+  )
+    .map((v) => v.versionId)
+    .sort();
+  assert.deepEqual(dependencyIds, versionIds);
+  assert.deepEqual(proof.result.versions.map((v) => v.id).sort(), versionIds);
+  const conflictIds = c.pending.FactAuthorityConflict.filter(
+    (v) => v.factId === c.factId && v.revision <= proof.conflictThroughRevision,
+  )
+    .map((v) => v.id)
+    .sort();
+  assert.deepEqual(
+    c.pending.FactAssessmentConflict.filter((v) => v.assessmentId === proof.id)
+      .map((v) => v.conflictId)
+      .sort(),
+    conflictIds,
+  );
+  const oldIds = new Set(
+    tables.flatMap((table) => c.before[table].map((r) => r.id).filter(Boolean)),
+  );
+  const generated = new Set(
+    [c.checkId, c.assessmentId, c.assignmentId].filter(Boolean),
+  );
+  for (const a of c.attemptAudits) generated.add(a.id);
+  for (const table of tables)
+    for (const row of c.pending[table])
+      if (
+        !c.before[table].some(
+          (old) => JSON.stringify(old) === JSON.stringify(row),
+        )
+      )
+        for (const field of ["id", "assessmentId"])
+          if (row[field] && !oldIds.has(row[field])) generated.add(row[field]);
+  assert.deepEqual(c.generatedIds, [...generated].sort());
+  if (changed) {
+    const a = c.appended;
+    assert(a);
+    const beforeFact = c.before.ProjectFact.find((r) => r.id === c.factId);
+    assert.equal(a.previousRevision, beforeFact.revision);
+    assert.deepEqual(
+      c.pending.ProjectFact,
+      c.before.ProjectFact.map((r) =>
+        r.id === c.factId ? { ...r, revision: r.revision + 1 } : r,
+      ),
+    );
+    const version = c.pending.ProjectFactVersion.find(
+      (r) => r.id === a.versionId,
+    );
+    const evidence = c.pending.FactEvidence.find((r) => r.id === a.evidenceId);
+    assert(version && evidence);
+    assert(!c.before.ProjectFactVersion.some((r) => r.id === version.id));
+    assert(!c.before.FactEvidence.some((r) => r.id === evidence.id));
+    assert.equal(version.revision, beforeFact.revision + 1);
+    assert.equal(proof.factRevision, version.revision);
+    assert.equal(version.factId, c.factId);
+    assert.equal(version.sourceId, a.sourceId);
+    assert.equal(version.evidenceId, evidence.id);
+    assert.equal(version.provenance, "HUMAN_CONFIRMED");
+    assert.equal(asTime(version.effectiveAt), asTime(proof.asOf) - 1000);
+    assert.equal(asTime(version.validUntil), asTime(proof.asOf) + 86400000);
+    assert.deepEqual(version.value, { type: "date", value: "2026-10-03" });
+    assert.equal(evidence.sourceId, a.sourceId);
+    assert.equal(evidence.factId, c.factId);
+    assert.equal(evidence.providedBy, c.actor);
+    assert.equal(asTime(evidence.observedAt), asTime(proof.asOf));
+    assert(c.before.ProjectFactVersion.some((v) => v.sourceId === a.sourceId));
+    assert.equal(proof.policyRevisionId, original.policyRevisionId);
+    assert.equal(proof.result.reconciliationRequired, true);
+    assert.equal(
+      proof.result.policy.conflictBehavior,
+      "REQUEST_RECONCILIATION",
+    );
+    const ids = [
+      ...new Set(proof.result.conflicts.flatMap((g) => g.versionIds)),
+    ].sort();
+    assert(ids.includes(version.id));
+    const tuples = ids.map((id) => {
+      const row = c.pending.ProjectFactVersion.find((v) => v.id === id);
+      assert(row && row.factId === c.factId);
+      const frozen = proof.result.versions.find((v) => v.id === id);
+      assert(frozen);
+      assert.deepEqual(frozen.evidenceIds, [row.evidenceId]);
+      assert.deepEqual(frozen.value, row.value);
+      return [id, row.sourceId, row.value.type, [row.evidenceId]];
+    });
+    assert.equal(
+      c.identity,
+      JSON.stringify([
+        "scalar-authority-conflict/v1",
+        c.customerId,
+        c.projectId,
+        c.factId,
+        proof.policyRevisionId,
+        tuples,
+      ]),
+    );
+    assert.notEqual(c.identity, prior.contributorIdentity);
+    // Recorded old participants remain part of the business identity.
+    for (const tuple of JSON.parse(prior.contributorIdentity)[5])
+      assert(tuples.some((v) => JSON.stringify(v) === JSON.stringify(tuple)));
+    const addedConflicts = c.pending.FactAuthorityConflict.filter(
+      (r) => !c.before.FactAuthorityConflict.some((old) => old.id === r.id),
+    );
+    assert.equal(addedConflicts.length, 1);
+    const conflict = addedConflicts[0];
+    assert(
+      [conflict.leftVersionId, conflict.rightVersionId].includes(version.id),
+    );
+    for (const id of [conflict.leftVersionId, conflict.rightVersionId])
+      assert(ids.includes(id));
+    assert.equal(conflict.policyRevisionId, proof.policyRevisionId);
+    assert.equal(conflict.factId, c.factId);
+    assert.equal(asTime(conflict.detectedAt), asTime(proof.asOf));
+    assert.equal(
+      conflict.revision,
+      Math.max(...c.before.FactAuthorityConflict.map((r) => r.revision)) + 1,
+    );
+    assert.equal(c.requestId === prior.id, c.name === "wrong-reused-identity");
+  } else {
+    assert.equal(c.appended, undefined);
+    assert.equal(c.identity, null);
+    assert.equal(c.requestId, prior.id);
+    assert.equal(c.predicates.request, true);
+    assert.equal(proof.result.reconciliationRequired, false);
+    assert.equal(proof.result.policy.conflictBehavior, "RETAIN_CONFLICT");
+    const policy = c.selectedPolicy;
+    assert.equal(policy.id, proof.policyRevisionId);
+    assert.notEqual(policy.id, original.policyRevisionId);
+    assert.equal(policy.state, "ENABLED");
+    assert.equal(policy.customerId, c.customerId);
+    assert.equal(policy.projectId, c.projectId);
+    assert.equal(policy.factType, proof.factType);
+    assert.equal(policy.definition.conflictBehavior, "RETAIN_CONFLICT");
+    assert(asTime(policy.recordedAt) <= asTime(proof.asOf));
+    assert(asTime(policy.effectiveAt) <= asTime(proof.asOf));
+  }
+}
+
 export function assertScalarCommitReceipt(receipt, customerId) {
   assert.equal(receipt.family, "scalar-native-commit/v1");
   assert.equal(receipt.customerId, customerId);
@@ -115,6 +298,11 @@ export function assertScalarCommitReceipt(receipt, customerId) {
     const positive = c.name.startsWith("positive-"),
       refresh = c.name.includes("refresh"),
       orphan = c.name === "orphan-owned-assessment";
+    const changed = [
+      "wrong-reused-identity",
+      "positive-changed-contributor",
+    ].includes(c.name);
+    const identityCase = changed || c.name === "negative-proof-reused";
     for (const state of [c.before, c.pending, c.after]) {
       assert.deepEqual(Object.keys(state).sort(), [...tables].sort());
       for (const table of tables) {
@@ -146,6 +334,7 @@ export function assertScalarCommitReceipt(receipt, customerId) {
     }
     const created = [
       "positive-created",
+      "positive-changed-contributor",
       "unsealed-request",
       "missing-initial-assignment",
     ].includes(c.name);
@@ -155,10 +344,15 @@ export function assertScalarCommitReceipt(receipt, customerId) {
       ScalarReconciliationAssignment:
         refresh || (created && c.name !== "missing-initial-assignment") ? 1 : 0,
       FactAssessment: refresh ? 0 : 1,
-      FactAssessmentVersion: refresh ? 0 : 2,
-      FactAssessmentConflict: refresh ? 0 : 1,
-      FactAuthorityConflict:
-        refresh || c.before.FactAuthorityConflict.length ? 0 : 1,
+      FactAssessmentVersion: refresh ? 0 : identityCase ? 3 : 2,
+      FactAssessmentConflict: refresh ? 0 : identityCase ? 2 : 1,
+      FactAuthorityConflict: changed
+        ? 1
+        : refresh || c.before.FactAuthorityConflict.length
+          ? 0
+          : 1,
+      ProjectFactVersion: changed ? 1 : 0,
+      FactEvidence: changed ? 1 : 0,
       AuditEvent: refresh
         ? 1
         : orphan || c.name === "wrong-check-audit-scope"
@@ -175,7 +369,8 @@ export function assertScalarCommitReceipt(receipt, customerId) {
         expectedDelta[table] ?? 0,
         table + " pending delta",
       );
-      retained(c.before[table], c.pending[table]);
+      if (!(changed && table === "ProjectFact"))
+        retained(c.before[table], c.pending[table]);
       const added = c.pending[table].filter(
         (row) =>
           !c.before[table].some(
@@ -184,8 +379,12 @@ export function assertScalarCommitReceipt(receipt, customerId) {
       );
       for (const row of added)
         for (const field of ["id", "assessmentId"])
-          if (row[field]) assert(c.generatedIds.includes(row[field]));
-      if (["ProjectFact", "ProjectFactVersion", "FactEvidence"].includes(table))
+          if (row[field] && !(changed && table === "ProjectFact"))
+            assert(c.generatedIds.includes(row[field]));
+      if (
+        !changed &&
+        ["ProjectFact", "ProjectFactVersion", "FactEvidence"].includes(table)
+      )
         assert.deepEqual(c.pending[table], c.before[table]);
     }
     for (const a of c.attemptAudits) {
@@ -275,6 +474,7 @@ export function assertScalarCommitReceipt(receipt, customerId) {
     assert.equal(proof.captureKind, "SCALAR_REQUEST");
     assert.equal(proof.milestoneAssessmentId, null);
     assert.equal(proof.sealed, true);
+    assert.equal(c.proofValid, true);
     assert.equal(proof.subject, c.actor);
     assert.equal(proof.complete, true);
     assert.equal(proof.idempotencyKey, "sr_" + c.checkId.replaceAll("-", ""));
@@ -282,8 +482,8 @@ export function assertScalarCommitReceipt(receipt, customerId) {
     const dependencies = c.pending.FactAssessmentVersion.filter(
       (r) => r.assessmentId === proof.id,
     );
-    assert.equal(dependencies.length, 2);
-    assert.equal(proof.versionCount, 2);
+    assert.equal(dependencies.length, identityCase ? 3 : 2);
+    assert.equal(proof.versionCount, dependencies.length);
     for (const d of dependencies)
       assert(
         c.pending.ProjectFactVersion.some(
@@ -293,8 +493,8 @@ export function assertScalarCommitReceipt(receipt, customerId) {
     const conflicts = c.pending.FactAssessmentConflict.filter(
       (r) => r.assessmentId === proof.id,
     );
-    assert.equal(conflicts.length, 1);
-    assert.equal(proof.conflictCount, 1);
+    assert.equal(conflicts.length, identityCase ? 2 : 1);
+    assert.equal(proof.conflictCount, conflicts.length);
     for (const d of conflicts)
       assert(
         c.pending.FactAuthorityConflict.some(
@@ -314,7 +514,11 @@ export function assertScalarCommitReceipt(receipt, customerId) {
       check.outcome,
       created
         ? "CREATED"
-        : c.name === "positive-reused"
+        : [
+              "positive-reused",
+              "wrong-reused-identity",
+              "negative-proof-reused",
+            ].includes(c.name)
           ? "REUSED"
           : "NO_REQUEST",
     );
@@ -383,19 +587,28 @@ export function assertScalarCommitReceipt(receipt, customerId) {
         assert.equal(typeof c.identity, "string");
       else assert.equal(c.identity, null);
     } else {
-      assert.equal(typeof c.identity, "string");
+      if (c.name === "negative-proof-reused") assert.equal(c.identity, null);
+      else assert.equal(typeof c.identity, "string");
       const request = c.pending.ScalarReconciliationRequest.find(
         (r) => r.id === c.requestId,
       );
       assert(request);
-      assert.equal(request.contributorIdentity, c.identity);
+      if (["wrong-reused-identity", "negative-proof-reused"].includes(c.name))
+        assert.notEqual(request.contributorIdentity, c.identity);
+      else assert.equal(request.contributorIdentity, c.identity);
       assert.equal(
         request.contributorHash,
-        createHash("sha256").update(c.identity).digest("hex"),
+        createHash("sha256").update(request.contributorIdentity).digest("hex"),
       );
       assert.equal(request.factId, c.factId);
       assert.equal(request.state, "OPEN");
-      if (c.name === "positive-reused") {
+      if (
+        [
+          "positive-reused",
+          "wrong-reused-identity",
+          "negative-proof-reused",
+        ].includes(c.name)
+      ) {
         assert.equal(check.outcome, "REUSED");
         assert.notEqual(request.originalAssessmentId, proof.id);
         assert.deepEqual(
@@ -470,5 +683,6 @@ export function assertScalarCommitReceipt(receipt, customerId) {
           assert.equal(c.predicates.request, false);
       }
     }
+    if (identityCase) assertScalarIdentityTransition(c);
   }
 }

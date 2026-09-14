@@ -210,8 +210,63 @@ export async function verifyScalarCommitGuards(
         const [fact] =
           await tx.$queryRaw`SELECT id,"factType",revision FROM "ProjectFact" WHERE "customerId"=${customerId}::uuid AND "projectId"=${f.projectId}::uuid AND id=${f.factId}::uuid FOR UPDATE`;
         assert(fact);
-        const asOf = await time(tx),
-          checkId = randomUUID();
+        const asOf = await time(tx);
+        const changed = [
+          "wrong-reused-identity",
+          "positive-changed-contributor",
+        ].includes(r.name);
+        if (changed) {
+          // Ordinary guarded append in the same transaction as the attempted check.
+          // No public append receipt is claimed for this direct persistence probe.
+          const source = await tx.factSource.findFirstOrThrow({
+            where: {
+              customerId,
+              projectId: f.projectId,
+              factId: f.factId,
+              providedBy: f.actor.subject,
+            },
+          });
+          const evidenceId = randomUUID(),
+            versionId = randomUUID();
+          await tx.factEvidence.create({
+            data: {
+              id: evidenceId,
+              customerId,
+              projectId: f.projectId,
+              factId: f.factId,
+              sourceId: source.id,
+              providedBy: f.actor.subject,
+              observedAt: asOf,
+              originalStatement: "Synthetic changed scalar contributor",
+            },
+          });
+          await tx.projectFactVersion.create({
+            data: {
+              id: versionId,
+              customerId,
+              projectId: f.projectId,
+              factId: f.factId,
+              sourceId: source.id,
+              evidenceId,
+              revision: fact.revision + 1,
+              value: { type: "date", value: "2026-10-03" },
+              provenance: "HUMAN_CONFIRMED",
+              effectiveAt: new Date(asOf.getTime() - 1000),
+              validUntil: new Date(asOf.getTime() + 86400000),
+            },
+          });
+          r.appended = {
+            versionId,
+            evidenceId,
+            sourceId: source.id,
+            previousRevision: fact.revision,
+          };
+          fact.revision = (
+            await tx.projectFact.findUniqueOrThrow({ where: { id: fact.id } })
+          ).revision;
+          assert.equal(fact.revision, r.appended.previousRevision + 1);
+        }
+        const checkId = randomUUID();
         r.checkId = checkId;
         const canonicalHash = hash({
           projectId: f.projectId,
@@ -228,6 +283,18 @@ export async function verifyScalarCommitGuards(
         );
         const identity = scalarReconciliationIdentity(prepared.result);
         r.identity = identity;
+        if (prior) {
+          r.priorRequestId = prior.requestId;
+          r.priorRequestValid = (
+            await tx.$queryRaw`SELECT public.valid_scalar_reconciliation_request(${prior.requestId}::uuid) AS valid`
+          )[0].valid;
+          assert.equal(r.priorRequestValid, true);
+        }
+        if (r.name === "negative-proof-reused") {
+          r.selectedPolicy = JSON.parse(JSON.stringify(prepared.event));
+          assert.equal(identity, null);
+          assert.equal(prepared.result.reconciliationRequired, false);
+        }
         const assessment =
           await authority.persistPreparedAssessmentInTransaction(tx, f.actor, {
             prepared,
@@ -239,6 +306,10 @@ export async function verifyScalarCommitGuards(
             scalarReconciliationCheckId: checkId,
           });
         r.assessmentId = assessment.id;
+        r.proofValid = (
+          await tx.$queryRaw`SELECT public.valid_fact_assessment(${assessment.id}::uuid) AS valid`
+        )[0].valid;
+        assert.equal(r.proofValid, true);
         r.identitySql = (
           await tx.$queryRaw`SELECT public.scalar_reconciliation_identity(${assessment.id}::uuid) AS identity`
         )[0].identity;
@@ -246,10 +317,14 @@ export async function verifyScalarCommitGuards(
         if (r.name === "orphan-owned-assessment") return;
         let requestId = null,
           outcome = "NO_REQUEST";
-        if (identity !== null && r.name !== "wrong-no-request-semantics") {
-          requestId = prior?.requestId ?? randomUUID();
-          outcome = prior ? "REUSED" : "CREATED";
-          if (!prior) {
+        if (
+          (identity !== null && r.name !== "wrong-no-request-semantics") ||
+          r.name === "negative-proof-reused"
+        ) {
+          const reuse = prior && r.name !== "positive-changed-contributor";
+          requestId = reuse ? prior.requestId : randomUUID();
+          outcome = reuse ? "REUSED" : "CREATED";
+          if (!reuse) {
             const auditEventId = randomUUID();
             await tx.scalarReconciliationRequest.create({
               data: {
@@ -384,6 +459,10 @@ export async function verifyScalarCommitGuards(
             assert.equal(session.sessionUser, "pdaa_api");
             Object.assign(record, session);
             await body(tx, record);
+            if (record.priorRequestId)
+              record.priorRequestValidAfter = (
+                await tx.$queryRaw`SELECT public.valid_scalar_reconciliation_request(${record.priorRequestId}::uuid) AS valid`
+              )[0].valid;
             record.pending = await snapshot(f, tx);
             // Wrong audit project scope intentionally falls outside the project projection.
             record.attemptAudits =
@@ -429,6 +508,11 @@ export async function verifyScalarCommitGuards(
           ),
         );
         for (const row of record.attemptAudits) ids.add(row.id);
+        const oldIds = new Set(
+          tables.flatMap((table) =>
+            before[table].map((row) => row.id).filter(Boolean),
+          ),
+        );
         for (const table of tables)
           for (const row of record.pending[table]) {
             if (
@@ -437,7 +521,7 @@ export async function verifyScalarCommitGuards(
               )
             ) {
               for (const key of ["id", "assessmentId"])
-                if (row[key]) ids.add(row[key]);
+                if (row[key] && !oldIds.has(row[key])) ids.add(row[key]);
             }
           }
         record.generatedIds = [...ids].sort();
@@ -463,6 +547,49 @@ export async function verifyScalarCommitGuards(
         (tx, r) => capture(tx, fixtures.positive, r),
       );
       await run("positive-reused", fixtures.positive, (tx, r) =>
+        capture(tx, fixtures.positive, r, positive),
+      );
+      for (const name of [
+        "wrong-reused-identity",
+        "positive-changed-contributor",
+      ])
+        await run(name, fixtures.positive, (tx, r) =>
+          capture(tx, fixtures.positive, r, positive),
+        );
+      const policy = await setup.authorityPolicy.findFirstOrThrow({
+        where: {
+          customerId,
+          projectId: fixtures.positive.projectId,
+          factType: fixtures.positive.factType,
+        },
+      });
+      await new DatabaseAuthorityRepository(setup).appendPolicy(
+        fixtures.positive.actor,
+        {
+          projectId: fixtures.positive.projectId,
+          factType: fixtures.positive.factType,
+          expectedRevision: policy.revision,
+          idempotencyKey: randomUUID(),
+          effectiveAt: new Date(Date.now() - 1000).toISOString(),
+          definition: {
+            tiers: [
+              {
+                selectors: [
+                  {
+                    sourceType: "human_statement",
+                    instanceId: null,
+                    requiredApproval: "NOT_REQUIRED",
+                    validity: null,
+                  },
+                ],
+              },
+            ],
+            conflictBehavior: "RETAIN_CONFLICT",
+          },
+        },
+        { correlationId: "scalar-negative-proof-policy-" + randomUUID() },
+      );
+      await run("negative-proof-reused", fixtures.positive, (tx, r) =>
         capture(tx, fixtures.positive, r, positive),
       );
       for (const name of [
