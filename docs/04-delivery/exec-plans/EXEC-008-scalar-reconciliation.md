@@ -385,6 +385,19 @@ Never resume application/worker automatically after restore.
 
 ## Progress log
 
+2026-09-14 ownership and immediate SQL-boundary block (FR-EVD-009/012,
+NFR-SEC-001/REL-001): use independently committed opt-out SCALAR proofs with matching
+canonical check hash/subject/time to isolate missing ownership, plus a real other
+project/fact tuple for cross-scope proof rejection. Distinguish two actual native
+COMMIT controls from 28 immediate guards/privilege checks. Direct API-role SQL uses
+explicit rollback-only transactions with bounded statements/lock waits; it is not
+a changed repository transaction budget or HTTP authorization test. Every outcome
+must retain all eleven row families across the three fixture projects and prove
+customer-wide absence of generated IDs. Unexpected successful DDL/DML is rolled back
+before rejection, never committed. Preserve native error phase/constraint and both
+primary/rollback failures. Source/schema/permission changes remain out of scope.
+Execution and independent review evidence follow below.
+
 2026-09-14 scalar native COMMIT acceptance block (FR-EVD-009/012,
 NFR-REL-001/002): implement four native positive controls (CREATED, REUSED,
 NO_REQUEST, REFRESH) and fifteen deferred negatives. Use fresh owned proofs,
@@ -810,3 +823,36 @@ The complete one-worker repeat passed 1,210 unit tests across 58 files in
 whitespace checks passed. No application build, fresh HTTP/browser run or intact
 packaged acceptance is claimed for this acceptance-only delta. Independent immutable
 source/original review remains in progress.
+
+2026-09-14 boundary execution checkpoint: generated TLS run
+`pdaa-acceptance-1789365041975-ea408a78` passed 30 actual pdaa_api cases: two
+deferred standalone/cross-project proof rejections, fifteen immediate guard/FK/shape
+cases and thirteen exact 42501 privilege denials. Each case preserves all eleven
+row families across the three projects and records customer-wide generated-ID
+absence. Deferred outcomes include the independently observed native COMMIT;
+immediate failures are explicitly not represented as COMMIT evidence. Assignment
+controls retain otherwise valid current routing and predecessor history.
+Original boundary receipt SHA256:
+`a665d8118db3238cb1662728e0e3abeae0db90a16006c364682dc453b6f9c8e6`.
+The reader accepts the unchanged original and rejects sixteen individual corrupted
+receipts covering phase, native observation, exact error, wrong SQL/target, borrowed
+scope/subject, assignment/audit fields, retained history and generated-row evidence.
+Eight focused boundary/cleanup unit tests passed; focused lint passed.
+
+An earlier run `pdaa-acceptance-1789364728676-81b2333a` passed the same boundary
+cases before explicit generated-ID evidence and failure-preserving rollback cleanup
+were added. Both runs' artifacts remain retained. The cleanup helper now preserves
+both the original SQL error and a failed ROLLBACK; unit controls cover primary plus
+cleanup failure, cleanup failure alone and successful rollback. No original failure
+is suppressed or converted to successful evidence. Full suite, enclosing restore
+completion and immutable review are pending at this checkpoint.
+
+Primary and both customer-profile producers/host readers require the boundary
+receipt. These are direct SQL/fixture tests on composite current code, not a fresh
+intact-image, encrypted packaged restore or HTTP/browser authorization run. Ordinary
+API roles, runtime code, migration bytes, triggers and connector scopes are unchanged.
+Reverting acceptance scripts is the implementation rollback; retain all fixture data.
+Wrong REUSED identity with changed-input rollback, negative-proof positive labeling,
+coherently altered identity/seal and missing-dependency controls, changed-key and
+contributor races, expanded identity bounds and full packaged/browser acceptance
+remain outstanding. No story, issue, merge or customer-release gate closes here.

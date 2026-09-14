@@ -33,3 +33,19 @@ export async function drainAndClose(pending, closers, priorFailures = []) {
   if (failures.length)
     throw new AggregateError(failures, "Fixture cleanup failed");
 }
+
+// The caller classifies an expected SQL rejection after rollback completes.
+// If rollback itself fails, do not replace that original server error.
+export async function rollbackProbe(client, primaryFailure) {
+  try {
+    return await client.query("ROLLBACK");
+  } catch (cleanupError) {
+    if (primaryFailure)
+      throw new AggregateError(
+        [primaryFailure, cleanupError],
+        "Probe rollback failed",
+        { cause: cleanupError },
+      );
+    throw cleanupError;
+  }
+}

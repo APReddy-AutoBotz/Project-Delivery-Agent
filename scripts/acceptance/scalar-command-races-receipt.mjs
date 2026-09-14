@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import { assertRaceSnapshot } from "./reconciliation-races.mjs";
 import { assertScalarAccessRaces } from "./scalar-access-races-receipt.mjs";
 import { assertScalarCommitReceipt } from "./scalar-commit-receipt.mjs";
+import { assertScalarBoundaryReceipt } from "./scalar-boundary-receipt.mjs";
 export function assertScalarConcurrencyAndLoad(persistence, customerId) {
   assertScalarCommandRaces(persistence.scalarCommandRaces, customerId);
   assertScalarAccessRaces(persistence.scalarAccessRaces, customerId);
   assertScalarCommitReceipt(persistence.scalarCommitGuards, customerId);
+  assertScalarBoundaryReceipt(persistence.scalarBoundaries, customerId);
   assertScalarVersionBoundary(persistence.scalarVersionBoundary, customerId);
 }
 export function assertScalarCommandRaces(receipt, customerId) {
