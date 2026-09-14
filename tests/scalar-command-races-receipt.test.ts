@@ -259,6 +259,11 @@ it("NFR-REL-001: accepts only the complete observed scalar command race inventor
   const wrongCommand = structuredClone(r);
   wrongCommand.cases[0]!.participants[2]!.command.idempotencyKey = randomUUID();
   expect(() => assertScalarCommandRaces(wrongCommand, r.customerId)).toThrow();
+  const wrongLoserRequest = structuredClone(r);
+  wrongLoserRequest.cases[2]!.participants[2]!.command.requestId = randomUUID();
+  expect(() =>
+    assertScalarCommandRaces(wrongLoserRequest, r.customerId),
+  ).toThrow();
 });
 it("FR-EVD-012: refuses missing native scalar load identities or changed deadlines", () => {
   const r = {

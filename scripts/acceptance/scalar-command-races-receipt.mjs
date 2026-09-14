@@ -40,6 +40,7 @@ export function assertScalarCommandRaces(receipt, customerId) {
       checks = c.name === "same-business" ? 2 : refresh ? 0 : 1;
     assert.equal(c.participants[0].operation, "list");
     const commands = c.participants.slice(1).map((p) => p.command);
+    if (refresh) assert.equal(commands[0].requestId, commands[1].requestId);
     for (const p of c.participants.slice(1)) {
       assert.equal(p.operation, refresh ? "refreshAssignment" : "check");
       assert.equal(p.command.projectId, c.projectId);
