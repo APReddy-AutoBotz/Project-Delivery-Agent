@@ -70,7 +70,8 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 7);
+  assert.equal(migrations.length, 8);
+  assert.equal(migrations[7].name, "202609140001_scalar_validation_performance");
   assert.equal(
     migrations[5].name,
     "202609120002_milestone_reconciliation_requests",
@@ -365,7 +366,7 @@ export async function verifyFoundationUpgrade(
     const upgradeStarted = performance.now();
     const applied = await migrateRelease(release, migrations);
     const upgradeElapsedMs = performance.now() - upgradeStarted;
-    assert.equal(applied.length, 7);
+    assert.equal(applied.length, 8);
     assert.deepEqual(await oldProjection(), before);
     if (priorCount < 5) {
       assert.equal(

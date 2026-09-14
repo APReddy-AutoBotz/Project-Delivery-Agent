@@ -34,7 +34,7 @@ function receipt() {
     customerId,
     persistence: {
       businessTableCount: 42,
-      migrationCount: 7,
+      migrationCount: 8,
       scalarReconciliationTables: [
         "ScalarReconciliationRequest",
         "ScalarReconciliationCheck",
@@ -145,4 +145,13 @@ it("FR-EVD-012: rejects an always-restricted original and owner-role application
   const owner = structuredClone(persistence);
   owner.restore.scalarReconciliationOriginalProof.runtimeRole = "fixture_admin";
   expect(() => assertScalarRecoveryReceipt(owner, customerId)).toThrow();
+});
+
+it("NFR-REL-001/002: rejects receipts without the additive validator migration", () => {
+  const { persistence, customerId } = receipt();
+  for (const migrationCount of [0, 7, 9]) {
+    const changed = structuredClone(persistence);
+    changed.migrationCount = migrationCount;
+    expect(() => assertScalarRecoveryReceipt(changed, customerId)).toThrow();
+  }
 });

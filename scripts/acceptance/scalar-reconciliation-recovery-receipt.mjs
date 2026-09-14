@@ -46,7 +46,7 @@ export function assertAvailableScalarOriginal(assessment, customerId, command) {
 
 export function assertScalarRecoveryReceipt(persistence, customerId) {
   assert.equal(persistence.businessTableCount, 42);
-  assert.equal(persistence.migrationCount, 7);
+  assert.equal(persistence.migrationCount, 8);
   assert.deepEqual(persistence.scalarReconciliationTables, [
     "ScalarReconciliationRequest",
     "ScalarReconciliationCheck",

@@ -1138,3 +1138,92 @@ Report SHA256: `ff09e28862a64b90a3588a6067932ec47f4e2b8fb08d069cf82c56b2d16f7c92
 The root fully read the report and verified its hash. This closes only the new
 identity/prefix implementation review, not the failed load gate or feature/release
 acceptance. No push, merge or story closure was performed for this milestone.
+
+### Validator performance correction plan
+
+FR-EVD-004/007/009/012 and NFR-REL-001/002: diagnose retained 1000-version
+timeouts using read-only nested plans in an isolated synthetic cluster. Preserve
+the 10-second public transaction deadline, all proof checks, immutable migration
+history and current privilege boundaries. The CREATED graph currently evaluates
+the full fact proof nine times; two traversals repeat the identical proof within
+the check/request path. Nested diagnostics also show 1000 temporal-prefix queries
+inside each full validation. Evaluate a new additive migration that batches that
+temporal calculation and validates an exactly bound CREATED proof once per check;
+REUSED must still validate both different proofs and NO_REQUEST its owned proof.
+Verify old/new predicate equivalence, malformed proof and native guard controls,
+populated forward upgrade, full tests, unchanged-limit load and recovery. Do not
+claim historical timeout variability fully explained by instrumented timings.
+
+The candidate is additive migration 8; migrations 1–7 remain byte-identical.
+It batches temporal applicability and recorded-conflict membership, joins each
+output version to its immutable version/evidence row once, and removes only the
+duplicate same-proof CREATED traversal. No trigger, privilege, deadline or
+connector scope changes. Regression vectors cover temporal ties, observation vs
+effective ordering, future rows, expired heads and frozen historical prefixes;
+CREATED and REUSED retain distinct ownership/identity assertions.
+
+Retained candidate failures: `pdaa-acceptance-1789377247408-2b7a58db` timed out
+at 14990.26ms; `pdaa-acceptance-1789377661569-ad9ae250` at 11548.00ms. Both
+passed populated 7→8 preservation across all 42 tables, unchanged old ledger,
+function privileges and existing proof results, followed by the native identity,
+prefix, permission, seal, corruption and race controls. Neither reached restore.
+The latter cluster's separate nested-plan diagnostic showed temporal windows
+executed 1000 times per validation, with 999000 discarded self-join pairs and
+1.59–3.60 seconds per temporal query. This disproved the suspected global-conflict
+join as the observed remaining bottleneck. Replace the self-join with disjoint
+visible/future branches joined by UNION ALL; preserve NOT_YET_OBSERVED precedence.
+An initial UNION candidate (`pdaa-acceptance-1789378057128-4d3d6e91`) failed the
+upgrade equivalence assertion because an unqualified applicability column
+collided with its PL/pgSQL variable; qualify both aggregate inputs. All failed
+originals and generated volumes are retained, databases stopped. Validation of
+the corrected candidate is pending; no performance or release gate is closed.
+
+Corrected native evidence: `pdaa-acceptance-1789378296771-f60bac6f` passed the
+entire focused matrix without profiling. Its public 1000-version CREATED command
+returned in 3406.96ms against the unchanged 10000ms limit; the 1001-version owned
+INCOMPLETE/NO_REQUEST boundary preserved the original open request and exact replay.
+The populated 7→8 upgrade retained all 42 tables, old ledger, proof results and
+function attributes/permissions; repeat migration was unchanged. Native dump/restore
+preserved scalar rows and delivered the original proof using five actual pdaa_api
+transactions while runtime CONNECT remained quarantined. This is composite tooling
+with current read-only runtime/migration mounts, not intact-image or encrypted
+packaged acceptance. The first seven migrations, role/trigger definitions,
+transaction limits and dependencies are unchanged.
+
+Original SHA256 evidence: migration8
+`eddf840715afdc9fa36c3e7e8f3f33315f39824a1fd2a057c7fde31c41ac374c`;
+load receipt `73ae9132d0a5925b7a8a8843cb10d0eac25a8a874a970c960f3925c14cb676a8`;
+upgrade receipt `f32e73f939d506ee83e6e1cc775f60be9d97f8906b7dc62d147ca10381a8a315`;
+restore receipt `59787bf5d0507ef856c9d71ff8dea76a3e1b317bf07d854a9fc3571f62bd6b64`.
+
+Full integration passed 124 tests across eight files in 164.30s on fresh
+`pdaa_test_1789378545935`, including all seven new temporal regressions, the
+CREATED/REUSED ownership assertions, all eight migrations and unchanged repeated
+ledger. Earlier integration attempts could not connect to the stopped development
+container, then encountered PostgreSQL startup recovery; neither ran tests or
+migrated the default database. After readiness was confirmed, the unchanged runner
+passed. Typecheck, documentation and whitespace validation also passed. Unit,
+build/lint and independent exact-candidate review remain pending at this entry.
+Recovery for this migration is reviewed forward correction or a matching backup
+restored to a fresh quarantined target; do not edit applied migration history or
+delete evidence. Browser, packaged profiles and stale-recorded native vectors stay
+open, with no push, merge, story or release closure claimed.
+
+Two further uninstrumented public load repetitions on the same retained synthetic
+cluster passed at 5086.68ms and 2105.01ms, each creating a fresh 1000-version fact,
+checking the 1001 overflow and preserving the original request/replay. The second
+run therefore includes the first run's retained history. Both confirm the exact
+installed migration8 checksum and leave all production limits unchanged. Original
+repeat receipt SHA256 values are
+`168759f4d2bd20c469738d435a7e3c6fffcc3c3bd9361f503b27fff987c2f439` and
+`cf79dba0f9dc38b5fe3070e3f047316f0f8da154e4c87cc003f309ab8ed4a80c`.
+The synthetic cluster was stopped afterward. These three observed passes establish
+the bounded local performance correction, not a universal latency guarantee or
+closure of the remaining packaged production gate.
+
+Final local checks for the correction: all 1242 unit tests across 63 files passed
+in 92.47s; the full build, typecheck, lint, architecture, documentation and
+whitespace checks passed. No browser workflow changed or browser run is claimed.
+The PostgreSQL performance guidance informed plan-led diagnosis and scoped batching;
+no index or infrastructure change was introduced. Independent immutable-candidate
+review is the remaining gate for this bounded implementation milestone.

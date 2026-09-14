@@ -169,6 +169,286 @@ async function counts(projectId: string) {
     conflicts: await db.factAuthorityConflict.count({ where: { projectId } }),
   };
 }
+// FR-EVD-004/006/010, ADR-009: deterministic SQL temporal-prefix regression.
+// The fixture clock anchors timestamps only; public capture keeps its real clock.
+const temporalAt = (base: number, minutes: number) =>
+  new Date(base + minutes * 60000);
+async function temporalFixture() {
+  const f = await fixture();
+  const [clock] = await db.$queryRaw<{ now: Date }[]>`
+    SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const base = clock!.now.getTime();
+  const first = await facts.appendHumanStatement(
+    f.pm,
+    {
+      projectId: f.projectId,
+      factType,
+      expectedRevision: 0,
+      idempotencyKey: randomUUID(),
+      value: { type: "date", value: "2026-10-01" },
+      effectiveAt: temporalAt(base, -14400).toISOString(),
+      validUntil: temporalAt(base, 14400).toISOString(),
+      originalStatement: "Synthetic temporal prefix baseline",
+    },
+    context,
+  );
+  await facts.setSourceAccess(
+    f.pmo,
+    {
+      projectId: f.projectId,
+      sourceId: first.entry.sourceId,
+      expectedRevision: first.entry.sourceAccessRevision,
+      state: "AVAILABLE",
+      readers: [f.pm.subject, f.pmo.subject, f.reader.subject],
+    },
+    context,
+  );
+  await authority.appendPolicy(
+    f.pmo,
+    {
+      ...f.policy,
+      definition: {
+        ...definition,
+        tiers: [
+          {
+            selectors: [
+              {
+                ...definition.tiers[0]!.selectors[0]!,
+                validity: null,
+              },
+            ],
+          },
+        ],
+      },
+    },
+    context,
+  );
+  return { ...f, base, first };
+}
+type TemporalFixture = Awaited<ReturnType<typeof temporalFixture>>;
+async function appendTemporalRows(
+  f: TemporalFixture,
+  rows: readonly {
+    effective: number;
+    observed: number;
+    validUntil?: number;
+  }[],
+) {
+  // Owner-only synthetic timestamps, not a public append or access-race claim.
+  // No history update, trigger bypass, TEMP function or relaxed deadline.
+  return db.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT id FROM public."Project"
+      WHERE "customerId"=${customerId}::uuid AND id=${f.projectId}::uuid FOR UPDATE`;
+      const [fact] = await tx.$queryRaw<{ revision: number }[]>`
+      SELECT revision FROM public."ProjectFact" WHERE "customerId"=${customerId}::uuid
+        AND "projectId"=${f.projectId}::uuid AND id=${f.first.factId}::uuid FOR UPDATE`;
+      let revision = fact!.revision;
+      const added: { id: string; evidenceId: string }[] = [];
+      for (const row of rows) {
+        const id = randomUUID(),
+          evidenceId = randomUUID();
+        const scope = {
+          customerId,
+          projectId: f.projectId,
+          factId: f.first.factId,
+          sourceId: f.first.entry.sourceId,
+        };
+        await tx.factEvidence.create({
+          data: {
+            ...scope,
+            id: evidenceId,
+            providedBy: f.pm.subject,
+            observedAt: temporalAt(f.base, row.observed),
+            originalStatement: "Synthetic temporal prefix alternative",
+          },
+        });
+        await tx.projectFactVersion.create({
+          data: {
+            ...scope,
+            id,
+            evidenceId,
+            revision: ++revision,
+            value: { type: "date", value: "2026-10-01" },
+            effectiveAt: temporalAt(f.base, row.effective),
+            validUntil: temporalAt(f.base, row.validUntil ?? 14400),
+          },
+        });
+        added.push({ id, evidenceId });
+      }
+      return added;
+    },
+    { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 10000 },
+  );
+}
+const temporalVectors = [
+  {
+    name: "later observation wins within the same effective timestamp",
+    rows: [
+      { effective: -60, observed: -120 },
+      { effective: -60, observed: -60 },
+    ],
+    states: [
+      ["SUPERSEDED", "CURRENT"],
+      ["APPLICABLE", "CURRENT"],
+    ],
+    status: "RESOLVED",
+  },
+  {
+    name: "future observed/effective rows cannot supersede visible history",
+    rows: [
+      { effective: -120, observed: -120 },
+      { effective: -60, observed: 1440 },
+      { effective: 1440, observed: -60 },
+      { effective: 2880, observed: 1440 },
+    ],
+    states: [
+      ["APPLICABLE", "CURRENT"],
+      ["NOT_YET_OBSERVED", "UNKNOWN"],
+      ["NOT_YET_EFFECTIVE", "UNKNOWN"],
+      ["NOT_YET_OBSERVED", "UNKNOWN"],
+    ],
+    status: "RESOLVED",
+  },
+  {
+    name: "an expired head still supersedes a current older version",
+    rows: [
+      { effective: -120, observed: -120 },
+      { effective: -60, observed: -60, validUntil: -30 },
+    ],
+    states: [
+      ["SUPERSEDED", "CURRENT"],
+      ["APPLICABLE", "STALE"],
+    ],
+    status: "UNKNOWN",
+  },
+  {
+    name: "identical-value head ties remain ambiguous",
+    rows: [
+      { effective: -60, observed: -60 },
+      { effective: -60, observed: -60 },
+    ],
+    states: [
+      ["AMBIGUOUS", "CURRENT"],
+      ["AMBIGUOUS", "CURRENT"],
+    ],
+    status: "AMBIGUOUS",
+  },
+  {
+    name: "older ties remain superseded below a unique head",
+    rows: [
+      { effective: -120, observed: -120 },
+      { effective: -120, observed: -120 },
+      { effective: -60, observed: -60 },
+    ],
+    states: [
+      ["SUPERSEDED", "CURRENT"],
+      ["SUPERSEDED", "CURRENT"],
+      ["APPLICABLE", "CURRENT"],
+    ],
+    status: "RESOLVED",
+  },
+  {
+    name: "later observation does not replace a newer-effective version",
+    rows: [
+      { effective: -60, observed: -120 },
+      { effective: -120, observed: -60 },
+    ],
+    states: [
+      ["APPLICABLE", "CURRENT"],
+      ["SUPERSEDED", "CURRENT"],
+    ],
+    status: "RESOLVED",
+  },
+] as const;
+describe("FR-EVD-004/006/010: batched temporal validation equivalence", () => {
+  it.each(temporalVectors)("$name", async (vector) => {
+    const f = await temporalFixture();
+    const rows = await appendTemporalRows(f, vector.rows);
+    const saved = await capture(f),
+      result = available(saved);
+    expect(result.status).toBe(vector.status);
+    expect(result.versions).toHaveLength(rows.length + 1);
+    expect(result.conflicts).toEqual([]);
+    expect(result.resolvedValue).toEqual(
+      vector.status === "RESOLVED"
+        ? { type: "date", value: "2026-10-01" }
+        : null,
+    );
+    for (const [index, [applicability, freshness]] of vector.states.entries())
+      expect(
+        result.versions.find((v) => v.id === rows[index]!.id),
+      ).toMatchObject({
+        visibility: "available",
+        temporalApplicability: applicability,
+        assessment: {
+          freshness,
+          provenance: "HUMAN_CONFIRMED",
+          conflict: "NONE",
+        },
+        evidenceIds: [rows[index]!.evidenceId],
+      });
+    expect(
+      result.versions.find((v) => v.id === f.first.entry.id),
+    ).toMatchObject({
+      temporalApplicability: "SUPERSEDED",
+    });
+    expect(
+      await db.$queryRaw`SELECT public.valid_fact_assessment(
+      ${saved.assessmentId}::uuid) AS valid`,
+    ).toEqual([{ valid: true }]);
+  });
+
+  it("excludes a later revision even when both timestamps precede the saved asOf", async () => {
+    const f = await temporalFixture();
+    const [head] = await appendTemporalRows(f, [
+      { effective: -60, observed: -60 },
+    ]);
+    const key = randomUUID(),
+      saved = await capture(f, key);
+    const original = await db.factAssessment.findUniqueOrThrow({
+      where: { id: saved.assessmentId },
+    });
+    expect(original.factRevision).toBe(2);
+    expect(available(saved).supportingVersionIds).toEqual([head!.id]);
+    const [later] = await appendTemporalRows(f, [
+      { effective: -30, observed: -30 },
+    ]);
+    expect(temporalAt(f.base, -30).getTime()).toBeLessThan(
+      original.asOf.getTime(),
+    );
+    expect(
+      await db.projectFact.findUnique({ where: { id: f.first.factId } }),
+    ).toMatchObject({ revision: 3 });
+    expect(
+      await db.$queryRaw`SELECT public.valid_fact_assessment(
+      ${saved.assessmentId}::uuid) AS valid`,
+    ).toEqual([{ valid: true }]);
+    const replay = await capture(f, key);
+    expect(replay.replayed).toBe(true);
+    expect(available(replay)).toEqual(available(saved));
+    const read = await authority.getAssessment(f.pmo, {
+      projectId: f.projectId,
+      assessmentId: saved.assessmentId,
+    });
+    expect(read).not.toBeNull();
+    expect(available(read!)).toEqual(available(saved));
+    expect(
+      await db.factAssessment.findUnique({ where: { id: saved.assessmentId } }),
+    ).toEqual(original);
+    expect(
+      await db.factAssessmentVersion.count({
+        where: { assessmentId: saved.assessmentId },
+      }),
+    ).toBe(2);
+    const current = available(await capture(f));
+    expect(current.supportingVersionIds).toEqual([later!.id]);
+    expect(current.versions.find((v) => v.id === head!.id)).toMatchObject({
+      temporalApplicability: "SUPERSEDED",
+    });
+  });
+});
+
 describe("Durable authority policy and server assessment", () => {
   it("rejects an out-of-range policy deadline before an earlier explicit expiry can hide it", async () => {
     const f = await fixture();

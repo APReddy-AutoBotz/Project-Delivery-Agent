@@ -188,6 +188,50 @@ it("FR-EVD-007/012: commits owned scalar proof, byte-identical SQL identity and 
   expect(reused.request?.id).toBe(first.request?.id);
   expect(reused.assessment.assessmentId).not.toBe(proof.id);
   expect(reused.request?.assignment).toEqual(first.request?.assignment);
+  // FR-EVD-007/012, NFR-REL-001: the CREATED fast path and distinct
+  // REUSED path must independently validate their real owned proofs.
+  const reusedProof = await db.factAssessment.findUniqueOrThrow({
+    where: { id: reused.assessment.assessmentId },
+  });
+  expect(reusedProof.scalarReconciliationCheckId).toBe(reused.checkId);
+  expect(reused.checkId).not.toBe(first.checkId);
+  const bound = await db.$queryRaw<
+    {
+      createdValid: boolean;
+      reusedValid: boolean;
+      requestValid: boolean;
+      createdAssessmentId: string;
+      reusedAssessmentId: string;
+      originalAssessmentId: string;
+      originCommandId: string;
+    }[]
+  >`SELECT
+    public.valid_scalar_reconciliation_check(c.id) AS "createdValid",
+    public.valid_scalar_reconciliation_check(reused.id) AS "reusedValid",
+    public.valid_scalar_reconciliation_request(r.id) AS "requestValid",
+    c."assessmentId" AS "createdAssessmentId",
+    reused."assessmentId" AS "reusedAssessmentId",
+    r."originalAssessmentId",r."originCommandId"
+    FROM public."ScalarReconciliationCheck" c
+    JOIN public."ScalarReconciliationRequest" r ON r.id=c."requestId"
+    JOIN public."ScalarReconciliationCheck" reused ON reused.id=${reused.checkId}::uuid
+      AND reused."requestId"=r.id
+    WHERE c.id=${first.checkId}::uuid AND c."customerId"=${customerId}::uuid
+      AND c."projectId"=${f.projectId}::uuid`;
+  expect(bound).toEqual([
+    {
+      createdValid: true,
+      reusedValid: true,
+      requestValid: true,
+      createdAssessmentId: proof.id,
+      reusedAssessmentId: reusedProof.id,
+      originalAssessmentId: proof.id,
+      originCommandId: first.checkId,
+    },
+  ]);
+  expect(
+    await db.factAssessment.findUnique({ where: { id: proof.id } }),
+  ).toEqual(proof);
   expect(
     await reconciliation.check(
       f.pm,
