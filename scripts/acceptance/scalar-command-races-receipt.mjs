@@ -1,15 +1,18 @@
 // FR-EVD-012/NFR-REL-001: independent finite scalar race evidence reader.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { assertRaceSnapshot } from "./reconciliation-races.mjs";
 import { assertScalarAccessRaces } from "./scalar-access-races-receipt.mjs";
 import { assertScalarCommitReceipt } from "./scalar-commit-receipt.mjs";
 import { assertScalarBoundaryReceipt } from "./scalar-boundary-receipt.mjs";
+import { assertScalarSealReceipt } from "./scalar-seal-receipt.mjs";
 import { assertScalarLoadMeasurement } from "./scalar-load-diagnostics.mjs";
 export function assertScalarConcurrencyAndLoad(persistence, customerId) {
   assertScalarCommandRaces(persistence.scalarCommandRaces, customerId);
   assertScalarAccessRaces(persistence.scalarAccessRaces, customerId);
   assertScalarCommitReceipt(persistence.scalarCommitGuards, customerId);
   assertScalarBoundaryReceipt(persistence.scalarBoundaries, customerId);
+  assertScalarSealReceipt(persistence.scalarSeals, customerId);
   assertScalarVersionBoundary(persistence.scalarVersionBoundary, customerId);
 }
 export function assertScalarCommandRaces(receipt, customerId) {
@@ -17,6 +20,7 @@ export function assertScalarCommandRaces(receipt, customerId) {
   assert.equal(receipt.customerId, customerId);
   assert.equal(receipt.observer.role, "pdaa_api");
   assert.deepEqual(receipt.cases.map((c) => c.name).sort(), [
+    "changed-fact-key",
     "refresh-cas",
     "refresh-retry",
     "same-business",
@@ -43,6 +47,7 @@ export function assertScalarCommandRaces(receipt, customerId) {
       c.participants.slice(1),
       receipt.observer.pid,
     );
+    const changedFact = c.name === "changed-fact-key";
     const refresh = c.name.startsWith("refresh"),
       checks = c.name === "same-business" ? 2 : refresh ? 0 : 1;
     assert.equal(c.participants[0].operation, "list");
@@ -53,11 +58,18 @@ export function assertScalarCommandRaces(receipt, customerId) {
       assert.equal(p.command.projectId, c.projectId);
       assert.equal(typeof p.command.idempotencyKey, "string");
       if (refresh) assert.equal(p.command.expectedAssignmentRevision, 1);
-      else assert.equal(p.command.factId, c.factId);
+      else if (!changedFact) assert.equal(p.command.factId, c.factId);
     }
     if (c.name === "same-command" || c.name === "refresh-retry")
       assert.deepEqual(commands[0], commands[1]);
-    else
+    else if (changedFact) {
+      assert.equal(commands[0].idempotencyKey, commands[1].idempotencyKey);
+      assert.notEqual(commands[0].factId, commands[1].factId);
+      assert.deepEqual(
+        c.attemptedFactIds,
+        commands.map((command) => command.factId),
+      );
+    } else
       assert.notEqual(commands[0].idempotencyKey, commands[1].idempotencyKey);
     if (c.name !== "same-business")
       assert.equal(c.participants[1].actor, c.participants[2].actor);
@@ -70,7 +82,7 @@ export function assertScalarCommandRaces(receipt, customerId) {
       FactAssessmentConflict: checks,
       FactAuthorityConflict: refresh ? 0 : 1,
       AuditEvent:
-        c.name === "same-business"
+        c.name === "same-business" || changedFact
           ? 4
           : c.name === "same-command"
             ? 3
@@ -120,13 +132,20 @@ export function assertScalarCommandRaces(receipt, customerId) {
       if (outcome.status === "rejected") {
         assert.equal(
           audits[0].event,
-          "scalar.reconciliation.assignment.denied",
+          changedFact
+            ? "scalar.reconciliation.check.denied"
+            : "scalar.reconciliation.assignment.denied",
         );
         assert.deepEqual(audits[0].detail, {
           projectId: c.projectId,
-          reason: "REVISION_CONFLICT",
+          reason: changedFact ? "IDEMPOTENCY_CONFLICT" : "REVISION_CONFLICT",
         });
       } else {
+        if (changedFact) {
+          assert.equal(participant.command.factId, c.factId);
+          assert.equal(outcome.outcome, "CREATED");
+          assert.equal(outcome.replayed, false);
+        }
         const assignment = c.committed.assignments.find(
           (a) => a.id === outcome.assignmentId,
         );
@@ -201,7 +220,7 @@ export function assertScalarCommandRaces(receipt, customerId) {
       }
     }
     const good = c.outcomes.filter((o) => o.status === "fulfilled");
-    assert.equal(good.length, c.name === "refresh-cas" ? 1 : 2);
+    assert.equal(good.length, c.name === "refresh-cas" || changedFact ? 1 : 2);
     for (const o of good) {
       assert.match(o.requestId, /^[a-f0-9-]{36}$/);
       assert.match(o.assignmentId, /^[a-f0-9-]{36}$/);
@@ -234,10 +253,14 @@ export function assertScalarCommandRaces(receipt, customerId) {
         );
       }
     }
-    if (c.name === "refresh-cas")
+    if (changedFact) assertChangedFactHistory(c, customerId, tables);
+    if (c.name === "refresh-cas" || changedFact)
       assert.deepEqual(
         c.outcomes.find((o) => o.status !== "fulfilled"),
-        { status: "rejected", code: "REVISION_CONFLICT" },
+        {
+          status: "rejected",
+          code: changedFact ? "IDEMPOTENCY_CONFLICT" : "REVISION_CONFLICT",
+        },
       );
     else {
       assert.equal(good[0].requestId, good[1].requestId);
@@ -256,6 +279,162 @@ export function assertScalarCommandRaces(receipt, customerId) {
     }
   }
   return true;
+}
+
+function assertChangedFactHistory(c, customerId, tables) {
+  const hash = (rows) =>
+    createHash("sha256").update(JSON.stringify(rows)).digest("hex");
+  const graphs = tables.filter(
+    (table) =>
+      ![
+        "AuditEvent",
+        "ProjectFact",
+        "ProjectFactVersion",
+        "FactEvidence",
+      ].includes(table),
+  );
+  for (const [full, summary] of [
+    [c.fullBefore, c.before],
+    [c.fullAfter, c.after],
+  ]) {
+    assert.deepEqual(Object.keys(full).sort(), tables);
+    for (const table of tables) {
+      assert(Array.isArray(full[table]) && full[table].length <= 5000);
+      assert.equal(summary[table].count, full[table].length);
+      assert.equal(summary[table].sha256, hash(full[table]));
+      for (const row of full[table]) {
+        assert.equal(row.customerId, customerId);
+        assert.equal(
+          table === "AuditEvent" ? row.detail.projectId : row.projectId,
+          c.projectId,
+        );
+      }
+      for (const old of c.fullBefore[table])
+        assert(
+          full[table].some(
+            (row) => JSON.stringify(row) === JSON.stringify(old),
+          ),
+        );
+    }
+  }
+  for (const factId of c.attemptedFactIds) {
+    assert.equal(
+      c.fullBefore.ProjectFact.filter((row) => row.id === factId).length,
+      1,
+    );
+    assert.equal(
+      c.fullBefore.ProjectFactVersion.filter((row) => row.factId === factId)
+        .length,
+      2,
+    );
+  }
+  // Both candidates were real facts, but only the winner may own any new graph.
+  for (const table of graphs) {
+    assert.equal(c.fullBefore[table].length, 0);
+    assert(c.fullAfter[table].every((row) => row.factId === c.factId));
+  }
+  const check = c.fullAfter.ScalarReconciliationCheck[0];
+  const proof = c.fullAfter.FactAssessment[0];
+  const request = c.fullAfter.ScalarReconciliationRequest[0];
+  const assignment = c.fullAfter.ScalarReconciliationAssignment[0];
+  const instant = (value) => {
+    const ms = Date.parse(
+      /Z$|[+-]\d\d:\d\d$/.test(value) ? value : value + "Z",
+    );
+    assert(Number.isFinite(ms));
+    return ms;
+  };
+  const requestHash = createHash("sha256")
+    .update(JSON.stringify({ projectId: c.projectId, factId: c.factId }))
+    .digest("hex");
+  assert.equal(check.requestHash, requestHash);
+  assert.equal(proof.requestHash, requestHash);
+  assert.equal(proof.idempotencyKey, "sr_" + check.id.replaceAll("-", ""));
+  assert.equal(proof.subject, check.subject);
+  assert.equal(proof.captureKind, "SCALAR_REQUEST");
+  assert.equal(proof.milestoneAssessmentId, null);
+  for (const value of [
+    check.occurredAt,
+    request.createdAt,
+    assignment.occurredAt,
+  ])
+    assert.equal(instant(value), instant(proof.asOf));
+  for (const audit of c.committed.audits.filter(
+    (row) => row.event !== "scalar.reconciliation.check.denied",
+  ))
+    assert.equal(instant(audit.occurredAt), instant(proof.asOf));
+  assert.equal(proof.sealed, true);
+  assert.equal(request.sealed, true);
+  assert.equal(request.originCommandId, check.id);
+  assert.equal(request.originalAssessmentId, proof.id);
+  assert.equal(assignment.kind, "INITIAL");
+  assert.equal(assignment.revision, 1);
+  assert.equal(assignment.expectedRevision, 0);
+  assert.equal(assignment.previousAssignmentId, null);
+  const versions = c.fullBefore.ProjectFactVersion.filter(
+    (row) => row.factId === c.factId,
+  );
+  assert.equal(proof.complete, true);
+  assert.equal(proof.versionCount, versions.length);
+  assert.equal(proof.result.complete, true);
+  assert.equal(proof.result.status, "CONFLICTING");
+  assert.equal(proof.result.reconciliationRequired, true);
+  assert.equal(proof.result.revalidationRequired, false);
+  assert.equal(proof.result.scope.factId, c.factId);
+  assert.equal(proof.result.scope.projectId, c.projectId);
+  assert.equal(proof.result.scope.customerId, customerId);
+  assert.equal(instant(proof.result.asOf), instant(proof.asOf));
+  assert.deepEqual(
+    proof.result.versions.map((row) => row.id).sort(),
+    versions.map((row) => row.id).sort(),
+  );
+  for (const version of versions) {
+    const frozen = proof.result.versions.find((row) => row.id === version.id);
+    assert.deepEqual(frozen.value, version.value);
+    assert.deepEqual(frozen.evidenceIds, [version.evidenceId]);
+    assert.equal(frozen.source.instanceId, version.sourceId);
+    assert.equal(frozen.visibility, "available");
+    assert.equal(frozen.revalidationRequired, false);
+    assert.equal(
+      c.fullBefore.FactEvidence.filter(
+        (row) =>
+          row.id === version.evidenceId &&
+          row.factId === c.factId &&
+          row.sourceId === version.sourceId,
+      ).length,
+      1,
+    );
+  }
+  assert.deepEqual(
+    c.fullAfter.FactAssessmentVersion.map((row) => row.versionId).sort(),
+    versions.map((row) => row.id).sort(),
+  );
+  for (const table of ["FactAssessmentVersion", "FactAssessmentConflict"])
+    assert(c.fullAfter[table].every((row) => row.assessmentId === proof.id));
+  assert.deepEqual(
+    c.fullAfter.FactAssessmentConflict.map((row) => row.conflictId).sort(),
+    c.fullAfter.FactAuthorityConflict.map((row) => row.id).sort(),
+  );
+  for (const [key, table] of [
+    ["checks", "ScalarReconciliationCheck"],
+    ["requests", "ScalarReconciliationRequest"],
+    ["assignments", "ScalarReconciliationAssignment"],
+  ])
+    assert.deepEqual(c.committed[key], c.fullAfter[table]);
+  assert.deepEqual(
+    c.committed.assessments,
+    c.fullAfter.FactAssessment.map((a) => ({
+      id: a.id,
+      factId: a.factId,
+      scalarReconciliationCheckId: a.scalarReconciliationCheckId,
+    })),
+  );
+  assert.deepEqual(
+    c.committed.audits,
+    c.fullAfter.AuditEvent.filter(
+      (a) => !c.fullBefore.AuditEvent.some((old) => old.id === a.id),
+    ),
+  );
 }
 
 export function assertScalarVersionBoundary(receipt, customerId) {

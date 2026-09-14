@@ -5,6 +5,8 @@ import { Pool } from "./common.mjs";
 import {
   createDatabase,
   DatabaseScalarReconciliationRepository,
+  DatabaseProjectFactRepository,
+  DatabaseAuthorityRepository,
 } from "../../packages/data/dist/index.js";
 import { ProjectFactError } from "../../packages/domain/dist/index.js";
 import { reserveScalarFixture } from "./scalar-reconciliation-fixture.mjs";
@@ -14,11 +16,13 @@ import {
   waitForTransactionBlockers,
 } from "./transaction-latch.mjs";
 import { assertRaceSnapshot } from "./reconciliation-races.mjs";
+import { assertScalarCommandRaces } from "./scalar-command-races-receipt.mjs";
 import { runWithCleanup, drainAndClose } from "./fixture-cleanup.mjs";
 
 export const scalarRaceCases = Object.freeze([
   "same-command",
   "same-business",
+  "changed-fact-key",
   "refresh-cas",
   "refresh-retry",
 ]);
@@ -184,6 +188,63 @@ export async function verifyScalarCommandRaces(
           "scalar-race-" + name,
         );
         const repository = new DatabaseScalarReconciliationRepository(setup);
+        const changedFact = name === "changed-fact-key";
+        let otherFactId;
+        if (changedFact) {
+          const facts = new DatabaseProjectFactRepository(setup);
+          const factType = "project.alternate_forecast";
+          for (const [revision, actor] of [f.actor, f.pm].entries()) {
+            const appended = await facts.appendHumanStatement(
+              actor,
+              {
+                projectId: f.projectId,
+                factType,
+                expectedRevision: revision,
+                idempotencyKey: randomUUID(),
+                effectiveAt: new Date(Date.now() - 1000).toISOString(),
+                validUntil: new Date(Date.now() + 86400000).toISOString(),
+                originalStatement: "Synthetic alternate scalar forecast",
+                value: {
+                  type: "date",
+                  value: revision === 0 ? "2026-11-01" : "2026-11-02",
+                },
+              },
+              f.context,
+            );
+            otherFactId = appended.factId;
+            const access = await facts.getSourceAccess(f.actor, {
+              projectId: f.projectId,
+              sourceId: appended.entry.sourceId,
+            });
+            await facts.setSourceAccess(
+              f.actor,
+              {
+                projectId: f.projectId,
+                sourceId: appended.entry.sourceId,
+                expectedRevision: access.revision,
+                state: "AVAILABLE",
+                readers: [f.actor.subject, f.pm.subject],
+              },
+              f.context,
+            );
+          }
+          const policy = await setup.authorityPolicyRevision.findFirstOrThrow({
+            where: { customerId, projectId: f.projectId, factType: f.factType },
+          });
+          await new DatabaseAuthorityRepository(setup).appendPolicy(
+            f.actor,
+            {
+              projectId: f.projectId,
+              factType,
+              expectedRevision: 0,
+              idempotencyKey: randomUUID(),
+              effectiveAt: new Date(Date.now() - 1000).toISOString(),
+              definition: policy.definition,
+            },
+            f.context,
+          );
+          assert.notEqual(otherFactId, f.factId);
+        }
         const refresh = name.startsWith("refresh");
         const original = refresh
           ? await repository.check(f.actor, f.command, f.context)
@@ -197,8 +258,9 @@ export async function verifyScalarCommandRaces(
               idempotencyKey: randomUUID(),
             }
           : f.command;
-        const other =
-          name === "same-business" || name === "refresh-cas"
+        const other = changedFact
+          ? { ...input, factId: otherFactId }
+          : name === "same-business" || name === "refresh-cas"
             ? { ...input, idempotencyKey: randomUUID() }
             : input;
         // A real recipient queue read holds the Project coordination lock and
@@ -251,15 +313,26 @@ export async function verifyScalarCommandRaces(
             successes = contenders
               .filter((o) => o.status === "fulfilled")
               .map((o) => o.value);
-          if (name === "refresh-cas") {
+          if (name === "refresh-cas" || changedFact) {
             assert.equal(successes.length, 1);
             const error = contenders.find(
               (o) => o.status === "rejected",
             ).reason;
             assert(error instanceof ProjectFactError);
-            assert.equal(error.code, "REVISION_CONFLICT");
+            assert.equal(
+              error.code,
+              changedFact ? "IDEMPOTENCY_CONFLICT" : "REVISION_CONFLICT",
+            );
             assert.equal(error.message, "Project fact operation rejected");
           } else assert.equal(successes.length, 2);
+          const checkedFactId = changedFact
+            ? successes[0].assessment.factId
+            : f.factId;
+          if (changedFact) {
+            assert.equal(successes[0].outcome, "CREATED");
+            assert.equal(successes[0].replayed, false);
+            assert([f.factId, otherFactId].includes(checkedFactId));
+          }
           if (name === "same-command") {
             assert.deepEqual(successes.map((v) => v.replayed).sort(), [
               false,
@@ -334,11 +407,13 @@ export async function verifyScalarCommandRaces(
             delta.AuditEvent,
             name === "same-business"
               ? 4
-              : name === "same-command"
-                ? 3
-                : name === "refresh-cas"
-                  ? 2
-                  : 1,
+              : changedFact
+                ? 4
+                : name === "same-command"
+                  ? 3
+                  : name === "refresh-cas"
+                    ? 2
+                    : 1,
           );
           for (const table of tables) {
             for (const old of before[table])
@@ -365,6 +440,7 @@ export async function verifyScalarCommandRaces(
                 "scalar.reconciliation.requested",
                 "scalar.reconciliation.assigned",
                 ...Array(checks).fill("scalar.reconciliation.checked"),
+                ...(changedFact ? ["scalar.reconciliation.check.denied"] : []),
               ];
           assert.deepEqual(
             newAudits.map((row) => row.event).sort(),
@@ -387,7 +463,9 @@ export async function verifyScalarCommandRaces(
               assert.equal(audits[0].actor, participant.actor);
               assert.deepEqual(audits[0].detail, {
                 projectId: f.projectId,
-                reason: "REVISION_CONFLICT",
+                reason: changedFact
+                  ? "IDEMPOTENCY_CONFLICT"
+                  : "REVISION_CONFLICT",
               });
               continue;
             }
@@ -439,7 +517,7 @@ export async function verifyScalarCommandRaces(
                 (r) => r.id === row.requestId,
               );
               assert(storedRequest);
-              assert.equal(storedRequest.factId, f.factId);
+              assert.equal(storedRequest.factId, checkedFactId);
               assert.equal(
                 after.ScalarReconciliationAssignment.find(
                   (a) => a.id === value.request.assignment.id,
@@ -458,7 +536,7 @@ export async function verifyScalarCommandRaces(
                 assert.equal(audit.event, "scalar.reconciliation.checked");
                 assert.deepEqual(audit.detail, {
                   projectId: f.projectId,
-                  factId: f.factId,
+                  factId: checkedFactId,
                   checkId: row.id,
                   assessmentId: row.assessmentId,
                   requestId: row.requestId,
@@ -470,7 +548,14 @@ export async function verifyScalarCommandRaces(
           receipt.cases.push({
             name,
             projectId: f.projectId,
-            factId: f.factId,
+            factId: checkedFactId,
+            ...(changedFact
+              ? {
+                  attemptedFactIds: [f.factId, otherFactId],
+                  fullBefore: before,
+                  fullAfter: after,
+                }
+              : {}),
             blocked,
             participants: participants.map((p) => p.record),
             delta,
@@ -517,6 +602,7 @@ export async function verifyScalarCommandRaces(
           await Promise.all(participants.map((p) => p.settled));
         }
       }
+      assertScalarCommandRaces(receipt, customerId);
       return receipt;
     },
     async () => {

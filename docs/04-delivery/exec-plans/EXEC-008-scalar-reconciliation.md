@@ -385,6 +385,50 @@ Never resume application/worker automatically after restore.
 
 ## Progress log
 
+2026-09-14 larger acceptance milestone in progress (FR-EVD-004/007/009/012,
+NFR-REL-001/002): batch the remaining fresh-proof/request seal probes with real
+changed-fact retry-key contention and a public contributor-append race. Require
+native immediate seal failures, a coherent positive seal control, exact rollback
+across all eleven history families, complete independent receipt readers and
+negative controls. The changed-fact loser must leave no partial graph; the
+contributor winner must create a distinct business request while historical
+delivery and original-key replay retain the original proof. Validate this combined
+candidate in one isolated actual-role database run, then full local checks and
+separate immutable-candidate review. Do not alter runtime transaction limits,
+authorization, evaluator/SQL eligibility, migrations or customer release gates.
+Historical load-time variability and full packaged/browser/encrypted-restore
+acceptance remain open; this paragraph records intended work, not a pass.
+
+The combined milestone now implements six seal cases (one genuine committed
+positive, five immediate rollback-only corruptions), a fifth command race for one
+actor/key contending on two real facts, and a sixth access/input race using the
+public contributor append. Independent readers bind canonical command hashes,
+internal proof keys, native seal statements and parameters, exact frozen inputs,
+assignment/audit clocks and all eleven history families. Contributor evidence also
+binds the public append receipt; historical delivery/replay retain the old proof.
+Both packaged profile producers and the shared host reader require this inventory.
+This adds acceptance coverage, not new product semantics or a released feature.
+
+First combined native run `pdaa-acceptance-1789372390415-32a5353d` passed six seal,
+six access/input and five command cases alongside COMMIT22/boundary30. It FAILED
+the later unchanged 1000-version load gate: returned command 12041.27ms, process
+user/system CPU 2517.55/220.04ms, event-loop active/idle 2076.73/9964.73ms.
+No restore ran. Originals and stopped database/volume remain retained. This run
+predates the final command observation and independent-reader review bindings;
+it is not substituted for final-candidate evidence. A fresh isolated run with
+private, content-free query-category timing is pending. No timeout cause is proven.
+
+Whole-workspace typecheck/build passed. Nine focused tests, lint and architecture
+checks passed; documentation passed with the existing pinned-PyYAML `.venv` after
+the unconfigured system Python failed its prerequisite. The default full unit run
+had 1226 passes/two failures (startup disclosure and production configuration
+subprocesses returned no expected output); a single-worker run had 1227 passes/
+one startup-disclosure failure. Direct content-free startup diagnosis returned the
+expected fixed API/worker failure events in 7182.40/1574.82ms. The unchanged seven
+focused startup/configuration tests then passed in isolation. These are retained
+failures, not waived deadlines or a full-suite pass. Final validation and separate
+immutable-candidate review remain pending.
+
 2026-09-14 ownership and immediate SQL-boundary block (FR-EVD-009/012,
 NFR-SEC-001/REL-001): use independently committed opt-out SCALAR proofs with matching
 canonical check hash/subject/time to isolate missing ownership, plus a real other

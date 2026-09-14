@@ -102,6 +102,7 @@ export async function verifyScalarAccessRaces(
           "AuthorityPolicy",
           "AuthorityPolicyRevision",
           "AuthorityPolicyReceipt",
+          "FactAppendReceipt",
         ])
           result[table] = await rows(table, f.projectId);
         result.AccessGrant = (
@@ -167,6 +168,10 @@ export async function verifyScalarAccessRaces(
                 s.command,
                 context,
               );
+            case "appendHumanStatement":
+              return new DatabaseProjectFactRepository(
+                wrapped,
+              ).appendHumanStatement(s.actor, s.command, context);
             default:
               throw new Error("Unknown scalar access operation");
           }
@@ -240,6 +245,7 @@ export async function verifyScalarAccessRaces(
         "grant-first",
         "policy-first",
         "current-role-loss",
+        "contributor-first",
       ]) {
         const f = await reserveScalarFixture(
           owner,
@@ -267,7 +273,11 @@ export async function verifyScalarAccessRaces(
           )
         ).rows;
         assert.equal(dependencies.length, 2);
-        const selected = dependencies[0];
+        const selected =
+          name === "contributor-first"
+            ? dependencies.find((d) => d.versionId === f.versions[0].id)
+            : dependencies[0];
+        assert(selected);
         const access = controlBefore.FactSourceAccess.find(
           (r) => r.sourceId === selected.sourceId,
         );
@@ -285,6 +295,31 @@ export async function verifyScalarAccessRaces(
           idempotencyKey: randomUUID(),
         });
         let execution;
+        if (name === "contributor-first") {
+          // Same legitimate actor/source and its existing shared readers. The
+          // public append owns its clock/receipt/transaction; only the fixture
+          // command's effective timestamp is chosen here, once.
+          const previous = before.ProjectFactVersion.find(
+            (v) => v.id === selected.versionId,
+          );
+          const effectiveAt = new Date().toISOString();
+          assert(previous && previous.validUntil);
+          execution = await race([
+            spec("appendHumanStatement", f.actor, {
+              projectId: f.projectId,
+              factType: f.factType,
+              expectedRevision: before.ProjectFact[0].revision,
+              idempotencyKey: randomUUID(),
+              effectiveAt,
+              validUntil: new Date(previous.validUntil).toISOString(),
+              originalStatement: "Synthetic changed contributor forecast",
+              value: { type: "date", value: "2026-10-03" },
+            }),
+            get,
+            replay,
+            fresh,
+          ]);
+        }
         if (name === "source-first")
           execution = await race([source, get, replay, fresh]);
         if (name === "read-first") execution = await race([get, source]);
@@ -364,6 +399,14 @@ export async function verifyScalarAccessRaces(
           ...execution,
           audits,
           finalDetail: await repository.get(f.pm, read),
+          ...(name === "contributor-first"
+            ? {
+                freshDetail: await repository.get(f.pm, {
+                  projectId: f.projectId,
+                  requestId: execution.outcomes[3].value.request.id,
+                }),
+              }
+            : {}),
         });
       }
       assertScalarAccessRaces(receipt, customerId);

@@ -10,6 +10,7 @@ import { verifyScalarCommandRaces } from "./scalar-reconciliation-races.mjs";
 import { verifyScalarAccessRaces } from "./scalar-access-races.mjs";
 import { verifyScalarCommitGuards } from "./scalar-commit-probes.mjs";
 import { verifyScalarBoundaries } from "./scalar-boundary-probes.mjs";
+import { verifyScalarSeals } from "./scalar-seal-probes.mjs";
 import { verifyScalarVersionBoundary } from "./scalar-reconciliation-load.mjs";
 import {
   scalarReconciliationTables,
@@ -641,6 +642,12 @@ try {
       env.CUSTOMER_ID,
       canonicalFixture.projectId,
     );
+    const scalarSeals = await verifyScalarSeals(
+      db,
+      scalarRuntime,
+      env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
     const scalarAccessRaces = await verifyScalarAccessRaces(
       db,
       scalarRuntime,
@@ -678,6 +685,7 @@ try {
       scalarAccessRaces,
       scalarCommitGuards,
       scalarBoundaries,
+      scalarSeals,
       scalarVersionBoundary,
       evidenceWorkflow: read("evidence-workflow-fixture").receipt,
       milestoneReconciliationWorkflow: read(

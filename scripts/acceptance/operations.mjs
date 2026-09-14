@@ -55,6 +55,7 @@ import { verifyScalarCommandRaces } from "./scalar-reconciliation-races.mjs";
 import { verifyScalarAccessRaces } from "./scalar-access-races.mjs";
 import { verifyScalarCommitGuards } from "./scalar-commit-probes.mjs";
 import { verifyScalarBoundaries } from "./scalar-boundary-probes.mjs";
+import { verifyScalarSeals } from "./scalar-seal-probes.mjs";
 import { verifyScalarVersionBoundary } from "./scalar-reconciliation-load.mjs";
 import {
   scalarReconciliationTables,
@@ -346,6 +347,12 @@ try {
       process.env.CUSTOMER_ID,
       canonicalFixture.projectId,
     );
+    const scalarSeals = await verifyScalarSeals(
+      admin,
+      config("database", "pdaa_api", "api-password").database,
+      process.env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
     const scalarAccessRaces = await verifyScalarAccessRaces(
       admin,
       config("database", "pdaa_api", "api-password").database,
@@ -387,6 +394,7 @@ try {
           scalarAccessRaces,
           scalarCommitGuards,
           scalarBoundaries,
+          scalarSeals,
           scalarVersionBoundary,
           milestoneConcurrency,
           canonicalTables,

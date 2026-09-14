@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import {
   assertScalarCommandRaces,
@@ -16,7 +16,9 @@ function raceReceipt() {
       "same-business",
       "refresh-cas",
       "refresh-retry",
+      "changed-fact-key",
     ].map((name) => {
+      const changedFact = name === "changed-fact-key";
       const refresh = name.startsWith("refresh"),
         checks = name === "same-business" ? 2 : refresh ? 0 : 1;
       const delta = {
@@ -28,7 +30,7 @@ function raceReceipt() {
         FactAssessmentConflict: checks,
         FactAuthorityConflict: refresh ? 0 : 1,
         AuditEvent:
-          name === "same-business"
+          name === "same-business" || changedFact
             ? 4
             : name === "same-command"
               ? 3
@@ -55,8 +57,11 @@ function raceReceipt() {
         outcome: refresh ? null : "CREATED",
       };
       const second =
-        name === "refresh-cas"
-          ? { status: "rejected", code: "REVISION_CONFLICT" }
+        name === "refresh-cas" || changedFact
+          ? {
+              status: "rejected",
+              code: changedFact ? "IDEMPOTENCY_CONFLICT" : "REVISION_CONFLICT",
+            }
           : {
               ...value,
               replayed: name !== "same-business",
@@ -69,10 +74,11 @@ function raceReceipt() {
                 : {}),
             };
       const factId = randomUUID(),
+        otherFactId = randomUUID(),
         previousId = randomUUID();
       const projectId = randomUUID();
       const keys = [randomUUID(), randomUUID()];
-      if (name === "same-command" || name === "refresh-retry")
+      if (name === "same-command" || name === "refresh-retry" || changedFact)
         keys[1] = keys[0]!;
       const requestAuditId = randomUUID(),
         assignmentAuditId = randomUUID();
@@ -91,13 +97,21 @@ function raceReceipt() {
                   expectedAssignmentRevision: 1,
                   idempotencyKey: keys[index - 1],
                 }
-              : { projectId, factId, idempotencyKey: keys[index - 1] },
+              : {
+                  projectId,
+                  factId: changedFact && index === 2 ? otherFactId : factId,
+                  idempotencyKey: keys[index - 1],
+                },
       }));
       const audits = [value, second].flatMap((o, index) => {
         const participant = participants[index + 1]!;
         const rejected = o.status === "rejected";
         const events = rejected
-          ? ["scalar.reconciliation.assignment.denied"]
+          ? [
+              changedFact
+                ? "scalar.reconciliation.check.denied"
+                : "scalar.reconciliation.assignment.denied",
+            ]
           : (o as typeof value).replayed
             ? []
             : refresh
@@ -119,7 +133,12 @@ function raceReceipt() {
           actor: participant.actor,
           correlationId: participant.correlationId,
           detail: rejected
-            ? { projectId, reason: "REVISION_CONFLICT" }
+            ? {
+                projectId,
+                reason: changedFact
+                  ? "IDEMPOTENCY_CONFLICT"
+                  : "REVISION_CONFLICT",
+              }
             : event.endsWith("checked")
               ? {
                   projectId,
@@ -161,7 +180,7 @@ function raceReceipt() {
             idempotencyKey: keys[index],
             auditEventId: checkAuditIds[index],
           }));
-      return {
+      const result = {
         name,
         projectId,
         factId,
@@ -223,6 +242,146 @@ function raceReceipt() {
         ),
         outcomes: [value, second],
       };
+      if (!changedFact) return result;
+      const scoped = <T extends object>(row: T) => ({
+        ...row,
+        customerId,
+        projectId,
+        factId,
+      });
+      const committed = {
+        ...result.committed,
+        checks: result.committed.checks.map((row) =>
+          scoped({
+            ...row,
+            requestHash: createHash("sha256")
+              .update(JSON.stringify({ projectId, factId }))
+              .digest("hex"),
+            occurredAt: "2026-09-14T00:00:00.000Z",
+          }),
+        ),
+        requests: result.committed.requests.map((row) =>
+          scoped({
+            ...row,
+            sealed: true,
+            originCommandId: value.checkId,
+            originalAssessmentId: value.assessmentId,
+            createdAt: "2026-09-14T00:00:00.000Z",
+          }),
+        ),
+        assignments: result.committed.assignments.map((row) =>
+          scoped({
+            ...row,
+            kind: "INITIAL",
+            occurredAt: "2026-09-14T00:00:00.000Z",
+          }),
+        ),
+        audits: result.committed.audits.map((a) => ({
+          ...a,
+          customerId,
+          occurredAt: "2026-09-14T00:00:00.000Z",
+        })),
+      };
+      const inputs = {
+        ProjectFact: [factId, otherFactId].map((id) => ({
+          id,
+          customerId,
+          projectId,
+        })),
+        ProjectFactVersion: [factId, factId, otherFactId, otherFactId].map(
+          (id) => ({
+            id: randomUUID(),
+            customerId,
+            projectId,
+            factId: id,
+            sourceId: randomUUID(),
+            evidenceId: randomUUID(),
+            value: { type: "date", value: "2026-10-01" },
+          }),
+        ),
+        FactEvidence: [] as object[],
+      };
+      inputs.FactEvidence = inputs.ProjectFactVersion.map((row) => ({
+        id: row.evidenceId,
+        customerId,
+        projectId,
+        factId: row.factId,
+        sourceId: row.sourceId,
+      }));
+      const fullBefore = {
+        ...Object.fromEntries(Object.keys(delta).map((table) => [table, []])),
+        ...inputs,
+      };
+      const conflictId = randomUUID();
+      const fullAfter = {
+        ...fullBefore,
+        ScalarReconciliationCheck: committed.checks,
+        ScalarReconciliationRequest: committed.requests,
+        ScalarReconciliationAssignment: committed.assignments,
+        FactAssessment: committed.assessments.map((row) =>
+          scoped({
+            ...row,
+            sealed: true,
+            subject: participants[1]!.actor,
+            requestHash: committed.checks[0]!.requestHash,
+            idempotencyKey: "sr_" + value.checkId.replaceAll("-", ""),
+            captureKind: "SCALAR_REQUEST",
+            milestoneAssessmentId: null,
+            asOf: "2026-09-14T00:00:00.000Z",
+            complete: true,
+            versionCount: 2,
+            result: {
+              scope: { customerId, projectId, factId },
+              asOf: "2026-09-14T00:00:00.000Z",
+              complete: true,
+              status: "CONFLICTING",
+              reconciliationRequired: true,
+              revalidationRequired: false,
+              versions: inputs.ProjectFactVersion.filter(
+                (v) => v.factId === factId,
+              ).map((v) => ({
+                id: v.id,
+                value: v.value,
+                evidenceIds: [v.evidenceId],
+                source: { instanceId: v.sourceId },
+                visibility: "available",
+                revalidationRequired: false,
+              })),
+            },
+          }),
+        ),
+        FactAssessmentVersion: inputs.ProjectFactVersion.filter(
+          (row) => row.factId === factId,
+        ).map((row) =>
+          scoped({ versionId: row.id, assessmentId: value.assessmentId }),
+        ),
+        FactAssessmentConflict: [
+          scoped({ conflictId, assessmentId: value.assessmentId }),
+        ],
+        FactAuthorityConflict: [scoped({ id: conflictId })],
+        AuditEvent: committed.audits,
+      };
+      const summary = (rows: object) =>
+        Object.fromEntries(
+          Object.entries(rows).map(([table, values]) => [
+            table,
+            {
+              count: values.length,
+              sha256: createHash("sha256")
+                .update(JSON.stringify(values))
+                .digest("hex"),
+            },
+          ]),
+        );
+      return {
+        ...result,
+        committed,
+        attemptedFactIds: [factId, otherFactId],
+        fullBefore,
+        fullAfter,
+        before: summary(fullBefore),
+        after: summary(fullAfter),
+      };
     }),
   };
 }
@@ -264,6 +423,39 @@ it("NFR-REL-001: accepts only the complete observed scalar command race inventor
   expect(() =>
     assertScalarCommandRaces(wrongLoserRequest, r.customerId),
   ).toThrow();
+});
+it("FR-EVD-012: changed-fact contention rejects substituted targets and partial loser graphs", () => {
+  const r = raceReceipt();
+  for (const change of [
+    (c: any) => {
+      c.participants[2].command.idempotencyKey = randomUUID();
+    },
+    (c: any) => {
+      c.participants[2].command.factId = c.factId;
+    },
+    (c: any) => {
+      c.outcomes[1].code = "REVISION_CONFLICT";
+    },
+    (c: any) => {
+      c.factId = c.attemptedFactIds[1];
+    },
+    (c: any) => {
+      c.fullAfter.FactAssessment[0].factId = c.attemptedFactIds[1];
+    },
+    (c: any) => {
+      c.fullBefore.ProjectFactVersion.pop();
+    },
+    (c: any) => {
+      delete c.fullAfter;
+    },
+    (c: any) => {
+      c.committed.audits.pop();
+    },
+  ]) {
+    const changed = structuredClone(r);
+    change(changed.cases.find((c) => c.name === "changed-fact-key"));
+    expect(() => assertScalarCommandRaces(changed, r.customerId)).toThrow();
+  }
 });
 it("FR-EVD-012: refuses missing native scalar load identities or changed deadlines", () => {
   const r = {
