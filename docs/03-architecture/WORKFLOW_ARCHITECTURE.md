@@ -55,6 +55,20 @@ Webhook or scheduled reconciliation
 -> refresh read projections
 ```
 
+## Scalar conflict reconciliation workflow
+
+```text
+Assess scalar source authority
+-> CONFLICTING outcome detected across active equal-tier authoritative sources
+-> Evaluate existing OPEN requests matching contributor hash (idempotent reuse)
+-> If none, create durable ScalarReconciliationRequest with sealed status
+-> Resolve PM responsibility and persist initial ScalarReconciliationAssignment
+-> Record ScalarReconciliationCheck linked to assessment and request
+-> Expose durable queue and proof in PM workspace
+-> PM investigates source discrepancy, updates source or policy
+-> PM triggers resolution assessment: if conflict resolved, mark request RESOLVED with resolvedAssessmentId
+```
+
 ## Q&A workflow
 
 ```text
