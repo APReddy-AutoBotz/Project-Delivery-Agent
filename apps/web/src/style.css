@@ -5,8 +5,8 @@
 @layer components {
   :root {
     font-family: Inter, "Segoe UI", Arial, sans-serif;
-    color: #183640;
-    background: #f5f7f7;
+    color: #0F172A;
+    background: #F8FAFC;
     font-synthesis: none;
     line-height: 1.5;
     font-size: 14px;
@@ -32,7 +32,7 @@
   button:focus-visible,
   input:focus-visible,
   select:focus-visible {
-    outline: 3px solid #19a68b;
+    outline: 3px solid #4F46E5;
     outline-offset: 3px;
   }
   button {
@@ -89,28 +89,29 @@
     place-items: center;
     width: 40px;
     height: 40px;
-    background: #b6ebd8;
-    color: #123d36;
+    background: #EEF2FF;
+    color: #0F3460;
     font-size: 24px;
     letter-spacing: -2px;
     border-radius: 11px;
     padding-right: 3px;
+    border: 1px solid #C7D2FE;
   }
   .pill {
     display: inline-block;
     padding: 5px 10px;
-    background: #e2f3eb;
-    border: 1px solid #cce5d9;
+    background: #EEF2FF;
+    border: 1px solid #C7D2FE;
     border-radius: 6px;
     font-size: 11px;
     font-weight: 650;
-    color: #236b52;
+    color: #0F3460;
     white-space: nowrap;
   }
   .pill.neutral {
-    background: #f2f5f6;
-    border-color: #dce5e8;
-    color: #55717a;
+    background: #F1F5F9;
+    border-color: #E2E8F0;
+    color: #475569;
   }
   .login {
     display: grid;
@@ -118,8 +119,8 @@
     min-height: 100vh;
   }
   .login-story {
-    background: #112e38;
-    color: #edf7f6;
+    background: #0F3460;
+    color: #EEF2FF;
     padding: 48px 60px;
     display: flex;
     flex-direction: column;
@@ -134,11 +135,11 @@
     right: -250px;
     width: 640px;
     height: 640px;
-    border: 1px solid #30505a;
+    border: 1px solid #1A4B84;
     border-radius: 50%;
     box-shadow:
-      0 0 0 65px #ffffff03,
-      0 0 0 130px #ffffff02;
+      0 0 0 65px #ffffff08,
+      0 0 0 130px #ffffff05;
     pointer-events: none;
   }
   .story-copy {
@@ -152,25 +153,26 @@
     line-height: 1.15;
     font-weight: 550;
     letter-spacing: -2px;
+    color: #FFFFFF;
   }
   .story-copy p {
     font-size: 17px;
     line-height: 1.8;
-    color: #b6cbd0;
+    color: #C7D2FE;
     max-width: 390px;
   }
   .story-copy .eyebrow {
-    color: #99d6c5;
+    color: #A5B4FC;
   }
   .story-line {
-    height: 1px;
+    height: 2px;
     width: 65px;
-    background: #90cbb7;
+    background: #4F46E5;
     margin: 30px 0;
   }
   .story-copy small,
   .login-footer {
-    color: #a3bec4;
+    color: #C7D2FE;
   }
   .login-footer {
     font-size: 9px;
@@ -208,8 +210,8 @@
     padding: 18px;
   }
   .personas button:hover {
-    border-color: #6ab39d;
-    background: #f0faf5;
+    border-color: #4F46E5;
+    background: #EEF2FF;
   }
   .personas strong,
   .personas small {
@@ -231,8 +233,8 @@
   .sidebar {
     width: 235px;
     flex-shrink: 0;
-    background: #112b35;
-    color: #d6e7eb;
+    background: #0F3460;
+    color: #EEF2FF;
     padding: 32px 22px;
     display: flex;
     flex-direction: column;
@@ -241,7 +243,7 @@
     height: 100vh;
   }
   .nav-label {
-    color: #839da7;
+    color: #A5B4FC;
     font-size: 9px;
     letter-spacing: 1.8px;
     margin: 55px 10px 14px;
@@ -257,16 +259,16 @@
     text-align: left;
     border: 0;
     background: transparent;
-    color: #b9cbd0;
+    color: #C7D2FE;
     padding: 12px 13px;
     border-radius: 7px;
   }
   .sidebar nav button.active {
-    background: #26434b;
-    color: #dcfaef;
+    background: #1A4B84;
+    color: #FFFFFF;
   }
   .sidebar nav button:hover {
-    background: #223e48;
+    background: #153E6E;
   }
   .sidebar nav button span {
     font-size: 20px;
@@ -274,11 +276,11 @@
   .sidebar-bottom {
     font-size: 11px;
     margin-top: auto;
-    color: #b4cbd1;
+    color: #C7D2FE;
   }
   .sidebar-bottom small {
     display: block;
-    color: #7d9ba6;
+    color: #A5B4FC;
     font-size: 10px;
     margin-top: 9px;
     padding-left: 13px;
@@ -287,7 +289,7 @@
     display: inline-block;
     width: 6px;
     height: 6px;
-    background: #8bceb2;
+    background: #4F46E5;
     border-radius: 50%;
     margin-right: 7px;
   }
@@ -433,8 +435,8 @@
     color: #183b47;
   }
   .project-card:hover {
-    border-color: #86b8aa;
-    box-shadow: 0 6px 20px #153d4710;
+    border-color: #4F46E5;
+    box-shadow: 0 6px 20px rgba(15, 52, 96, 0.08);
   }
   .card-top {
     display: flex;
@@ -444,7 +446,9 @@
   }
   .project-code {
     padding: 9px 11px;
-    background: #eaf1f4;
+    background: #EEF2FF;
+    color: #0F3460;
+    border: 1px solid #C7D2FE;
     border-radius: 7px;
     font-weight: 700;
     font-size: 11px;
@@ -455,19 +459,19 @@
   }
   .project-card p {
     font-size: 12px;
-    color: #617a84;
+    color: #475569;
     line-height: 1.8;
     min-height: 44px;
   }
   .card-bottom {
-    border-top: 1px solid #e7ecee;
+    border-top: 1px solid #E2E8F0;
     padding-top: 18px;
     margin-top: 26px;
     display: flex;
     justify-content: space-between;
     font-size: 11px;
     font-weight: 600;
-    color: #356b67;
+    color: #0F3460;
   }
   .foundation-note {
     display: flex;
@@ -542,7 +546,9 @@
     text-align: right;
   }
   .next-step {
-    background: #eef4f2;
+    background: #EEF2FF;
+    border: 1px solid #C7D2FE;
+    border-radius: 8px;
   }
   .timeline {
     display: flex;
@@ -553,12 +559,15 @@
   }
   .timeline > span {
     font-size: 11px;
-    border: 1px solid #bad0c9;
+    border: 1px solid #C7D2FE;
+    background: #EEF2FF;
+    color: #0F3460;
     border-radius: 50%;
     width: 31px;
     height: 31px;
     display: grid;
     place-items: center;
+    font-weight: 600;
   }
   .timeline strong,
   .timeline small {
@@ -568,7 +577,7 @@
     margin-top: 4px;
     font-size: 11px;
     font-weight: 400;
-    color: #678078;
+    color: #64748B;
   }
   .timeline.muted {
     opacity: 0.7;
@@ -627,19 +636,30 @@
     padding: 11px 20px;
     font-size: 12px;
     font-weight: 650;
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
   .primary {
-    background: #226752;
-    border: 1px solid #226752;
+    background: #0F3460;
+    border: 1px solid #0F3460;
     color: white;
   }
   .primary:hover {
-    background: #184c3c;
+    background: #1A4B84;
+    border-color: #1A4B84;
+  }
+  .primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
   .secondary {
     background: white;
-    border: 1px solid #b7cacc;
-    color: #486671;
+    border: 1px solid #CBD5E1;
+    color: #0F3460;
+  }
+  .secondary:hover {
+    background: #F8FAFC;
+    border-color: #94A3B8;
   }
   .audit-list {
     list-style: none;
@@ -821,12 +841,14 @@
 .canonical-form details {
   margin: 1rem 0;
   padding: 0.75rem 1rem;
-  background: #f4f7f7;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
   border-radius: 0.65rem;
 }
 .canonical-form summary {
   cursor: pointer;
   font-weight: 600;
+  color: #0F3460;
 }
 .canonical-dates {
   display: grid;
@@ -835,10 +857,10 @@
 }
 .canonical-section {
   padding: 1.25rem 0;
-  border-top: 1px solid #dce5e3;
+  border-top: 1px solid #E2E8F0;
 }
 .canonical-form .canonical-record {
-  border: 1px solid #dce5e3;
+  border: 1px solid #E2E8F0;
   padding: 1rem;
   border-radius: 0.7rem;
 }
@@ -846,7 +868,7 @@
   flex-wrap: wrap;
 }
 .canonical-review-row {
-  border: 1px solid #dce5e3;
+  border: 1px solid #E2E8F0;
   border-radius: 0.7rem;
   padding: 1rem;
   margin: 0.75rem 0;
@@ -875,24 +897,27 @@
 .evidence-editor,
 .evidence-assessment,
 .evidence-policy {
-  border-top: 1px solid #dce5e3;
+  border-top: 1px solid #E2E8F0;
   padding: 1.25rem 0;
   margin-top: 1rem;
 }
 .evidence-entry h4 {
   margin-bottom: 0.75rem;
+  color: #0F3460;
 }
 .evidence-entry blockquote,
 .evidence-review blockquote {
   margin: 1rem 0;
   padding: 0.9rem;
-  border-left: 3px solid #417b70;
-  background: #f4f7f7;
+  border-left: 3px solid #4F46E5;
+  background: #EEF2FF;
   white-space: pre-wrap;
+  color: #0F3460;
 }
 .evidence-warning {
-  background: #fff4db;
-  color: #6a4717;
+  background: #FFFBEB;
+  color: #92400E;
+  border: 1px solid #FDE68A;
   border-radius: 0.5rem;
   padding: 0.8rem 1rem;
 }
@@ -919,13 +944,13 @@
   display: block;
   width: 100%;
   min-height: 6rem;
-  border: 1px solid #bbcbc7;
+  border: 1px solid #CBD5E1;
   border-radius: 0.4rem;
   padding: 0.65rem;
   font: inherit;
 }
 .project-evidence textarea:focus-visible {
-  outline: 2px solid #0d9488;
+  outline: 2px solid #4F46E5;
   outline-offset: 2px;
 }
 .evidence-form-group {
@@ -934,8 +959,8 @@
   min-width: 0;
 }
 .evidence-review {
-  background: #f4f7f7;
-  border: 1px solid #dce5e3;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
   border-radius: 0.7rem;
   padding: 1rem;
 }
@@ -945,9 +970,10 @@
 .project-evidence summary {
   cursor: pointer;
   font-weight: 600;
+  color: #0F3460;
 }
 .project-evidence a {
-  color: #075e50;
+  color: #0F3460;
   text-decoration: underline;
 }
 @media (max-width: 650px) {
@@ -957,6 +983,7 @@
 }
 .canonical-detail h3 {
   margin-top: 1.8rem;
+  color: #0F3460;
 }
 .canonical-review-row dl,
 .canonical-date-display {
@@ -966,7 +993,7 @@
 }
 .canonical-review-row dt,
 .canonical-date-display dt {
-  color: #526561;
+  color: #64748B;
   font-size: 0.85rem;
 }
 .canonical-review-row dd,
