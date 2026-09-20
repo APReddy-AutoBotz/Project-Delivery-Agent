@@ -147,6 +147,9 @@ try {
     "MilestoneReconciliationRequest",
     "MilestoneReconciliationCheck",
     "MilestoneReconciliationAssignment",
+    "ScalarReconciliationRequest",
+    "ScalarReconciliationCheck",
+    "ScalarReconciliationAssignment",
   ];
   for (const table of tables) {
     const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
@@ -188,6 +191,12 @@ try {
     (SELECT count(*)::int FROM "MilestoneReconciliationAssignment" WHERE public.valid_milestone_reconciliation_assignment(id) IS NOT TRUE) +
     (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" a WHERE a."reconciliationCheckId" IS NOT NULL AND NOT EXISTS (
       SELECT 1 FROM "MilestoneReconciliationCheck" c WHERE c.id=a."reconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId"
+    )) +
+    (SELECT count(*)::int FROM "ScalarReconciliationRequest" WHERE sealed IS NOT TRUE OR public.valid_scalar_reconciliation_request(id) IS NOT TRUE) +
+    (SELECT count(*)::int FROM "ScalarReconciliationCheck" WHERE public.valid_scalar_reconciliation_check(id) IS NOT TRUE) +
+    (SELECT count(*)::int FROM "ScalarReconciliationAssignment" WHERE public.valid_scalar_reconciliation_assignment(id) IS NOT TRUE) +
+    (SELECT count(*)::int FROM "FactAssessment" a WHERE a."reconciliationCheckId" IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM "ScalarReconciliationCheck" c WHERE c.id=a."reconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId"
     )) AS invalid`
     )[0].invalid,
     0,
@@ -210,6 +219,9 @@ try {
     "MilestoneReconciliationRequest",
     "MilestoneReconciliationCheck",
     "MilestoneReconciliationAssignment",
+    "ScalarReconciliationRequest",
+    "ScalarReconciliationCheck",
+    "ScalarReconciliationAssignment",
     ...canonicalTables,
   ]) {
     for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
@@ -231,7 +243,7 @@ try {
   if (visible.length !== 1 || visible[0].code !== "ATL")
     throw new Error("Restored permissions differ");
   console.log(
-    `Recovery passed: all 39 business tables and the migration ledger match exactly; audit, fact, policy, assessment, binding, reconciliation and canonical history remain immutable. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all 42 business tables and the migration ledger match exactly; audit, fact, policy, assessment, binding, reconciliation and canonical history remain immutable. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

@@ -1,20 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import type {
   ScalarReconciliationCheckResult,
-  ScalarReconciliationContext,
   ScalarReconciliationDelivery,
   ScalarReconciliationPage,
   ScalarReconciliationRequestSummary,
   ReconciliationAssignmentResult,
 } from "@pdaa/domain";
 import type { RequestFn } from "./canonical-project.js";
-import { Button, TextField, SelectField, Message } from "./components.js";
+import { Button, Message } from "./components.js";
 import { FactValue } from "./evidence-display.js";
 import {
-  denied,
   evidenceError,
   useEvidenceResource,
-  utcInstant,
   utcNow,
 } from "./evidence-state.js";
 
