@@ -207,7 +207,29 @@ export function AssessmentView({
               has been selected.
             </p>
           )}
-          {result.reconciliationRequired && (
+          {result.status === "CONFLICTING" && (
+            <div
+              className="conflict-banner"
+              style={{
+                background: "#EEF2FF",
+                border: "1px solid #C7D2FE",
+                borderRadius: 8,
+                padding: "12px 16px",
+                margin: "12px 0",
+                color: "#0F3460",
+              }}
+            >
+              <strong style={{ fontSize: 13, display: "block" }}>
+                CONFLICTING: Authoritative Source Disagreement
+              </strong>
+              <p style={{ margin: "4px 0 0", fontSize: 12 }}>
+                Two or more authoritative sources disagree on this scalar fact. Both values are retained without selecting a winner.
+                {result.reconciliationRequired &&
+                  " Project-manager reconciliation is required under the active authority rule."}
+              </p>
+            </div>
+          )}
+          {result.reconciliationRequired && result.status !== "CONFLICTING" && (
             <p className="evidence-warning">
               Project-manager reconciliation is needed. A reconciliation request
               has not been created.

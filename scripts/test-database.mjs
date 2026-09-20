@@ -91,6 +91,9 @@ try {
     "MilestoneReconciliationRequest",
     "MilestoneReconciliationCheck",
     "MilestoneReconciliationAssignment",
+    "ScalarReconciliationRequest",
+    "ScalarReconciliationCheck",
+    "ScalarReconciliationAssignment",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -223,8 +226,14 @@ writeFileSync(
         "MilestoneReconciliationAssignment",
       ],
       milestoneReconciliationChecks: "passed",
+      scalarReconciliationTables: [
+        "ScalarReconciliationRequest",
+        "ScalarReconciliationCheck",
+        "ScalarReconciliationAssignment",
+      ],
+      scalarReconciliationChecks: "passed",
       evidenceHttpChecks: "passed",
-      businessTables: 39,
+      businessTables: 42,
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({

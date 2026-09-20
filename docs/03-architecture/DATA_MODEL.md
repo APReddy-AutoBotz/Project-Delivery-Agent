@@ -250,6 +250,42 @@ Do not store entire sensitive raw payloads by default when normalized facts are 
 - `correlation_id`
 - `occurred_at`
 
+### `ScalarReconciliationRequest`
+
+- `id` (UUID, primary key)
+- `customerId` (UUID, customer boundary)
+- `projectId` (UUID, project boundary)
+- `factId` (UUID, foreign key to ProjectFact)
+- `originalAssessmentId` (UUID, assessment that established the conflict)
+- `resolvedAssessmentId` (UUID, nullable, assessment that confirmed resolution)
+- `originCommandId` (text, idempotent check command identifier)
+- `contributorHash` (char(64), deterministic SHA-256 hash over conflicting versions)
+- `state` (`OPEN` | `RESOLVED`)
+- `sealed` (boolean, append-only immutable seal)
+- `createdAt` (timestamp with time zone)
+
+### `ScalarReconciliationCheck`
+
+- `id` (UUID, primary key)
+- `customerId` (UUID, customer boundary)
+- `projectId` (UUID, project boundary)
+- `factType` (text, target scalar fact type)
+- `assessmentId` (UUID, foreign key to FactAssessment)
+- `requestId` (UUID, nullable, foreign key to ScalarReconciliationRequest)
+- `outcome` (`NO_REQUEST` | `CREATED` | `REUSED` | `RESOLVED`)
+- `occurredAt` (timestamp with time zone)
+
+### `ScalarReconciliationAssignment`
+
+- `id` (UUID, primary key)
+- `customerId` (UUID, customer boundary)
+- `projectId` (UUID, project boundary)
+- `requestId` (UUID, foreign key to ScalarReconciliationRequest)
+- `revision` (integer, monotonically increasing revision)
+- `reason` (`ASSIGNED` | `NO_CONFIGURED_PM` | `AMBIGUOUS_CONFIGURED_PM` | `PM_SCOPE_UNAVAILABLE`)
+- `recipientSubject` (text, nullable, assigned project manager subject)
+- `occurredAt` (timestamp with time zone)
+
 ## Data integrity
 
 - Unique external record by connector, type and external ID.

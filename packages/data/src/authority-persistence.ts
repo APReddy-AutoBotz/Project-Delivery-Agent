@@ -388,7 +388,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       });
     });
   }
-  private async deliver(
+  async deliverInTransaction(
     tx: Tx,
     actor: Actor,
     projectId: string,
@@ -448,6 +448,15 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       revalidationRequired: false,
       result: row.result as unknown as AuthorityAssessment,
     });
+  }
+  private deliver(
+    tx: Tx,
+    actor: Actor,
+    projectId: string,
+    assessmentId: string,
+    replayed: boolean,
+  ) {
+    return this.deliverInTransaction(tx, actor, projectId, assessmentId, replayed);
   }
   // A single bounded history load for the entire cross-fact capture. Callers
   // hold Project and all fact locks before taking asOf. No scalar conflicts or
@@ -707,6 +716,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       requestHash: string;
       captureKind: "SCALAR" | "MILESTONE";
       milestoneAssessmentId: string | null;
+      reconciliationCheckId?: string | null;
     },
   ) {
     const prepared = input.prepared;
@@ -731,6 +741,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       data: {
         ...scope,
         id,
+        reconciliationCheckId: input.reconciliationCheckId ?? null,
         subject: input.subject,
         idempotencyKey: input.idempotencyKey,
         requestHash: input.requestHash,
@@ -800,6 +811,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       requestHash: string;
       captureKind: "SCALAR" | "MILESTONE";
       milestoneAssessmentId: string | null;
+      reconciliationCheckId?: string | null;
     },
   ) {
     const prepared = await this.prepareAssessmentInTransaction(
@@ -814,6 +826,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       requestHash: input.requestHash,
       captureKind: input.captureKind,
       milestoneAssessmentId: input.milestoneAssessmentId,
+      reconciliationCheckId: input.reconciliationCheckId,
     });
   }
   async captureAssessment(

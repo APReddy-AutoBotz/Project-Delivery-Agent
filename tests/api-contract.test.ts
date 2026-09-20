@@ -36,6 +36,10 @@ import {
   bindingInput,
   refreshInput,
 } from "./fixtures/reconciliation-contract.js";
+import {
+  scalarReconciliationContractFixture,
+  exerciseScalarReconciliationContracts,
+} from "./fixtures/scalar-reconciliation-contract.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const project: Project = {
@@ -131,6 +135,7 @@ let check: ReturnType<typeof compileContract>;
 const covered = new Set<string>();
 const evidence = evidenceContractFixture();
 const reconciliation = reconciliationContractFixture();
+const scalarReconciliation = scalarReconciliationContractFixture();
 beforeAll(async () => {
   ({ app, spec } = await createApp(
     config,
@@ -140,6 +145,7 @@ beforeAll(async () => {
     evidence.facts,
     evidence.authority,
     reconciliation.repository,
+    scalarReconciliation.repository,
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -229,13 +235,14 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   });
   await exerciseEvidenceContracts(request, manager);
   await exerciseReconciliationContracts(request, manager);
+  await exerciseScalarReconciliationContracts(request, manager);
   const declared = Object.entries(spec.paths).flatMap(([path, item]) =>
     Object.keys(item)
       .filter((method) => ["get", "post", "delete"].includes(method))
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(31);
+  expect(covered.size).toBe(38);
   assertContractSnapshot(
     spec,
     JSON.parse(

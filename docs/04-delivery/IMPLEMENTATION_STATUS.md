@@ -19,7 +19,17 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Published and merged increments
 
-### Canonical milestone requests merged; scalar reconciliation remains open
+### Candidate increment: Durable generic scalar conflict reconciliation requests (Issue #6, STORY-012)
+
+Candidate branch `antigravity/scalar-conflict-reconciliation` implements durable generic scalar conflict reconciliation requests under Issue #6, EPIC-03, STORY-012, AC-EVD-004, FAIL-009, and GOLDEN-003:
+
+- **Data model & migration**: Added `ScalarReconciliationRequest`, `ScalarReconciliationCheck`, and `ScalarReconciliationAssignment` tables via additive Migration 7 (`202609130001_scalar_reconciliation_requests`), with deferred trigger functions (`valid_scalar_reconciliation_assignment`, `valid_scalar_reconciliation_request`, `valid_scalar_reconciliation_check`). Total business tables: 42.
+- **Durable workflow**: Implemented `DatabaseScalarReconciliationRepository` handling `getContext`, `check`, `get`, `list`, `refreshAssignment`, and `resolve`, with deterministic unassigned reasons (`NO_CONFIGURED_PM`, `AMBIGUOUS_CONFIGURED_PM`, `PM_SCOPE_UNAVAILABLE`) and deduplication hash over conflicting versions.
+- **API & Contracts**: Exposed 7 scoped REST endpoints in OpenAPI foundation (38 endpoints total), verified against committed schemas.
+- **Web PM experience**: Built `ScalarReconciliation` and `ScalarProof` components in `@pdaa/web` following the Deep Sapphire (`#0F3460`) + Frost (`#EEF2FF`) design system.
+- **Review gate**: STORY-012, Issue #6, and all release gates remain open pending non-author controller review.
+
+### Canonical milestone requests merged; scalar reconciliation candidate prepared
 
 Stage 3 [PR #51](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/51)
 merged candidate `9b33dec67ff65c2e6e24fe139353780618ca3e85` as
