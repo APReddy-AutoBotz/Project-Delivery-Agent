@@ -125,7 +125,12 @@ export function ProjectEvidence({
         Content is hidden during checks. Saved assessments always describe their
         original capture time.
       </p>
-      <ResourceStatus {...catalogue} />
+      <ResourceStatus
+        key={catalogue.key}
+        phase={catalogue.phase}
+        error={catalogue.error}
+        refresh={catalogue.refresh}
+      />
       {visible && catalogue.data && (
         <>
           <div className="evidence-targets">
@@ -261,7 +266,12 @@ function SavedAssessment({
   }, [resource.data, resource.phase, resource.error]);
   return (
     <>
-      <ResourceStatus {...resource} />
+      <ResourceStatus
+        key={resource.key}
+        phase={resource.phase}
+        error={resource.error}
+        refresh={resource.refresh}
+      />
       {visible && resource.data && (
         <>
           <AssessmentView delivery={resource.data} projectId={projectId} />
@@ -383,7 +393,12 @@ function EvidenceTarget({
   return (
     <div className="evidence-target">
       <h3>{shown ? `Fact: ${factType}` : "Fact history"}</h3>
-      <ResourceStatus {...resource} />
+      <ResourceStatus
+        key={resource.key}
+        phase={resource.phase}
+        error={resource.error}
+        refresh={resource.refresh}
+      />
       {shown && last && (
         <>
           <div className="section-title">
@@ -517,7 +532,12 @@ function SourceEditor({
   useEvidenceDenial(resource.phase, resource.error, onDenied);
   return (
     <>
-      <ResourceStatus {...resource} />
+      <ResourceStatus
+        key={resource.key}
+        phase={resource.phase}
+        error={resource.error}
+        refresh={resource.refresh}
+      />
       {resource.last && (
         <div hidden={!visible || resource.phase !== "ready"}>
           <fieldset
