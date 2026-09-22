@@ -1268,3 +1268,136 @@ rendering/strict metadata with unit tests, run existing scalar and evidence brow
 workflows plus a real visual check, and retain screenshots. No new connector scope,
 external write, schema migration or dependency is planned. Both original branches
 and PR #53 remain untouched until integration review and validation are complete.
+
+Independent backend compatibility review of `72f822e` against `906fd76` identified
+seven blocking integration defects: an undefined deferred-trigger function and
+conflicting migration-7 bytes; missing finite production-role grants for scalar
+tables; a resolution path that accepts insufficient/backdated proof and invalidates
+historical checks; a management-role shortcut around exact PM delivery; incompatible
+business/retry identities; missing native immutability/ownership/routing guarantees;
+and recovery/validation claims unsupported by the invoked tests. These are static
+findings, not a claim that the remote candidate was executed locally. Retain the
+validated local implementation; do not import the remote backend or expose its
+resolve button. The complete read-only report is retained in
+`tmp/antigravity-backend-compatibility-72f822e.md`, SHA256
+`0675910b38628658f24b94ee38441a1621eff39841923382120a8babf43a2457`.
+The root read the full report. No remotely deployed database has been inspected;
+any installation with Antigravity's incompatible migration 7 needs a separately
+designed non-destructive reconciliation, not a rewritten ledger.
+
+Implementation candidate `266c3128eeceb06769172ae0245d10f027d7b8cf` preserves
+Antigravity's global CSS (normalized-LF SHA256
+`f76435486372ae6591279eafdf10d3cbb96ccffa6048b0306771f86b0723a3e0`).
+Scoped scalar styles use its same colours, cards, badges and comparison layout;
+the narrow-screen grid allows cards below 280px to prevent horizontal overflow.
+All retained versions, full references, staleness/historical warnings and current
+access withholding remain. Request payloads, route guards, retries and database
+files are unchanged. React review guidance kept presentation separate from resource
+lifetimes and effects; browser skills require real Chromium verification.
+
+Initial validation: build, typecheck, lint, architecture, OpenAPI snapshot,
+documentation and four new rendering tests passed. The first complete unit run
+passed 1245/1246 tests; the unchanged startup-disclosure subprocess hit its 15-second
+timeout under concurrent load. Its isolated rerun passed without changing assertions
+or timeout. A complete two-worker rerun and fresh isolated database/browser checks
+are pending at this entry. Sandbox file-write restrictions were retried with approved
+elevation; system Python lacked PyYAML, so the existing repository virtual environment
+ran the documentation validator unchanged. No dependencies or production limits changed.
+
+The complete two-worker unit rerun passed all 1246 tests in 64 files (129.62s).
+Independent non-author review approved `266c312`, tree
+`3efee2e4e1eb5063b441593a728289293751ca2b`, with no material code findings.
+Report `tmp/antigravity-ui-review-266c312.md`, SHA256
+`61b048aae297d29969a203042999feb0dfeb68fb5da0610b5c9cc91eccb8a3ef`, was fully read
+and hash-verified by the root. It independently verified identical Git stylesheet
+blob `2c726e6f827cba390c3a5218d997c31a4a415fd3` in the reference and candidate,
+unchanged command/resource lifetimes and preservation of every evidence dimension.
+That review is bounded to the visual implementation, not pending execution gates.
+
+The first fresh database run on `pdaa_test_1790060672287` applied all eight
+migrations, verified unchanged repeat deployment, and passed 123/124 tests in
+eight files (463.52s). The existing milestone 1000/1001 test failed at its first
+1000-version capture before exercising overflow, returning the fixed persistence
+error. A second fresh run with no concurrent unit suite has reproduced that same
+failure. Backend, test, deadlines and migration bytes are unchanged by this visual
+candidate. A separate read-only diagnostic review found repeated composite child
+proof validation and the existing 10-second transaction budget as a plausible,
+unconfirmed cause; the fixture dates remain valid. This failure is not waived or
+counted as passed. Default `pdaa` has not been migrated or seeded; failed isolated
+databases remain retained for diagnosis.
+
+The second full database run on `pdaa_test_1790061192585` also passed 123/124
+tests (469.60s), with the same single milestone capture failure. A subsequent
+single-test diagnostic retained the original assertions and transaction options;
+an ignored wrapper logged only elapsed time, callback completion and finite Prisma
+code. It observed `P2028`, 11993ms, `callbackReturned: false`. This establishes
+transaction expiry during the bounded capture on this host, not a failed overflow
+assertion or proof of a specific SQL bottleneck. No raw error, SQL or credential
+was logged. Optimize/profile this composite path separately without increasing
+deadlines, weakening COMMIT validation or editing applied migration history.
+
+The original complete Chromium suite passed 28/28 workflows (2.8 minutes) against
+the new isolated test database, including scalar CREATE/REUSE, original PM proof,
+source revocation, exact assignment retry, historical evidence, session teardown
+and mobile navigation. The in-app browser could not initialize; standalone
+agent-browser rendered meaningful content with no overlay but navigation/capture
+timed out. The pinned ephemeral Apache-2.0 Playwright CLI then captured the actual
+application successfully without adding an application dependency or using a
+personal browser profile. One temporary API fixture initially used the wrong
+append-result factId location and was rejected with 400; correcting that fixture
+to the existing contract produced a real CREATED request. No product API changed.
+
+Visual evidence in `output/playwright/` (retained locally, not distributed):
+
+- `antigravity-signin.png`: SHA256 `97ad0681033ef446400b433b2d4a20ccb833c24c4128048a7e37cd9c0314af19`.
+- `antigravity-scalar-desktop.png`: SHA256 `427754d33cd6ab5309ebadd7846c3be5240240ae87f3fa0f3c3fed87941bba82`.
+- `antigravity-scalar-mobile.png`: SHA256 `df5e678f1838e927e823e757582f05529ee1ed57a91d06d4ed0000b29dea0205`.
+
+Root visually inspected all three captures. Desktop at 1440px has two populated
+comparison columns and mobile at 390px has one; document scrollWidth equals viewport
+width in both. Actual queue background is `rgb(238,242,255)`, heading Sapphire is
+`rgb(15,52,96)`, and keyboard focus is `rgb(79,70,229)`. Periodic authorization checks
+temporarily hide evidence as designed; measurements wait for the observed proof
+without disabling refresh. The final fresh browser session has no reserved-key
+warnings; its remaining console error is the existing missing `/favicon.ico` 404.
+
+Visual inspection discovered existing React reserved-key spread warnings in eight
+status presentations. Candidate `02c79fc4bfb837b3420d0602330c946c5e166870` passes the
+same key explicitly with only phase/error/refresh props, preserving resource identity
+and all lifecycle/authorization behavior. The existing PM browser test now rejects
+that warning without suppressing other errors or narrowing workflow assertions.
+Web build/typechecking and lint passed. Independent review approved the exact delta,
+tree `03c48eb50c2f6f592e4bb54b51063056365dbc64`, with no material findings; report
+`tmp/antigravity-key-review-02c79fc.md`, SHA256
+`2deb86d4ae8f11a71b9223652c82c6e3d47d7451b592beaf36338ce3a39c403c`, was fully read
+and verified. Complete final browser/unit rerun results are recorded below.
+
+Final implementation validation: all 28 Chromium workflows passed again (4.6
+minutes), including the added reserved-key assertion. A concurrent full unit run
+passed 1245/1246, with the unchanged production-migration configuration subprocess
+returning no error output at its 15-second timeout boundary; that six-test file
+passed unchanged alone (16.06s). After stopping browser/runtime workloads, the
+complete serial unit run passed all 1246 tests across 64 files (358.28s). Earlier
+failed attempts remain disclosed; no test timeout, assertion or production limit
+was changed. The final web build/typecheck, lint, architecture and documentation
+checks passed; the backend build and OpenAPI checks remain unchanged from the
+earlier passing full build/contract run.
+
+Cleanup: both owned browser sessions and the API/Vite/worker verification process
+were stopped. No listeners remained on 3001/5173; PostgreSQL reported zero other
+connections to the fixture database before the foundation container was returned
+to its original stopped state. Every test database, volume and evidence file is
+retained; unrelated containers were untouched. `.gitignore` now excludes generated
+`output/playwright/` evidence from accidental publication.
+
+This closes the bounded visual integration and its local browser gate only.
+Publication is a draft integration PR, not a merge or whole scalar acceptance.
+It also carries the previously unpushed local scalar implementation from main;
+those backend/migration changes retain their separate review and open packaged
+acceptance gates. Both Antigravity's branch and PR #53 remain untouched. The next
+coherent task is measured correction of the composite 1000-version milestone
+transaction, followed by full native rerun and the outstanding packaged upgrade,
+encrypted-restore and CI matrix. No new story is accepted: R0 remains 3/5 (60%),
+R1 2/33 (6.1%). This design increment adds no schema, permission, connector scope
+or runtime dependency. Roll back its web commits through a reviewed revert while
+preserving database history; do not delete evidence or rewrite migrations.

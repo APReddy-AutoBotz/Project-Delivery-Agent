@@ -21,3 +21,4 @@ packages/data/src/generated/
 .pnpm-store/
 playwright-report/
 test-results/
+output/playwright/

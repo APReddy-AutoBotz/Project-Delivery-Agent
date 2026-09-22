@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-13
+Updated: 2026-09-22
 
 ## Accepted implementation completion
 
@@ -16,6 +16,33 @@ evidence, independent exact-SHA review, passing remote checks and a verified mer
 STORY-003 (shipped customer composition, TLS and external database support) is
 accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5),
 R0 release acceptance and commercial/customer deployment remain open.
+
+## Current unmerged work
+
+### Unmerged Antigravity design integration
+
+The Product Owner requested preservation of Antigravity's chosen design/colours.
+Open PR #53 (`72f822e`) diverges from the reviewed local scalar implementation;
+its documentation check passed but Foundation migration/packaged checks failed,
+with integration/recovery/browser steps skipped. Neither original history was
+overwritten. Branch `codex/antigravity-design-integration` preserves its exact
+global stylesheet and adapts its scalar cards, status badges and comparison grid
+to the validated local contracts, permission checks and full historical evidence.
+Remote resolution and incompatible migration changes were not imported.
+
+Independent implementation reviews approved `266c312` and the browser-discovered
+React key-prop correction `02c79fc`. The complete Chromium suite passed 28/28 on
+both runs, including the final warning regression. Desktop/mobile captures retain
+the approved colours and show no horizontal page overflow. Detailed test attempts,
+review hashes and screenshots are recorded in
+[EXEC-008](exec-plans/EXEC-008-scalar-reconciliation.md).
+
+The native database gate is **not green**: two fresh databases each passed 123/124
+tests; the unchanged 1000-version milestone capture expires its 10-second
+transaction (`P2028`). This needs a separate measured correction, not relaxed
+deadlines or rewritten applied migrations. Scalar packaged profiles, upgrades,
+encrypted recovery and required final CI remain open. No story/release acceptance
+or change to the R0/R1 completion numerators is claimed.
 
 ## Published and merged increments
 
