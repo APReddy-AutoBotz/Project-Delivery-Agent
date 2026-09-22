@@ -4,6 +4,27 @@ import { assertScalarExpiryReceipt } from "./scalar-expiry-receipt.mjs";
 export const expiryCheckName =
   "SEC-AUTH-001: naturally expired OIDC token receives fixed API denials and clears loaded browser data without refresh";
 
+// Capture the first matching event's arrival, even if its body is processed much
+// later. An early denial must fail the expiry check, not be ignored or relabelled.
+export function waitForExpiryDenial(page, protectedPaths, timeout) {
+  let arrivedAt;
+  return page
+    .waitForResponse(
+      (response) => {
+        if (
+          response.status() !== 401 ||
+          response.request().method() !== "GET" ||
+          !protectedPaths.includes(new URL(response.url()).pathname)
+        )
+          return false;
+        arrivedAt ??= Date.now();
+        return true;
+      },
+      { timeout },
+    )
+    .then((response) => ({ response, arrivedAt }));
+}
+
 // The existing primary fixture issues 120-second tokens. Reject stale tokens or
 // fixture drift before waiting; no test clock or token claim is modified.
 export function expiryWaitMs(claims, now = Date.now()) {

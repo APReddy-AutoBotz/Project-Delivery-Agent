@@ -255,15 +255,27 @@ test("INT-EVD-004: review binding, retry a committed check and show management m
   let committed: any,
     firstKey: string | undefined,
     calls = 0;
+  let checkLost!: () => void, checkFailed!: (error: unknown) => void;
+  const lostCheck = new Promise<void>((resolve, reject) => {
+    checkLost = resolve;
+    checkFailed = reject;
+  });
+  void lostCheck.catch(() => {});
   await page.route("**/milestone-reconciliation-checks", async (route) => {
     calls++;
     const body = route.request().postDataJSON();
     if (calls === 1) {
       firstKey = body.idempotencyKey;
-      const response = await route.fetch();
-      expect(response.status()).toBe(201);
-      committed = await response.json();
-      await route.abort("failed");
+      try {
+        const response = await route.fetch();
+        expect(response.status()).toBe(201);
+        committed = await response.json();
+        await route.abort("failed");
+        checkLost();
+      } catch (error) {
+        checkFailed(error);
+        throw error;
+      }
     } else {
       expect(body.idempotencyKey).toBe(firstKey);
       await route.continue();
@@ -275,6 +287,9 @@ test("INT-EVD-004: review binding, retry a committed check and show management m
       exact: true,
     })
     .click();
+  // The UI's five-second retry assertion starts after the original command has
+  // actually committed and the lost response has been injected, not during it.
+  await lostCheck;
   await expect(
     page.getByRole("button", {
       name: "Retry same milestone check",
@@ -305,14 +320,26 @@ test("INT-EVD-004: review binding, retry a committed check and show management m
   // assignment refresh. Its identical original command remains retryable.
   let assignmentCommand: unknown,
     assignmentCalls = 0;
+  let assignmentLost!: () => void, assignmentFailed!: (error: unknown) => void;
+  const lostAssignment = new Promise<void>((resolve, reject) => {
+    assignmentLost = resolve;
+    assignmentFailed = reject;
+  });
+  void lostAssignment.catch(() => {});
   await page.route("**/reconciliation-requests/*/assignment", async (route) => {
     assignmentCalls++;
     const body = route.request().postDataJSON();
     if (assignmentCalls === 1) {
       assignmentCommand = body;
-      const response = await route.fetch();
-      expect(response.status()).toBe(201);
-      await route.abort("failed");
+      try {
+        const response = await route.fetch();
+        expect(response.status()).toBe(201);
+        await route.abort("failed");
+        assignmentLost();
+      } catch (error) {
+        assignmentFailed(error);
+        throw error;
+      }
     } else {
       expect(body).toEqual(assignmentCommand);
       await route.continue();
@@ -324,6 +351,7 @@ test("INT-EVD-004: review binding, retry a committed check and show management m
       exact: true,
     })
     .click();
+  await lostAssignment;
   await expect(
     queue.getByRole("button", {
       name: "Retry same assignment refresh",

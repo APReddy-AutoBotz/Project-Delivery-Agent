@@ -1,5 +1,6 @@
 // FR-EVD-009 / SEC-AUTH-001: fail-closed independent expiry evidence controls.
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+import { waitForExpiryDenial } from "../scripts/acceptance/expiry-evidence.mjs";
 import { createHash } from "node:crypto";
 import { mkdtempSync, copyFileSync, unlinkSync, rmdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -51,6 +52,41 @@ it("accepts original scalar proof and fixed denials after natural expiry", () =>
   expect(assertScalarExpiryReceipt(scalarExpiryFixture(), expiryRunId)).toBe(
     true,
   );
+});
+it("preserves first browser denial arrival through delayed processing and rejects early expiry evidence", async () => {
+  const r = scalarExpiryFixture();
+  let predicate!: (response: unknown) => boolean;
+  let settle!: (response: unknown) => void;
+  const page = {
+    waitForResponse: (match: typeof predicate) => {
+      predicate = match;
+      return new Promise((resolve) => {
+        settle = resolve;
+      });
+    },
+  };
+  const response = {
+    status: () => 401,
+    request: () => ({ method: () => "GET" }),
+    url: () => "https://gateway:8443" + r.browserDenial.path,
+  };
+  const clock = vi.spyOn(Date, "now").mockReturnValue(r.expiresAt - 1);
+  try {
+    const pending = waitForExpiryDenial(page, [r.browserDenial.path], 1000);
+    expect(predicate(response)).toBe(true);
+    clock.mockReturnValue(r.expiresAt + 15000);
+    expect(predicate(response)).toBe(true); // A later event cannot replace the first.
+    settle(response);
+    const observed = await pending;
+    expect(observed.response).toBe(response);
+    expect(observed.arrivedAt).toBe(r.expiresAt - 1);
+    r.browserDenial.at = observed.arrivedAt;
+    r.clearedAt = Date.now();
+    expect(r.denials.every((item) => item.at > r.expiresAt)).toBe(true);
+    expect(() => assertScalarExpiryReceipt(r, expiryRunId)).toThrow();
+  } finally {
+    clock.mockRestore();
+  }
 });
 it.each([
   "run",

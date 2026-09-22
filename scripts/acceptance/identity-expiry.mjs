@@ -10,7 +10,11 @@ import {
   readFixtureSecrets,
   observeBrowserDisclosure,
 } from "./disclosure.mjs";
-import { expiryWaitMs, validateExpiryReceipt } from "./expiry-evidence.mjs";
+import {
+  expiryWaitMs,
+  validateExpiryReceipt,
+  waitForExpiryDenial,
+} from "./expiry-evidence.mjs";
 import {
   createDatabase,
   DatabaseScalarReconciliationRepository,
@@ -83,11 +87,11 @@ export async function checkIdentityExpiry(browser) {
     return JSON.parse(JSON.stringify(result));
   };
   const hash = (value) => createHash("sha256").update(value).digest("hex");
-  const observe = async (path, status, bytes) => {
+  const observe = async (path, status, bytes, observedAt = Date.now()) => {
     disclosure.add("expiry-api-bodies", bytes.toString("utf8"));
     return {
       path,
-      at: Date.now(),
+      at: observedAt,
       status,
       bytes: bytes.length,
       sha256: hash(bytes),
@@ -329,12 +333,10 @@ export async function checkIdentityExpiry(browser) {
       scalarPath,
       prefix + "/scalar-reconciliation-requests",
     ];
-    const browserExpired = page.waitForResponse(
-      (response) =>
-        response.status() === 401 &&
-        response.request().method() === "GET" &&
-        protectedPaths.includes(new URL(response.url()).pathname),
-      { timeout: Math.min(remaining(), wait + 30000) },
+    const browserExpired = waitForExpiryDenial(
+      page,
+      protectedPaths,
+      Math.min(remaining(), wait + 30000),
     );
     void browserExpired.catch(() => {});
     await delay(wait);
@@ -360,7 +362,9 @@ export async function checkIdentityExpiry(browser) {
     const denials = [];
     for (const path of [scalarPath, prefix + "/scalar-reconciliation-requests"])
       denials.push(await request(path, "GET", undefined, true));
-    const response = await browserExpired;
+    const { response, arrivedAt: browserDenialAt } = await browserExpired;
+    assert(Number.isSafeInteger(browserDenialAt));
+    assert(browserDenialAt >= claims.exp * 1000);
     assert.equal(response.status(), 401);
     assert.equal(
       await response.request().headerValue("authorization"),
@@ -370,6 +374,7 @@ export async function checkIdentityExpiry(browser) {
       new URL(response.url()).pathname,
       response.status(),
       Buffer.from(await response.body()),
+      browserDenialAt,
     );
     await expect(page.getByRole("alert")).toContainText(
       "Your session has ended",

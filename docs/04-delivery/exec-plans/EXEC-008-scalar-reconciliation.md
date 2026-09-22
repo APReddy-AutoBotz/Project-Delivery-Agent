@@ -450,6 +450,34 @@ A further isolated-host import regression ensures expiry/temporal readers load
 without node_modules or built runtime packages. Final full browser rerun and
 fresh packaged evidence remain pending at this checkpoint.
 
+Pushed acceptance candidate `149a4e7f1be948d0318c108379f3b81d62ef336a`
+(tree `79c29cba36c692ce44122bcf80aff88e18387b84`) received green native CI:
+1362 units,125 integration,42-table recovery and32 browsers; Documentation
+35713590361 passed. Foundation35713590390 production remains running.
+The temporal scope's independent immutable review is acceptable for its pending
+execution gate, report SHA256
+`8772eec84fd8ce7059a34014c19f26825abc26f76222875ad6078bbfabe9b887`.
+
+The separate expiry review requested one P2 correction: timestamp the first real
+browser401 when its response event arrives, not after the natural-expiry wait and
+direct API probes. Report SHA256
+`7fa408bb2d48ce5eacb25b326110b3fe080e2305030f0841251c97902e867cdc`.
+The child correction preserves the first arrival through delayed processing,
+rejects an early event even if later events arrive, and adds a regression against
+the actual event-wait helper. It does not filter away early denials or modify the
+fixture clock. The focused expiry tests pass34/34, including clean pre-install
+reader loading.
+
+Sequential local Chromium repeated31/32 with the existing milestone retry
+expectation. Its trace showed the test ended/disposed the still-pending original
+route.fetch response before response-loss injection completed. The test now awaits
+the real201 commit plus route abort before checking the retry UI; assignment-loss
+injection uses the same explicit sequencing. Failures reject the latch; original
+idempotency assertions,5-second UI expectation,90-second journey limit and
+10-second runtime transaction limits remain unchanged. The corrected full journey
+passes1/1 in15.2s. Both failed traces are retained, not relabelled passes.
+Final complete local and current-child CI/review gates remain pending.
+
 ### 2026-09-22 packaged scalar workflow and measured validation continuation
 
 Candidate `15ef53d09671c81c5537317bf9fea52b27628543`, tree
