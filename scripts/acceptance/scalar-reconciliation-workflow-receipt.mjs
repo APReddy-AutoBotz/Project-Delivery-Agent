@@ -181,7 +181,33 @@ export function assertScalarWorkflowReceipt(
       assert.equal(row.assessment.freshness, "CURRENT");
       assert.equal(row.assessment.conflict, "CONFLICTING");
     }
-    assert(result.conflicts.length > 0);
+    // Exactly two fresh same-tier statements yield one persisted pair plus
+    // its current authority disagreement, not arbitrary split/singleton groups.
+    assert.equal(result.conflicts.length, 2);
+    assert.deepEqual(result.conflicts.map((row) => row.kind).sort(), [
+      "AUTHORITY_DISAGREEMENT",
+      "RECORDED",
+    ]);
+    const evidence = value.statements
+      .map((item) => item.response.body.entry.evidenceId)
+      .sort();
+    for (const group of result.conflicts) {
+      assert.deepEqual(Object.keys(group).sort(), [
+        "evidenceIds",
+        "kind",
+        "recordedConflictId",
+        "versionIds",
+      ]);
+      assert.deepEqual(group.versionIds, [...versions].sort());
+      assert.deepEqual(group.evidenceIds, evidence);
+      if (group.kind === "RECORDED") {
+        assert.match(group.recordedConflictId, uuid);
+        for (const row of result.versions)
+          assert.deepEqual(row.unresolvedConflictIds, [
+            group.recordedConflictId,
+          ]);
+      } else assert.equal(group.recordedConflictId, null);
+    }
     assert.deepEqual(
       new Set(result.conflicts.flatMap((row) => row.versionIds)),
       versions,
@@ -215,6 +241,10 @@ export function assertScalarWorkflowReceipt(
   );
   assert.equal(created.response.body.outcome, "CREATED");
   assert.equal(reused.response.body.outcome, "REUSED");
+  assert.deepEqual(
+    reused.response.body.assessment.result.conflicts,
+    created.response.body.assessment.result.conflicts,
+  );
   const request = created.response.body.request;
   assert.match(request.id, uuid);
   assert.equal(request.projectId, value.projectId);

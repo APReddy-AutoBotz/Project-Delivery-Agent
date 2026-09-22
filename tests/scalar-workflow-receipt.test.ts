@@ -47,6 +47,15 @@ function receipt() {
     };
   });
   const fixture = scalarContractFixture();
+  snapshot.conflicts = [
+    {
+      id: scalarId(44),
+      scope: { ...scalarScope },
+      versionIds: snapshot.versions.map((row) => row.id),
+      detectedAt: scalarTime,
+      resolvedAt: null,
+    },
+  ];
   const assessment = {
     ...fixture.assessment,
     result: resolveSourceAuthority(snapshot),
@@ -434,7 +443,16 @@ describe("packaged scalar browser receipt", () => {
     expect(workflow).toContain("customer-*/scalar-reconciliation-pm-*.png");
   });
 
-  it.each(["source", "participants", "evidence", "policy"])(
+  it.each([
+    "source",
+    "participants",
+    "evidence",
+    "policy",
+    "split-group",
+    "invalid-kind",
+    "recorded-id",
+    "extra-group-key",
+  ])(
     "rejects byte-consistent %s substitutions across every copy of the frozen proof",
     (field) => {
       const value = structuredClone(receipt());
@@ -458,6 +476,20 @@ describe("packaged scalar browser receipt", () => {
               row.evidenceIds = [];
             });
           if (field === "policy") result.policy.tiers = [];
+          if (field === "split-group")
+            result.conflicts = result.versions.map((row: any) => ({
+              kind: "AUTHORITY_DISAGREEMENT",
+              recordedConflictId: null,
+              versionIds: [row.id],
+              evidenceIds: row.evidenceIds,
+            }));
+          if (field === "invalid-kind")
+            result.conflicts[0].kind = "HIGHER_AUTHORITY_CONTRADICTION";
+          if (field === "recorded-id")
+            result.conflicts.find(
+              (row: any) => row.kind === "RECORDED",
+            ).recordedConflictId = scalarId(999);
+          if (field === "extra-group-key") result.conflicts[0].accepted = true;
           Object.assign(node, observed(node.body, node.status));
           return;
         }
