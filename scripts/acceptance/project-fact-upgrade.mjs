@@ -373,7 +373,7 @@ export async function verifyFoundationUpgrade(
     const upgradeStarted = performance.now();
     const applied = await migrateRelease(release, migrations);
     const upgradeElapsedMs = performance.now() - upgradeStarted;
-    assert.equal(applied.length, 8);
+    assert.equal(applied.length, migrations.length);
     assert.deepEqual(await oldProjection(), before);
     if (priorCount < 5) {
       assert.equal(

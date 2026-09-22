@@ -38,3 +38,14 @@ it("pins the original validator and permits only the materialized identity proje
     .replaceAll("t.resolved_state", "f.result->'resolvedValue'->>'value'");
   expect(reverted).toBe(oldFunction);
 });
+
+it("requires the complete pinned release ledger after a prior-prefix upgrade", () => {
+  const helper = readFileSync(
+    "scripts/acceptance/project-fact-upgrade.mjs",
+    "utf8",
+  );
+  expect(helper).toContain("assert.equal(migrations.length, 9)");
+  expect(helper).toContain('"202609220001_milestone_validation_projection"');
+  expect(helper).toContain("assert.equal(applied.length, migrations.length)");
+  expect(helper).not.toMatch(/assert\.equal\(applied\.length,\s*8\)/);
+});
