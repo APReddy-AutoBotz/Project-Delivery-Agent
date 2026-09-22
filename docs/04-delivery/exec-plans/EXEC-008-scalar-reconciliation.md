@@ -439,6 +439,17 @@ That test plus the real orphan-COMMIT control pass2/2 (11 unrelated excluded).
 Full child checks/review remain required. No app, CSS, migration, connector scope
 or dependency changes.
 
+Independent review of `1af9073` accepted the transport scope, report SHA256
+`5c0afbce4445b0a48e223b4b886c9d1d53671cba1f7a3b04c9004b3e40719966`.
+Its separate coverage review identified a P2 sensitivity gap: the occupied-hash
+lookup assertion itself could be sanitized to the expected public error. Report
+SHA256 `395076678695f5cd7395a54cc5595add7f17cf5c4c5f2a00d8c7314e3167b171`
+was fully read and verified. The child
+sets an injection-completed flag only after the native lookup/row assertion and
+requires it outside the repository error boundary, so a fixture failure cannot
+masquerade as the intended identity rejection. Exact-child review/checks remain
+required; no runtime code, exception mapping or transaction behavior changes.
+
 Ancestor `149a4e7` now has fully passing Foundation35713590390 and Documentation
 35713590361, including primary/bundled/external acceptance and encrypted restores.
 Its original production ZIP10689133921, SHA256

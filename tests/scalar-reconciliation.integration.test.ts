@@ -295,7 +295,8 @@ it("NFR-REL-002: an occupied-hash read shim rejects unequal scalar identity and 
     return rows;
   };
   const before = await snapshot();
-  let lookups = 0;
+  let lookups = 0,
+    injectedUnequalIdentity = false;
   // Labelled application branch control, NOT a generated SHA-256 collision.
   // Only the occupied-hash read result changes; native capture, guards and
   // transaction options are real and the full transaction must roll back.
@@ -333,6 +334,10 @@ it("NFR-REL-002: an occupied-hash read shim rejects unequal scalar identity and 
                                 lookups++;
                                 const actual = await delegate.findUnique(input);
                                 expect(actual?.id).toBe(first.request!.id);
+                                // Assert completion outside the repository's finite-error
+                                // boundary so a failed fixture assertion cannot pass as the
+                                // intended unequal-identity rejection.
+                                injectedUnequalIdentity = true;
                                 return {
                                   ...actual,
                                   contributorIdentity:
@@ -367,6 +372,7 @@ it("NFR-REL-002: an occupied-hash read shim rejects unequal scalar identity and 
     ),
   ).rejects.toThrow("Scalar reconciliation check unavailable");
   expect(lookups).toBe(1);
+  expect(injectedUnequalIdentity).toBe(true);
   expect(await snapshot()).toEqual(before);
 });
 it("NFR-SEC-001 / FR-EVD-012: withdrawal of a retained non-contributor withholds original proof without closing the case", async () => {
