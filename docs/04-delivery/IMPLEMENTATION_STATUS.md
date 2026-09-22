@@ -55,14 +55,19 @@ ledger entries, 31 proof results and privileges. Earlier retained-database P2028
 attempts remain recorded rather than waived.
 
 Pushed `15ef53d` passed hosted native CI: 1286 units, 124 integration tests, complete
-recovery and 29 browser workflows; documentation passed. Its separate packaged
-production job is still pending at this entry. Independent bounded reviews approved
-the workflow and corrected migration inventory. Native recovery paging also passed
-locally after an aggregate-query timeout, retaining all 16 logical integrity checks
-and current per-query limits; its eleven negative/coverage tests passed. This last
-delta still needs immutable review and final CI. Missing scalar acceptance vectors,
-packaged evidence and whole-feature review remain open. No merge, story/release
-acceptance or change to the R0/R1 completion numerators is claimed.
+recovery and 29 browser workflows; documentation passed. Its packaged production
+job then failed because the new scalar test reloaded the memory-only OIDC session
+before opening the project. Signed-in exact-project card navigation now replaces
+that reload; its three tests and 34 receipt tests passed, pending review/fresh CI.
+Primary encrypted restore passed; bundled/external restore remain unexecuted there.
+
+Independent bounded reviews approved the workflow, corrected migration inventory
+and native recovery paging. Complete local recovery passes with all 16 logical
+checks and unchanged per-query limits; full units passed 1297/1297 before the three
+navigation tests were added. Remaining acceptance comprises scalar stale/recordedAt
+native vectors, loaded-proof natural OIDC expiry, legacy/leadership/new-contributor
+UI/HTTP journeys, final packaged evidence and whole-feature review. No merge,
+story/release acceptance or change to the completion numerators is claimed.
 
 ## Published and merged increments
 

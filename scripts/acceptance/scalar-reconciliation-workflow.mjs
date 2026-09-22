@@ -19,6 +19,40 @@ const region = (page) =>
   });
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
+export async function openInstalledScalarProject(
+  session,
+  projectId,
+  projectName,
+) {
+  assert.match(projectId, /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/);
+  assert(typeof projectName === "string" && projectName.length > 0);
+  // OIDC tokens are memory-only. A page.goto reload loses the session, and a
+  // bare ?project link is not a saved-proof route. Use the authenticated card.
+  const pending = session.page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/projects/" + projectId) &&
+      response.request().method() === "GET",
+  );
+  void pending.catch(() => {});
+  await session.page
+    .getByRole("button")
+    .filter({
+      has: session.page.getByRole("heading", {
+        name: projectName,
+        exact: true,
+      }),
+    })
+    .click();
+  const opened = await observeResponse(
+    session,
+    await pending,
+    "installed scalar project navigation",
+    200,
+  );
+  assert.equal(opened.observation.body.id, projectId);
+  await session.capture.settle(session.page);
+}
+
 async function screenshot(session, output, file) {
   await session.capture.settle(session.page);
   const bytes = await session.page.screenshot({
@@ -181,7 +215,15 @@ export async function exerciseScalarReconciliationWorkflow({
       ).observation,
     };
     // Navigate the installed web application; the material check is a real click.
-    await pmo.page.goto(base + `/?project=${projectId}`);
+    assert.equal(
+      canonicalFixture.receipt.canonical.creation.body.id,
+      projectId,
+    );
+    await openInstalledScalarProject(
+      pmo,
+      projectId,
+      canonicalFixture.receipt.canonical.command.name,
+    );
     await pmo.page.getByLabel("Fact type key", { exact: true }).fill(factType);
     await pmo.page
       .getByRole("button", { name: "Open fact history", exact: true })

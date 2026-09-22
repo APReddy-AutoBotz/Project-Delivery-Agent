@@ -478,8 +478,45 @@ programmes, 35 canonical projects, 70 bindings, 27 milestone assessments,
 12/17/15 milestone request/check/assignment rows and 8/12/10 scalar rows.
 Both restore targets and all source databases remain retained.
 
-The recovery paging delta still requires its own immutable review and final CI.
-Remaining scalar acceptance vectors, original packaged artifacts, whole-feature
+Independent review approved recovery candidate `8cb0cd6a7d775e23371ef90d93068740a2f1c4da`,
+tree `80339d032deb80713ee9fa5cb41dd0d5f84e007d`. Report
+`tmp/recovery-paging-review-8cb0cd6.md`, SHA256
+`fb4d8c43a19efdb7a4c27af0e08325ef668d1338ce93484ad69a3ac82a856325`, was fully read
+and hash-verified. With local database workloads stopped, the full unit suite
+passed 1297/1297 in 68 files (248.34s), with unchanged subprocess deadlines.
+The foundation container was returned to its original stopped state after verifying
+zero database connections and no listeners on 3001/5173; all data is retained.
+
+The `15ef53d` packaged job subsequently failed at 09:03 UTC during
+`customer-bundled-before-upgrade`: the new scalar helper's full `page.goto` discarded
+the intentionally memory-only OIDC session, and bare `?project` is not a supported
+saved-proof route. The following fact-key fill therefore timed out before the first
+scalar click. Primary TLS/OIDC/expiry/disclosure, release operations and encrypted
+restore passed; bundled installed passed, but its recreation/restore and the
+external profile were not reached. All production/distribution publication was
+skipped. The fixed customer restore-principal assertion is still unexecuted in this
+run. Independent monitor report `tmp/exec008-pr54-ci-15ef53d.md`, SHA256
+`d287c5e0431e18d2d5e8f29b1e5eba29f0f0669883253bf5a24889c03f768131`, was fully read
+and hash-verified. The root also inspected original decoded CI logs and metadata.
+
+The helper now navigates by the signed-in project card with the exact heading from
+the HTTP-created fixture, installs its exact project-GET observer before clicking,
+and rejects non-200 or mismatched-ID responses. It neither persists tokens nor
+changes product routes, authentication, selectors to another project, or deadlines.
+Three navigation tests plus all 34 receipt tests passed (37/37, 7.40s); this
+correction postdates the full 1297-test run and still requires review/fresh CI.
+
+A separate bounded closure audit, `tmp/scalar-merge-readiness-15ef53d.md`, SHA256
+`5b52b6d8c4790e603da2f58bc4db0a137a7ff7dcd0b68b5e09b7afcb26e4c23f`, was fully read
+and verified. Remaining evidence is concrete: owned scalar API-role stale recorded/
+higher-authority vectors, a distinct native recordedAt boundary, natural same-token
+expiry with scalar proof loaded, and real legacy-unassigned/ordinary leadership/
+changed-contributor UI/HTTP journeys. Existing ordinary native stale and contributor
+race tests remain valid but do not prove those missing boundaries. Complete scalar
+acceptance cannot be inferred from native counts or a design-only label on this
+backend-bearing PR. Broader GOLDEN-003 health/Q&A and customer release stay separate.
+
+Remaining vectors, final exact-head CI, original packaged artifacts, whole-feature
 review and expected-head merge gates stay open. R0 is still 3/5 (60%); R1 2/33
 (6.1%). No new dependency, connector scope, real-data activation, external message,
 write-back, approval or customer-release authority is introduced.
