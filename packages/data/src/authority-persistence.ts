@@ -413,7 +413,11 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         projectId,
         sealed: true,
       },
-      include: { versions: { include: { version: true } } },
+      // The stored result is the proof; these rows are only the current-access
+      // dependencies. Native validation below still checks the complete graph.
+      include: {
+        versions: { select: { version: { select: { sourceId: true } } } },
+      },
     });
     if (!row) return null;
     const valid = await tx.$queryRaw<

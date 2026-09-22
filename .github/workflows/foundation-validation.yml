@@ -75,6 +75,8 @@ jobs:
             artifacts/pdaa-acceptance-*/customer-*/milestone-reconciliation-workflow-fixture.json
             artifacts/pdaa-acceptance-*/customer-*/project-fact-persistence.json
             artifacts/pdaa-acceptance-*/customer-*/milestone-reconciliation-pm-*.png
+            artifacts/pdaa-acceptance-*/customer-*/scalar-reconciliation-workflow-fixture.json
+            artifacts/pdaa-acceptance-*/customer-*/scalar-reconciliation-pm-*.png
           if-no-files-found: error
       - uses: pnpm/action-setup@v4
         with:

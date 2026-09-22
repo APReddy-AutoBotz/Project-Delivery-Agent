@@ -572,6 +572,7 @@ try {
           pool,
           target("restore_target"),
           receipt.scalarReconciliationFixture,
+          "fixture_admin",
         );
       receipt.restore = {
         status: "passed",

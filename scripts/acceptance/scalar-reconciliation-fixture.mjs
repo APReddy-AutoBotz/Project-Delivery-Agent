@@ -352,8 +352,10 @@ export async function verifyRestoredScalarReconciliation(
   owner,
   connection,
   fixture,
+  expectedAdministrator,
 ) {
   reconciliationAcceptanceGuard();
+  assert(["fixture_admin", "postgres"].includes(expectedAdministrator));
   assert.equal(fixture.family, "scalar-reconciliation/v1");
   assertAvailableScalarOriginal(
     fixture.originalAssessment,
@@ -365,7 +367,7 @@ export async function verifyRestoredScalarReconciliation(
     const principal = (await db.$queryRaw`SELECT current_user AS role`)[0].role;
     // Restores stay runtime-quarantined: caller supplies the authorized restore
     // administrator, never temporarily enables API CONNECT to make this pass.
-    assert.equal(principal, "fixture_admin");
+    assert.equal(principal, expectedAdministrator);
     let runtimeTransactions = 0;
     const restrictedTransaction = (callback, options) =>
       db.$transaction(async (tx) => {
@@ -374,7 +376,7 @@ export async function verifyRestoredScalarReconciliation(
           await tx.$queryRaw`SELECT current_user AS role, session_user AS login`
         )[0];
         assert.equal(role.role, "pdaa_api");
-        assert.equal(role.login, "fixture_admin");
+        assert.equal(role.login, expectedAdministrator);
         runtimeTransactions += 1;
         return callback(tx);
       }, options);

@@ -44,7 +44,13 @@ export function assertAvailableScalarOriginal(assessment, customerId, command) {
   );
 }
 
-export function assertScalarRecoveryReceipt(persistence, customerId) {
+export function assertScalarRecoveryReceipt(
+  persistence,
+  customerId,
+  expectedAdministrator,
+) {
+  // Caller pins the profile's restore login; never learn it from the receipt.
+  assert(["fixture_admin", "postgres"].includes(expectedAdministrator));
   assert.equal(persistence.businessTableCount, 42);
   assert.equal(persistence.migrationCount, 8);
   assert.deepEqual(persistence.scalarReconciliationTables, [
@@ -102,7 +108,7 @@ export function assertScalarRecoveryReceipt(persistence, customerId) {
     assert.equal(restore[flag], true);
   const proof = restore.scalarReconciliationOriginalProof;
   assert.equal(proof.family, fixture.family);
-  assert.equal(proof.executedAs, "fixture_admin");
+  assert.equal(proof.executedAs, expectedAdministrator);
   assert.equal(proof.runtimeRole, "pdaa_api");
   assert.equal(proof.runtimeTransactions, 5);
   assert.equal(proof.originalRequestId, fixture.requestId);

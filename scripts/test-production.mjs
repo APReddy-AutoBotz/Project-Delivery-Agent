@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import { customerProfiles } from "./acceptance/customer-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./acceptance/evidence-workflow-receipt.mjs";
 import { assertMilestoneReconciliationWorkflowReceipt } from "./acceptance/milestone-reconciliation-workflow-receipt.mjs";
+import { assertScalarWorkflowReceipt } from "./acceptance/scalar-reconciliation-workflow-receipt.mjs";
 import { validateReconciliationCommitReceipt } from "./acceptance/reconciliation-commit-receipt.mjs";
 import { assertReconciliationRacesReceipt } from "./acceptance/reconciliation-races-receipt.mjs";
 import { assertUpgradeInventory } from "./acceptance/upgrade-inventory-receipt.mjs";
@@ -459,6 +460,7 @@ try {
   assertScalarRecoveryReceipt(
     canonicalPersistence,
     "10000000-0000-4000-8000-000000000001",
+    "fixture_admin",
   );
   assert.equal(canonicalPersistence.milestonePersistenceTables.length, 5);
   assert.equal(
@@ -820,6 +822,12 @@ try {
       persistence.milestoneReconciliationWorkflow,
       { expectedCustomerId: "10000000-0000-4000-8000-000000000002" },
     );
+    assertScalarWorkflowReceipt(persistence.scalarReconciliationWorkflow, {
+      expectedCustomerId: "10000000-0000-4000-8000-000000000002",
+      expectedProfile: profile.profile,
+      expectedRunId: project,
+      expectedProjectId: persistence.milestoneReconciliationWorkflow.projectId,
+    });
     assertScalarConcurrencyAndLoad(
       persistence,
       "10000000-0000-4000-8000-000000000002",
@@ -829,6 +837,7 @@ try {
     assertScalarRecoveryReceipt(
       persistence,
       "10000000-0000-4000-8000-000000000002",
+      "postgres",
     );
     assert.equal(persistence.restore.canonicalIntegrityChecked, true);
     assert.equal(persistence.restore.canonicalImmutableChecked, true);

@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
-import { assertScalarRecoveryReceipt } from "../scripts/acceptance/scalar-reconciliation-recovery-receipt.mjs";
+import { assertScalarRecoveryReceipt as validateScalarRecoveryReceipt } from "../scripts/acceptance/scalar-reconciliation-recovery-receipt.mjs";
+const assertScalarRecoveryReceipt = (
+  persistence: unknown,
+  customerId: string,
+) => validateScalarRecoveryReceipt(persistence, customerId, "fixture_admin");
 
 function receipt() {
   const customerId = randomUUID();
@@ -155,3 +159,29 @@ it("NFR-REL-001/002: rejects receipts without the additive validator migration",
     expect(() => assertScalarRecoveryReceipt(changed, customerId)).toThrow();
   }
 });
+
+it.each(["fixture_admin", "postgres"])(
+  "NFR-REL-001: pins the externally expected %s login while keeping runtime role restricted",
+  (administrator) => {
+    const { persistence, customerId } = receipt();
+    persistence.restore.scalarReconciliationOriginalProof.executedAs =
+      administrator;
+    expect(() =>
+      validateScalarRecoveryReceipt(persistence, customerId, administrator),
+    ).not.toThrow();
+    for (const wrong of [
+      undefined,
+      "pdaa_api",
+      "pdaa_worker",
+      administrator === "postgres" ? "fixture_admin" : "postgres",
+    ])
+      expect(() =>
+        validateScalarRecoveryReceipt(persistence, customerId, wrong),
+      ).toThrow();
+    persistence.restore.scalarReconciliationOriginalProof.runtimeRole =
+      administrator;
+    expect(() =>
+      validateScalarRecoveryReceipt(persistence, customerId, administrator),
+    ).toThrow();
+  },
+);

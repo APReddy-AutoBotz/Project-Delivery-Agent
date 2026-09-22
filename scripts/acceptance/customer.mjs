@@ -4,6 +4,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { chromium } from "@playwright/test";
 import { closeCustomerBrowserSession } from "./customer-session.mjs";
+import {
+  exerciseScalarReconciliationWorkflow,
+  openSavedScalarReconciliation,
+  verifyScalarProjectWithdrawal,
+} from "./scalar-reconciliation-workflow.mjs";
 import { Pool, secret } from "./common.mjs";
 import { createDatabase } from "../../packages/data/dist/index.js";
 import { verifyScalarCommandRaces } from "./scalar-reconciliation-races.mjs";
@@ -278,6 +283,13 @@ async function browserCheck(afterUpgrade) {
             exact: true,
           })
           .waitFor();
+      else if (readyKind === "scalar-reconciliation")
+        await page
+          .getByRole("region", {
+            name: "PM scalar reconciliation request",
+            exact: true,
+          })
+          .waitFor();
       else throw new Error("Unknown customer browser readiness kind");
       return {
         context,
@@ -311,6 +323,18 @@ async function browserCheck(afterUpgrade) {
         })
       : null;
     let reconciliationReceipt;
+    let scalarFixture = afterUpgrade
+      ? read("scalar-reconciliation-workflow-fixture")
+      : null;
+    const savedScalar = afterUpgrade
+      ? await openSavedScalarReconciliation({
+          login,
+          base,
+          fixture: scalarFixture,
+          output,
+        })
+      : null;
+    let scalarReceipt;
     let persistence;
     const operator = await login("operator");
     await operator.page
@@ -355,6 +379,13 @@ async function browserCheck(afterUpgrade) {
           fixture: reconciliationFixture,
           output,
         });
+      scalarReceipt = await verifyScalarProjectWithdrawal({
+        saved: savedScalar,
+        base,
+        fixture: scalarFixture,
+        withdrawal: reconciliationReceipt.projectScopeWithdrawal,
+        output,
+      });
     } else {
       await operator.page.getByLabel("Account subject").fill("pmo-atlas");
       await operator.page
@@ -391,6 +422,14 @@ async function browserCheck(afterUpgrade) {
         customerId: env.CUSTOMER_ID,
         output,
       });
+      scalarFixture = await exerciseScalarReconciliationWorkflow({
+        login,
+        base,
+        canonicalFixture: reconciliationFixture,
+        output,
+        profile,
+        runId: env.PDAA_ACCEPTANCE_RUN_ID,
+      });
     }
     await scanBrowserAssets(base, disclosure);
     save("disclosure-" + phase, {
@@ -412,9 +451,11 @@ async function browserCheck(afterUpgrade) {
     // drained original browser responses and checked the full fixture secret set.
     if (afterUpgrade) {
       persistence.milestoneReconciliationWorkflow = reconciliationReceipt;
+      persistence.scalarReconciliationWorkflow = scalarReceipt;
       save("project-fact-persistence", persistence);
     } else {
       save("milestone-reconciliation-workflow-fixture", reconciliationFixture);
+      save("scalar-reconciliation-workflow-fixture", scalarFixture);
     }
   } finally {
     await browser.close();
@@ -704,6 +745,9 @@ try {
       scalarConflictPrefix,
       scalarVersionBoundary,
       evidenceWorkflow: read("evidence-workflow-fixture").receipt,
+      scalarReconciliationWorkflow: read(
+        "scalar-reconciliation-workflow-fixture",
+      ).receipt,
       milestoneReconciliationWorkflow: read(
         "milestone-reconciliation-workflow-fixture",
       ).receipt,
@@ -854,6 +898,7 @@ try {
             restored,
             restoredConnection,
             receipt.scalarReconciliationFixture,
+            "postgres",
           );
         })(),
         scalarReconciliationIntegrityChecked: true,

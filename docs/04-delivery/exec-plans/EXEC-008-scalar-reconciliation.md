@@ -385,6 +385,41 @@ Never resume application/worker automatically after restore.
 
 ## Progress log
 
+2026-09-22 continuation (FR-EVD-004/007/009/012, NFR-REL-001/002,
+NFR-SEC-005): PR #54 native CI verification passed on `db80c31`, including
+124 integration tests, recovery and 28 browser tests; packaged CI remains pending.
+The retained local milestone 1000-version diagnostic still expires with P2028
+before the callback returns. Content-free phase timing identifies approximately
+2s loading the delivery graph and 3.5s validating the stored parent. Delivery
+currently loads whole child results and version records but uses only source IDs
+for its current-access check. Narrow those projections without changing any SQL
+predicate, migration, deadline, authorization or response bytes. Re-run the
+unchanged boundary and full native suite; retain failures rather than waive them.
+
+The next acceptance increment adds genuine scalar UI/HTTP commands and saved PM
+proof to both packaged customer profiles, across application recreation and source/
+project withdrawal, with original-response receipts and an independent host reader.
+Reuse the existing disclosure recorder and fail-closed session cleanup. Preserve
+Antigravity styles byte-for-byte. Green native CI alone does not complete the
+packaged scalar browser, stale-vector, encrypted-restore or final review gates.
+
+The initial PR #54 production run subsequently failed at bundled restore
+verification (`scalar-reconciliation-fixture.mjs:368`): actual administrator
+`postgres` versus hardcoded `fixture_admin`. It was an assertion, not a job
+timeout. Primary acceptance and encrypted restore passed; bundled reached restore;
+external and distribution publication did not run. The correction passes an exact
+administrator expectation from each producer/host context, never from a receipt,
+and keeps `SET LOCAL ROLE pdaa_api`, its session-user assertion, five restricted
+transactions and CONNECT quarantine. Wrong/omitted administrator and elevated
+runtime-role negative controls are required for both profile identities.
+
+The smaller data projection reduced one observed parent graph read from 1992ms
+to 777ms, but a rebuilt isolated capture still failed P2028 at 13128ms before
+callback return. It is not a complete performance correction. Independent
+read-only inspection identified repeated extraction of large child JSON inside
+the parent identity query as a candidate for a measured additive migration; no
+SQL/migration/deadline change is included in this acceptance increment.
+
 2026-09-14 larger acceptance milestone in progress (FR-EVD-004/007/009/012,
 NFR-REL-001/002): batch the remaining fresh-proof/request seal probes with real
 changed-fact retry-key contention and a public contributor-append race. Require

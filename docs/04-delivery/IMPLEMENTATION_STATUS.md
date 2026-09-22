@@ -37,12 +37,21 @@ the approved colours and show no horizontal page overflow. Detailed test attempt
 review hashes and screenshots are recorded in
 [EXEC-008](exec-plans/EXEC-008-scalar-reconciliation.md).
 
-The native database gate is **not green**: two fresh databases each passed 123/124
-tests; the unchanged 1000-version milestone capture expires its 10-second
-transaction (`P2028`). This needs a separate measured correction, not relaxed
-deadlines or rewritten applied migrations. Scalar packaged profiles, upgrades,
-encrypted recovery and required final CI remain open. No story/release acceptance
-or change to the R0/R1 completion numerators is claimed.
+PR #54's `db80c31` native CI passed all 1246 units, 124 integration tests,
+42-table recovery and 28 browser tests. Its production job failed in the bundled
+customer restore verifier: the fixture incorrectly required the primary
+`fixture_admin` login where the customer composition uses `postgres`. Primary
+acceptance/restore passed; external customer acceptance was not reached.
+
+The continuation pins each profile's expected restore administrator while keeping
+application verification at `pdaa_api`. It adds a shared packaged scalar UI/HTTP
+workflow and independent original-byte receipt validation across recreation and
+source/project withdrawal. These additions still need final packaged evidence.
+The local 1000-version milestone capture still exceeds its unchanged 10-second
+transaction limit (`P2028`), despite a smaller dependency-only read projection.
+Further measured SQL work, missing native stale/recordedAt vectors, final review
+and passing exact-head CI remain open. No story/release acceptance or change to
+the R0/R1 completion numerators is claimed.
 
 ## Published and merged increments
 
