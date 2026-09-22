@@ -412,13 +412,14 @@ tests:
   evidence: []
 - id: FAIL-009
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-004
   specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
   behavior: When two applicable authoritative sources disagree, both values are retained and the fact is CONFLICTING.
   evidence:
   - docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md
+  - docs/05-quality/SCALAR_RECONCILIATION_VALIDATION.md
 - id: FAIL-010
   release: R1
   status: planned

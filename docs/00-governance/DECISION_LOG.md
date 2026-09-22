@@ -1,5 +1,21 @@
 # Decision Log
 
+## Scalar merge and next synthetic ingestion batch, 2026-09-22
+
+PR54 merged exact reviewed candidate `2929a14` as `ddbafb4` after green required CI and
+independent original-artifact/source reviews. [Scalar validation](../05-quality/SCALAR_RECONCILIATION_VALIDATION.md)
+records postmerge raw-source/migration/style verification and criterion disposition:
+FAIL-009 implemented; AC-EVD-004/STORY-012/Issue6 remain open for full shared
+GOLDEN-003. No release/activation or accepted-story increment is inferred.
+
+Proceed to approved Issue7 via EXEC-009's independently reviewed synthetic read
+contract and CSV dry-run core. Treat unmatched new keys alongside missing prior
+keys as identity review, never inferred renaming; optional blanks do not clear facts.
+Trusted scope is supplied separately from adapter data. Use bounded pure helpers,
+existing Zod and canonical fact schemas; no new SDK, infrastructure or permission.
+Actual Jira/XLSX, durable ingestion and user-facing workflows remain next stages,
+not waived acceptance. Final implementation/CI/independent review gates still apply.
+
 ## Scalar reconciliation implementation design, 2026-09-13
 
 Approve EXEC-008 design candidate `5e5987a343c9c7cc6fcf876fd2f9b6451473a593`

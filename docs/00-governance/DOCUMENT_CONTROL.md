@@ -1,5 +1,25 @@
 # Document Control
 
+## Scalar merge disposition and ingestion design, 2026-09-22
+
+Under existing delegation, record verified PR54 merge `ddbafb4` and the explicit
+[criterion disposition](../05-quality/SCALAR_RECONCILIATION_VALIDATION.md).
+FAIL-009's generic request recovery is implemented, superseding its earlier missing
+status below. Full AC-EVD-004/STORY-012/Issue6 acceptance remains withheld for the
+unchanged shared GOLDEN-003 health/leadership-answer remainder. No criterion/test
+ownership is narrowed; accepted counts stay R0 3/5 and R1 2/33. All nine migrations
+are immutable. Five release gates and 802 unresolved High/Critical scanner occurrences
+remain open; merge is not customer activation or vulnerability/legal approval.
+
+Approve the bounded synthetic read-contract/CSV dry-run design in EXEC-009 under
+Issue7's existing scope after independent resolved design review SHA256
+`259259b3effe4f36852c253d30ddc371d6a93481b7bfd8c1dedaa0940722dbe8`.
+Explicit row identity, optional missing values without clearing, finite budgets,
+scoped cursor/link checks and lossless decimal round trips are required. No runtime
+dependency, database/API/UI, external write or real-source activation is added by
+this batch. Full connector/import/story acceptance and final-code tests/review remain
+required. Earlier decisions below retain their historical scope.
+
 ## Scalar reconciliation design approval, 2026-09-13
 
 Under existing delegation, the controller approves EXEC-008's concrete design at
