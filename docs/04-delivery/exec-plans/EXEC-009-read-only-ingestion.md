@@ -201,12 +201,70 @@ relaxed. The complete serial run then passed all 1,486 tests across 74 files in
 packages and 62 source files. Final documentation and diff checks passed. The
 earlier failures remain recorded; scheduling was the only test-run adjustment.
 No browser/database workflow was added in this internal-only batch, so no new
-local browser/database run is claimed. Fresh hosted baseline checks and independent
-immutable final-SHA review remain required. Existing scalar CI belongs to its own SHA.
+local browser/database run is claimed. At this local-validation checkpoint, fresh
+hosted baseline checks and independent immutable final-SHA review were still required.
+The verified stage-one gate below supersedes that pending status; earlier scalar CI
+belongs to its own SHA.
 
 ## Completion summary
 
-The internal read/CSV batch is implemented and locally validated, pending immutable
-review, fresh hosted checks and merge. No Issue #7 story is accepted. Real Jira,
-XLSX, persistence and user-facing ingestion remain subsequent stages of this same
-approved increment.
+The internal read/CSV batch merged through PR55 as `937fee1` on 2026-09-22 after
+immutable review and both exact-head hosted workflows passed. No Issue #7 story
+is accepted. Real Jira, XLSX, persistence and user-facing ingestion remain subsequent
+stages of this same approved increment.
+
+## Verified stage-one merge
+
+Candidate `e5b03c368bb8a0c4f587067298c3be4e3a75bc4a`, tree
+`c94b0f7ad6b646d40ec1bb76f94bdbccb12d8f71`, base `ddbafb4` merged as
+`937fee1e03d9d6dd8bb4499f11f15c34500acd93`. Actual ordered parents/tree, all 16
+changed raw files, all nine unchanged migrations and stylesheet blob
+`2c726e6f827cba390c3a5218d997c31a4a415fd3` were verified after fetching main.
+
+Documentation run 35724176434 and foundation run 35724176449 passed. Hosted native
+results: 1,486 units across 74 files (17.66s), 127 integrations across eight files
+(42.28s), 32 browser journeys (1.1m) and isolated 42-table recovery. Packaged primary,
+bundled and external profiles passed; originals include 18 scalar temporal cases,
+six genuine prior-prefix upgrades, three encrypted quarantined restores, two customer
+scalar UI receipts and 144 milestone native COMMIT observations. Primary-only natural
+expiry used a 120-second token; first protected browser denial was 962ms after expiry
+and clearing completed 149ms later. These are fresh PR55 results, not ancestor evidence.
+
+Independent source/governance and current native/production/distribution reviews
+passed. Root read all sealed reports and verified their hashes. All five original
+archives and metadata bind the exact candidate/CI merge; final receipt SHA256 is
+`98cd45011743c1568d61febfdf7b2e658cd99ced2b3dc774a4ee889ac204570f`.
+The [final gate](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/55#issuecomment-5776515613)
+records full source/report/archive pins and review limits; the
+[postmerge record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/55#issuecomment-5776534840)
+records actual integration. Main-triggered repeats are separate and not claimed here.
+Reviewers replayed pure readers on originals, not producers, SQL or browser tests.
+Distribution evidence passes but release remains blocked by all five existing gates;
+802 unresolved High/Critical scanner occurrences are not 802 distinct exploits.
+
+## Stage-two preparation and integration gate
+
+Branch `codex/durable-ingestion-persistence` begins at the verified merge. A separate
+read-only integration audit identified the next persistence boundary; its report
+SHA256 is `069096b0ff3365153413755889a0d78fb7896fa26df1ae526534aae694969ed2`.
+The [Issue #7 preparation record](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7#issuecomment-5776181946)
+retains this finding without claiming a completed schema or source publication.
+
+The next coherent scope is durable permission-checked source/import proposals,
+row outcomes, command/event/revision deduplication, atomic cursor progression and
+safe health state. Define current actor/service authorization, explicit configuration
+and mapping revisions, deterministic project/grant/source lock order, replay hashes,
+cursor CAS and whole-batch failure behavior before the additive migration. Preserve
+missing-cell/row no-clear/no-delete behavior and renamed-key review requirements.
+Include native COMMIT/denial/race/restart tests, a genuine populated-prefix-nine
+upgrade, finite ACL/table inventories and all three encrypted recovery profiles.
+
+Existing fact history, authority/canonical/scalar SQL proofs, response schemas and
+UI labels assume human statements. A connector instance can own many records and
+per-fact streams; it cannot substitute for existing FactSource identity. Durable
+proposals must not call appendHumanStatement under an invented actor or self-assert
+SYSTEM_VERIFIED. Publishing source observations requires a reviewed coupled origin,
+stream, policy, proof and presentation change preserving all old frozen histories.
+No schema/role design is approved solely by this risk audit; no new runtime change
+or acceptance is claimed. The full later Jira/OAuth/webhook/XLSX/upload/commit scope
+and existing Antigravity design remain unchanged.
