@@ -371,7 +371,27 @@ export async function verifyScalarProjectWithdrawal({
   output,
 }) {
   return cleaned([[saved.session, base]], async () => {
-    const uiDenial = await refresh(saved.session, fixture.detailSuffix, 404);
+    // Automatic project/queue revalidation may already have securely unmounted
+    // the scalar controls. The outer project access button survives clearing.
+    const uiPath = `/api/projects/${fixture.projectId}/facts`;
+    const pending = saved.session.page.waitForResponse(
+      (response) =>
+        response.url().endsWith(uiPath) &&
+        response.request().method() === "GET",
+    );
+    void pending.catch(() => {});
+    await saved.session.page
+      .getByRole("button", { name: "Refresh evidence access", exact: true })
+      .click();
+    const uiDenial = (
+      await observeResponse(
+        saved.session,
+        await pending,
+        "scalar project-access UI refresh",
+        404,
+      )
+    ).observation;
+    await saved.session.capture.settle(saved.session.page);
     const directDenial = (
       await api(
         saved.session,
@@ -384,10 +404,10 @@ export async function verifyScalarProjectWithdrawal({
     ).observation;
     assert.equal(uiDenial.bodyBase64, directDenial.bodyBase64);
     for (const statement of fixture.receipt.statements)
-      await expect(region(saved.session.page)).not.toContainText(
+      await expect(saved.session.page.locator("body")).not.toContainText(
         statement.input.value.value,
       );
-    await expect(region(saved.session.page).getByRole("alert")).toBeVisible();
+    await expect(region(saved.session.page)).toHaveCount(0);
     return {
       ...fixture.receipt,
       status: "passed",
@@ -397,6 +417,7 @@ export async function verifyScalarProjectWithdrawal({
       },
       projectScopeWithdrawal: {
         command: withdrawal.command,
+        uiPath,
         uiDenial,
         directDenial,
         screenshot: await screenshot(

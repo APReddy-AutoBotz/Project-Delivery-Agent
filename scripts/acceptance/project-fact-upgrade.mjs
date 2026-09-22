@@ -70,8 +70,15 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 8);
-  assert.equal(migrations[7].name, "202609140001_scalar_validation_performance");
+  assert.equal(migrations.length, 9);
+  assert.equal(
+    migrations[8].name,
+    "202609220001_milestone_validation_projection",
+  );
+  assert.equal(
+    migrations[7].name,
+    "202609140001_scalar_validation_performance",
+  );
   assert.equal(
     migrations[5].name,
     "202609120002_milestone_reconciliation_requests",

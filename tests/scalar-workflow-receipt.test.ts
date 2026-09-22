@@ -38,6 +38,9 @@ function receipt() {
   });
   snapshot.versions.forEach((row, index) => {
     row.provenance = "HUMAN_CONFIRMED";
+    row.source.recordType = "human_statement";
+    row.source.recordId = row.source.instanceId;
+    row.source.revision = row.evidenceIds[0]!;
     row.value = {
       type: "text",
       value: "Packaged scalar forecast " + (index === 0 ? "A" : "B"),
@@ -126,11 +129,25 @@ function receipt() {
         projectId: scalarScope.projectId,
         factType: scalarScope.factType,
         expectedRevision: 0,
-        definition: { conflictBehavior: "REQUEST_RECONCILIATION" },
+        effectiveAt: scalarTime,
+        definition: {
+          conflictBehavior: "REQUEST_RECONCILIATION",
+          tiers: snapshot.policy!.tiers,
+        },
       },
       response: observed(
         {
-          event: { id: scalarId(5), state: "ENABLED", recordedBy: "pmo-atlas" },
+          event: {
+            id: scalarId(5),
+            state: "ENABLED",
+            recordedBy: "pmo-atlas",
+            effectiveAt: scalarTime,
+            recordedAt: scalarTime,
+            definition: {
+              conflictBehavior: "REQUEST_RECONCILIATION",
+              tiers: snapshot.policy!.tiers,
+            },
+          },
         },
         201,
       ),
@@ -198,6 +215,7 @@ function receipt() {
     },
     screenshot: image("scalar-reconciliation-pm-proof.png"),
     projectScopeWithdrawal: {
+      uiPath: `/api/projects/${scalarScope.projectId}/facts`,
       command: {
         input: {
           subject: "pm-atlas",
@@ -415,4 +433,38 @@ describe("packaged scalar browser receipt", () => {
     );
     expect(workflow).toContain("customer-*/scalar-reconciliation-pm-*.png");
   });
+
+  it.each(["source", "participants", "evidence", "policy"])(
+    "rejects byte-consistent %s substitutions across every copy of the frozen proof",
+    (field) => {
+      const value = structuredClone(receipt());
+      const visited = new Set();
+      function corrupt(node: any) {
+        if (!node || typeof node !== "object" || visited.has(node)) return;
+        visited.add(node);
+        if (
+          typeof node.bodyBase64 === "string" &&
+          node.body?.assessment?.result
+        ) {
+          const result = node.body.assessment.result;
+          if (field === "source")
+            result.versions[0].source.recordId = scalarId(999);
+          if (field === "participants")
+            result.conflicts.forEach((row: any) => {
+              row.versionIds = [];
+            });
+          if (field === "evidence")
+            result.conflicts.forEach((row: any) => {
+              row.evidenceIds = [];
+            });
+          if (field === "policy") result.policy.tiers = [];
+          Object.assign(node, observed(node.body, node.status));
+          return;
+        }
+        Object.values(node).forEach(corrupt);
+      }
+      corrupt(value);
+      expect(() => assertScalarWorkflowReceipt(value, options)).toThrow();
+    },
+  );
 });

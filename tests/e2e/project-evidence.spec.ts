@@ -116,6 +116,87 @@ test("FR-EVD-007/012: scalar requests retain original PM proof, deduplicate and 
   }
 });
 const epoch = () => new Date(Date.now() - 3600000).toISOString();
+test("FR-EVD-009: project access refresh remains usable after automatic scalar proof clearing", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request, true);
+  const first = await f.append(
+    "pmo-portfolio",
+    0,
+    "Automatically cleared scalar A",
+  );
+  const second = await f.append(
+    "pm-atlas",
+    1,
+    "Automatically cleared scalar B",
+  );
+  await f.share(first.entry.sourceId);
+  await f.share(second.entry.sourceId);
+  expect(
+    (
+      await f.api(
+        "pmo-portfolio",
+        f.prefix + "/authority-policies",
+        "POST",
+        f.policy(0),
+      )
+    ).status(),
+  ).toBe(201);
+  const checked = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/scalar-reconciliation-checks",
+    "POST",
+    { factId: first.factId, idempotencyKey: randomUUID() },
+  );
+  expect(checked.status()).toBe(201);
+  const created = await checked.json();
+  await page.goto(
+    `/?project=${f.projectId}&scalarReconciliation=${created.request.id}`,
+  );
+  await page.getByRole("button", { name: /^Project manager / }).click();
+  const proof = page.getByRole("region", {
+    name: "PM scalar reconciliation request",
+    exact: true,
+  });
+  await expect(proof).toContainText("Automatically cleared scalar A");
+  expect(
+    (
+      await f.api("operator", "/access-grants", "DELETE", {
+        subject: "pm-atlas",
+        scopeType: "project",
+        scopeId: f.projectId,
+      })
+    ).status(),
+  ).toBe(204);
+  // Deliberately let the real 15-second authorization polling win the race.
+  // No route fulfillment, clock manipulation or content restoration is used.
+  await expect(proof).toHaveCount(0, { timeout: 30000 });
+  const response = page.waitForResponse(
+    (value) =>
+      value.url().endsWith(f.prefix + "/facts") &&
+      value.request().method() === "GET",
+  );
+  await page
+    .getByRole("button", { name: "Refresh evidence access", exact: true })
+    .click();
+  expect((await response).status()).toBe(404);
+  expect(
+    (
+      await f.api(
+        "pm-atlas",
+        f.prefix + "/scalar-reconciliation-requests/" + created.request.id,
+      )
+    ).status(),
+  ).toBe(404);
+  await expect(proof).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(
+    "Automatically cleared scalar A",
+  );
+  await expect(page.locator("body")).not.toContainText(
+    "Automatically cleared scalar B",
+  );
+});
 test("FR-EVD-009: a controlled second-page queue retains the exact assignment retry", async ({
   page,
   request,

@@ -420,6 +420,20 @@ read-only inspection identified repeated extraction of large child JSON inside
 the parent identity query as a candidate for a measured additive migration; no
 SQL/migration/deadline change is included in this acceptance increment.
 
+Next measured performance increment (same requirements): two alternating read-only
+baseline/materialized query pairs on a retained 1000-version scalar returned
+byte-identical 141-byte identities. Baseline 2286.591/1966.445ms versus projected
+19.905/19.043ms isolates repeated large-JSON extraction, not a whole-command pass.
+Add migration 9 `202609220001_milestone_validation_projection`, replacing only
+the parent identity-query fragment with an explicitly materialized child projection.
+Preserve the complete function outside that fragment, every tuple/filter/order,
+all eight old raw files, ACLs, all seal/read/COMMIT/restore guards and 10s deadline.
+Pin the narrow source delta in a regression test, verify retained pre-migration
+proofs/rows and forward ledger, then unchanged 1000/1001 and complete native suite.
+The final receipt inventory must require nine migrations; prior CI remains evidence
+for its old eight-migration candidate only. Recovery is a compatible application
+rollback or encrypted restore into a quarantined fresh target, never a down migration.
+
 2026-09-14 larger acceptance milestone in progress (FR-EVD-004/007/009/012,
 NFR-REL-001/002): batch the remaining fresh-proof/request seal probes with real
 changed-fact retry-key contention and a public contributor-append race. Require

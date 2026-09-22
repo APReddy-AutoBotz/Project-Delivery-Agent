@@ -122,6 +122,14 @@ export function assertScalarWorkflowReceipt(
   );
   assert.equal(value.policy.response.body.event.state, "ENABLED");
   assert.equal(value.policy.response.body.event.recordedBy, "pmo-atlas");
+  assert.deepEqual(
+    value.policy.response.body.event.definition,
+    value.policy.input.definition,
+  );
+  assert.equal(
+    value.policy.response.body.event.effectiveAt,
+    value.policy.input.effectiveAt,
+  );
   function proof(delivery) {
     assert.equal(delivery.visibility, "available");
     assert.equal(delivery.revalidationRequired, false);
@@ -131,6 +139,15 @@ export function assertScalarWorkflowReceipt(
     assert.match(delivery.assessmentId, uuid);
     const result = delivery.result;
     assert.equal(result.policy.revisionId, value.policy.response.body.event.id);
+    assert.deepEqual(result.policy, {
+      ...value.policy.input.definition,
+      revisionId: value.policy.response.body.event.id,
+      customerId: expectedCustomerId,
+      projectId: value.projectId,
+      factType: value.factType,
+      recordedAt: value.policy.response.body.event.recordedAt,
+      effectiveAt: value.policy.input.effectiveAt,
+    });
     assert.equal(result.asOf, delivery.asOf);
     assert.deepEqual(result.scope, {
       customerId: expectedCustomerId,
@@ -152,11 +169,29 @@ export function assertScalarWorkflowReceipt(
       assert.equal(row.visibility, "available");
       assert.deepEqual(row.value, entry.content.value);
       assert.deepEqual(row.evidenceIds, [entry.evidenceId]);
+      assert.deepEqual(row.source, {
+        instanceId: entry.sourceId,
+        recordType: "human_statement",
+        recordId: entry.sourceId,
+        revision: entry.evidenceId,
+      });
+      assert.equal(row.sourceType, "human_statement");
       assert.equal(row.provenance, "HUMAN_CONFIRMED");
       assert.equal(row.assessment.provenance, "HUMAN_CONFIRMED");
       assert.equal(row.assessment.freshness, "CURRENT");
       assert.equal(row.assessment.conflict, "CONFLICTING");
     }
+    assert(result.conflicts.length > 0);
+    assert.deepEqual(
+      new Set(result.conflicts.flatMap((row) => row.versionIds)),
+      versions,
+    );
+    assert.deepEqual(
+      new Set(result.conflicts.flatMap((row) => row.evidenceIds)),
+      new Set(
+        value.statements.map((item) => item.response.body.entry.evidenceId),
+      ),
+    );
   }
   const created = value.created,
     reused = value.reused;
@@ -239,6 +274,7 @@ export function assertScalarWorkflowReceipt(
     assert.equal(observed.bodyBase64, value.originalProof.bodyBase64);
   }
   const withdrawal = value.projectScopeWithdrawal;
+  assert.equal(withdrawal.uiPath, `/api/projects/${value.projectId}/facts`);
   assert.deepEqual(withdrawal.command.input, {
     subject: "pm-atlas",
     scopeType: "project",
