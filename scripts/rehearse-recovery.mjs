@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import { canonicalTables } from "./acceptance/canonical-projects.mjs";
 import { verifyImmutableHistoryMutation } from "./acceptance/immutable-history.mjs";
+import { verifyRestoredProofIntegrity } from "./acceptance/restored-proof-integrity.mjs";
 import {
   assertSyntheticDatabaseUrl,
   CredentialVault,
@@ -184,31 +185,9 @@ try {
   console.log(
     "Exact rows and populated families checked; validating native integrity predicates.",
   );
-  assert.equal(
-    (
-      await restored.$queryRaw`SELECT
-    (SELECT count(*)::int FROM "AuthorityPolicy" WHERE NOT public.valid_authority_history(id)) +
-    (SELECT count(*)::int FROM "FactAuthorityConflict" WHERE NOT public.valid_authority_conflict(id)) +
-    (SELECT count(*)::int FROM (SELECT "factId" FROM "FactAuthorityConflict" GROUP BY "factId" HAVING count(*)<>max(revision)) drift) +
-    (SELECT count(*)::int FROM "FactAssessment" WHERE NOT sealed OR NOT public.valid_fact_assessment(id)) +
-    (SELECT count(*)::int FROM "Programme" WHERE NOT public.valid_canonical_programme(id)) +
-    (SELECT count(*)::int FROM "CanonicalProject" WHERE NOT sealed OR NOT public.valid_canonical_project(id)) +
-    (SELECT count(*)::int FROM "CanonicalStateBinding" WHERE NOT sealed OR NOT public.valid_canonical_state_binding(id)) +
-    (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" WHERE NOT sealed OR NOT public.valid_milestone_consistency_assessment(id)) +
-    (SELECT count(*)::int FROM "MilestoneReconciliationRequest" WHERE sealed IS NOT TRUE OR public.valid_milestone_reconciliation_request(id) IS NOT TRUE) +
-    (SELECT count(*)::int FROM "MilestoneReconciliationCheck" WHERE public.valid_milestone_reconciliation_check(id) IS NOT TRUE) +
-    (SELECT count(*)::int FROM "MilestoneReconciliationAssignment" WHERE public.valid_milestone_reconciliation_assignment(id) IS NOT TRUE) +
-    (SELECT count(*)::int FROM "ScalarReconciliationRequest" WHERE NOT sealed OR public.valid_scalar_reconciliation_request(id) IS NOT TRUE) +
-    (SELECT count(*)::int FROM "ScalarReconciliationCheck" WHERE public.valid_scalar_reconciliation_check(id) IS NOT TRUE) +
-    (SELECT count(*)::int FROM "ScalarReconciliationAssignment" WHERE public.valid_scalar_reconciliation_assignment(id) IS NOT TRUE) +
-    (SELECT count(*)::int FROM "FactAssessment" a WHERE a."captureKind"='SCALAR_REQUEST' AND NOT EXISTS (
-      SELECT 1 FROM "ScalarReconciliationCheck" c WHERE c.id=a."scalarReconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId" AND c."factId"=a."factId"
-    )) +
-    (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" a WHERE a."reconciliationCheckId" IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM "MilestoneReconciliationCheck" c WHERE c.id=a."reconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId"
-    )) AS invalid`
-    )[0].invalid,
-    0,
+  const proofCounts = await verifyRestoredProofIntegrity(restored);
+  console.log(
+    "All native proof families verified: " + JSON.stringify(proofCounts),
   );
   for (const table of [
     "AuditEvent",

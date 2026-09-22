@@ -47,11 +47,22 @@ The continuation pins each profile's expected restore administrator while keepin
 application verification at `pdaa_api`. It adds a shared packaged scalar UI/HTTP
 workflow and independent original-byte receipt validation across recreation and
 source/project withdrawal. These additions still need final packaged evidence.
-The local 1000-version milestone capture still exceeds its unchanged 10-second
-transaction limit (`P2028`), despite a smaller dependency-only read projection.
-Further measured SQL work, missing native stale/recordedAt vectors, final review
-and passing exact-head CI remain open. No story/release acceptance or change to
-the R0/R1 completion numerators is claimed.
+Measured delivery projections and additive migration 9 preserve old migrations,
+proof identities, current authorization and unchanged runtime deadlines. The fresh
+native suite now passes 124/124, including the original 1000/1001 boundary and its
+isolated rerun. Explicit 8-to-9 rehearsal preserves all 42 business tables, old
+ledger entries, 31 proof results and privileges. Earlier retained-database P2028
+attempts remain recorded rather than waived.
+
+Pushed `15ef53d` passed hosted native CI: 1286 units, 124 integration tests, complete
+recovery and 29 browser workflows; documentation passed. Its separate packaged
+production job is still pending at this entry. Independent bounded reviews approved
+the workflow and corrected migration inventory. Native recovery paging also passed
+locally after an aggregate-query timeout, retaining all 16 logical integrity checks
+and current per-query limits; its eleven negative/coverage tests passed. This last
+delta still needs immutable review and final CI. Missing scalar acceptance vectors,
+packaged evidence and whole-feature review remain open. No merge, story/release
+acceptance or change to the R0/R1 completion numerators is claimed.
 
 ## Published and merged increments
 

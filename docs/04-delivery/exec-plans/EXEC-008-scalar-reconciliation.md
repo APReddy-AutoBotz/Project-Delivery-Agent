@@ -5,7 +5,7 @@ Owner: Implementation controller.
 Requirement IDs: FR-EVD-001/002/003/004/006/007/009/010/012, FR-ADM-005,
 FR-MOD-004, NFR-SEC-001/002/005/009, NFR-REL-001/002/005, NFR-MNT-002/004/005.
 GitHub issue: #6; STORY-012, AC-EVD-004, FAIL-009 and INT-EVD-004.
-Target release: R1. Last updated: 2026-09-14.
+Target release: R1. Last updated: 2026-09-22.
 Applicable ADRs: 001-014; no new infrastructure, dependency or autonomous action.
 
 ## Objective
@@ -384,6 +384,105 @@ do not become direct release7 restores by changing labels; use genuine upgrade.
 Never resume application/worker automatically after restore.
 
 ## Progress log
+
+### 2026-09-22 packaged scalar workflow and measured validation continuation
+
+Candidate `15ef53d09671c81c5537317bf9fea52b27628543`, tree
+`8c2385fa84c10097144af9f7751f696ed414bfdd`, is pushed on PR #54. No merge or
+story acceptance is claimed. Antigravity's stylesheet remains the identical Git
+blob `2c726e6f827cba390c3a5218d997c31a4a415fd3`; no design/colour change was made.
+
+The packaged workflow now exercises real TLS/OIDC scalar CREATE from the UI,
+exact HTTP retry, fresh-key business REUSE, manager-versus-recipient authorization,
+original saved PM proof, source withdrawal/regrant, application recreation and
+project withdrawal. The host reader independently binds run/profile/project,
+original response bytes and hashes, statement/source/evidence/policy identities,
+exact derived and recorded conflict groups, and denial/withholding responses.
+It requires all three screenshots and rejects altered receipts. It does not
+claim acknowledgement, settlement, external delivery or conflict resolution.
+The withdrawal flow uses the persistent outer evidence refresh after automatic
+polling clears scalar controls; a real-polling browser regression covers that race.
+
+Independent workflow review first found a polling race and insufficient proof
+bindings. Both were corrected, followed by strict per-group negative controls.
+Final bounded approval: `41b656af5e2be76769dce37dc2a612636aed2e0f`, report
+`tmp/scalar-packaged-review-41b656a.md`, SHA256
+`d1442d7c7715171d3060cf646aa1bbb82eb87b0cab0ccab209f13753c2cbc7ed`.
+The root fully read and verified it. Thirty-four workflow receipt tests passed.
+This approval is not a whole-feature or packaged-execution approval.
+
+Dependency-only delivery projections avoid loading complete child results solely
+to recover source IDs. Native integrity predicates, current all-source ACL checks,
+stored proof bytes and transaction deadlines remain unchanged. A read-only measured
+identity fragment took 2286.591/1966.445ms before materializing its JSON input and
+19.905/19.043ms afterward, with identical 141-byte output, SHA256
+`60ac6ae53f6255d5c62c1e970699a963af17315c401dd3798663cc5b1ac87ac1`.
+These are two observed paired fragment measurements, not whole-command timings.
+The PostgreSQL review skill guided measurement before changing the query shape.
+
+Additive migration 9, `202609220001_milestone_validation_projection`, changes only
+that projection inside the milestone proof validator. SHA256
+`20f0196c59c616d3d0562d0e384f2397a96176df0def53a92e73c3020fd5d53d`.
+All eight earlier migration files, seal/COMMIT predicates, identities, function
+privileges and runtime limits are retained. An explicit 8-to-9 rehearsal on
+`pdaa_test_1790061192585` preserved all 42 table rows, the old ledger, 31 existing
+proof results and function attributes; repeat deployment left the ledger unchanged.
+Do not rewrite any of these nine applied migrations. Recovery remains compatible
+application rollback with retained history, or a reviewed fresh quarantined restore.
+
+The migration reviewer found a stale `applied.length === 8` assertion in the genuine
+prior-prefix upgrade producer. It now compares against the separately pinned
+nine-migration inventory, with a regression test and unchanged full checksum/row
+verification. Bounded corrected-source approval: `15ef53d`, report
+`tmp/milestone-m9-review-15ef53d.md`, SHA256
+`386498db92ce0bfa793bc7212380bb69e0936d265df6f667a4e450242a2bdab4`.
+The root fully read/hash-verified this review. Real packaged upgrades remain an
+execution gate; the private 8-to-9 rehearsal does not substitute for them.
+
+Earlier retained-database M9 captures still hit P2028 (one instrumented attempt
+11603ms before callback return). Subsequently the fresh nine-migration native suite
+on `pdaa_test_1790065984010` passed all 124 tests in eight files (324.96s), including
+the unchanged 1000/1001 boundary and repeat migration. The isolated boundary rerun
+also passed (20.39s whole-test runtime, not transaction duration). No failing attempt,
+production deadline or overflow assertion was removed to obtain these passes.
+
+Exact-head hosted Foundation run `35706647520`, native job `106677075668`, passed:
+1286 units/67 files (15.87s), 124 integration tests/eight files (39.74s), full recovery
+and 29 Chromium workflows (1.0m). Documentation `35706647399` passed. At this entry
+the separate packaged production job is still running; it is not inferred green.
+Local full units passed 1285/1286 (325.32s): the unchanged production-config
+subprocess reached its 15-second deadline without stderr. The same six-test file
+subsequently passed unchanged alongside the eleven new recovery paging tests.
+
+Local recovery into `pdaa_restore_1790066480013` initially matched all 42 tables and
+the ledger, then its single aggregate proof query exceeded the application client's
+10-second read deadline. A bounded read-only audit found cumulative family scans,
+while sampled large individual proofs returned valid in 0.4–2.2s. Report
+`tmp/recovery-integrity-performance-audit.md`, SHA256
+`2c87184fddbc18a074b8016d4d17306664cfbe7089a772f0157335512f207f8f`, was fully read
+and verified. No corruption finding, statistics change or production timeout
+increase follows from this measurement.
+
+The native rehearsal now checks all 13 proof families using finite, materialized,
+strictly ordered keyset pages; it retains both reciprocal ownership checks and
+the separate conflict revision-drift check (all 16 original logical checks).
+Expected row counts and monotonic UUIDs reject omitted, duplicate or reordered
+pages; only literal true native results pass. No application runs against the
+isolated target, and no whole-history interactive transaction is introduced.
+Production encrypted-restore tooling is unchanged by this local rehearsal repair.
+Eleven paging tests and six unchanged configuration tests passed (17/17, 20.97s).
+Complete subsequent recovery into `pdaa_restore_1790067338766` passed exact rows,
+ledger, every native predicate, mutation guards, credential decryption and scoped
+access. It checked 118 policies, 2049 conflicts, 145 scalar assessments, two
+programmes, 35 canonical projects, 70 bindings, 27 milestone assessments,
+12/17/15 milestone request/check/assignment rows and 8/12/10 scalar rows.
+Both restore targets and all source databases remain retained.
+
+The recovery paging delta still requires its own immutable review and final CI.
+Remaining scalar acceptance vectors, original packaged artifacts, whole-feature
+review and expected-head merge gates stay open. R0 is still 3/5 (60%); R1 2/33
+(6.1%). No new dependency, connector scope, real-data activation, external message,
+write-back, approval or customer-release authority is introduced.
 
 2026-09-22 continuation (FR-EVD-004/007/009/012, NFR-REL-001/002,
 NFR-SEC-005): PR #54 native CI verification passed on `db80c31`, including
