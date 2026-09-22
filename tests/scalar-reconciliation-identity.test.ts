@@ -142,6 +142,69 @@ describe("FR-EVD-007/009/012 / FR-ADM-005: scalar conflict identity", () => {
     expect(result.candidateVersionIds).toEqual([]);
     expect(scalarReconciliationIdentity(result)).toBe(original);
   });
+  it("returns no identity for an evaluator-produced ambiguous stream even when values agree", () => {
+    const input = scalarSnapshot();
+    input.versions[1]!.source = {
+      ...input.versions[0]!.source,
+      revision: "2",
+    };
+    input.versions[1]!.value = input.versions[0]!.value;
+    input.sources = [input.sources[0]!];
+    const result = resolveSourceAuthority(input);
+    expect(result).toMatchObject({
+      status: "AMBIGUOUS",
+      resolvedValue: null,
+      reconciliationRequired: false,
+      conflicts: [],
+    });
+    expect(scalarReconciliationIdentity(result)).toBeNull();
+  });
+  it.each([true, false])(
+    "accepts exactly 64,000 aggregate conflict evidence references (eligible=%s)",
+    (eligible) => {
+      const input = scalarSnapshot();
+      input.evidence = [];
+      for (const [index, version] of input.versions.entries()) {
+        version.evidenceIds = Array.from({ length: 64 }, (_, n) =>
+          id(1000 + index * 64 + n),
+        );
+        input.evidence.push(
+          ...version.evidenceIds.map((evidenceId) => ({
+            id: evidenceId,
+            scope: scalarScope,
+            access: "AUTHORIZED" as const,
+            verification: "VALID" as const,
+          })),
+        );
+      }
+      input.complete = eligible;
+      const result = structuredClone(resolveSourceAuthority(input));
+      expect(result.status).toBe(eligible ? "CONFLICTING" : "INCOMPLETE");
+      const original = scalarReconciliationIdentity(result);
+      expect(original === null).toBe(!eligible);
+      // Identity preflight only: repeated output groups are not a claim that a
+      // native 64-evidence-per-version ledger or the 4 MiB ceiling was reached.
+      result.conflicts = Array.from({ length: 500 }, () =>
+        structuredClone(result.conflicts[0]!),
+      );
+      expect(
+        result.conflicts.reduce((n, c) => n + c.evidenceIds.length, 0),
+      ).toBe(64000);
+      expect(scalarReconciliationIdentity(result)).toBe(original);
+      result.conflicts.push(structuredClone(result.conflicts[0]!));
+      let accesses = 0;
+      Object.defineProperty(result.conflicts[0]!.evidenceIds, "0", {
+        get() {
+          accesses++;
+          throw new Error("unbounded evidence traversal");
+        },
+      });
+      expect(() => scalarReconciliationIdentity(result)).toThrow(
+        "Invalid scalar reconciliation assessment",
+      );
+      expect(accesses).toBe(0);
+    },
+  );
   it("supports 1002 bounded output groups, including recorded/derived duplicates", () => {
     const result = structuredClone(resolveSourceAuthority(scalarSnapshot()));
     result.conflicts = Array.from({ length: 1002 }, () =>

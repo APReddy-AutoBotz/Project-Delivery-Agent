@@ -385,6 +385,78 @@ Never resume application/worker automatically after restore.
 
 ## Progress log
 
+### 2026-09-22 final coverage controls and COMMIT observer correction
+
+The corrected browser/expiry candidate `3060a9e` passes the complete local1363-unit
+suite (141.46s) and32 Chromium journeys (3.8m). Its independent expiry/browser
+review is approved within that source scope, SHA256
+`b4e534e20ec204fa8e0fd64468995721ebf1d600589bb2b11c43139ede6a590b`.
+Hosted Documentation35714431205 and Foundation35714431242 native checks pass:
+1363 units,125 integration,42-table recovery and32 browsers. Production fails
+at genuine prefix4 upgrade, `wrong-refresh-time: separate COMMIT observer is
+missing`, before temporal execution. The real loaded-proof natural expiry group
+passed first, but no successful current-head packaged artifact was published.
+Three native ZIPs and members were authenticated against GitHub SHA256 metadata
+and exact candidate/tree/base/synthetic-merge parents; this does not waive failure.
+
+Independent diagnosis identifies an observation-ordering hazard: pg8.23 rejects
+on ErrorResponse before its separate ReadyForQuery notification. The single
+observer sample could therefore precede idle publication; the old outer assertion
+hid the precise phase. The failed run did not preserve the observer row, so this
+is not proof of its actual state. The acceptance-only correction arms a listener
+before forwarding the unchanged COMMIT, requires that exact transport's idle
+ReadyForQuery before the unchanged separate-backend PID/login/idle/COMMIT checks,
+and retains a finite failure phase. A1-second post-settlement drain budget does
+not cap native COMMIT work or change maxWait5000/timeout10000/query_timeout10000.
+All listeners/timers are removed on success, denial, synchronous throw and
+unsupported transport. Original native errors/results are preserved; observer
+failures remain fatal. No replacement SQL, retry or integrity-guard bypass exists.
+Transport controls are explicitly mocks, not native COMMIT evidence.
+
+The whole-feature coverage audit found four finite missing regression controls,
+not new runtime defects. Report SHA256
+`4790fa3b72f18acb502b983e409ea257033b41a1b045406d88056f093f4641d1`
+was fully read and verified. This child adds evaluator-produced AMBIGUOUS-to-null
+identity; exact64000 aggregate conflict-evidence references and overflow-before-
+traversal for eligible/negative outputs; a labelled occupied-hash read shim with
+unequal identity and complete native scoped rollback; and withdrawal of a retained
+non-contributor source dependency, withholding original PM/replay proof while a
+fresh negative check leaves the original OPEN request/proof unchanged. The hash
+control is not a generated SHA256 collision; the domain reference fixture is not
+a fabricated native multi-evidence ledger or a4MiB limit execution claim.
+
+Initial focused controls pass53/53 and the full scalar native file passes13/13
+(42.48s), including its actual rejected-COMMIT observer. Two initial boundary
+fixtures tried to mutate the intentionally frozen evaluator result, and the first
+occupied-hash assertion expected the internal rather than fixed public error;
+both test fixtures were corrected, with no product behavior/assertion weakening.
+Final focused identity/transport controls pass54/54, including a native-query
+promise slower than the observation budget. The strengthened non-contributor test
+initially expected a result in a deliberately restricted response; it now checks
+null HTTP/repository delivery separately from the stored REVALIDATION_REQUIRED
+proof and explicitly binds the non-contributor FactAssessmentVersion row.
+That test plus the real orphan-COMMIT control pass2/2 (11 unrelated excluded).
+Full child checks/review remain required. No app, CSS, migration, connector scope
+or dependency changes.
+
+Ancestor `149a4e7` now has fully passing Foundation35713590390 and Documentation
+35713590361, including primary/bundled/external acceptance and encrypted restores.
+Its original production ZIP10689133921, SHA256
+`f8d92b688f6a4032612d32d3c4fad21c530f33d8b0d9885e89c8d823837e6447`,
+was authenticated and safely retained with25 original members. Independent review
+passes all18 actual temporal cases and the exact ancestor reader across the three
+profiles, report SHA256
+`1462a332fe17b513cb7a4c7c9386d7b06e1ed0b9bda144b78db310a93cc49a25`.
+The separate CI/original-observation report SHA256 is
+`4d0fc0f93e28f7bd94f43ba4c0caa35f803a7637fdbe6e37ec9680dc6324ed30`.
+Both were fully read and hash-verified. These are ancestor diagnostics, not child
+approval. Distribution ZIP download reached its60-second transport timeout;
+partial bytes remain retained and unauthenticated, never counted as evidence.
+Final-child source review, fresh hosted checks and original whole-feature artifact
+review remain mandatory. PR54 stays draft/unmerged; Issue6 stays open; accepted
+R0/R1 numerators remain3/5 and2/33. Rollback is a reviewed revert of acceptance
+code/tests only, preserving every retained database, migration and original.
+
 ### 2026-09-22 next acceptance batch (in progress)
 
 Continue from reviewed/pushed `cd22f5c` without changing Antigravity presentation.

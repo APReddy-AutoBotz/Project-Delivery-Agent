@@ -1,7 +1,10 @@
 import { afterAll, expect, it } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { PrismaClient } from "../packages/data/dist/generated/prisma/client.js";
+import {
+  PrismaClient,
+  type Prisma,
+} from "../packages/data/dist/generated/prisma/client.js";
 import { watchCommits } from "../scripts/acceptance/reconciliation-commit-probes.mjs";
 import {
   runWithCleanup,
@@ -260,6 +263,264 @@ it("FR-ADM-005: persists an owned negative check for explicit policy opt-out", a
     { valid: boolean }[]
   >`SELECT public.valid_scalar_reconciliation_check(${result.checkId}::uuid) AS valid`;
   expect(valid[0]?.valid).toBe(true);
+});
+it("NFR-REL-002: an occupied-hash read shim rejects unequal scalar identity and rolls back every proof family", async () => {
+  const f = await fixture();
+  const first = await reconciliation.check(f.pmo, f.input, context);
+  const snapshot = async () => {
+    const rows: Record<string, unknown> = {};
+    for (const table of [
+      "ProjectFact",
+      "ProjectFactVersion",
+      "FactEvidence",
+      "FactAuthorityConflict",
+      "FactAssessment",
+      "FactAssessmentVersion",
+      "FactAssessmentConflict",
+      "ScalarReconciliationCheck",
+      "ScalarReconciliationRequest",
+      "ScalarReconciliationAssignment",
+      "AuditEvent",
+    ]) {
+      const scope =
+        table === "AuditEvent"
+          ? `detail->>'projectId'=$2`
+          : `"projectId"=$2::uuid`;
+      rows[table] = await db.$queryRawUnsafe(
+        `SELECT to_jsonb(t)::text AS row FROM "${table}" t WHERE "customerId"=$1::uuid AND ${scope} ORDER BY to_jsonb(t)::text COLLATE "C"`,
+        customerId,
+        f.projectId,
+      );
+    }
+    return rows;
+  };
+  const before = await snapshot();
+  let lookups = 0;
+  // Labelled application branch control, NOT a generated SHA-256 collision.
+  // Only the occupied-hash read result changes; native capture, guards and
+  // transaction options are real and the full transaction must roll back.
+  const observed = new Proxy(db, {
+    get(target, property) {
+      if (property === "$transaction")
+        return (
+          callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
+          options: Parameters<typeof db.$transaction>[1],
+        ) =>
+          target.$transaction(
+            async (tx) =>
+              callback(
+                new Proxy(tx, {
+                  get(transaction, name) {
+                    if (name === "scalarReconciliationRequest")
+                      return new Proxy(
+                        transaction.scalarReconciliationRequest,
+                        {
+                          get(delegate, operation) {
+                            if (operation === "findUnique")
+                              return async (
+                                input: Parameters<
+                                  typeof delegate.findUnique
+                                >[0],
+                              ) => {
+                                expect(
+                                  input.where
+                                    .customerId_projectId_factId_ruleRevision_contributorHash,
+                                ).toMatchObject({
+                                  customerId,
+                                  projectId: f.projectId,
+                                  factId: f.input.factId,
+                                });
+                                lookups++;
+                                const actual = await delegate.findUnique(input);
+                                expect(actual?.id).toBe(first.request!.id);
+                                return {
+                                  ...actual,
+                                  contributorIdentity:
+                                    "test-only unequal occupied identity",
+                                };
+                              };
+                            const value = Reflect.get(delegate, operation);
+                            return typeof value === "function"
+                              ? value.bind(delegate)
+                              : value;
+                          },
+                        },
+                      );
+                    const value = Reflect.get(transaction, name);
+                    return typeof value === "function"
+                      ? value.bind(transaction)
+                      : value;
+                  },
+                }),
+              ),
+            options,
+          );
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  await expect(
+    new DatabaseScalarReconciliationRepository(observed).check(
+      f.pmo,
+      { ...f.input, idempotencyKey: randomUUID() },
+      context,
+    ),
+  ).rejects.toThrow("Scalar reconciliation check unavailable");
+  expect(lookups).toBe(1);
+  expect(await snapshot()).toEqual(before);
+});
+it("NFR-SEC-001 / FR-EVD-012: withdrawal of a retained non-contributor withholds original proof without closing the case", async () => {
+  const f = await fixture();
+  const third: Actor = {
+    customerId,
+    subject: "scalar-third-" + randomUUID(),
+    roles: ["project_manager"],
+  };
+  await db.accessGrant.create({
+    data: {
+      customerId,
+      subject: third.subject,
+      role: "project_manager",
+      scopeType: "project",
+      scopeId: f.projectId,
+    },
+  });
+  const effectiveAt = new Date(Date.now() - 1000).toISOString();
+  const appended = await facts.appendHumanStatement(
+    third,
+    {
+      projectId: f.projectId,
+      factType: f.factType,
+      expectedRevision: 2,
+      idempotencyKey: randomUUID(),
+      effectiveAt,
+      validUntil: new Date(Date.now() + 3600000).toISOString(),
+      originalStatement: "Synthetic lower-authority corroboration",
+      value: { type: "date", value: "2026-10-01" },
+    },
+    context,
+  );
+  const sourceId = appended.entry.sourceId;
+  const access = await facts.getSourceAccess(f.pmo, {
+    projectId: f.projectId,
+    sourceId,
+  });
+  await facts.setSourceAccess(
+    f.pmo,
+    {
+      projectId: f.projectId,
+      sourceId,
+      expectedRevision: access!.revision,
+      state: "AVAILABLE",
+      readers: [f.pmo.subject, f.pm.subject, third.subject],
+    },
+    context,
+  );
+  const selector = (instanceId: string) => ({
+    sourceType: "human_statement",
+    instanceId,
+    requiredApproval: "NOT_REQUIRED" as const,
+    validity: null,
+  });
+  await authority.appendPolicy(
+    f.pmo,
+    {
+      projectId: f.projectId,
+      factType: f.factType,
+      expectedRevision: 1,
+      idempotencyKey: randomUUID(),
+      effectiveAt,
+      definition: {
+        conflictBehavior: "REQUEST_RECONCILIATION",
+        tiers: [
+          { selectors: f.versions.map((v) => selector(v.sourceId)) },
+          { selectors: [selector(sourceId)] },
+        ],
+      },
+    },
+    context,
+  );
+  const first = await reconciliation.check(f.pmo, f.input, context);
+  expect(first.outcome).toBe("CREATED");
+  expect(first.assessment.result?.versions).toHaveLength(3);
+  const request = await db.scalarReconciliationRequest.findUniqueOrThrow({
+    where: { id: first.request!.id },
+  });
+  const contributors = JSON.parse(request.contributorIdentity)[5] as string[][];
+  expect(contributors.map((v) => v[1]).sort()).toEqual(
+    f.versions.map((v) => v.sourceId).sort(),
+  );
+  expect(contributors.some((v) => v[1] === sourceId)).toBe(false);
+  const read = { projectId: f.projectId, requestId: request.id };
+  expect(await reconciliation.get(f.pm, read)).toMatchObject({
+    assessment: { visibility: "available" },
+  });
+  const proof = await db.factAssessment.findUniqueOrThrow({
+    where: { id: first.assessment.assessmentId },
+  });
+  const current = await facts.getSourceAccess(f.pmo, {
+    projectId: f.projectId,
+    sourceId,
+  });
+  const retained = await db.factAssessmentVersion.findMany({
+    where: { assessmentId: proof.id, version: { sourceId } },
+  });
+  expect(retained).toHaveLength(1);
+  expect(retained[0]).toMatchObject({
+    customerId,
+    projectId: f.projectId,
+    factId: f.input.factId,
+  });
+  expect(contributors.some((v) => v[0] === retained[0]!.versionId)).toBe(false);
+  await facts.setSourceAccess(
+    f.pmo,
+    {
+      projectId: f.projectId,
+      sourceId,
+      expectedRevision: current!.revision,
+      state: "AVAILABLE",
+      readers: [third.subject],
+    },
+    context,
+  );
+  expect(await reconciliation.get(f.pm, read)).toMatchObject({
+    assessment: { visibility: "restricted", result: null },
+  });
+  expect(await reconciliation.check(f.pmo, f.input, context)).toMatchObject({
+    checkId: first.checkId,
+    outcome: "CREATED",
+    replayed: true,
+    assessment: { visibility: "restricted", result: null },
+  });
+  const fresh = await reconciliation.check(
+    f.pmo,
+    { ...f.input, idempotencyKey: randomUUID() },
+    context,
+  );
+  expect(fresh).toMatchObject({
+    outcome: "NO_REQUEST",
+    request: null,
+    assessment: { visibility: "restricted", result: null },
+  });
+  expect(
+    await db.factAssessment.findUniqueOrThrow({
+      where: { id: fresh.assessment.assessmentId },
+    }),
+  ).toMatchObject({ result: { status: "REVALIDATION_REQUIRED" } });
+  expect(
+    await db.scalarReconciliationRequest.findUniqueOrThrow({
+      where: { id: request.id },
+    }),
+  ).toEqual(request);
+  expect(request.state).toBe("OPEN");
+  expect(
+    await db.factAssessment.findUniqueOrThrow({ where: { id: proof.id } }),
+  ).toEqual(proof);
+  expect(
+    await db.scalarReconciliationRequest.count({
+      where: { customerId, projectId: f.projectId },
+    }),
+  ).toBe(1);
 });
 it("FR-EVD-009: preserves legacy unassigned requests and append-only assignment CAS/retry", async () => {
   const f = await fixture(false),

@@ -19,6 +19,17 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Current unmerged work
 
+Latest acceptance checkpoint: `3060a9e` passes1363 local units and32 browsers,
+and hosted native125 integration/42-table recovery. Its packaged check failed
+at an existing prefix4 COMMIT-observer assertion; the failed run remains recorded.
+The continuation synchronizes actual transport readiness without changing SQL or
+deadlines and adds four independently identified coverage controls (ambiguity,
+identity-reference bounds, occupied-hash rollback, non-contributor source loss).
+Ancestor `149a4e7` packaged primary/bundled/external acceptance and restores passed;
+its authenticated originals are diagnostic evidence, not final-child approval.
+Fresh final-head CI, independent review and original-artifact review remain open.
+Design/colours and applied migrations are unchanged; no story acceptance or merge.
+
 ### Unmerged Antigravity design integration
 
 The Product Owner requested preservation of Antigravity's chosen design/colours.

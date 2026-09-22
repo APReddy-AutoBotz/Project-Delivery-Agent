@@ -82,34 +82,86 @@ export function watchCommits(pool, activeCase, observerClient) {
       record.nativeCommitAttempts += 1;
       record.nativePid = client.processID;
       record.callbackReturnedAtCommit = record.callbackReturned;
+      // pg rejects on ErrorResponse, before the distinct ReadyForQuery message.
+      // Arm before forwarding COMMIT so even synchronous completion is observed.
+      // This observes transport only: no replacement query, retry or writer DML.
+      let settleReady, readyTimer;
+      const ready = new Promise((resolve) => {
+        settleReady = resolve;
+      });
+      const onReady = (message) =>
+        settleReady({ phase: "ready-status", status: message?.status });
+      const onError = () => settleReady({ phase: "ready-transport-error" });
+      const onEnd = () => settleReady({ phase: "ready-transport-end" });
+      client.connection.on("readyForQuery", onReady);
+      client.on("error", onError);
+      client.on("end", onEnd);
+      const cleanupReady = () => {
+        clearTimeout(readyTimer);
+        client.connection.removeListener("readyForQuery", onReady);
+        client.removeListener("error", onError);
+        client.removeListener("end", onEnd);
+      };
       const attest = async () => {
-        const observer = observerClient();
-        assert(observer && observer.processID !== client.processID);
-        const rows = (
-          await observer.query(
-            "SELECT pid,usename,state,query FROM pg_stat_activity WHERE pid=$1",
-            [client.processID],
-          )
-        ).rows;
-        assert.equal(rows.length, 1);
-        const row = rows[0];
-        assert.equal(row.pid, record.pid);
-        assert.equal(row.usename, record.sessionUser);
-        assert.equal(row.state, "idle");
-        assert.match(row.query, /^\s*COMMIT\s*;?\s*$/i);
-        record.commitObserver = {
-          observerPid: observer.processID,
-          writerPid: row.pid,
-          sessionUser: row.usename,
-          state: row.state,
-          query: row.query,
-          phase: "native-commit-settled",
-        };
+        let phase = "ready-wait";
+        try {
+          // Bound only post-settlement transport drain, not native COMMIT work.
+          // The listener was already armed, so earlier readiness is retained.
+          // Native maxWait/transaction/query deadlines remain unchanged.
+          readyTimer = setTimeout(
+            () => settleReady({ phase: "ready-timeout" }),
+            1000,
+          );
+          const settled = await ready;
+          phase = settled.phase;
+          assert.equal(
+            settled.status,
+            "I",
+            "COMMIT did not reach ReadyForQuery idle",
+          );
+          cleanupReady();
+          const observer = observerClient();
+          phase = "observer-distinct-backend";
+          assert(observer && observer.processID !== client.processID);
+          phase = "observer-query";
+          const rows = (
+            await observer.query(
+              "SELECT pid,usename,state,query FROM pg_stat_activity WHERE pid=$1",
+              [client.processID],
+            )
+          ).rows;
+          phase = "observer-row-count";
+          assert.equal(rows.length, 1);
+          const row = rows[0];
+          phase = "observer-writer-pid";
+          assert.equal(row.pid, record.pid);
+          phase = "observer-session-user";
+          assert.equal(row.usename, record.sessionUser);
+          phase = "observer-idle";
+          assert.equal(row.state, "idle");
+          phase = "observer-commit-query";
+          assert.match(row.query, /^\s*COMMIT\s*;?\s*$/i);
+          record.commitObserver = {
+            observerPid: observer.processID,
+            writerPid: row.pid,
+            sessionUser: row.usename,
+            state: row.state,
+            query: row.query,
+            phase: "native-commit-settled",
+          };
+        } catch (error) {
+          // Preserve a finite diagnostic; never serialize SQL/error payloads.
+          record.commitObserverFailure = phase;
+          throw error;
+        } finally {
+          cleanupReady();
+        }
       };
       let result;
       try {
         result = query.apply(this, args);
       } catch (error) {
+        cleanupReady();
         record.native = {
           code: error.code,
           message: error.message,
@@ -118,6 +170,7 @@ export function watchCommits(pool, activeCase, observerClient) {
         throw error;
       }
       if (!result || typeof result.then !== "function") {
+        cleanupReady();
         record.unsupportedTransport = true;
         return result;
       }
@@ -721,7 +774,7 @@ export async function verifyReconciliationCommitGuards({
     );
     assert(
       record.commitObserver,
-      `${mode}: separate COMMIT observer is missing`,
+      `${mode}: separate COMMIT observer is missing (${record.commitObserverFailure ?? "not-observed"})`,
     );
     assert.notEqual(
       record.unsupportedTransport,
