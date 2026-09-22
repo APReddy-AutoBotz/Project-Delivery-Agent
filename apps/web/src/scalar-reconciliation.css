@@ -1,0 +1,124 @@
+/* User-approved Antigravity Sapphire/Frost presentation (PR #53, 72f822e).
+   FR-EVD-003/009/010: layout never suppresses historical or restricted states. */
+.scalar-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 20px;
+  box-shadow: 0 2px 8px rgba(15, 52, 96, 0.04);
+  min-width: 0;
+}
+.scalar-panel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.scalar-panel-heading h3 {
+  margin: 0;
+  color: #0f3460;
+  font-weight: 700;
+}
+.scalar-panel-heading .eyebrow {
+  color: #64748b;
+}
+.scalar-reference {
+  overflow-wrap: anywhere;
+}
+.scalar-assignment-banner {
+  margin: 10px 0;
+}
+.scalar-assignment-banner p {
+  margin: 0;
+  font-weight: 500;
+}
+.scalar-assignment-banner small {
+  display: block;
+  margin-top: 4px;
+}
+.scalar-assignment-banner .pill {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.scalar-state,
+.scalar-assigned {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #0f3460;
+  font-weight: 700;
+}
+.scalar-unassigned {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+  font-weight: 600;
+}
+.scalar-metadata {
+  font-size: 12px;
+  margin: 8px 0;
+  color: #475569;
+}
+.scalar-check {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+.scalar-queue-item {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.scalar-queue-item.scalar-selected {
+  border-color: #4f46e5;
+}
+.conflict-banner {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  color: #0f3460;
+}
+.conflict-banner strong {
+  font-size: 13px;
+  display: block;
+}
+.conflict-banner p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+.conflict-comparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.conflict-comparison .evidence-entry {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.scalar-position {
+  color: #0f3460;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+@media (max-width: 650px) {
+  .scalar-panel {
+    padding: 16px;
+  }
+}

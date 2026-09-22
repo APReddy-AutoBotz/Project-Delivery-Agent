@@ -1,7 +1,7 @@
 import React, { useId } from "react";
 
 const focus =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600";
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F46E5]";
 export function Button({
   type = "button",
   className = "",
@@ -72,7 +72,7 @@ export function Message({
   return (
     <p
       role={error ? "alert" : "status"}
-      className={error ? "text-red-800" : "text-teal-800"}
+      className={error ? "text-red-800" : "text-[#0F3460]"}
     >
       {children}
     </p>

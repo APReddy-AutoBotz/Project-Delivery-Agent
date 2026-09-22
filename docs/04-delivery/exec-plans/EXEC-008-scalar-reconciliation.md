@@ -1239,3 +1239,32 @@ equivalence/fail-closed behavior. Some preserved table projections were empty;
 this does not stand in for the fully populated packaged upgrade matrix. This
 closes only the bounded validator-performance implementation review. Full scalar,
 packaged/browser/release acceptance and Issue 6 remain open. No push or merge.
+
+### Antigravity reconciliation — 2026-09-22
+
+User direction: inspect the GitHub work and continue implementation while preserving
+Antigravity's designs and chosen colours. Fetched candidate
+`72f822effbe36d316395e63844e6fdaa8c8290cb` on
+`antigravity/scalar-conflict-reconciliation`, open PR #53. Its six commits diverge
+from the 31 local commits ending at reviewed `906fd76`; neither history is discarded.
+GitHub Documentation validation 35503097626 passed, but Foundation validation
+35503097631 failed at database migration and packaged acceptance. Integration,
+recovery and browser steps were skipped. The PR's broader pass claim is therefore
+not accepted as current execution evidence.
+
+Continue on `codex/antigravity-design-integration` from `906fd76`. Preserve the
+Antigravity global stylesheet exactly and adopt its Sapphire/Frost scalar card,
+assignment badge, conflict banner and comparison layout. Keep the validated local
+server contracts, stable retry identity, permission/late-response guards, full
+historical evidence and unchanged migrations 1–8. Visual preservation does not
+authorize replacing an applied migration or weakening proof checks. The remote
+resolve/asOf lifecycle is a separate unvalidated backend change, not a visual
+dependency; assess it separately against the approved append-only workflow.
+
+FR-EVD-003/007/009/010/012 and NFR-SEC-001: preserve current-access withholding,
+capture-time/staleness warnings and all three fact-state dimensions in the new
+presentation. Do not filter out retained noneligible or stale versions. Verify
+rendering/strict metadata with unit tests, run existing scalar and evidence browser
+workflows plus a real visual check, and retain screenshots. No new connector scope,
+external write, schema migration or dependency is planned. Both original branches
+and PR #53 remain untouched until integration review and validation are complete.

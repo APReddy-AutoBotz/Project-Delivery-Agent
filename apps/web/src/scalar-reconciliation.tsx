@@ -13,6 +13,7 @@ import {
   evidenceError,
   useEvidenceResource,
 } from "./evidence-state.js";
+import "./scalar-reconciliation.css";
 
 type Base = { projectId: string; request: RequestFn };
 export const savedScalarReconciliationLink = (
@@ -21,16 +22,40 @@ export const savedScalarReconciliationLink = (
 ) =>
   `/?project=${encodeURIComponent(projectId)}&scalarReconciliation=${encodeURIComponent(requestId)}`;
 const link = savedScalarReconciliationLink;
-function Assignment({ item }: { item: ScalarReconciliationRequestSummary }) {
+// FR-EVD-009/012: Antigravity presentation, unchanged immutable request semantics.
+export function ScalarAssignment({
+  item,
+}: {
+  item: ScalarReconciliationRequestSummary;
+}) {
+  const assigned = item.assignment.reason === "ASSIGNED";
   return (
-    <p>
-      OPEN · Pending scalar reconciliation · Assignment revision{" "}
-      {item.assignment.revision}:{" "}
-      {item.assignment.reason === "ASSIGNED"
-        ? `Assigned to ${item.assignment.recipientSubject}`
-        : item.assignment.reason.replaceAll("_", " ")}
-      . No source value has been changed.
-    </p>
+    <div className="scalar-assignment-banner">
+      <p>
+        Status: <span className="pill scalar-state">{item.state}</span> ·
+        Assignment revision {item.assignment.revision}:{" "}
+        <span
+          className={`pill ${assigned ? "scalar-assigned" : "scalar-unassigned"}`}
+        >
+          {assigned
+            ? `Assigned to ${item.assignment.recipientSubject}`
+            : item.assignment.reason.replaceAll("_", " ")}
+        </span>
+      </p>
+      {!assigned && (
+        <small className="muted">
+          Durable unassigned routing:{" "}
+          {item.assignment.reason === "NO_CONFIGURED_PM"
+            ? "No configured Project Manager responsibility exists for this project."
+            : item.assignment.reason === "AMBIGUOUS_CONFIGURED_PM"
+              ? "Multiple Project Manager responsibilities are configured on this project."
+              : "Configured Project Manager lacks an active project_manager grant."}
+        </small>
+      )}
+      <small className="muted">
+        Pending scalar reconciliation. No source value has been changed.
+      </small>
+    </div>
   );
 }
 // FR-EVD-007/009/012: explicit material action, separate from ordinary capture.
@@ -106,13 +131,21 @@ export function ScalarReconciliationCheck({
     }
   }
   return (
-    <section aria-label="Scalar reconciliation check" hidden={!visible}>
+    <section
+      className="scalar-check"
+      aria-label="Scalar reconciliation check"
+      hidden={!visible}
+    >
       <p>
         Check the whole scalar fact under its current authority policy. Eligible
         conflicts create or reuse an internal request; missing PM configuration
         leaves it unassigned.
       </p>
-      <Button disabled={!visible || busy} onClick={() => void check()}>
+      <Button
+        className="primary"
+        disabled={!visible || busy}
+        onClick={() => void check()}
+      >
         {busy
           ? "Checking scalar fact…"
           : pending
@@ -129,7 +162,7 @@ export function ScalarReconciliationCheck({
           </p>
           {result.request ? (
             <>
-              <Assignment item={result.request} />
+              <ScalarAssignment item={result.request} />
               <p>
                 Link for the assigned PM, subject to current access:{" "}
                 <a href={link(projectId, result.request.id)}>
@@ -156,11 +189,21 @@ function ScalarProof({
       ),
   );
   return (
-    <section aria-label="PM scalar reconciliation request">
-      <h3>PM scalar reconciliation request</h3>
-      <Button className="secondary" onClick={() => void proof.refresh()}>
-        Refresh scalar request access
-      </Button>
+    <section
+      className="scalar-panel scalar-proof"
+      aria-label="PM scalar reconciliation request"
+    >
+      <div className="scalar-panel-heading">
+        <div>
+          <h3>PM scalar reconciliation request</h3>
+          <small className="muted scalar-reference">
+            Request reference: {requestId}
+          </small>
+        </div>
+        <Button className="secondary" onClick={() => void proof.refresh()}>
+          Refresh scalar request access
+        </Button>
+      </div>
       {proof.phase === "loading" ? (
         <p role="status">Checking current scalar proof access…</p>
       ) : null}
@@ -169,7 +212,12 @@ function ScalarProof({
       ) : null}
       {proof.data ? (
         <>
-          <Assignment item={proof.data.request} />
+          <ScalarAssignment item={proof.data.request} />
+          <p className="scalar-metadata">
+            Fact type: <strong>{proof.data.request.factType}</strong> · Created
+            at: {proof.data.request.createdAt} · Proof as of:{" "}
+            {proof.data.assessment.asOf}.
+          </p>
           <p>
             Original historical proof. Reconcile these retained values through
             the approved project process; this request does not select or
@@ -178,6 +226,7 @@ function ScalarProof({
           <AssessmentView
             delivery={proof.data.assessment}
             projectId={projectId}
+            comparison
           />
         </>
       ) : null}
@@ -281,10 +330,16 @@ export function ScalarReconciliationQueue({
   }
   return (
     <section
-      className="evidence-history"
+      className="evidence-history scalar-panel scalar-queue"
       aria-label="Scalar reconciliation queue"
     >
-      <h3>Scalar reconciliation requests</h3>
+      <div className="scalar-panel-heading">
+        <div>
+          <span className="eyebrow">PROJECT ASSURANCE</span>
+          <h3>Scalar reconciliation requests</h3>
+        </div>
+        <span className="pill">Internal workflow</span>
+      </div>
       <p>
         Live, internal requests. No messages, approvals or source changes are
         performed.
@@ -341,13 +396,17 @@ export function ScalarReconciliationQueue({
               <p>No scalar requests on this page.</p>
             ) : null}
             {queue.data.requests.map((item) => (
-              <article className="evidence-entry" key={item.id}>
-                <p>
-                  {item.factType} · Created {item.createdAt}
+              <article
+                className={`evidence-entry scalar-queue-item${requestId === item.id ? " scalar-selected" : ""}`}
+                key={item.id}
+              >
+                <p className="scalar-metadata">
+                  <strong>{item.factType}</strong> · Created {item.createdAt}
                 </p>
-                <Assignment item={item} />
+                <ScalarAssignment item={item} />
                 {mode === "recipient" ? (
                   <Button
+                    className="primary"
                     onClick={() => {
                       setRequestId(item.id);
                       window.history.replaceState(
@@ -361,6 +420,7 @@ export function ScalarReconciliationQueue({
                   </Button>
                 ) : canAppend ? (
                   <Button
+                    className="primary"
                     disabled={
                       busy ||
                       (pending !== null && pending.requestId !== item.id)
