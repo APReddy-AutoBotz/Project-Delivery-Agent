@@ -15,7 +15,7 @@ function client(name: string, rolsuper = false, invalid = 0) {
   };
 }
 
-it("rebuilds both finite migration-5/6 function boundaries before granting only the five API predicates", async () => {
+it("rebuilds finite migration-5/6/7 function boundaries before granting only the nine API functions", async () => {
   const owner = client("pdaa_migrate");
   await applyBusinessTableGrants(owner as unknown as GrantClient);
   const sql = owner.query.mock.calls[2]![0] as string;
@@ -45,21 +45,34 @@ it("rebuilds both finite migration-5/6 function boundaries before granting only 
     .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
     .sort();
   expect(newSignatures).toHaveLength(7);
+  const scalar = readFileSync(
+    new URL(
+      "../packages/data/prisma/migrations/202609130001_scalar_reconciliation_requests/migration.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const scalarSignatures = [
+    ...scalar.matchAll(/REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC;/g),
+  ]
+    .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
+    .sort();
+  expect(scalarSignatures).toHaveLength(8);
   const revoked = [
     ...sql.matchAll(
       /REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;/g,
     ),
   ];
-  expect(revoked).toHaveLength(2);
+  expect(revoked).toHaveLength(3);
   expect(
     revoked
       .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
       .sort(),
-  ).toEqual([...signatures, ...newSignatures].sort());
+  ).toEqual([...signatures, ...newSignatures, ...scalarSignatures].sort());
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
   ];
-  expect(granted).toHaveLength(2);
+  expect(granted).toHaveLength(3);
   expect(granted.flatMap((match) => match[1]!.split(",")).sort()).toEqual(
     [
       "public.valid_canonical_state_binding(uuid)",
@@ -67,6 +80,10 @@ it("rebuilds both finite migration-5/6 function boundaries before granting only 
       "public.valid_milestone_reconciliation_assignment(uuid)",
       "public.valid_milestone_reconciliation_check(uuid)",
       "public.valid_milestone_reconciliation_request(uuid)",
+      "public.scalar_reconciliation_identity(uuid)",
+      "public.valid_scalar_reconciliation_assignment(uuid)",
+      "public.valid_scalar_reconciliation_check(uuid)",
+      "public.valid_scalar_reconciliation_request(uuid)",
     ].sort(),
   );
   for (const grant of granted)
@@ -79,7 +96,7 @@ it("rebuilds both finite migration-5/6 function boundaries before granting only 
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(4);
+  ]).toHaveLength(6);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {
@@ -98,6 +115,10 @@ it("removes independent column ACL drift before the finite least-privilege grant
     'GRANT UPDATE (sealed) ON "MilestoneReconciliationRequest" TO pdaa_api',
   );
   expect(sql).not.toContain('GRANT UPDATE ("reconciliationCheckId")');
+  expect(sql).toContain(
+    'GRANT UPDATE (sealed) ON "ScalarReconciliationRequest" TO pdaa_api',
+  );
+  expect(sql).not.toContain('GRANT UPDATE ("scalarReconciliationCheckId")');
 });
 
 it("also rebuilds function permissions for the authorized restore superuser", async () => {

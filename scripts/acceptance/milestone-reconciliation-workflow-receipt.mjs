@@ -10,7 +10,7 @@ const digest = /^[0-9a-f]{64}$/;
 const forbiddenClaimKey =
   /^(?:acknowledged|acknowledgement|read|readAt|readReceipt|sent|sentAt|delivered|deliveredAt|closed|closedAt|resolved|resolvedAt|approved|approvedAt|message|messageId)$/i;
 
-function response(value, status) {
+export function response(value, status) {
   assert.equal(value.status, status);
   assert(Number.isInteger(value.bytes) && value.bytes >= 0);
   assert.match(value.sha256, digest);

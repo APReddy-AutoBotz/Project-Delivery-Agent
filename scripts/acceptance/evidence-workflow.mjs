@@ -315,7 +315,9 @@ export async function exerciseEvidenceWorkflow({
       savedRegion(pm.page).getByText("Conflict: CONFLICTING", { exact: true }),
     ).toHaveCount(2);
     await expect(savedRegion(pm.page)).toContainText("Expired at capture");
-    await expect(savedRegion(pm.page)).toContainText("has not been created");
+    await expect(savedRegion(pm.page)).toContainText(
+      "This assessment flag alone is not a durable reconciliation request",
+    );
     const screenshot = await pm.page.screenshot({
       path: output + "/evidence-stale-conflict.png",
       fullPage: true,

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import { canonicalTables } from "./acceptance/canonical-projects.mjs";
 import { verifyImmutableHistoryMutation } from "./acceptance/immutable-history.mjs";
+import { verifyRestoredProofIntegrity } from "./acceptance/restored-proof-integrity.mjs";
 import {
   assertSyntheticDatabaseUrl,
   CredentialVault,
@@ -93,6 +94,9 @@ try {
 docker(["pg_dump", "-U", "pdaa", "-d", sourceName, "-Fc", "-f", dump]);
 docker(["createdb", "-U", "pdaa", target]);
 docker(["pg_restore", "-U", "pdaa", "-d", target, "--exit-on-error", dump]);
+console.log(
+  `Native dump restored into retained isolated database ${target}; checking exact rows.`,
+);
 url.pathname = "/" + sourceName;
 const original = createDatabase(url.toString());
 url.pathname = "/" + target;
@@ -147,6 +151,9 @@ try {
     "MilestoneReconciliationRequest",
     "MilestoneReconciliationCheck",
     "MilestoneReconciliationAssignment",
+    "ScalarReconciliationRequest",
+    "ScalarReconciliationCheck",
+    "ScalarReconciliationAssignment",
   ];
   for (const table of tables) {
     const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
@@ -163,6 +170,9 @@ try {
     "MilestoneReconciliationRequest",
     "MilestoneReconciliationCheck",
     "MilestoneReconciliationAssignment",
+    "ScalarReconciliationRequest",
+    "ScalarReconciliationCheck",
+    "ScalarReconciliationAssignment",
   ])
     assert(
       (
@@ -172,25 +182,12 @@ try {
       )[0].n > 0,
       "Canonical recovery fixture must populate " + table,
     );
-  assert.equal(
-    (
-      await restored.$queryRaw`SELECT
-    (SELECT count(*)::int FROM "AuthorityPolicy" WHERE NOT public.valid_authority_history(id)) +
-    (SELECT count(*)::int FROM "FactAuthorityConflict" WHERE NOT public.valid_authority_conflict(id)) +
-    (SELECT count(*)::int FROM (SELECT "factId" FROM "FactAuthorityConflict" GROUP BY "factId" HAVING count(*)<>max(revision)) drift) +
-    (SELECT count(*)::int FROM "FactAssessment" WHERE NOT sealed OR NOT public.valid_fact_assessment(id)) +
-    (SELECT count(*)::int FROM "Programme" WHERE NOT public.valid_canonical_programme(id)) +
-    (SELECT count(*)::int FROM "CanonicalProject" WHERE NOT sealed OR NOT public.valid_canonical_project(id)) +
-    (SELECT count(*)::int FROM "CanonicalStateBinding" WHERE NOT sealed OR NOT public.valid_canonical_state_binding(id)) +
-    (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" WHERE NOT sealed OR NOT public.valid_milestone_consistency_assessment(id)) +
-    (SELECT count(*)::int FROM "MilestoneReconciliationRequest" WHERE sealed IS NOT TRUE OR public.valid_milestone_reconciliation_request(id) IS NOT TRUE) +
-    (SELECT count(*)::int FROM "MilestoneReconciliationCheck" WHERE public.valid_milestone_reconciliation_check(id) IS NOT TRUE) +
-    (SELECT count(*)::int FROM "MilestoneReconciliationAssignment" WHERE public.valid_milestone_reconciliation_assignment(id) IS NOT TRUE) +
-    (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" a WHERE a."reconciliationCheckId" IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM "MilestoneReconciliationCheck" c WHERE c.id=a."reconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId"
-    )) AS invalid`
-    )[0].invalid,
-    0,
+  console.log(
+    "Exact rows and populated families checked; validating native integrity predicates.",
+  );
+  const proofCounts = await verifyRestoredProofIntegrity(restored);
+  console.log(
+    "All native proof families verified: " + JSON.stringify(proofCounts),
   );
   for (const table of [
     "AuditEvent",
@@ -211,6 +208,9 @@ try {
     "MilestoneReconciliationCheck",
     "MilestoneReconciliationAssignment",
     ...canonicalTables,
+    "ScalarReconciliationRequest",
+    "ScalarReconciliationCheck",
+    "ScalarReconciliationAssignment",
   ]) {
     for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
       await verifyImmutableHistoryMutation(restored, table, operation);
@@ -231,7 +231,7 @@ try {
   if (visible.length !== 1 || visible[0].code !== "ATL")
     throw new Error("Restored permissions differ");
   console.log(
-    `Recovery passed: all 39 business tables and the migration ledger match exactly; audit, fact, policy, assessment, binding, reconciliation and canonical history remain immutable. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all 42 business tables and the migration ledger match exactly; audit, fact, policy, assessment, binding, reconciliation and canonical history remain immutable. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

@@ -21,6 +21,7 @@ import {
   waitForTransactionBlockers,
 } from "./transaction-latch.mjs";
 import { runWithCleanup, drainAndClose } from "./fixture-cleanup.mjs";
+import { createPriorReleaseDatabase } from "./prior-schema.mjs";
 import { guard as isolatedGuard, secret } from "./common.mjs";
 const require = createRequire(
   new URL("../../packages/data/package.json", import.meta.url),
@@ -453,17 +454,25 @@ export async function runMilestoneReconciliationRaces(
     drainAndClose,
   });
 }
-export async function seedMilestoneReconciliation(
+async function seedReconciliationWorkflow(
   owner,
   connection,
   customerId,
   referenceProjectId,
   prefix,
-  { reserveForRestore = false } = {},
+  { reserveForRestore = false, priorSix = false } = {},
 ) {
   reconciliationAcceptanceGuard();
-  const db = createDatabase(connection);
+  const db = priorSix
+    ? createPriorReleaseDatabase(connection, 6)
+    : createDatabase(connection);
   try {
+    if (priorSix) {
+      const prefix = await owner.query(`SELECT
+        (SELECT count(*)::int FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL) AS completed,
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='FactAssessment' AND column_name='scalarReconciliationCheckId') AS forward_owner`);
+      assert.deepEqual(prefix.rows, [{ completed: 6, forward_owner: false }]);
+    }
     assert.equal(
       (await db.$queryRaw`SELECT current_user AS role`)[0].role,
       "pdaa_api",
@@ -606,6 +615,28 @@ export async function seedMilestoneReconciliation(
       ).assignment.reason,
       "PM_SCOPE_UNAVAILABLE",
     );
+    if (priorSix) {
+      // Genuine released data only. Current-client adversarial probes must run
+      // after upgrade, never against a prefix missing their generated columns.
+      await verifyMilestoneReconciliationIntegrity(owner);
+      return {
+        purpose: "retained-release-six-history",
+        runtimeRole: "pdaa_api",
+        actor: f.actor,
+        pm: f.pm,
+        context: f.context,
+        command,
+        refresh,
+        checkId: first.checkId,
+        requestId: first.request.id,
+        originalAssessmentId: first.assessment.assessmentId,
+        originalAssessment: original.assessment,
+        reusedCheckId: reused.checkId,
+        disabledCheckId: disabled.checkId,
+        unassignedRequestId: pending.request.id,
+        nativeProbesExecuted: false,
+      };
+    }
     const positiveFixture = await reserveFixture(
         owner,
         db,
@@ -660,6 +691,111 @@ export async function seedMilestoneReconciliation(
       commitGuards,
       raceGuards,
       restoreProbes,
+    };
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+export function seedMilestoneReconciliation(
+  owner,
+  connection,
+  customerId,
+  referenceProjectId,
+  prefix,
+  { reserveForRestore = false } = {},
+) {
+  return seedReconciliationWorkflow(
+    owner,
+    connection,
+    customerId,
+    referenceProjectId,
+    prefix,
+    { reserveForRestore },
+  );
+}
+
+// FR-EVD-004/007/012: explicit prior-data producer, not a probe-skipping option
+// on the current acceptance workflow. Its output is not a native-probe receipt.
+export function seedPriorSixMilestoneReconciliation(
+  owner,
+  connection,
+  customerId,
+  referenceProjectId,
+  prefix,
+) {
+  return seedReconciliationWorkflow(
+    owner,
+    connection,
+    customerId,
+    referenceProjectId,
+    prefix,
+    { priorSix: true },
+  );
+}
+
+export async function verifyRetainedPriorSixReconciliation(
+  owner,
+  connection,
+  retained,
+) {
+  reconciliationAcceptanceGuard();
+  assert.equal(retained.purpose, "retained-release-six-history");
+  assert.equal(retained.nativeProbesExecuted, false);
+  const db = createDatabase(connection);
+  try {
+    assert.equal(
+      (await db.$queryRaw`SELECT current_user AS role`)[0].role,
+      "pdaa_api",
+    );
+    const repository = new DatabaseMilestoneReconciliationRepository(db);
+    const read = {
+      projectId: retained.command.projectId,
+      requestId: retained.requestId,
+    };
+    const replay = await repository.check(
+      retained.actor,
+      retained.command,
+      retained.context,
+    );
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.checkId, retained.checkId);
+    assert.equal(replay.request.id, retained.requestId);
+    assert.equal(replay.assessment.assessmentId, retained.originalAssessmentId);
+    assert.equal(replay.request.assignment.reason, "PM_SCOPE_UNAVAILABLE");
+    assert.equal(await repository.get(retained.pm, read), null);
+    await owner.query(
+      'INSERT INTO "AccessGrant" (id,"customerId",subject,"scopeType","scopeId",role) VALUES ($1,$2,$3,\'project\',$4,\'project_manager\')',
+      [
+        randomUUID(),
+        retained.actor.customerId,
+        retained.pm.subject,
+        read.projectId,
+      ],
+    );
+    // A restored grant alone cannot silently replace historical assignment.
+    assert.equal(await repository.get(retained.pm, read), null);
+    const refreshed = await repository.refreshAssignment(
+      retained.actor,
+      {
+        ...read,
+        expectedAssignmentRevision: replay.request.assignment.revision,
+        idempotencyKey: randomUUID(),
+      },
+      retained.context,
+    );
+    assert.equal(refreshed.assignment.reason, "ASSIGNED");
+    const delivered = await repository.get(retained.pm, read);
+    assert.deepEqual(delivered.assessment, retained.originalAssessment);
+    await verifyMilestoneReconciliationIntegrity(owner);
+    return {
+      originalCheckId: retained.checkId,
+      originalRequestId: retained.requestId,
+      originalAssessmentId: retained.originalAssessmentId,
+      originalReplayed: true,
+      revokedRecipientDenied: true,
+      regrantDidNotReroute: true,
+      originalProofDelivered: true,
     };
   } finally {
     await db.$disconnect();

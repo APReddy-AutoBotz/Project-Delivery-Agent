@@ -1,5 +1,16 @@
 # Document Control
 
+## Scalar reconciliation design approval, 2026-09-13
+
+Under existing delegation, the controller approves EXEC-008's concrete design at
+`5e5987a343c9c7cc6fcf876fd2f9b6451473a593` after independent non-author workflow/
+API/authorization/UI and persistence/DDL/COMMIT reviews found no P0/P1 blockers.
+Adopt explicit manager action, policy opt-in, owned scalar proof, revisioned
+contributor identity and immutable configuration/portfolio routing snapshots.
+All implementation and exact-candidate validation/review gates remain required.
+This is not implementation acceptance, Issue6 closure or customer release approval;
+STORY-012/FAIL-009 remain planned, with R0 3/5 and R1 2/33 unchanged.
+
 ## Canonical reconciliation integration; acceptance withheld, 2026-09-13
 
 Under the existing implementation delegation, record verified canonical milestone

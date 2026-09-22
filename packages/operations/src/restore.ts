@@ -164,6 +164,12 @@ async function restoreArchive(
           (SELECT count(*)::int FROM "MilestoneReconciliationRequest" WHERE sealed IS NOT TRUE OR public.valid_milestone_reconciliation_request(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "MilestoneReconciliationCheck" WHERE public.valid_milestone_reconciliation_check(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "MilestoneReconciliationAssignment" WHERE public.valid_milestone_reconciliation_assignment(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "ScalarReconciliationRequest" WHERE sealed IS NOT TRUE OR public.valid_scalar_reconciliation_request(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "ScalarReconciliationCheck" WHERE public.valid_scalar_reconciliation_check(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "ScalarReconciliationAssignment" WHERE public.valid_scalar_reconciliation_assignment(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "FactAssessment" a WHERE a."scalarReconciliationCheckId" IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM "ScalarReconciliationCheck" c WHERE c.id=a."scalarReconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId" AND c."factId"=a."factId"
+          )) +
           (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" a WHERE a."reconciliationCheckId" IS NOT NULL AND NOT EXISTS (
             SELECT 1 FROM "MilestoneReconciliationCheck" c WHERE c.id=a."reconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId"
           )) AS invalid`)

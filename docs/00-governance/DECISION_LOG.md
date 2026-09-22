@@ -1,5 +1,18 @@
 # Decision Log
 
+## Scalar reconciliation implementation design, 2026-09-13
+
+Approve EXEC-008 design candidate `5e5987a343c9c7cc6fcf876fd2f9b6451473a593`
+under delegated routine authority after independent workflow and persistence
+reviews found no P0/P1 blockers. Use a separate scalar request family with explicit
+policy opt-in and manager action; immutable owned assessments and all conflict
+contributors determine one fact-level business identity. Pin configuration receipt
+and portfolio in append-only assignment history so later configuration cannot
+invalidate a legitimate legacy unassigned request. Preserve ordinary evidence-read
+authorization and independently enforce exact current PM request delivery.
+No milestone fabrication, external action, source selection, new dependency or
+story acceptance. Proceed with implementation and all EXEC-008 validation gates.
+
 ## Canonical reconciliation integration; remaining scalar request gate, 2026-09-13
 
 Under the existing implementation delegation, record verified canonical milestone

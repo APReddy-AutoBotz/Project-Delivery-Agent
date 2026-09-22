@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-13
+Updated: 2026-09-22
 
 ## Accepted implementation completion
 
@@ -16,6 +16,80 @@ evidence, independent exact-SHA review, passing remote checks and a verified mer
 STORY-003 (shipped customer composition, TLS and external database support) is
 accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5),
 R0 release acceptance and commercial/customer deployment remain open.
+
+## Current unmerged work
+
+Latest acceptance checkpoint: `3060a9e` passes1363 local units and32 browsers,
+and hosted native125 integration/42-table recovery. Its packaged check failed
+at an existing prefix4 COMMIT-observer assertion; the failed run remains recorded.
+The continuation synchronizes actual transport readiness without changing SQL or
+deadlines and adds four independently identified coverage controls (ambiguity,
+identity-reference bounds, occupied-hash rollback, non-contributor source loss).
+Ancestor `149a4e7` packaged primary/bundled/external acceptance and restores passed;
+its authenticated originals are diagnostic evidence, not final-child approval.
+Fresh final-head CI, independent review and original-artifact review remain open.
+Design/colours and applied migrations are unchanged; no story acceptance or merge.
+
+### Unmerged Antigravity design integration
+
+The Product Owner requested preservation of Antigravity's chosen design/colours.
+Open PR #53 (`72f822e`) diverges from the reviewed local scalar implementation;
+its documentation check passed but Foundation migration/packaged checks failed,
+with integration/recovery/browser steps skipped. Neither original history was
+overwritten. Branch `codex/antigravity-design-integration` preserves its exact
+global stylesheet and adapts its scalar cards, status badges and comparison grid
+to the validated local contracts, permission checks and full historical evidence.
+Remote resolution and incompatible migration changes were not imported.
+
+Independent implementation reviews approved `266c312` and the browser-discovered
+React key-prop correction `02c79fc`. The complete Chromium suite passed 28/28 on
+both runs, including the final warning regression. Desktop/mobile captures retain
+the approved colours and show no horizontal page overflow. Detailed test attempts,
+review hashes and screenshots are recorded in
+[EXEC-008](exec-plans/EXEC-008-scalar-reconciliation.md).
+
+PR #54's `db80c31` native CI passed all 1246 units, 124 integration tests,
+42-table recovery and 28 browser tests. Its production job failed in the bundled
+customer restore verifier: the fixture incorrectly required the primary
+`fixture_admin` login where the customer composition uses `postgres`. Primary
+acceptance/restore passed; external customer acceptance was not reached.
+
+The continuation pins each profile's expected restore administrator while keeping
+application verification at `pdaa_api`. It adds a shared packaged scalar UI/HTTP
+workflow and independent original-byte receipt validation across recreation and
+source/project withdrawal. These additions still need final packaged evidence.
+Measured delivery projections and additive migration 9 preserve old migrations,
+proof identities, current authorization and unchanged runtime deadlines. The fresh
+native suite now passes 124/124, including the original 1000/1001 boundary and its
+isolated rerun. Explicit 8-to-9 rehearsal preserves all 42 business tables, old
+ledger entries, 31 proof results and privileges. Earlier retained-database P2028
+attempts remain recorded rather than waived.
+
+Pushed `15ef53d` passed hosted native CI: 1286 units, 124 integration tests, complete
+recovery and 29 browser workflows; documentation passed. Its packaged production
+job then failed because the new scalar test reloaded the memory-only OIDC session
+before opening the project. Signed-in exact-project card navigation now replaces
+that reload; its three tests and 34 receipt tests passed, pending review/fresh CI.
+Primary encrypted restore passed; bundled/external restore remain unexecuted there.
+
+Independent bounded reviews approved the workflow, corrected migration inventory
+and native recovery paging. Complete local recovery passes with all 16 logical
+checks and unchanged per-query limits; full units passed 1297/1297 before the three
+navigation tests were added. Remaining acceptance comprises scalar stale/recordedAt
+native vectors, loaded-proof natural OIDC expiry, legacy/leadership/new-contributor
+UI/HTTP journeys, final packaged evidence and whole-feature review. No merge,
+story/release acceptance or change to the completion numerators is claimed.
+
+The next acceptance increment now has green ancestor evidence at `cd22f5c`:
+Foundation35708951225 and Documentation35708951361 passed, including1300 units,
+124 integration tests,42-table recovery,29 browsers and primary/bundled/external
+packaged restores. The continuation implements six native stale/policy-time
+vectors, loaded-scalar-proof natural OIDC expiry and three real legacy/leadership/
+changed-contributor browser journeys. Focused receipt tests63/63 and the native
+leadership no-side-effect case pass; lint/typecheck/build pass. Sequential full
+units pass1361/1361; a full browser rerun, current-head packaged execution and independent final reviews remain
+required. Antigravity styling, nine migrations, authorization and deadlines are
+unchanged; no merge or accepted-story increment is claimed.
 
 ## Published and merged increments
 

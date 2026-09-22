@@ -32,6 +32,12 @@ import {
   reconciliationDeliverySchema,
   reconciliationAssignmentRefreshSchema,
   reconciliationAssignmentResultSchema,
+  scalarReconciliationCheckBodySchema,
+  scalarReconciliationCheckResultSchema,
+  scalarReconciliationPageSchema,
+  scalarReconciliationDeliverySchema,
+  scalarReconciliationAssignmentBodySchema,
+  scalarReconciliationAssignmentResultSchema,
 } from "@pdaa/domain";
 import {
   catalogueQuerySchema,
@@ -78,6 +84,41 @@ export type RouteContract = {
   query?: Record<string, z.ZodType>;
 };
 export const contracts: Record<string, RouteContract> = {
+  "post /api/projects/{id}/scalar-reconciliation-checks": {
+    status: 201,
+    request: scalarReconciliationCheckBodySchema,
+    response: scalarReconciliationCheckResultSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 409, 500],
+  },
+  "get /api/projects/{id}/managed-scalar-reconciliation-requests": {
+    status: 200,
+    response: scalarReconciliationPageSchema,
+    query: reconciliationQuerySchema.shape,
+    parameters: { id: z.uuid() },
+    errors: [404, 500],
+  },
+  "get /api/projects/{id}/scalar-reconciliation-requests": {
+    status: 200,
+    response: scalarReconciliationPageSchema,
+    query: reconciliationQuerySchema.shape,
+    parameters: { id: z.uuid() },
+    errors: [404, 500],
+  },
+  "get /api/projects/{id}/scalar-reconciliation-requests/{requestId}": {
+    status: 200,
+    response: scalarReconciliationDeliverySchema,
+    parameters: { id: z.uuid(), requestId: z.uuid() },
+    errors: [404, 500],
+  },
+  "post /api/projects/{id}/scalar-reconciliation-requests/{requestId}/assignment":
+    {
+      status: 201,
+      request: scalarReconciliationAssignmentBodySchema,
+      response: scalarReconciliationAssignmentResultSchema,
+      parameters: { id: z.uuid(), requestId: z.uuid() },
+      errors: [404, 409, 500],
+    },
   "post /api/projects/{id}/state-bindings": {
     status: 201,
     request: stateBindingCreateSchema,

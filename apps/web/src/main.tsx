@@ -15,6 +15,7 @@ import {
 } from "./canonical-project.js";
 import "./style.css";
 import { ProjectEvidence } from "./project-evidence.js";
+import { savedScalarReconciliationLink } from "./scalar-reconciliation.js";
 import {
   MilestoneReconciliation,
   savedReconciliationLink,
@@ -25,12 +26,15 @@ function evidenceLocation() {
   const query = new URLSearchParams(window.location.search);
   const projectId = query.get("project"),
     assessmentId = query.get("assessment"),
-    requestId = query.get("reconciliation");
+    requestId = query.get("reconciliation"),
+    scalarRequestId = query.get("scalarReconciliation");
   return projectId &&
     uuid.test(projectId) &&
-    ((assessmentId && !requestId && uuid.test(assessmentId)) ||
-      (requestId && !assessmentId && uuid.test(requestId)))
-    ? { projectId, assessmentId, requestId }
+    [assessmentId, requestId, scalarRequestId].filter(Boolean).length === 1 &&
+    [assessmentId, requestId, scalarRequestId].every(
+      (value) => value === null || uuid.test(value),
+    )
+    ? { projectId, assessmentId, requestId, scalarRequestId }
     : null;
 }
 
@@ -168,6 +172,9 @@ function App() {
   const [creating, setCreating] = useState(false);
   const [linkedAssessment, setLinkedAssessment] = useState<string | null>(null);
   const [linkedRequest, setLinkedRequest] = useState<string | null>(null);
+  const [linkedScalarRequest, setLinkedScalarRequest] = useState<string | null>(
+    null,
+  );
   React.useEffect(() => {
     expireSession = () => {
       accessToken = undefined;
@@ -177,6 +184,7 @@ function App() {
       setCreating(false);
       setLinkedAssessment(null);
       setLinkedRequest(null);
+      setLinkedScalarRequest(null);
       setView("projects");
       setError("Your session has ended. Please sign in again.");
       clearProtectedData();
@@ -230,6 +238,7 @@ function App() {
           setSelected(link.projectId);
           setLinkedAssessment(link.assessmentId);
           setLinkedRequest(link.requestId);
+          setLinkedScalarRequest(link.scalarRequestId);
         }
       } else if (auth.data)
         await manager(auth.data).signinRedirect({ state: evidenceLocation() });
@@ -257,29 +266,41 @@ function App() {
             projectId?: unknown;
             assessmentId?: unknown;
             requestId?: unknown;
+            scalarRequestId?: unknown;
           } | null;
           const linked =
             typeof state?.projectId === "string" &&
             uuid.test(state.projectId) &&
-            ((typeof state?.assessmentId === "string" &&
+            ((typeof state?.scalarRequestId === "string" &&
+              !state.assessmentId &&
               !state.requestId &&
-              uuid.test(state.assessmentId)) ||
+              uuid.test(state.scalarRequestId)) ||
+              (typeof state?.assessmentId === "string" &&
+                !state.scalarRequestId &&
+                !state.requestId &&
+                uuid.test(state.assessmentId)) ||
               (typeof state?.requestId === "string" &&
+                !state.scalarRequestId &&
                 !state.assessmentId &&
                 uuid.test(state.requestId)));
           window.history.replaceState(
             {},
             "",
             linked
-              ? typeof state?.requestId === "string"
-                ? savedReconciliationLink(
+              ? typeof state?.scalarRequestId === "string"
+                ? savedScalarReconciliationLink(
                     state.projectId as string,
-                    state.requestId,
+                    state.scalarRequestId,
                   )
-                : savedEvidenceLink(
-                    state.projectId as string,
-                    state.assessmentId as string,
-                  )
+                : typeof state?.requestId === "string"
+                  ? savedReconciliationLink(
+                      state.projectId as string,
+                      state.requestId,
+                    )
+                  : savedEvidenceLink(
+                      state.projectId as string,
+                      state.assessmentId as string,
+                    )
               : "/",
           );
           if (linked) {
@@ -291,6 +312,11 @@ function App() {
             );
             setLinkedRequest(
               typeof state.requestId === "string" ? state.requestId : null,
+            );
+            setLinkedScalarRequest(
+              typeof state.scalarRequestId === "string"
+                ? state.scalarRequestId
+                : null,
             );
           }
           setSignedIn(true);
@@ -313,6 +339,7 @@ function App() {
     setCreating(false);
     setLinkedAssessment(null);
     setLinkedRequest(null);
+    setLinkedScalarRequest(null);
     setView("projects");
     clearProtectedData();
     if (auth.data?.mode === "oidc" && oidc) {
@@ -332,6 +359,7 @@ function App() {
     setSelected(id);
     setLinkedAssessment(null);
     setLinkedRequest(null);
+    setLinkedScalarRequest(null);
     window.history.replaceState({}, "", "/");
   }
   const displayName =
@@ -562,6 +590,7 @@ function App() {
                     projectId={retainedProject.id}
                     request={request}
                     initialAssessmentId={linkedAssessment}
+                    initialScalarRequestId={linkedScalarRequest}
                     visible={!project.isFetching && !project.isError}
                   />
                   {project.data && (

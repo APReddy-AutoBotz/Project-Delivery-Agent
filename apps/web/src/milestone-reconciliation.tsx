@@ -67,7 +67,7 @@ function Proof({
       <Button className="secondary" onClick={() => void proof.refresh()}>
         Refresh request access
       </Button>
-      <LoadStatus {...proof} />
+      <LoadStatus key={proof.key} phase={proof.phase} error={proof.error} />
       {delivery ? (
         <>
           <Assignment item={delivery.request} />
@@ -378,7 +378,11 @@ function MilestoneCheck({
   );
   return (
     <section aria-label="Milestone consistency check">
-      <LoadStatus {...context} />
+      <LoadStatus
+        key={context.key}
+        phase={context.phase}
+        error={context.error}
+      />
       {context.last ? (
         <div hidden={!context.data}>
           <p>
@@ -561,7 +565,7 @@ function Queue({
         changes. Assignment refresh uses only the single configured PM and
         current scope; it does not choose another person or share evidence.
       </p>
-      <LoadStatus {...queue} />
+      <LoadStatus key={queue.key} phase={queue.phase} error={queue.error} />
       {error ? <Message error>{error}</Message> : null}
       {pending ? (
         <Button
@@ -649,7 +653,11 @@ export function MilestoneReconciliation({
         Retain conflicting evidence and route an internal request to the
         configured PM. No messages, approvals or source changes are performed.
       </p>
-      <LoadStatus {...canonical} />
+      <LoadStatus
+        key={canonical.key}
+        phase={canonical.phase}
+        error={canonical.error}
+      />
       {canonical.last ? (
         <div hidden={!visible || !canonical.data}>
           <SelectField

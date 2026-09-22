@@ -32,7 +32,7 @@ function parseJson(bytes) {
   }
 }
 
-async function observeResponse(session, response, label, expectedStatus) {
+export async function observeResponse(session, response, label, expectedStatus) {
   const bytes = Buffer.from(await response.body()).subarray(),
     text = bytes.toString("utf8"),
     headers = await response.headersArray();
@@ -56,7 +56,7 @@ async function observeResponse(session, response, label, expectedStatus) {
   return { bytes, observation };
 }
 
-async function api(
+export async function api(
   session,
   base,
   path,
@@ -207,7 +207,7 @@ async function assertPmProofUi(session) {
   await session.capture.settle(session.page);
 }
 
-async function changeSourceReaders(
+export async function changeSourceReaders(
   pmo,
   base,
   projectId,

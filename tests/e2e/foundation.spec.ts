@@ -269,6 +269,12 @@ for (const bodyDelivery of ["complete", "interrupted", "pending"] as const) {
 test("Project manager can inspect scoped synthetic evidence and sign out", async ({
   page,
 }) => {
+  // FR-EVD-009: resource identity remains a React key, not a spread status prop.
+  const reservedKeyWarnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.text().includes('A props object containing a "key" prop'))
+      reservedKeyWarnings.push(message.text());
+  });
   let publicConfigurationRequests = 0;
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === "/api/auth/config")
@@ -307,6 +313,7 @@ test("Project manager can inspect scoped synthetic evidence and sign out", async
   ).toBeVisible();
   await expect(page.getByText(/Atlas · Customer platform/)).toHaveCount(0);
   expect(publicConfigurationRequests).toBe(1);
+  expect(reservedKeyWarnings).toEqual([]);
 });
 test("Operator has no implicit project access and can grant and revoke access with audit", async ({
   page,

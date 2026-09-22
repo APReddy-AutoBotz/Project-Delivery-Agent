@@ -440,7 +440,14 @@ export class DatabaseMilestoneConsistencyRepository
       },
       include: {
         scalarAssessments: {
-          include: { versions: { include: { version: true } } },
+          // Delivery needs only dependency source IDs. Loading every child's
+          // frozen result and full version content duplicates the parent proof
+          // at the 1000-version boundary without adding an integrity check.
+          select: {
+            versions: {
+              select: { version: { select: { sourceId: true } } },
+            },
+          },
         },
       },
     });

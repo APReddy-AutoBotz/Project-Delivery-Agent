@@ -6,9 +6,12 @@ import { resolve, join } from "node:path";
 import { checkIdentityConfiguration } from "./customer-identity-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./evidence-workflow-receipt.mjs";
 import { assertMilestoneReconciliationWorkflowReceipt } from "./milestone-reconciliation-workflow-receipt.mjs";
+import { assertScalarWorkflowReceipt } from "./scalar-reconciliation-workflow-receipt.mjs";
 import { validateReconciliationCommitReceipt } from "./reconciliation-commit-receipt.mjs";
 import { reportRestoreFailure } from "./restore-diagnostic.mjs";
 import { assertReconciliationRacesReceipt } from "./reconciliation-races-receipt.mjs";
+import { assertScalarRecoveryReceipt } from "./scalar-reconciliation-recovery-receipt.mjs";
+import { assertScalarConcurrencyAndLoad } from "./scalar-command-races-receipt.mjs";
 import {
   createHostDisclosure,
   scanExecutionLogs,
@@ -389,7 +392,22 @@ export async function customerProfiles({
           projectFactPersistence.milestoneReconciliationWorkflow,
           { expectedCustomerId: "10000000-0000-4000-8000-000000000002" },
         );
+        assertScalarWorkflowReceipt(
+          projectFactPersistence.scalarReconciliationWorkflow,
+          {
+            expectedCustomerId: "10000000-0000-4000-8000-000000000002",
+            expectedProfile: profile,
+            expectedRunId: project,
+            expectedProjectId:
+              projectFactPersistence.milestoneReconciliationWorkflow.projectId,
+          },
+        );
         for (const screenshot of [
+          projectFactPersistence.scalarReconciliationWorkflow.screenshot,
+          projectFactPersistence.scalarReconciliationWorkflow.recreatedProof
+            .screenshot,
+          projectFactPersistence.scalarReconciliationWorkflow
+            .projectScopeWithdrawal.screenshot,
           projectFactPersistence.milestoneReconciliationWorkflow.screenshot,
           projectFactPersistence.milestoneReconciliationWorkflow.recreatedProof
             .screenshot,
@@ -445,8 +463,15 @@ export async function customerProfiles({
           "pdaa_api",
         );
         assert.equal(projectFactPersistence.canonicalWorkerDenied, true);
-        assert.equal(projectFactPersistence.businessTableCount, 39);
-        assert.equal(projectFactPersistence.migrationCount, 6);
+        assertScalarConcurrencyAndLoad(
+          projectFactPersistence,
+          "10000000-0000-4000-8000-000000000002",
+        );
+        assertScalarRecoveryReceipt(
+          projectFactPersistence,
+          "10000000-0000-4000-8000-000000000002",
+          "postgres",
+        );
         assert.equal(
           projectFactPersistence.restore.canonicalIntegrityChecked,
           true,

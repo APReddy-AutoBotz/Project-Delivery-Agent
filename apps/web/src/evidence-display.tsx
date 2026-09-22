@@ -127,8 +127,9 @@ export function PolicyDisplay({ policy }: { policy: ActiveAuthorityPolicy }) {
             ))}
           </ol>
           <p>
-            Conflict behavior: {policy.event.definition.conflictBehavior}.
-            Reconciliation assignment is not available in this workflow.
+            Conflict behavior: {policy.event.definition.conflictBehavior}. Use
+            the separate scalar check action to create or reuse an eligible
+            internal request.
           </p>
         </>
       ) : (
@@ -145,9 +146,11 @@ export function PolicyDisplay({ policy }: { policy: ActiveAuthorityPolicy }) {
 export function AssessmentView({
   delivery,
   projectId,
+  comparison = false,
 }: {
   delivery: AssessmentDelivery;
   projectId: string;
+  comparison?: boolean;
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -207,69 +210,94 @@ export function AssessmentView({
               has been selected.
             </p>
           )}
+          {result.status === "CONFLICTING" && (
+            <div className="conflict-banner">
+              <strong>CONFLICTING: Retained Evidence Disagreement</strong>
+              <p>
+                The saved assessment retains conflicting evidence without
+                selecting a winner. Review each position's authority, freshness
+                and temporal applicability at capture.
+              </p>
+            </div>
+          )}
           {result.reconciliationRequired && (
             <p className="evidence-warning">
-              Project-manager reconciliation is needed. A reconciliation request
-              has not been created.
+              Project-manager reconciliation is needed. This assessment flag
+              alone is not a durable reconciliation request; check the separate
+              request outcome.
             </p>
           )}
           <p>
             Policy revision: {result.policy?.revisionId ?? "None"} · Conflict:{" "}
             {result.conflict}
           </p>
-          {result.versions.map((version) => (
-            <article
-              key={version.id}
-              className="evidence-entry"
-              aria-label={`Assessed version ${version.id}`}
-            >
-              {version.visibility === "restricted" ? (
-                <p className="evidence-warning">
-                  Source restricted in the original capture. Content withheld.
-                </p>
-              ) : (
-                <>
-                  <FactValue value={version.value} />
-                  <p className="evidence-badges">
-                    <strong className="pill neutral">
-                      {version.assessment.classification}
-                    </strong>
-                    <span>Provenance: {version.assessment.provenance}</span>
-                    <span>Freshness: {version.assessment.freshness}</span>
-                    <span>Conflict: {version.assessment.conflict}</span>
+          {comparison && (
+            <h4 className="scalar-position">Retained Evidence Positions</h4>
+          )}
+          <div className={comparison ? "conflict-comparison" : undefined}>
+            {result.versions.map((version, index) => (
+              <article
+                key={version.id}
+                className="evidence-entry"
+                aria-label={`Assessed version ${version.id}`}
+              >
+                {comparison && (
+                  <h4 className="scalar-position">
+                    Evidence position {index + 1}
+                    {version.visibility === "available" &&
+                    version.authorityTier !== null
+                      ? ` · Tier ${version.authorityTier + 1}`
+                      : ""}
+                  </h4>
+                )}
+                {version.visibility === "restricted" ? (
+                  <p className="evidence-warning">
+                    Source restricted in the original capture. Content withheld.
                   </p>
-                  {version.assessment.freshness === "STALE" && (
-                    <p className="evidence-warning">
-                      Expired at capture. This value cannot be presented as
-                      current.
+                ) : (
+                  <>
+                    <FactValue value={version.value} />
+                    <p className="evidence-badges">
+                      <strong className="pill neutral">
+                        {version.assessment.classification}
+                      </strong>
+                      <span>Provenance: {version.assessment.provenance}</span>
+                      <span>Freshness: {version.assessment.freshness}</span>
+                      <span>Conflict: {version.assessment.conflict}</span>
                     </p>
-                  )}
-                  <p>
-                    Applicability: {version.temporalApplicability} · Approval:{" "}
-                    {version.approvalStateAsOf}
-                  </p>
-                  <p>
-                    Assessed validity ends:{" "}
-                    {version.assessedValidUntil ?? "Unknown"}
-                  </p>
-                  <p>
-                    Authority reasons:{" "}
-                    {version.eligibilityReasons.join(", ") ||
-                      "Eligible at capture"}
-                  </p>
-                  <p>
-                    Source record: {version.source.recordId} · Source revision:{" "}
-                    {version.source.revision}
-                  </p>
-                </>
-              )}
-              <details>
-                <summary>Captured references</summary>
-                <p>Version: {version.id}</p>
-                <p>Evidence: {version.evidenceIds.join(", ")}</p>
-              </details>
-            </article>
-          ))}
+                    {version.assessment.freshness === "STALE" && (
+                      <p className="evidence-warning">
+                        Expired at capture. This value cannot be presented as
+                        current.
+                      </p>
+                    )}
+                    <p>
+                      Applicability: {version.temporalApplicability} · Approval:{" "}
+                      {version.approvalStateAsOf}
+                    </p>
+                    <p>
+                      Assessed validity ends:{" "}
+                      {version.assessedValidUntil ?? "Unknown"}
+                    </p>
+                    <p>
+                      Authority reasons:{" "}
+                      {version.eligibilityReasons.join(", ") ||
+                        "Eligible at capture"}
+                    </p>
+                    <p>
+                      Source record: {version.source.recordId} · Source
+                      revision: {version.source.revision}
+                    </p>
+                  </>
+                )}
+                <details>
+                  <summary>Captured references</summary>
+                  <p>Version: {version.id}</p>
+                  <p>Evidence: {version.evidenceIds.join(", ")}</p>
+                </details>
+              </article>
+            ))}
+          </div>
           {result.conflicts.length > 0 && (
             <details>
               <summary>Retained conflicts ({result.conflicts.length})</summary>

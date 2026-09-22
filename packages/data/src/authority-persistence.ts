@@ -388,6 +388,17 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       });
     });
   }
+  // Caller must hold current project/role authorization and coordination locks.
+  // This seam rechecks every original source inside that same transaction.
+  async deliverAssessmentInTransaction(
+    tx: Tx,
+    actor: Actor,
+    projectId: string,
+    assessmentId: string,
+    replayed: boolean,
+  ): Promise<AssessmentDelivery | null> {
+    return this.deliver(tx, actor, projectId, assessmentId, replayed);
+  }
   private async deliver(
     tx: Tx,
     actor: Actor,
@@ -402,7 +413,11 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         projectId,
         sealed: true,
       },
-      include: { versions: { include: { version: true } } },
+      // The stored result is the proof; these rows are only the current-access
+      // dependencies. Native validation below still checks the complete graph.
+      include: {
+        versions: { select: { version: { select: { sourceId: true } } } },
+      },
     });
     if (!row) return null;
     const valid = await tx.$queryRaw<
@@ -705,8 +720,9 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       subject: string;
       idempotencyKey: string;
       requestHash: string;
-      captureKind: "SCALAR" | "MILESTONE";
+      captureKind: "SCALAR" | "MILESTONE" | "SCALAR_REQUEST";
       milestoneAssessmentId: string | null;
+      scalarReconciliationCheckId?: string;
     },
   ) {
     const prepared = input.prepared;
@@ -736,6 +752,9 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         requestHash: input.requestHash,
         captureKind: input.captureKind,
         milestoneAssessmentId: input.milestoneAssessmentId,
+        ...(input.scalarReconciliationCheckId === undefined
+          ? {}
+          : { scalarReconciliationCheckId: input.scalarReconciliationCheckId }),
         factRevision: fact.revision,
         policyId: aggregate?.id ?? null,
         policyThroughRevision: aggregate?.revision ?? null,

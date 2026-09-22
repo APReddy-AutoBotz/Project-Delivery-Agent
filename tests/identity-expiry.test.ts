@@ -1,4 +1,5 @@
 import { it, expect } from "vitest";
+import { scalarExpiryFixture } from "./fixtures/scalar-expiry.js";
 import {
   expiryWaitMs,
   validateExpiryReceipt,
@@ -42,6 +43,7 @@ it("SEC-AUTH-001: expiry evidence requires current run, original token, every de
     deniedReads: 3,
     deniedWrites: 2,
     tokenExchanges: 1,
+    scalar: scalarExpiryFixture(),
     channels: Object.fromEntries(
       [
         "browser-response-headers",
@@ -70,6 +72,7 @@ it("SEC-AUTH-001: expiry evidence requires current run, original token, every de
     { deniedWrites: 1 },
     { tokenExchanges: 2 },
     { token: "private" },
+    { scalar: undefined },
     { channels: {} },
     {
       channels: {

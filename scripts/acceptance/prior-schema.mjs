@@ -71,8 +71,17 @@ const priorColumns = {
   },
 };
 
-function insertPriorRow(target, property, args) {
-  const { table, columns } = priorColumns[property];
+function insertPriorRow(target, property, args, prefixCount) {
+  const { table } = priorColumns[property];
+  const columns = {
+    ...priorColumns[property].columns,
+    ...(property === "factAssessment" && prefixCount >= 5
+      ? { captureKind: "text", milestoneAssessmentId: "uuid" }
+      : {}),
+    ...(property === "milestoneConsistencyAssessment" && prefixCount >= 6
+      ? { reconciliationCheckId: "uuid" }
+      : {}),
+  };
   assert(
     Object.keys(args).every((key) => ["data", "select", "omit"].includes(key)),
   );
@@ -84,7 +93,7 @@ function insertPriorRow(target, property, args) {
   );
   const returned = args.select
     ? Object.keys(args.select).filter((column) => args.select[column])
-    : Object.keys(columns);
+    : Object.keys(columns).filter((column) => args.omit?.[column] !== true);
   assert(returned.length > 0);
   assert(
     returned.every(
@@ -109,13 +118,43 @@ function insertPriorRow(target, property, args) {
 export function createPriorReleaseDatabase(connection, prefixCount) {
   assert.equal(process.env.PDAA_ACCEPTANCE, "isolated");
   assert(
-    [2, 3, 4, 5].includes(prefixCount),
+    [2, 3, 4, 5, 6].includes(prefixCount),
     "A populated prior fixture must name its exact released migration prefix",
   );
   const preMilestone = prefixCount < 5;
   const adaptedModels = preMilestone
     ? ["projectFact", "factAssessment"]
-    : ["milestoneConsistencyAssessment"];
+    : ["factAssessment", "milestoneConsistencyAssessment"];
+
+  // Current generated clients implicitly read all scalar fields, including in
+  // relation includes. Keep absent ownership out of every prior projection.
+  function omitAbsent(args, column) {
+    assert(
+      [undefined, false].includes(args.select?.[column]),
+      `A prior fixture cannot select ${column}`,
+    );
+    assert(
+      args.omit?.[column] !== false,
+      `A prior fixture cannot expose ${column}`,
+    );
+    if (args.data) {
+      assert(
+        args.data[column] == null,
+        `A prior fixture cannot create or adopt ${column}`,
+      );
+      delete args.data[column];
+    }
+    if (!args.select) args.omit = { ...args.omit, [column]: true };
+  }
+  function scalarProjection(args) {
+    omitAbsent(args, "scalarReconciliationCheckId");
+    if (preMilestone) {
+      for (const column of ["captureKind", "milestoneAssessmentId"]) {
+        assert([undefined, false].includes(args.select?.[column]));
+        if (!args.select) args.omit = { ...args.omit, [column]: true };
+      }
+    }
+  }
 
   const adapt = (database) =>
     new Proxy(database, {
@@ -142,7 +181,21 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                   `Unsupported prior fixture operation: ${String(property)}.${String(operation)}`,
                 );
                 const args = globalThis.structuredClone(input);
-                if (!preMilestone) {
+                if (property === "factAssessment") scalarProjection(args);
+                if (property === "milestoneConsistencyAssessment") {
+                  for (const projection of [args.include, args.select]) {
+                    if (projection?.scalarAssessments) {
+                      if (projection.scalarAssessments === true)
+                        projection.scalarAssessments = {};
+                      scalarProjection(projection.scalarAssessments);
+                    }
+                  }
+                }
+                if (
+                  !preMilestone &&
+                  property === "milestoneConsistencyAssessment" &&
+                  prefixCount === 5
+                ) {
                   // The released fifth schema already has bindingBirthId and
                   // both scalar/MILESTONE assessment kinds and retry keys.
                   // Only this new nullable sixth-migration field is absent.
@@ -162,7 +215,7 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                   if (!args.select) {
                     args.omit = { ...args.omit, reconciliationCheckId: true };
                   }
-                } else {
+                } else if (preMilestone) {
                   // Preserve the existing genuine-prefix2-4 adaptations.
                   if (!args.select) {
                     args.omit = {
@@ -192,7 +245,7 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                   }
                 }
                 if (operation === "create") {
-                  return insertPriorRow(target, property, args);
+                  return insertPriorRow(target, property, args, prefixCount);
                 }
                 return delegate[operation](args);
               };
