@@ -1,6 +1,7 @@
 // AC-AUTH-001 / SEC-AUTH-001: a real issued token expires without refresh,
 // response replacement or clock changes. Tokens and projections stay in memory.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { expect } from "@playwright/test";
 import { Pool, config, secret, guard } from "./common.mjs";
@@ -10,6 +11,11 @@ import {
   observeBrowserDisclosure,
 } from "./disclosure.mjs";
 import { expiryWaitMs, validateExpiryReceipt } from "./expiry-evidence.mjs";
+import {
+  createDatabase,
+  DatabaseScalarReconciliationRepository,
+} from "../../packages/data/dist/index.js";
+import { reserveScalarFixture } from "./scalar-reconciliation-fixture.mjs";
 
 export async function checkIdentityExpiry(browser) {
   guard();
@@ -36,9 +42,28 @@ export async function checkIdentityExpiry(browser) {
     query_timeout: 10000,
   });
   let context;
+  let capture;
+  let runtime;
   let receipt;
   let failure;
   let stage = "initialization";
+  const scalarTables = [
+    "ScalarReconciliationCheck",
+    "ScalarReconciliationRequest",
+    "ScalarReconciliationAssignment",
+    "FactAssessment",
+    "FactAssessmentVersion",
+    "FactAssessmentConflict",
+    "FactAuthorityConflict",
+    "ProjectFact",
+    "ProjectFactVersion",
+    "FactEvidence",
+    "FactSource",
+    "FactSourceAccess",
+    "AuthorityPolicy",
+    "AuthorityPolicyRevision",
+    "AuthorityPolicyReceipt",
+  ];
   const projection = async () => {
     const result = {};
     for (const table of [
@@ -48,15 +73,59 @@ export async function checkIdentityExpiry(browser) {
       "AccessGrant",
       "AuditEvent",
       "_prisma_migrations",
+      ...scalarTables,
     ])
       result[table] = (
-        await db.query(`SELECT * FROM "${table}" ORDER BY 1`)
+        await db.query(
+          `SELECT t.* FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`,
+        )
       ).rows;
     return JSON.parse(JSON.stringify(result));
   };
+  const hash = (value) => createHash("sha256").update(value).digest("hex");
+  const observe = async (path, status, bytes) => {
+    disclosure.add("expiry-api-bodies", bytes.toString("utf8"));
+    return {
+      path,
+      at: Date.now(),
+      status,
+      bytes: bytes.length,
+      sha256: hash(bytes),
+      bodyBase64: bytes.toString("base64"),
+      body: JSON.parse(bytes.toString("utf8")),
+    };
+  };
   try {
-    const baseline = await projection();
     const projectId = "30000000-0000-4000-8000-000000000001";
+    stage = "scalar-fixture";
+    runtime = createDatabase(
+      config("database", "pdaa_api", "api-password").database,
+    );
+    const principal = (
+      await runtime.$queryRaw`SELECT current_user AS role, session_user AS login`
+    )[0];
+    assert.deepEqual(principal, { role: "pdaa_api", login: "pdaa_api" });
+    const fixture = await reserveScalarFixture(
+      db,
+      runtime,
+      process.env.CUSTOMER_ID,
+      projectId,
+      "scalar-expiry",
+      { pmSubject: "pm-atlas" },
+    );
+    const created = await new DatabaseScalarReconciliationRepository(
+      runtime,
+    ).check(fixture.actor, fixture.command, fixture.context);
+    assert.equal(created.outcome, "CREATED");
+    const scalarProject = await runtime.project.findUniqueOrThrow({
+      where: { id: fixture.projectId },
+    });
+    const prefix = "/api/projects/" + fixture.projectId;
+    const scalarPath =
+      prefix + "/scalar-reconciliation-requests/" + created.request.id;
+    const baseline = await projection();
+    await runtime.$disconnect();
+    runtime = undefined;
     const grant = {
       subject: "pm-atlas",
       scopeType: "project",
@@ -69,7 +138,7 @@ export async function checkIdentityExpiry(browser) {
     );
     context = await browser.newContext();
     context.setDefaultTimeout(30000);
-    const capture = await observeBrowserDisclosure(context, base, disclosure);
+    capture = await observeBrowserDisclosure(context, base, disclosure);
     const page = await capture.newPage();
     const tokenEndpoint = issuer + "/protocol/openid-connect/token";
     let tokenRequests = 0;
@@ -107,7 +176,12 @@ export async function checkIdentityExpiry(browser) {
     assert.equal(typeof claims.sub, "string");
     assert(claims.sub.length > 0);
     expiryWaitMs(claims);
-    const request = async (path, method = "GET", body) => {
+    const request = async (
+      path,
+      method = "GET",
+      body,
+      originalBytes = false,
+    ) => {
       const response = await fetch(base + path, {
         method,
         redirect: "error",
@@ -124,7 +198,9 @@ export async function checkIdentityExpiry(browser) {
         JSON.stringify([...response.headers]),
       );
       disclosure.add("expiry-api-bodies", text);
-      return { status: response.status, body: JSON.parse(text) };
+      return originalBytes
+        ? observe(path, response.status, Buffer.from(text))
+        : { status: response.status, body: JSON.parse(text) };
     };
     const writes = [
       ["POST", { ...grant, role: "leadership" }],
@@ -139,8 +215,8 @@ export async function checkIdentityExpiry(browser) {
     const projects = await request("/api/projects");
     assert.equal(projects.status, 200);
     assert.deepEqual(
-      projects.body.map((project) => project.id),
-      [projectId],
+      projects.body.map((project) => project.id).sort(),
+      [projectId, fixture.projectId].sort(),
     );
     const card = page.getByRole("button", {
       name: /Atlas · Customer platform/,
@@ -181,6 +257,52 @@ export async function checkIdentityExpiry(browser) {
     await page.getByRole("button", { name: "← All projects" }).click();
     stage = "loaded-details-return-card";
     await card.waitFor();
+    stage = "loaded-scalar-proof";
+    const projectOpened = page.waitForResponse(
+      (response) =>
+        response.url() === base + prefix &&
+        response.request().method() === "GET",
+    );
+    void projectOpened.catch(() => {});
+    await page
+      .getByRole("button")
+      .filter({
+        has: page.getByRole("heading", {
+          name: scalarProject.name,
+          exact: true,
+        }),
+      })
+      .click();
+    assert.equal((await projectOpened).status(), 200);
+    const proofOpened = page.waitForResponse(
+      (response) =>
+        response.url() === base + scalarPath &&
+        response.request().method() === "GET",
+    );
+    void proofOpened.catch(() => {});
+    await page
+      .getByRole("button", { name: "Open scalar proof", exact: true })
+      .click();
+    const proofResponse = await proofOpened;
+    assert.equal(
+      await proofResponse.request().headerValue("authorization"),
+      authorization,
+    );
+    const original = await observe(
+      scalarPath,
+      proofResponse.status(),
+      Buffer.from(await proofResponse.body()),
+    );
+    assert.equal(original.status, 200);
+    assert.deepEqual(original.body.assessment, created.assessment);
+    const proofView = page.getByRole("region", {
+      name: "PM scalar reconciliation request",
+      exact: true,
+    });
+    await expect(proofView).toContainText("2026-10-01");
+    await expect(proofView).toContainText("2026-10-02");
+    await expect(proofView).toContainText(created.assessment.asOf);
+    await capture(page);
     // This manager has business read scope but never had grant authority.
     // Identical valid payloads move from authorization 403 to authentication 401.
     stage = "pre-expiry-denials";
@@ -196,6 +318,25 @@ export async function checkIdentityExpiry(browser) {
     const wait = expiryWaitMs(claims);
     assert(wait < remaining());
     console.log("Waiting for natural fixture access-token expiry");
+    // Arm before waiting: any real protected polling response may clear the
+    // entire session first. No mocked response, paused poll, reload or clock.
+    const protectedPaths = [
+      prefix,
+      prefix + "/canonical",
+      prefix + "/milestone-assessments",
+      prefix + "/reconciliation-requests",
+      prefix + "/facts",
+      scalarPath,
+      prefix + "/scalar-reconciliation-requests",
+    ];
+    const browserExpired = page.waitForResponse(
+      (response) =>
+        response.status() === 401 &&
+        response.request().method() === "GET" &&
+        protectedPaths.includes(new URL(response.url()).pathname),
+      { timeout: Math.min(remaining(), wait + 30000) },
+    );
+    void browserExpired.catch(() => {});
     await delay(wait);
     assert(Date.now() > claims.exp * 1000);
     stage = "expired";
@@ -216,17 +357,19 @@ export async function checkIdentityExpiry(browser) {
       );
     assert.deepEqual(await projection(), baseline);
     stage = "browser";
-    const refreshed = page.waitForResponse(
-      (response) =>
-        response.url() === base + "/api/projects/" + projectId &&
-        response.request().method() === "GET",
-    );
-    await card.click();
-    const response = await refreshed;
+    const denials = [];
+    for (const path of [scalarPath, prefix + "/scalar-reconciliation-requests"])
+      denials.push(await request(path, "GET", undefined, true));
+    const response = await browserExpired;
     assert.equal(response.status(), 401);
     assert.equal(
       await response.request().headerValue("authorization"),
       authorization,
+    );
+    const browserDenial = await observe(
+      new URL(response.url()).pathname,
+      response.status(),
+      Buffer.from(await response.body()),
     );
     await expect(page.getByRole("alert")).toContainText(
       "Your session has ended",
@@ -238,8 +381,18 @@ export async function checkIdentityExpiry(browser) {
       "Atlas · Customer platform",
       "Draco · Data migration",
       "Isolated synthetic TLS/OIDC acceptance fixture",
+      scalarProject.name,
     ])
       await expect(page.getByText(text, { exact: true })).toHaveCount(0);
+    await expect(proofView).toHaveCount(0);
+    await expect(
+      page.getByRole("region", {
+        name: "Scalar reconciliation queue",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    for (const text of ["2026-10-01", "2026-10-02", created.assessment.asOf])
+      await expect(page.locator("body")).not.toContainText(text);
     assert.deepEqual(
       await page.evaluate(() => ({
         local: Object.keys(window.localStorage),
@@ -249,10 +402,12 @@ export async function checkIdentityExpiry(browser) {
     );
     await capture(page);
     await capture.close();
+    capture = undefined;
     context = undefined;
     assert.equal(tokenRequests, 1);
     assert.equal(tokenExchanges, 1);
-    assert.deepEqual(await projection(), baseline);
+    const after = await projection();
+    assert.deepEqual(after, baseline);
     stage = "evidence";
     const channels = disclosure.verify([
       "browser-response-headers",
@@ -278,6 +433,35 @@ export async function checkIdentityExpiry(browser) {
         deniedWrites: 2,
         tokenExchanges,
         channels,
+        scalar: {
+          family: "scalar-natural-expiry/v1",
+          runId,
+          customerId: process.env.CUSTOMER_ID,
+          projectId: fixture.projectId,
+          factId: fixture.factId,
+          requestId: created.request.id,
+          assessmentId: created.assessment.assessmentId,
+          principal,
+          issuedAt: claims.iat * 1000,
+          expiresAt: claims.exp * 1000,
+          loadedAt: original.at,
+          clearedAt: Date.now(),
+          original,
+          denials,
+          browserDenial,
+          projection: {
+            before: hash(JSON.stringify(baseline)),
+            after: hash(JSON.stringify(after)),
+            counts: Object.fromEntries(
+              scalarTables.map((table) => [
+                table,
+                baseline[table].filter(
+                  (row) => row.projectId === fixture.projectId,
+                ).length,
+              ]),
+            ),
+          },
+        },
       },
       runId,
     );
@@ -285,12 +469,17 @@ export async function checkIdentityExpiry(browser) {
     failure = new Error("SEC-AUTH-001 expiry failed: " + stage);
   } finally {
     try {
-      if (context) await context.close();
+      if (capture) await capture.close();
+      else if (context) await context.close();
     } catch {
       failure ??= new Error("SEC-AUTH-001 expiry cleanup failed");
     } finally {
       try {
-        await db.end();
+        try {
+          if (runtime) await runtime.$disconnect();
+        } finally {
+          await db.end();
+        }
       } catch {
         failure ??= new Error("SEC-AUTH-001 expiry cleanup failed");
       } finally {

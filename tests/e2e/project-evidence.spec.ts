@@ -116,6 +116,241 @@ test("FR-EVD-007/012: scalar requests retain original PM proof, deduplicate and 
   }
 });
 const epoch = () => new Date(Date.now() - 3600000).toISOString();
+
+async function prepareScalar(request: APIRequestContext, legacy = false) {
+  const f = await fixture(request, !legacy, legacy);
+  const first = await f.append("pmo-portfolio", 0, "Original scalar value A");
+  const second = await f.append("pm-atlas", 1, "Original scalar value B");
+  await f.share(first.entry.sourceId);
+  await f.share(second.entry.sourceId);
+  expect(
+    (
+      await f.api(
+        "pmo-portfolio",
+        f.prefix + "/authority-policies",
+        "POST",
+        f.policy(0),
+      )
+    ).status(),
+  ).toBe(201);
+  return { ...f, first, second };
+}
+async function scalarCheckUI(page: Page) {
+  const pending = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/scalar-reconciliation-checks") &&
+      response.request().method() === "POST",
+  );
+  await page
+    .getByRole("button", {
+      name: "Check and request reconciliation",
+      exact: true,
+    })
+    .click();
+  const response = await pending;
+  expect(response.status()).toBe(201);
+  return {
+    input: response.request().postDataJSON(),
+    result: await response.json(),
+  };
+}
+
+test("FR-EVD-009/012: a real legacy scalar request remains explicitly unassigned through UI and HTTP", async ({
+  page,
+  request,
+}) => {
+  const f = await prepareScalar(request, true);
+  const canonical = await f.api("pmo-portfolio", f.prefix + "/canonical");
+  expect(canonical.status()).toBe(200);
+  expect((await canonical.json()).configured).toBe(false);
+  await open(page, f.payload.name);
+  await openFact(page, f.factType);
+  const { result } = await scalarCheckUI(page);
+  expect(result.outcome).toBe("CREATED");
+  expect(result.request.state).toBe("OPEN");
+  expect(result.request.assignment.reason).toBe("NO_CONFIGURED_PM");
+  expect(result.request.assignment.recipientSubject).toBeNull();
+  await expect(
+    page.getByRole("region", {
+      name: "Scalar reconciliation check",
+      exact: true,
+    }),
+  ).toContainText("Durable unassigned routing");
+  await page
+    .getByLabel("Scalar request queue", { exact: true })
+    .selectOption("manage");
+  const queue = page.getByRole("region", {
+    name: "Scalar reconciliation queue",
+    exact: true,
+  });
+  await expect(queue).toContainText(f.factType);
+  await expect(queue).toContainText("Durable unassigned routing");
+  const managed = await (
+    await f.api(
+      "pmo-portfolio",
+      f.prefix + "/managed-scalar-reconciliation-requests",
+    )
+  ).json();
+  expect(
+    managed.requests.some(
+      (row: { id: string }) => row.id === result.request.id,
+    ),
+  ).toBe(true);
+  const denied = await f.api(
+    "pm-atlas",
+    f.prefix + "/scalar-reconciliation-requests/" + result.request.id,
+  );
+  expect(denied.status()).toBe(404);
+  expect(await denied.json()).toEqual({
+    statusCode: 404,
+    message: "Resource unavailable",
+  });
+  await page.screenshot({
+    path: "artifacts/evidence-workflow-scalar-unassigned.png",
+    fullPage: true,
+  });
+});
+
+test("NFR-SEC-001 / FR-EVD-009: leadership captures real evidence but cannot request scalar reconciliation", async ({
+  page,
+  request,
+}) => {
+  const f = await prepareScalar(request);
+  const managed = () =>
+    f
+      .api(
+        "pmo-portfolio",
+        f.prefix + "/managed-scalar-reconciliation-requests",
+      )
+      .then((r) => r.json());
+  const before = await managed();
+  expect(before.requests).toEqual([]);
+  await open(page, f.payload.name, "Leadership");
+  await openFact(page);
+  await expect(
+    page.getByRole("button", {
+      name: "Check and request reconciliation",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: "Refresh configured scalar PM assignment",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  const captured = await captureUI(page);
+  expect(captured.result.status).toBe("CONFLICTING");
+  expect(captured.result.resolvedValue).toBeNull();
+  await expect(
+    page.getByRole("region", { name: "Saved assessment", exact: true }),
+  ).toContainText("Original scalar value A");
+  const denied = await f.api(
+    "leader-atlas",
+    f.prefix + "/scalar-reconciliation-checks",
+    "POST",
+    { factId: f.first.factId, idempotencyKey: randomUUID() },
+  );
+  expect(denied.status()).toBe(404);
+  expect(await denied.json()).toEqual({
+    statusCode: 404,
+    message: "Resource unavailable",
+  });
+  expect(await managed()).toEqual(before);
+  await page.screenshot({
+    path: "artifacts/evidence-workflow-scalar-leadership.png",
+    fullPage: true,
+  });
+});
+
+test("FR-EVD-004/007/012: a changed contributor creates a distinct UI request without replacing original proof or retry", async ({
+  page,
+  request,
+  browser,
+}) => {
+  const f = await prepareScalar(request);
+  await open(page, f.payload.name);
+  await openFact(page);
+  const first = await scalarCheckUI(page);
+  expect(first.result.outcome).toBe("CREATED");
+  const detailPath =
+    f.prefix + "/scalar-reconciliation-requests/" + first.result.request.id;
+  const originalResponse = await f.api("pm-atlas", detailPath);
+  expect(originalResponse.status()).toBe(200);
+  const originalBytes = await originalResponse.body();
+  const original = JSON.parse(originalBytes.toString());
+  const pmContext = await browser.newContext();
+  try {
+    const pm = await pmContext.newPage();
+    await pm.goto(
+      `/?project=${f.projectId}&scalarReconciliation=${first.result.request.id}`,
+    );
+    await pm.getByRole("button", { name: /^Project manager / }).click();
+    const view = pm.getByRole("region", {
+      name: "PM scalar reconciliation request",
+      exact: true,
+    });
+    await expect(view).toContainText("Original scalar value A");
+    const added = await f.append("pmo-portfolio", 2, "Changed scalar value C");
+    const changed = await scalarCheckUI(page);
+    expect(changed.result.outcome).toBe("CREATED");
+    expect(changed.result.request.id).not.toBe(first.result.request.id);
+    expect(changed.result.assessment.assessmentId).not.toBe(
+      first.result.assessment.assessmentId,
+    );
+    expect(
+      new Set(
+        changed.result.assessment.result.conflicts.flatMap(
+          (group: { versionIds: string[] }) => group.versionIds,
+        ),
+      ),
+    ).toEqual(new Set([f.first.entry.id, f.second.entry.id, added.entry.id]));
+    const oldAgain = await f.api("pm-atlas", detailPath);
+    expect(await oldAgain.body()).toEqual(originalBytes);
+    const replay = await f.api(
+      "pmo-portfolio",
+      f.prefix + "/scalar-reconciliation-checks",
+      "POST",
+      first.input,
+    );
+    expect(replay.status()).toBe(201);
+    expect(await replay.json()).toEqual({
+      ...first.result,
+      replayed: true,
+      assessment: { ...first.result.assessment, replayed: true },
+    });
+    const currentResponse = await f.api(
+      "pm-atlas",
+      f.prefix + "/scalar-reconciliation-requests/" + changed.result.request.id,
+    );
+    expect(currentResponse.status()).toBe(200);
+    const current = await currentResponse.json();
+    expect(current.assessment.assessmentId).toBe(
+      changed.result.assessment.assessmentId,
+    );
+    expect(
+      current.assessment.result.versions
+        .map((v: { id: string }) => v.id)
+        .sort(),
+    ).toEqual([f.first.entry.id, f.second.entry.id, added.entry.id].sort());
+    await view
+      .getByRole("button", {
+        name: "Refresh scalar request access",
+        exact: true,
+      })
+      .click();
+    await expect(view).toContainText(original.assessment.asOf);
+    await expect(view).toContainText("Original scalar value A");
+    await expect(view).toContainText("Original scalar value B");
+    await expect(view).not.toContainText("Changed scalar value C");
+    await pm.screenshot({
+      path: "artifacts/evidence-workflow-scalar-original-after-change.png",
+      fullPage: true,
+    });
+  } finally {
+    await pmContext.close();
+  }
+});
 test("FR-EVD-009: project access refresh remains usable after automatic scalar proof clearing", async ({
   page,
   request,
@@ -308,7 +543,11 @@ test("FR-EVD-009: a controlled second-page queue retains the exact assignment re
     queue.getByRole("button", { name: "Refresh scalar queue", exact: true }),
   ).toBeEnabled();
 });
-async function fixture(request: APIRequestContext, scalarPm = false) {
+async function fixture(
+  request: APIRequestContext,
+  scalarPm = false,
+  legacy = false,
+) {
   const tokens: Record<string, string> = {};
   for (const persona of [
     "pmo-portfolio",
@@ -357,11 +596,20 @@ async function fixture(request: APIRequestContext, scalarPm = false) {
         displayName: "Configured scalar PM",
       },
     ];
-  const created = await api("pmo-portfolio", "/projects", "POST", payload);
-  expect(created.status()).toBe(201);
-  const projectId = (await created.json()).id,
+  const created = legacy
+    ? await api(
+        "pmo-portfolio",
+        "/projects/30000000-0000-4000-8000-000000000001",
+      )
+    : await api("pmo-portfolio", "/projects", "POST", payload);
+  expect(created.status()).toBe(legacy ? 200 : 201);
+  const project = await created.json();
+  if (legacy) payload.name = project.name;
+  const projectId = project.id,
     prefix = `/projects/${projectId}`,
-    factType = "project.forecast",
+    factType = legacy
+      ? "acceptance.scalar_" + randomUUID().slice(0, 8)
+      : "project.forecast",
     effectiveAt = epoch();
   for (const [subject, role] of [
     ["pm-atlas", "project_manager"],

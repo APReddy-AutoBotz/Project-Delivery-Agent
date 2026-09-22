@@ -22,6 +22,7 @@ export async function reserveScalarFixture(
   {
     configured = true,
     optedIn = true,
+    pmSubject,
     values = [
       { type: "date", value: "2026-10-01" },
       { type: "date", value: "2026-10-02" },
@@ -29,6 +30,11 @@ export async function reserveScalarFixture(
   } = {},
 ) {
   reconciliationAcceptanceGuard();
+  // Only the natural-expiry primary fixture may bind its existing OIDC manager.
+  assert(
+    pmSubject === undefined ||
+      (process.env.PDAA_ACCEPTANCE === "isolated" && pmSubject === "pm-atlas"),
+  );
   assert.equal(values.length, 2);
   const reference = (
     await owner.query(
@@ -44,7 +50,7 @@ export async function reserveScalarFixture(
   };
   const pm = {
     customerId,
-    subject: prefix + "-pm-" + randomUUID(),
+    subject: pmSubject ?? prefix + "-pm-" + randomUUID(),
     roles: ["project_manager"],
   };
   await owner.query(

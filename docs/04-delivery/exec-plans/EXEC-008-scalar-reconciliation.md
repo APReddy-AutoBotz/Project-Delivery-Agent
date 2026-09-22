@@ -385,6 +385,71 @@ Never resume application/worker automatically after restore.
 
 ## Progress log
 
+### 2026-09-22 next acceptance batch (in progress)
+
+Continue from reviewed/pushed `cd22f5c` without changing Antigravity presentation.
+Complete the missing scalar-native stale/temporal cases, loaded-proof natural
+OIDC expiry, and genuine legacy-unassigned, leadership-only capture and changed-
+contributor UI/HTTP journeys as one acceptance increment. Reuse existing synthetic
+fixtures, actual native role boundaries, installed application, disclosure recorder
+and independent receipt readers. Keep server-owned command clocks, all nine applied
+migrations, runtime deadlines, permission boundaries and immutable proof unchanged.
+Fixture-only historical timestamps must be labelled distinctly from public commands.
+No caller clock, source resolution, token persistence or connector activation is
+authorized. Run fresh exact-head checks and independent source/artifact reviews
+before merge; existing passing ancestor checks are not final-head evidence.
+
+Ancestor `cd22f5ce2e5126d1631e32de5edf85b93b56738b` now has verified green
+Foundation35708951225 and Documentation35708951361: 1300 units, 124 integration,
+42-table recovery and 29 browsers. Primary, bundled and external encrypted restores
+and both customer UI/recreation workflows passed. Production/distribution published
+five artefacts, including production10686406734 and distribution10686851947.
+The independent CI report SHA256 is
+`27fc52497fe9e03b16cc297d24549aa2908d99246de812c0d28a67b27f67754b`.
+This is ancestor evidence, not approval of the continuation or release.
+
+Implemented this increment: three real Chromium/API journeys (legacy explicitly
+unassigned, leadership ordinary capture versus denied material check, and changed
+contributors with byte-identical original proof and exact retry); a complementary
+native leadership no-side-effect assertion; natural120-second OIDC expiry while
+an original PM scalar proof is loaded; and six actual-role native temporal vectors
+shared by the primary/bundled/external production fixtures. The expiry recorder
+arms before real authorization polling can clear the view, retains only original
+business-response bytes/claims timestamps and count/digest evidence, and checks
+all scalar/policy/evidence tables unchanged. No credential is written to a receipt.
+Both receipt readers remain dependency-free on the pre-install host.
+
+Temporal coverage comprises stale RECORDED creation, superseded-participant reuse,
+first-time stale higher-authority disagreement, an agreeing NO_REQUEST control,
+recordedAt equality and recordedAt one millisecond after the real captured clock.
+The last two use explicitly labelled synthetic same-transaction policy publication
+under the actual API role: the genuine clock SELECT/result is forwarded unchanged,
+effectiveAt is already applicable, and ordinary revision/receipt/audit guards run.
+This is native selection-boundary evidence, not a public caller clock or an
+external-writer race. Original receipts are retained before independent validation
+and included in successful CI publication; all nine migrations remain unchanged.
+
+Design source report SHA256:
+`21fbeefa906b7ea97a557db75f18816ad09cbe8ea11a8ed5da47aaed8a814da3`.
+Precommit independent review found no deterministic producer/schema fault or
+P0/P1 issue; two P2 reader gaps (full selected policy and full request/assignment
+audit binding) were corrected. Its formative report SHA256 is
+`4bdaa595948d90b6477d4e8b489f48ee9c8873317cc5a723026fd8758e4a5c35`;
+it is not immutable approval. Focused receipt controls pass63/63 and the native
+leadership check passes1/1 (10 unrelated cases excluded). Lint, typecheck and build
+pass. The three new browser journeys pass individually and in the full run.
+Concurrent full runs recorded1360/1361 units (existing Prisma subprocess exceeded
+its15-second startup limit) and31/32 browsers (existing milestone retry remained
+Checking past its5-second expectation). Preserve both attempts and the retained
+browser trace; sequential reruns with unchanged deadlines are required. Fresh
+actual-role temporal/expiry execution and final whole-feature/artifact review are
+still pending, with no story closure, merge or completion-numerator change.
+
+Sequential full unit rerun passes1361/1361 in196.23s with the original deadlines.
+A further isolated-host import regression ensures expiry/temporal readers load
+without node_modules or built runtime packages. Final full browser rerun and
+fresh packaged evidence remain pending at this checkpoint.
+
 ### 2026-09-22 packaged scalar workflow and measured validation continuation
 
 Candidate `15ef53d09671c81c5537317bf9fea52b27628543`, tree

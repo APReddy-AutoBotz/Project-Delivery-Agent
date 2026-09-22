@@ -17,6 +17,7 @@ import { verifyScalarCommitGuards } from "./scalar-commit-probes.mjs";
 import { verifyScalarBoundaries } from "./scalar-boundary-probes.mjs";
 import { verifyScalarSeals } from "./scalar-seal-probes.mjs";
 import { verifyScalarIdentityVectors } from "./scalar-identity-vectors.mjs";
+import { verifyScalarTemporalVectors } from "./scalar-temporal-vectors.mjs";
 import { verifyScalarConflictPrefix } from "./scalar-conflict-prefix.mjs";
 import { verifyScalarVersionBoundary } from "./scalar-reconciliation-load.mjs";
 import {
@@ -715,6 +716,12 @@ try {
       env.CUSTOMER_ID,
       canonicalFixture.projectId,
     );
+    const scalarTemporalVectors = await verifyScalarTemporalVectors(
+      db,
+      scalarRuntime,
+      env.CUSTOMER_ID,
+      canonicalFixture.projectId,
+    );
     const scalarOwner = createDatabase(connection);
     try {
       await verifyScalarReconciliationImmutable(scalarOwner);
@@ -742,6 +749,7 @@ try {
       scalarBoundaries,
       scalarSeals,
       scalarIdentityVectors,
+      scalarTemporalVectors,
       scalarConflictPrefix,
       scalarVersionBoundary,
       evidenceWorkflow: read("evidence-workflow-fixture").receipt,

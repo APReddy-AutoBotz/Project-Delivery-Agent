@@ -71,6 +71,9 @@ jobs:
           name: production-boundary-evidence
           path: |
             artifacts/production-acceptance.json
+            artifacts/pdaa-acceptance-*/checks.json
+            artifacts/pdaa-acceptance-*/scalar-temporal-vectors-original.json
+            artifacts/pdaa-acceptance-*/customer-*/scalar-temporal-vectors-original.json
             artifacts/pdaa-acceptance-*/customer-*/evidence-stale-conflict.png
             artifacts/pdaa-acceptance-*/customer-*/milestone-reconciliation-workflow-fixture.json
             artifacts/pdaa-acceptance-*/customer-*/project-fact-persistence.json

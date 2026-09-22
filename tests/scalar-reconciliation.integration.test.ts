@@ -296,7 +296,33 @@ it("FR-EVD-009: preserves legacy unassigned requests and append-only assignment 
     }),
   ).toBeNull();
 });
-it("NFR-SEC-001: ordinary leadership capture cannot create requests; current source loss withholds old proof and replay", async () => {
+it("NFR-SEC-001 / FR-EVD-009: ordinary leadership capture creates no scalar check, request, assignment or owned proof", async () => {
+  const f = await fixture();
+  const proof = await authority.captureAssessment(
+    f.leader,
+    {
+      projectId: f.projectId,
+      factType: f.factType,
+      idempotencyKey: randomUUID(),
+    },
+    context,
+  );
+  expect(proof.result?.status).toBe("CONFLICTING");
+  expect(proof.result?.resolvedValue).toBeNull();
+  const where = { customerId, projectId: f.projectId };
+  expect(await db.scalarReconciliationCheck.count({ where })).toBe(0);
+  expect(await db.scalarReconciliationRequest.count({ where })).toBe(0);
+  expect(await db.scalarReconciliationAssignment.count({ where })).toBe(0);
+  expect(
+    await db.factAssessment.count({
+      where: { ...where, captureKind: "SCALAR_REQUEST" },
+    }),
+  ).toBe(0);
+  expect(
+    await db.factAssessment.findUnique({ where: { id: proof.assessmentId } }),
+  ).toMatchObject({ captureKind: "SCALAR", scalarReconciliationCheckId: null });
+});
+it("NFR-SEC-001: leadership cannot request reconciliation; current source loss withholds old proof and replay", async () => {
   const f = await fixture(),
     first = await reconciliation.check(f.pmo, f.input, context);
   await expect(

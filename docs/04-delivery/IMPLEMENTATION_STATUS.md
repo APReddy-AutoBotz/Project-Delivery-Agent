@@ -69,6 +69,17 @@ native vectors, loaded-proof natural OIDC expiry, legacy/leadership/new-contribu
 UI/HTTP journeys, final packaged evidence and whole-feature review. No merge,
 story/release acceptance or change to the completion numerators is claimed.
 
+The next acceptance increment now has green ancestor evidence at `cd22f5c`:
+Foundation35708951225 and Documentation35708951361 passed, including1300 units,
+124 integration tests,42-table recovery,29 browsers and primary/bundled/external
+packaged restores. The continuation implements six native stale/policy-time
+vectors, loaded-scalar-proof natural OIDC expiry and three real legacy/leadership/
+changed-contributor browser journeys. Focused receipt tests63/63 and the native
+leadership no-side-effect case pass; lint/typecheck/build pass. Sequential full
+units pass1361/1361; a full browser rerun, current-head packaged execution and independent final reviews remain
+required. Antigravity styling, nine migrations, authorization and deadlines are
+unchanged; no merge or accepted-story increment is claimed.
+
 ## Published and merged increments
 
 ### Canonical milestone requests merged; scalar reconciliation remains open

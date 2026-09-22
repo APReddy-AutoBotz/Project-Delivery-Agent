@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertScalarExpiryReceipt } from "./scalar-expiry-receipt.mjs";
 
 export const expiryCheckName =
   "SEC-AUTH-001: naturally expired OIDC token receives fixed API denials and clears loaded browser data without refresh";
@@ -38,6 +39,7 @@ export function validateExpiryReceipt(receipt, runId) {
         "deniedWrites",
         "tokenExchanges",
         "channels",
+        "scalar",
       ].sort(),
     );
     assert.equal(receipt.runId, runId);
@@ -55,6 +57,7 @@ export function validateExpiryReceipt(receipt, runId) {
     assert.equal(receipt.deniedReads, 3);
     assert.equal(receipt.deniedWrites, 2);
     assert.equal(receipt.tokenExchanges, 1);
+    assertScalarExpiryReceipt(receipt.scalar, runId);
     const required = [
       "browser-response-headers",
       "browser-response-bodies",
