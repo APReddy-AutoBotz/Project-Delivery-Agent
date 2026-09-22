@@ -1,5 +1,12 @@
 # Milestone reconciliation validation
 
+Current scalar-gate update, 2026-09-22: PR54 now implements the formerly missing
+generic reconciliation request and FAIL-009 recovery behavior. See the exact
+[scalar merge and criterion disposition](SCALAR_RECONCILIATION_VALIDATION.md).
+The older Stage3 checkpoints below remain historical; their scalar-gap statements
+are superseded by that record. GOLDEN-003/STORY-012/Issue6 remain open with no
+narrowing of the shared health/leadership-answer contract.
+
 Issue: [#6](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6).
 Plan: [EXEC-007](../04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md).
 Partial requirements: FR-EVD-004/009/010/012, FR-ADM-005; recorder repair:

@@ -1,12 +1,25 @@
 # EXEC-008: Durable scalar-conflict reconciliation
 
-Status: Design approved under delegated controller authority; implementation in progress.
+Status: Implemented and merged through PR54; broader story/release acceptance remains open.
 Owner: Implementation controller.
 Requirement IDs: FR-EVD-001/002/003/004/006/007/009/010/012, FR-ADM-005,
 FR-MOD-004, NFR-SEC-001/002/005/009, NFR-REL-001/002/005, NFR-MNT-002/004/005.
 GitHub issue: #6; STORY-012, AC-EVD-004, FAIL-009 and INT-EVD-004.
 Target release: R1. Last updated: 2026-09-22.
 Applicable ADRs: 001-014; no new infrastructure, dependency or autonomous action.
+
+## Final merge checkpoint, 2026-09-22
+
+Candidate `2929a14e83f95f75602d8602d89e9a2642f87442` merged as
+`ddbafb4bc384aeb520ef3c69c2ca00b827c98167` after exact-head green CI, independent
+source and all original-artifact reviews. Postmerge tree/parents/all 112 raw files,
+six released migrations and Antigravity stylesheet match the reviewed candidate.
+[Scalar validation](../../05-quality/SCALAR_RECONCILIATION_VALIDATION.md) records
+all current tests, review hashes, artifact pins, FAIL-009 implementation and the
+unchanged shared GOLDEN-003/Issue6 acceptance remainder. All nine migrations are now
+immutable. Five release gates and 802 unresolved High/Critical scanner occurrences
+remain open. Earlier entries below retain their historical failures and checkpoints;
+they are not the current merge status. Next is Issue7/EXEC-009 read-only ingestion.
 
 ## Objective
 

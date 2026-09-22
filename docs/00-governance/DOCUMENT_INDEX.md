@@ -135,9 +135,11 @@
 - `docs/04-delivery/exec-plans/EXEC-004-canonical-model.md`: synthetic canonical/evidence implementation, temporal model and outstanding storage/API acceptance.
 - `docs/04-delivery/exec-plans/EXEC-005-canonical-project-workflow.md`: scoped canonical project creation/detail API and browser workflow, persistence and acceptance gates.
 - `docs/04-delivery/exec-plans/EXEC-006-project-evidence-workflow.md`: scoped human evidence history, explicit source sharing and authority configuration, and saved historical assessments.
-- `docs/04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md`: Stages 1-3 merged; full acceptance and generic scalar-conflict request design/implementation remain gated.
-- `docs/04-delivery/exec-plans/EXEC-008-scalar-reconciliation.md`: proposed durable generic scalar request, identity, permissions, native integrity and recovery design; independent review and implementation pending.
-- `docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md`: verified canonical PM request/COMMIT/race/upgrade/restore evidence and the remaining sole-owner FAIL-009 scalar-request gate; no new story acceptance.
+- `docs/04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md`: canonical Stages 1-3 merged; later generic scalar requests are merged through EXEC-008, while shared story acceptance remains open.
+- `docs/04-delivery/exec-plans/EXEC-008-scalar-reconciliation.md`: merged durable scalar request, original proof, permissions and recovery; separate story/release acceptance remains open.
+- `docs/04-delivery/exec-plans/EXEC-009-read-only-ingestion.md`: approved synthetic-first ingestion stages; internal read contract and CSV preview implementation, with live/user-facing ingestion still outstanding.
+- `docs/05-quality/SCALAR_RECONCILIATION_VALIDATION.md`: exact PR54 merge/review/artifact evidence, implemented FAIL-009 and unchanged shared GOLDEN-003/Issue6 acceptance remainder.
+- `docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md`: verified canonical PM request/COMMIT/race/upgrade/restore evidence and historical checkpoints, linked to the later scalar FAIL-009 implementation disposition; no new story acceptance.
 - `docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md`: candidate user/admin workflow, strict API, browser and packaged evidence gates and remaining acceptance.
 - `docs/05-quality/TEMPORAL_FACT_MODEL_VALIDATION.md`: internal temporal assessment checks, partial requirement evidence and storage/API/disclosure limits.
 - `docs/05-quality/PROJECT_FACT_PERSISTENCE_VALIDATION.md`: durable human history, current permission, additive migration and recovery evidence; partial Issue #6 scope.

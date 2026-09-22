@@ -17,7 +17,32 @@ STORY-003 (shipped customer composition, TLS and external database support) is
 accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5),
 R0 release acceptance and commercial/customer deployment remain open.
 
-## Current unmerged work
+## Latest merged result and current work
+
+PR #54 merged verified candidate `2929a14` as `ddbafb4` on 2026-09-22.
+Durable generic scalar reconciliation and Antigravity design integration are now
+on main. Both required workflows passed: 1,383 units, 127 integration cases, 32
+browsers, three packaged profiles, six prior-prefix upgrades and three 42-table
+restores. Exact tree/parents/all 112 changed files, six preserved released migrations
+and the stylesheet were verified after merge. All nine migrations are now immutable.
+See [scalar validation and acceptance](../05-quality/SCALAR_RECONCILIATION_VALIDATION.md).
+
+FAIL-009's missing generic request is implemented. Full AC-EVD-004/STORY-012/Issue6
+acceptance remains withheld for unchanged shared GOLDEN-003 health/answer behavior.
+No accepted-story count changes. Current distribution has 802 unresolved High/Critical
+scanner occurrences and five open release gates, not customer-release approval.
+
+Current branch `codex/read-only-ingestion-core` implements the approved synthetic-only
+read contract and mapped CSV dry-run under [EXEC-009](exec-plans/EXEC-009-read-only-ingestion.md)
+and Issue7. Jira/OAuth/webhooks/persistence/XLSX/upload/commit remain later stages.
+No UI/colour, permission, migration, dependency or external connector scope changes.
+Local validation passes: 103 new focused cases, 1,486 full unit tests across 74
+files, strict fixture compilation, full lint/typecheck/build, architecture and docs.
+The first parallel run's five affected existing suites pass unchanged serially;
+failure history and unchanged limits are recorded in EXEC-009. Independent final-SHA
+review, fresh hosted validation and this batch's merge remain pending.
+
+## Earlier unmerged checkpoints (historical)
 
 Latest acceptance checkpoint: `3060a9e` passes1363 local units and32 browsers,
 and hosted native125 integration/42-table recovery. Its packaged check failed
