@@ -689,17 +689,32 @@ describe("durable ingestion persistence", () => {
       "ingestion-test-expired-remap-config",
     );
     expect(remap).toMatchObject({ configRevision: 7, mappingRevision: 4 });
-    const expiredRevisionId = randomUUID();
-    const expiredRevision = "expired-remap-revision";
-    const expiredHash = "f".repeat(64);
     const sourceRecord = await db.$queryRaw<{ id: string }[]>`
       SELECT id FROM public."IngestionExternalRecord"
       WHERE "customerId"=${customerId}::uuid AND "sourceId"=${sourceId}::uuid
         AND "recordType"=${eventRecord.ref.recordType} AND "recordKey"=${eventRecord.ref.recordId}`;
     expect(sourceRecord).toHaveLength(1);
-    await db.$executeRaw`
-      INSERT INTO public."IngestionSourceRevision" (id,"customerId","sourceId","recordId",revision,"sourceContentHash","remoteObservedAt","remoteEffectiveAt","receivedAt")
-      VALUES (${expiredRevisionId}::uuid,${customerId}::uuid,${sourceId}::uuid,${sourceRecord[0]!.id}::uuid,${expiredRevision},${expiredHash},${new Date(eventRecord.observedAt)},${new Date(eventRecord.effectiveAt)},CURRENT_TIMESTAMP-INTERVAL '25 hours')`;
+    const sourceRevision = await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM public."IngestionSourceRevision"
+      WHERE "customerId"=${customerId}::uuid AND "sourceId"=${sourceId}::uuid
+        AND "recordId"=${sourceRecord[0]!.id}::uuid AND revision=${eventRecord.revision}`;
+    expect(sourceRevision).toHaveLength(1);
+    const setSyntheticReceivedAt = async (receivedAt: Date) =>
+      db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe('ALTER TABLE public."IngestionSourceRevision" DISABLE TRIGGER ingestion_revision_guard');
+        try {
+          await tx.$executeRaw`UPDATE public."IngestionSourceRevision" SET "receivedAt"=${receivedAt} WHERE id=${sourceRevision[0]!.id}::uuid`;
+        } finally {
+          await tx.$executeRawUnsafe('ALTER TABLE public."IngestionSourceRevision" ENABLE TRIGGER ingestion_revision_guard');
+        }
+      });
+    await setSyntheticReceivedAt(new Date(Date.now() - 25 * 60 * 60 * 1000));
+    const beforeExpiredRemap = await db.$queryRaw<{ projections: number; content: number }[]>`
+      SELECT count(DISTINCT p.id)::int AS projections,count(DISTINCT c."projectionId")::int AS content
+      FROM public."IngestionSourceRevision" r
+      LEFT JOIN public."IngestionProposalProjection" p ON p."sourceRevisionId"=r.id
+      LEFT JOIN public."IngestionProposalContent" c ON c."projectionId"=p.id
+      WHERE r.id=${sourceRevision[0]!.id}::uuid`;
     await expect(
       repository.persistConnectorEvent(
         manager,
@@ -709,11 +724,7 @@ describe("durable ingestion persistence", () => {
           mappingRevision: remap.mappingRevision,
           commandKey: "expired-revision-remap",
           eventId: "expired-revision-remap-event",
-          record: {
-            ...eventRecord,
-            revision: expiredRevision,
-            sourceContentHash: expiredHash,
-          },
+          record: eventRecord,
         },
         "ingestion-test-expired-revision-remap",
       ),
@@ -723,44 +734,23 @@ describe("durable ingestion persistence", () => {
       FROM public."IngestionSourceRevision" r
       LEFT JOIN public."IngestionProposalProjection" p ON p."sourceRevisionId"=r.id
       LEFT JOIN public."IngestionProposalContent" c ON c."projectionId"=p.id
-      WHERE r.id=${expiredRevisionId}::uuid`;
-    expect(expiredRemapState).toEqual([{ projections: 0, content: 0 }]);
+      WHERE r.id=${sourceRevision[0]!.id}::uuid`;
+    expect(expiredRemapState).toEqual(beforeExpiredRemap);
 
-    const lockBoundaryRevisionId = randomUUID();
-    const lockBoundaryRevision = "lock-boundary-revision";
-    const lockBoundaryHash = "e".repeat(64);
-    await db.$executeRaw`
-      INSERT INTO public."IngestionSourceRevision" (id,"customerId","sourceId","recordId",revision,"sourceContentHash","remoteObservedAt","remoteEffectiveAt","receivedAt")
-      VALUES (${lockBoundaryRevisionId}::uuid,${customerId}::uuid,${sourceId}::uuid,${sourceRecord[0]!.id}::uuid,${lockBoundaryRevision},${lockBoundaryHash},${new Date(eventRecord.observedAt)},${new Date(eventRecord.effectiveAt)},clock_timestamp()-INTERVAL '24 hours'+INTERVAL '5 seconds')`;
-    let lockDelayedPersistence: Promise<unknown> | undefined;
+    await setSyntheticReceivedAt(new Date(Date.now() - 24 * 60 * 60 * 1000 + 5000));
+    const availableBeforeExpiry = (await repository.readReceipt(manager, {
+      sourceId,
+      receiptId: persisted.receiptId,
+    })) as { outcomes: { contentAvailable: boolean }[] };
+    expect(availableBeforeExpiry.outcomes[0]?.contentAvailable).toBe(true);
+    let lockDelayedRead: Promise<unknown> | undefined;
     await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM public."IngestionExternalRecord" WHERE id=${sourceRecord[0]!.id}::uuid FOR UPDATE`;
-      lockDelayedPersistence = repository.persistConnectorEvent(
-        manager,
-        {
-          sourceId,
-          configRevision: remap.configRevision,
-          mappingRevision: remap.mappingRevision,
-          commandKey: "expired-lock-boundary",
-          eventId: "expired-lock-boundary-event",
-          record: {
-            ...eventRecord,
-            revision: lockBoundaryRevision,
-            sourceContentHash: lockBoundaryHash,
-          },
-        },
-        "ingestion-test-expired-lock-boundary",
-      );
+      await tx.$queryRaw`SELECT id FROM public."IngestionSource" WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid FOR UPDATE`;
+      lockDelayedRead = repository.readReceipt(manager, { sourceId, receiptId: persisted.receiptId });
       await new Promise((resolve) => setTimeout(resolve, 6000));
     });
-    await expect(lockDelayedPersistence).rejects.toThrow();
-    const lockBoundaryState = await db.$queryRaw<{ projections: number; content: number }[]>`
-      SELECT count(DISTINCT p.id)::int AS projections,count(DISTINCT c."projectionId")::int AS content
-      FROM public."IngestionSourceRevision" r
-      LEFT JOIN public."IngestionProposalProjection" p ON p."sourceRevisionId"=r.id
-      LEFT JOIN public."IngestionProposalContent" c ON c."projectionId"=p.id
-      WHERE r.id=${lockBoundaryRevisionId}::uuid`;
-    expect(lockBoundaryState).toEqual([{ projections: 0, content: 0 }]);
+    const afterExpiryRead = (await lockDelayedRead) as { outcomes: { contentAvailable: boolean; proposals: unknown }[] };
+    expect(afterExpiryRead.outcomes[0]).toMatchObject({ contentAvailable: false, proposals: null });
 
     await db.accessGrant.deleteMany({
       where: { customerId, subject: manager.subject, scopeType: "project", scopeId: projectId },
