@@ -599,6 +599,20 @@ try {
         "ScalarReconciliationRequest",
         "ScalarReconciliationCheck",
         "ScalarReconciliationAssignment",
+        "IngestionSource",
+        "IngestionConfigurationRevision",
+        "IngestionConfigurationProject",
+        "IngestionConfigurationReader",
+        "IngestionRetentionPolicy",
+        "IngestionExternalRecord",
+        "IngestionFactStream",
+        "IngestionSourceRevision",
+        "IngestionProposalProjection",
+        "IngestionProposalContent",
+        "IngestionOperationReceipt",
+        "IngestionReceiptProjectScope",
+        "IngestionCursorTransition",
+        "IngestionRowOutcome",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [
@@ -923,3 +937,4 @@ renameSync(staged, canonical);
 console.log(
   "Production acceptance passed; immutable image IDs and source revision recorded after successful teardown.",
 );
+
