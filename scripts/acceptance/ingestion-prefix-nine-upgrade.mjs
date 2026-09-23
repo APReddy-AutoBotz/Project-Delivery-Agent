@@ -48,6 +48,8 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
   let prior;
   let pool;
   try {
+    for (const role of ["pdaa_migrate", "pdaa_api", "pdaa_worker", "pdaa_backup"])
+      await admin.$executeRawUnsafe(`DO $roles$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${role}') THEN CREATE ROLE ${role} NOLOGIN; END IF; END $roles$`);
     await admin.$executeRawUnsafe(`CREATE DATABASE "${databaseName}"`);
     const databaseUrl = new URL(adminUrl);
     databaseUrl.pathname = "/" + databaseName;
@@ -64,6 +66,8 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
+    pool = new Pool(databaseConfig);
+    await pool.query("REASSIGN OWNED BY pdaa TO pdaa_migrate");
 
     prior = createDatabase(databaseUrl.toString());
     const customerId = randomUUID();
@@ -131,7 +135,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     }
 
     await migrateDatabase(databaseConfig, migrations);
-    pool = new Pool(databaseConfig);
+    await pool.query("REASSIGN OWNED BY pdaa TO pdaa_migrate");
     await applyBusinessTableGrants(pool);
     const after = createDatabase(databaseUrl.toString());
     try {
