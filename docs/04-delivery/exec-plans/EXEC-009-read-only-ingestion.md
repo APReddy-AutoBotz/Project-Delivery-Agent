@@ -464,7 +464,7 @@ adapter over the approved `jira.js` SDK. Explicit internal-project/Jira-key mapp
 bound project discovery, JQL issue search and direct record lookup. Only configured
 scalar fields are projected into typed, hashed proposals. The adapter rechecks
 project identity, same-origin links and first-party page/cursor contracts, and maps
-SDK failures to finite redacted classes. Eight synthetic contract cases cover
+SDK failures to finite redacted classes. Ten synthetic contract cases cover
 connection, scope, permissions, projection, paging, lookup and failure redaction.
 
 No API or worker invokes the adapter. There is no live account, OAuth callback,

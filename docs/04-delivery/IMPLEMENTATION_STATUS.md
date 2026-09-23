@@ -601,8 +601,7 @@ adapter coverage exercises read-only connection, configured visibility, search
 scope/cursor, field projection, direct lookup and finite failure redaction. The
 selected adapter tests pass 8/8 and its strict typecheck passes.
 
-This remains a candidate checkpoint pending full validation, non-author review,
-matching hosted CI and merge. No route or worker invokes the adapter; no live Jira
+This remains a candidate checkpoint pending exact-head non-author review, matching hosted CI and merge. Local synthetic validation does not replace hosted database, populated upgrade or encrypted recovery gates. No route or worker invokes the adapter; no live Jira
 credential, OAuth rotation, webhook, scheduler or external write is enabled.
 Sprint/comment/full changelog/link normalization and durable reader wiring remain
 open, so AC-CON-001/002/003, AC-MNT-003, Issue #7 stories and accepted totals are

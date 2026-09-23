@@ -273,10 +273,6 @@ export function createJiraReadOnlyConnector(
       recordType: "jira.issue",
       recordId: key,
     };
-    const normalized: Record<string, unknown> = Object.create(null) as Record<
-      string,
-      unknown
-    >;
     const observations = fieldMappings.flatMap(
       ({ jiraField, factType, valueType }) => {
         const raw = issue.fields[jiraField];
@@ -308,21 +304,29 @@ export function createJiraReadOnlyConnector(
         if (valueType === "boolean" && typeof value === "boolean")
           typed = { type: "boolean", value };
         if (!typed) return [];
-        normalized[jiraField] = typed;
         return [{ factType, value: typed }];
       },
     );
+    const sourceFields: Record<string, unknown> = Object.create(null) as Record<
+      string,
+      unknown
+    >;
+    for (const jiraField of [
+      ...new Set(fieldMappings.map((field) => field.jiraField)),
+    ].sort()) {
+      sourceFields[jiraField] = toValue(issue.fields[jiraField]);
+    }
     const canonical = JSON.stringify({
       id: jiraId,
       key,
       project: mapped.projectKey,
       updated,
-      fields: normalized,
+      fields: sourceFields,
     });
     const sourceContentHash = sha256(canonical);
     const result: ConnectorRecord = {
       ref,
-      revision: `${updated}:${sourceContentHash}`.slice(0, 128),
+      revision: updated,
       sourceContentHash,
       observedAt: now().toISOString(),
       effectiveAt: updated,
@@ -477,7 +481,7 @@ export function createJiraReadOnlyConnector(
         };
       }
       const project = projects.find((item) => item.projectId === ref.projectId);
-      if (!project)
+      if (!project || !ref.recordId.startsWith(`${project.projectKey}-`))
         return {
           ok: false,
           failure: { code: "PERMISSION_DENIED", retryAfterMs: null },
@@ -491,13 +495,15 @@ export function createJiraReadOnlyConnector(
       const scope = scoped(input);
       const ref = parseIngestion(connectorRecordRefSchema, refInput);
       if (!matchesBinding(scope)) return null;
+      const project = projects.find((p) => p.projectId === ref.projectId);
       if (
         ref.customerId !== configInput.customerId ||
         ref.sourceId !== configInput.sourceId ||
         ref.recordType !== "jira.issue" ||
         !scope.projectIds.includes(ref.projectId) ||
-        !projects.some((p) => p.projectId === ref.projectId) ||
-        !/^[A-Z][A-Z0-9_]{0,49}-[1-9][0-9]*$/.test(ref.recordId)
+        !project ||
+        !/^[A-Z][A-Z0-9_]{0,49}-[1-9][0-9]*$/.test(ref.recordId) ||
+        !ref.recordId.startsWith(`${project.projectKey}-`)
       )
         return null;
       return `${configInput.origin}/browse/${encodeURIComponent(ref.recordId)}`;

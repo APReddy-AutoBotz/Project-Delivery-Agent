@@ -87,7 +87,11 @@ function fake(overrides: Partial<JiraReadClient> = {}) {
     },
     ...overrides,
   };
-  return { adapter: createJiraReadOnlyConnector(client, config), calls };
+  return {
+    adapter: createJiraReadOnlyConnector(client, config),
+    calls,
+    client,
+  };
 }
 
 describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)", () => {
@@ -199,6 +203,71 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
     expect(JSON.stringify(result.value)).not.toContain("unselected field");
   });
 
+  it("keeps source revision and content hash independent of mapping order and fact-type names", async () => {
+    const { adapter, client } = fake();
+    const original = await adapter.pullChanges({ scope, cursor: null });
+    const remapped = await createJiraReadOnlyConnector(client, {
+      ...config,
+      fields: [
+        {
+          jiraField: "customfield_10001",
+          factType: "jira.size",
+          valueType: "number",
+        },
+        { jiraField: "duedate", factType: "jira.due_date", valueType: "date" },
+        { jiraField: "status", factType: "jira.status", valueType: "text" },
+        { jiraField: "summary", factType: "jira.title", valueType: "text" },
+      ],
+    }).pullChanges({ scope, cursor: null });
+    expect(original.ok && remapped.ok).toBe(true);
+    if (!original.ok || !remapped.ok) return;
+    expect(remapped.value.records[0]?.revision).toBe(
+      original.value.records[0]?.revision,
+    );
+    expect(remapped.value.records[0]?.sourceContentHash).toBe(
+      original.value.records[0]?.sourceContentHash,
+    );
+  });
+
+  it("uses the source revision as identity so same-revision content changes remain detectable", async () => {
+    const { adapter } = fake();
+    const changed = createJiraReadOnlyConnector(
+      {
+        async getProject({ projectIdOrKey }) {
+          return { key: projectIdOrKey };
+        },
+        async searchIssues() {
+          return {
+            issues: [
+              {
+                ...issue(),
+                fields: {
+                  ...issue().fields,
+                  summary: "Changed without an updated revision",
+                },
+              },
+            ],
+            isLast: true,
+          };
+        },
+        async getIssue() {
+          return issue();
+        },
+      },
+      config,
+    );
+    const original = await adapter.pullChanges({ scope, cursor: null });
+    const changedPage = await changed.pullChanges({ scope, cursor: null });
+    expect(original.ok && changedPage.ok).toBe(true);
+    if (!original.ok || !changedPage.ok) return;
+    expect(changedPage.value.records[0]?.revision).toBe(
+      original.value.records[0]?.revision,
+    );
+    expect(changedPage.value.records[0]?.sourceContentHash).not.toBe(
+      original.value.records[0]?.sourceContentHash,
+    );
+  });
+
   it("rejects search results outside the current trusted project allowlist", async () => {
     const { adapter } = fake({
       async searchIssues() {
@@ -226,6 +295,17 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
       recordId: "SAFE-1",
     });
     expect(result.ok).toBe(false);
+    const issueReadCount = calls.issueKeys.length;
+    expect(
+      await adapter.getRecord(scope, {
+        customerId,
+        sourceId,
+        projectId,
+        recordType: "jira.issue",
+        recordId: "OTHER-2",
+      }),
+    ).toMatchObject({ ok: false, failure: { code: "PERMISSION_DENIED" } });
+    expect(calls.issueKeys).toHaveLength(issueReadCount);
     expect(
       await adapter.getRecord(
         { ...scope, projectIds: [otherProjectId] },
@@ -245,6 +325,15 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
         projectId: otherProjectId,
         recordType: "jira.issue",
         recordId: "OTHER-1",
+      }),
+    ).toBeNull();
+    expect(
+      await adapter.getDeepLink(scope, {
+        customerId,
+        sourceId,
+        projectId,
+        recordType: "jira.issue",
+        recordId: "OTHER-2",
       }),
     ).toBeNull();
   });
