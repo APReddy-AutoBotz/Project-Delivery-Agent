@@ -79,7 +79,8 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     ),
   ];
   const ingestionSignatures = [
-    "public.valid_ingestion_proposals(uuid,jsonb)",
+    "public.valid_ingestion_proposals(jsonb)",
+    "public.valid_ingestion_projection_content(uuid,jsonb)",
     "public.valid_ingestion_receipt(uuid)",
   ];
   expect(revoked).toHaveLength(4);
@@ -166,3 +167,4 @@ it("refuses ACL reconstruction while any business table has the wrong owner", as
   ).rejects.toThrow("Unexpected business table owner");
   expect(denied.query).toHaveBeenCalledTimes(2);
 });
+
