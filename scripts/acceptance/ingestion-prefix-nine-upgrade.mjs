@@ -29,6 +29,18 @@ const ingestionTables = [
   "IngestionRowOutcome",
 ];
 
+async function assignSyntheticTableOwners(pool) {
+  await pool.query(`DO $owners$ DECLARE item record; BEGIN
+    FOR item IN
+      SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='public' AND c.relkind IN ('r','p')
+        AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
+    LOOP
+      EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname);
+    END LOOP;
+  END $owners$`);
+}
+
 export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
   const base = assertSyntheticDatabaseUrl(sourceUrl, "pdaa");
   if (
@@ -67,7 +79,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
     pool = new Pool(databaseConfig);
-    await pool.query("REASSIGN OWNED BY pdaa TO pdaa_migrate");
+    await assignSyntheticTableOwners(pool);
 
     prior = createDatabase(databaseUrl.toString());
     const customerId = randomUUID();
@@ -135,7 +147,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     }
 
     await migrateDatabase(databaseConfig, migrations);
-    await pool.query("REASSIGN OWNED BY pdaa TO pdaa_migrate");
+    await assignSyntheticTableOwners(pool);
     await applyBusinessTableGrants(pool);
     const after = createDatabase(databaseUrl.toString());
     try {
