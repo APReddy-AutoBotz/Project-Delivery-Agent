@@ -405,11 +405,8 @@ BEGIN
 END $$;
 CREATE FUNCTION public.guard_ingestion_revision() RETURNS trigger
 LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
-DECLARE previous public."IngestionSourceRevision"%ROWTYPE;
 BEGIN
   IF TG_OP<>'INSERT' THEN RAISE EXCEPTION 'Ingestion source revision is immutable'; END IF;
-  SELECT * INTO previous FROM public."IngestionSourceRevision" WHERE "customerId"=NEW."customerId" AND "sourceId"=NEW."sourceId" AND "recordId"=NEW."recordId" AND revision=NEW.revision;
-  IF FOUND AND previous."sourceContentHash"<>NEW."sourceContentHash" THEN RAISE EXCEPTION 'Source revision digest conflict'; END IF;
   RETURN NEW;
 END $$;
 CREATE FUNCTION public.guard_ingestion_projection() RETURNS trigger
