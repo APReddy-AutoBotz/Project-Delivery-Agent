@@ -102,7 +102,7 @@ CREATE TABLE public."IngestionFactStream" (
   CONSTRAINT "IngestionFactStream_pkey" PRIMARY KEY (id),
   CONSTRAINT "IngestionFactStream_identity_key" UNIQUE ("customerId","sourceId","recordId","factType"),
   CONSTRAINT "IngestionFactStream_scope_key" UNIQUE ("customerId","sourceId","recordId",id),
-  CONSTRAINT "IngestionFactStream_record_fkey" FOREIGN KEY ("customerId","sourceId",recordId) REFERENCES public."IngestionExternalRecord"("customerId","sourceId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT "IngestionFactStream_record_fkey" FOREIGN KEY ("customerId","sourceId","recordId") REFERENCES public."IngestionExternalRecord"("customerId","sourceId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT "IngestionFactStream_type_check" CHECK ("factType" ~ '^[a-z][a-z0-9_.-]{0,95}$')
 );
 CREATE TABLE public."IngestionSourceRevision" (
@@ -118,7 +118,7 @@ CREATE TABLE public."IngestionSourceRevision" (
   CONSTRAINT "IngestionSourceRevision_pkey" PRIMARY KEY (id),
   CONSTRAINT "IngestionSourceRevision_identity_key" UNIQUE ("customerId","sourceId","recordId",revision),
   CONSTRAINT "IngestionSourceRevision_scope_key" UNIQUE ("customerId","sourceId","recordId",id),
-  CONSTRAINT "IngestionSourceRevision_record_fkey" FOREIGN KEY ("customerId","sourceId",recordId) REFERENCES public."IngestionExternalRecord"("customerId","sourceId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT "IngestionSourceRevision_record_fkey" FOREIGN KEY ("customerId","sourceId","recordId") REFERENCES public."IngestionExternalRecord"("customerId","sourceId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT "IngestionSourceRevision_digest_check" CHECK (revision<>'' AND "sourceContentHash" ~ '^[a-f0-9]{64}$')
 );
 CREATE TABLE public."IngestionProposalProjection" (
@@ -136,7 +136,7 @@ CREATE TABLE public."IngestionProposalProjection" (
   CONSTRAINT "IngestionProposalProjection_scope_key" UNIQUE ("customerId","sourceId","recordId",id),
   CONSTRAINT "IngestionProposalProjection_revision_scope_key" UNIQUE ("customerId","sourceId","recordId","sourceRevisionId",id),
   CONSTRAINT "IngestionProposalProjection_exact_key" UNIQUE ("customerId","sourceId","recordId","sourceRevisionId","mappingRevision",id),
-  CONSTRAINT "IngestionProposalProjection_revision_fkey" FOREIGN KEY ("customerId","sourceId",recordId,"sourceRevisionId") REFERENCES public."IngestionSourceRevision"("customerId","sourceId","recordId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT "IngestionProposalProjection_revision_fkey" FOREIGN KEY ("customerId","sourceId","recordId","sourceRevisionId") REFERENCES public."IngestionSourceRevision"("customerId","sourceId","recordId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT "IngestionProposalProjection_mapping_check" CHECK ("mappingRevision">0 AND "proposalHash" ~ '^[a-f0-9]{64}$' AND cardinality("factTypes")<=32)
 );
 CREATE TABLE public."IngestionProposalContent" (
@@ -149,7 +149,7 @@ CREATE TABLE public."IngestionProposalContent" (
   "redactedAt" timestamptz(3),
   "redactionAuditEventId" uuid,
   CONSTRAINT "IngestionProposalContent_pkey" PRIMARY KEY ("projectionId"),
-  CONSTRAINT "IngestionProposalContent_projection_fkey" FOREIGN KEY ("customerId","sourceId","recordId",projectionId) REFERENCES public."IngestionProposalProjection"("customerId","sourceId","recordId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT "IngestionProposalContent_projection_fkey" FOREIGN KEY ("customerId","sourceId","recordId","projectionId") REFERENCES public."IngestionProposalProjection"("customerId","sourceId","recordId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT "IngestionProposalContent_json_check" CHECK (proposals IS NULL OR (jsonb_typeof(proposals)='array' AND octet_length(proposals::text)<=1048576)),
   CONSTRAINT "IngestionProposalContent_audit_fkey" FOREIGN KEY ("customerId","redactionAuditEventId") REFERENCES public."AuditEvent"("customerId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT "IngestionProposalContent_tombstone_check" CHECK ((proposals IS NULL)=("redactedAt" IS NOT NULL) AND (proposals IS NULL)=("redactionAuditEventId" IS NOT NULL) AND "policyRevision">0)
@@ -233,7 +233,7 @@ CREATE TABLE public."IngestionRowOutcome" (
   "sourceRevisionId" uuid,
   "projectionId" uuid,
   CONSTRAINT "IngestionRowOutcome_pkey" PRIMARY KEY ("receiptId",ordinal),
-  CONSTRAINT "IngestionRowOutcome_receipt_fkey" FOREIGN KEY ("customerId","sourceId",receiptId) REFERENCES public."IngestionOperationReceipt"("customerId","sourceId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT "IngestionRowOutcome_receipt_fkey" FOREIGN KEY ("customerId","sourceId","receiptId") REFERENCES public."IngestionOperationReceipt"("customerId","sourceId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT "IngestionRowOutcome_project_fkey" FOREIGN KEY ("customerId","projectId") REFERENCES public."Project"("customerId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT "IngestionRowOutcome_record_fkey" FOREIGN KEY ("customerId","sourceId","projectId","recordId") REFERENCES public."IngestionExternalRecord"("customerId","sourceId","projectId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT "IngestionRowOutcome_revision_fkey" FOREIGN KEY ("customerId","sourceId","recordId","sourceRevisionId") REFERENCES public."IngestionSourceRevision"("customerId","sourceId","recordId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
@@ -444,10 +444,10 @@ BEGIN
       JOIN public."IngestionSourceRevision" r ON r."customerId"=x."customerId" AND r."sourceId"=x."sourceId" AND r."recordId"=x."recordId" AND r.id=x."sourceRevisionId"
       JOIN public."IngestionRetentionPolicy" p ON p."customerId"=x."customerId"
       WHERE x."customerId"=NEW."customerId" AND x.id=NEW."projectionId"
-        AND CURRENT_TIMESTAMP>=r."receivedAt"+make_interval(hours=>p."retentionHours")) THEN RAISE EXCEPTION 'Expired ingestion source revision cannot regain proposal content'; END IF;
+        AND clock_timestamp()>=r."receivedAt"+make_interval(hours=>p."retentionHours")) THEN RAISE EXCEPTION 'Expired ingestion source revision cannot regain proposal content'; END IF;
     RETURN NEW;
   END IF;
-  IF TG_OP='DELETE' OR OLD.proposals IS NULL OR NEW.proposals IS NOT NULL OR NEW."redactedAt" IS NULL OR NEW."redactionAuditEventId" IS NULL OR NEW."redactedAt"<CURRENT_TIMESTAMP OR ROW(NEW."customerId",NEW."sourceId",NEW."recordId",NEW."projectionId",NEW."policyRevision") IS DISTINCT FROM ROW(OLD."customerId",OLD."sourceId",OLD."recordId",OLD."projectionId",OLD."policyRevision") THEN RAISE EXCEPTION 'Ingestion content permits one-way expiry redaction only'; END IF;
+  IF TG_OP='DELETE' OR OLD.proposals IS NULL OR NEW.proposals IS NOT NULL OR NEW."redactedAt" IS NULL OR NEW."redactionAuditEventId" IS NULL OR NEW."redactedAt"<clock_timestamp() OR ROW(NEW."customerId",NEW."sourceId",NEW."recordId",NEW."projectionId",NEW."policyRevision") IS DISTINCT FROM ROW(OLD."customerId",OLD."sourceId",OLD."recordId",OLD."projectionId",OLD."policyRevision") THEN RAISE EXCEPTION 'Ingestion content permits one-way expiry redaction only'; END IF;
   SELECT a.actor INTO purge_actor FROM public."AuditEvent" a WHERE a.id=NEW."redactionAuditEventId" AND a."customerId"=NEW."customerId" AND a.event='ingestion.content.purged' AND a.detail ? 'redactedCount' AND (a.detail->>'redactedCount') ~ '^[1-9][0-9]*$';
   IF NOT FOUND THEN RAISE EXCEPTION 'Ingestion redaction lacks its audit'; END IF;
   IF purge_actor='restore:quarantine' THEN
@@ -456,7 +456,7 @@ BEGIN
     SELECT g.id INTO admin_grant FROM public."AccessGrant" g WHERE g."customerId"=NEW."customerId" AND g.subject=purge_actor AND g.role='system_admin' ORDER BY g.id LIMIT 1 FOR SHARE;
     IF NOT FOUND THEN RAISE EXCEPTION 'Ingestion redaction requires a current system administrator grant'; END IF;
   END IF;
-  IF EXISTS (SELECT 1 FROM public."IngestionProposalProjection" x JOIN public."IngestionSourceRevision" r ON r.id=x."sourceRevisionId" JOIN public."IngestionRetentionPolicy" p ON p."customerId"=r."customerId" WHERE x.id=OLD."projectionId" AND CURRENT_TIMESTAMP<r."receivedAt"+make_interval(hours=>p."retentionHours")) THEN RAISE EXCEPTION 'Ingestion content is not expired'; END IF;
+  IF EXISTS (SELECT 1 FROM public."IngestionProposalProjection" x JOIN public."IngestionSourceRevision" r ON r.id=x."sourceRevisionId" JOIN public."IngestionRetentionPolicy" p ON p."customerId"=r."customerId" WHERE x.id=OLD."projectionId" AND clock_timestamp()<r."receivedAt"+make_interval(hours=>p."retentionHours")) THEN RAISE EXCEPTION 'Ingestion content is not expired'; END IF;
   RETURN NEW;
 END $$;
 CREATE FUNCTION public.require_ingestion_redaction_complete() RETURNS trigger

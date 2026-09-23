@@ -724,6 +724,42 @@ describe("durable ingestion persistence", () => {
       WHERE r.id=${expiredRevisionId}::uuid`;
     expect(expiredRemapState).toEqual([{ projections: 0, content: 0 }]);
 
+    const lockBoundaryRevisionId = randomUUID();
+    const lockBoundaryRevision = "lock-boundary-revision";
+    const lockBoundaryHash = "e".repeat(64);
+    await db.$executeRaw`
+      INSERT INTO public."IngestionSourceRevision" (id,"customerId","sourceId","recordId",revision,"sourceContentHash","remoteObservedAt","remoteEffectiveAt","receivedAt")
+      VALUES (${lockBoundaryRevisionId}::uuid,${customerId}::uuid,${sourceId}::uuid,${sourceRecord[0]!.id}::uuid,${lockBoundaryRevision},${lockBoundaryHash},${new Date(eventRecord.observedAt)},${new Date(eventRecord.effectiveAt)},clock_timestamp()+INTERVAL '24 hours'-INTERVAL '5 seconds')`;
+    let lockDelayedPersistence: Promise<unknown> | undefined;
+    await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM public."IngestionExternalRecord" WHERE id=${sourceRecord[0]!.id}::uuid FOR UPDATE`;
+      lockDelayedPersistence = repository.persistConnectorEvent(
+        manager,
+        {
+          sourceId,
+          configRevision: remap.configRevision,
+          mappingRevision: remap.mappingRevision,
+          commandKey: "expired-lock-boundary",
+          eventId: "expired-lock-boundary-event",
+          record: {
+            ...eventRecord,
+            revision: lockBoundaryRevision,
+            sourceContentHash: lockBoundaryHash,
+          },
+        },
+        "ingestion-test-expired-lock-boundary",
+      );
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+    });
+    await expect(lockDelayedPersistence).rejects.toThrow();
+    const lockBoundaryState = await db.$queryRaw<{ projections: number; content: number }[]>`
+      SELECT count(DISTINCT p.id)::int AS projections,count(DISTINCT c."projectionId")::int AS content
+      FROM public."IngestionSourceRevision" r
+      LEFT JOIN public."IngestionProposalProjection" p ON p."sourceRevisionId"=r.id
+      LEFT JOIN public."IngestionProposalContent" c ON c."projectionId"=p.id
+      WHERE r.id=${lockBoundaryRevisionId}::uuid`;
+    expect(lockBoundaryState).toEqual([{ projections: 0, content: 0 }]);
+
     await db.accessGrant.deleteMany({
       where: { customerId, subject: manager.subject, scopeType: "project", scopeId: projectId },
     });

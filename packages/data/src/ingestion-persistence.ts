@@ -1378,8 +1378,8 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           ordinal: number; state: string; operation: string; errorCodes: string[]; projectId: string | null; recordKey: string | null; recordType: string | null; proposals: unknown; contentAvailable: boolean; proposalHash: string | null; actualProposalHash: string | null;
         }[]>`
           SELECT o.ordinal,o.state,o.operation,o."errorCodes",o."projectId",o."recordKey",e."recordType",
-            CASE WHEN c.proposals IS NOT NULL AND c."redactedAt" IS NULL AND v."receivedAt"+make_interval(hours=>policy."retentionHours")>CURRENT_TIMESTAMP THEN c.proposals ELSE NULL END AS proposals,
-            (c.proposals IS NOT NULL AND c."redactedAt" IS NULL AND v."receivedAt"+make_interval(hours=>policy."retentionHours")>CURRENT_TIMESTAMP) AS "contentAvailable",
+            CASE WHEN c.proposals IS NOT NULL AND c."redactedAt" IS NULL AND v."receivedAt"+make_interval(hours=>policy."retentionHours")>clock_timestamp() THEN c.proposals ELSE NULL END AS proposals,
+            (c.proposals IS NOT NULL AND c."redactedAt" IS NULL AND v."receivedAt"+make_interval(hours=>policy."retentionHours")>clock_timestamp()) AS "contentAvailable",
             p."proposalHash",CASE WHEN c.proposals IS NOT NULL THEN encode(sha256(convert_to(c.proposals::text,'UTF8')),'hex') ELSE NULL END AS "actualProposalHash"
           FROM public."IngestionRowOutcome" o
           LEFT JOIN public."IngestionExternalRecord" e ON e.id=o."recordId" AND e."customerId"=o."customerId" AND e."sourceId"=o."sourceId"
@@ -1536,7 +1536,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           JOIN public."IngestionProposalProjection" p ON p.id=c."projectionId" AND p."customerId"=c."customerId"
           JOIN public."IngestionSourceRevision" r ON r.id=p."sourceRevisionId" AND r."customerId"=p."customerId"
           WHERE c."customerId"=${actor.customerId}::uuid AND c.proposals IS NOT NULL
-            AND c."redactedAt" IS NULL AND r."receivedAt"+make_interval(hours=>${policyRows[0].retentionHours})<=CURRENT_TIMESTAMP
+            AND c."redactedAt" IS NULL AND r."receivedAt"+make_interval(hours=>${policyRows[0].retentionHours})<=clock_timestamp()
           ORDER BY p."sourceId",p."recordId",p."sourceRevisionId",p.id LIMIT 1000`;
         if (!candidates.length) return 0;
         const recordIds = [...new Set(candidates.map((row) => row.recordId))].sort(exactCompare);
