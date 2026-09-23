@@ -204,7 +204,7 @@ async function restoreArchive(
           (SELECT count(*)::int FROM "ScalarReconciliationCheck" WHERE public.valid_scalar_reconciliation_check(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "ScalarReconciliationAssignment" WHERE public.valid_scalar_reconciliation_assignment(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionOperationReceipt" WHERE public.valid_ingestion_receipt(id) IS NOT TRUE) +
-          (SELECT count(*)::int FROM "IngestionProposalContent" WHERE proposals IS NOT NULL AND public.valid_ingestion_proposals("projectionId",proposals) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "IngestionProposalContent" WHERE proposals IS NOT NULL AND public.valid_ingestion_projection_content("projectionId",proposals) IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionExternalRecord" r WHERE NOT EXISTS (SELECT 1 FROM "IngestionSourceRevision" v WHERE v."customerId"=r."customerId" AND v."sourceId"=r."sourceId" AND v."recordId"=r.id)) +
           (SELECT count(*)::int FROM "IngestionSourceRevision" r WHERE NOT EXISTS (SELECT 1 FROM "IngestionProposalProjection" p WHERE p."customerId"=r."customerId" AND p."sourceId"=r."sourceId" AND p."recordId"=r."recordId" AND p."sourceRevisionId"=r.id)) +
           (SELECT count(*)::int FROM "IngestionProposalProjection" p WHERE NOT EXISTS (SELECT 1 FROM "IngestionProposalContent" c WHERE c."customerId"=p."customerId" AND c."projectionId"=p.id) OR NOT EXISTS (SELECT 1 FROM "IngestionRowOutcome" o WHERE o."customerId"=p."customerId" AND o."sourceId"=p."sourceId" AND o."projectionId"=p.id AND o.state='ACCEPTED')) +

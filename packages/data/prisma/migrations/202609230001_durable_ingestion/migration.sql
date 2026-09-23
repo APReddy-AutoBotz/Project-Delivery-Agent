@@ -444,7 +444,7 @@ BEGIN
         AND clock_timestamp()>=r."receivedAt"+make_interval(hours=>p."retentionHours")) THEN RAISE EXCEPTION 'Expired ingestion source revision cannot regain proposal content'; END IF;
     RETURN NEW;
   END IF;
-  IF TG_OP='DELETE' OR OLD.proposals IS NULL OR NEW.proposals IS NOT NULL OR NEW."redactedAt" IS NULL OR NEW."redactionAuditEventId" IS NULL OR NEW."redactedAt"<clock_timestamp() OR ROW(NEW."customerId",NEW."sourceId",NEW."recordId",NEW."projectionId",NEW."policyRevision") IS DISTINCT FROM ROW(OLD."customerId",OLD."sourceId",OLD."recordId",OLD."projectionId",OLD."policyRevision") THEN RAISE EXCEPTION 'Ingestion content permits one-way expiry redaction only'; END IF;
+  IF TG_OP='DELETE' OR OLD.proposals IS NULL OR NEW.proposals IS NOT NULL OR NEW."redactedAt" IS NULL OR NEW."redactionAuditEventId" IS NULL OR NEW."redactedAt">clock_timestamp() OR ROW(NEW."customerId",NEW."sourceId",NEW."recordId",NEW."projectionId",NEW."policyRevision") IS DISTINCT FROM ROW(OLD."customerId",OLD."sourceId",OLD."recordId",OLD."projectionId",OLD."policyRevision") THEN RAISE EXCEPTION 'Ingestion content permits one-way expiry redaction only'; END IF;
   SELECT a.actor INTO purge_actor FROM public."AuditEvent" a WHERE a.id=NEW."redactionAuditEventId" AND a."customerId"=NEW."customerId" AND a.event='ingestion.content.purged' AND a.detail ? 'redactedCount' AND (a.detail->>'redactedCount') ~ '^[1-9][0-9]*$';
   IF NOT FOUND THEN RAISE EXCEPTION 'Ingestion redaction lacks its audit'; END IF;
   IF purge_actor='restore:quarantine' THEN
@@ -559,25 +559,37 @@ BEGIN
   RETURN true;
 EXCEPTION WHEN OTHERS THEN RETURN false;
 END $$;
-CREATE FUNCTION public.valid_ingestion_proposals(projection_target uuid, proposal_values jsonb) RETURNS boolean
+CREATE FUNCTION public.valid_ingestion_proposals(proposal_values jsonb) RETURNS boolean
 LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
-DECLARE p public."IngestionProposalProjection"%ROWTYPE; item jsonb; seen text[]:=ARRAY[]::text[]; fact_type text;
+DECLARE item jsonb; seen text[]:=ARRAY[]::text[]; fact_type text;
 BEGIN
   IF jsonb_typeof(proposal_values) IS DISTINCT FROM 'array' OR jsonb_array_length(proposal_values)>32 THEN RETURN false; END IF;
-  SELECT * INTO p FROM public."IngestionProposalProjection" WHERE id=projection_target;
-  IF NOT FOUND THEN RETURN false; END IF;
-  IF encode(sha256(convert_to(proposal_values::text,'UTF8')),'hex')<>p."proposalHash" THEN RETURN false; END IF;
   FOR item IN SELECT value FROM jsonb_array_elements(proposal_values) LOOP
     IF jsonb_typeof(item) IS DISTINCT FROM 'object' OR item-'factType'-'value'<>'{}'::jsonb OR jsonb_typeof(item->'factType') IS DISTINCT FROM 'string' THEN RETURN false; END IF;
     fact_type:=item->>'factType';
     IF fact_type !~ '^[a-z][a-z0-9_.-]{0,95}$' OR fact_type=ANY(seen) OR NOT public.valid_project_fact_value(item->'value') THEN RETURN false; END IF;
     seen:=array_append(seen,fact_type);
   END LOOP;
-  IF p."factTypes" IS DISTINCT FROM seen THEN RETURN false; END IF;
   RETURN true;
 EXCEPTION WHEN OTHERS THEN RETURN false;
 END $$;
-ALTER TABLE public."IngestionProposalContent" ADD CONSTRAINT "IngestionProposalContent_typed_check" CHECK (proposals IS NULL OR public.valid_ingestion_proposals("projectionId",proposals));
+CREATE FUNCTION public.valid_ingestion_projection_content(projection_target uuid, proposal_values jsonb) RETURNS boolean
+LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
+DECLARE p public."IngestionProposalProjection"%ROWTYPE; expected_types text[];
+BEGIN
+  IF public.valid_ingestion_proposals(proposal_values) IS NOT TRUE THEN RETURN false; END IF;
+  SELECT * INTO p FROM public."IngestionProposalProjection" WHERE id=projection_target;
+  IF NOT FOUND OR encode(sha256(convert_to(proposal_values::text,'UTF8')),'hex')<>p."proposalHash" THEN RETURN false; END IF;
+  SELECT COALESCE(array_agg(item->>'factType' ORDER BY ordinal),'{}'::text[]) INTO expected_types
+    FROM jsonb_array_elements(proposal_values) WITH ORDINALITY AS proposal(item,ordinal);
+  IF p."factTypes" IS DISTINCT FROM expected_types THEN RETURN false; END IF;
+  IF EXISTS (SELECT 1 FROM unnest(expected_types) AS facts(value) WHERE NOT EXISTS (
+    SELECT 1 FROM public."IngestionFactStream" s WHERE s."customerId"=p."customerId" AND s."sourceId"=p."sourceId" AND s."recordId"=p."recordId" AND s."factType"=facts.value
+  )) THEN RETURN false; END IF;
+  RETURN true;
+EXCEPTION WHEN OTHERS THEN RETURN false;
+END $$;
+ALTER TABLE public."IngestionProposalContent" ADD CONSTRAINT "IngestionProposalContent_typed_check" CHECK (proposals IS NULL OR public.valid_ingestion_proposals(proposals));
 CREATE FUNCTION public.require_ingestion_graph_complete() RETURNS trigger
 LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
 DECLARE valid boolean;
@@ -587,9 +599,9 @@ BEGIN
   ELSIF TG_TABLE_NAME='IngestionSourceRevision' THEN
     SELECT EXISTS (SELECT 1 FROM public."IngestionProposalProjection" WHERE "customerId"=NEW."customerId" AND "sourceId"=NEW."sourceId" AND "recordId"=NEW."recordId" AND "sourceRevisionId"=NEW.id) INTO valid;
   ELSIF TG_TABLE_NAME='IngestionProposalProjection' THEN
-    SELECT EXISTS (SELECT 1 FROM public."IngestionProposalContent" WHERE "projectionId"=NEW.id AND "customerId"=NEW."customerId")
+    SELECT EXISTS (SELECT 1 FROM public."IngestionProposalContent" WHERE "projectionId"=NEW.id AND "customerId"=NEW."customerId" AND (proposals IS NULL OR public.valid_ingestion_projection_content("projectionId",proposals)))
       AND EXISTS (SELECT 1 FROM public."IngestionRowOutcome" WHERE "projectionId"=NEW.id AND "receiptId" IN (SELECT id FROM public."IngestionOperationReceipt" WHERE "customerId"=NEW."customerId" AND "sourceId"=NEW."sourceId"))
-      AND NOT EXISTS (SELECT 1 FROM unnest(NEW."factTypes") AS facts(value) WHERE NOT EXISTS (SELECT 1 FROM public."IngestionFactStream" s WHERE s."customerId"=NEW."customerId" AND s."sourceId"=NEW."sourceId" AND s."recordId"=NEW."recordId" AND s."factType"=facts.value)) INTO valid;
+      INTO valid;
   ELSE
     SELECT EXISTS (SELECT 1 FROM public."IngestionProposalProjection" p WHERE p."customerId"=NEW."customerId" AND p."sourceId"=NEW."sourceId" AND p."recordId"=NEW."recordId" AND p."factTypes" @> ARRAY[NEW."factType"]::text[]) INTO valid;
   END IF;
@@ -665,5 +677,5 @@ CREATE INDEX "IngestionOutcome_scope_idx" ON public."IngestionRowOutcome"("custo
 CREATE INDEX "IngestionRevision_received_idx" ON public."IngestionSourceRevision"("customerId","receivedAt");
 
 REVOKE ALL ON FUNCTION public.guard_ingestion_immutable(),public.valid_ingestion_mapping(jsonb),public.guard_ingestion_configuration(),public.guard_ingestion_configuration_child(),public.guard_ingestion_source(),public.guard_ingestion_retention(),public.guard_ingestion_record(),public.guard_ingestion_revision(),public.guard_ingestion_projection(),public.guard_ingestion_content(),public.guard_ingestion_receipt(),public.guard_ingestion_receipt_scope(),public.guard_ingestion_cursor_transition(),public.require_ingestion_cursor_applied(),public.guard_ingestion_outcome(),public.require_ingestion_receipt_complete(),public.require_ingestion_redaction_complete(),public.require_ingestion_graph_complete(),public.require_ingestion_source_configured(),public.require_ingestion_configuration_sealed() FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.valid_ingestion_receipt(uuid),public.valid_ingestion_proposals(uuid,jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.valid_ingestion_receipt(uuid),public.valid_ingestion_proposals(jsonb),public.valid_ingestion_projection_content(uuid,jsonb) FROM PUBLIC;
 
