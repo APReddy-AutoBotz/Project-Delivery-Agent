@@ -107,15 +107,6 @@ function assertMilestoneCommitGuards(receipt, sourceAssessmentId) {
 }
 
 const root = resolve(import.meta.dirname, "..");
-const project =
-  "pdaa-acceptance-" + Date.now() + "-" + randomUUID().slice(0, 8);
-const fixture = resolve(root, "tmp", project);
-const artifacts = resolve(root, "artifacts");
-const output = join(artifacts, project);
-mkdirSync(fixture, { recursive: true, mode: 0o700 });
-mkdirSync(output, { recursive: true });
-const canonical = join(artifacts, "production-acceptance.json");
-if (existsSync(canonical)) unlinkSync(canonical);
 function git(args) {
   const result = spawnSync(
     "git",
@@ -126,11 +117,24 @@ function git(args) {
     throw new Error("Acceptance source revision unavailable");
   return result.stdout.trim();
 }
+const sourceRevision = git(["rev-parse", "HEAD"]);
+const sourceTree = git(["rev-parse", "HEAD^{tree}"]);
+const sourceStatus = git(["status", "--porcelain"]);
+const project =
+  "pdaa-acceptance-" + Date.now() + "-" + randomUUID().slice(0, 8);
+const fixture = resolve(root, "tmp", project);
+const artifacts = resolve(root, "artifacts");
+const output = join(artifacts, project);
+mkdirSync(fixture, { recursive: true, mode: 0o700 });
+mkdirSync(output, { recursive: true });
+const canonical = join(artifacts, "production-acceptance.json");
+if (existsSync(canonical)) unlinkSync(canonical);
 const record = {
   runId: project,
-  sourceRevision: git(["rev-parse", "HEAD"]),
-  sourceTree: git(["rev-parse", "HEAD^{tree}"]),
-  workingTreeDirty: Boolean(git(["status", "--porcelain"])),
+  sourceRevision,
+  sourceTree,
+  workingTreeDirty: Boolean(sourceStatus),
+  workingTreeStatus: sourceStatus,
   startedAt: new Date().toISOString(),
   status: "running",
   images: {},
