@@ -120,6 +120,7 @@ function git(args) {
 const sourceRevision = git(["rev-parse", "HEAD"]);
 const sourceTree = git(["rev-parse", "HEAD^{tree}"]);
 const sourceStatus = git(["status", "--porcelain"]);
+console.log("Acceptance pre-setup Git status:", JSON.stringify(sourceStatus));
 const project =
   "pdaa-acceptance-" + Date.now() + "-" + randomUUID().slice(0, 8);
 const fixture = resolve(root, "tmp", project);
