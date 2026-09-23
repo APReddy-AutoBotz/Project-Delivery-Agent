@@ -748,7 +748,7 @@ describe("durable ingestion persistence", () => {
       await tx.$queryRaw`SELECT id FROM public."IngestionSource" WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid FOR UPDATE`;
       lockDelayedRead = repository.readReceipt(manager, { sourceId, receiptId: persisted.receiptId });
       await new Promise((resolve) => setTimeout(resolve, 6000));
-    });
+    }, { timeout: 15_000 });
     const afterExpiryRead = (await lockDelayedRead) as { outcomes: { contentAvailable: boolean; proposals: unknown }[] };
     expect(afterExpiryRead.outcomes[0]).toMatchObject({ contentAvailable: false, proposals: null });
 
