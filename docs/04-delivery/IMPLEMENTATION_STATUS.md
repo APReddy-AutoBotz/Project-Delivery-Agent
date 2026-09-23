@@ -598,10 +598,13 @@ Configured project UUID/key pairs bound discovery and enhanced JQL search;
 configured Jira scalar fields are normalized to typed proposals with stable
 content hashes and checked against the returned project identity. Synthetic
 adapter coverage exercises read-only connection, configured visibility, search
-scope/cursor, field projection, direct lookup and finite failure redaction. The
-selected adapter tests pass 8/8 and its strict typecheck passes.
+scope/cursor, field projection, direct lookup and finite failure redaction. The focused adapter tests pass 10/10; the full local unit suite passes 1,499/1,499 tests across 75 files. Workspace lint, strict typecheck, build, architecture, contracts and documentation validation pass.
 
-This remains a candidate checkpoint pending exact-head non-author review, matching hosted CI and merge. Local synthetic validation does not replace hosted database, populated upgrade or encrypted recovery gates. No route or worker invokes the adapter; no live Jira
+The prior hosted Foundation run passed build, architecture/contracts, lint,
+typecheck and all 1,499 units, then stopped at the missing jira.js dependency
+register entry. That governance record is now added. Exact-head non-author review,
+fresh hosted CI and merge remain open. Hosted database integration, populated-prefix
+upgrade and encrypted recovery gates remain open. No route or worker invokes the adapter; no live Jira
 credential, OAuth rotation, webhook, scheduler or external write is enabled.
 Sprint/comment/full changelog/link normalization and durable reader wiring remain
 open, so AC-CON-001/002/003, AC-MNT-003, Issue #7 stories and accepted totals are
