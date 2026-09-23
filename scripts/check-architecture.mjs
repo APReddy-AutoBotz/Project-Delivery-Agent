@@ -12,6 +12,11 @@ const policies = {
     node: true,
   },
   "@pdaa/domain": { workspace: [], external: ["zod"] },
+  "@pdaa/connectors-jira": {
+    workspace: ["@pdaa/domain"],
+    external: ["jira.js", "zod"],
+    node: true,
+  },
   "@pdaa/platform": {
     workspace: ["@pdaa/domain"],
     external: ["zod", "jose"],

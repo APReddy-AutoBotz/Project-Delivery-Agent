@@ -10,7 +10,7 @@ type Fixture = {
 };
 
 it("CI-FND-001: actual package and source boundaries are acyclic and expose public interfaces", () => {
-  expect(checkArchitecture(loadWorkspace(process.cwd())).packages).toBe(7);
+  expect(checkArchitecture(loadWorkspace(process.cwd())).packages).toBe(8);
 });
 it("CI-FND-001: rejects dependency cycles, SDK leakage, private imports and alias bypasses", () => {
   const domain = (): Fixture => ({
@@ -70,7 +70,7 @@ it("CI-FND-001: the web/domain workspace edge carries only erased public types",
   const web = packages.find((pkg) => pkg.manifest.name === "@pdaa/web")!;
   web.sources["src/evidence-boundary.ts"] =
     'import type { AssessmentDelivery } from "@pdaa/domain"; export type Result = AssessmentDelivery;';
-  expect(checkArchitecture(packages).packages).toBe(7);
+  expect(checkArchitecture(packages).packages).toBe(8);
   web.sources["src/evidence-boundary.ts"] =
     'import { resolveSourceAuthority } from "@pdaa/domain"; export const evaluate = resolveSourceAuthority;';
   expect(() => checkArchitecture(packages)).toThrow(/type-only/);

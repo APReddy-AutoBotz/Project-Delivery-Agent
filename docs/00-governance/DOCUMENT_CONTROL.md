@@ -201,3 +201,13 @@ approval above is therefore effective and Issue #1 is closed. Master-plan PR #3
 and partial-foundation PR #4 also merged after review and checks. See
 PUBLICATION_RECORD.md for full immutable SHAs and links. This does not mark any
 complete R0/R1 story or customer release accepted.
+## EXEC-009 Stage 3 implementation delegation, 2026-09-24
+
+The existing Product Owner controller delegation covers this bounded,
+synthetic-first Jira read-adapter implementation after the approved Issue #7
+requirements, EXEC-009 and exact-SHA review/check gates. The adapter is read-only
+by interface, project/key and field allowlists are explicit, and upstream Jira
+visibility remains enforced by the integration identity. This entry does not
+activate live credentials, approve a commercial/legal change, grant external
+access, publish source facts or change story/release acceptance. No user-visible
+workflow or design change is part of this increment.

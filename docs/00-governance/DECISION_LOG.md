@@ -1,5 +1,17 @@
 # Decision Log
 
+## EXEC-009 Stage 3 Jira reader, 2026-09-24
+
+Proceed with the bounded Jira Cloud read adapter behind the first-party
+`ReadOnlyConnector` contract. Pin approved MIT `jira.js` 6.2.0 inside the new
+connector-specific workspace package. Require caller-supplied project-key mapping
+and explicit typed scalar field mapping; query only those Jira project keys and
+retain Jira-side project/issue visibility filtering. Normalize results into typed
+proposals without asserting provenance or publishing fact versions. Keep the SDK
+client and any token handling inside the adapter package. This authorizes no live
+credential activation, OAuth persistence, webhook, write, app route or Issue #7
+acceptance. Complete exact-candidate review and checks before PR merge.
+
 ## EXEC-009 durable proposal persistence design, 2026-09-23
 
 Approve the Stage 2 design in

@@ -76,6 +76,24 @@ Authentication:
 - Atomic refresh-token rotation
 - Read-only mode
 
+### Current implementation boundary
+
+`@pdaa/connectors-jira` is the first Jira Cloud adapter. Its caller supplies a
+trusted, explicit mapping between internal project UUIDs and Jira project keys,
+plus a field allowlist and canonical fact types. Discovery probes only the
+configured Jira project keys; issue search uses enhanced JQL search constrained
+to those keys, and Jira remains responsible for Browse Projects and issue-level
+security filtering. Each returned issue is checked again against the same
+project mapping before it can cross the connector port. Only selected scalar
+fields become typed proposals. Source values remain proposals; the adapter does
+not publish canonical facts or imply source authority.
+
+The adapter currently reads Jira issues and selected scalar fields only. Sprint,
+comment, full changelog, and linked-issue observation normalization, OAuth
+authorization/atomic refresh-token persistence, webhook verification and
+durable cursor reconciliation remain later EXEC-009 stages. No route or worker
+currently invokes this adapter, and synthetic fixtures remain the default.
+
 ## Spreadsheet integration
 
 The spreadsheet connector must:

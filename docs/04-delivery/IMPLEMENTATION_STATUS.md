@@ -590,3 +590,20 @@ storage. Full database reads, migration/audit-trigger checks, fresh worker progr
 and seven browser workflows passed; web/API readiness is healthy. No pre-incident
 full database snapshot was available for an exact comparison. Issue #5 records the
 recovery evidence and successful merged-main CI.
+## EXEC-009 Stage 3 Jira reader checkpoint, 2026-09-24
+
+The current candidate adds a new `@pdaa/connectors-jira` workspace package with
+the approved `jira.js` 6.2.0 client kept behind a first-party read-only contract.
+Configured project UUID/key pairs bound discovery and enhanced JQL search;
+configured Jira scalar fields are normalized to typed proposals with stable
+content hashes and checked against the returned project identity. Synthetic
+adapter coverage exercises read-only connection, configured visibility, search
+scope/cursor, field projection, direct lookup and finite failure redaction. The
+selected adapter tests pass 8/8 and its strict typecheck passes.
+
+This remains a candidate checkpoint pending full validation, non-author review,
+matching hosted CI and merge. No route or worker invokes the adapter; no live Jira
+credential, OAuth rotation, webhook, scheduler or external write is enabled.
+Sprint/comment/full changelog/link normalization and durable reader wiring remain
+open, so AC-CON-001/002/003, AC-MNT-003, Issue #7 stories and accepted totals are
+unchanged. The existing Stage 2 tables do not change in this adapter increment.

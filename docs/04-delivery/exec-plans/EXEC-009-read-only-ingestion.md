@@ -457,3 +457,22 @@ encrypted recovery validation are pending because the Docker service is unavaila
 The default `pdaa` database was not used. Implementation, Issue #7 acceptance and
 story totals remain separate: native database validation, independent exact-code
 review and matching CI are still required before this checkpoint can advance.
+## Stage 3 Jira issue reader checkpoint, 2026-09-24
+
+This synthetic-first increment adds `@pdaa/connectors-jira` as a connector-package
+adapter over the approved `jira.js` SDK. Explicit internal-project/Jira-key mappings
+bound project discovery, JQL issue search and direct record lookup. Only configured
+scalar fields are projected into typed, hashed proposals. The adapter rechecks
+project identity, same-origin links and first-party page/cursor contracts, and maps
+SDK failures to finite redacted classes. Eight synthetic contract cases cover
+connection, scope, permissions, projection, paging, lookup and failure redaction.
+
+No API or worker invokes the adapter. There is no live account, OAuth callback,
+refresh-token persistence, webhook, scheduled reconciliation, sprint/comment/full
+changelog/link normalization, source-fact publication or write method. The existing
+proposal persistence path is not yet wired to this reader. AC-CON-001/002/003 and
+AC-MNT-003 remain incomplete; no Issue #7 story or acceptance total changes. No new
+database migration is needed for this adapter-only boundary; the already merged
+Stage 2 proposal tables remain as previously documented. Next is independent exact-
+candidate review, complete relevant CI and PR integration, followed by the separate
+OAuth/webhook/reconciliation and spreadsheet-upload increments.
