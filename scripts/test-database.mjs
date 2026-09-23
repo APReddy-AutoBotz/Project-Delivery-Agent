@@ -11,6 +11,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createDatabase } from "../packages/data/dist/index.js";
 import { assertSyntheticDatabaseUrl } from "../packages/platform/dist/index.js";
+import { verifyIngestionPrefixNineUpgrade } from "./acceptance/ingestion-prefix-nine-upgrade.mjs";
 const source = assertSyntheticDatabaseUrl(
   process.env.PDAA_DATABASE_URL ?? "",
   "pdaa",
@@ -24,16 +25,20 @@ if (
   throw new Error(
     "Database rehearsal requires local synthetic pdaa configuration",
   );
+const prefixNineUpgrade = await verifyIngestionPrefixNineUpgrade(
+  process.env.PDAA_DATABASE_URL,
+);
 const evidencePath = "artifacts/database-validation.json";
 if (existsSync(evidencePath))
   renameSync(
     evidencePath,
     "artifacts/database-validation-retained-" + randomUUID() + ".json",
   );
-const admin = createDatabase(source.toString());
 const databaseName = "pdaa_test_" + Date.now();
-await admin.$executeRawUnsafe('CREATE DATABASE "' + databaseName + '"');
-await admin.$disconnect();
+source.pathname = "/postgres";
+const creator = createDatabase(source.toString());
+await creator.$executeRawUnsafe('CREATE DATABASE "' + databaseName + '"');
+await creator.$disconnect();
 source.pathname = "/" + databaseName;
 const env = { ...process.env, PDAA_DATABASE_URL: source.toString() };
 function node(args, cwd = process.cwd()) {
@@ -98,6 +103,20 @@ try {
     "ScalarReconciliationRequest",
     "ScalarReconciliationCheck",
     "ScalarReconciliationAssignment",
+    "IngestionSource",
+    "IngestionConfigurationRevision",
+    "IngestionConfigurationProject",
+    "IngestionConfigurationReader",
+    "IngestionRetentionPolicy",
+    "IngestionExternalRecord",
+    "IngestionFactStream",
+    "IngestionSourceRevision",
+    "IngestionProposalProjection",
+    "IngestionProposalContent",
+    "IngestionOperationReceipt",
+    "IngestionReceiptProjectScope",
+    "IngestionCursorTransition",
+    "IngestionRowOutcome",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -172,6 +191,7 @@ node([
   "tests/milestone-persistence.integration.test.ts",
   "tests/milestone-reconciliation.integration.test.ts",
   "tests/scalar-reconciliation.integration.test.ts",
+  "tests/ingestion-persistence.integration.test.ts",
   "tests/project-evidence.integration.test.ts",
   "--no-file-parallelism",
 ]);
@@ -238,7 +258,25 @@ writeFileSync(
         "ScalarReconciliationAssignment",
       ],
       scalarReconciliationChecks: "passed",
-      businessTables: 42,
+      ingestionTables: [
+        "IngestionSource",
+        "IngestionConfigurationRevision",
+        "IngestionConfigurationProject",
+        "IngestionConfigurationReader",
+        "IngestionRetentionPolicy",
+        "IngestionExternalRecord",
+        "IngestionFactStream",
+        "IngestionSourceRevision",
+        "IngestionProposalProjection",
+        "IngestionProposalContent",
+        "IngestionOperationReceipt",
+        "IngestionReceiptProjectScope",
+        "IngestionCursorTransition",
+        "IngestionRowOutcome",
+      ],
+      ingestionPersistenceChecks: "passed",
+      prefixNineUpgrade,
+      businessTables: 56,
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({

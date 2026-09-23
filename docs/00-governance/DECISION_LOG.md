@@ -1,5 +1,40 @@
 # Decision Log
 
+## EXEC-009 durable proposal persistence design, 2026-09-23
+
+Approve the Stage 2 design in
+[EXEC-009](../04-delivery/exec-plans/EXEC-009-read-only-ingestion.md), reviewed
+independently at section SHA256
+`3dcc2f58a4d0762b0a351a3265b45bed08e4f7661216216b014975091a8ad563`.
+Persist connector-instance, external-record, source-revision, mapping-projection,
+per-fact stream and command/event/import receipt identities independently. Same
+source revision with changed source digest and same revision/mapping projection
+with changed proposal digest are integrity conflicts. CSV identity is exact
+customer/source/sheet/key and excludes filename/row order. Require both current
+project grants and a current per-project source-reader ACL for content and
+replays. Use a never-reset cursor revision and generation-fenced explicit reset.
+Retain proposals separately from immutable receipt metadata with customer-set
+expiry, fail closed without retention configuration, and redact expired content
+while preserving permitted hashes, identities and finite outcomes.
+
+The independent review's P1 design findings were resolved in the reviewed
+section. This approves only the synthetic-first durable proposal control plane;
+it does not approve source-evidence publication, live Jira authorization,
+credential/webhook processing, worker privileges, external writes or story
+acceptance. Proceed with additive schema and native scoped repositories after
+this gate; preserve all released migrations.
+
+## EXEC-009 Stage 2 implementation checkpoint, 2026-09-23
+
+The additive implementation now contains 14 ingestion tables, scoped services,
+finite grants and receipt/configuration/cursor/proposal controls. The database-
+independent unit suite passes 1,489 tests across 74 files; Prisma validation and
+strict package TypeScript checks pass. Local Docker/PostgreSQL is unavailable, so
+native migration, integration/COMMIT, populated-prefix-nine upgrade and encrypted
+recovery evidence remain pending. The default `pdaa` database was not used. Keep
+the source-publication boundary, accepted-story totals and Issue #7 status unchanged
+until those gates and exact-candidate review/CI are complete.
+
 ## Scalar merge and next synthetic ingestion batch, 2026-09-22
 
 PR54 merged exact reviewed candidate `2929a14` as `ddbafb4` after green required CI and

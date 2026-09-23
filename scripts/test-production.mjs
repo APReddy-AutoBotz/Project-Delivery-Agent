@@ -107,15 +107,6 @@ function assertMilestoneCommitGuards(receipt, sourceAssessmentId) {
 }
 
 const root = resolve(import.meta.dirname, "..");
-const project =
-  "pdaa-acceptance-" + Date.now() + "-" + randomUUID().slice(0, 8);
-const fixture = resolve(root, "tmp", project);
-const artifacts = resolve(root, "artifacts");
-const output = join(artifacts, project);
-mkdirSync(fixture, { recursive: true, mode: 0o700 });
-mkdirSync(output, { recursive: true });
-const canonical = join(artifacts, "production-acceptance.json");
-if (existsSync(canonical)) unlinkSync(canonical);
 function git(args) {
   const result = spawnSync(
     "git",
@@ -126,11 +117,25 @@ function git(args) {
     throw new Error("Acceptance source revision unavailable");
   return result.stdout.trim();
 }
+const sourceRevision = git(["rev-parse", "HEAD"]);
+const sourceTree = git(["rev-parse", "HEAD^{tree}"]);
+const sourceStatus = git(["status", "--porcelain"]);
+console.log("Acceptance pre-setup Git status:", JSON.stringify(sourceStatus));
+const project =
+  "pdaa-acceptance-" + Date.now() + "-" + randomUUID().slice(0, 8);
+const fixture = resolve(root, "tmp", project);
+const artifacts = resolve(root, "artifacts");
+const output = join(artifacts, project);
+mkdirSync(fixture, { recursive: true, mode: 0o700 });
+mkdirSync(output, { recursive: true });
+const canonical = join(artifacts, "production-acceptance.json");
+if (existsSync(canonical)) unlinkSync(canonical);
 const record = {
   runId: project,
-  sourceRevision: git(["rev-parse", "HEAD"]),
-  sourceTree: git(["rev-parse", "HEAD^{tree}"]),
-  workingTreeDirty: Boolean(git(["status", "--porcelain"])),
+  sourceRevision,
+  sourceTree,
+  workingTreeDirty: Boolean(sourceStatus),
+  workingTreeStatus: sourceStatus,
   startedAt: new Date().toISOString(),
   status: "running",
   images: {},
@@ -529,7 +534,7 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 9);
+    assert.equal(upgrade.migrations.length, 10);
     assert(Number.isFinite(upgrade.upgradeMeasurement.elapsedMs));
     assert(upgrade.upgradeMeasurement.elapsedMs > 0);
     assert(
@@ -552,7 +557,7 @@ try {
       assert.equal(row.rolled_back_at, null);
       assert.equal(row.applied_steps_count, 1);
     }
-    assert.equal(upgrade.businessTableCount, 42);
+    assert.equal(upgrade.businessTableCount, 56);
     assert.deepEqual(
       Object.keys(upgrade.retainedPriorRowCounts).sort(),
       [...upgrade.retainedPriorBusinessTables].sort(),
@@ -599,6 +604,20 @@ try {
         "ScalarReconciliationRequest",
         "ScalarReconciliationCheck",
         "ScalarReconciliationAssignment",
+        "IngestionSource",
+        "IngestionConfigurationRevision",
+        "IngestionConfigurationProject",
+        "IngestionConfigurationReader",
+        "IngestionRetentionPolicy",
+        "IngestionExternalRecord",
+        "IngestionFactStream",
+        "IngestionSourceRevision",
+        "IngestionProposalProjection",
+        "IngestionProposalContent",
+        "IngestionOperationReceipt",
+        "IngestionReceiptProjectScope",
+        "IngestionCursorTransition",
+        "IngestionRowOutcome",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [
@@ -670,7 +689,7 @@ try {
     true,
   );
   checks.passed.push(
-    "INT-MOD-001: complete canonical creation through API credentials, scoped references and revoked retry denials, six genuine prior-release upgrades, 42-table encrypted restore and real sealed aggregate COMMIT guards",
+    "INT-MOD-001: complete canonical creation through API credentials, scoped references and revoked retry denials, six genuine prior-release upgrades, 56-table encrypted restore and real sealed aggregate COMMIT guards",
   );
   checks.passed.push(
     "INT-EVD-001 partial: immutable-foundation forward upgrade under migration owner, exact retained rows and ledger, finite runtime privileges, human fact history and quarantined encrypted restore",
@@ -923,3 +942,4 @@ renameSync(staged, canonical);
 console.log(
   "Production acceptance passed; immutable image IDs and source revision recorded after successful teardown.",
 );
+

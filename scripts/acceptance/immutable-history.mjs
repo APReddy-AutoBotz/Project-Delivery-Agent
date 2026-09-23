@@ -26,6 +26,18 @@ const immutableMessages = {
   ScalarReconciliationRequest: "Scalar reconciliation request is immutable",
   ScalarReconciliationCheck: "Scalar reconciliation check is immutable",
   ScalarReconciliationAssignment: "Scalar reconciliation assignment is immutable",
+  IngestionConfigurationRevision: "Invalid ingestion configuration seal",
+  IngestionConfigurationProject: "Ingestion configuration scope is immutable",
+  IngestionConfigurationReader: "Ingestion configuration scope is immutable",
+  IngestionExternalRecord: "External record identity is immutable",
+  IngestionFactStream: "Ingestion history is immutable",
+  IngestionSourceRevision: "Ingestion source revision is immutable",
+  IngestionProposalProjection: "Ingestion proposal projection is immutable",
+  IngestionProposalContent: "Ingestion content permits one-way expiry redaction only",
+  IngestionOperationReceipt: "Ingestion operation receipt is immutable",
+  IngestionReceiptProjectScope: "Ingestion receipt scope is immutable",
+  IngestionCursorTransition: "Ingestion cursor transition is immutable",
+  IngestionRowOutcome: "Ingestion row outcome is immutable",
   ...Object.fromEntries(
     canonicalTables.map((table) => [
       table,
@@ -40,6 +52,7 @@ const sealMessages = {
   MilestoneReconciliationRequest: "Invalid reconciliation request seal",
   ScalarReconciliationRequest: "Invalid scalar reconciliation request seal",
   CanonicalProject: "Canonical seal unavailable",
+  IngestionConfigurationRevision: "Invalid ingestion configuration seal",
 };
 // CASCADE can visit a dependent table's statement trigger first. Only the
 // exact history guards used by these tables are eligible, never arbitrary P0001.
@@ -47,6 +60,7 @@ const truncateMessages = new Set([
   "Audit records are immutable",
   "Fact history is immutable",
   "Canonical creation history is immutable",
+  "Ingestion history is immutable",
 ]);
 
 export async function verifyImmutableHistoryMutation(
@@ -56,8 +70,16 @@ export async function verifyImmutableHistoryMutation(
 ) {
   assert(Object.hasOwn(immutableMessages, table), "Unknown history table");
   assert(["UPDATE", "DELETE", "TRUNCATE"].includes(operation));
-  const identity =
-    table === "MilestoneConsistencyContributorVersion" ? "assessmentId" : "id";
+  const identity = {
+    MilestoneConsistencyContributorVersion: "assessmentId",
+    IngestionConfigurationRevision: "revision",
+    IngestionConfigurationProject: "projectId",
+    IngestionConfigurationReader: "subject",
+    IngestionProposalContent: "projectionId",
+    IngestionReceiptProjectScope: "receiptId",
+    IngestionCursorTransition: "receiptId",
+    IngestionRowOutcome: "receiptId",
+  }[table] ?? "id";
   const sql =
     operation === "UPDATE"
       ? `UPDATE "${table}" SET "${identity}"="${identity}"`

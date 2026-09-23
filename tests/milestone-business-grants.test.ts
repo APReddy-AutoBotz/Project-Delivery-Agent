@@ -5,6 +5,21 @@ import { applyBusinessTableGrants } from "../packages/operations/src/business-gr
 // NFR-SEC-001, TR-STACK-005, FR-EVD-012: a no-ACL restore must rebuild the
 // reviewed finite function boundary. These contracts complement real role probes.
 type GrantClient = Parameters<typeof applyBusinessTableGrants>[0];
+function splitFunctionSignatures(value: string): string[] {
+  const signatures: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < value.length; index++) {
+    if (value[index] === "(") depth++;
+    else if (value[index] === ")") depth--;
+    else if (value[index] === "," && depth === 0) {
+      signatures.push(value.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  signatures.push(value.slice(start).trim());
+  return signatures;
+}
 function client(name: string, rolsuper = false, invalid = 0) {
   return {
     query: vi
@@ -15,7 +30,7 @@ function client(name: string, rolsuper = false, invalid = 0) {
   };
 }
 
-it("rebuilds finite migration-5/6/7 function boundaries before granting only the nine API functions", async () => {
+it("rebuilds finite released and ingestion function boundaries before granting only the approved API validators", async () => {
   const owner = client("pdaa_migrate");
   await applyBusinessTableGrants(owner as unknown as GrantClient);
   const sql = owner.query.mock.calls[2]![0] as string;
@@ -29,7 +44,7 @@ it("rebuilds finite migration-5/6/7 function boundaries before granting only the
   const signatures = [
     ...migration.matchAll(/REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC;/g),
   ]
-    .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
+    .flatMap((match) => splitFunctionSignatures(match[1]!))
     .sort();
   expect(signatures).toHaveLength(14);
   const stage3 = readFileSync(
@@ -42,7 +57,7 @@ it("rebuilds finite migration-5/6/7 function boundaries before granting only the
   const newSignatures = [
     ...stage3.matchAll(/REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC;/g),
   ]
-    .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
+    .flatMap((match) => splitFunctionSignatures(match[1]!))
     .sort();
   expect(newSignatures).toHaveLength(7);
   const scalar = readFileSync(
@@ -55,7 +70,7 @@ it("rebuilds finite migration-5/6/7 function boundaries before granting only the
   const scalarSignatures = [
     ...scalar.matchAll(/REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC;/g),
   ]
-    .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
+    .flatMap((match) => splitFunctionSignatures(match[1]!))
     .sort();
   expect(scalarSignatures).toHaveLength(8);
   const revoked = [
@@ -63,17 +78,24 @@ it("rebuilds finite migration-5/6/7 function boundaries before granting only the
       /REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;/g,
     ),
   ];
-  expect(revoked).toHaveLength(3);
+  const ingestionSignatures = [
+    "public.valid_ingestion_proposals(jsonb)",
+    "public.valid_ingestion_projection_content(uuid,jsonb)",
+    "public.valid_ingestion_receipt(uuid)",
+  ];
+  expect(revoked).toHaveLength(4);
   expect(
     revoked
-      .flatMap((match) => match[1]!.split(",").map((part) => part.trim()))
+      .flatMap((match) => splitFunctionSignatures(match[1]!))
       .sort(),
-  ).toEqual([...signatures, ...newSignatures, ...scalarSignatures].sort());
+  ).toEqual(
+    [...signatures, ...newSignatures, ...scalarSignatures, ...ingestionSignatures].sort(),
+  );
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
   ];
-  expect(granted).toHaveLength(3);
-  expect(granted.flatMap((match) => match[1]!.split(",")).sort()).toEqual(
+  expect(granted).toHaveLength(4);
+  expect(granted.flatMap((match) => splitFunctionSignatures(match[1]!)).sort()).toEqual(
     [
       "public.valid_canonical_state_binding(uuid)",
       "public.valid_milestone_consistency_assessment(uuid)",
@@ -84,19 +106,20 @@ it("rebuilds finite migration-5/6/7 function boundaries before granting only the
       "public.valid_scalar_reconciliation_assignment(uuid)",
       "public.valid_scalar_reconciliation_check(uuid)",
       "public.valid_scalar_reconciliation_request(uuid)",
+      ...ingestionSignatures,
     ].sort(),
   );
   for (const grant of granted)
-    for (const signature of grant[1]!.split(",")) {
+    for (const signature of splitFunctionSignatures(grant[1]!)) {
       const revoke = revoked.find((match) =>
-        match[1]!.split(",").includes(signature),
+        splitFunctionSignatures(match[1]!).includes(signature),
       );
       expect(revoke).toBeDefined();
       expect(revoke!.index).toBeLessThan(grant.index!);
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(6);
+  ]).toHaveLength(8);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {
@@ -144,3 +167,4 @@ it("refuses ACL reconstruction while any business table has the wrong owner", as
   ).rejects.toThrow("Unexpected business table owner");
   expect(denied.query).toHaveBeenCalledTimes(2);
 });
+

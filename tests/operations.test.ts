@@ -8,7 +8,8 @@ import {
   readdirSync,
   rmSync,
 } from "node:fs";
-import { resolve, join } from "node:path";
+import { tmpdir } from "node:os";
+import { resolve, join, sep } from "node:path";
 import { randomBytes, createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { spawnSync } from "node:child_process";
@@ -26,14 +27,12 @@ import {
   type BackupMetadata,
 } from "../packages/operations/src/archive.js";
 
-const temporaryRoot = resolve("tmp");
+const temporaryRoot = resolve(tmpdir());
 mkdirSync(temporaryRoot, { recursive: true });
-const fixture = mkdtempSync(join(temporaryRoot, "operations-unit-"));
+const fixture = mkdtempSync(join(temporaryRoot, "pdaa-operations-unit-"));
 afterAll(() => {
-  if (
-    !resolve(fixture).startsWith(
-      temporaryRoot + (process.platform === "win32" ? "\\" : "/"),
-    )
+    if (
+    !resolve(fixture).startsWith(temporaryRoot + sep)
   )
     throw new Error("Fixture containment failed");
   rmSync(fixture, { recursive: true, force: true });

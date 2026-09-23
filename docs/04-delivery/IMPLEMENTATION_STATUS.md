@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-22
+Updated: 2026-09-23
 
 ## Accepted implementation completion
 
@@ -19,6 +19,18 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
+PR #55 merged candidate `e5b03c3` as `937fee1` on 2026-09-22. The internal
+read-only connector contract and mapped CSV dry-run core are now on main: 103
+new focused tests, 1,486 hosted units, 127 integrations, 32 browser journeys,
+42-table recovery, three packaged profiles, six prior-prefix upgrades and three
+encrypted restores passed. Both required exact-head workflows and independent
+source/governance/native/production/distribution-original reviews passed.
+Actual merge tree/parents/all 16 changed raw files were verified; all nine
+migrations and the Antigravity stylesheet are unchanged.
+See the [final gate](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/55#issuecomment-5776515613)
+and [postmerge verification](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/55#issuecomment-5776534840).
+This is partial STORY-006/009 progress, not full Issue #7 acceptance or live import.
+
 PR #54 merged verified candidate `2929a14` as `ddbafb4` on 2026-09-22.
 Durable generic scalar reconciliation and Antigravity design integration are now
 on main. Both required workflows passed: 1,383 units, 127 integration cases, 32
@@ -32,15 +44,40 @@ acceptance remains withheld for unchanged shared GOLDEN-003 health/answer behavi
 No accepted-story count changes. Current distribution has 802 unresolved High/Critical
 scanner occurrences and five open release gates, not customer-release approval.
 
-Current branch `codex/read-only-ingestion-core` implements the approved synthetic-only
-read contract and mapped CSV dry-run under [EXEC-009](exec-plans/EXEC-009-read-only-ingestion.md)
-and Issue7. Jira/OAuth/webhooks/persistence/XLSX/upload/commit remain later stages.
-No UI/colour, permission, migration, dependency or external connector scope changes.
-Local validation passes: 103 new focused cases, 1,486 full unit tests across 74
-files, strict fixture compilation, full lint/typecheck/build, architecture and docs.
-The first parallel run's five affected existing suites pass unchanged serially;
-failure history and unchanged limits are recorded in EXEC-009. Independent final-SHA
-review, fresh hosted validation and this batch's merge remain pending.
+Next branch `codex/durable-ingestion-persistence` starts from the verified PR55
+merge. [EXEC-009](exec-plans/EXEC-009-read-only-ingestion.md) records the next coherent
+stage: durable scoped source/import proposals and row outcomes, replay/revision
+deduplication, atomic cursor/health progress and authorized services, with native
+race/restart, populated-nine-schema upgrade and encrypted recovery evidence.
+Preparation found that existing fact history, SQL proof validators and presentation
+assume human statements; connector-instance IDs are not per-fact stream IDs.
+Publishing genuine source facts requires a coupled identity/provenance design,
+not a fabricated human actor. The concrete schema/role design still requires review
+before implementation. Jira/OAuth/webhooks/XLSX/upload/commit remain in full scope.
+No further runtime, permission, schema, UI/colour, dependency or external scope
+change is claimed by this postmerge record. The local failure history remains in
+EXEC-009; normal parallel hosted units passed without relaxing assertions or limits.
+
+## EXEC-009 Stage 2 implementation checkpoint
+
+The reviewed synthetic-first design is now implemented locally as an additive
+tenth migration with 14 ingestion tables, a scoped `DatabaseIngestionRepository`,
+finite least-privilege grants, sealed configuration/mapping revisions, independent
+project-grant and source-reader checks, command/event/source-revision deduplication,
+generation-fenced cursor receipts, bounded row outcomes, retained proposal content
+and audited expiry redaction. Proposals remain separate from the human fact ledger;
+no endpoint, live adapter, credential flow, worker permission, external write or
+source-fact publication was added. The original nine migration files are untouched.
+
+The database-independent serial unit run passes 1,489 tests in 74 files. Prisma
+schema validation/generation and strict domain/data/operations TypeScript checks
+pass. The synthetic database integration, PostgreSQL migration/COMMIT probes,
+populated-prefix-nine upgrade and encrypted restore profiles have not run because
+the local Docker service is unavailable. No command connected to or migrated the
+default `pdaa` database. These results are an implementation checkpoint only:
+Issue #7 stories and acceptance totals remain unchanged, and the required native
+database, upgrade, recovery, independent exact-candidate review and matching CI
+gates remain open.
 
 ## Earlier unmerged checkpoints (historical)
 

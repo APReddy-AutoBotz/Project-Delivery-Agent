@@ -78,6 +78,9 @@ export const connectorRecordSchema = z
   .object({
     ref: connectorRecordRefSchema,
     revision: ingestionText(128),
+    // SHA-256 of the connector's stable, bounded source fields before field
+    // mapping. It is an idempotency input, not source authenticity evidence.
+    sourceContentHash: z.string().regex(/^[a-f0-9]{64}$/),
     observedAt: projectFactInstantSchema,
     effectiveAt: projectFactInstantSchema,
     deepLink: ingestionText(2048).nullable(),
