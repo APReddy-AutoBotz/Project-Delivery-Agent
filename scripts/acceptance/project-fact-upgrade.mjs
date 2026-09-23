@@ -429,6 +429,20 @@ export async function verifyFoundationUpgrade(
       "ScalarReconciliationRequest",
       "ScalarReconciliationCheck",
       "ScalarReconciliationAssignment",
+      "IngestionSource",
+      "IngestionConfigurationRevision",
+      "IngestionConfigurationProject",
+      "IngestionConfigurationReader",
+      "IngestionRetentionPolicy",
+      "IngestionExternalRecord",
+      "IngestionFactStream",
+      "IngestionSourceRevision",
+      "IngestionProposalProjection",
+      "IngestionProposalContent",
+      "IngestionOperationReceipt",
+      "IngestionReceiptProjectScope",
+      "IngestionCursorTransition",
+      "IngestionRowOutcome",
     ];
     for (const table of addedTables)
       assert.equal(
@@ -713,3 +727,4 @@ export async function verifyFoundationUpgrade(
     await supervisor.end();
   }
 }
+
