@@ -571,7 +571,6 @@ BEGIN
     IF jsonb_typeof(item) IS DISTINCT FROM 'object' OR item-'factType'-'value'<>'{}'::jsonb OR jsonb_typeof(item->'factType') IS DISTINCT FROM 'string' THEN RETURN false; END IF;
     fact_type:=item->>'factType';
     IF fact_type !~ '^[a-z][a-z0-9_.-]{0,95}$' OR fact_type=ANY(seen) OR NOT public.valid_project_fact_value(item->'value') THEN RETURN false; END IF;
-    IF NOT EXISTS (SELECT 1 FROM public."IngestionFactStream" s WHERE s."customerId"=p."customerId" AND s."sourceId"=p."sourceId" AND s."recordId"=p."recordId" AND s."factType"=fact_type) THEN RETURN false; END IF;
     seen:=array_append(seen,fact_type);
   END LOOP;
   IF p."factTypes" IS DISTINCT FROM seen THEN RETURN false; END IF;
@@ -589,7 +588,8 @@ BEGIN
     SELECT EXISTS (SELECT 1 FROM public."IngestionProposalProjection" WHERE "customerId"=NEW."customerId" AND "sourceId"=NEW."sourceId" AND "recordId"=NEW."recordId" AND "sourceRevisionId"=NEW.id) INTO valid;
   ELSIF TG_TABLE_NAME='IngestionProposalProjection' THEN
     SELECT EXISTS (SELECT 1 FROM public."IngestionProposalContent" WHERE "projectionId"=NEW.id AND "customerId"=NEW."customerId")
-      AND EXISTS (SELECT 1 FROM public."IngestionRowOutcome" WHERE "projectionId"=NEW.id AND "receiptId" IN (SELECT id FROM public."IngestionOperationReceipt" WHERE "customerId"=NEW."customerId" AND "sourceId"=NEW."sourceId")) INTO valid;
+      AND EXISTS (SELECT 1 FROM public."IngestionRowOutcome" WHERE "projectionId"=NEW.id AND "receiptId" IN (SELECT id FROM public."IngestionOperationReceipt" WHERE "customerId"=NEW."customerId" AND "sourceId"=NEW."sourceId"))
+      AND NOT EXISTS (SELECT 1 FROM unnest(NEW."factTypes") AS facts(value) WHERE NOT EXISTS (SELECT 1 FROM public."IngestionFactStream" s WHERE s."customerId"=NEW."customerId" AND s."sourceId"=NEW."sourceId" AND s."recordId"=NEW."recordId" AND s."factType"=facts.value)) INTO valid;
   ELSE
     SELECT EXISTS (SELECT 1 FROM public."IngestionProposalProjection" p WHERE p."customerId"=NEW."customerId" AND p."sourceId"=NEW."sourceId" AND p."recordId"=NEW."recordId" AND p."factTypes" @> ARRAY[NEW."factType"]::text[]) INTO valid;
   END IF;
@@ -666,3 +666,4 @@ CREATE INDEX "IngestionRevision_received_idx" ON public."IngestionSourceRevision
 
 REVOKE ALL ON FUNCTION public.guard_ingestion_immutable(),public.valid_ingestion_mapping(jsonb),public.guard_ingestion_configuration(),public.guard_ingestion_configuration_child(),public.guard_ingestion_source(),public.guard_ingestion_retention(),public.guard_ingestion_record(),public.guard_ingestion_revision(),public.guard_ingestion_projection(),public.guard_ingestion_content(),public.guard_ingestion_receipt(),public.guard_ingestion_receipt_scope(),public.guard_ingestion_cursor_transition(),public.require_ingestion_cursor_applied(),public.guard_ingestion_outcome(),public.require_ingestion_receipt_complete(),public.require_ingestion_redaction_complete(),public.require_ingestion_graph_complete(),public.require_ingestion_source_configured(),public.require_ingestion_configuration_sealed() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.valid_ingestion_receipt(uuid),public.valid_ingestion_proposals(uuid,jsonb) FROM PUBLIC;
+
