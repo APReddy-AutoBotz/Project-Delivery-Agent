@@ -729,7 +729,7 @@ describe("durable ingestion persistence", () => {
     const lockBoundaryHash = "e".repeat(64);
     await db.$executeRaw`
       INSERT INTO public."IngestionSourceRevision" (id,"customerId","sourceId","recordId",revision,"sourceContentHash","remoteObservedAt","remoteEffectiveAt","receivedAt")
-      VALUES (${lockBoundaryRevisionId}::uuid,${customerId}::uuid,${sourceId}::uuid,${sourceRecord[0]!.id}::uuid,${lockBoundaryRevision},${lockBoundaryHash},${new Date(eventRecord.observedAt)},${new Date(eventRecord.effectiveAt)},clock_timestamp()+INTERVAL '24 hours'-INTERVAL '5 seconds')`;
+      VALUES (${lockBoundaryRevisionId}::uuid,${customerId}::uuid,${sourceId}::uuid,${sourceRecord[0]!.id}::uuid,${lockBoundaryRevision},${lockBoundaryHash},${new Date(eventRecord.observedAt)},${new Date(eventRecord.effectiveAt)},clock_timestamp()-INTERVAL '24 hours'+INTERVAL '5 seconds')`;
     let lockDelayedPersistence: Promise<unknown> | undefined;
     await db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM public."IngestionExternalRecord" WHERE id=${sourceRecord[0]!.id}::uuid FOR UPDATE`;
