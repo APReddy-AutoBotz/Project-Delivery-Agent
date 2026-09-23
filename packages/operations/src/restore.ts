@@ -208,6 +208,7 @@ async function restoreArchive(
           (SELECT count(*)::int FROM "IngestionExternalRecord" r WHERE NOT EXISTS (SELECT 1 FROM "IngestionSourceRevision" v WHERE v."customerId"=r."customerId" AND v."sourceId"=r."sourceId" AND v."recordId"=r.id)) +
           (SELECT count(*)::int FROM "IngestionSourceRevision" r WHERE NOT EXISTS (SELECT 1 FROM "IngestionProposalProjection" p WHERE p."customerId"=r."customerId" AND p."sourceId"=r."sourceId" AND p."recordId"=r."recordId" AND p."sourceRevisionId"=r.id)) +
           (SELECT count(*)::int FROM "IngestionProposalProjection" p WHERE NOT EXISTS (SELECT 1 FROM "IngestionProposalContent" c WHERE c."customerId"=p."customerId" AND c."projectionId"=p.id) OR NOT EXISTS (SELECT 1 FROM "IngestionRowOutcome" o WHERE o."customerId"=p."customerId" AND o."sourceId"=p."sourceId" AND o."projectionId"=p.id AND o.state='ACCEPTED')) +
+          (SELECT count(*)::int FROM (SELECT p.id,facts.value FROM "IngestionProposalProjection" p CROSS JOIN LATERAL unnest(p."factTypes") AS facts(value) WHERE NOT EXISTS (SELECT 1 FROM "IngestionFactStream" s WHERE s."customerId"=p."customerId" AND s."sourceId"=p."sourceId" AND s."recordId"=p."recordId" AND s."factType"=facts.value)) missing_streams) +
           (SELECT count(*)::int FROM "IngestionFactStream" s WHERE NOT EXISTS (SELECT 1 FROM "IngestionProposalProjection" p WHERE p."customerId"=s."customerId" AND p."sourceId"=s."sourceId" AND p."recordId"=s."recordId" AND p."factTypes" @> ARRAY[s."factType"]::text[])) +
           (SELECT count(*)::int FROM "FactAssessment" a WHERE a."scalarReconciliationCheckId" IS NOT NULL AND NOT EXISTS (
             SELECT 1 FROM "ScalarReconciliationCheck" c WHERE c.id=a."scalarReconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId" AND c."factId"=a."factId"
@@ -261,3 +262,4 @@ async function restoreArchive(
     rmSync(temporary, { recursive: true, force: true });
   }
 }
+
