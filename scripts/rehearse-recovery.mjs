@@ -30,6 +30,7 @@ const sourceName = JSON.parse(
 ).databaseName;
 if (typeof sourceName !== "string" || !/^pdaa_test_[0-9]+$/.test(sourceName))
   throw new Error("No successful isolated rehearsal database recorded");
+url.pathname = "/" + sourceName;
 const dump = "/tmp/" + target + ".dump";
 const dockerEnvironment = Object.fromEntries(
   Object.entries(process.env).filter(
@@ -78,7 +79,7 @@ try {
       "-U",
       "pdaa",
       "-d",
-      "pdaa",
+      sourceName,
       "-Atc",
       "SELECT system_identifier::text FROM pg_control_system()",
     ],
@@ -154,6 +155,20 @@ try {
     "ScalarReconciliationRequest",
     "ScalarReconciliationCheck",
     "ScalarReconciliationAssignment",
+    "IngestionSource",
+    "IngestionConfigurationRevision",
+    "IngestionConfigurationProject",
+    "IngestionConfigurationReader",
+    "IngestionRetentionPolicy",
+    "IngestionExternalRecord",
+    "IngestionFactStream",
+    "IngestionSourceRevision",
+    "IngestionProposalProjection",
+    "IngestionProposalContent",
+    "IngestionOperationReceipt",
+    "IngestionReceiptProjectScope",
+    "IngestionCursorTransition",
+    "IngestionRowOutcome",
   ];
   for (const table of tables) {
     const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
@@ -211,6 +226,18 @@ try {
     "ScalarReconciliationRequest",
     "ScalarReconciliationCheck",
     "ScalarReconciliationAssignment",
+    "IngestionConfigurationRevision",
+    "IngestionConfigurationProject",
+    "IngestionConfigurationReader",
+    "IngestionExternalRecord",
+    "IngestionFactStream",
+    "IngestionSourceRevision",
+    "IngestionProposalProjection",
+    "IngestionProposalContent",
+    "IngestionOperationReceipt",
+    "IngestionReceiptProjectScope",
+    "IngestionCursorTransition",
+    "IngestionRowOutcome",
   ]) {
     for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
       await verifyImmutableHistoryMutation(restored, table, operation);
@@ -231,7 +258,7 @@ try {
   if (visible.length !== 1 || visible[0].code !== "ATL")
     throw new Error("Restored permissions differ");
   console.log(
-    `Recovery passed: all 42 business tables and the migration ledger match exactly; audit, fact, policy, assessment, binding, reconciliation and canonical history remain immutable. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all 56 business tables and the migration ledger match exactly; ingestion receipt, outcome, cursor, revision, projection, configuration and canonical history mutations were rejected. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

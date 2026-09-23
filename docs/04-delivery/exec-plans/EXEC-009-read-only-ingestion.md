@@ -114,6 +114,167 @@ import run/rows, cursor CAS, dedupe receipts, health and atomic credential rotat
 extend finite ACL/recovery inventories and prove restart/recovery. Never rewrite an
 applied migration or impersonate a human to publish source observations.
 
+## Stage 2 durable proposal design and implementation
+
+This section records the durable proposal design and its additive local
+implementation. The implementation checkpoint below tracks validation and
+independent review. This stage persists connector-page/event and CSV-preview
+proposals only. It does not publish canonical facts, change the evidence/history
+contract, run a worker, accept live webhook authenticity, store credentials,
+expose an API route, or enable an external write.
+
+### Identities and durable records
+
+- `IngestionSource.id` is the connector-instance identity. A domain
+  `connectorBinding.sourceId` resolves to this ID; it is not a `FactSource.id`.
+- An immutable configuration revision stores source type/origin, normalized
+  mapping definition, the exact customer/project allowlist and a per-project
+  source-reader list. Its current revision is authoritative. `pmo_admin` must
+  hold a current project or portfolio grant for every project being added;
+  project reassignment of an existing external key is rejected. Mapping revision
+  increments only when mapping semantics change; configuration revision also
+  increments for scope or reader changes.
+- An external record is unique within customer, source instance, record type and
+  external key. For CSV, record type is exactly `spreadsheet:` plus the exact
+  configured sheet name; identity is customer/source/sheet/row key. Sheet and key
+  use exact validated Unicode strings; filename, row order and column order do
+  not participate. Its first project binding is immutable. A per-fact stream is
+  a separate stable ID unique within that record and fact type; changing a
+  mapping revision does not silently create a second stream.
+- Source revision and mapped projection are separate identities. A source
+  observation revision is unique within the external record and retains the
+  opaque source revision, source-content digest, remote observed/effective times
+  when provided, and server receive time. The digest is computed over the
+  connector's bounded canonical source fields before mapping; it contains no raw
+  payload. Same revision plus the same source digest is replay; the same revision
+  with a different source digest is an integrity conflict. An immutable mapped
+  projection is keyed by source revision plus mapping revision and retains its
+  own normalized proposal digest and typed proposals. Replaying the same mapping
+  revision must match that digest; a new mapping revision creates a new
+  projection against the same source revision without changing its source
+  identity or stream IDs. Opaque source revisions are equality keys only. CSV
+  rows use a deterministic SHA-256 over the sorted exact header/value pairs as
+  both source revision and source-content digest, independent of mapping and row
+  order. The server receive time is the CSV observed time; no effective time is
+  invented.
+- Operation receipts have their own identity and kind (`CONNECTOR_PAGE`,
+  `CONNECTOR_EVENT`, `CSV_PREVIEW`, `SYNC_RESET`), actor, command key/hash,
+  optional event key, exact config/mapping revisions, outcome count, and safe
+  audit reference. Unique
+  command key is `(customer,source,actor,kind,key)`; event key is `(source,event
+  ID)`; source revision is `(external record,opaque source revision)`; projection
+  key is `(source revision,mapping revision)`. These command, event,
+  source-revision, projection and cursor compare-and-swap checks remain
+  independent. Same command key with changed payload fails; same event ID with
+  changed payload fails; event replay under a new command key returns the
+  original event result after current authorization.
+- Per-run row outcomes retain row ordinal, finite state/operation/error codes,
+  stable identity where trustworthy, stream/revision references and typed
+  proposals. Persist no original CSV bytes or raw cell strings. The CSV byte
+  digest and normalized preview are sufficient for exact retry and review.
+
+### Authorization and locking
+
+Configuration is `pmo_admin` only; connector-page/event persistence and CSV
+preview persistence require current `project_manager`, `portfolio_manager`, or
+`pmo_admin` grants on every affected project. Proposal reads and all replay
+responses require a current read grant on every affected project, including
+`leadership`, plus an independent current per-project source-reader grant in the
+active source configuration. A source-reader grant conveys no project access;
+a project grant conveys no source-content access. Configuration project
+allowlists, source-reader entries and current customer/project grants are checked
+in the transaction; actor roles supplied by the application must also match the
+current database grant. Removed projects and source-reader revocations deny old
+proposal content. No service or worker principal is added in this stage. This
+local source-reader ACL is not proof of current upstream Jira visibility; the
+future live adapter must independently recheck source-side permission on every
+sync and before any disclosure of source content.
+
+Mutations acquire locks in this order: project rows sorted by customer/project
+UUID; matching AccessGrant rows sorted by grant ID; source/configuration row;
+external-record rows sorted by record type/key; then stream/revision/projection,
+cursor generation, receipt and outcome rows sorted by stable identity. The
+AccessGrant `FOR SHARE` row lock is what serializes against an update/revoke of
+that grant: an operation that locks first completes before revocation, while an
+operation that checks after revocation sees no grant. Project rows are still
+locked first for stable project/portfolio resolution. Reads hold project/grant
+share locks through content selection. Replays authorize the full original scope
+before any receipt data is returned.
+
+### Atomic progress, bounds and health
+
+A page command includes current configuration revision, expected cursor revision,
+expected sync generation, exact input cursor, command idempotency key and
+validated page. Cursor revision is a never-reset monotonic counter; an explicit
+reset increments both generation and cursor revision under the same source-row
+lock/CAS as page persistence. Reset has its own command receipt, actor, audit and
+replay hash. A late page from an earlier generation is rejected. A single bounded
+transaction verifies config and grants, checks command/event/revision collisions,
+persists external identities, streams, observation revisions, outcomes, receipt
+and audit, then compare-and-swaps cursor/revision. Any failure rolls back the
+entire page and cursor. A terminal page enters an explicit terminal state; only
+an explicit, permission-checked sync reset starts another generation. Config or
+mapping changes invalidate the old cursor and require that explicit reset.
+
+CSV previews persist up to 1,000 outcomes atomically. `INVALID` and
+`REVIEW_REQUIRED` rows are retained with finite codes and no proposals; valid
+rows retain typed proposals. Optional missing cells, omitted rows, absent
+baselines, uncertain identities, and key/project changes never clear, delete,
+adopt, or publish a fact. An oversized or malformed upload rejects the complete
+preview. The existing 1 MiB input limit applies; the canonical serialized page
+and preview have a separate 4 MiB ceiling before database work.
+
+Safe synchronization health stores only a finite state/code, server timestamps,
+and last successful receipt. It never stores raw exceptions, URLs beyond the
+validated origin, tokens, or source snippets. Denial audits contain only the
+operation and finite error class. Source data and typed proposals are visible
+only through these current-scope services and follow customer source-data
+retention policy; no audit event copies row content. Proposal content is stored
+separately from immutable receipt/row metadata, with a customer retention-policy
+revision and expiry timestamp. New source/import persistence fails closed when
+the customer has not configured proposal-content retention; this design does not
+choose a customer retention duration. Expired or administratively purged content
+is replaced by a one-way tombstone while its receipt, digest, identity and finite
+outcome status remain. A later shorter retention policy applies retroactively
+from each receipt's creation time; read services hide newly expired content
+immediately, and purge physically redacts it. Policy changes never restore
+already purged content. A narrow redaction path is allowed only after expiry;
+restore purges expired content in quarantine before application access. Retention
+policy changes and purge runs are audited without row content. Encrypted backup
+retirement still follows the customer's configured backup-retention policy. A
+`system_admin` may configure retention and invoke purge without gaining content
+read access; no AI or worker role can read or purge source content.
+
+### Schema, native enforcement and recovery
+
+Use one additive tenth migration; preserve all nine released migration bytes.
+The migration adds source/configuration/project, external-record, fact-stream,
+observation-revision, mapping-projection, receipt/outcome/content and retention
+policy tables. Composite foreign keys bind customer/source/project/record/stream/
+revision/projection/receipt scopes. Sealed configuration and receipt headers
+have deferred native validators. At COMMIT the receipt validator requires
+actual outcome count to equal its declaration, contiguous ordinals from 1,
+complete same-scope source/revision/projection/stream references, and an audit
+event matching the exact actor, operation, scope, digest and count. Append-only
+guards prevent post-seal mutation/delete/truncate; the sole content exception is
+the expired one-way redaction path. API-role COMMIT tests reject omitted outcomes,
+wrong audit, orphan and cross-scope rows and prove full rollback. Only the API
+role receives exact required table/column grants and validator execution; the
+worker and backup principals receive no business write privileges. Restore
+re-applies exact grants, redacts expired content while quarantined and checks all
+new native invariants before releasing quarantine.
+
+Validation includes actual API-role `COMMIT` and rollback probes, independent
+connection races for duplicate command/event/revision and cursor CAS, grant and
+configuration-reader revocation, mapping remap, page/reset/terminal replay and
+restart/retry behavior, clean/repeat migration, a
+genuine populated released-nine upgrade with byte/checksum and row preservation,
+isolated encrypted recovery profiles, and exact row/ACL/constraint inventory.
+The additive migration and implementation are present locally; database-backed
+validation and final design review are still required before this work can be
+treated as accepted. These outcomes remain proposals, not `SYSTEM_VERIFIED`
+evidence, and do not close an Issue #7 story or acceptance criterion.
+
 ## Security and privacy impact
 
 Untrusted source content is parsed as data, never code or model instructions.
@@ -157,6 +318,15 @@ stored data changes in this batch. Later persistence needs additive-compatible
 reverts or encrypted restore into a fresh quarantined database; never delete history.
 
 ## Progress log
+
+- 2026-09-23: approved the stage-two durable proposal design after independent
+  review at section SHA256
+  `3dcc2f58a4d0762b0a351a3265b45bed08e4f7661216216b014975091a8ad563`.
+  Review blockers for source-revision/mapping projection identity, exact sheet
+  identity, COMMIT completeness, retention/redaction and cursor-reset fencing
+  were resolved. A follow-up found and fixed the missing `SYNC_RESET` receipt
+  kind. Source-reader ACL remains distinct from project grants; live upstream
+  authorization and all story acceptance remain outstanding.
 
 - 2026-09-22: approved Issue #7/master-plan/architecture/ADRs and requirements read.
   Independent design review corrected identity ambiguity, optional blanks, finite
@@ -268,3 +438,22 @@ stream, policy, proof and presentation change preserving all old frozen historie
 No schema/role design is approved solely by this risk audit; no new runtime change
 or acceptance is claimed. The full later Jira/OAuth/webhook/XLSX/upload/commit scope
 and existing Antigravity design remain unchanged.
+
+## Stage 2 implementation checkpoint, 2026-09-23
+
+The independently reviewed Stage 2 design is implemented locally through an
+additive tenth migration containing 14 ingestion tables and a scoped data-layer
+repository. It persists bounded connector/CSV proposals, row outcomes, configuration
+and mapping revisions, command/event/source-revision deduplication, cursor/reset
+receipts, independent current project-grant and source-reader authorization, and
+audited retention redaction. Existing fact history remains unchanged and receives
+no connector proposals as published evidence. No API endpoint, live adapter,
+credential flow, worker privilege or external write was added.
+
+The serial database-independent unit suite passes 1,489 tests across 74 files.
+Prisma schema validation/generation and strict TypeScript checks pass. Local
+PostgreSQL migration/integration probes, populated-prefix-nine upgrade and
+encrypted recovery validation are pending because the Docker service is unavailable.
+The default `pdaa` database was not used. Implementation, Issue #7 acceptance and
+story totals remain separate: native database validation, independent exact-code
+review and matching CI are still required before this checkpoint can advance.

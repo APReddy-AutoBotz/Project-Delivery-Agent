@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -42,6 +43,40 @@ async function restoreOwners(client: Awaited<ReturnType<typeof connect>>) {
     END LOOP;
   END $$;
   ALTER SCHEMA public OWNER TO pdaa_migrate; ALTER SCHEMA graphile_worker OWNER TO pdaa_worker`);
+}
+async function purgeExpiredIngestionContent(
+  client: Awaited<ReturnType<typeof connect>>,
+  customerId: string,
+) {
+  const expired = (
+    await client.query(`SELECT count(*)::int AS n FROM "IngestionProposalContent" c
+      JOIN "IngestionProposalProjection" p ON p.id=c."projectionId" AND p."customerId"=c."customerId"
+      JOIN "IngestionSourceRevision" r ON r.id=p."sourceRevisionId" AND r."customerId"=p."customerId"
+      JOIN "IngestionRetentionPolicy" policy ON policy."customerId"=c."customerId"
+      WHERE c."customerId"=$1 AND c.proposals IS NOT NULL AND c."redactedAt" IS NULL
+        AND r."receivedAt"+make_interval(hours=>policy."retentionHours")<=CURRENT_TIMESTAMP`,
+    [customerId],
+  )).rows[0]!.n as number;
+  if (expired === 0) return 0;
+  const auditEventId = randomUUID();
+  await client.query(
+    `INSERT INTO "AuditEvent" (id,"customerId",actor,event,"correlationId",detail)
+      VALUES ($1,$2,'restore:quarantine','ingestion.content.purged','ingestion.restore.quarantine',$3::jsonb)`,
+    [auditEventId, customerId, JSON.stringify({ redactedCount: expired })],
+  );
+  const redacted = await client.query(`UPDATE "IngestionProposalContent" c
+    SET proposals=NULL,"redactedAt"=CURRENT_TIMESTAMP,"redactionAuditEventId"=$1
+    FROM "IngestionProposalProjection" p,"IngestionSourceRevision" r,"IngestionRetentionPolicy" policy
+    WHERE p.id=c."projectionId" AND p."customerId"=c."customerId"
+      AND r.id=p."sourceRevisionId" AND r."customerId"=p."customerId"
+      AND policy."customerId"=c."customerId"
+      AND c."customerId"=$2 AND c.proposals IS NOT NULL AND c."redactedAt" IS NULL
+      AND r."receivedAt"+make_interval(hours=>policy."retentionHours")<=CURRENT_TIMESTAMP`,
+    [auditEventId, customerId],
+  );
+  if (redacted.rowCount !== expired)
+    throw new Error("Expired ingestion content changed during restore");
+  return redacted.rowCount;
 }
 export async function restore(
   config: OperationsConfig,
@@ -151,6 +186,7 @@ async function restoreArchive(
         if (applied.length !== migrations.length)
           throw new Error("Restored migration set incomplete");
         diagnostic.enter("integrity");
+        await purgeExpiredIngestionContent(client, config.customerId);
         const authorityIntegrity = (
           await client.query(`SELECT
           (SELECT count(*)::int FROM "AuthorityPolicy" WHERE NOT public.valid_authority_history(id)) +
@@ -167,6 +203,12 @@ async function restoreArchive(
           (SELECT count(*)::int FROM "ScalarReconciliationRequest" WHERE sealed IS NOT TRUE OR public.valid_scalar_reconciliation_request(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "ScalarReconciliationCheck" WHERE public.valid_scalar_reconciliation_check(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "ScalarReconciliationAssignment" WHERE public.valid_scalar_reconciliation_assignment(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "IngestionOperationReceipt" WHERE public.valid_ingestion_receipt(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "IngestionProposalContent" WHERE proposals IS NOT NULL AND public.valid_ingestion_proposals("projectionId",proposals) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "IngestionExternalRecord" r WHERE NOT EXISTS (SELECT 1 FROM "IngestionSourceRevision" v WHERE v."customerId"=r."customerId" AND v."sourceId"=r."sourceId" AND v."recordId"=r.id)) +
+          (SELECT count(*)::int FROM "IngestionSourceRevision" r WHERE NOT EXISTS (SELECT 1 FROM "IngestionProposalProjection" p WHERE p."customerId"=r."customerId" AND p."sourceId"=r."sourceId" AND p."recordId"=r."recordId" AND p."sourceRevisionId"=r.id)) +
+          (SELECT count(*)::int FROM "IngestionProposalProjection" p WHERE NOT EXISTS (SELECT 1 FROM "IngestionProposalContent" c WHERE c."customerId"=p."customerId" AND c."projectionId"=p.id) OR NOT EXISTS (SELECT 1 FROM "IngestionRowOutcome" o WHERE o."customerId"=p."customerId" AND o."sourceId"=p."sourceId" AND o."projectionId"=p.id AND o.state='ACCEPTED')) +
+          (SELECT count(*)::int FROM "IngestionFactStream" s WHERE NOT EXISTS (SELECT 1 FROM "IngestionProposalProjection" p WHERE p."customerId"=s."customerId" AND p."sourceId"=s."sourceId" AND p."recordId"=s."recordId" AND p."factTypes" @> ARRAY[s."factType"]::text[])) +
           (SELECT count(*)::int FROM "FactAssessment" a WHERE a."scalarReconciliationCheckId" IS NOT NULL AND NOT EXISTS (
             SELECT 1 FROM "ScalarReconciliationCheck" c WHERE c.id=a."scalarReconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId" AND c."factId"=a."factId"
           )) +

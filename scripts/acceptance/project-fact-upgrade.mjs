@@ -70,7 +70,11 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 9);
+  assert.equal(migrations.length, 10);
+  assert.equal(
+    migrations[9].name,
+    "202609230001_durable_ingestion",
+  );
   assert.equal(
     migrations[8].name,
     "202609220001_milestone_validation_projection",

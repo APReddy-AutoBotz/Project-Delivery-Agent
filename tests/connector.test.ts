@@ -34,6 +34,7 @@ const ref = {
 const record = {
   ref,
   revision: "rev1",
+  sourceContentHash: "a".repeat(64),
   observedAt: "2026-09-22T11:00:00.000Z",
   effectiveAt: "2026-09-21T00:00:00.000Z",
   deepLink: "https://source.example/browse/A-1",
@@ -205,6 +206,17 @@ describe("internal synthetic read contract (FR-CON-011/012, TR-TEST-003)", () =>
       validateConnectorRecord(scope, { ...ref, recordId: "A-2" }, record),
     ).toThrow("RECORD_MISMATCH");
   });
+  it.each(["not-a-digest", "A".repeat(64), "f".repeat(63)])(
+    "requires a lowercase SHA-256 source digest (%s)",
+    (sourceContentHash) => {
+      expect(() =>
+        validateConnectorPage(request, {
+          ...page(),
+          records: [{ ...record, sourceContentHash }],
+        }),
+      ).toThrow("INVALID_INPUT");
+    },
+  );
   it.each([
     "javascript:alert(1)",
     "http://source.example/a",

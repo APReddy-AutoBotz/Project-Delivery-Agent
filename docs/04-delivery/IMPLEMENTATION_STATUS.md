@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-22
+Updated: 2026-09-23
 
 ## Accepted implementation completion
 
@@ -57,6 +57,27 @@ before implementation. Jira/OAuth/webhooks/XLSX/upload/commit remain in full sco
 No further runtime, permission, schema, UI/colour, dependency or external scope
 change is claimed by this postmerge record. The local failure history remains in
 EXEC-009; normal parallel hosted units passed without relaxing assertions or limits.
+
+## EXEC-009 Stage 2 implementation checkpoint
+
+The reviewed synthetic-first design is now implemented locally as an additive
+tenth migration with 14 ingestion tables, a scoped `DatabaseIngestionRepository`,
+finite least-privilege grants, sealed configuration/mapping revisions, independent
+project-grant and source-reader checks, command/event/source-revision deduplication,
+generation-fenced cursor receipts, bounded row outcomes, retained proposal content
+and audited expiry redaction. Proposals remain separate from the human fact ledger;
+no endpoint, live adapter, credential flow, worker permission, external write or
+source-fact publication was added. The original nine migration files are untouched.
+
+The database-independent serial unit run passes 1,489 tests in 74 files. Prisma
+schema validation/generation and strict domain/data/operations TypeScript checks
+pass. The synthetic database integration, PostgreSQL migration/COMMIT probes,
+populated-prefix-nine upgrade and encrypted restore profiles have not run because
+the local Docker service is unavailable. No command connected to or migrated the
+default `pdaa` database. These results are an implementation checkpoint only:
+Issue #7 stories and acceptance totals remain unchanged, and the required native
+database, upgrade, recovery, independent exact-candidate review and matching CI
+gates remain open.
 
 ## Earlier unmerged checkpoints (historical)
 

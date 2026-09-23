@@ -30,6 +30,7 @@ export const fixtureRecord = {
     recordId: "A-1",
   },
   revision: "1",
+  sourceContentHash: "a".repeat(64),
   observedAt: "2026-09-22T11:00:00.000Z",
   effectiveAt: "2026-09-22T11:00:00.000Z",
   deepLink: "https://source.example/browse/A-1",

@@ -58,13 +58,29 @@ const releases = [
     "ScalarReconciliationCheck",
     "ScalarReconciliationAssignment",
   ],
+  [
+    "IngestionSource",
+    "IngestionConfigurationRevision",
+    "IngestionConfigurationProject",
+    "IngestionConfigurationReader",
+    "IngestionRetentionPolicy",
+    "IngestionExternalRecord",
+    "IngestionFactStream",
+    "IngestionSourceRevision",
+    "IngestionProposalProjection",
+    "IngestionProposalContent",
+    "IngestionOperationReceipt",
+    "IngestionReceiptProjectScope",
+    "IngestionCursorTransition",
+    "IngestionRowOutcome",
+  ],
 ];
 export function assertUpgradeInventory(receipt, prefix) {
   assert([1, 2, 3, 4, 5, 6].includes(prefix));
   assert.equal(receipt.priorMigrationCount, prefix);
   const oldTables = releases.slice(0, prefix).flat().sort();
   const addedTables = releases.slice(prefix).flat().sort();
-  assert.equal(receipt.businessTableCount, 42);
+  assert.equal(receipt.businessTableCount, 56);
   assert.deepEqual([...receipt.retainedPriorBusinessTables].sort(), oldTables);
   assert.deepEqual(
     Object.keys(receipt.retainedPriorRowCounts).sort(),

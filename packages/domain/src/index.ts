@@ -90,3 +90,4 @@ export * from "./scalar-reconciliation-identity.js";
 export * from "./scalar-reconciliation.js";
 export * from "./connector.js";
 export * from "./spreadsheet-preview.js";
+export * from "./ingestion-persistence.js";

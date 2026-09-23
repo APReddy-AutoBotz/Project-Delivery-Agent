@@ -1,5 +1,35 @@
 # Document Control
 
+## EXEC-009 stage-two design approval, 2026-09-23
+
+Under the delegated routine implementation authority, approve the bounded
+durable-proposal design in EXEC-009's Stage 2 section after independent review
+of design-section SHA256
+`3dcc2f58a4d0762b0a351a3265b45bed08e4f7661216216b014975091a8ad563`.
+The review identified and resolved mapping/source-revision separation, exact CSV
+sheet identity, native sealed-receipt completeness, proposal-content retention
+and redaction, generation-fenced cursor reset, and the finite `SYNC_RESET`
+receipt kind. The source-reader ACL is independent of project grants; upstream
+Jira permission remains a later adapter gate. No P0 or unresolved blocking P1
+remains in the reviewed design.
+
+Proceed to additive persistence and scoped services within that boundary. Keep
+all nine released migrations immutable, deny ingest when proposal retention is
+not configured, keep content out of audit, and do not publish these proposals as
+facts or `SYSTEM_VERIFIED`. No live activation, OAuth/webhook, worker privilege,
+external write, UI, or Issue #7 story/acceptance closure is approved by this
+design decision. Implementation, native/upgrade/recovery tests, independent
+final-code review and exact-candidate CI remain required.
+
+## EXEC-009 Stage 2 implementation checkpoint, 2026-09-23
+
+The additive migration and repository implementation are present. Database-
+independent validation passes 1,489 unit tests across 74 files, Prisma schema
+validation/generation, and strict domain/data/operations TypeScript checks. Native
+PostgreSQL integration, populated-prefix-nine upgrade, encrypted recovery,
+independent final-code review and exact-candidate CI remain required. This status
+does not approve source publication or close an Issue #7 story.
+
 ## Scalar merge disposition and ingestion design, 2026-09-22
 
 Under existing delegation, record verified PR54 merge `ddbafb4` and the explicit

@@ -6,6 +6,7 @@ export { DatabaseMilestoneConsistencyRepository } from "./milestone-persistence.
 export { DatabaseMilestoneReconciliationRepository } from "./milestone-reconciliation.js";
 export { DatabaseScalarReconciliationRepository } from "./scalar-reconciliation.js";
 export { DatabaseCanonicalProjectRepository } from "./canonical-project.js";
+export { DatabaseIngestionRepository } from "./ingestion-persistence.js";
 import type {
   Actor,
   Grant,

@@ -849,3 +849,190 @@ model ScalarReconciliationAssignment {
   @@unique([customerId, projectId, factId, requestId, revision, id], map: "ScalarAssignment_predecessor_key")
   @@unique([customerId, projectId, requestId, actor, idempotencyKey], map: "ScalarAssignment_retry_key")
 }
+
+model IngestionSource {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceType String @db.VarChar(96)
+  origin String @db.VarChar(2048)
+  currentConfigRevision Int?
+  mappingRevision Int @default(0)
+  cursorRevision BigInt @default(0)
+  syncGeneration BigInt @default(1)
+  cursorEnvelope String?
+  cursorState String @default("READY") @db.VarChar(16)
+  healthState String @default("UNKNOWN") @db.VarChar(16)
+  healthCode String @default("NONE") @db.VarChar(32)
+  healthCheckedAt DateTime? @db.Timestamptz(3)
+  lastSuccessReceiptId String? @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, id], map: "IngestionSource_scope_key")
+}
+
+model IngestionConfigurationRevision {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  revision Int
+  mappingRevision Int
+  mapping Json
+  changedBy String @db.VarChar(256)
+  auditEventId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  sealed Boolean @default(false)
+  @@id([customerId, sourceId, revision], map: "IngestionConfigurationRevision_pkey")
+  @@unique([customerId, sourceId, revision, mappingRevision], map: "IngestionConfigurationRevision_map_key")
+}
+
+model IngestionConfigurationProject {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  configRevision Int
+  projectId String @db.Uuid
+  @@id([customerId, sourceId, configRevision, projectId], map: "IngestionConfigurationProject_pkey")
+}
+
+model IngestionConfigurationReader {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  configRevision Int
+  projectId String @db.Uuid
+  subject String @db.VarChar(256)
+  @@id([customerId, sourceId, configRevision, projectId, subject], map: "IngestionConfigurationReader_pkey")
+}
+
+model IngestionRetentionPolicy {
+  customerId String @id @db.Uuid
+  retentionHours Int
+  revision Int
+  changedBy String @db.VarChar(256)
+  auditEventId String @db.Uuid
+  changedAt DateTime @default(now()) @db.Timestamptz(3)
+}
+
+model IngestionExternalRecord {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  projectId String @db.Uuid
+  recordType String @db.VarChar(267)
+  recordKey String @db.VarChar(256)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, sourceId, id], map: "IngestionExternalRecord_scope_key")
+  @@unique([customerId, sourceId, recordType, recordKey], map: "IngestionExternalRecord_identity_key")
+  @@unique([customerId, sourceId, projectId, id], map: "IngestionExternalRecord_typed_scope_key")
+}
+
+model IngestionFactStream {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  recordId String @db.Uuid
+  factType String @db.VarChar(96)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, sourceId, recordId, factType], map: "IngestionFactStream_identity_key")
+  @@unique([customerId, sourceId, recordId, id], map: "IngestionFactStream_scope_key")
+}
+
+model IngestionSourceRevision {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  recordId String @db.Uuid
+  revision String @db.VarChar(128)
+  sourceContentHash String @db.Char(64)
+  remoteObservedAt DateTime? @db.Timestamptz(3)
+  remoteEffectiveAt DateTime? @db.Timestamptz(3)
+  receivedAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, sourceId, recordId, revision], map: "IngestionSourceRevision_identity_key")
+  @@unique([customerId, sourceId, recordId, id], map: "IngestionSourceRevision_scope_key")
+}
+
+model IngestionProposalProjection {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  recordId String @db.Uuid
+  sourceRevisionId String @db.Uuid
+  mappingRevision Int
+  proposalHash String @db.Char(64)
+  factTypes String[] @default([]) @db.Text
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, sourceId, recordId, sourceRevisionId, mappingRevision], map: "IngestionProposalProjection_identity_key")
+  @@unique([customerId, sourceId, recordId, id], map: "IngestionProposalProjection_scope_key")
+  @@unique([customerId, sourceId, recordId, sourceRevisionId, id], map: "IngestionProposalProjection_revision_scope_key")
+  @@unique([customerId, sourceId, recordId, sourceRevisionId, mappingRevision, id], map: "IngestionProposalProjection_exact_key")
+}
+
+model IngestionProposalContent {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  recordId String @db.Uuid
+  projectionId String @id @db.Uuid
+  proposals Json?
+  policyRevision Int
+  redactedAt DateTime? @db.Timestamptz(3)
+  redactionAuditEventId String? @db.Uuid
+}
+
+model IngestionOperationReceipt {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  subject String @db.VarChar(256)
+  kind String @db.VarChar(24)
+  commandKey String @db.VarChar(128)
+  requestHash String @db.Char(64)
+  eventId String? @db.VarChar(256)
+  configRevision Int
+  mappingRevision Int
+  generationBefore BigInt?
+  generationAfter BigInt?
+  cursorRevisionBefore BigInt?
+  cursorRevisionAfter BigInt?
+  outcomeCount Int
+  auditEventId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, sourceId, id], map: "IngestionOperationReceipt_scope_key")
+  @@unique([customerId, sourceId, subject, kind, commandKey], map: "IngestionOperationReceipt_command_key")
+}
+
+model IngestionReceiptProjectScope {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @db.Uuid
+  projectId String @db.Uuid
+  grantId String @db.Uuid
+  grantRole String @db.VarChar(32)
+  grantScopeType String @db.VarChar(16)
+  grantScopeId String @db.Uuid
+  @@id([receiptId, projectId], map: "IngestionReceiptProjectScope_pkey")
+}
+
+model IngestionCursorTransition {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @id @db.Uuid
+  generationBefore BigInt
+  generationAfter BigInt
+  cursorRevisionBefore BigInt
+  cursorRevisionAfter BigInt
+  stateAfter String @db.VarChar(16)
+  cursorEnvelopeHash String? @db.Char(64)
+  @@unique([customerId, sourceId, cursorRevisionAfter], map: "IngestionCursorTransition_revision_key")
+}
+
+model IngestionRowOutcome {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @db.Uuid
+  ordinal Int
+  state String @db.VarChar(16)
+  operation String @db.VarChar(16)
+  errorCodes String[] @default([]) @db.Text
+  projectId String? @db.Uuid
+  recordKey String? @db.VarChar(256)
+  recordId String? @db.Uuid
+  sourceRevisionId String? @db.Uuid
+  projectionId String? @db.Uuid
+  @@id([receiptId, ordinal], map: "IngestionRowOutcome_pkey")
+}
