@@ -232,6 +232,8 @@ describe("durable ingestion persistence", () => {
       ),
     ]);
     expect(racingPages.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const winningPage = racingPages.find((result) => result.status === "fulfilled");
+    if (winningPage?.status !== "fulfilled") throw new Error("Expected one winning cursor page");
     expect(racingPages.find((result) => result.status === "rejected")).toMatchObject({
       reason: { code: "CURSOR_CONFLICT" },
     });
@@ -340,7 +342,7 @@ describe("durable ingestion persistence", () => {
     const lastSuccessfulSync = await db.$queryRaw<
       { lastSuccessReceiptId: string | null }[]
     >`SELECT "lastSuccessReceiptId" FROM public."IngestionSource" WHERE id=${sourceId}::uuid`;
-    expect(lastSuccessfulSync[0]!.lastSuccessReceiptId).toBe(persisted.receiptId);
+    expect(lastSuccessfulSync[0]!.lastSuccessReceiptId).toBe(winningPage.value.receiptId);
 
     const eventRecord = page.records[0]!;
     const event = await repository.persistConnectorEvent(
