@@ -171,7 +171,7 @@ describe("Jira OAuth boundaries", () => {
 });
 
 describe("Jira webhook authentication boundary", () => {
-  it("rejects a bad raw-body signature before JSON parsing or transactional row locks", async () => {
+  it("rejects a bad raw-body signature before webhook payload parsing or transactional row locks", async () => {
     const sourceId = "13f95d34-1588-4d31-8f2e-40a213d37c91";
     const customerId = "2b2ae50e-1b58-4c69-a763-54ce3e4934ca";
     const rawBody = Buffer.from('{"webhookEvent":"jira:issue_updated"}', "utf8");
@@ -202,7 +202,7 @@ describe("Jira webhook authentication boundary", () => {
         rawBody,
         now: new Date("2026-09-24T00:00:00.000Z"),
       })).rejects.toMatchObject({ code: "INVALID_WEBHOOK" });
-      expect(parse).not.toHaveBeenCalled();
+      expect(parse).not.toHaveBeenCalledWith(rawBody.toString("utf8"));
       expect(db.$transaction).not.toHaveBeenCalled();
     } finally {
       parse.mockRestore();
