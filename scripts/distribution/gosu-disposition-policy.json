@@ -24,18 +24,18 @@
           "available": [
             {
               "version": "1.24.13",
-              "date": "2026-02-05",
-              "kind": "advisory"
+              "date": "2026-02-04",
+              "kind": "release"
             },
             {
               "version": "1.25.7",
-              "date": "2026-02-05",
-              "kind": "advisory"
+              "date": "2026-02-04",
+              "kind": "release"
             },
             {
               "version": "1.26.0-rc.3",
-              "date": "2026-02-05",
-              "kind": "advisory"
+              "date": "2026-02-04",
+              "kind": "release"
             }
           ]
         }
@@ -65,13 +65,13 @@
           "available": [
             {
               "version": "1.24.8",
-              "date": "2025-10-29",
-              "kind": "advisory"
+              "date": "2025-10-07",
+              "kind": "release"
             },
             {
               "version": "1.25.2",
-              "date": "2025-10-29",
-              "kind": "advisory"
+              "date": "2025-10-07",
+              "kind": "release"
             }
           ]
         }
@@ -142,13 +142,13 @@
           "available": [
             {
               "version": "1.24.9",
-              "date": "2025-10-29",
-              "kind": "advisory"
+              "date": "2025-10-13",
+              "kind": "release"
             },
             {
               "version": "1.25.3",
-              "date": "2025-10-29",
-              "kind": "advisory"
+              "date": "2025-10-13",
+              "kind": "release"
             }
           ]
         }
@@ -246,13 +246,13 @@
           "available": [
             {
               "version": "1.24.8",
-              "date": "2025-10-29",
-              "kind": "advisory"
+              "date": "2025-10-07",
+              "kind": "release"
             },
             {
               "version": "1.25.2",
-              "date": "2025-10-29",
-              "kind": "advisory"
+              "date": "2025-10-07",
+              "kind": "release"
             }
           ]
         }
@@ -316,13 +316,13 @@
           "available": [
             {
               "version": "1.24.8",
-              "date": "2025-10-29",
-              "kind": "advisory"
+              "date": "2025-10-07",
+              "kind": "release"
             },
             {
               "version": "1.25.2",
-              "date": "2025-10-29",
-              "kind": "advisory"
+              "date": "2025-10-07",
+              "kind": "release"
             }
           ]
         }
@@ -529,13 +529,13 @@
           "available": [
             {
               "version": "1.25.8",
-              "date": "2026-03-06",
-              "kind": "advisory"
+              "date": "2026-03-05",
+              "kind": "release"
             },
             {
               "version": "1.26.1",
-              "date": "2026-03-06",
-              "kind": "advisory"
+              "date": "2026-03-05",
+              "kind": "release"
             }
           ]
         }
