@@ -260,7 +260,8 @@ DECLARE item jsonb; seen_columns text[]:=ARRAY[]::text[]; seen_types text[]:=ARR
 BEGIN
   IF jsonb_typeof(mapping_value) IS DISTINCT FROM 'object' THEN RETURN false; END IF;
   IF mapping_value->>'kind'='CONNECTOR' THEN
-    IF mapping_value-'kind'-'factTypes'<>'{}'::jsonb OR jsonb_typeof(mapping_value->'factTypes') IS DISTINCT FROM 'array' OR jsonb_array_length(mapping_value->'factTypes') NOT BETWEEN 1 AND 32 THEN RETURN false; END IF;
+    IF mapping_value-'kind'-'factTypes'-'adapterConfiguration'<>'{}'::jsonb OR jsonb_typeof(mapping_value->'factTypes') IS DISTINCT FROM 'array' OR jsonb_array_length(mapping_value->'factTypes') NOT BETWEEN 1 AND 32 THEN RETURN false; END IF;
+    IF mapping_value ? 'adapterConfiguration' AND (jsonb_typeof(mapping_value->'adapterConfiguration') IS DISTINCT FROM 'string' OR length(mapping_value->>'adapterConfiguration') NOT BETWEEN 1 AND 30000 OR btrim(mapping_value->>'adapterConfiguration')='') THEN RETURN false; END IF;
     FOR item IN SELECT value FROM jsonb_array_elements(mapping_value->'factTypes') LOOP
       IF jsonb_typeof(item) IS DISTINCT FROM 'string' THEN RETURN false; END IF;
       type_value:=item#>>'{}';
