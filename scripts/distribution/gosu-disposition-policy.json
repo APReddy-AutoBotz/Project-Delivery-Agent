@@ -459,13 +459,13 @@
           "available": [
             {
               "version": "1.24.12",
-              "date": "2026-01-28",
-              "kind": "advisory"
+              "date": "2026-01-15",
+              "kind": "release"
             },
             {
               "version": "1.25.6",
-              "date": "2026-01-28",
-              "kind": "advisory"
+              "date": "2026-01-15",
+              "kind": "release"
             }
           ]
         }
