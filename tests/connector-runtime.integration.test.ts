@@ -157,12 +157,13 @@ describe("durable Jira connector runtime", () => {
       now,
     });
     expect(duplicate).toMatchObject({ receiptId: webhook.receiptId, jobId: webhook.jobId, replayed: true });
+    const conflictingBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_created" }));
     await expect(
       runtime.acceptWebhook({
         sourceId,
         eventId,
-        signature: "sha256=" + createHmac("sha256", webhookSecret).update(Buffer.from("different payload")).digest("hex"),
-        rawBody: Buffer.from("different payload"),
+        signature: "sha256=" + createHmac("sha256", webhookSecret).update(conflictingBody).digest("hex"),
+        rawBody: conflictingBody,
         now,
       }),
     ).rejects.toMatchObject({ code: "CONFLICT" });
