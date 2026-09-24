@@ -264,27 +264,6 @@ describe("durable Jira connector runtime", () => {
         expiresAt: new Date(Date.now() - 60_000).toISOString(),
       },
     });
-    const retryableRotation = await runtime.accessOrBeginRotation(
-      customerId,
-      sourceId,
-      new Date(Date.now() + 5 * 60_000),
-    );
-    expect(retryableRotation.kind).toBe("rotate");
-    if (retryableRotation.kind !== "rotate") throw new Error("Expected retryable refresh lease");
-    expect(await runtime.deferOAuthRotation(retryableRotation.rotation)).toBe(true);
-    const retriedRotation = await runtime.accessOrBeginRotation(
-      customerId,
-      sourceId,
-      new Date(),
-    );
-    expect(retriedRotation.kind).toBe("rotate");
-    if (retriedRotation.kind !== "rotate") throw new Error("Expected a fresh refresh lease");
-    expect(retriedRotation.rotation.credentials.refreshToken).toBe(renewed.refreshToken);
-    expect(await runtime.deferOAuthRotation(
-      retriedRotation.rotation,
-      new Date(),
-    )).toBe(true);
-
     const rateLimitedBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated" }));
     const rateLimitedWebhook = await runtime.acceptWebhook({
       sourceId,
@@ -294,7 +273,30 @@ describe("durable Jira connector runtime", () => {
     });
     let rateLimitedJob = await runtime.claimNextJob(customerId);
     expect(rateLimitedJob?.jobId).toBe(rateLimitedWebhook.jobId);
-    for (let attempt = 1; attempt <= 5; attempt++) {
+    if (!rateLimitedJob) throw new Error("Expected rate-limited job claim");
+    const retryableRotation = await runtime.accessOrBeginRotation(customerId, sourceId);
+    expect(retryableRotation.kind).toBe("rotate");
+    if (retryableRotation.kind !== "rotate") throw new Error("Expected retryable refresh lease");
+    expect(await runtime.deferOAuthRotation(retryableRotation.rotation, {
+      jobId: rateLimitedJob.jobId,
+      claimGeneration: rateLimitedJob.claimGeneration,
+      retryAfterMs: 2000,
+    })).toBe(true);
+    const deferredState = await db.$queryRaw<{ state: string; availableAt: Date; credentialState: string }[]>`
+      SELECT j.state,j."availableAt",c.state AS "credentialState"
+      FROM public."ConnectorSyncJob" j
+      JOIN public."ConnectorCredential" c ON c."customerId"=j."customerId" AND c."sourceId"=j."sourceId" AND c.purpose='jira_oauth'
+      WHERE j."customerId"=${customerId}::uuid AND j.id=${rateLimitedJob.jobId}::uuid`;
+    expect(deferredState[0]?.state).toBe("READY");
+    expect(deferredState[0]?.availableAt.getTime()).toBeGreaterThan(Date.now());
+    expect(deferredState[0]?.credentialState).toBe("ACTIVE");
+    // Simulate a crash after the atomic OAuth/job transaction and before any worker follow-up.
+    expect(await runtime.claimNextJob(customerId)).toBeNull();
+    await new Promise<void>((resolve) => setTimeout(resolve, 2100));
+    rateLimitedJob = await runtime.claimNextJob(customerId);
+    expect(rateLimitedJob?.jobId).toBe(rateLimitedWebhook.jobId);
+    expect(rateLimitedJob?.claimGeneration).toBe(2);
+    for (let attempt = 2; attempt <= 5; attempt++) {
       if (!rateLimitedJob) throw new Error("Expected rate-limited job claim");
       const failure = await runtime.failRunningJob({
         customerId,

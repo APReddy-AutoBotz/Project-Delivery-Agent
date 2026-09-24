@@ -408,24 +408,64 @@ export class DatabaseConnectorRuntimeRepository {
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 15000 });
   }
 
-  async deferOAuthRotation(rotation: JiraCredentialRotation, now = new Date()) {
+  async deferOAuthRotation(
+    rotation: JiraCredentialRotation,
+    input: { jobId: string; claimGeneration: number; retryAfterMs?: number | null },
+  ) {
+    const jobId = safeUuid(input.jobId);
+    const retryAfterMs = input.retryAfterMs ?? 0;
+    if (!Number.isInteger(input.claimGeneration) || input.claimGeneration < 1 || input.claimGeneration > 100 ||
+      !Number.isInteger(retryAfterMs) || retryAfterMs < 0 || retryAfterMs > 86_400_000)
+      throw new ConnectorRuntimeError("INVALID_REQUEST");
     return this.db.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<CredentialRow[]>`
-        SELECT id,"customerId","sourceId",purpose,envelope,"keyId",revision,state,"rotationOperationId","rotationDeadline"
-        FROM public."ConnectorCredential" WHERE "customerId"=${rotation.customerId}::uuid AND "sourceId"=${rotation.sourceId}::uuid AND purpose='jira_oauth' FOR UPDATE`;
-      const row = rows[0];
-      if (!row || row.state !== "ROTATING" || row.rotationOperationId !== rotation.operationId || row.revision !== rotation.revision) return false;
+      const databaseNow = (await tx.$queryRaw<{ databaseNow: Date }[]>`
+        SELECT date_trunc('milliseconds',CURRENT_TIMESTAMP) AS "databaseNow"`)[0]!.databaseNow;
+      const source = await this.lockSource(tx, rotation.customerId, rotation.sourceId);
+      await this.lockCurrentServiceGrants(tx, source);
+      const jobs = await tx.$queryRaw<{
+        state: string; configRevision: number; mappingRevision: number; attempts: number;
+        leaseUntil: Date | null;
+      }[]>`
+        SELECT state,"configRevision","mappingRevision",attempts,"leaseUntil"
+        FROM public."ConnectorSyncJob"
+        WHERE "customerId"=${rotation.customerId}::uuid AND "sourceId"=${rotation.sourceId}::uuid AND id=${jobId}::uuid FOR UPDATE`;
+      const job = jobs[0];
+      if (!job || job.state !== "RUNNING" || job.attempts !== input.claimGeneration || !job.leaseUntil ||
+        job.leaseUntil.getTime() <= databaseNow.getTime() || source.currentConfigRevision !== rotation.configRevision ||
+        source.mappingRevision !== rotation.mappingRevision || job.configRevision !== rotation.configRevision ||
+        job.mappingRevision !== rotation.mappingRevision) return false;
+      const row = await this.credential(tx, rotation.customerId, rotation.sourceId, "jira_oauth");
+      if (!row || row.state !== "ROTATING" || row.rotationOperationId !== rotation.operationId ||
+        row.revision !== rotation.revision || !row.rotationDeadline || row.rotationDeadline.getTime() <= databaseNow.getTime()) return false;
+      const backoffMs = Math.max(retryAfterMs, Math.min(15 * 60_000, 1000 * 2 ** Math.max(0, job.attempts - 1)));
+      const availableAt = new Date(databaseNow.getTime() + backoffMs);
+      const retryable = job.attempts < 5;
+      const deferredJob = await tx.$executeRaw`
+        UPDATE public."ConnectorSyncJob" SET state=${retryable ? "READY" : "FAILED"},"leaseUntil"=NULL,"availableAt"=${availableAt}
+        WHERE "customerId"=${rotation.customerId}::uuid AND "sourceId"=${rotation.sourceId}::uuid AND id=${jobId}::uuid
+          AND state='RUNNING' AND attempts=${input.claimGeneration} AND "leaseUntil">CURRENT_TIMESTAMP`;
+      if (Number(deferredJob) !== 1) return false;
+      const healthState = retryable ? "DEGRADED" : "FAILED";
+      const healthEventId = await this.audit(tx, rotation.customerId, runtimeActor, "ingestion.health.updated", {
+        sourceId: source.id, state: healthState, code: "RATE_LIMITED",
+      }, databaseNow);
+      void healthEventId;
+      await tx.$executeRaw`
+        UPDATE public."IngestionSource" SET "healthState"=${healthState},"healthCode"='RATE_LIMITED',"healthCheckedAt"=${databaseNow}
+        WHERE "customerId"=${rotation.customerId}::uuid AND id=${source.id}::uuid`;
       const revision = row.revision + 1;
       const auditEventId = await this.audit(tx, rotation.customerId, runtimeActor, "ingestion.connector_credential.rotation_deferred", {
         sourceId: rotation.sourceId, purpose: "jira_oauth", state: "ACTIVE", revision, rotationOperationId: null,
         reason: "RATE_LIMITED",
-      }, now);
+      }, databaseNow);
       const changed = await tx.$executeRaw`
         UPDATE public."ConnectorCredential" SET state='ACTIVE',revision=${revision},"rotationOperationId"=NULL,"rotationDeadline"=NULL,
           "auditEventId"=${auditEventId}::uuid,"changedBy"=${runtimeActor}
-        WHERE id=${row.id}::uuid AND revision=${rotation.revision} AND state='ROTATING' AND "rotationOperationId"=${rotation.operationId}::uuid`;
-      return Number(changed) === 1;
-    }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 15000 });
+        WHERE id=${row.id}::uuid AND revision=${rotation.revision} AND state='ROTATING'
+          AND "rotationOperationId"=${rotation.operationId}::uuid AND "rotationDeadline">CURRENT_TIMESTAMP`;
+      if (Number(changed) !== 1) throw new ConnectorRuntimeError("CONFLICT");
+      return true;
+    }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
   }
 
   async acceptWebhook(input: {

@@ -66,14 +66,12 @@ describe("Jira runtime OAuth retry handling", () => {
     );
     await expect(service.runOne()).resolves.toEqual({ status: "deferred" });
 
-    expect(runtime.deferOAuthRotation).toHaveBeenCalledWith(rotation);
-    expect(runtime.failOAuthRotation).not.toHaveBeenCalled();
-    expect(runtime.failRunningJob).toHaveBeenCalledWith({
-      customerId,
+    expect(runtime.deferOAuthRotation).toHaveBeenCalledWith(rotation, {
       jobId: job.jobId,
       claimGeneration: 1,
-      code: "RATE_LIMITED",
       retryAfterMs: 3000,
     });
+    expect(runtime.failOAuthRotation).not.toHaveBeenCalled();
+    expect(runtime.failRunningJob).not.toHaveBeenCalled();
   });
 });
