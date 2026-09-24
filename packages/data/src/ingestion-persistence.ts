@@ -960,7 +960,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     return id;
   }
 
-  async readConnectorSyncSnapshot(customerIdInput: string, jobIdInput: string, now = new Date()) {
+  async readConnectorSyncSnapshot(customerIdInput: string, jobIdInput: string, claimGeneration: number, now = new Date()) {
     const customerId = uuid(customerIdInput);
     const jobId = uuid(jobIdInput);
     return this.db.$transaction(async (tx) => {
@@ -969,13 +969,15 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       if (!locator[0]) throw new IngestionPersistenceError("NOT_FOUND");
       const source = await this.currentSource(tx, customerId, locator[0].sourceId, "SHARE");
       const jobs = await tx.$queryRaw<{
-        id: string; state: string; configRevision: number; mappingRevision: number; resetRequested: boolean;
+        id: string; state: string; configRevision: number; mappingRevision: number; attempts: number; resetRequested: boolean;
         resetCompleted: boolean; leaseUntil: Date | null; expiresAt: Date;
       }[]>`
-        SELECT id,state,"configRevision","mappingRevision","resetRequested","resetCompleted","leaseUntil","expiresAt"
+        SELECT id,state,"configRevision","mappingRevision",attempts,"resetRequested","resetCompleted","leaseUntil","expiresAt"
         FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid FOR SHARE`;
       const job = jobs[0];
       if (!job || job.state !== "RUNNING" || !job.leaseUntil || job.leaseUntil.getTime() <= now.getTime() || job.expiresAt.getTime() <= now.getTime())
+        throw new IngestionPersistenceError("CONFLICT");
+      if (!Number.isInteger(claimGeneration) || job.attempts !== claimGeneration)
         throw new IngestionPersistenceError("CONFLICT");
       if (job.configRevision !== source.currentConfigRevision || job.mappingRevision !== source.mappingRevision)
         throw new IngestionPersistenceError("STALE_CONFIGURATION");
@@ -1007,7 +1009,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
   }
 
-  async resetConnectorCursorForJob(customerIdInput: string, jobIdInput: string, now = new Date()) {
+  async resetConnectorCursorForJob(customerIdInput: string, jobIdInput: string, claimGeneration: number, now = new Date()) {
     const customerId = uuid(customerIdInput);
     const jobId = uuid(jobIdInput);
     return this.db.$transaction(async (tx) => {
@@ -1016,12 +1018,14 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       if (!locator[0]) throw new IngestionPersistenceError("NOT_FOUND");
       const source = await this.currentSource(tx, customerId, locator[0].sourceId, "UPDATE");
       const jobs = await tx.$queryRaw<{
-        state: string; configRevision: number; mappingRevision: number; resetRequested: boolean; resetCompleted: boolean; leaseUntil: Date | null;
+        state: string; configRevision: number; mappingRevision: number; attempts: number; resetRequested: boolean; resetCompleted: boolean; leaseUntil: Date | null;
       }[]>`
-        SELECT state,"configRevision","mappingRevision","resetRequested","resetCompleted","leaseUntil"
+        SELECT state,"configRevision","mappingRevision",attempts,"resetRequested","resetCompleted","leaseUntil"
         FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid FOR UPDATE`;
       const job = jobs[0];
       if (!job || job.state !== "RUNNING" || !job.leaseUntil || job.leaseUntil.getTime() <= now.getTime())
+        throw new IngestionPersistenceError("CONFLICT");
+      if (!Number.isInteger(claimGeneration) || job.attempts !== claimGeneration)
         throw new IngestionPersistenceError("CONFLICT");
       if (source.currentConfigRevision !== job.configRevision || source.mappingRevision !== job.mappingRevision)
         throw new IngestionPersistenceError("STALE_CONFIGURATION");
@@ -1060,6 +1064,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
   async persistConnectorPageForJob(input: {
     customerId: string;
     jobId: string;
+    expectedClaimGeneration: number;
     expectedConfigRevision: number;
     expectedMappingRevision: number;
     expectedCursorRevision: number;
@@ -1075,12 +1080,14 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       if (!locator[0]) throw new IngestionPersistenceError("NOT_FOUND");
       const source = await this.currentSource(tx, customerId, locator[0].sourceId, "UPDATE");
       const jobs = await tx.$queryRaw<{
-        state: string; configRevision: number; mappingRevision: number; resetRequested: boolean; resetCompleted: boolean; leaseUntil: Date | null; expiresAt: Date;
+        state: string; configRevision: number; mappingRevision: number; attempts: number; resetRequested: boolean; resetCompleted: boolean; leaseUntil: Date | null; expiresAt: Date;
       }[]>`
-        SELECT state,"configRevision","mappingRevision","resetRequested","resetCompleted","leaseUntil","expiresAt"
+        SELECT state,"configRevision","mappingRevision",attempts,"resetRequested","resetCompleted","leaseUntil","expiresAt"
         FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid FOR UPDATE`;
       const job = jobs[0];
       if (!job || job.state !== "RUNNING" || !job.leaseUntil || job.leaseUntil.getTime() <= now.getTime() || job.expiresAt.getTime() <= now.getTime())
+        throw new IngestionPersistenceError("CONFLICT");
+      if (!Number.isInteger(input.expectedClaimGeneration) || job.attempts !== input.expectedClaimGeneration)
         throw new IngestionPersistenceError("CONFLICT");
       if (job.resetRequested && !job.resetCompleted)
         throw new IngestionPersistenceError("CURSOR_CONFLICT");

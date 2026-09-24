@@ -28,6 +28,7 @@ const oauthPayloadSchema = z.object({
     }
   });
 const webhookPayloadSchema = z.object({ secret: secretSchema }).strict();
+const webhookEventTypeSchema = z.string().min(1).max(96).regex(/^[A-Za-z0-9_.:-]+$/);
 export type JiraOAuthCredential = z.infer<typeof oauthPayloadSchema>;
 export type JiraCredentialRotation = {
   customerId: string;
@@ -399,38 +400,70 @@ export class DatabaseConnectorRuntimeRepository {
   async acceptWebhook(input: {
     sourceId: string;
     eventId: string;
-    eventType: string;
     signature: string;
     rawBody: Uint8Array;
     now?: Date;
   }) {
     const sourceId = safeUuid(input.sourceId);
     const eventId = z.string().min(1).max(256).regex(/^[\x21-\x7e]+$/).parse(input.eventId);
-    const eventType = z.string().min(1).max(96).regex(/^[A-Za-z0-9_.:-]+$/).parse(input.eventType);
     if (input.rawBody.byteLength < 1 || input.rawBody.byteLength > 1_048_576 || !/^sha256=[a-f0-9]{64}$/.test(input.signature))
       throw new ConnectorRuntimeError("INVALID_WEBHOOK");
     const now = input.now ?? new Date();
     const payloadHash = digest(input.rawBody);
+    const authenticationRows = await this.db.$queryRaw<{
+      id: string;
+      customerId: string;
+      sourceType: string;
+      currentConfigRevision: number | null;
+      credentialId: string;
+      envelope: string;
+      keyId: string;
+      revision: number;
+      state: string;
+    }[]>`
+      SELECT s.id,s."customerId",s."sourceType",s."currentConfigRevision",
+        c.id AS "credentialId",c.envelope,c."keyId",c.revision,c.state
+      FROM public."IngestionSource" s
+      JOIN public."ConnectorCredential" c ON c."customerId"=s."customerId" AND c."sourceId"=s.id
+        AND c.purpose='jira_webhook_hmac'
+      WHERE s.id=${sourceId}::uuid`;
+    const authentication = authenticationRows[0];
+    if (!authentication || authentication.sourceType !== "jira" || authentication.currentConfigRevision === null)
+      throw new ConnectorRuntimeError("NOT_FOUND");
+    if (authentication.state !== "ACTIVE") throw new ConnectorRuntimeError("INVALID_WEBHOOK");
+    let secret: string;
+    try {
+      const parsed = webhookPayloadSchema.parse(JSON.parse(this.vault.decrypt(
+        authentication.envelope,
+        context(authentication.customerId, sourceId, "jira_webhook_hmac"),
+        authentication.keyId,
+      )) as unknown);
+      secret = parsed.secret;
+    } catch {
+      throw new ConnectorRuntimeError("INVALID_WEBHOOK");
+    }
+    const expected = createHmac("sha256", secret).update(input.rawBody).digest();
+    const supplied = Buffer.from(input.signature.slice("sha256=".length), "hex");
+    if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied))
+      throw new ConnectorRuntimeError("INVALID_WEBHOOK");
+    let eventType: string;
+    try {
+      const body: unknown = JSON.parse(Buffer.from(input.rawBody).toString("utf8"));
+      if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid webhook body");
+      eventType = webhookEventTypeSchema.parse((body as Record<string, unknown>).webhookEvent);
+    } catch {
+      throw new ConnectorRuntimeError("INVALID_WEBHOOK");
+    }
     return this.db.$transaction(async (tx) => {
       const sourceRows = await tx.$queryRaw<SourceRow[]>`
         SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthCheckedAt"
         FROM public."IngestionSource" WHERE id=${sourceId}::uuid AND "sourceType"='jira' FOR UPDATE`;
       const source = sourceRows[0];
       if (!source || source.currentConfigRevision === null) throw new ConnectorRuntimeError("NOT_FOUND");
-      await this.lockCurrentServiceGrants(tx, source);
       const credential = await this.credential(tx, source.customerId, sourceId, "jira_webhook_hmac");
-      if (!credential || credential.state !== "ACTIVE") throw new ConnectorRuntimeError("INVALID_WEBHOOK");
-      let secret: string;
-      try {
-        const parsed = webhookPayloadSchema.parse(JSON.parse(this.vault.decrypt(credential.envelope, context(source.customerId, sourceId, credential.purpose), credential.keyId)) as unknown);
-        secret = parsed.secret;
-      } catch {
+      if (!credential || credential.state !== "ACTIVE" || credential.id !== authentication.credentialId || credential.revision !== authentication.revision)
         throw new ConnectorRuntimeError("INVALID_WEBHOOK");
-      }
-      const expected = createHmac("sha256", secret).update(input.rawBody).digest();
-      const supplied = Buffer.from(input.signature.slice("sha256=".length), "hex");
-      if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied))
-        throw new ConnectorRuntimeError("INVALID_WEBHOOK");
+      await this.lockCurrentServiceGrants(tx, source);
       const previous = await tx.$queryRaw<{ id: string; payloadHash: string; jobId: string }[]>`
         SELECT id,"payloadHash","jobId" FROM public."ConnectorWebhookReceipt"
         WHERE "customerId"=${source.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "eventId"=${eventId}`;
@@ -532,13 +565,13 @@ export class DatabaseConnectorRuntimeRepository {
             WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${job.id}::uuid AND state IN ('READY','RUNNING')`;
           continue;
         }
-        const claimed = await tx.$queryRaw<{ id: string }[]>`
+        const claimed = await tx.$queryRaw<{ id: string; attempts: number }[]>`
           UPDATE public."ConnectorSyncJob" SET state='RUNNING',attempts=attempts+1,"leaseUntil"=${addSeconds(now, 60)}
           WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${job.id}::uuid
             AND (state='READY' OR (state='RUNNING' AND "leaseUntil"<=${now}::timestamptz))
-          RETURNING id`;
+          RETURNING id,attempts`;
         if (!claimed[0]) continue;
-        return { jobId: job.id, customerId, sourceId: source.id };
+        return { jobId: job.id, customerId, sourceId: source.id, claimGeneration: claimed[0].attempts };
       }
       return null;
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
@@ -547,13 +580,14 @@ export class DatabaseConnectorRuntimeRepository {
   async failRunningJob(input: {
     customerId: string;
     jobId: string;
+    claimGeneration: number;
     code: "INVALID_CREDENTIALS" | "EXPIRED_CREDENTIALS" | "PERMISSION_DENIED" | "RATE_LIMITED" | "TEMPORARILY_UNAVAILABLE" | "INVALID_RESPONSE" | "NOT_FOUND" | "UNKNOWN_OUTCOME" | "INTEGRITY_CONFLICT" | "CURSOR_CONFLICT";
     retryAfterMs?: number | null;
   }, now = new Date()) {
     const customerId = safeUuid(input.customerId);
     const jobId = safeUuid(input.jobId);
     const retryAfterMs = input.retryAfterMs ?? 0;
-    if (!Number.isInteger(retryAfterMs) || retryAfterMs < 0 || retryAfterMs > 86_400_000)
+    if (!Number.isInteger(input.claimGeneration) || input.claimGeneration < 1 || input.claimGeneration > 100 || !Number.isInteger(retryAfterMs) || retryAfterMs < 0 || retryAfterMs > 86_400_000)
       throw new ConnectorRuntimeError("INVALID_REQUEST");
     return this.db.$transaction(async (tx) => {
       const locator = await tx.$queryRaw<{ sourceId: string }[]>`
@@ -564,11 +598,13 @@ export class DatabaseConnectorRuntimeRepository {
         FROM public."IngestionSource" WHERE "customerId"=${customerId}::uuid AND id=${locator[0].sourceId}::uuid FOR UPDATE`;
       const source = sources[0];
       if (!source) throw new ConnectorRuntimeError("NOT_FOUND");
-      const jobs = await tx.$queryRaw<{ state: string; configRevision: number; mappingRevision: number; attempts: number }[]>`
-        SELECT state,"configRevision","mappingRevision",attempts FROM public."ConnectorSyncJob"
+      const jobs = await tx.$queryRaw<{ state: string; configRevision: number; mappingRevision: number; attempts: number; leaseUntil: Date | null }[]>`
+        SELECT state,"configRevision","mappingRevision",attempts,"leaseUntil" FROM public."ConnectorSyncJob"
         WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid FOR UPDATE`;
       const job = jobs[0];
       if (!job || job.state !== "RUNNING") return { state: job?.state ?? "MISSING" };
+      if (job.attempts !== input.claimGeneration || !job.leaseUntil || job.leaseUntil.getTime() <= now.getTime())
+        return { state: "STALE_CLAIM" };
       if (source.currentConfigRevision !== job.configRevision || source.mappingRevision !== job.mappingRevision) {
         await tx.$executeRaw`
           UPDATE public."ConnectorSyncJob" SET state='EXPIRED',"leaseUntil"=NULL

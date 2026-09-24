@@ -200,6 +200,7 @@ export async function createApp(
   authority: AuthorityRepository = unavailableAuthorityRepository,
   reconciliation: MilestoneReconciliationRepository = unavailableReconciliationRepository,
   scalarReconciliation: ScalarReconciliationRepository = unavailableScalarReconciliationRepository,
+  preJsonBodyParser?: (app: NestExpressApplication) => void,
 ) {
   @Module({
     controllers: [
@@ -225,7 +226,6 @@ export async function createApp(
   })
   class AppModule {}
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: false, rawBody: true, bodyParser: false });
-  app.useBodyParser("json", { limit: "1mb" });
   app.useGlobalInterceptors(new ResponseContractInterceptor());
   app.useGlobalFilters(new ExceptionContractFilter(app.getHttpAdapter()));
   app.enableCors({
@@ -259,6 +259,16 @@ export async function createApp(
       next();
     },
   );
+  app.useBodyParser("text", {
+    limit: "1mb",
+    type: (request) => {
+      const pathname = request.url?.split("?", 1)[0] ?? "";
+      return request.method === "POST" &&
+        (pathname.startsWith("/internal/connectors/") || pathname.startsWith("/webhooks/jira/"));
+    },
+  });
+  preJsonBodyParser?.(app);
+  app.useBodyParser("json", { limit: "1mb" });
   const spec = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()

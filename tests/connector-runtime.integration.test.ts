@@ -135,8 +135,8 @@ describe("durable Jira connector runtime", () => {
     const scheduled = await runtime.claimNextJob(customerId, now);
     expect(scheduled?.jobId).toBe(scheduledIds[0]);
     if (!scheduled) throw new Error("Expected scheduled runtime job");
-    expect((await ingestion.readConnectorSyncSnapshot(customerId, scheduled.jobId, now)).resetRequired).toBe(true);
-    await ingestion.resetConnectorCursorForJob(customerId, scheduled.jobId, now);
+    expect((await ingestion.readConnectorSyncSnapshot(customerId, scheduled.jobId, scheduled.claimGeneration, now)).resetRequired).toBe(true);
+    await ingestion.resetConnectorCursorForJob(customerId, scheduled.jobId, scheduled.claimGeneration, now);
 
     const eventId = `event-${randomUUID()}`;
     const rawBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated" }));
@@ -144,7 +144,6 @@ describe("durable Jira connector runtime", () => {
     const webhook = await runtime.acceptWebhook({
       sourceId,
       eventId,
-      eventType: "jira:issue_updated",
       signature,
       rawBody,
       now,
@@ -153,7 +152,6 @@ describe("durable Jira connector runtime", () => {
     const duplicate = await runtime.acceptWebhook({
       sourceId,
       eventId,
-      eventType: "jira:issue_updated",
       signature,
       rawBody,
       now,
@@ -163,7 +161,6 @@ describe("durable Jira connector runtime", () => {
       runtime.acceptWebhook({
         sourceId,
         eventId,
-        eventType: "jira:issue_updated",
         signature: "sha256=" + createHmac("sha256", webhookSecret).update(Buffer.from("different payload")).digest("hex"),
         rawBody: Buffer.from("different payload"),
         now,
@@ -173,13 +170,29 @@ describe("durable Jira connector runtime", () => {
     const webhookJob = await runtime.claimNextJob(customerId, now);
     expect(webhookJob?.jobId).toBe(webhook.jobId);
     if (!webhookJob) throw new Error("Expected webhook reconciliation job");
-    const resetSnapshot = await ingestion.readConnectorSyncSnapshot(customerId, webhookJob.jobId, now);
+    const reclaimedAt = new Date(now.getTime() + 61_000);
+    const reclaimedWebhookJob = await runtime.claimNextJob(customerId, reclaimedAt);
+    expect(reclaimedWebhookJob?.jobId).toBe(webhook.jobId);
+    if (!reclaimedWebhookJob) throw new Error("Expected expired webhook job to be reclaimed");
+    expect(reclaimedWebhookJob.claimGeneration).toBe(webhookJob.claimGeneration + 1);
+    await expect(
+      runtime.failRunningJob({
+        customerId,
+        jobId: webhookJob.jobId,
+        claimGeneration: webhookJob.claimGeneration,
+        code: "INVALID_RESPONSE",
+      }, reclaimedAt),
+    ).resolves.toMatchObject({ state: "STALE_CLAIM" });
+    await expect(
+      ingestion.readConnectorSyncSnapshot(customerId, webhookJob.jobId, webhookJob.claimGeneration, reclaimedAt),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    const resetSnapshot = await ingestion.readConnectorSyncSnapshot(customerId, reclaimedWebhookJob.jobId, reclaimedWebhookJob.claimGeneration, reclaimedAt);
     expect(resetSnapshot.resetRequired).toBe(true);
-    await ingestion.resetConnectorCursorForJob(customerId, webhookJob.jobId, now);
-    const readyJob = await runtime.claimNextJob(customerId, now);
+    await ingestion.resetConnectorCursorForJob(customerId, reclaimedWebhookJob.jobId, reclaimedWebhookJob.claimGeneration, reclaimedAt);
+    const readyJob = await runtime.claimNextJob(customerId, reclaimedAt);
     expect(readyJob?.jobId).toBe(webhook.jobId);
     if (!readyJob) throw new Error("Expected reset webhook job");
-    const snapshot = await ingestion.readConnectorSyncSnapshot(customerId, readyJob.jobId, now);
+    const snapshot = await ingestion.readConnectorSyncSnapshot(customerId, readyJob.jobId, readyJob.claimGeneration, reclaimedAt);
     expect(snapshot.resetRequired).toBe(false);
     const page = {
       binding: snapshot.configuration.binding,
@@ -188,15 +201,32 @@ describe("durable Jira connector runtime", () => {
       terminal: true,
       records: [],
     };
-    const committed = await ingestion.persistConnectorPageForJob({
+    const finalReclaimedAt = new Date(reclaimedAt.getTime() + 61_000);
+    const finalJob = await runtime.claimNextJob(customerId, finalReclaimedAt);
+    expect(finalJob?.jobId).toBe(webhook.jobId);
+    if (!finalJob) throw new Error("Expected expired page job to be reclaimed");
+    expect(finalJob.claimGeneration).toBe(readyJob.claimGeneration + 1);
+    await expect(ingestion.persistConnectorPageForJob({
       customerId,
       jobId: readyJob.jobId,
+      expectedClaimGeneration: readyJob.claimGeneration,
       expectedConfigRevision: snapshot.configRevision,
       expectedMappingRevision: snapshot.mappingRevision,
       expectedCursorRevision: snapshot.cursorRevision,
       expectedGeneration: snapshot.generation,
       page,
-    }, now);
+    }, finalReclaimedAt)).rejects.toMatchObject({ code: "CONFLICT" });
+    const finalSnapshot = await ingestion.readConnectorSyncSnapshot(customerId, finalJob.jobId, finalJob.claimGeneration, finalReclaimedAt);
+    const committed = await ingestion.persistConnectorPageForJob({
+      customerId,
+      jobId: finalJob.jobId,
+      expectedClaimGeneration: finalJob.claimGeneration,
+      expectedConfigRevision: finalSnapshot.configRevision,
+      expectedMappingRevision: finalSnapshot.mappingRevision,
+      expectedCursorRevision: finalSnapshot.cursorRevision,
+      expectedGeneration: finalSnapshot.generation,
+      page,
+    }, finalReclaimedAt);
     expect(committed.terminal).toBe(true);
     const persistedJob = await db.$queryRaw<{ state: string; completedAt: Date | null }[]>`
       SELECT state,"completedAt" FROM public."ConnectorSyncJob" WHERE id=${readyJob.jobId}::uuid`;

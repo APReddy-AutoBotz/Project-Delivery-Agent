@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { DatabaseConnectorRuntimeRepository } from "../packages/data/src/connector-runtime.js";
 import {
   signConnectorTaskRequest,
   verifyConnectorTaskRequest,
@@ -166,5 +167,45 @@ describe("Jira OAuth boundaries", () => {
           ),
       }),
     ).rejects.toBeInstanceOf(JiraOAuthError);
+  });
+});
+
+describe("Jira webhook authentication boundary", () => {
+  it("rejects a bad raw-body signature before JSON parsing or transactional row locks", async () => {
+    const sourceId = "13f95d34-1588-4d31-8f2e-40a213d37c91";
+    const customerId = "2b2ae50e-1b58-4c69-a763-54ce3e4934ca";
+    const rawBody = Buffer.from('{"webhookEvent":"jira:issue_updated"}', "utf8");
+    const db = {
+      $queryRaw: vi.fn().mockResolvedValue([{
+        id: sourceId,
+        customerId,
+        sourceType: "jira",
+        currentConfigRevision: 1,
+        credentialId: "41f867a5-ec4b-45e2-a96d-d2e522113a29",
+        envelope: "encrypted-envelope",
+        keyId: "key-1",
+        revision: 1,
+        state: "ACTIVE",
+      }]),
+      $transaction: vi.fn(),
+    };
+    const vault = {
+      decrypt: vi.fn().mockReturnValue(JSON.stringify({ secret: Buffer.alloc(32, 61).toString("hex") })),
+    };
+    const repository = new DatabaseConnectorRuntimeRepository(db as never, vault as never);
+    const parse = vi.spyOn(JSON, "parse");
+    try {
+      await expect(repository.acceptWebhook({
+        sourceId,
+        eventId: "event-123",
+        signature: `sha256=${"0".repeat(64)}`,
+        rawBody,
+        now: new Date("2026-09-24T00:00:00.000Z"),
+      })).rejects.toMatchObject({ code: "INVALID_WEBHOOK" });
+      expect(parse).not.toHaveBeenCalled();
+      expect(db.$transaction).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
   });
 });

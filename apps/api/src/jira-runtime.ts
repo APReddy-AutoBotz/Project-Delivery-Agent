@@ -58,7 +58,7 @@ type ConnectorRuntimePort = {
   ): Promise<string[]>;
   claimNextJob(
     customerId: string,
-  ): Promise<{ jobId: string; customerId: string; sourceId: string } | null>;
+  ): Promise<{ jobId: string; customerId: string; sourceId: string; claimGeneration: number } | null>;
   accessOrBeginRotation(
     customerId: string,
     sourceId: string,
@@ -71,6 +71,7 @@ type ConnectorRuntimePort = {
   failRunningJob(input: {
     customerId: string;
     jobId: string;
+    claimGeneration: number;
     code: RuntimeFailureCode;
     retryAfterMs?: number | null;
   }): Promise<unknown>;
@@ -90,11 +91,13 @@ type JiraIngestionPort = {
   readConnectorSyncSnapshot(
     customerId: string,
     jobId: string,
+    claimGeneration: number,
   ): Promise<JiraSyncSnapshot>;
-  resetConnectorCursorForJob(customerId: string, jobId: string): Promise<unknown>;
+  resetConnectorCursorForJob(customerId: string, jobId: string, claimGeneration: number): Promise<unknown>;
   persistConnectorPageForJob(input: {
     customerId: string;
     jobId: string;
+    expectedClaimGeneration: number;
     expectedConfigRevision: number;
     expectedMappingRevision: number;
     expectedCursorRevision: number;
@@ -131,10 +134,17 @@ export class JiraRuntimeService {
     await this.runtime.enqueueDueJobs(this.config.CUSTOMER_ID, 15, 20);
     const job = await this.runtime.claimNextJob(this.config.CUSTOMER_ID);
     if (!job) return { status: "idle" as const };
+    const failRunningJob = (failure: { code: RuntimeFailureCode; retryAfterMs?: number | null }) =>
+      this.runtime.failRunningJob({
+        customerId: job.customerId,
+        jobId: job.jobId,
+        claimGeneration: job.claimGeneration,
+        ...failure,
+      });
     try {
-      const snapshot = await this.ingestion.readConnectorSyncSnapshot(job.customerId, job.jobId);
+      const snapshot = await this.ingestion.readConnectorSyncSnapshot(job.customerId, job.jobId, job.claimGeneration);
       if (snapshot.resetRequired) {
-        await this.ingestion.resetConnectorCursorForJob(job.customerId, job.jobId);
+        await this.ingestion.resetConnectorCursorForJob(job.customerId, job.jobId, job.claimGeneration);
         return { status: "cursor_reset" as const };
       }
       const access = await this.runtime.accessOrBeginRotation(job.customerId, job.sourceId);
@@ -144,7 +154,7 @@ export class JiraRuntimeService {
           : access.reason === "STALE_CONFIGURATION"
             ? "INTEGRITY_CONFLICT"
             : "EXPIRED_CREDENTIALS";
-        await this.runtime.failRunningJob({ customerId: job.customerId, jobId: job.jobId, code, retryAfterMs: code === "TEMPORARILY_UNAVAILABLE" ? 15_000 : null });
+        await failRunningJob({ code, retryAfterMs: code === "TEMPORARILY_UNAVAILABLE" ? 15_000 : null });
         return { status: "deferred" as const };
       }
 
@@ -170,7 +180,7 @@ export class JiraRuntimeService {
           const committed = await this.runtime.completeOAuthRotation(access.rotation, updated);
           if (!committed.committed) {
             await this.runtime.failOAuthRotation(access.rotation);
-            await this.runtime.failRunningJob({ customerId: job.customerId, jobId: job.jobId, code: "EXPIRED_CREDENTIALS" });
+            await failRunningJob({ code: "EXPIRED_CREDENTIALS" });
             return { status: "reauthorization_required" as const };
           }
           this.assertSelectedCloud(await getJiraAccessibleResources({ accessToken: refreshed.accessToken, fetchImpl: this.fetchImpl }), updated.cloudId, updated.selectedUrl);
@@ -178,7 +188,7 @@ export class JiraRuntimeService {
         } catch (error) {
           await this.runtime.failOAuthRotation(access.rotation);
           const code = this.oauthFailure(error);
-          await this.runtime.failRunningJob({ customerId: job.customerId, jobId: job.jobId, code });
+          await failRunningJob({ code });
           return { status: code === "EXPIRED_CREDENTIALS" || code === "INVALID_CREDENTIALS" ? "reauthorization_required" as const : "deferred" as const };
         }
       }
@@ -192,9 +202,9 @@ export class JiraRuntimeService {
       } catch (error) {
         const code = this.oauthFailure(error);
         if (code === "INVALID_CREDENTIALS" || code === "EXPIRED_CREDENTIALS")
-          await this.runtime.failRunningJob({ customerId: job.customerId, jobId: job.jobId, code: "EXPIRED_CREDENTIALS" });
+          await failRunningJob({ code: "EXPIRED_CREDENTIALS" });
         else
-          await this.runtime.failRunningJob({ customerId: job.customerId, jobId: job.jobId, code });
+          await failRunningJob({ code });
         return { status: "deferred" as const };
       }
 
@@ -230,9 +240,7 @@ export class JiraRuntimeService {
         cursor: snapshot.cursor,
       });
       if (!result.ok) {
-        await this.runtime.failRunningJob({
-          customerId: job.customerId,
-          jobId: job.jobId,
+        await failRunningJob({
           code: result.failure.code,
           retryAfterMs: result.failure.retryAfterMs,
         });
@@ -241,6 +249,7 @@ export class JiraRuntimeService {
       await this.ingestion.persistConnectorPageForJob({
         customerId: job.customerId,
         jobId: job.jobId,
+        expectedClaimGeneration: job.claimGeneration,
         expectedConfigRevision: snapshot.configRevision,
         expectedMappingRevision: snapshot.mappingRevision,
         expectedCursorRevision: snapshot.cursorRevision,
@@ -250,13 +259,13 @@ export class JiraRuntimeService {
       return { status: "page_committed" as const };
     } catch (error) {
       if (hasCode(error, "STALE_CONFIGURATION"))
-        await this.runtime.failRunningJob({ customerId: job.customerId, jobId: job.jobId, code: "INTEGRITY_CONFLICT" });
+        await failRunningJob({ code: "INTEGRITY_CONFLICT" });
       else if (hasCode(error, "CURSOR_CONFLICT"))
-        await this.runtime.failRunningJob({ customerId: job.customerId, jobId: job.jobId, code: "CURSOR_CONFLICT" });
+        await failRunningJob({ code: "CURSOR_CONFLICT" });
       else if (hasCode(error, "CONFLICT"))
-        await this.runtime.failRunningJob({ customerId: job.customerId, jobId: job.jobId, code: "TEMPORARILY_UNAVAILABLE", retryAfterMs: 15_000 });
+        await failRunningJob({ code: "TEMPORARILY_UNAVAILABLE", retryAfterMs: 15_000 });
       else
-        await this.runtime.failRunningJob({ customerId: job.customerId, jobId: job.jobId, code: "INVALID_RESPONSE" });
+        await failRunningJob({ code: "INVALID_RESPONSE" });
       return { status: "deferred" as const };
     }
   }

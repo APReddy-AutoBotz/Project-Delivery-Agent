@@ -4,14 +4,12 @@ import type { Config } from "@pdaa/platform";
 import { verifyConnectorTaskRequest } from "@pdaa/platform";
 import type { JiraRuntimeService } from "./jira-runtime.js";
 
-const eventTypeSchema = z.string().min(1).max(96).regex(/^[A-Za-z0-9_.:-]+$/);
 const eventIdSchema = z.string().min(1).max(256).regex(/^[\x21-\x7e]+$/);
 type ConnectorRequest = {
   method: string;
   path: string;
   url: string;
   rawBody?: Buffer;
-  body: unknown;
   headers: Record<string, string | string[] | undefined>;
   get(name: string): string | undefined;
 };
@@ -30,7 +28,6 @@ type ConnectorHttpRuntimePort = {
   acceptWebhook(input: {
     sourceId: string;
     eventId: string;
-    eventType: string;
     signature: string;
     rawBody: Uint8Array;
   }): Promise<{ replayed: boolean }>;
@@ -83,7 +80,18 @@ export function installConnectorRoutes(
         fixedError(response, 401, "Access denied");
         return;
       }
-      if (!req.body || typeof req.body !== "object" || Array.isArray(req.body) || Object.keys(req.body).length !== 0 || rawBody.byteLength > 64) {
+      if (rawBody.byteLength > 64) {
+        fixedError(response, 400, "Invalid request");
+        return;
+      }
+      let body: unknown;
+      try {
+        body = JSON.parse(rawBody.toString("utf8")) as unknown;
+      } catch {
+        fixedError(response, 400, "Invalid request");
+        return;
+      }
+      if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 0) {
         fixedError(response, 400, "Invalid request");
         return;
       }
@@ -106,21 +114,9 @@ export function installConnectorRoutes(
       fixedError(response, 404, "Resource unavailable");
       return;
     }
-    let payload: unknown;
-    try {
-      payload = JSON.parse(rawBody.toString("utf8")) as unknown;
-    } catch {
-      fixedError(response, 400, "Invalid request");
-      return;
-    }
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      fixedError(response, 400, "Invalid request");
-      return;
-    }
-    const eventType = eventTypeSchema.safeParse((payload as Record<string, unknown>).webhookEvent);
     const eventId = eventIdSchema.safeParse(req.get("x-atlassian-webhook-identifier"));
     const signature = req.get("x-hub-signature");
-    if (!eventType.success || !eventId.success || !signature) {
+    if (!eventId.success || !signature) {
       fixedError(response, 401, "Access denied");
       return;
     }
@@ -128,7 +124,6 @@ export function installConnectorRoutes(
       const result = await runtime.acceptWebhook({
         sourceId: match[1]!,
         eventId: eventId.data,
-        eventType: eventType.data,
         signature,
         rawBody,
       });
