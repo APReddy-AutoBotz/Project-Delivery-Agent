@@ -105,7 +105,11 @@ export class DatabaseConnectorRuntimeRepository {
   constructor(
     private readonly db: Database,
     private readonly vault: CredentialKeyRingVault,
-  ) {}
+    private readonly leaseDurationSeconds = 60,
+  ) {
+    if (!Number.isInteger(leaseDurationSeconds) || leaseDurationSeconds < 1 || leaseDurationSeconds > 60)
+      throw new RangeError("Connector sync lease duration must be between 1 and 60 seconds");
+  }
 
   private async audit(
     tx: Tx,
@@ -522,16 +526,16 @@ export class DatabaseConnectorRuntimeRepository {
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
   }
 
-  async claimNextJob(customerIdInput: string, now = new Date()) {
+  async claimNextJob(customerIdInput: string) {
     const customerId = safeUuid(customerIdInput);
     return this.db.$transaction(async (tx) => {
       await tx.$executeRaw`
         UPDATE public."ConnectorSyncJob" SET state='EXPIRED',"leaseUntil"=NULL
-        WHERE "customerId"=${customerId}::uuid AND state IN ('READY','RUNNING') AND "expiresAt"<=${now}::timestamptz`;
+        WHERE "customerId"=${customerId}::uuid AND state IN ('READY','RUNNING') AND "expiresAt"<=CURRENT_TIMESTAMP`;
       const candidates = await tx.$queryRaw<{ id: string; sourceId: string }[]>`
         SELECT id,"sourceId" FROM public."ConnectorSyncJob"
-        WHERE "customerId"=${customerId}::uuid AND "expiresAt">${now}::timestamptz AND "availableAt"<=${now}::timestamptz
-          AND (state='READY' OR (state='RUNNING' AND "leaseUntil"<=${now}::timestamptz))
+        WHERE "customerId"=${customerId}::uuid AND "expiresAt">CURRENT_TIMESTAMP AND "availableAt"<=CURRENT_TIMESTAMP
+          AND (state='READY' OR (state='RUNNING' AND "leaseUntil"<=CURRENT_TIMESTAMP))
         ORDER BY "availableAt","createdAt",id LIMIT 100`;
       for (const candidate of candidates) {
         const sources = await tx.$queryRaw<SourceRow[]>`
@@ -546,7 +550,7 @@ export class DatabaseConnectorRuntimeRepository {
           SELECT id,"sourceId",state,"configRevision","mappingRevision",attempts,"leaseUntil","expiresAt"
           FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${candidate.id}::uuid FOR UPDATE`;
         const job = jobs[0];
-        if (!job || job.expiresAt.getTime() <= now.getTime() || (job.state === "RUNNING" && job.leaseUntil && job.leaseUntil.getTime() > now.getTime())) continue;
+        if (!job) continue;
         if (job.state !== "READY" && job.state !== "RUNNING") continue;
         if (job.attempts >= 100 || source.sourceType !== "jira" || source.currentConfigRevision !== job.configRevision || source.mappingRevision !== job.mappingRevision) {
           await tx.$executeRaw`
@@ -566,9 +570,10 @@ export class DatabaseConnectorRuntimeRepository {
           continue;
         }
         const claimed = await tx.$queryRaw<{ id: string; attempts: number }[]>`
-          UPDATE public."ConnectorSyncJob" SET state='RUNNING',attempts=attempts+1,"leaseUntil"=date_trunc('milliseconds',CURRENT_TIMESTAMP)+interval '60 seconds'
+          UPDATE public."ConnectorSyncJob" SET state='RUNNING',attempts=attempts+1,"leaseUntil"=date_trunc('milliseconds',CURRENT_TIMESTAMP)+make_interval(secs => ${this.leaseDurationSeconds}::double precision)
           WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${job.id}::uuid
-            AND (state='READY' OR (state='RUNNING' AND "leaseUntil"<=${now}::timestamptz))
+            AND "expiresAt">CURRENT_TIMESTAMP AND "availableAt"<=CURRENT_TIMESTAMP
+            AND (state='READY' OR (state='RUNNING' AND "leaseUntil"<=CURRENT_TIMESTAMP))
           RETURNING id,attempts`;
         if (!claimed[0]) continue;
         return { jobId: job.id, customerId, sourceId: source.id, claimGeneration: claimed[0].attempts };
