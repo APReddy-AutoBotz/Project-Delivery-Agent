@@ -274,3 +274,13 @@ source-build reproducibility or licence compatibility. All 24 residual identitie
 remain; ncrypto, native/tool/generated-source coverage and complete distribution
 review are unresolved. Owner: implementation controller for source-pin maintenance
 and replay. Recovery: reviewed preparation/evidence-policy revert and fresh checks.
+### Jira adapter pin, 2026-09-24
+
+The first-party `@pdaa/connectors-jira` adapter pins `jira.js` 6.2.0 and Zod
+4.5.4 in the workspace lockfile. The published `jira.js` package declares MIT,
+ships TypeScript declarations and supports Node.js 22+; the repository targets
+Node.js 24. The adapter calls only project read, enhanced issue-search read and
+issue read methods. Its SDK client remains private to this connector package.
+No OAuth token store, live credential, webhook listener or source write is
+introduced by this increment. Recheck the package, license and transitive
+inventory during release/distribution review.

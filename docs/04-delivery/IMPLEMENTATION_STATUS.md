@@ -590,3 +590,27 @@ storage. Full database reads, migration/audit-trigger checks, fresh worker progr
 and seven browser workflows passed; web/API readiness is healthy. No pre-incident
 full database snapshot was available for an exact comparison. Issue #5 records the
 recovery evidence and successful merged-main CI.
+## EXEC-009 Stage 3 Jira reader checkpoint, 2026-09-24
+
+The current candidate adds a new `@pdaa/connectors-jira` workspace package with
+the approved `jira.js` 6.2.0 client kept behind a first-party read-only contract.
+Configured project UUID/key pairs bound discovery and enhanced JQL search;
+configured Jira scalar fields are normalized to typed proposals with stable
+content hashes and checked against the returned project identity. Synthetic
+adapter coverage exercises read-only connection, configured visibility, search
+scope/cursor, field projection, direct lookup and finite failure redaction. The focused adapter tests pass 10/10; the full local unit suite passes 1,499/1,499 tests across 75 files. Workspace lint, strict typecheck, build, architecture, contracts and documentation validation pass.
+
+The first hosted Foundation attempt stopped at the dependency-register check
+because jira.js was not yet registered; the follow-up added that governance entry.
+The final exact candidate `b1240e84a68042fd3b138a96203b28f51a73b6d2` passed the
+[Foundation workflow](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/35933047285)
+and [Documentation workflow](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/35933047278).
+Foundation validation passed build, architecture/contracts, lint/typecheck, all
+1,499 units, dependency/audit checks, database migration/integration, recovery,
+browser workflows and production-boundary acceptance. Documentation validation
+passed, and exact-head independent review approved with no findings. PR #57 is
+ready for its final merge step. No route or worker invokes the adapter; no live Jira
+credential, OAuth rotation, webhook, scheduler or external write is enabled.
+Sprint/comment/full changelog/link normalization and durable reader wiring remain
+open, so AC-CON-001/002/003, AC-MNT-003, Issue #7 stories and accepted totals are
+unchanged. The existing Stage 2 tables do not change in this adapter increment.

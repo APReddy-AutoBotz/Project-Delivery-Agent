@@ -311,6 +311,20 @@
       "replacementPath": "Replace behind first-party module boundary"
     },
     {
+      "name": "jira.js",
+      "version": "6.2.0",
+      "runtime": true,
+      "consumers": ["@pdaa/connectors-jira"],
+      "license": "MIT",
+      "repository": "https://github.com/MrRefactoring/jira.js.git",
+      "source": "https://registry.npmjs.org/jira.js/6.2.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive published package",
+      "reviewDate": "2026-09-24",
+      "replacementPath": "Replace behind first-party connector boundary"
+    },
+    {
       "name": "js-yaml",
       "version": "5.3.0",
       "runtime": false,
@@ -525,7 +539,7 @@
       "name": "zod",
       "version": "4.5.4",
       "runtime": true,
-      "consumers": ["@pdaa/api", "@pdaa/domain", "@pdaa/platform"],
+      "consumers": ["@pdaa/api", "@pdaa/connectors-jira", "@pdaa/domain", "@pdaa/platform"],
       "license": "MIT",
       "repository": "git+https://github.com/colinhacks/zod.git",
       "source": "https://registry.npmjs.org/zod/4.5.4",

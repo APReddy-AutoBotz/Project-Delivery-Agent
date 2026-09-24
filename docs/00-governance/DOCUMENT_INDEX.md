@@ -137,7 +137,7 @@
 - `docs/04-delivery/exec-plans/EXEC-006-project-evidence-workflow.md`: scoped human evidence history, explicit source sharing and authority configuration, and saved historical assessments.
 - `docs/04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md`: canonical Stages 1-3 merged; later generic scalar requests are merged through EXEC-008, while shared story acceptance remains open.
 - `docs/04-delivery/exec-plans/EXEC-008-scalar-reconciliation.md`: merged durable scalar request, original proof, permissions and recovery; separate story/release acceptance remains open.
-- `docs/04-delivery/exec-plans/EXEC-009-read-only-ingestion.md`: approved synthetic-first ingestion stages; internal read contract and CSV preview implementation, with live/user-facing ingestion still outstanding.
+- `docs/04-delivery/exec-plans/EXEC-009-read-only-ingestion.md`: approved synthetic-first ingestion stages; internal read contract, durable proposal persistence and Jira issue reader checkpoints, with OAuth/webhooks, complete Jira entity coverage and user-facing ingestion still outstanding.
 - `docs/05-quality/SCALAR_RECONCILIATION_VALIDATION.md`: exact PR54 merge/review/artifact evidence, implemented FAIL-009 and unchanged shared GOLDEN-003/Issue6 acceptance remainder.
 - `docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md`: verified canonical PM request/COMMIT/race/upgrade/restore evidence and historical checkpoints, linked to the later scalar FAIL-009 implementation disposition; no new story acceptance.
 - `docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md`: candidate user/admin workflow, strict API, browser and packaged evidence gates and remaining acceptance.
