@@ -443,6 +443,11 @@ export async function verifyFoundationUpgrade(
       "IngestionReceiptProjectScope",
       "IngestionCursorTransition",
       "IngestionRowOutcome",
+      "ConnectorSyncGrant",
+      "ConnectorSyncJob",
+      "ConnectorWebhookReceipt",
+      "ConnectorTaskReceipt",
+      "IngestionSyncReceiptProjectScope",
     ];
     for (const table of addedTables)
       assert.equal(
