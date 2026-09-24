@@ -10,7 +10,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "lint": "eslint apps packages scripts --ignore-pattern '**/generated/**'",
-    "typecheck": "pnpm --filter @pdaa/domain --filter @pdaa/data --filter @pdaa/platform build && pnpm -r typecheck",
+    "typecheck": "pnpm --filter @pdaa/domain --filter @pdaa/data --filter @pdaa/platform --filter @pdaa/connectors-jira build && pnpm -r typecheck",
     "test": "vitest run --exclude '**/*.integration.test.ts'",
     "test:integration": "node scripts/local.mjs scripts/test-database.mjs",
     "test:recovery": "node scripts/local.mjs scripts/rehearse-recovery.mjs",

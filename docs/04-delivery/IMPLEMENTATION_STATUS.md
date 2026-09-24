@@ -107,7 +107,7 @@ Sprint/comment/full changelog/link normalization and durable reader wiring remai
 open, so AC-CON-001/002/003, AC-MNT-003, Issue #7 stories and accepted totals are
 unchanged. The Stage 3 adapter added no migration.
 
-## EXEC-009 Stage 4 Jira runtime candidate, 2026-09-24
+## EXEC-009 Jira runtime follow-up candidate, 2026-09-24
 
 The current local candidate adds OAuth token refresh with a persisted 60-second
 single-owner lease, operation/revision fencing and atomic rotated-token commit;
@@ -117,16 +117,19 @@ nonce replay protection; and worker dispatch. Sync receipts have a distinct
 connector subject, while proposal and cursor commits recheck the current source
 configuration, cursor generation, mapping and exact active project grants.
 
-Five additive tables bring the independent business-table inventory to 61 and
-the migration ledger to 11. The candidate also updates database, upgrade, recovery
+Five additive tables bring the independent business-table inventory to 61.
+A follow-up migration adds a source-scoped unique body-digest index; the migration
+ledger contains 12 entries. Definitive OAuth 429 responses release the refresh
+lease back to ACTIVE for bounded retry, while ambiguous rotation outcomes continue
+to require reauthorization. The candidate also updates database, upgrade, recovery
 and clean-install inventories and adds synthetic OAuth/task-auth plus isolated DB
-runtime coverage. Local Prisma schema validation and source-path strict typecheck
-pass. Lint, architecture, OpenAPI contract, dependency-register and documentation
-checks pass. The full database-independent suite passes 1,502 tests across 76
-files. Local Docker/PostgreSQL is unavailable, so native migration/COMMIT,
-connector integration, populated-prefix-nine upgrade and encrypted restore checks
-remain pending for hosted validation. Exact-code independent review and matching
-hosted workflows have not yet run for the final Stage 4 candidate. AC-CON-004/005/006
+runtime coverage. The predecessor candidate passed local Prisma/schema, source
+typecheck, lint, architecture, OpenAPI, dependency-register, documentation and
+1,502 database-independent tests across 76 files. The replay and OAuth 429
+follow-up still requires final-head validation. Local Docker/PostgreSQL is
+unavailable, so native migration/COMMIT, connector integration, populated-prefix-nine
+upgrade and encrypted restore checks remain pending for hosted validation.
+AC-CON-004/005/006
 and AC-MNT-003 remain incomplete; no Issue #7 story or acceptance total changes.
 No public OAuth authorization callback/UI, Jira write, canonical fact publication
 or live production account is included.

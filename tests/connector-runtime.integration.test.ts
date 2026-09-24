@@ -147,7 +147,7 @@ describe("durable Jira connector runtime", () => {
     await ingestion.resetConnectorCursorForJob(customerId, scheduled.jobId, scheduled.claimGeneration, now);
 
     const eventId = `event-${randomUUID()}`;
-    const rawBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated" }));
+    const rawBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated", timestamp: now.getTime() }));
     const signature = "sha256=" + createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
     const webhook = await runtime.acceptWebhook({
       sourceId,
@@ -241,5 +241,35 @@ describe("durable Jira connector runtime", () => {
       SELECT state,"completedAt" FROM public."ConnectorSyncJob" WHERE id=${readyJob.jobId}::uuid`;
     expect(persistedJob[0]).toMatchObject({ state: "COMPLETED" });
     expect(persistedJob[0]!.completedAt).toBeInstanceOf(Date);
+    const replayWithChangedDeliveryId = await runtime.acceptWebhook({
+      sourceId,
+      eventId: `changed-${eventId}`,
+      signature,
+      rawBody,
+      now: new Date(finalReclaimedAt.getTime() + 1000),
+    });
+    expect(replayWithChangedDeliveryId).toMatchObject({
+      receiptId: webhook.receiptId,
+      jobId: webhook.jobId,
+      replayed: true,
+    });
+
+    const retryAt = new Date(now.getTime() + 2 * 60 * 60_000);
+    const retryableRotation = await runtime.accessOrBeginRotation(customerId, sourceId, retryAt);
+    expect(retryableRotation.kind).toBe("rotate");
+    if (retryableRotation.kind !== "rotate") throw new Error("Expected retryable refresh lease");
+    expect(await runtime.deferOAuthRotation(retryableRotation.rotation, retryAt)).toBe(true);
+    const retriedRotation = await runtime.accessOrBeginRotation(
+      customerId,
+      sourceId,
+      new Date(retryAt.getTime() + 1000),
+    );
+    expect(retriedRotation.kind).toBe("rotate");
+    if (retriedRotation.kind !== "rotate") throw new Error("Expected a fresh refresh lease");
+    expect(retriedRotation.rotation.credentials.refreshToken).toBe(renewed.refreshToken);
+    expect(await runtime.deferOAuthRotation(
+      retriedRotation.rotation,
+      new Date(retryAt.getTime() + 1000),
+    )).toBe(true);
   }, 30_000);
 });

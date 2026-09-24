@@ -401,6 +401,26 @@ export class DatabaseConnectorRuntimeRepository {
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 15000 });
   }
 
+  async deferOAuthRotation(rotation: JiraCredentialRotation, now = new Date()) {
+    return this.db.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<CredentialRow[]>`
+        SELECT id,"customerId","sourceId",purpose,envelope,"keyId",revision,state,"rotationOperationId","rotationDeadline"
+        FROM public."ConnectorCredential" WHERE "customerId"=${rotation.customerId}::uuid AND "sourceId"=${rotation.sourceId}::uuid AND purpose='jira_oauth' FOR UPDATE`;
+      const row = rows[0];
+      if (!row || row.state !== "ROTATING" || row.rotationOperationId !== rotation.operationId || row.revision !== rotation.revision) return false;
+      const revision = row.revision + 1;
+      const auditEventId = await this.audit(tx, rotation.customerId, runtimeActor, "ingestion.connector_credential.rotation_deferred", {
+        sourceId: rotation.sourceId, purpose: "jira_oauth", state: "ACTIVE", revision, rotationOperationId: null,
+        reason: "RATE_LIMITED",
+      }, now);
+      const changed = await tx.$executeRaw`
+        UPDATE public."ConnectorCredential" SET state='ACTIVE',revision=${revision},"rotationOperationId"=NULL,"rotationDeadline"=NULL,
+          "auditEventId"=${auditEventId}::uuid,"changedBy"=${runtimeActor}
+        WHERE id=${row.id}::uuid AND revision=${rotation.revision} AND state='ROTATING' AND "rotationOperationId"=${rotation.operationId}::uuid`;
+      return Number(changed) === 1;
+    }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 15000 });
+  }
+
   async acceptWebhook(input: {
     sourceId: string;
     eventId: string;
@@ -468,11 +488,14 @@ export class DatabaseConnectorRuntimeRepository {
       if (!credential || credential.state !== "ACTIVE" || credential.id !== authentication.credentialId || credential.revision !== authentication.revision)
         throw new ConnectorRuntimeError("INVALID_WEBHOOK");
       await this.lockCurrentServiceGrants(tx, source);
-      const previous = await tx.$queryRaw<{ id: string; payloadHash: string; jobId: string }[]>`
-        SELECT id,"payloadHash","jobId" FROM public."ConnectorWebhookReceipt"
-        WHERE "customerId"=${source.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "eventId"=${eventId}`;
+      const previous = await tx.$queryRaw<{ id: string; eventId: string; payloadHash: string; jobId: string }[]>`
+        SELECT id,"eventId","payloadHash","jobId" FROM public."ConnectorWebhookReceipt"
+        WHERE "customerId"=${source.customerId}::uuid AND "sourceId"=${sourceId}::uuid
+          AND ("eventId"=${eventId} OR "payloadHash"=${payloadHash})
+        ORDER BY ("eventId"=${eventId}) DESC LIMIT 1`;
       if (previous[0]) {
-        if (previous[0].payloadHash !== payloadHash) throw new ConnectorRuntimeError("CONFLICT");
+        if (previous[0].eventId === eventId && previous[0].payloadHash !== payloadHash)
+          throw new ConnectorRuntimeError("CONFLICT");
         return { receiptId: previous[0].id, jobId: previous[0].jobId, replayed: true };
       }
       const receiptId = randomUUID();

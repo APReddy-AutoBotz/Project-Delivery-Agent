@@ -5,6 +5,11 @@ import { createDisclosureCheck } from "../scripts/acceptance/disclosure.mjs";
 
 it("SEC-SECRET-001: API and worker startup failures emit fixed categories without raw configuration", () => {
   const canary = randomBytes(32).toString("hex");
+  const inheritedEnvironment = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key]) => !key.startsWith("PDAA_") && key !== "DATABASE_URL",
+    ),
+  );
   for (const service of ["api", "worker"]) {
     const result = spawnSync(
       process.execPath,
@@ -13,8 +18,9 @@ it("SEC-SECRET-001: API and worker startup failures emit fixed categories withou
         encoding: "utf8",
         timeout: 15000,
         env: {
-          ...process.env,
+          ...inheritedEnvironment,
           NODE_ENV: "production",
+          DEPLOYMENT_MODE: "customer",
           AUTH_MODE: "development",
           DATA_MODE: "customer",
           ENCRYPTION_KEY: canary,

@@ -1064,6 +1064,7 @@ model ConnectorWebhookReceipt {
   jobId String @db.Uuid
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@unique([customerId, sourceId, eventId], map: "ConnectorWebhookReceipt_event_key")
+  @@unique([customerId, sourceId, payloadHash], map: "ConnectorWebhookReceipt_payload_key")
   @@unique([customerId, sourceId, id], map: "ConnectorWebhookReceipt_scope_key")
 }
 

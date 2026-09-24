@@ -82,10 +82,11 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 11);
+    assert.equal(migrations.length, 12);
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     assert.equal(migrations[10].name, "202609240001_jira_runtime");
+    assert.equal(migrations[11].name, "202609240002_jira_webhook_body_replay");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
     pool = new Pool(databaseConfig);
     await assignSyntheticTableOwners(pool);
@@ -166,6 +167,11 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
           WHERE schemaname='public' AND tablename<>'_prisma_migrations'
           ORDER BY tablename`
       ).map((row) => row.tablename);
+      const replayIndexes = await after.$queryRaw`
+        SELECT indexname FROM pg_indexes
+        WHERE schemaname='public' AND tablename='ConnectorWebhookReceipt'
+          AND indexname='ConnectorWebhookReceipt_payload_key'`;
+      assert.equal(replayIndexes.length, 1);
       assert.equal(afterTables.length, beforeTables.length + introducedTables.length);
       assert(introducedTables.every((table) => afterTables.includes(table)));
       for (const table of beforeTables) {

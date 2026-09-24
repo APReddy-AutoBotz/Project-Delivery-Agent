@@ -459,7 +459,7 @@ live account, OAuth callback, webhook, scheduled reconciliation, full Jira entit
 coverage, source-fact publication or write method. AC-CON-001/002/003 and
 AC-MNT-003 remain incomplete; no Issue #7 story or acceptance total changes.
 
-## Stage 4 OAuth, webhook and reconciliation runtime candidate, 2026-09-24
+## PR #58 OAuth, webhook and reconciliation runtime candidate, 2026-09-24
 
 This additive eleventh migration extends connector credentials with purpose,
 state, key ID and audited refresh-operation fencing; adds scoped service grants,
@@ -481,11 +481,16 @@ authorization callback/UI, Jira write, canonical fact publication or activated
 production account is included.
 
 The five new tables are included in independent schema, upgrade and encrypted
-restore inventories (61 business tables; 11 migrations). Synthetic auth/OAuth and
-isolated database runtime cases are added. Local source typecheck, lint,
-architecture, contract, dependency and documentation checks pass. The full
-database-independent unit suite passes 1,502 tests across 76 files; Prisma schema
-validation passes. PostgreSQL migration/COMMIT, full integration,
+restore inventories (61 business tables; 12 migrations). Follow-up review hardening
+uses a source-scoped unique digest of the HMAC-authenticated request body to keep
+delivery retries on the same immutable receipt even when transport metadata varies.
+A definitive OAuth 429 releases the fenced refresh lease and honors bounded
+Retry-After; ambiguous refresh outcomes still require reauthorization. Synthetic
+auth/OAuth and isolated database runtime cases are added. The predecessor
+candidate passed local source typecheck, lint, architecture, contract, dependency
+and documentation checks, 1,502 database-independent unit tests across 76 files,
+and Prisma schema validation. The replay/429 follow-up still requires final-head
+validation. PostgreSQL migration/COMMIT, full integration,
 populated-prefix-nine upgrade, encrypted recovery, exact-SHA independent review
 and hosted CI are still required. AC-CON-004/005/006 and AC-MNT-003 remain
 incomplete. Issue #7 stories and acceptance totals do not change.

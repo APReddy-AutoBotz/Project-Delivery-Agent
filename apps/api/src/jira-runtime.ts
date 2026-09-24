@@ -68,6 +68,7 @@ type ConnectorRuntimePort = {
     credentials: JiraOAuthCredential,
   ): Promise<{ committed: boolean }>;
   failOAuthRotation(rotation: JiraCredentialRotation): Promise<unknown>;
+  deferOAuthRotation(rotation: JiraCredentialRotation): Promise<unknown>;
   failRunningJob(input: {
     customerId: string;
     jobId: string;
@@ -186,9 +187,15 @@ export class JiraRuntimeService {
           this.assertSelectedCloud(await getJiraAccessibleResources({ accessToken: refreshed.accessToken, fetchImpl: this.fetchImpl }), updated.cloudId, updated.selectedUrl);
           credentials = updated;
         } catch (error) {
-          await this.runtime.failOAuthRotation(access.rotation);
           const code = this.oauthFailure(error);
-          await failRunningJob({ code });
+          if (code === "RATE_LIMITED")
+            await this.runtime.deferOAuthRotation(access.rotation);
+          else
+            await this.runtime.failOAuthRotation(access.rotation);
+          await failRunningJob({
+            code,
+            retryAfterMs: error instanceof JiraOAuthError ? error.retryAfterMs : null,
+          });
           return { status: code === "EXPIRED_CREDENTIALS" || code === "INVALID_CREDENTIALS" ? "reauthorization_required" as const : "deferred" as const };
         }
       }
@@ -204,7 +211,10 @@ export class JiraRuntimeService {
         if (code === "INVALID_CREDENTIALS" || code === "EXPIRED_CREDENTIALS")
           await failRunningJob({ code: "EXPIRED_CREDENTIALS" });
         else
-          await failRunningJob({ code });
+          await failRunningJob({
+            code,
+            retryAfterMs: error instanceof JiraOAuthError ? error.retryAfterMs : null,
+          });
         return { status: "deferred" as const };
       }
 

@@ -12,7 +12,7 @@ client and any token handling inside the adapter package. This authorizes no liv
 credential activation, OAuth persistence, webhook, write, app route or Issue #7
 acceptance. Complete exact-candidate review and checks before PR merge.
 
-## EXEC-009 Stage 4 Jira runtime, 2026-09-24
+## EXEC-009 Jira runtime follow-up, 2026-09-24
 
 Proceed with the bounded Jira Cloud runtime behind the Stage 3 read adapter.
 Persist OAuth credentials using the credential keyring, single-owner refresh
@@ -26,7 +26,11 @@ health and service receipts under the current configuration and exact active
 source/project grants, without impersonating a human or publishing source facts.
 
 The independent design review cleared refresh ownership/late-response fencing,
-page-commit authorization races, and the requested crash/recovery cases. This
+page-commit authorization races, and the requested crash/recovery cases. The
+follow-up adds source-scoped uniqueness for authenticated webhook body digests,
+so duplicate bodies reuse their original receipt across delivery-ID changes.
+Definitive OAuth 429 responses release the refresh lease and honor bounded
+Retry-After; ambiguous refresh outcomes still require reauthorization. This
 increment does not add a public OAuth authorization callback or UI, Jira write,
 source-fact publication, or Issue #7 acceptance. Complete exact-candidate review,
 database/recovery checks and matching hosted workflows before merge.

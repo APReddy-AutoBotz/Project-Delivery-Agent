@@ -13,7 +13,10 @@ const accessibleResourceSchema = z.array(z.object({
 }).passthrough()).max(128);
 
 export class JiraOAuthError extends Error {
-  constructor(readonly code: "INVALID_CREDENTIALS" | "PERMISSION_DENIED" | "TEMPORARILY_UNAVAILABLE" | "INVALID_RESPONSE") {
+  constructor(
+    readonly code: "INVALID_CREDENTIALS" | "PERMISSION_DENIED" | "RATE_LIMITED" | "TEMPORARILY_UNAVAILABLE" | "INVALID_RESPONSE",
+    readonly retryAfterMs: number | null = null,
+  ) {
     super(code);
     this.name = "JiraOAuthError";
   }
@@ -55,10 +58,22 @@ async function readJson(response: Response, limit: number): Promise<unknown> {
   }
 }
 
-function statusError(status: number): JiraOAuthError {
+function retryAfterMs(response: Response, now = Date.now()): number | null {
+  const value = response.headers.get("retry-after");
+  if (!value) return null;
+  const delay = /^\d+$/.test(value)
+    ? Number(value) * 1000
+    : Date.parse(value) - now;
+  if (!Number.isFinite(delay) || delay < 0) return null;
+  return Math.min(Math.ceil(delay), 86_400_000);
+}
+
+function statusError(response: Response): JiraOAuthError {
+  const { status } = response;
   if (status === 401 || status === 400) return new JiraOAuthError("INVALID_CREDENTIALS");
   if (status === 403) return new JiraOAuthError("PERMISSION_DENIED");
-  if (status === 429 || status >= 500) return new JiraOAuthError("TEMPORARILY_UNAVAILABLE");
+  if (status === 429) return new JiraOAuthError("RATE_LIMITED", retryAfterMs(response));
+  if (status >= 500) return new JiraOAuthError("TEMPORARILY_UNAVAILABLE");
   return new JiraOAuthError("INVALID_RESPONSE");
 }
 
@@ -90,7 +105,7 @@ export async function refreshJiraOAuthToken(input: {
   } catch {
     throw new JiraOAuthError("TEMPORARILY_UNAVAILABLE");
   }
-  if (!response.ok) throw statusError(response.status);
+  if (!response.ok) throw statusError(response);
   const raw = await readJson(response, 16_384);
   const parsed = tokenResponseSchema.safeParse(raw);
   if (!parsed.success) throw new JiraOAuthError("INVALID_RESPONSE");
@@ -121,7 +136,7 @@ export async function getJiraAccessibleResources(input: {
   } catch {
     throw new JiraOAuthError("TEMPORARILY_UNAVAILABLE");
   }
-  if (!response.ok) throw statusError(response.status);
+  if (!response.ok) throw statusError(response);
   const parsed = accessibleResourceSchema.safeParse(await readJson(response, 262_144));
   if (!parsed.success) throw new JiraOAuthError("INVALID_RESPONSE");
   return parsed.data.map((resource) => {

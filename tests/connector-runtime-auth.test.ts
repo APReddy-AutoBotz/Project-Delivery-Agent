@@ -133,6 +133,31 @@ describe("Jira OAuth boundaries", () => {
     ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
   });
 
+  it("preserves a retryable rate-limit class and bounded Retry-After", async () => {
+    await expect(
+      refreshJiraOAuthToken({
+        clientId: "client",
+        clientSecret: "secret",
+        refreshToken: "still-valid-refresh",
+        fetchImpl: async () => new Response(null, {
+          status: 429,
+          headers: { "retry-after": "7" },
+        }),
+      }),
+    ).rejects.toMatchObject({ code: "RATE_LIMITED", retryAfterMs: 7000 });
+    await expect(
+      refreshJiraOAuthToken({
+        clientId: "client",
+        clientSecret: "secret",
+        refreshToken: "still-valid-refresh",
+        fetchImpl: async () => new Response(null, {
+          status: 429,
+          headers: { "retry-after": "999999" },
+        }),
+      }),
+    ).rejects.toMatchObject({ code: "RATE_LIMITED", retryAfterMs: 86_400_000 });
+  });
+
   it("accepts only an exact HTTPS cloud resource URL", async () => {
     const resource = {
       id: "cloud-1",
