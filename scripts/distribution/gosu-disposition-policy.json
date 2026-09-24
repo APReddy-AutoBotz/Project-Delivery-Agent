@@ -1,7 +1,13 @@
 {
   "schemaVersion": 2,
-  "targets": ["database", "operations"],
-  "scopes": ["squashed", "all-layers"],
+  "targets": [
+    "database",
+    "operations"
+  ],
+  "scopes": [
+    "squashed",
+    "all-layers"
+  ],
   "binary": {
     "path": "/usr/local/bin/gosu",
     "sha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0",
@@ -19,7 +25,11 @@
         "dataSource": "https://groups.google.com/g/golang-announce/c/K09ubi9FQFk",
         "description": "During session resumption in crypto/tls, if the underlying Config has its ClientCAs or RootCAs fields mutated between the initial handshake and the resumed handshake, the resumed handshake may succeed when it should have failed. This may happen when a user calls Config.Clone and mutates the returned Config, or uses Config.GetConfigForClient. This can cause a client to resume a session with a server that it would not have resumed with during the initial handshake, or cause a server to resume a session with a client that it would not have resumed with during the initial handshake.",
         "fix": {
-          "versions": ["1.24.13", "1.25.7", "1.26.0-rc.3"],
+          "versions": [
+            "1.24.13",
+            "1.25.7",
+            "1.26.0-rc.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -50,7 +60,9 @@
       },
       "disposition": "not_applicable",
       "reason": "Required crypto/tls code is absent from the complete emitted/inline function-name table of these exact gosu bytes.",
-      "requiredPackages": ["crypto/tls"]
+      "requiredPackages": [
+        "crypto/tls"
+      ]
     },
     {
       "ruleId": "gosu-go-2025-4006-code-absent-v1",
@@ -60,7 +72,10 @@
         "dataSource": "https://go.dev/cl/709860",
         "description": "The ParseAddress function constructs domain-literal address components through repeated string concatenation. When parsing large domain-literal components, this can cause excessive CPU consumption.",
         "fix": {
-          "versions": ["1.24.8", "1.25.2"],
+          "versions": [
+            "1.24.8",
+            "1.25.2"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -125,7 +140,9 @@
           }
         ]
       },
-      "requiredPackages": ["net/mail"],
+      "requiredPackages": [
+        "net/mail"
+      ],
       "disposition": "not_applicable",
       "reason": "Required net/mail code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -137,7 +154,10 @@
         "dataSource": "https://go.dev/issue/75681",
         "description": "Due to the design of the name constraint checking algorithm, the processing time of some inputs scale non-linearly with respect to the size of the certificate.\n\nThis affects programs which validate arbitrary certificate chains.",
         "fix": {
-          "versions": ["1.24.9", "1.25.3"],
+          "versions": [
+            "1.24.9",
+            "1.25.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -229,7 +249,9 @@
           }
         ]
       },
-      "requiredPackages": ["crypto/x509"],
+      "requiredPackages": [
+        "crypto/x509"
+      ],
       "disposition": "not_applicable",
       "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -241,7 +263,10 @@
         "dataSource": "https://go.dev/issue/75676",
         "description": "The processing time for parsing some invalid inputs scales non-linearly with respect to the size of the input.\n\nThis affects programs which parse untrusted PEM inputs.",
         "fix": {
-          "versions": ["1.24.8", "1.25.2"],
+          "versions": [
+            "1.24.8",
+            "1.25.2"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -292,14 +317,19 @@
               "imports": [
                 {
                   "path": "encoding/pem",
-                  "symbols": ["Decode", "getLine"]
+                  "symbols": [
+                    "Decode",
+                    "getLine"
+                  ]
                 }
               ]
             }
           }
         ]
       },
-      "requiredPackages": ["encoding/pem"],
+      "requiredPackages": [
+        "encoding/pem"
+      ],
       "disposition": "not_applicable",
       "reason": "Required encoding/pem code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -311,7 +341,10 @@
         "dataSource": "https://go.dev/cl/709853",
         "description": "Validating certificate chains which contain DSA public keys can cause programs to panic, due to a interface cast that assumes they implement the Equal method.\n\nThis affects programs which validate arbitrary certificate chains.",
         "fix": {
-          "versions": ["1.24.8", "1.25.2"],
+          "versions": [
+            "1.24.8",
+            "1.25.2"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -362,14 +395,19 @@
               "imports": [
                 {
                   "path": "crypto/x509",
-                  "symbols": ["Certificate.Verify", "alreadyInChain"]
+                  "symbols": [
+                    "Certificate.Verify",
+                    "alreadyInChain"
+                  ]
                 }
               ]
             }
           }
         ]
       },
-      "requiredPackages": ["crypto/x509"],
+      "requiredPackages": [
+        "crypto/x509"
+      ],
       "disposition": "not_applicable",
       "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -381,7 +419,10 @@
         "dataSource": "https://go.dev/cl/725920",
         "description": "Within HostnameError.Error(), when constructing an error string, there is no limit to the number of hosts that will be printed out. Furthermore, the error string is constructed by repeated string concatenation, leading to quadratic runtime. Therefore, a certificate provided by a malicious actor can result in excessive resource consumption.",
         "fix": {
-          "versions": ["1.24.11", "1.25.5"],
+          "versions": [
+            "1.24.11",
+            "1.25.5"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -442,7 +483,9 @@
           }
         ]
       },
-      "requiredPackages": ["crypto/x509"],
+      "requiredPackages": [
+        "crypto/x509"
+      ],
       "disposition": "not_applicable",
       "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -454,7 +497,10 @@
         "dataSource": "https://go.dev/cl/736712",
         "description": "The net/url package does not set a limit on the number of query parameters in a query.\n\nWhile the maximum size of query parameters in URLs is generally limited by the maximum request header size, the net/http.Request.ParseForm method can parse large URL-encoded forms. Parsing a large form containing many unique query parameters can cause excessive memory consumption.",
         "fix": {
-          "versions": ["1.24.12", "1.25.6"],
+          "versions": [
+            "1.24.12",
+            "1.25.6"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -505,14 +551,20 @@
               "imports": [
                 {
                   "path": "net/url",
-                  "symbols": ["ParseQuery", "URL.Query", "parseQuery"]
+                  "symbols": [
+                    "ParseQuery",
+                    "URL.Query",
+                    "parseQuery"
+                  ]
                 }
               ]
             }
           }
         ]
       },
-      "requiredPackages": ["net/url"],
+      "requiredPackages": [
+        "net/url"
+      ],
       "disposition": "not_applicable",
       "reason": "Required net/url code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -524,7 +576,10 @@
         "dataSource": "https://go.dev/cl/752180",
         "description": "url.Parse insufficiently validated the host/authority component and accepted some invalid URLs.",
         "fix": {
-          "versions": ["1.25.8", "1.26.1"],
+          "versions": [
+            "1.25.8",
+            "1.26.1"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -589,7 +644,9 @@
           }
         ]
       },
-      "requiredPackages": ["net/url"],
+      "requiredPackages": [
+        "net/url"
+      ],
       "disposition": "not_applicable",
       "reason": "Required net/url code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -601,7 +658,10 @@
         "dataSource": "https://go.dev/cl/763767",
         "description": "If one side of the TLS connection sends multiple key update messages post-handshake in a single record, the connection can deadlock, causing uncontrolled consumption of resources. This can lead to a denial of service.\n\nThis only affects TLS 1.3.",
         "fix": {
-          "versions": ["1.25.9", "1.26.2"],
+          "versions": [
+            "1.25.9",
+            "1.26.2"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -675,7 +735,9 @@
           }
         ]
       },
-      "requiredPackages": ["crypto/tls"],
+      "requiredPackages": [
+        "crypto/tls"
+      ],
       "disposition": "not_applicable",
       "reason": "Required crypto/tls code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -687,7 +749,10 @@
         "dataSource": "https://go.dev/cl/761581",
         "description": "When processing HTTP/2 SETTINGS frames, transport will enter an infinite loop of writing CONTINUATION frames if it receives a SETTINGS_MAX_FRAME_SIZE with a value of 0.",
         "fix": {
-          "versions": ["1.25.10", "1.26.3"],
+          "versions": [
+            "1.25.10",
+            "1.26.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -809,7 +874,10 @@
           }
         ]
       },
-      "requiredPackages": ["golang.org/x/net/http2", "net/http"],
+      "requiredPackages": [
+        "golang.org/x/net/http2",
+        "net/http"
+      ],
       "disposition": "not_applicable",
       "reason": "Required golang.org/x/net/http2, net/http code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -821,7 +889,10 @@
         "dataSource": "https://go.dev/cl/758061",
         "description": "Validating certificate chains which use policies is unexpectedly inefficient when certificates in the chain contain a very large number of policy mappings, possibly causing denial of service.\n\nThis only affects validation of otherwise trusted certificate chains, issued by a root CA in the VerifyOptions.Roots CertPool, or in the system certificate pool.",
         "fix": {
-          "versions": ["1.25.9", "1.26.2"],
+          "versions": [
+            "1.25.9",
+            "1.26.2"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -872,14 +943,19 @@
               "imports": [
                 {
                   "path": "crypto/x509",
-                  "symbols": ["Certificate.Verify", "policiesValid"]
+                  "symbols": [
+                    "Certificate.Verify",
+                    "policiesValid"
+                  ]
                 }
               ]
             }
           }
         ]
       },
-      "requiredPackages": ["crypto/x509"],
+      "requiredPackages": [
+        "crypto/x509"
+      ],
       "disposition": "not_applicable",
       "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -891,7 +967,10 @@
         "dataSource": "https://go.dev/cl/758320",
         "description": "During chain building, the amount of work that is done is not correctly limited when a large number of intermediate certificates are passed in VerifyOptions.Intermediates, which can lead to a denial of service. This affects both direct users of crypto/x509 and users of crypto/tls.",
         "fix": {
-          "versions": ["1.25.9", "1.26.2"],
+          "versions": [
+            "1.25.9",
+            "1.26.2"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -942,14 +1021,19 @@
               "imports": [
                 {
                   "path": "crypto/x509",
-                  "symbols": ["Certificate.Verify", "Certificate.buildChains"]
+                  "symbols": [
+                    "Certificate.Verify",
+                    "Certificate.buildChains"
+                  ]
                 }
               ]
             }
           }
         ]
       },
-      "requiredPackages": ["crypto/x509"],
+      "requiredPackages": [
+        "crypto/x509"
+      ],
       "disposition": "not_applicable",
       "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -961,7 +1045,10 @@
         "dataSource": "https://go.dev/issue/79006",
         "description": "The Dial and LookupPort functions panic on Windows when provided with an input containing a NUL (0).",
         "fix": {
-          "versions": ["1.25.10", "1.26.3"],
+          "versions": [
+            "1.25.10",
+            "1.26.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1057,7 +1144,9 @@
           }
         ]
       },
-      "requiredPackages": ["net"],
+      "requiredPackages": [
+        "net"
+      ],
       "disposition": "not_applicable",
       "reason": "Required net code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -1069,7 +1158,10 @@
         "dataSource": "https://go.dev/issue/78987",
         "description": "Pathological inputs could cause DoS through consumePhrase when parsing an email address according to RFC 5322.",
         "fix": {
-          "versions": ["1.25.10", "1.26.3"],
+          "versions": [
+            "1.25.10",
+            "1.26.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1134,7 +1226,9 @@
           }
         ]
       },
-      "requiredPackages": ["net/mail"],
+      "requiredPackages": [
+        "net/mail"
+      ],
       "disposition": "not_applicable",
       "reason": "Required net/mail code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -1146,7 +1240,10 @@
         "dataSource": "https://go.dev/issue/78803",
         "description": "When using LookupCNAME with the cgo DNS resolver, a very long CNAME response can trigger a double-free of C memory and a crash.",
         "fix": {
-          "versions": ["1.25.10", "1.26.3"],
+          "versions": [
+            "1.25.10",
+            "1.26.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1208,7 +1305,9 @@
           }
         ]
       },
-      "requiredPackages": ["net"],
+      "requiredPackages": [
+        "net"
+      ],
       "disposition": "not_applicable",
       "reason": "Required net code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -1220,7 +1319,10 @@
         "dataSource": "https://go.dev/issue/78566",
         "description": "Well-crafted inputs reaching ParseAddress, ParseAddressList, and ParseDate were able to trigger excessive CPU exhaustion and memory allocations.",
         "fix": {
-          "versions": ["1.25.10", "1.26.3"],
+          "versions": [
+            "1.25.10",
+            "1.26.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1287,7 +1389,9 @@
           }
         ]
       },
-      "requiredPackages": ["net/mail"],
+      "requiredPackages": [
+        "net/mail"
+      ],
       "disposition": "not_applicable",
       "reason": "Required net/mail code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -1299,23 +1403,27 @@
         "dataSource": "https://go.dev/cl/767220",
         "description": "The ToASCII and ToUnicode functions incorrectly accept Punycode-encoded labels that decode to an ASCII-only label. For example, ToUnicode(\"xn--example-.com\") incorrectly returns the name \"example.com\" rather than an error.\n\nThis behavior can lead to privilege escalation in programs using the idna package. For example, a program which performs privilege checks on the ASCII hostname may reject \"example.com\" but permit \"xn--example-.com\". If that program subsequently converts the ASCII hostname to Unicode, it will inadvertently permits access to the Unicode name \"example.com\".",
         "fix": {
-          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "versions": [
+            "1.25.13",
+            "1.26.6",
+            "1.27.0-rc.3"
+          ],
           "state": "fixed",
           "available": [
             {
               "version": "1.25.13",
-              "date": "2026-05-22",
-              "kind": "advisory"
+              "date": "2026-08-13",
+              "kind": "release"
             },
             {
               "version": "1.26.6",
-              "date": "2026-05-22",
-              "kind": "advisory"
+              "date": "2026-08-13",
+              "kind": "release"
             },
             {
               "version": "1.27.0-rc.3",
-              "date": "2026-05-22",
-              "kind": "advisory"
+              "date": "2026-08-13",
+              "kind": "release"
             }
           ]
         }
@@ -1447,7 +1555,10 @@
         "dataSource": "https://go.dev/cl/783621",
         "description": "(*x509.Certificate).VerifyHostname previously called matchHostnames in a loop over all DNS Subject Alternative Name (SAN) entries. This caused strings.Split(host, \".\") to execute repeatedly on the same input hostname.\n\nWith a large DNS SAN list, verification costs scaled quadratically based on the number of SAN entries multiplied by the hostname's label count. Because x509.Verify validates hostnames before building the certificate chain, this overhead occurred even for untrusted certificates.",
         "fix": {
-          "versions": ["1.25.11", "1.26.4"],
+          "versions": [
+            "1.25.11",
+            "1.26.4"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1510,7 +1621,9 @@
           }
         ]
       },
-      "requiredPackages": ["crypto/x509"],
+      "requiredPackages": [
+        "crypto/x509"
+      ],
       "disposition": "not_applicable",
       "reason": "Required crypto/x509 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -1522,7 +1635,10 @@
         "dataSource": "https://go.dev/issue/79217",
         "description": "Decoding a maliciously-crafted MIME header containing many invalid encoded-words can consume excessive CPU.",
         "fix": {
-          "versions": ["1.25.11", "1.26.4"],
+          "versions": [
+            "1.25.11",
+            "1.26.4"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1573,14 +1689,18 @@
               "imports": [
                 {
                   "path": "mime",
-                  "symbols": ["WordDecoder.DecodeHeader"]
+                  "symbols": [
+                    "WordDecoder.DecodeHeader"
+                  ]
                 }
               ]
             }
           }
         ]
       },
-      "requiredPackages": ["mime"],
+      "requiredPackages": [
+        "mime"
+      ],
       "disposition": "not_applicable",
       "reason": "Required mime code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -1592,7 +1712,11 @@
         "dataSource": "https://go.dev/issue/80405",
         "description": "Enforce a recursion limit in Unmarshal to prevent stack exhaustion when parsing deeply-nested, recursive structures.",
         "fix": {
-          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "versions": [
+            "1.25.13",
+            "1.26.6",
+            "1.27.0-rc.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1666,7 +1790,9 @@
           }
         ]
       },
-      "requiredPackages": ["encoding/asn1"],
+      "requiredPackages": [
+        "encoding/asn1"
+      ],
       "disposition": "not_applicable",
       "reason": "Required encoding/asn1 code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -1678,7 +1804,11 @@
         "dataSource": "https://go.dev/issue/80481",
         "description": "Previously, DecodeElement would reset the depth counter causing it to never fire; this could lead to stack exhaustion.",
         "fix": {
-          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "versions": [
+            "1.25.13",
+            "1.26.6",
+            "1.27.0-rc.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1758,7 +1888,9 @@
           }
         ]
       },
-      "requiredPackages": ["encoding/xml"],
+      "requiredPackages": [
+        "encoding/xml"
+      ],
       "disposition": "not_applicable",
       "reason": "Required encoding/xml code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -1770,7 +1902,11 @@
         "dataSource": "https://go.dev/issue/80205",
         "description": "When a server is configured to support unencrypted HTTP/2, it reads a few bytes from each new connection to see if they contain the HTTP/2 client preface. ReadHeaderTimeout is unexpectedly not being applied when doing this.",
         "fix": {
-          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "versions": [
+            "1.25.13",
+            "1.26.6",
+            "1.27.0-rc.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1850,7 +1986,9 @@
           }
         ]
       },
-      "requiredPackages": ["net/http"],
+      "requiredPackages": [
+        "net/http"
+      ],
       "disposition": "not_applicable",
       "reason": "Required net/http code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     },
@@ -1862,7 +2000,11 @@
         "dataSource": "https://go.dev/issue/80528",
         "description": "Handshake messages, such as KeyUpdate, are always considered as state-advancing, regardless of whether a handshake has been completed or not. As a result, a malicious client can keep sending KeyUpdate messages to force the server to keep performing key derivation operations indefinitely.",
         "fix": {
-          "versions": ["1.25.13", "1.26.6", "1.27.0-rc.3"],
+          "versions": [
+            "1.25.13",
+            "1.26.6",
+            "1.27.0-rc.3"
+          ],
           "state": "fixed",
           "available": [
             {
@@ -1943,7 +2085,9 @@
           }
         ]
       },
-      "requiredPackages": ["crypto/tls"],
+      "requiredPackages": [
+        "crypto/tls"
+      ],
       "disposition": "not_applicable",
       "reason": "Required crypto/tls code is absent from the complete emitted/inline function-name table of these exact gosu bytes."
     }
