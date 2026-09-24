@@ -28,6 +28,14 @@ const ingestionTables = [
   "IngestionCursorTransition",
   "IngestionRowOutcome",
 ];
+const jiraRuntimeTables = [
+  "ConnectorSyncGrant",
+  "ConnectorSyncJob",
+  "ConnectorWebhookReceipt",
+  "ConnectorTaskReceipt",
+  "IngestionSyncReceiptProjectScope",
+];
+const introducedTables = [...ingestionTables, ...jiraRuntimeTables];
 
 async function assignSyntheticTableOwners(pool) {
   await pool.query(`DO $owners$ DECLARE item record; BEGIN
@@ -77,6 +85,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     assert.equal(migrations.length, 11);
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
+    assert.equal(migrations[10].name, "202609240001_jira_runtime");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
     pool = new Pool(databaseConfig);
     await assignSyntheticTableOwners(pool);
@@ -131,7 +140,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         ORDER BY tablename`
     ).map((row) => row.tablename);
     assert.equal(beforeTables.length, 42);
-    assert(ingestionTables.every((table) => !beforeTables.includes(table)));
+    assert(introducedTables.every((table) => !beforeTables.includes(table)));
     const beforeLedger = await prior.$queryRaw`SELECT migration_name,checksum FROM "_prisma_migrations" ORDER BY migration_name`;
     assert.equal(beforeLedger.length, 9);
 
@@ -157,7 +166,8 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
           WHERE schemaname='public' AND tablename<>'_prisma_migrations'
           ORDER BY tablename`
       ).map((row) => row.tablename);
-      assert.equal(afterTables.length, 56);
+      assert.equal(afterTables.length, beforeTables.length + introducedTables.length);
+      assert(introducedTables.every((table) => afterTables.includes(table)));
       for (const table of beforeTables) {
         assert(afterTables.includes(table));
         assert.deepEqual(
@@ -168,7 +178,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
           `Released-nine ${table} rows must remain byte-for-byte equivalent`,
         );
       }
-      for (const table of ingestionTables) {
+      for (const table of introducedTables) {
         assert.equal(
           (
             await after.$queryRawUnsafe(
@@ -211,8 +221,8 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         retainedTableCount: beforeTables.length,
         retainedRowTables: beforeTables.filter((table) => beforeRows.get(table).length > 0),
         businessTableCount: afterTables.length,
-        addedMigration: ledger[9].migration_name,
-        newIngestionTablesEmpty: true,
+        addedMigrations: ledger.slice(9).map((row) => row.migration_name),
+        introducedTablesEmpty: true,
         finiteIngestionAcl: true,
       };
     } finally {
@@ -224,3 +234,4 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     await admin.$disconnect();
   }
 }
+
