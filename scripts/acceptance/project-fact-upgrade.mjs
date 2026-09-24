@@ -70,7 +70,7 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 10);
+  assert.equal(migrations.length, 11);
   assert.equal(
     migrations[9].name,
     "202609230001_durable_ingestion",
@@ -727,4 +727,3 @@ export async function verifyFoundationUpgrade(
     await supervisor.end();
   }
 }
-

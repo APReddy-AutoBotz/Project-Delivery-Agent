@@ -120,7 +120,6 @@ function git(args) {
 const sourceRevision = git(["rev-parse", "HEAD"]);
 const sourceTree = git(["rev-parse", "HEAD^{tree}"]);
 const sourceStatus = git(["status", "--porcelain"]);
-console.log("Acceptance pre-setup Git status:", JSON.stringify(sourceStatus));
 const project =
   "pdaa-acceptance-" + Date.now() + "-" + randomUUID().slice(0, 8);
 const fixture = resolve(root, "tmp", project);
@@ -534,7 +533,7 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 10);
+    assert.equal(upgrade.migrations.length, 11);
     assert(Number.isFinite(upgrade.upgradeMeasurement.elapsedMs));
     assert(upgrade.upgradeMeasurement.elapsedMs > 0);
     assert(
@@ -557,7 +556,7 @@ try {
       assert.equal(row.rolled_back_at, null);
       assert.equal(row.applied_steps_count, 1);
     }
-    assert.equal(upgrade.businessTableCount, 56);
+    assert.equal(upgrade.businessTableCount, 61);
     assert.deepEqual(
       Object.keys(upgrade.retainedPriorRowCounts).sort(),
       [...upgrade.retainedPriorBusinessTables].sort(),
@@ -618,6 +617,11 @@ try {
         "IngestionReceiptProjectScope",
         "IngestionCursorTransition",
         "IngestionRowOutcome",
+        "ConnectorSyncGrant",
+        "ConnectorSyncJob",
+        "ConnectorWebhookReceipt",
+        "ConnectorTaskReceipt",
+        "IngestionSyncReceiptProjectScope",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [
@@ -942,4 +946,3 @@ renameSync(staged, canonical);
 console.log(
   "Production acceptance passed; immutable image IDs and source revision recorded after successful teardown.",
 );
-

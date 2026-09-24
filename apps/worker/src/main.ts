@@ -5,6 +5,7 @@ import {
   loadConfig,
   operationalLog,
   installFatalHandlers,
+  signConnectorTaskRequest,
 } from "@pdaa/platform";
 import { createTasks } from "./tasks.js";
 import { setInterval, clearInterval } from "node:timers";
@@ -41,13 +42,18 @@ try {
     concurrency: 1,
     noHandleSignals: true,
     logger: new Logger(() => () => operationalLog("worker.event")),
-    crontab: "* * * * * foundation_heartbeat",
-    taskList: createTasks({
-      recordHeartbeat: async (at) => {
-        await heartbeat.recordHeartbeat(at);
-        lastProgress = Date.now();
+    crontab: "* * * * * foundation_heartbeat\n* * * * * connector_sync_dispatch",
+    taskList: createTasks(
+      {
+        recordHeartbeat: async (at) => {
+          await heartbeat.recordHeartbeat(at);
+          lastProgress = Date.now();
+        },
       },
-    }),
+      config,
+      fetch,
+      signConnectorTaskRequest,
+    ),
   });
   operationalLog("worker.started");
   stage = "running";

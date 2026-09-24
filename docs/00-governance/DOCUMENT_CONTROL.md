@@ -109,15 +109,15 @@ must pass their own review and validation; this record does not approve a new pl
 
 ## Baseline information
 
-| Field | Value |
-|---|---|
-| Product | Project Delivery Assurance Agent |
-| Baseline version | 0.1 |
-| State | Approved candidate; effective after Issue #1 review PR merge |
-| Baseline date | 2026-09-05 |
-| Product owner | AP |
-| Intended repository | `APReddy-AutoBotz/Project-Delivery-Agent` |
-| Intended branch | `docs/baseline-v0.1` |
+| Field               | Value                                                        |
+| ------------------- | ------------------------------------------------------------ |
+| Product             | Project Delivery Assurance Agent                             |
+| Baseline version    | 0.1                                                          |
+| State               | Approved candidate; effective after Issue #1 review PR merge |
+| Baseline date       | 2026-09-05                                                   |
+| Product owner       | AP                                                           |
+| Intended repository | `APReddy-AutoBotz/Project-Delivery-Agent`                    |
+| Intended branch     | `docs/baseline-v0.1`                                         |
 
 ## Purpose
 
@@ -147,21 +147,21 @@ A document may move to **Approved** only when:
 
 ## Change history
 
-| Version | Date | Change | Status |
-|---:|---|---|---|
-| 0.1 | 2026-09-05 | Initial documentation baseline | Draft |
+| Version | Date       | Change                         | Status |
+| ------: | ---------- | ------------------------------ | ------ |
+|     0.1 | 2026-09-05 | Initial documentation baseline | Draft  |
 
 ## Review responsibilities
 
-| Review area | Required perspective |
-|---|---|
-| Business and PMO | PMO leader or experienced delivery manager |
-| Product | Product manager and user-experience reviewer |
-| Architecture | Enterprise solution and data architect |
-| AI | Agentic AI, grounding and evaluation specialist |
-| Security | Security and privacy reviewer |
-| Delivery | Engineering and QA reviewer |
-| Commercial | Licensing, deployment and support reviewer |
+| Review area      | Required perspective                            |
+| ---------------- | ----------------------------------------------- |
+| Business and PMO | PMO leader or experienced delivery manager      |
+| Product          | Product manager and user-experience reviewer    |
+| Architecture     | Enterprise solution and data architect          |
+| AI               | Agentic AI, grounding and evaluation specialist |
+| Security         | Security and privacy reviewer                   |
+| Delivery         | Engineering and QA reviewer                     |
+| Commercial       | Licensing, deployment and support reviewer      |
 
 A single person may cover more than one perspective during early product development, but the review outcome must still address each area.
 
@@ -201,6 +201,7 @@ approval above is therefore effective and Issue #1 is closed. Master-plan PR #3
 and partial-foundation PR #4 also merged after review and checks. See
 PUBLICATION_RECORD.md for full immutable SHAs and links. This does not mark any
 complete R0/R1 story or customer release accepted.
+
 ## EXEC-009 Stage 3 implementation delegation, 2026-09-24
 
 The existing Product Owner controller delegation covers this bounded,
@@ -211,3 +212,14 @@ visibility remains enforced by the integration identity. This entry does not
 activate live credentials, approve a commercial/legal change, grant external
 access, publish source facts or change story/release acceptance. No user-visible
 workflow or design change is part of this increment.
+
+## EXEC-009 Stage 4 implementation delegation, 2026-09-24
+
+The Product Owner's existing controller delegation covers this bounded Jira
+runtime increment under EXEC-009 and its approved scope. It authorizes encrypted
+credential storage and refresh, signed internal task dispatch, administrator-
+configured HMAC webhooks, scheduled reconciliation and proposal/cursor
+persistence with exact current grants. It does not authorize Jira writes, fact
+publication, a public OAuth onboarding workflow, or changes to story/release
+acceptance. Publish only after exact-candidate non-author review and passing
+required checks.

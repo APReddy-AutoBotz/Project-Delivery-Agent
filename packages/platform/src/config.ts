@@ -31,6 +31,13 @@ const schema = z.object({
   API_HOST: z.string().default("127.0.0.1"),
   APP_ORIGIN: z.url().default("http://localhost:5173"),
   ENCRYPTION_KEY: z.string().regex(/^[A-Za-z0-9+/]{43}=$/),
+  CREDENTIAL_KEY_ID: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/).default("primary"),
+  CREDENTIAL_KEYRING_FILE: z.string().min(1).optional(),
+  CONNECTOR_TASK_KEYS_FILE: z.string().min(1).optional(),
+  INTERNAL_API_URL: z.url().optional(),
+  JIRA_OAUTH_CLIENT_ID: z.string().min(1).optional(),
+  JIRA_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
+  JIRA_OAUTH_CLIENT_SECRET_FILE: z.string().min(1).optional(),
   SESSION_SECRET: z.string().min(43).optional(),
   SHADOW_MODE: z.enum(["true", "false"]).default("true"),
   OIDC_ISSUER: z.url().optional(),
@@ -63,6 +70,8 @@ export type Config = z.infer<typeof schema> & {
   PDAA_DATABASE_URL: string;
   database: DatabaseTransport;
   groupRoles: Record<string, Role[]>;
+  credentialKeys: { currentKeyId: string; keys: Record<string, string> };
+  connectorTaskKeys: { currentKeyId: string; keys: Record<string, string> } | null;
 };
 
 export function readSecretFile(path: string, key: string): string {
@@ -86,7 +95,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
       "Development identity requires non-production local synthetic data",
     );
   const values = { ...env };
-  for (const key of ["ENCRYPTION_KEY", "SESSION_SECRET"]) {
+  for (const key of ["ENCRYPTION_KEY", "SESSION_SECRET", "JIRA_OAUTH_CLIENT_SECRET"]) {
     if (env[key] !== undefined && env[`${key}_FILE`] !== undefined)
       throw new Error(`Conflicting secret configuration: ${key}`);
     if (env[`${key}_FILE`] !== undefined)
@@ -116,6 +125,65 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     throw new Error("Development identity requires SESSION_SECRET");
   if (Buffer.from(c.ENCRYPTION_KEY, "base64").length !== 32)
     throw new Error("Invalid encryption key");
+
+  const secretJson = (path: string, name: string) => {
+    try {
+      const text = readFileSync(path, "utf8").replace(/\r?\n$/, "");
+      if (!text || Buffer.byteLength(text, "utf8") > 16384 || text.includes("\0"))
+        throw new Error();
+      return JSON.parse(text) as unknown;
+    } catch {
+      throw new Error(`Secret file unavailable: ${name}`);
+    }
+  };
+  const keyringSchema = z.object({
+    currentKeyId: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
+    keys: z.record(z.string().regex(/^[A-Za-z0-9._-]{1,64}$/), z.string().regex(/^[A-Za-z0-9+/]{43}=$/))
+      .refine((keys) => Object.keys(keys).length >= 1 && Object.keys(keys).length <= 8),
+  }).strict();
+  const taskKeySchema = z.object({
+    currentKeyId: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
+    keys: z.record(z.string().regex(/^[A-Za-z0-9._-]{1,64}$/), z.string().regex(/^[A-Za-z0-9_-]{43}$/))
+      .refine((keys) => Object.keys(keys).length >= 1 && Object.keys(keys).length <= 4),
+  }).strict();
+  const credentialKeyring = c.CREDENTIAL_KEYRING_FILE
+    ? keyringSchema.safeParse(secretJson(c.CREDENTIAL_KEYRING_FILE, "CREDENTIAL_KEYRING"))
+    : null;
+  if (credentialKeyring && !credentialKeyring.success)
+    throw new Error("Invalid credential keyring configuration");
+  const credentialKeys = credentialKeyring?.success
+    ? credentialKeyring.data
+    : { currentKeyId: c.CREDENTIAL_KEY_ID, keys: { [c.CREDENTIAL_KEY_ID]: c.ENCRYPTION_KEY } };
+  if (!credentialKeys.keys[credentialKeys.currentKeyId])
+    throw new Error("Current credential encryption key is unavailable");
+  for (const key of Object.values(credentialKeys.keys))
+    if (Buffer.from(key, "base64").length !== 32)
+      throw new Error("Invalid credential encryption key");
+  const connectorKeyFile = c.CONNECTOR_TASK_KEYS_FILE
+    ? taskKeySchema.safeParse(secretJson(c.CONNECTOR_TASK_KEYS_FILE, "CONNECTOR_TASK_KEYS"))
+    : null;
+  if (connectorKeyFile && !connectorKeyFile.success)
+    throw new Error("Invalid connector task key configuration");
+  const connectorTaskKeys = connectorKeyFile?.success ? connectorKeyFile.data : null;
+  if (connectorTaskKeys) {
+    if (!connectorTaskKeys.keys[connectorTaskKeys.currentKeyId])
+      throw new Error("Current connector task key is unavailable");
+    for (const key of Object.values(connectorTaskKeys.keys))
+      if (Buffer.from(key, "base64url").length < 32)
+        throw new Error("Invalid connector task key");
+  }
+  if (!!c.INTERNAL_API_URL !== !!connectorTaskKeys)
+    throw new Error("Connector task API URL and key file must be configured together");
+  if (c.INTERNAL_API_URL) {
+    const internal = new URL(c.INTERNAL_API_URL);
+    if (internal.username || internal.password || internal.hash || internal.search || internal.pathname !== "/" ||
+      (c.NODE_ENV === "production" && internal.protocol !== "https:"))
+      throw new Error("Internal API endpoint must be credential-free and production HTTPS");
+  }
+  if (!!c.JIRA_OAUTH_CLIENT_SECRET !== !!c.JIRA_OAUTH_CLIENT_ID)
+    throw new Error("Jira OAuth client id and secret must be configured together");
+  if (c.JIRA_OAUTH_CLIENT_ID && (!connectorTaskKeys || !c.INTERNAL_API_URL || !c.CREDENTIAL_KEYRING_FILE))
+    throw new Error("Jira OAuth runtime requires connector task authentication and a credential keyring");
 
   const { database, PDAA_DATABASE_URL } = loadDatabaseConfig(env);
 
@@ -151,7 +219,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   } catch {
     throw new Error("Invalid OIDC group-role mapping");
   }
-  return { ...c, PDAA_DATABASE_URL, database, groupRoles };
+  return { ...c, PDAA_DATABASE_URL, database, groupRoles, credentialKeys, connectorTaskKeys };
 }
 
 const databaseSchema = schema.pick({

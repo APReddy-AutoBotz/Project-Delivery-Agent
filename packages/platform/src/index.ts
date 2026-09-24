@@ -18,6 +18,12 @@ export {
 } from "./config.js";
 export { assertSyntheticDatabaseUrl } from "./database-target.js";
 export { createOutboundDispatcher } from "./outbound.js";
+export {
+  signConnectorTaskRequest,
+  verifyConnectorTaskRequest,
+  type ConnectorTaskHeaders,
+  type ConnectorTaskKeyRing,
+} from "./connector-task-auth.js";
 export { operationalLog } from "./logging.js";
 import { operationalLog } from "./logging.js";
 
@@ -118,6 +124,70 @@ export class CredentialVault {
       const tag = Buffer.from(parts[2]!, "base64");
       if (iv.length !== 12 || tag.length !== 16) throw new Error();
       const decipher = createDecipheriv("aes-256-gcm", this.key, iv, {
+        authTagLength: 16,
+      });
+      decipher.setAAD(Buffer.from("pdaa:v1:" + context));
+      decipher.setAuthTag(tag);
+      return Buffer.concat([
+        decipher.update(Buffer.from(parts[3]!, "base64")),
+        decipher.final(),
+      ]).toString("utf8");
+    } catch {
+      throw new Error("Credential decryption failed");
+    }
+  }
+}
+
+export class CredentialKeyRingVault {
+  private readonly keys: Map<string, Buffer>;
+  private readonly currentKeyId: string;
+  constructor(
+    input: { currentKeyId: string; keys: Record<string, string> },
+  ) {
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(input.currentKeyId))
+      throw new Error("Invalid credential key id");
+    this.keys = new Map();
+    for (const [keyId, encoded] of Object.entries(input.keys)) {
+      if (!/^[A-Za-z0-9._-]{1,64}$/.test(keyId))
+        throw new Error("Invalid credential key id");
+      const key = Buffer.from(encoded, "base64");
+      if (key.length !== 32 || key.toString("base64") !== encoded)
+        throw new Error("Invalid credential encryption key");
+      this.keys.set(keyId, key);
+    }
+    if (!this.keys.has(input.currentKeyId))
+      throw new Error("Current credential encryption key is unavailable");
+    this.currentKeyId = input.currentKeyId;
+  }
+  encrypt(secret: string, context: string) {
+    return this.encryptWithKey(secret, context, this.currentKeyId);
+  }
+  private encryptWithKey(secret: string, context: string, keyId: string) {
+    const key = this.keys.get(keyId);
+    if (!key) throw new Error("Credential encryption key is unavailable");
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", key, iv);
+    cipher.setAAD(Buffer.from("pdaa:v1:" + context));
+    const data = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
+    return {
+      keyId,
+      envelope: [
+        "v1",
+        iv.toString("base64"),
+        cipher.getAuthTag().toString("base64"),
+        data.toString("base64"),
+      ].join("."),
+    };
+  }
+  decrypt(envelope: string, context: string, keyId: string): string {
+    try {
+      const key = this.keys.get(keyId);
+      const parts = envelope.split(".");
+      if (!key || parts.length !== 4 || parts[0] !== "v1") throw new Error();
+      const iv = Buffer.from(parts[1]!, "base64");
+      const tag = Buffer.from(parts[2]!, "base64");
+      if (iv.length !== 12 || tag.length !== 16) throw new Error();
+      const decipher = createDecipheriv("aes-256-gcm", key, iv, {
         authTagLength: 16,
       });
       decipher.setAAD(Buffer.from("pdaa:v1:" + context));

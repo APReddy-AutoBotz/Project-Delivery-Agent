@@ -4,22 +4,40 @@
 
 Every runtime dependency must be pinned through the lockfile and reviewed before release.
 
-| Component | Purpose | Licence | Decision | Integration method | Notes |
-|---|---|---|---|---|---|
-| React | Web UI | MIT | Proposed | Use published package | Web framework; replacement would be costly |
-| Vite | Web build | MIT | Proposed | Use published package | Standard static web build |
-| Tailwind CSS | Styling | MIT | Proposed | Use published package | Avoid commercial Tailwind Plus assets unless licensed |
-| shadcn/ui | Component source patterns | MIT | Proposed | Copy only generated components with notices as applicable | Review component provenance |
-| NestJS | API framework | MIT | Proposed | Use published package | Keep domain independent |
-| PostgreSQL | Database | PostgreSQL Licence | Approved | Customer or bundled service | Core operational dependency |
-| pgvector | Vector extension | PostgreSQL-style | Proposed | Database extension | Optional semantic retrieval |
-| Prisma | ORM/migrations | Apache-2.0 | Proposed | Use published package | Wrap behind repositories |
-| Graphile Worker | Background jobs | MIT | Approved in baseline | Use published package | Replacement: custom queue or Temporal |
-| Vercel AI SDK | AI provider abstraction | Apache-2.0 | Approved in baseline | Use published package | Wrap behind first-party interface |
-| jira.js | Jira SDK | MIT | Approved in baseline | Use published package | Wrap behind connector |
-| Microsoft Graph JS SDK | Microsoft 365 SDK | MIT | R2 proposed | Use published package | Wrap behind connector |
-| PptxGenJS | PowerPoint generation | MIT | Approved in baseline | Use published package | Template logic remains proprietary |
-| ExcelJS | Spreadsheet generation | MIT | Proposed | Use published package | Spreadsheet import may use separate parser |
+| Component              | Purpose                   | Licence            | Decision             | Integration method                                        | Notes                                                 |
+| ---------------------- | ------------------------- | ------------------ | -------------------- | --------------------------------------------------------- | ----------------------------------------------------- |
+| React                  | Web UI                    | MIT                | Proposed             | Use published package                                     | Web framework; replacement would be costly            |
+| Vite                   | Web build                 | MIT                | Proposed             | Use published package                                     | Standard static web build                             |
+| Tailwind CSS           | Styling                   | MIT                | Proposed             | Use published package                                     | Avoid commercial Tailwind Plus assets unless licensed |
+| shadcn/ui              | Component source patterns | MIT                | Proposed             | Copy only generated components with notices as applicable | Review component provenance                           |
+| NestJS                 | API framework             | MIT                | Proposed             | Use published package                                     | Keep domain independent                               |
+| PostgreSQL             | Database                  | PostgreSQL Licence | Approved             | Customer or bundled service                               | Core operational dependency                           |
+| pgvector               | Vector extension          | PostgreSQL-style   | Proposed             | Database extension                                        | Optional semantic retrieval                           |
+| Prisma                 | ORM/migrations            | Apache-2.0         | Proposed             | Use published package                                     | Wrap behind repositories                              |
+| Graphile Worker        | Background jobs           | MIT                | Approved in baseline | Use published package                                     | Replacement: custom queue or Temporal                 |
+| Vercel AI SDK          | AI provider abstraction   | Apache-2.0         | Approved in baseline | Use published package                                     | Wrap behind first-party interface                     |
+| jira.js                | Jira SDK                  | MIT                | Approved in baseline | Use published package                                     | Wrap behind connector                                 |
+| Microsoft Graph JS SDK | Microsoft 365 SDK         | MIT                | R2 proposed          | Use published package                                     | Wrap behind connector                                 |
+| PptxGenJS              | PowerPoint generation     | MIT                | Approved in baseline | Use published package                                     | Template logic remains proprietary                    |
+| ExcelJS                | Spreadsheet generation    | MIT                | Proposed             | Use published package                                     | Spreadsheet import may use separate parser            |
+
+### Jira adapter pin, 2026-09-24
+
+The first-party `@pdaa/connectors-jira` adapter pins `jira.js` 6.2.0 and Zod
+4.5.4 in the workspace lockfile. The published `jira.js` package declares MIT,
+ships TypeScript declarations and supports Node.js 22+; the repository targets
+Node.js 24. The adapter calls only project read, enhanced issue-search read and
+issue read methods. Its SDK client remains private to this connector package.
+No OAuth token store, live credential, webhook listener or source write is
+introduced by this increment. Recheck the package, license and transitive
+inventory during release/distribution review.
+
+### Jira runtime Zod usage, 2026-09-24
+
+`@pdaa/data` now directly declares the already pinned Zod 4.5.4 runtime
+dependency for bounded OAuth credential, webhook and task-receipt validation.
+The dependency register includes this consumer; no new external package or
+licence is introduced by this runtime increment.
 | Playwright | Browser testing/PDF rendering | Apache-2.0 | Proposed | Use published package | Keep browser images patched |
 | MCP TypeScript SDK | Future MCP interface | Apache/MIT transition | Evaluate R5 | Use published package after licence review | No direct DB/connector bypass |
 | Microsoft MarkItDown | Document extraction sidecar | MIT | Optional | Install as isolated Python package | Not in R1 |
@@ -51,6 +69,7 @@ Review date:
 - Enterprise-only directories from mixed-license projects
 - Vendored copies of complete external repositories
 - Git submodules used to bypass normal dependency review
+
 ## Foundation package adoption
 
 Multer 2.3.0 (MIT) replaces the existing 2.2.0 NestJS transitive runtime dependency
@@ -84,45 +103,45 @@ runtime dependency or a shipped customer component.
 
 Exact direct dependencies verified against publisher metadata on 2026-09-06. Runtime entries are approved for local foundation implementation under the delegated permissive-license policy. Full transitive notices, image inventory and vulnerability disposition remain release gates. No upstream source was copied or modified. The machine-readable record [DEPENDENCIES.json](DEPENDENCIES.json) includes consumers, owners and replacement paths.
 
-| Published package | Version | License | Use |
-|---|---|---|---|
-| [@eslint/js](https://registry.npmjs.org/%40eslint%2Fjs/10.0.1) | 10.0.1 | MIT | Development |
-| [@nestjs/common](https://registry.npmjs.org/%40nestjs%2Fcommon/11.2.3) | 11.2.3 | MIT | Runtime |
-| [@nestjs/core](https://registry.npmjs.org/%40nestjs%2Fcore/11.2.3) | 11.2.3 | MIT | Runtime |
-| [@nestjs/platform-express](https://registry.npmjs.org/%40nestjs%2Fplatform-express/11.2.3) | 11.2.3 | MIT | Runtime |
-| [@nestjs/swagger](https://registry.npmjs.org/%40nestjs%2Fswagger/11.4.7) | 11.4.7 | MIT | Runtime |
-| [@playwright/test](https://registry.npmjs.org/%40playwright%2Ftest/1.63.0) | 1.63.0 | Apache-2.0 | Development |
-| [@prisma/adapter-pg](https://registry.npmjs.org/%40prisma%2Fadapter-pg/7.10.0) | 7.10.0 | Apache-2.0 | Runtime |
-| [@prisma/client](https://registry.npmjs.org/%40prisma%2Fclient/7.10.0) | 7.10.0 | Apache-2.0 | Runtime |
-| [@tailwindcss/vite](https://registry.npmjs.org/%40tailwindcss%2Fvite/4.3.3) | 4.3.3 | MIT | Development |
-| [@tanstack/react-query](https://registry.npmjs.org/%40tanstack%2Freact-query/5.102.8) | 5.102.8 | MIT | Runtime |
-| [@types/node](https://registry.npmjs.org/%40types%2Fnode/24.0.0) | 24.0.0 | MIT | Development |
-| [@types/pg](https://registry.npmjs.org/%40types%2Fpg/8.23.1) | 8.23.1 | MIT | Development |
-| [@types/react](https://registry.npmjs.org/%40types%2Freact/19.2.18) | 19.2.18 | MIT | Development |
-| [@types/react-dom](https://registry.npmjs.org/%40types%2Freact-dom/19.2.7) | 19.2.7 | MIT | Development |
-| [@vitejs/plugin-react](https://registry.npmjs.org/%40vitejs%2Fplugin-react/5.2.0) | 5.2.0 | MIT | Development |
-| [ajv](https://registry.npmjs.org/ajv/8.20.0) | 8.20.0 | MIT | Development |
-| [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1) | 3.0.1 | MIT | Development |
-| [deepmerge-ts](https://registry.npmjs.org/deepmerge-ts/8.0.0) | 8.0.0 | BSD-3-Clause | Development |
-| [eslint](https://registry.npmjs.org/eslint/10.10.0) | 10.10.0 | MIT | Development |
-| [graphile-worker](https://registry.npmjs.org/graphile-worker/0.17.3) | 0.17.3 | MIT | Runtime |
-| [jose](https://registry.npmjs.org/jose/6.2.12) | 6.2.12 | MIT | Runtime |
-| [js-yaml](https://registry.npmjs.org/js-yaml/5.3.0) | 5.3.0 | MIT | Development |
-| [mysql2](https://registry.npmjs.org/mysql2/3.23.1) | 3.23.1 | MIT | Development |
-| [oidc-client-ts](https://registry.npmjs.org/oidc-client-ts/3.5.0) | 3.5.0 | Apache-2.0 | Runtime |
-| [pg](https://registry.npmjs.org/pg/8.23.0) | 8.23.0 | MIT | Runtime |
-| [prettier](https://registry.npmjs.org/prettier/3.6.2) | 3.6.2 | MIT | Development |
-| [prisma](https://registry.npmjs.org/prisma/7.10.0) | 7.10.0 | Apache-2.0 | Development |
-| [react](https://registry.npmjs.org/react/19.2.8) | 19.2.8 | MIT | Runtime |
-| [react-dom](https://registry.npmjs.org/react-dom/19.2.8) | 19.2.8 | MIT | Runtime |
-| [reflect-metadata](https://registry.npmjs.org/reflect-metadata/0.2.2) | 0.2.2 | Apache-2.0 | Runtime |
-| [rxjs](https://registry.npmjs.org/rxjs/7.8.2) | 7.8.2 | Apache-2.0 | Runtime |
-| [tailwindcss](https://registry.npmjs.org/tailwindcss/4.3.3) | 4.3.3 | MIT | Development |
-| [typescript](https://registry.npmjs.org/typescript/5.9.3) | 5.9.3 | Apache-2.0 | Development |
-| [typescript-eslint](https://registry.npmjs.org/typescript-eslint/8.69.0) | 8.69.0 | MIT | Development |
-| [vite](https://registry.npmjs.org/vite/7.3.6) | 7.3.6 | MIT | Development |
-| [vitest](https://registry.npmjs.org/vitest/4.1.11) | 4.1.11 | MIT | Development |
-| [zod](https://registry.npmjs.org/zod/4.5.4) | 4.5.4 | MIT | Runtime |
+| Published package                                                                          | Version | License      | Use         |
+| ------------------------------------------------------------------------------------------ | ------- | ------------ | ----------- |
+| [@eslint/js](https://registry.npmjs.org/%40eslint%2Fjs/10.0.1)                             | 10.0.1  | MIT          | Development |
+| [@nestjs/common](https://registry.npmjs.org/%40nestjs%2Fcommon/11.2.3)                     | 11.2.3  | MIT          | Runtime     |
+| [@nestjs/core](https://registry.npmjs.org/%40nestjs%2Fcore/11.2.3)                         | 11.2.3  | MIT          | Runtime     |
+| [@nestjs/platform-express](https://registry.npmjs.org/%40nestjs%2Fplatform-express/11.2.3) | 11.2.3  | MIT          | Runtime     |
+| [@nestjs/swagger](https://registry.npmjs.org/%40nestjs%2Fswagger/11.4.7)                   | 11.4.7  | MIT          | Runtime     |
+| [@playwright/test](https://registry.npmjs.org/%40playwright%2Ftest/1.63.0)                 | 1.63.0  | Apache-2.0   | Development |
+| [@prisma/adapter-pg](https://registry.npmjs.org/%40prisma%2Fadapter-pg/7.10.0)             | 7.10.0  | Apache-2.0   | Runtime     |
+| [@prisma/client](https://registry.npmjs.org/%40prisma%2Fclient/7.10.0)                     | 7.10.0  | Apache-2.0   | Runtime     |
+| [@tailwindcss/vite](https://registry.npmjs.org/%40tailwindcss%2Fvite/4.3.3)                | 4.3.3   | MIT          | Development |
+| [@tanstack/react-query](https://registry.npmjs.org/%40tanstack%2Freact-query/5.102.8)      | 5.102.8 | MIT          | Runtime     |
+| [@types/node](https://registry.npmjs.org/%40types%2Fnode/24.0.0)                           | 24.0.0  | MIT          | Development |
+| [@types/pg](https://registry.npmjs.org/%40types%2Fpg/8.23.1)                               | 8.23.1  | MIT          | Development |
+| [@types/react](https://registry.npmjs.org/%40types%2Freact/19.2.18)                        | 19.2.18 | MIT          | Development |
+| [@types/react-dom](https://registry.npmjs.org/%40types%2Freact-dom/19.2.7)                 | 19.2.7  | MIT          | Development |
+| [@vitejs/plugin-react](https://registry.npmjs.org/%40vitejs%2Fplugin-react/5.2.0)          | 5.2.0   | MIT          | Development |
+| [ajv](https://registry.npmjs.org/ajv/8.20.0)                                               | 8.20.0  | MIT          | Development |
+| [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1)                                | 3.0.1   | MIT          | Development |
+| [deepmerge-ts](https://registry.npmjs.org/deepmerge-ts/8.0.0)                              | 8.0.0   | BSD-3-Clause | Development |
+| [eslint](https://registry.npmjs.org/eslint/10.10.0)                                        | 10.10.0 | MIT          | Development |
+| [graphile-worker](https://registry.npmjs.org/graphile-worker/0.17.3)                       | 0.17.3  | MIT          | Runtime     |
+| [jose](https://registry.npmjs.org/jose/6.2.12)                                             | 6.2.12  | MIT          | Runtime     |
+| [js-yaml](https://registry.npmjs.org/js-yaml/5.3.0)                                        | 5.3.0   | MIT          | Development |
+| [mysql2](https://registry.npmjs.org/mysql2/3.23.1)                                         | 3.23.1  | MIT          | Development |
+| [oidc-client-ts](https://registry.npmjs.org/oidc-client-ts/3.5.0)                          | 3.5.0   | Apache-2.0   | Runtime     |
+| [pg](https://registry.npmjs.org/pg/8.23.0)                                                 | 8.23.0  | MIT          | Runtime     |
+| [prettier](https://registry.npmjs.org/prettier/3.6.2)                                      | 3.6.2   | MIT          | Development |
+| [prisma](https://registry.npmjs.org/prisma/7.10.0)                                         | 7.10.0  | Apache-2.0   | Development |
+| [react](https://registry.npmjs.org/react/19.2.8)                                           | 19.2.8  | MIT          | Runtime     |
+| [react-dom](https://registry.npmjs.org/react-dom/19.2.8)                                   | 19.2.8  | MIT          | Runtime     |
+| [reflect-metadata](https://registry.npmjs.org/reflect-metadata/0.2.2)                      | 0.2.2   | Apache-2.0   | Runtime     |
+| [rxjs](https://registry.npmjs.org/rxjs/7.8.2)                                              | 7.8.2   | Apache-2.0   | Runtime     |
+| [tailwindcss](https://registry.npmjs.org/tailwindcss/4.3.3)                                | 4.3.3   | MIT          | Development |
+| [typescript](https://registry.npmjs.org/typescript/5.9.3)                                  | 5.9.3   | Apache-2.0   | Development |
+| [typescript-eslint](https://registry.npmjs.org/typescript-eslint/8.69.0)                   | 8.69.0  | MIT          | Development |
+| [vite](https://registry.npmjs.org/vite/7.3.6)                                              | 7.3.6   | MIT          | Development |
+| [vitest](https://registry.npmjs.org/vitest/4.1.11)                                         | 4.1.11  | MIT          | Development |
+| [zod](https://registry.npmjs.org/zod/4.5.4)                                                | 4.5.4   | MIT          | Runtime     |
 
 ## Web transfer-tool exclusion, 2026-09-08
 
@@ -166,12 +185,12 @@ the exact lockfile, and selected file bytes were compared with immutable image
 digests before implementation. Collection preserves those originals without
 network enrichment or changes to installed package files.
 
-| Existing package | Original notice | Consumers | Publisher source |
-|---|---|---|---|
-| @tokenizer/token 0.3.0 | README.md containing original MIT notice | API | [version metadata](https://registry.npmjs.org/%40tokenizer%2Ftoken/0.3.0) |
-| pg-types 2.2.0 | README.md containing original MIT notice | API, worker, operations | [version metadata](https://registry.npmjs.org/pg-types/2.2.0) |
-| pgpass 1.0.5 | README.md containing original MIT notice | API, worker, operations | [version metadata](https://registry.npmjs.org/pgpass/1.0.5) |
-| rxjs 7.8.2 | LICENSE.txt, Apache-2.0 publisher notice | API, including five embedded entrypoints | [version metadata](https://registry.npmjs.org/rxjs/7.8.2) |
+| Existing package       | Original notice                          | Consumers                                | Publisher source                                                          |
+| ---------------------- | ---------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
+| @tokenizer/token 0.3.0 | README.md containing original MIT notice | API                                      | [version metadata](https://registry.npmjs.org/%40tokenizer%2Ftoken/0.3.0) |
+| pg-types 2.2.0         | README.md containing original MIT notice | API, worker, operations                  | [version metadata](https://registry.npmjs.org/pg-types/2.2.0)             |
+| pgpass 1.0.5           | README.md containing original MIT notice | API, worker, operations                  | [version metadata](https://registry.npmjs.org/pgpass/1.0.5)               |
+| rxjs 7.8.2             | LICENSE.txt, Apache-2.0 publisher notice | API, including five embedded entrypoints | [version metadata](https://registry.npmjs.org/rxjs/7.8.2)                 |
 
 Owner: implementation controller for maintenance and source-evidence updates;
 legal/product review remains required for commercial distribution. Replace or
@@ -219,11 +238,11 @@ pins four original files at the same Node source commit and 150 notice outputs f
 the existing API, worker and operations binary. Full original sources are
 authenticated in a build stage; final images contain only notice bytes and index.
 
-| Existing component | Original source observation | Packaged evidence | Remaining review |
-|---|---|---|---|
-| nbytes 0.1.4 | Original `deps/nbytes/LICENSE` headed MIT License, crediting Node.js | Complete original 1,064-byte file | Component/source applicability and full distribution review |
-| SQLite 3.53.3 | Original copyright-disclaimer/blessing and public-domain language in amalgamation/header comments | 149 complete original comment extracts, 144,879 bytes, retaining separate occurrences | Conditional/platform/header and actual linked composition |
-| ncrypto 0.0.1 | No component-specific notice in its seven-file subtree; README describes Node-internal extraction, with an OpenSSL formatting reference in source | Explicit unresolved supplemental status; no borrowed notice | Determine original attribution and applicability |
+| Existing component | Original source observation                                                                                                                       | Packaged evidence                                                                     | Remaining review                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| nbytes 0.1.4       | Original `deps/nbytes/LICENSE` headed MIT License, crediting Node.js                                                                              | Complete original 1,064-byte file                                                     | Component/source applicability and full distribution review |
+| SQLite 3.53.3      | Original copyright-disclaimer/blessing and public-domain language in amalgamation/header comments                                                 | 149 complete original comment extracts, 144,879 bytes, retaining separate occurrences | Conditional/platform/header and actual linked composition   |
+| ncrypto 0.0.1      | No component-specific notice in its seven-file subtree; README describes Node-internal extraction, with an OpenSSL formatting reference in source | Explicit unresolved supplemental status; no borrowed notice                           | Determine original attribution and applicability            |
 
 The policy records exact publisher URLs, full parent-source sizes/SHA-256, output
 ranges and hashes. Original text is not rewritten into a synthetic licence.
@@ -274,13 +293,3 @@ source-build reproducibility or licence compatibility. All 24 residual identitie
 remain; ncrypto, native/tool/generated-source coverage and complete distribution
 review are unresolved. Owner: implementation controller for source-pin maintenance
 and replay. Recovery: reviewed preparation/evidence-policy revert and fresh checks.
-### Jira adapter pin, 2026-09-24
-
-The first-party `@pdaa/connectors-jira` adapter pins `jira.js` 6.2.0 and Zod
-4.5.4 in the workspace lockfile. The published `jira.js` package declares MIT,
-ships TypeScript declarations and supports Node.js 22+; the repository targets
-Node.js 24. The adapter calls only project read, enhanced issue-search read and
-issue read methods. Its SDK client remains private to this connector package.
-No OAuth token store, live credential, webhook listener or source write is
-introduced by this increment. Recheck the package, license and transitive
-inventory during release/distribution review.

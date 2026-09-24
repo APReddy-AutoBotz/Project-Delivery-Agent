@@ -539,7 +539,7 @@
       "name": "zod",
       "version": "4.5.4",
       "runtime": true,
-      "consumers": ["@pdaa/api", "@pdaa/connectors-jira", "@pdaa/domain", "@pdaa/platform"],
+      "consumers": ["@pdaa/api", "@pdaa/connectors-jira", "@pdaa/data", "@pdaa/domain", "@pdaa/platform"],
       "license": "MIT",
       "repository": "git+https://github.com/colinhacks/zod.git",
       "source": "https://registry.npmjs.org/zod/4.5.4",

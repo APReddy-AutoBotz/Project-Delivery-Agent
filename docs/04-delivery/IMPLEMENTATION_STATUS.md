@@ -1,13 +1,13 @@
 # Implementation Status
 
-Updated: 2026-09-23
+Updated: 2026-09-24
 
 ## Accepted implementation completion
 
 | Release | Accepted merged stories | Total approved stories | Completion |
-|---|---:|---:|---:|
-| R0 | 3 | 5 | 60% |
-| R1 | 2 | 33 | 6.1% |
+| ------- | ----------------------: | ---------------------: | ---------: |
+| R0      |                       3 |                      5 |        60% |
+| R1      |                       2 |                     33 |       6.1% |
 
 STORY-001 (TypeScript workspace and runtime/API contracts) and STORY-002
 (PostgreSQL foundation and repository interfaces) are accepted under delegated
@@ -78,6 +78,58 @@ default `pdaa` database. These results are an implementation checkpoint only:
 Issue #7 stories and acceptance totals remain unchanged, and the required native
 database, upgrade, recovery, independent exact-candidate review and matching CI
 gates remain open.
+
+## EXEC-009 Stage 3 Jira reader checkpoint, 2026-09-24
+
+PR #57 merged a new `@pdaa/connectors-jira` workspace package with
+the approved `jira.js` 6.2.0 client kept behind a first-party read-only contract.
+Configured project UUID/key pairs bound discovery and enhanced JQL search;
+configured Jira scalar fields are normalized to typed proposals with stable
+content hashes and checked against the returned project identity. Synthetic
+adapter coverage exercises read-only connection, configured visibility, search
+scope/cursor, field projection, direct lookup and finite failure redaction. The
+focused adapter tests pass 10/10; the full local unit suite passes 1,499/1,499
+tests across 75 files. Workspace lint, strict typecheck, build, architecture,
+contracts and documentation validation pass.
+
+The first hosted Foundation attempt stopped at the dependency-register check
+because jira.js was not yet registered; the follow-up added that governance entry.
+The final exact candidate `b1240e84a68042fd3b138a96203b28f51a73b6d2` passed the
+[Foundation workflow](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/35933047285)
+and [Documentation workflow](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/35933047278).
+Foundation validation passed build, architecture/contracts, lint/typecheck, all
+1,499 units, dependency/audit checks, database migration/integration, recovery,
+browser workflows and production-boundary acceptance. Documentation validation
+passed, and exact-head independent review approved with no findings. The merged
+adapter is now used by the Stage 4 runtime candidate below; this does not activate
+a live Jira credential or authorize external writes.
+Sprint/comment/full changelog/link normalization and durable reader wiring remain
+open, so AC-CON-001/002/003, AC-MNT-003, Issue #7 stories and accepted totals are
+unchanged. The Stage 3 adapter added no migration.
+
+## EXEC-009 Stage 4 Jira runtime candidate, 2026-09-24
+
+The current local candidate adds OAuth token refresh with a persisted 60-second
+single-owner lease, operation/revision fencing and atomic rotated-token commit;
+verified HMAC webhooks that persist event receipts and queue source-bound read
+jobs; scheduled reconciliation; signed short-lived API task requests with durable
+nonce replay protection; and worker dispatch. Sync receipts have a distinct
+connector subject, while proposal and cursor commits recheck the current source
+configuration, cursor generation, mapping and exact active project grants.
+
+Five additive tables bring the independent business-table inventory to 61 and
+the migration ledger to 11. The candidate also updates database, upgrade, recovery
+and clean-install inventories and adds synthetic OAuth/task-auth plus isolated DB
+runtime coverage. Local Prisma schema validation and source-path strict typecheck
+pass. Lint, architecture, OpenAPI contract, dependency-register and documentation
+checks pass. The full database-independent suite passes 1,502 tests across 76
+files. Local Docker/PostgreSQL is unavailable, so native migration/COMMIT,
+connector integration, populated-prefix-nine upgrade and encrypted restore checks
+remain pending for hosted validation. Exact-code independent review and matching
+hosted workflows have not yet run for the final Stage 4 candidate. AC-CON-004/005/006
+and AC-MNT-003 remain incomplete; no Issue #7 story or acceptance total changes.
+No public OAuth authorization callback/UI, Jira write, canonical fact publication
+or live production account is included.
 
 ## Earlier unmerged checkpoints (historical)
 
@@ -285,38 +337,38 @@ Trusted source ingestion and reconciliation remain pending.
 
 Public publication was explicitly approved by the Product Owner on 2026-09-06.
 
-| Increment | PR | Reviewed candidate | Merge commit |
-|---|---|---|---|
-| Corrected baseline | [#2](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/2) | `5f37c65` | `70378ed` |
-| Implementation master plan | [#3](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/3) | `3a7ead5` | `e153d1b` |
-| Synthetic foundation | [#4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4) | `6cec7f0` | `e29b984` |
-| Production foundation boundary | [#16](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16) | `9e7ed74` | `7ea6452` |
-| Executable foundation contracts | [#18](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/18) | `56e4fbd` | `5829e23` |
-| Foundation release operations | [#20](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/20) | `6cd425e` | `2d854d2` |
-| Customer composition acceptance | [#22](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/22) | `c669e95` | `27bc174` |
-| Distribution evidence collection | [#24](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/24) | `a720ec5` | `438cc13` |
-| Runtime distribution hardening | [#25](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/25) | `5071cea` | `1d0bcb9` |
-| Foundation output and outbound security | [#26](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/26) | `40da638` | `2a9882f` |
-| OIDC configuration acceptance | [#27](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27) | `3b88a84` | `71b4e6d` |
-| Real OIDC expiry acceptance | [#28](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28) | `0c9489f` | `519c192` |
-| Portfolio authorization acceptance | [#29](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/29) | `c8d08d0` | `5da7352` |
-| Web runtime build toolchain | [#30](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/30) | `c7bbfb6` | `62bcbe6` |
-| Web transfer-tool removal | [#31](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/31) | `92f184d` | `d546e14` |
-| Compiled Go source notices | [#32](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/32) | `50ffbc1` | `7c85993` |
-| Npm original notice attribution | [#33](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/33) | `ff1c301` | `6ff5c63` |
-| Node binary metadata and source coverage | [#34](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/34) | `b0a9bd2` | `5071962` |
-| Node supplemental original notices | [#35](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/35) | `174bd8d` | `43b59f8` |
-| Observed Node resource evidence | [#36](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/36) | `d107997` | `889716b` |
-| Selected Node source correspondence | [#37](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/37) | `a9e633c` | `89f6061` |
-| First gosu dispositions and Multer remediation | [#38](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/38) | `10ee5eb` | `24894ba` |
-| Gosu advisory applicability batch | [#39](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/39) | `b649711` | `8f66e94` |
-| Package architecture evidence | [#40](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/40) | `d678cf1` | `5d45e1d` |
-| Temporal fact history | [#41](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/41) | `28090cf` | `47d7c45` |
-| Durable human fact history | [#42](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/42) | `4d18377` | `062fcd7` |
-| Historical source authority | [#43](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/43) | `7f3fcce` | `9c97bf9` |
-| Durable authority assessments | [#44](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/44) | `79fdb9a` | `dc606d5` |
-| Canonical project workflow | [#45](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/45) | `1bbc01e` | `ea65e37` |
-| Project evidence workflow | [#47](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/47) | `5ecefb1` | `2187f3a` |
+| Increment                                      | PR                                                                        | Reviewed candidate | Merge commit |
+| ---------------------------------------------- | ------------------------------------------------------------------------- | ------------------ | ------------ |
+| Corrected baseline                             | [#2](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/2)   | `5f37c65`          | `70378ed`    |
+| Implementation master plan                     | [#3](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/3)   | `3a7ead5`          | `e153d1b`    |
+| Synthetic foundation                           | [#4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/4)   | `6cec7f0`          | `e29b984`    |
+| Production foundation boundary                 | [#16](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/16) | `9e7ed74`          | `7ea6452`    |
+| Executable foundation contracts                | [#18](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/18) | `56e4fbd`          | `5829e23`    |
+| Foundation release operations                  | [#20](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/20) | `6cd425e`          | `2d854d2`    |
+| Customer composition acceptance                | [#22](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/22) | `c669e95`          | `27bc174`    |
+| Distribution evidence collection               | [#24](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/24) | `a720ec5`          | `438cc13`    |
+| Runtime distribution hardening                 | [#25](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/25) | `5071cea`          | `1d0bcb9`    |
+| Foundation output and outbound security        | [#26](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/26) | `40da638`          | `2a9882f`    |
+| OIDC configuration acceptance                  | [#27](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/27) | `3b88a84`          | `71b4e6d`    |
+| Real OIDC expiry acceptance                    | [#28](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/28) | `0c9489f`          | `519c192`    |
+| Portfolio authorization acceptance             | [#29](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/29) | `c8d08d0`          | `5da7352`    |
+| Web runtime build toolchain                    | [#30](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/30) | `c7bbfb6`          | `62bcbe6`    |
+| Web transfer-tool removal                      | [#31](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/31) | `92f184d`          | `d546e14`    |
+| Compiled Go source notices                     | [#32](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/32) | `50ffbc1`          | `7c85993`    |
+| Npm original notice attribution                | [#33](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/33) | `ff1c301`          | `6ff5c63`    |
+| Node binary metadata and source coverage       | [#34](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/34) | `b0a9bd2`          | `5071962`    |
+| Node supplemental original notices             | [#35](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/35) | `174bd8d`          | `43b59f8`    |
+| Observed Node resource evidence                | [#36](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/36) | `d107997`          | `889716b`    |
+| Selected Node source correspondence            | [#37](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/37) | `a9e633c`          | `89f6061`    |
+| First gosu dispositions and Multer remediation | [#38](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/38) | `10ee5eb`          | `24894ba`    |
+| Gosu advisory applicability batch              | [#39](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/39) | `b649711`          | `8f66e94`    |
+| Package architecture evidence                  | [#40](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/40) | `d678cf1`          | `5d45e1d`    |
+| Temporal fact history                          | [#41](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/41) | `28090cf`          | `47d7c45`    |
+| Durable human fact history                     | [#42](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/42) | `4d18377`          | `062fcd7`    |
+| Historical source authority                    | [#43](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/43) | `7f3fcce`          | `9c97bf9`    |
+| Durable authority assessments                  | [#44](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/44) | `79fdb9a`          | `dc606d5`    |
+| Canonical project workflow                     | [#45](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/45) | `1bbc01e`          | `ea65e37`    |
+| Project evidence workflow                      | [#47](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/47) | `5ecefb1`          | `2187f3a`    |
 
 Issue #1 is closed with evidence. Four milestones and ten implementation issues
 are published; no implementation issue is closed. Full immutable references and
@@ -560,10 +612,10 @@ builds, thirteen documentation regressions and traceability pass. The encoding
 fix was independently rechecked, and all six diagnostic resource replays passed
 with unchanged pins. Candidate review, CI and downloaded checks remain required.
 
-| Story | Remaining completion work |
-|---|---|
+| Story     | Remaining completion work                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
 | STORY-004 | Runtime remediation, full adoption/license/notices and layer review, vulnerability dispositions and signing |
-| STORY-005 | Assess and resolve remaining security findings against Definition of Done |
+| STORY-005 | Assess and resolve remaining security findings against Definition of Done                                   |
 
 Continue [EXEC-003](exec-plans/EXEC-003-customer-hosted-foundation.md) with complete
 transitive/OS license and notice inventory, SBOM and final image vulnerability gates,
@@ -590,27 +642,3 @@ storage. Full database reads, migration/audit-trigger checks, fresh worker progr
 and seven browser workflows passed; web/API readiness is healthy. No pre-incident
 full database snapshot was available for an exact comparison. Issue #5 records the
 recovery evidence and successful merged-main CI.
-## EXEC-009 Stage 3 Jira reader checkpoint, 2026-09-24
-
-The current candidate adds a new `@pdaa/connectors-jira` workspace package with
-the approved `jira.js` 6.2.0 client kept behind a first-party read-only contract.
-Configured project UUID/key pairs bound discovery and enhanced JQL search;
-configured Jira scalar fields are normalized to typed proposals with stable
-content hashes and checked against the returned project identity. Synthetic
-adapter coverage exercises read-only connection, configured visibility, search
-scope/cursor, field projection, direct lookup and finite failure redaction. The focused adapter tests pass 10/10; the full local unit suite passes 1,499/1,499 tests across 75 files. Workspace lint, strict typecheck, build, architecture, contracts and documentation validation pass.
-
-The first hosted Foundation attempt stopped at the dependency-register check
-because jira.js was not yet registered; the follow-up added that governance entry.
-The final exact candidate `b1240e84a68042fd3b138a96203b28f51a73b6d2` passed the
-[Foundation workflow](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/35933047285)
-and [Documentation workflow](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/35933047278).
-Foundation validation passed build, architecture/contracts, lint/typecheck, all
-1,499 units, dependency/audit checks, database migration/integration, recovery,
-browser workflows and production-boundary acceptance. Documentation validation
-passed, and exact-head independent review approved with no findings. PR #57 is
-ready for its final merge step. No route or worker invokes the adapter; no live Jira
-credential, OAuth rotation, webhook, scheduler or external write is enabled.
-Sprint/comment/full changelog/link normalization and durable reader wiring remain
-open, so AC-CON-001/002/003, AC-MNT-003, Issue #7 stories and accepted totals are
-unchanged. The existing Stage 2 tables do not change in this adapter increment.

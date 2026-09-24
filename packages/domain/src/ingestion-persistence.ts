@@ -36,6 +36,9 @@ const connectorMapping = z
   .object({
     kind: z.literal("CONNECTOR"),
     factTypes: ingestionArray(ingestionFactType, 32).refine(unique),
+    // Opaque, bounded adapter-owned JSON keeps vendor types out of the domain
+    // package while the sealed configuration revision preserves its exact map.
+    adapterConfiguration: ingestionText(30_000).optional(),
   })
   .strict();
 export const ingestionConfigurationSchema = z
@@ -112,6 +115,16 @@ export const ingestionReceiptKindSchema = z.enum([
   "CSV_PREVIEW",
   "SYNC_RESET",
 ]);
+export type IngestionSyncSnapshot = {
+  sourceId: string;
+  configuration: IngestionConfiguration;
+  configRevision: number;
+  mappingRevision: number;
+  cursor: string | null;
+  cursorRevision: number;
+  generation: number;
+  cursorState: z.infer<typeof ingestionCursorStateSchema>;
+};
 export const ingestionReceiptReadSchema = z
   .object({
     sourceId: projectFactIdSchema,
@@ -125,6 +138,10 @@ export const ingestionRetentionSchema = z
 // Persistence is a narrow service port. Callers supply user intent and validated
 // actor identity; database implementations recheck current grants and source ACL.
 export interface IngestionRepository {
+  readSyncSnapshot(
+    actor: import("./actor.js").Actor,
+    sourceId: string,
+  ): Promise<IngestionSyncSnapshot>;
   configure(
     actor: import("./actor.js").Actor,
     input: IngestionConfiguration,

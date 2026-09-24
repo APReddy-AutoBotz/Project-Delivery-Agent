@@ -27,7 +27,9 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
   await assertBusinessTableOwner(client);
   await client.query(`
     REVOKE ALL ON ALL TABLES IN SCHEMA public FROM pdaa_api,pdaa_worker,pdaa_backup;
-    GRANT SELECT,INSERT,UPDATE,DELETE ON "Customer","Portfolio","Project","AccessGrant","ConnectorCredential" TO pdaa_api;
+    GRANT SELECT,INSERT,UPDATE,DELETE ON "Customer","Portfolio","Project","AccessGrant" TO pdaa_api;
+    GRANT SELECT,INSERT ON "ConnectorCredential" TO pdaa_api;
+    GRANT UPDATE (envelope,"keyId",revision,state,"rotationOperationId","rotationDeadline","auditEventId","changedBy") ON "ConnectorCredential" TO pdaa_api;
     GRANT SELECT,INSERT ON "AuditEvent" TO pdaa_api;
     GRANT SELECT ON "ServiceHeartbeat" TO pdaa_api;
     GRANT SELECT,INSERT,UPDATE ON "ServiceHeartbeat" TO pdaa_worker;
@@ -47,13 +49,19 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT SELECT,INSERT ON "ScalarReconciliationRequest","ScalarReconciliationCheck","ScalarReconciliationAssignment" TO pdaa_api;
     GRANT UPDATE (sealed) ON "ScalarReconciliationRequest" TO pdaa_api;
     GRANT SELECT,INSERT ON "IngestionSource","IngestionConfigurationRevision","IngestionConfigurationProject","IngestionConfigurationReader","IngestionRetentionPolicy","IngestionExternalRecord","IngestionFactStream","IngestionSourceRevision","IngestionProposalProjection","IngestionProposalContent","IngestionOperationReceipt","IngestionReceiptProjectScope","IngestionCursorTransition","IngestionRowOutcome" TO pdaa_api;
+    GRANT SELECT,INSERT ON "ConnectorSyncGrant" TO pdaa_api;
+    GRANT UPDATE (configRevision,revision,active,"changedBy","auditEventId","changedAt") ON "ConnectorSyncGrant" TO pdaa_api;
+    GRANT SELECT,INSERT ON "ConnectorSyncJob" TO pdaa_api;
+    GRANT UPDATE (state,"resetRequested","resetCompleted",attempts,"availableAt","leaseUntil","completedAt") ON "ConnectorSyncJob" TO pdaa_api;
+    GRANT SELECT,INSERT ON "ConnectorWebhookReceipt","IngestionSyncReceiptProjectScope" TO pdaa_api;
+    GRANT SELECT,INSERT,DELETE ON "ConnectorTaskReceipt" TO pdaa_api;
     GRANT UPDATE ("currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId") ON "IngestionSource" TO pdaa_api;
     GRANT UPDATE (sealed) ON "IngestionConfigurationRevision" TO pdaa_api;
     GRANT UPDATE ("retentionHours",revision,"changedBy","auditEventId","changedAt") ON "IngestionRetentionPolicy" TO pdaa_api;
     GRANT UPDATE (proposals,"redactedAt","redactionAuditEventId") ON "IngestionProposalContent" TO pdaa_api;
     REVOKE ALL ON FUNCTION public.scalar_reconciliation_identity(uuid),public.valid_scalar_reconciliation_assignment(uuid),public.valid_scalar_reconciliation_request(uuid),public.valid_scalar_reconciliation_check(uuid),public.guard_scalar_reconciliation_request(),public.guard_scalar_reconciliation_check(),public.guard_scalar_reconciliation_assignment(),public.require_scalar_reconciliation_complete() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT EXECUTE ON FUNCTION public.scalar_reconciliation_identity(uuid),public.valid_scalar_reconciliation_assignment(uuid),public.valid_scalar_reconciliation_request(uuid),public.valid_scalar_reconciliation_check(uuid) TO pdaa_api;
-    REVOKE ALL ON FUNCTION public.valid_ingestion_receipt(uuid),public.valid_ingestion_proposals(jsonb),public.valid_ingestion_projection_content(uuid,jsonb) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+    REVOKE ALL ON FUNCTION public.valid_ingestion_receipt(uuid),public.valid_ingestion_proposals(jsonb),public.valid_ingestion_projection_content(uuid,jsonb),public.guard_connector_credential(),public.guard_connector_sync_grant(),public.guard_connector_sync_job(),public.guard_connector_webhook_receipt(),public.guard_ingestion_sync_receipt_scope(),public.guard_connector_task_receipt() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT EXECUTE ON FUNCTION public.valid_ingestion_receipt(uuid),public.valid_ingestion_proposals(jsonb),public.valid_ingestion_projection_content(uuid,jsonb) TO pdaa_api;
     REVOKE ALL ON FUNCTION public.valid_milestone_reconciliation_assignment(uuid),public.valid_milestone_reconciliation_request(uuid),public.valid_milestone_reconciliation_check(uuid),public.guard_milestone_reconciliation_request(),public.guard_milestone_reconciliation_check(),public.guard_milestone_reconciliation_assignment(),public.require_milestone_reconciliation_complete() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT EXECUTE ON FUNCTION public.valid_milestone_reconciliation_assignment(uuid),public.valid_milestone_reconciliation_request(uuid),public.valid_milestone_reconciliation_check(uuid) TO pdaa_api;
@@ -64,4 +72,3 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
   `);
 }
-

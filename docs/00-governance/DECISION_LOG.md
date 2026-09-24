@@ -12,6 +12,25 @@ client and any token handling inside the adapter package. This authorizes no liv
 credential activation, OAuth persistence, webhook, write, app route or Issue #7
 acceptance. Complete exact-candidate review and checks before PR merge.
 
+## EXEC-009 Stage 4 Jira runtime, 2026-09-24
+
+Proceed with the bounded Jira Cloud runtime behind the Stage 3 read adapter.
+Persist OAuth credentials using the credential keyring, single-owner refresh
+lease, operation/revision fencing and atomic rotated-token commit. Verify the
+selected Cloud ID and read scope on each access. Accept an administrator-secret
+HMAC webhook only after a durable event receipt and idempotent reconciliation job
+are committed; treat its payload as a wake-up signal and fetch Jira state through
+the read adapter. Dispatch one-time internal tasks with signed short-lived
+requests and database nonce receipts. Persist proposals, cursor progress, source
+health and service receipts under the current configuration and exact active
+source/project grants, without impersonating a human or publishing source facts.
+
+The independent design review cleared refresh ownership/late-response fencing,
+page-commit authorization races, and the requested crash/recovery cases. This
+increment does not add a public OAuth authorization callback or UI, Jira write,
+source-fact publication, or Issue #7 acceptance. Complete exact-candidate review,
+database/recovery checks and matching hosted workflows before merge.
+
 ## EXEC-009 durable proposal persistence design, 2026-09-23
 
 Approve the Stage 2 design in
@@ -156,18 +175,18 @@ trusted ingestion, durable versioning, policy resolution and API/browser evidenc
 in subsequent reviewed increments. Tracked planning and each immutable code
 candidate require independent non-author review and applicable validation.
 
-| Decision | Date | Status | Reference |
-|---|---|---|---|
-| Build as a standalone product rather than inside AvalaOS | 2026-09-05 | Accepted | BRD, PRODUCT_SCOPE |
-| Position as delivery assurance and coordination, not only reporting | 2026-09-05 | Accepted | VISION_AND_STRATEGY |
-| Use a TypeScript-first modular monolith | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-001, ADR-008 |
-| Use PostgreSQL and pgvector | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-002 |
-| Use Graphile Worker for schedules and durable background work | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-003 |
-| Use customer-controlled AI provider routing | 2026-09-05 | Accepted | ADR-004 |
-| Use customer-hosted, single-tenant deployments first | 2026-09-05 | Accepted | ADR-005 |
-| Require human approval for material writes | 2026-09-05 | Accepted | ADR-007 |
-| Adopt libraries through package managers, not copied repositories | 2026-09-05 | Accepted | OPEN_SOURCE_POLICY |
-| Defer broad connector support until the Jira-plus-spreadsheet loop is complete | 2026-09-05 | Accepted | RELEASE-1-VERTICAL-SLICE |
+| Decision                                                                       | Date       | Status                               | Reference                |
+| ------------------------------------------------------------------------------ | ---------- | ------------------------------------ | ------------------------ |
+| Build as a standalone product rather than inside AvalaOS                       | 2026-09-05 | Accepted                             | BRD, PRODUCT_SCOPE       |
+| Position as delivery assurance and coordination, not only reporting            | 2026-09-05 | Accepted                             | VISION_AND_STRATEGY      |
+| Use a TypeScript-first modular monolith                                        | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-001, ADR-008         |
+| Use PostgreSQL and pgvector                                                    | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-002                  |
+| Use Graphile Worker for schedules and durable background work                  | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-003                  |
+| Use customer-controlled AI provider routing                                    | 2026-09-05 | Accepted                             | ADR-004                  |
+| Use customer-hosted, single-tenant deployments first                           | 2026-09-05 | Accepted                             | ADR-005                  |
+| Require human approval for material writes                                     | 2026-09-05 | Accepted                             | ADR-007                  |
+| Adopt libraries through package managers, not copied repositories              | 2026-09-05 | Accepted                             | OPEN_SOURCE_POLICY       |
+| Defer broad connector support until the Jira-plus-spreadsheet loop is complete | 2026-09-05 | Accepted                             | RELEASE-1-VERTICAL-SLICE |
 
 ## 2026-09-06 delegated controller decisions
 
@@ -175,18 +194,18 @@ The Product Owner authorized applying the five controller corrections and starti
 implementation. Routine baseline/ADR decisions below are accepted under that
 delegation; independent review, checks and merge remain separate evidence gates.
 
-| Decision | Disposition | Reference |
-|---|---|---|
-| Routine baseline and ADR approval | Delegated to controller after documented gates | DOCUMENT_CONTROL.md |
-| Preserve fact origin through staleness/conflict | Accepted | ADR-009 |
-| Security enforced in foundation; review exact candidate with non-author | Accepted | ADR-010, CONTRIBUTING.md |
-| R1 Jira comments only; fields R2 | Accepted | OD-003, ADR-010 |
-| R1 single-project Q&A; portfolio analysis R3 | Accepted | ADR-010 |
-| R1 weekday/timezone/quiet hours; holidays R2 | Accepted | OD-006, ADR-010 |
-| PowerPoint required; PDF optional; two initial contradictions | Accepted | OD-007, ADR-010 |
-| Independent information satisfaction and external action | Accepted | WORKFLOW_ARCHITECTURE.md |
-| Retry preflight and restore quarantine | Accepted | APPROVAL_AND_WRITEBACK.md, DEPLOYMENT_AND_OPERATIONS.md |
-| No unsupported commercial outcome claim | Retain proposed terms; measure pilot evidence | PILOT_SUCCESS_METRICS.md |
+| Decision                                                                | Disposition                                    | Reference                                               |
+| ----------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------- |
+| Routine baseline and ADR approval                                       | Delegated to controller after documented gates | DOCUMENT_CONTROL.md                                     |
+| Preserve fact origin through staleness/conflict                         | Accepted                                       | ADR-009                                                 |
+| Security enforced in foundation; review exact candidate with non-author | Accepted                                       | ADR-010, CONTRIBUTING.md                                |
+| R1 Jira comments only; fields R2                                        | Accepted                                       | OD-003, ADR-010                                         |
+| R1 single-project Q&A; portfolio analysis R3                            | Accepted                                       | ADR-010                                                 |
+| R1 weekday/timezone/quiet hours; holidays R2                            | Accepted                                       | OD-006, ADR-010                                         |
+| PowerPoint required; PDF optional; two initial contradictions           | Accepted                                       | OD-007, ADR-010                                         |
+| Independent information satisfaction and external action                | Accepted                                       | WORKFLOW_ARCHITECTURE.md                                |
+| Retry preflight and restore quarantine                                  | Accepted                                       | APPROVAL_AND_WRITEBACK.md, DEPLOYMENT_AND_OPERATIONS.md |
+| No unsupported commercial outcome claim                                 | Retain proposed terms; measure pilot evidence  | PILOT_SUCCESS_METRICS.md                                |
 
 ## Publication and partial-increment acceptance, 2026-09-06
 

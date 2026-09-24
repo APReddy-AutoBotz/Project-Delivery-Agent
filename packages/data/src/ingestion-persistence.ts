@@ -3,6 +3,7 @@ import {
   connectorChangePageSchema,
   ingestionCommandKeySchema,
   ingestionConfigurationSchema,
+  ingestionCursorStateSchema,
   ingestionHealthCodeSchema,
   ingestionProposalSchema,
   ingestionPreviewRequestSchema,
@@ -24,6 +25,7 @@ import {
   type Actor,
   type IngestionConfiguration,
   type IngestionRepository,
+  type IngestionSyncSnapshot,
   type SpreadsheetRowPreview,
 } from "@pdaa/domain";
 import { CredentialVault } from "@pdaa/platform";
@@ -135,6 +137,8 @@ function canonical(value: unknown): string {
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
+const addSeconds = (date: Date, seconds: number) =>
+  new Date(date.getTime() + seconds * 1000);
 function boundedJson(value: unknown, maxBytes = 4 * 1024 * 1024): string {
   const encoded = canonical(value);
   if (Buffer.byteLength(encoded, "utf8") > maxBytes)
@@ -188,6 +192,9 @@ function configMapping(config: IngestionConfiguration) {
   return {
     kind: config.mapping.kind,
     factTypes: [...config.mapping.factTypes].sort(exactCompare),
+    ...(config.mapping.adapterConfiguration === undefined
+      ? {}
+      : { adapterConfiguration: config.mapping.adapterConfiguration }),
   };
 }
 function stableConfig(config: IngestionConfiguration): IngestionConfiguration {
@@ -846,6 +853,335 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     }
   }
 
+  private async currentSyncGrants(tx: Tx, source: MappingRow) {
+    if (source.currentConfigRevision === null)
+      throw new IngestionPersistenceError("STALE_CONFIGURATION");
+    const grants = await tx.$queryRaw<{ projectId: string; grantId: string }[]>`
+      SELECT p.id AS "projectId",g.id AS "grantId"
+      FROM public."IngestionConfigurationProject" cp
+      JOIN public."IngestionConfigurationRevision" c ON c."customerId"=cp."customerId" AND c."sourceId"=cp."sourceId" AND c.revision=cp."configRevision" AND c.sealed AND c.mapping->>'kind'='CONNECTOR'
+      JOIN public."Project" p ON p."customerId"=cp."customerId" AND p.id=cp."projectId"
+      JOIN public."ConnectorSyncGrant" g ON g."customerId"=cp."customerId" AND g."sourceId"=cp."sourceId" AND g."projectId"=cp."projectId" AND g."configRevision"=cp."configRevision" AND g.active
+      WHERE cp."customerId"=${source.customerId}::uuid AND cp."sourceId"=${source.id}::uuid AND cp."configRevision"=${source.currentConfigRevision}
+      ORDER BY p.id FOR SHARE OF p,g`;
+    const configured = await tx.$queryRaw<{ count: bigint }[]>`
+      SELECT count(*) AS count FROM public."IngestionConfigurationProject"
+      WHERE "customerId"=${source.customerId}::uuid AND "sourceId"=${source.id}::uuid AND "configRevision"=${source.currentConfigRevision}`;
+    if (!grants.length || grants.length !== Number(configured[0]?.count))
+      throw new IngestionPersistenceError("DENIED");
+    return grants;
+  }
+
+  private async serviceAudit(
+    tx: Tx,
+    customerId: string,
+    event: string,
+    detail: Record<string, unknown>,
+    occurredAt: Date,
+  ) {
+    const id = randomUUID();
+    await tx.$executeRaw`
+      INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId",detail,"occurredAt")
+      VALUES (${id}::uuid,${customerId}::uuid,'connector:jira-runtime',${event},${`connector-${randomUUID()}`},${JSON.stringify(detail)}::jsonb,${occurredAt})`;
+    return id;
+  }
+
+  private async createSyncReceipt(
+    tx: Tx,
+    source: MappingRow,
+    input: {
+      jobId: string;
+      kind: "CONNECTOR_PAGE" | "SYNC_RESET";
+      commandKey: string;
+      requestHash: string;
+      configRevision: number;
+      mappingRevision: number;
+      grants: readonly { projectId: string; grantId: string }[];
+      generationBefore: bigint;
+      generationAfter: bigint;
+      cursorRevisionBefore: bigint;
+      cursorRevisionAfter: bigint;
+      cursorTransition: { stateAfter: "READY" | "TERMINAL"; cursorEnvelopeHash: string | null };
+      outcomes: readonly OutcomeInput[];
+      createdAt: Date;
+    },
+  ) {
+    const id = randomUUID();
+    const projectIds = input.grants.map((grant) => grant.projectId).sort(exactCompare);
+    const auditEventId = await this.serviceAudit(tx, source.customerId, input.kind === "CONNECTOR_PAGE" ? "ingestion.connector_page.persisted" : "ingestion.sync_reset", {
+      receiptId: id,
+      kind: input.kind,
+      sourceId: source.id,
+      configRevision: input.configRevision,
+      mappingRevision: input.mappingRevision,
+      scopeProjectIds: projectIds,
+      requestHash: input.requestHash,
+      outcomeCount: input.outcomes.length,
+    }, input.createdAt);
+    await tx.$executeRaw`
+      INSERT INTO public."IngestionOperationReceipt" (id,"customerId","sourceId",subject,kind,"commandKey","requestHash","eventId","configRevision","mappingRevision","generationBefore","generationAfter","cursorRevisionBefore","cursorRevisionAfter","outcomeCount","auditEventId","createdAt","executionMode","syncJobId")
+      VALUES (${id}::uuid,${source.customerId}::uuid,${source.id}::uuid,'connector:jira-runtime',${input.kind},${input.commandKey},${input.requestHash},NULL,${input.configRevision},${input.mappingRevision},${input.generationBefore},${input.generationAfter},${input.cursorRevisionBefore},${input.cursorRevisionAfter},${input.outcomes.length},${auditEventId}::uuid,${input.createdAt},'CONNECTOR_SYNC',${input.jobId}::uuid)`;
+    const scopeRows = input.grants.map((grant) => ({
+      customerId: source.customerId,
+      sourceId: source.id,
+      receiptId: id,
+      projectId: grant.projectId,
+      syncGrantId: grant.grantId,
+    }));
+    await tx.$executeRaw`
+      INSERT INTO public."IngestionSyncReceiptProjectScope" ("customerId","sourceId","receiptId","projectId","syncGrantId")
+      SELECT x."customerId",x."sourceId",x."receiptId",x."projectId",x."syncGrantId"
+      FROM jsonb_to_recordset(${canonical(scopeRows)}::jsonb) AS x("customerId" uuid,"sourceId" uuid,"receiptId" uuid,"projectId" uuid,"syncGrantId" uuid)
+      ORDER BY x."projectId"`;
+    await tx.$executeRaw`
+      INSERT INTO public."IngestionCursorTransition" ("customerId","sourceId","receiptId","generationBefore","generationAfter","cursorRevisionBefore","cursorRevisionAfter","stateAfter","cursorEnvelopeHash")
+      VALUES (${source.customerId}::uuid,${source.id}::uuid,${id}::uuid,${input.generationBefore},${input.generationAfter},${input.cursorRevisionBefore},${input.cursorRevisionAfter},${input.cursorTransition.stateAfter},${input.cursorTransition.cursorEnvelopeHash})`;
+    if (input.outcomes.length) {
+      const rows = input.outcomes.map((outcome, ordinal) => ({
+        customerId: source.customerId,
+        sourceId: source.id,
+        receiptId: id,
+        ordinal,
+        state: outcome.state,
+        operation: outcome.operation,
+        errorCodes: outcome.errorCodes,
+        projectId: outcome.projectId,
+        recordKey: outcome.recordKey,
+        recordId: outcome.recordId,
+        sourceRevisionId: outcome.sourceRevisionId,
+        projectionId: outcome.projectionId,
+      }));
+      await tx.$executeRaw`
+        INSERT INTO public."IngestionRowOutcome" ("customerId","sourceId","receiptId",ordinal,state,operation,"errorCodes","projectId","recordKey","recordId","sourceRevisionId","projectionId")
+        SELECT x."customerId",x."sourceId",x."receiptId",x.ordinal+1,x.state,x.operation,x."errorCodes",x."projectId",x."recordKey",x."recordId",x."sourceRevisionId",x."projectionId"
+        FROM jsonb_to_recordset(${canonical(rows)}::jsonb) AS x("customerId" uuid,"sourceId" uuid,"receiptId" uuid,ordinal integer,state text,operation text,"errorCodes" text[],"projectId" uuid,"recordKey" text,"recordId" uuid,"sourceRevisionId" uuid,"projectionId" uuid)
+        ORDER BY x."receiptId",x.ordinal`;
+    }
+    return id;
+  }
+
+  async readConnectorSyncSnapshot(customerIdInput: string, jobIdInput: string, now = new Date()) {
+    const customerId = uuid(customerIdInput);
+    const jobId = uuid(jobIdInput);
+    return this.db.$transaction(async (tx) => {
+      const locator = await tx.$queryRaw<{ sourceId: string }[]>`
+        SELECT "sourceId" FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND id=${jobId}::uuid`;
+      if (!locator[0]) throw new IngestionPersistenceError("NOT_FOUND");
+      const source = await this.currentSource(tx, customerId, locator[0].sourceId, "SHARE");
+      const jobs = await tx.$queryRaw<{
+        id: string; state: string; configRevision: number; mappingRevision: number; resetRequested: boolean;
+        resetCompleted: boolean; leaseUntil: Date | null; expiresAt: Date;
+      }[]>`
+        SELECT id,state,"configRevision","mappingRevision","resetRequested","resetCompleted","leaseUntil","expiresAt"
+        FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid FOR SHARE`;
+      const job = jobs[0];
+      if (!job || job.state !== "RUNNING" || !job.leaseUntil || job.leaseUntil.getTime() <= now.getTime() || job.expiresAt.getTime() <= now.getTime())
+        throw new IngestionPersistenceError("CONFLICT");
+      if (job.configRevision !== source.currentConfigRevision || job.mappingRevision !== source.mappingRevision)
+        throw new IngestionPersistenceError("STALE_CONFIGURATION");
+      const configuration = await this.currentConfiguration(tx, source);
+      if (configuration.mapping.kind !== "CONNECTOR" || configuration.mapping.adapterConfiguration === undefined)
+        throw new IngestionPersistenceError("STALE_CONFIGURATION");
+      await this.currentSyncGrants(tx, source);
+      const resetRequired = job.resetRequested && !job.resetCompleted;
+      if (!resetRequired && source.cursorState !== "READY")
+        throw new IngestionPersistenceError("CURSOR_CONFLICT");
+      const cursorRevision = Number(source.cursorRevision);
+      const generation = Number(source.syncGeneration);
+      if (!Number.isSafeInteger(cursorRevision) || !Number.isSafeInteger(generation))
+        throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+      return {
+        jobId,
+        sourceId: source.id,
+        configRevision: job.configRevision,
+        mappingRevision: job.mappingRevision,
+        configuration,
+        cursor: resetRequired || source.cursorEnvelope === null
+          ? null
+          : this.vault.decrypt(source.cursorEnvelope, `ingestion-cursor:${customerId}:${source.id}`),
+        cursorRevision,
+        generation,
+        cursorState: resetRequired ? "RESET_REQUIRED" : source.cursorState,
+        resetRequired,
+      };
+    }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
+  }
+
+  async resetConnectorCursorForJob(customerIdInput: string, jobIdInput: string, now = new Date()) {
+    const customerId = uuid(customerIdInput);
+    const jobId = uuid(jobIdInput);
+    return this.db.$transaction(async (tx) => {
+      const locator = await tx.$queryRaw<{ sourceId: string }[]>`
+        SELECT "sourceId" FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND id=${jobId}::uuid`;
+      if (!locator[0]) throw new IngestionPersistenceError("NOT_FOUND");
+      const source = await this.currentSource(tx, customerId, locator[0].sourceId, "UPDATE");
+      const jobs = await tx.$queryRaw<{
+        state: string; configRevision: number; mappingRevision: number; resetRequested: boolean; resetCompleted: boolean; leaseUntil: Date | null;
+      }[]>`
+        SELECT state,"configRevision","mappingRevision","resetRequested","resetCompleted","leaseUntil"
+        FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid FOR UPDATE`;
+      const job = jobs[0];
+      if (!job || job.state !== "RUNNING" || !job.leaseUntil || job.leaseUntil.getTime() <= now.getTime())
+        throw new IngestionPersistenceError("CONFLICT");
+      if (source.currentConfigRevision !== job.configRevision || source.mappingRevision !== job.mappingRevision)
+        throw new IngestionPersistenceError("STALE_CONFIGURATION");
+      if (!job.resetRequested || job.resetCompleted) return { reset: false, sourceId: source.id };
+      const grants = await this.currentSyncGrants(tx, source);
+      const nextGeneration = source.syncGeneration + 1n;
+      const nextCursorRevision = source.cursorRevision + 1n;
+      const requestHash = sha256(boundedJson({ jobId, configRevision: job.configRevision, mappingRevision: job.mappingRevision, generation: source.syncGeneration, cursorRevision: source.cursorRevision, reset: true }));
+      const receiptId = await this.createSyncReceipt(tx, source, {
+        jobId,
+        kind: "SYNC_RESET",
+        commandKey: `sync_reset_${jobId.replaceAll("-", "")}`,
+        requestHash,
+        configRevision: job.configRevision,
+        mappingRevision: job.mappingRevision,
+        grants,
+        generationBefore: source.syncGeneration,
+        generationAfter: nextGeneration,
+        cursorRevisionBefore: source.cursorRevision,
+        cursorRevisionAfter: nextCursorRevision,
+        cursorTransition: { stateAfter: "READY", cursorEnvelopeHash: null },
+        outcomes: [],
+        createdAt: now,
+      });
+      await tx.$executeRaw`
+        UPDATE public."IngestionSource" SET "cursorRevision"=${nextCursorRevision},"syncGeneration"=${nextGeneration},
+          "cursorEnvelope"=NULL,"cursorState"='READY'
+        WHERE "customerId"=${customerId}::uuid AND id=${source.id}::uuid`;
+      await tx.$executeRaw`
+        UPDATE public."ConnectorSyncJob" SET state='READY',"resetCompleted"=true,"leaseUntil"=NULL,"availableAt"=${now}
+        WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid AND state='RUNNING'`;
+      return { reset: true, receiptId, sourceId: source.id, cursorRevision: Number(nextCursorRevision), generation: Number(nextGeneration) };
+    }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 60000 });
+  }
+
+  async persistConnectorPageForJob(input: {
+    customerId: string;
+    jobId: string;
+    expectedConfigRevision: number;
+    expectedMappingRevision: number;
+    expectedCursorRevision: number;
+    expectedGeneration: number;
+    page: unknown;
+  }, now = new Date()) {
+    const customerId = uuid(input.customerId);
+    const jobId = uuid(input.jobId);
+    const pageInput = parseIngestion(connectorChangePageSchema, input.page);
+    return this.db.$transaction(async (tx) => {
+      const locator = await tx.$queryRaw<{ sourceId: string }[]>`
+        SELECT "sourceId" FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND id=${jobId}::uuid`;
+      if (!locator[0]) throw new IngestionPersistenceError("NOT_FOUND");
+      const source = await this.currentSource(tx, customerId, locator[0].sourceId, "UPDATE");
+      const jobs = await tx.$queryRaw<{
+        state: string; configRevision: number; mappingRevision: number; resetRequested: boolean; resetCompleted: boolean; leaseUntil: Date | null; expiresAt: Date;
+      }[]>`
+        SELECT state,"configRevision","mappingRevision","resetRequested","resetCompleted","leaseUntil","expiresAt"
+        FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid FOR UPDATE`;
+      const job = jobs[0];
+      if (!job || job.state !== "RUNNING" || !job.leaseUntil || job.leaseUntil.getTime() <= now.getTime() || job.expiresAt.getTime() <= now.getTime())
+        throw new IngestionPersistenceError("CONFLICT");
+      if (job.resetRequested && !job.resetCompleted)
+        throw new IngestionPersistenceError("CURSOR_CONFLICT");
+      if (source.currentConfigRevision !== job.configRevision || source.mappingRevision !== job.mappingRevision ||
+        job.configRevision !== input.expectedConfigRevision || job.mappingRevision !== input.expectedMappingRevision ||
+        Number(source.cursorRevision) !== input.expectedCursorRevision || Number(source.syncGeneration) !== input.expectedGeneration || source.cursorState !== "READY")
+        throw new IngestionPersistenceError("STALE_CONFIGURATION");
+      const configuration = await this.currentConfiguration(tx, source);
+      if (configuration.mapping.kind !== "CONNECTOR" || configuration.mapping.adapterConfiguration === undefined)
+        throw new IngestionPersistenceError("STALE_CONFIGURATION");
+      const grants = await this.currentSyncGrants(tx, source);
+      const projectIds = grants.map((grant) => grant.projectId);
+      const allowedFactTypes = configuration.mapping.factTypes;
+      if (pageInput.records.some((record) => record.observations.some((observation) => !allowedFactTypes.includes(observation.factType))))
+        throw new IngestionPersistenceError("INVALID_REQUEST");
+      const persistedCursor = source.cursorEnvelope === null
+        ? null
+        : this.vault.decrypt(source.cursorEnvelope, `ingestion-cursor:${customerId}:${source.id}`);
+      const scope = { binding: configuration.binding, projectIds };
+      const validated = validateConnectorPage({ scope, cursor: persistedCursor }, pageInput);
+      const pending: PendingRecord[] = validated.records.map((record) => ({
+        recordType: record.ref.recordType,
+        recordKey: record.ref.recordId,
+        projectId: record.ref.projectId,
+        revision: record.revision,
+        sourceContentHash: record.sourceContentHash,
+        remoteObservedAt: new Date(record.observedAt),
+        remoteEffectiveAt: new Date(record.effectiveAt),
+        proposals: normalizeProposals(record.observations),
+      }));
+      const prepared = await this.prepareRecords(tx, source, job.mappingRevision, pending);
+      const byIdentity = new Map(prepared.map((record) => [`${record.recordType}\u0000${record.recordKey}`, record]));
+      const outcomes: OutcomeInput[] = validated.records.map((record) => {
+        const saved = byIdentity.get(`${record.ref.recordType}\u0000${record.ref.recordId}`);
+        if (!saved) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        return {
+          state: "ACCEPTED",
+          operation: saved.recordCreated ? "CREATE" : saved.projectionCreated || saved.revisionCreated ? "UPDATE" : "UNCHANGED",
+          errorCodes: [],
+          projectId: saved.projectId,
+          recordKey: saved.recordKey,
+          recordId: saved.recordId,
+          sourceRevisionId: saved.sourceRevisionId,
+          projectionId: saved.projectionId,
+        };
+      });
+      await this.retention(tx, customerId);
+      const nextCursorRevision = source.cursorRevision + 1n;
+      const cursorEnvelope = validated.terminal || validated.nextCursor === null
+        ? null
+        : this.vault.encrypt(validated.nextCursor, `ingestion-cursor:${customerId}:${source.id}`);
+      const requestHash = sha256(boundedJson({
+        jobId,
+        configRevision: job.configRevision,
+        mappingRevision: job.mappingRevision,
+        cursorRevision: input.expectedCursorRevision,
+        generation: input.expectedGeneration,
+        page: pageInput,
+      }));
+      const receiptId = await this.createSyncReceipt(tx, source, {
+        jobId,
+        kind: "CONNECTOR_PAGE",
+        commandKey: `sync_page_${jobId.replaceAll("-", "")}`,
+        requestHash,
+        configRevision: job.configRevision,
+        mappingRevision: job.mappingRevision,
+        grants,
+        generationBefore: source.syncGeneration,
+        generationAfter: source.syncGeneration,
+        cursorRevisionBefore: source.cursorRevision,
+        cursorRevisionAfter: nextCursorRevision,
+        cursorTransition: {
+          stateAfter: validated.terminal ? "TERMINAL" : "READY",
+          cursorEnvelopeHash: cursorEnvelope === null ? null : sha256(cursorEnvelope),
+        },
+        outcomes,
+        createdAt: now,
+      });
+      const healthAuditId = await this.serviceAudit(tx, customerId, "ingestion.health.updated", {
+        sourceId: source.id, state: "HEALTHY", code: "NONE",
+      }, now);
+      void healthAuditId;
+      await tx.$executeRaw`
+        UPDATE public."IngestionSource" SET "cursorRevision"=${nextCursorRevision},"cursorEnvelope"=${cursorEnvelope},
+          "cursorState"=${validated.terminal ? "TERMINAL" : "READY"},"lastSuccessReceiptId"=${receiptId}::uuid,
+          "healthState"='HEALTHY',"healthCode"='NONE',"healthCheckedAt"=${now}
+        WHERE "customerId"=${customerId}::uuid AND id=${source.id}::uuid`;
+      await tx.$executeRaw`
+        UPDATE public."ConnectorSyncJob" SET state='COMPLETED',"leaseUntil"=NULL,"completedAt"=${now}
+        WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid AND state='RUNNING'`;
+      let nextJobId: string | null = null;
+      if (!validated.terminal && validated.nextCursor !== null) {
+        nextJobId = randomUUID();
+        await tx.$executeRaw`
+          INSERT INTO public."ConnectorSyncJob" (id,"customerId","sourceId","configRevision","mappingRevision",kind,state,"eventId","idempotencyKey","resetRequested","resetCompleted",attempts,"createdAt","availableAt","expiresAt")
+          VALUES (${nextJobId}::uuid,${customerId}::uuid,${source.id}::uuid,${job.configRevision},${job.mappingRevision},'SCHEDULED','READY',NULL,${`continue:${jobId}:${nextCursorRevision}`},false,false,0,${now},${now},${addSeconds(now, 24 * 60 * 60)})`;
+      }
+      return { receiptId, cursorRevision: Number(nextCursorRevision), terminal: validated.terminal, nextJobId };
+    }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 60000 });
+  }
+
   async configure(actorInputValue: Actor, input: IngestionConfiguration, correlationInput: string) {
     const actor = parseActor(actorInputValue);
     const correlationId = contextSchema(correlationInput);
@@ -854,14 +1190,23 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       if (configuration.binding.customerId !== actor.customerId)
         throw new IngestionPersistenceError("DENIED");
       return this.db.$transaction(async (tx) => {
-        const projectIds = configuration.projects.map((project) => project.projectId);
-        await this.authorizedProjects(tx, actor, projectIds, "configure");
         const found = await tx.$queryRaw<MappingRow[]>`
           SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
           FROM public."IngestionSource" WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid FOR UPDATE`;
         let source = found[0];
         if (source && (source.sourceType !== configuration.binding.sourceType || source.origin !== configuration.binding.origin))
           throw new IngestionPersistenceError("CONFLICT");
+        const previousSyncGrants = source
+          ? await tx.$queryRaw<{ id: string; projectId: string; configRevision: number; revision: number; active: boolean }[]>`
+              SELECT id,"projectId","configRevision",revision,active FROM public."ConnectorSyncGrant"
+              WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${configuration.binding.sourceId}::uuid
+              ORDER BY "projectId" FOR UPDATE`
+          : [];
+        const projectIds = [...new Set([
+          ...configuration.projects.map((project) => project.projectId),
+          ...previousSyncGrants.map((grant) => grant.projectId),
+        ])].sort(exactCompare);
+        await this.authorizedProjects(tx, actor, projectIds, "configure");
         let configRevision = 1;
         let mappingRevision = 1;
         if (source) {
@@ -931,9 +1276,122 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           SET "currentConfigRevision"=${configRevision},"mappingRevision"=${mappingRevision},
               "cursorEnvelope"=NULL,"cursorState"='RESET_REQUIRED'
           WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid`;
+        await tx.$executeRaw`
+          UPDATE public."ConnectorSyncJob" SET state='EXPIRED',"leaseUntil"=NULL
+          WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${configuration.binding.sourceId}::uuid AND state IN ('READY','RUNNING')`;
+        const syncProjectIds = configuration.binding.sourceType === "jira" && configuration.mapping.kind === "CONNECTOR"
+          ? configuration.projects.map((project) => project.projectId).sort(exactCompare)
+          : [];
+        const syncGrantByProject = new Map(previousSyncGrants.map((grant) => [grant.projectId, grant]));
+        for (const projectId of syncProjectIds) {
+          const previousGrant = syncGrantByProject.get(projectId);
+          const grantId = previousGrant?.id ?? randomUUID();
+          const revision = previousGrant ? previousGrant.revision + 1 : 1;
+          const changedAt = new Date();
+          const auditEventId = await this.audit(tx, actor, correlationId, "ingestion.sync_scope.granted", {
+            sourceId: configuration.binding.sourceId,
+            projectId,
+            configRevision,
+            revision,
+            active: true,
+          }, changedAt);
+          if (previousGrant) {
+            await tx.$executeRaw`
+              UPDATE public."ConnectorSyncGrant"
+              SET "configRevision"=${configRevision},revision=${revision},active=true,
+                  "changedBy"=${actor.subject},"auditEventId"=${auditEventId}::uuid,"changedAt"=${changedAt}
+              WHERE id=${grantId}::uuid AND "customerId"=${actor.customerId}::uuid AND "sourceId"=${configuration.binding.sourceId}::uuid`;
+          } else {
+            await tx.$executeRaw`
+              INSERT INTO public."ConnectorSyncGrant" (id,"customerId","sourceId","projectId","configRevision",revision,active,"changedBy","auditEventId","changedAt")
+              VALUES (${grantId}::uuid,${actor.customerId}::uuid,${configuration.binding.sourceId}::uuid,${projectId}::uuid,${configRevision},${revision},true,${actor.subject},${auditEventId}::uuid,${changedAt})`;
+          }
+          syncGrantByProject.delete(projectId);
+        }
+        for (const previousGrant of syncGrantByProject.values()) {
+          if (!previousGrant.active) continue;
+          const revision = previousGrant.revision + 1;
+          const changedAt = new Date();
+          const auditEventId = await this.audit(tx, actor, correlationId, "ingestion.sync_scope.revoked", {
+            sourceId: configuration.binding.sourceId,
+            projectId: previousGrant.projectId,
+            configRevision: previousGrant.configRevision,
+            revision,
+            active: false,
+          }, changedAt);
+          await tx.$executeRaw`
+            UPDATE public."ConnectorSyncGrant"
+            SET revision=${revision},active=false,"changedBy"=${actor.subject},
+                "auditEventId"=${auditEventId}::uuid,"changedAt"=${changedAt}
+            WHERE id=${previousGrant.id}::uuid AND "customerId"=${actor.customerId}::uuid AND "sourceId"=${configuration.binding.sourceId}::uuid`;
+        }
         return { sourceId: configuration.binding.sourceId, configRevision, mappingRevision };
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 60000 });
     });
+  }
+
+  async readSyncSnapshot(
+    actorInputValue: Actor,
+    sourceIdInput: string,
+  ): Promise<IngestionSyncSnapshot> {
+    const actor = parseActor(actorInputValue);
+    const sourceId = uuid(sourceIdInput);
+    return this.run(actor, "sync_snapshot", randomUUID(), "PERSISTENCE_FAILED", async () => {
+      const snapshot = await this.preflight(sourceId, actor);
+      if (
+        snapshot.source.sourceType !== "jira" ||
+        snapshot.configuration.mapping.kind !== "CONNECTOR" ||
+        snapshot.configuration.mapping.adapterConfiguration === undefined
+      )
+        throw new IngestionPersistenceError("NOT_FOUND");
+      const cursorRevision = Number(snapshot.source.cursorRevision);
+      const generation = Number(snapshot.source.syncGeneration);
+      if (!Number.isSafeInteger(cursorRevision) || !Number.isSafeInteger(generation))
+        throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+      return {
+        sourceId,
+        configuration: snapshot.configuration,
+        configRevision: snapshot.configRevision,
+        mappingRevision: snapshot.mappingRevision,
+        cursor:
+          snapshot.source.cursorEnvelope === null
+            ? null
+            : this.vault.decrypt(
+                snapshot.source.cursorEnvelope,
+                `ingestion-cursor:${actor.customerId}:${sourceId}`,
+              ),
+        cursorRevision,
+        generation,
+        cursorState: ingestionCursorStateSchema.parse(snapshot.source.cursorState),
+      };
+    });
+  }
+
+  async listDueJiraSourceIds(
+    customerIdInput: string,
+    intervalMinutes: number,
+    limit: number,
+    now = new Date(),
+  ): Promise<string[]> {
+    const customerId = uuid(customerIdInput);
+    if (
+      !Number.isInteger(intervalMinutes) ||
+      intervalMinutes < 1 ||
+      intervalMinutes > 1440 ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 100 ||
+      !Number.isFinite(now.getTime())
+    )
+      throw new IngestionPersistenceError("INVALID_REQUEST");
+    const rows = await this.db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM public."IngestionSource"
+      WHERE "customerId"=${customerId}::uuid AND "sourceType"='jira'
+        AND "currentConfigRevision" IS NOT NULL
+        AND ("healthCheckedAt" IS NULL OR "healthCheckedAt"<=${now}::timestamptz - make_interval(mins => ${intervalMinutes}))
+      ORDER BY "healthCheckedAt" ASC NULLS FIRST,id
+      LIMIT ${limit}`;
+    return rows.map((row) => uuid(row.id));
   }
 
   async persistConnectorPage(

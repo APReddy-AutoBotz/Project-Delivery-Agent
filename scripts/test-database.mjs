@@ -117,6 +117,11 @@ try {
     "IngestionReceiptProjectScope",
     "IngestionCursorTransition",
     "IngestionRowOutcome",
+    "ConnectorSyncGrant",
+    "ConnectorSyncJob",
+    "ConnectorWebhookReceipt",
+    "ConnectorTaskReceipt",
+    "IngestionSyncReceiptProjectScope",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -192,6 +197,7 @@ node([
   "tests/milestone-reconciliation.integration.test.ts",
   "tests/scalar-reconciliation.integration.test.ts",
   "tests/ingestion-persistence.integration.test.ts",
+  "tests/connector-runtime.integration.test.ts",
   "tests/project-evidence.integration.test.ts",
   "--no-file-parallelism",
 ]);
@@ -273,10 +279,15 @@ writeFileSync(
         "IngestionReceiptProjectScope",
         "IngestionCursorTransition",
         "IngestionRowOutcome",
+        "ConnectorSyncGrant",
+        "ConnectorSyncJob",
+        "ConnectorWebhookReceipt",
+        "ConnectorTaskReceipt",
+        "IngestionSyncReceiptProjectScope",
       ],
       ingestionPersistenceChecks: "passed",
       prefixNineUpgrade,
-      businessTables: 56,
+      businessTables: 61,
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({

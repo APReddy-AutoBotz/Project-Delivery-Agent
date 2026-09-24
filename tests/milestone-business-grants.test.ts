@@ -78,6 +78,14 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       /REVOKE ALL ON FUNCTION ([^;]+) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;/g,
     ),
   ];
+  const connectorGuardSignatures = [
+    "public.guard_connector_credential()",
+    "public.guard_connector_sync_grant()",
+    "public.guard_connector_sync_job()",
+    "public.guard_connector_task_receipt()",
+    "public.guard_connector_webhook_receipt()",
+    "public.guard_ingestion_sync_receipt_scope()",
+  ];
   const ingestionSignatures = [
     "public.valid_ingestion_proposals(jsonb)",
     "public.valid_ingestion_projection_content(uuid,jsonb)",
@@ -89,7 +97,13 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       .flatMap((match) => splitFunctionSignatures(match[1]!))
       .sort(),
   ).toEqual(
-    [...signatures, ...newSignatures, ...scalarSignatures, ...ingestionSignatures].sort(),
+    [
+      ...signatures,
+      ...newSignatures,
+      ...scalarSignatures,
+      ...connectorGuardSignatures,
+      ...ingestionSignatures,
+    ].sort(),
   );
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
@@ -167,4 +181,3 @@ it("refuses ACL reconstruction while any business table has the wrong owner", as
   ).rejects.toThrow("Unexpected business table owner");
   expect(denied.query).toHaveBeenCalledTimes(2);
 });
-

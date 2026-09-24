@@ -88,11 +88,21 @@ project mapping before it can cross the connector port. Only selected scalar
 fields become typed proposals. Source values remain proposals; the adapter does
 not publish canonical facts or imply source authority.
 
-The adapter currently reads Jira issues and selected scalar fields only. Sprint,
-comment, full changelog, and linked-issue observation normalization, OAuth
-authorization/atomic refresh-token persistence, webhook verification and
-durable cursor reconciliation remain later EXEC-009 stages. No route or worker
-currently invokes this adapter, and synthetic fixtures remain the default.
+The Jira runtime candidate invokes the adapter through a bounded internal task
+and a one-minute worker dispatch. It stores OAuth tokens in the configured
+credential keyring and serializes refresh-token rotation with a 60-second lease
+and operation/revision fence. A verified administrator-configured webhook records
+the raw-body digest and queues durable reconciliation; the webhook payload never
+becomes a proposal. The runtime rereads Jira and commits typed proposals, cursor,
+health and receipt rows only after rechecking the current mapping and exact active
+source/project grants.
+
+There is no public OAuth authorization callback or onboarding UI in this
+increment; OAuth credentials must be supplied through a separately authorized
+operator handoff. Jira writes and canonical fact publication remain disabled.
+Sprint, comment, full changelog and linked-issue observation normalization, plus
+spreadsheet upload/commit, remain later EXEC-009 work. No live Jira account or
+production credential has been activated.
 
 ## Spreadsheet integration
 

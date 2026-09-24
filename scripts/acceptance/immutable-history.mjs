@@ -36,6 +36,8 @@ const immutableMessages = {
   IngestionProposalContent: "Ingestion content permits one-way expiry redaction only",
   IngestionOperationReceipt: "Ingestion operation receipt is immutable",
   IngestionReceiptProjectScope: "Ingestion receipt scope is immutable",
+  IngestionSyncReceiptProjectScope: "Ingestion sync receipt scope is immutable",
+  ConnectorWebhookReceipt: "Connector webhook receipts are immutable",
   IngestionCursorTransition: "Ingestion cursor transition is immutable",
   IngestionRowOutcome: "Ingestion row outcome is immutable",
   ...Object.fromEntries(
@@ -61,6 +63,7 @@ const truncateMessages = new Set([
   "Fact history is immutable",
   "Canonical creation history is immutable",
   "Ingestion history is immutable",
+  "Connector webhook receipts are immutable",
 ]);
 
 export async function verifyImmutableHistoryMutation(
@@ -77,6 +80,7 @@ export async function verifyImmutableHistoryMutation(
     IngestionConfigurationReader: "subject",
     IngestionProposalContent: "projectionId",
     IngestionReceiptProjectScope: "receiptId",
+    IngestionSyncReceiptProjectScope: "receiptId",
     IngestionCursorTransition: "receiptId",
     IngestionRowOutcome: "receiptId",
   }[table] ?? "id";

@@ -48,6 +48,7 @@ import {
   HttpException,
 } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import {
   SwaggerModule,
   DocumentBuilder,
@@ -223,7 +224,8 @@ export async function createApp(
     ],
   })
   class AppModule {}
-  const app = await NestFactory.create(AppModule, { logger: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: false, rawBody: true, bodyParser: false });
+  app.useBodyParser("json", { limit: "1mb" });
   app.useGlobalInterceptors(new ResponseContractInterceptor());
   app.useGlobalFilters(new ExceptionContractFilter(app.getHttpAdapter()));
   app.enableCors({

@@ -62,62 +62,62 @@
 
 ## Baseline document register
 
-| Area | Document | Version | Status |
-|---|---|---:|---|
-| Governance | DOCUMENT_CONTROL.md | 0.1 | Draft |
-| Governance | GLOSSARY.md | 0.1 | Draft |
-| Governance | ASSUMPTIONS.md | 0.1 | Draft |
-| Governance | TRACEABILITY_MATRIX.md | 0.1 | Draft |
-| Governance | CHANGE_CONTROL.md | 0.1 | Draft |
-| Governance | OPEN_DECISIONS.md | 0.1 | Draft |
-| Governance | BASELINE_REVIEW_CHECKLIST.md | 0.1 | Draft |
-| Product | VISION_AND_STRATEGY.md | 0.1 | Draft |
-| Product | BRD.md | 0.1 | Draft |
-| Product | PRD.md | 0.1 | Draft |
-| Product | PRODUCT_SCOPE.md | 0.1 | Draft |
-| Product | PERSONAS_AND_JOURNEYS.md | 0.1 | Draft |
-| Product | USE_CASE_CATALOG.md | 0.1 | Draft |
-| Product | SUCCESS_METRICS.md | 0.1 | Draft |
-| Requirements | FRD.md | 0.1 | Draft |
-| Requirements | NFR.md | 0.1 | Draft |
-| Requirements | TRD.md | 0.1 | Draft |
-| Requirements | RBAC_AND_PERMISSIONS.md | 0.1 | Draft |
-| Requirements | AGENT_BEHAVIOR.md | 0.1 | Draft |
-| Requirements | SOURCE_AUTHORITY_MODEL.md | 0.1 | Draft |
-| Requirements | UPDATE_CADENCE_AND_ESCALATION.md | 0.1 | Draft |
-| Requirements | APPROVAL_AND_WRITEBACK.md | 0.1 | Draft |
-| Requirements | REPORTING_REQUIREMENTS.md | 0.1 | Draft |
-| Architecture | SOLUTION_ARCHITECTURE.md | 0.1 | Draft |
-| Architecture | DOMAIN_ARCHITECTURE.md | 0.1 | Draft |
-| Architecture | DATA_MODEL.md | 0.1 | Draft |
-| Architecture | INTEGRATION_ARCHITECTURE.md | 0.1 | Draft |
-| Architecture | AI_AND_GROUNDING_ARCHITECTURE.md | 0.1 | Draft |
-| Architecture | WORKFLOW_ARCHITECTURE.md | 0.1 | Draft |
-| Architecture | SECURITY_AND_PRIVACY.md | 0.1 | Draft |
-| Architecture | DEPLOYMENT_AND_OPERATIONS.md | 0.1 | Draft |
-| Delivery | PRODUCT_ROADMAP.md | 0.1 | Draft |
-| Delivery | RELEASE-1-VERTICAL-SLICE.md | 0.1 | Draft |
-| Delivery | EPICS_AND_STORIES.md | 0.1 | Draft |
-| Delivery | ACCEPTANCE_CRITERIA.md | 0.1 | Draft |
-| Delivery | DEPENDENCY_MAP.md | 0.1 | Draft |
-| Delivery | EVENT_DEMO_SCENARIO.md | 0.1 | Draft |
-| Quality | TEST_STRATEGY.md | 0.1 | Draft |
-| Quality | AGENT_EVALUATION_STRATEGY.md | 0.1 | Draft |
-| Quality | GOLDEN_TEST_SCENARIOS.md | 0.1 | Draft |
-| Quality | THREAT_MODEL.md | 0.1 | Draft |
-| Quality | FAILURE_AND_RECOVERY_TESTS.md | 0.1 | Draft |
-| Quality | DEFINITION_OF_DONE.md | 0.1 | Draft |
-| Commercial | COMMERCIAL_MODEL.md | 0.1 | Draft |
-| Commercial | CUSTOMER_HOSTING_MODEL.md | 0.1 | Draft |
-| Commercial | SOURCE_ACCESS_LICENSING.md | 0.1 | Draft |
-| Commercial | SUPPORT_AND_UPGRADES.md | 0.1 | Draft |
-| Commercial | PILOT_MODEL.md | 0.1 | Draft |
-| Commercial | PILOT_SUCCESS_METRICS.md | 0.1 | Draft |
-| Research | MARKET_AND_COMPETITOR_REVIEW.md | 0.1 | Draft |
-| Research | GITHUB_REPOSITORY_REVIEW.md | 0.1 | Draft |
-| Research | OPEN_SOURCE_ADOPTION_REGISTER.md | 0.1 | Draft |
-| Research | REJECTED_ALTERNATIVES.md | 0.1 | Draft |
-| Research | ASTRA_REVIEW_PROMPT.md | 0.1 | Draft |
+| Area         | Document                         | Version | Status |
+| ------------ | -------------------------------- | ------: | ------ |
+| Governance   | DOCUMENT_CONTROL.md              |     0.1 | Draft  |
+| Governance   | GLOSSARY.md                      |     0.1 | Draft  |
+| Governance   | ASSUMPTIONS.md                   |     0.1 | Draft  |
+| Governance   | TRACEABILITY_MATRIX.md           |     0.1 | Draft  |
+| Governance   | CHANGE_CONTROL.md                |     0.1 | Draft  |
+| Governance   | OPEN_DECISIONS.md                |     0.1 | Draft  |
+| Governance   | BASELINE_REVIEW_CHECKLIST.md     |     0.1 | Draft  |
+| Product      | VISION_AND_STRATEGY.md           |     0.1 | Draft  |
+| Product      | BRD.md                           |     0.1 | Draft  |
+| Product      | PRD.md                           |     0.1 | Draft  |
+| Product      | PRODUCT_SCOPE.md                 |     0.1 | Draft  |
+| Product      | PERSONAS_AND_JOURNEYS.md         |     0.1 | Draft  |
+| Product      | USE_CASE_CATALOG.md              |     0.1 | Draft  |
+| Product      | SUCCESS_METRICS.md               |     0.1 | Draft  |
+| Requirements | FRD.md                           |     0.1 | Draft  |
+| Requirements | NFR.md                           |     0.1 | Draft  |
+| Requirements | TRD.md                           |     0.1 | Draft  |
+| Requirements | RBAC_AND_PERMISSIONS.md          |     0.1 | Draft  |
+| Requirements | AGENT_BEHAVIOR.md                |     0.1 | Draft  |
+| Requirements | SOURCE_AUTHORITY_MODEL.md        |     0.1 | Draft  |
+| Requirements | UPDATE_CADENCE_AND_ESCALATION.md |     0.1 | Draft  |
+| Requirements | APPROVAL_AND_WRITEBACK.md        |     0.1 | Draft  |
+| Requirements | REPORTING_REQUIREMENTS.md        |     0.1 | Draft  |
+| Architecture | SOLUTION_ARCHITECTURE.md         |     0.1 | Draft  |
+| Architecture | DOMAIN_ARCHITECTURE.md           |     0.1 | Draft  |
+| Architecture | DATA_MODEL.md                    |     0.1 | Draft  |
+| Architecture | INTEGRATION_ARCHITECTURE.md      |     0.1 | Draft  |
+| Architecture | AI_AND_GROUNDING_ARCHITECTURE.md |     0.1 | Draft  |
+| Architecture | WORKFLOW_ARCHITECTURE.md         |     0.1 | Draft  |
+| Architecture | SECURITY_AND_PRIVACY.md          |     0.1 | Draft  |
+| Architecture | DEPLOYMENT_AND_OPERATIONS.md     |     0.1 | Draft  |
+| Delivery     | PRODUCT_ROADMAP.md               |     0.1 | Draft  |
+| Delivery     | RELEASE-1-VERTICAL-SLICE.md      |     0.1 | Draft  |
+| Delivery     | EPICS_AND_STORIES.md             |     0.1 | Draft  |
+| Delivery     | ACCEPTANCE_CRITERIA.md           |     0.1 | Draft  |
+| Delivery     | DEPENDENCY_MAP.md                |     0.1 | Draft  |
+| Delivery     | EVENT_DEMO_SCENARIO.md           |     0.1 | Draft  |
+| Quality      | TEST_STRATEGY.md                 |     0.1 | Draft  |
+| Quality      | AGENT_EVALUATION_STRATEGY.md     |     0.1 | Draft  |
+| Quality      | GOLDEN_TEST_SCENARIOS.md         |     0.1 | Draft  |
+| Quality      | THREAT_MODEL.md                  |     0.1 | Draft  |
+| Quality      | FAILURE_AND_RECOVERY_TESTS.md    |     0.1 | Draft  |
+| Quality      | DEFINITION_OF_DONE.md            |     0.1 | Draft  |
+| Commercial   | COMMERCIAL_MODEL.md              |     0.1 | Draft  |
+| Commercial   | CUSTOMER_HOSTING_MODEL.md        |     0.1 | Draft  |
+| Commercial   | SOURCE_ACCESS_LICENSING.md       |     0.1 | Draft  |
+| Commercial   | SUPPORT_AND_UPGRADES.md          |     0.1 | Draft  |
+| Commercial   | PILOT_MODEL.md                   |     0.1 | Draft  |
+| Commercial   | PILOT_SUCCESS_METRICS.md         |     0.1 | Draft  |
+| Research     | MARKET_AND_COMPETITOR_REVIEW.md  |     0.1 | Draft  |
+| Research     | GITHUB_REPOSITORY_REVIEW.md      |     0.1 | Draft  |
+| Research     | OPEN_SOURCE_ADOPTION_REGISTER.md |     0.1 | Draft  |
+| Research     | REJECTED_ALTERNATIVES.md         |     0.1 | Draft  |
+| Research     | ASTRA_REVIEW_PROMPT.md           |     0.1 | Draft  |
 
 ## Machine-readable controls
 
@@ -137,7 +137,7 @@
 - `docs/04-delivery/exec-plans/EXEC-006-project-evidence-workflow.md`: scoped human evidence history, explicit source sharing and authority configuration, and saved historical assessments.
 - `docs/04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md`: canonical Stages 1-3 merged; later generic scalar requests are merged through EXEC-008, while shared story acceptance remains open.
 - `docs/04-delivery/exec-plans/EXEC-008-scalar-reconciliation.md`: merged durable scalar request, original proof, permissions and recovery; separate story/release acceptance remains open.
-- `docs/04-delivery/exec-plans/EXEC-009-read-only-ingestion.md`: approved synthetic-first ingestion stages; internal read contract, durable proposal persistence and Jira issue reader checkpoints, with OAuth/webhooks, complete Jira entity coverage and user-facing ingestion still outstanding.
+- `docs/04-delivery/exec-plans/EXEC-009-read-only-ingestion.md`: approved synthetic-first ingestion stages; internal read contract, durable proposal persistence, Jira issue reader and OAuth/webhook/reconciliation runtime checkpoints, with full Jira entity coverage and user-facing ingestion still outstanding.
 - `docs/05-quality/SCALAR_RECONCILIATION_VALIDATION.md`: exact PR54 merge/review/artifact evidence, implemented FAIL-009 and unchanged shared GOLDEN-003/Issue6 acceptance remainder.
 - `docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md`: verified canonical PM request/COMMIT/race/upgrade/restore evidence and historical checkpoints, linked to the later scalar FAIL-009 implementation disposition; no new story acceptance.
 - `docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md`: candidate user/admin workflow, strict API, browser and packaged evidence gates and remaining acceptance.

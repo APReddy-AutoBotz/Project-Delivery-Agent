@@ -94,6 +94,18 @@ export type JiraReadAdapterConfig = {
   now?: () => Date;
 };
 
+const jiraReadAdapterOptionsSchema = z.object({
+  projects: projectMapSchema,
+  fields: fieldMapSchema,
+  pageSize: z.number().int().min(1).max(100).optional(),
+}).strict();
+
+export function parseJiraReadAdapterOptions(input: unknown) {
+  const parsed = jiraReadAdapterOptionsSchema.safeParse(input);
+  if (!parsed.success) throw new Error("INVALID_CONFIG");
+  return parsed.data;
+}
+
 type JiraIssue = {
   id: string;
   key: string;
@@ -547,3 +559,44 @@ export function createJiraCloudClient(options: {
       (await jira.issues.getIssue(input)) as unknown as JiraIssue,
   };
 }
+
+export function createJiraOAuthCloudClient(options: {
+  cloudId: string;
+  accessToken: string;
+}): JiraReadClient {
+  if (
+    !/^[A-Za-z0-9._:-]{1,128}$/.test(options.cloudId) ||
+    !options.accessToken ||
+    options.accessToken.length > 8192
+  )
+    throw new Error("INVALID_CONFIG");
+  const host = `https://api.atlassian.com/ex/jira/${encodeURIComponent(options.cloudId)}`;
+  const jira = createCloudClient({
+    host,
+    auth: { type: "oauth2", accessToken: options.accessToken },
+    retry: { maxAttempts: 1 },
+  });
+  return {
+    getProject: async (input) => {
+      const result = await jira.projects.getProject(input);
+      return { key: result.key ?? "" };
+    },
+    searchIssues: async (input) => {
+      const result =
+        await jira.issueSearch.searchAndReconsileIssuesUsingJqlPost(input);
+      return {
+        issues: result.issues as unknown as JiraIssue[] | undefined,
+        isLast: result.isLast,
+        nextPageToken: result.nextPageToken,
+      };
+    },
+    getIssue: async (input) =>
+      (await jira.issues.getIssue(input)) as unknown as JiraIssue,
+  };
+}
+
+export {
+  getJiraAccessibleResources,
+  refreshJiraOAuthToken,
+  JiraOAuthError,
+} from "./oauth.js";
