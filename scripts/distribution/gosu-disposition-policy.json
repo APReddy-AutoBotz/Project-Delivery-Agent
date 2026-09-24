@@ -387,12 +387,12 @@
             {
               "version": "1.24.11",
               "date": "2025-12-02",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.25.5",
               "date": "2025-12-02",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -607,12 +607,12 @@
             {
               "version": "1.25.9",
               "date": "2026-04-07",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.2",
               "date": "2026-04-07",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -693,12 +693,12 @@
             {
               "version": "1.25.10",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.3",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -827,12 +827,12 @@
             {
               "version": "1.25.9",
               "date": "2026-04-07",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.2",
               "date": "2026-04-07",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -897,12 +897,12 @@
             {
               "version": "1.25.9",
               "date": "2026-04-07",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.2",
               "date": "2026-04-07",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -967,12 +967,12 @@
             {
               "version": "1.25.10",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.3",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -1075,12 +1075,12 @@
             {
               "version": "1.25.10",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.3",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -1152,12 +1152,12 @@
             {
               "version": "1.25.10",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.3",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -1226,12 +1226,12 @@
             {
               "version": "1.25.10",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.3",
               "date": "2026-05-07",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -1453,12 +1453,12 @@
             {
               "version": "1.25.11",
               "date": "2026-06-02",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.4",
               "date": "2026-06-02",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -1528,12 +1528,12 @@
             {
               "version": "1.25.11",
               "date": "2026-06-02",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.4",
               "date": "2026-06-02",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -1598,17 +1598,17 @@
             {
               "version": "1.25.13",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.6",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.27.0-rc.3",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -1684,17 +1684,17 @@
             {
               "version": "1.25.13",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.6",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.27.0-rc.3",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -1776,17 +1776,17 @@
             {
               "version": "1.25.13",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.6",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.27.0-rc.3",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
@@ -1868,17 +1868,17 @@
             {
               "version": "1.25.13",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.26.6",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             },
             {
               "version": "1.27.0-rc.3",
               "date": "2026-08-13",
-              "kind": "advisory"
+              "kind": "release"
             }
           ]
         }
