@@ -566,7 +566,7 @@ export class DatabaseConnectorRuntimeRepository {
           continue;
         }
         const claimed = await tx.$queryRaw<{ id: string; attempts: number }[]>`
-          UPDATE public."ConnectorSyncJob" SET state='RUNNING',attempts=attempts+1,"leaseUntil"=CURRENT_TIMESTAMP+interval '60 seconds'
+          UPDATE public."ConnectorSyncJob" SET state='RUNNING',attempts=attempts+1,"leaseUntil"=date_trunc('milliseconds',CURRENT_TIMESTAMP)+interval '60 seconds'
           WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${job.id}::uuid
             AND (state='READY' OR (state='RUNNING' AND "leaseUntil"<=${now}::timestamptz))
           RETURNING id,attempts`;
