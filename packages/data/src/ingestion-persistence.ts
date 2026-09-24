@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 26941)
+Total output lines: 2040
+
 import { createHash, randomUUID } from "node:crypto";
 import {
   connectorChangePageSchema,
@@ -1029,139 +1032,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         throw new IngestionPersistenceError("CONFLICT");
       if (source.currentConfigRevision !== job.configRevision || source.mappingRevision !== job.mappingRevision)
         throw new IngestionPersistenceError("STALE_CONFIGURATION");
-      if (!job.resetRequested || job.resetCompleted) return { reset: false, sourceId: source.id };
-      const grants = await this.currentSyncGrants(tx, source);
-      const nextGeneration = source.syncGeneration + 1n;
-      const nextCursorRevision = source.cursorRevision + 1n;
-      const requestHash = sha256(boundedJson({ jobId, configRevision: job.configRevision, mappingRevision: job.mappingRevision, generation: source.syncGeneration, cursorRevision: source.cursorRevision, reset: true }));
-      const receiptId = await this.createSyncReceipt(tx, source, {
-        jobId,
-        kind: "SYNC_RESET",
-        commandKey: `sync_reset_${jobId.replaceAll("-", "")}`,
-        requestHash,
-        configRevision: job.configRevision,
-        mappingRevision: job.mappingRevision,
-        grants,
-        generationBefore: source.syncGeneration,
-        generationAfter: nextGeneration,
-        cursorRevisionBefore: source.cursorRevision,
-        cursorRevisionAfter: nextCursorRevision,
-        cursorTransition: { stateAfter: "READY", cursorEnvelopeHash: null },
-        outcomes: [],
-        createdAt: now,
-      });
-      await tx.$executeRaw`
-        UPDATE public."IngestionSource" SET "cursorRevision"=${nextCursorRevision},"syncGeneration"=${nextGeneration},
-          "cursorEnvelope"=NULL,"cursorState"='READY'
-        WHERE "customerId"=${customerId}::uuid AND id=${source.id}::uuid`;
-      await tx.$executeRaw`
-        UPDATE public."ConnectorSyncJob" SET state='READY',"resetCompleted"=true,"leaseUntil"=NULL,"availableAt"=${now}
-        WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid AND state='RUNNING'`;
-      return { reset: true, receiptId, sourceId: source.id, cursorRevision: Number(nextCursorRevision), generation: Number(nextGeneration) };
-    }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 60000 });
-  }
-
-  async persistConnectorPageForJob(input: {
-    customerId: string;
-    jobId: string;
-    expectedClaimGeneration: number;
-    expectedConfigRevision: number;
-    expectedMappingRevision: number;
-    expectedCursorRevision: number;
-    expectedGeneration: number;
-    page: unknown;
-  }, now = new Date()) {
-    const customerId = uuid(input.customerId);
-    const jobId = uuid(input.jobId);
-    const pageInput = parseIngestion(connectorChangePageSchema, input.page);
-    return this.db.$transaction(async (tx) => {
-      const locator = await tx.$queryRaw<{ sourceId: string }[]>`
-        SELECT "sourceId" FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND id=${jobId}::uuid`;
-      if (!locator[0]) throw new IngestionPersistenceError("NOT_FOUND");
-      const source = await this.currentSource(tx, customerId, locator[0].sourceId, "UPDATE");
-      const jobs = await tx.$queryRaw<{
-        state: string; configRevision: number; mappingRevision: number; attempts: number; resetRequested: boolean; resetCompleted: boolean; leaseUntil: Date | null; expiresAt: Date;
-      }[]>`
-        SELECT state,"configRevision","mappingRevision",attempts,"resetRequested","resetCompleted","leaseUntil","expiresAt"
-        FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid FOR UPDATE`;
-      const job = jobs[0];
-      if (!job || job.state !== "RUNNING" || !job.leaseUntil || job.leaseUntil.getTime() <= now.getTime() || job.expiresAt.getTime() <= now.getTime())
-        throw new IngestionPersistenceError("CONFLICT");
-      if (!Number.isInteger(input.expectedClaimGeneration) || job.attempts !== input.expectedClaimGeneration)
-        throw new IngestionPersistenceError("CONFLICT");
-      if (job.resetRequested && !job.resetCompleted)
-        throw new IngestionPersistenceError("CURSOR_CONFLICT");
-      if (source.currentConfigRevision !== job.configRevision || source.mappingRevision !== job.mappingRevision ||
-        job.configRevision !== input.expectedConfigRevision || job.mappingRevision !== input.expectedMappingRevision ||
-        Number(source.cursorRevision) !== input.expectedCursorRevision || Number(source.syncGeneration) !== input.expectedGeneration || source.cursorState !== "READY")
-        throw new IngestionPersistenceError("STALE_CONFIGURATION");
-      const configuration = await this.currentConfiguration(tx, source);
-      if (configuration.mapping.kind !== "CONNECTOR" || configuration.mapping.adapterConfiguration === undefined)
-        throw new IngestionPersistenceError("STALE_CONFIGURATION");
-      const grants = await this.currentSyncGrants(tx, source);
-      const projectIds = grants.map((grant) => grant.projectId);
-      const allowedFactTypes = configuration.mapping.factTypes;
-      if (pageInput.records.some((record) => record.observations.some((observation) => !allowedFactTypes.includes(observation.factType))))
-        throw new IngestionPersistenceError("INVALID_REQUEST");
-      const persistedCursor = source.cursorEnvelope === null
-        ? null
-        : this.vault.decrypt(source.cursorEnvelope, `ingestion-cursor:${customerId}:${source.id}`);
-      const scope = { binding: configuration.binding, projectIds };
-      const validated = validateConnectorPage({ scope, cursor: persistedCursor }, pageInput);
-      const pending: PendingRecord[] = validated.records.map((record) => ({
-        recordType: record.ref.recordType,
-        recordKey: record.ref.recordId,
-        projectId: record.ref.projectId,
-        revision: record.revision,
-        sourceContentHash: record.sourceContentHash,
-        remoteObservedAt: new Date(record.observedAt),
-        remoteEffectiveAt: new Date(record.effectiveAt),
-        proposals: normalizeProposals(record.observations),
-      }));
-      const prepared = await this.prepareRecords(tx, source, job.mappingRevision, pending);
-      const byIdentity = new Map(prepared.map((record) => [`${record.recordType}\u0000${record.recordKey}`, record]));
-      const outcomes: OutcomeInput[] = validated.records.map((record) => {
-        const saved = byIdentity.get(`${record.ref.recordType}\u0000${record.ref.recordId}`);
-        if (!saved) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
-        return {
-          state: "ACCEPTED",
-          operation: saved.recordCreated ? "CREATE" : saved.projectionCreated || saved.revisionCreated ? "UPDATE" : "UNCHANGED",
-          errorCodes: [],
-          projectId: saved.projectId,
-          recordKey: saved.recordKey,
-          recordId: saved.recordId,
-          sourceRevisionId: saved.sourceRevisionId,
-          projectionId: saved.projectionId,
-        };
-      });
-      await this.retention(tx, customerId);
-      const nextCursorRevision = source.cursorRevision + 1n;
-      const cursorEnvelope = validated.terminal || validated.nextCursor === null
-        ? null
-        : this.vault.encrypt(validated.nextCursor, `ingestion-cursor:${customerId}:${source.id}`);
-      const requestHash = sha256(boundedJson({
-        jobId,
-        configRevision: job.configRevision,
-        mappingRevision: job.mappingRevision,
-        cursorRevision: input.expectedCursorRevision,
-        generation: input.expectedGeneration,
-        page: pageInput,
-      }));
-      const receiptId = await this.createSyncReceipt(tx, source, {
-        jobId,
-        kind: "CONNECTOR_PAGE",
-        commandKey: `sync_page_${jobId.replaceAll("-", "")}`,
-        requestHash,
-        configRevision: job.configRevision,
-        mappingRevision: job.mappingRevision,
-        grants,
-        generationBefore: source.syncGeneration,
-        generationAfter: source.syncGeneration,
-        cursorRevisionBefore: source.cursorRevision,
-        cursorRevisionAfter: nextCursorRevision,
-        cursorTransition: {
-          stateAfter: validated.terminal ? "TERMINAL" : "READY",
-          cursorEnvelopeHash: cursorEnvelope === null ? null : sha256(cursorEnvelope),
+      if (!job.resetRequested || job.resetCompleted) return { reset: false…1941 tokens truncated…opeHash: cursorEnvelope === null ? null : sha256(cursorEnvelope),
         },
         outcomes,
         createdAt: now,
@@ -2037,3 +1908,4 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     );
   }
 }
+
