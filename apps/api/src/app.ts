@@ -268,7 +268,7 @@ export async function createApp(
     },
   });
   preJsonBodyParser?.(app);
-  app.useBodyParser("json", { limit: "1mb" });
+  app.useBodyParser("json", { limit: "100kb" });
   const spec = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()
