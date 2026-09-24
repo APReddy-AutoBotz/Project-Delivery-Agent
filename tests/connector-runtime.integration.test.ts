@@ -22,11 +22,19 @@ const keyRing = {
   currentKeyId: "integration-2026",
   keys: { "integration-2026": encryptionKey },
 };
+const integrationLeaseDurationSeconds = 5;
 const runtime = new DatabaseConnectorRuntimeRepository(
   db,
   new CredentialKeyRingVault(keyRing),
+  integrationLeaseDurationSeconds,
 );
 afterAll(() => db.$disconnect());
+
+async function waitForLeaseExpiry() {
+  // Verify expiry against the database clock without waiting for the production lease duration.
+  await new Promise<void>((resolve) => setTimeout(resolve, integrationLeaseDurationSeconds * 1000 + 500));
+  return new Date();
+}
 
 function actor(role: Actor["roles"][number], subject: string): Actor {
   return { customerId, subject: `${subject}-${randomUUID()}`, roles: [role] };
@@ -132,7 +140,7 @@ describe("durable Jira connector runtime", () => {
 
     const scheduledIds = await runtime.enqueueDueJobs(customerId, 15, 20, now);
     expect(scheduledIds).toHaveLength(1);
-    const scheduled = await runtime.claimNextJob(customerId, now);
+    const scheduled = await runtime.claimNextJob(customerId);
     expect(scheduled?.jobId).toBe(scheduledIds[0]);
     if (!scheduled) throw new Error("Expected scheduled runtime job");
     expect((await ingestion.readConnectorSyncSnapshot(customerId, scheduled.jobId, scheduled.claimGeneration, now)).resetRequired).toBe(true);
@@ -168,11 +176,11 @@ describe("durable Jira connector runtime", () => {
       }),
     ).rejects.toMatchObject({ code: "CONFLICT" });
 
-    const webhookJob = await runtime.claimNextJob(customerId, now);
+    const webhookJob = await runtime.claimNextJob(customerId);
     expect(webhookJob?.jobId).toBe(webhook.jobId);
     if (!webhookJob) throw new Error("Expected webhook reconciliation job");
-    const reclaimedAt = new Date(now.getTime() + 61_000);
-    const reclaimedWebhookJob = await runtime.claimNextJob(customerId, reclaimedAt);
+    const reclaimedAt = await waitForLeaseExpiry();
+    const reclaimedWebhookJob = await runtime.claimNextJob(customerId);
     expect(reclaimedWebhookJob?.jobId).toBe(webhook.jobId);
     if (!reclaimedWebhookJob) throw new Error("Expected expired webhook job to be reclaimed");
     expect(reclaimedWebhookJob.claimGeneration).toBe(webhookJob.claimGeneration + 1);
@@ -190,7 +198,7 @@ describe("durable Jira connector runtime", () => {
     const resetSnapshot = await ingestion.readConnectorSyncSnapshot(customerId, reclaimedWebhookJob.jobId, reclaimedWebhookJob.claimGeneration, reclaimedAt);
     expect(resetSnapshot.resetRequired).toBe(true);
     await ingestion.resetConnectorCursorForJob(customerId, reclaimedWebhookJob.jobId, reclaimedWebhookJob.claimGeneration, reclaimedAt);
-    const readyJob = await runtime.claimNextJob(customerId, reclaimedAt);
+    const readyJob = await runtime.claimNextJob(customerId);
     expect(readyJob?.jobId).toBe(webhook.jobId);
     if (!readyJob) throw new Error("Expected reset webhook job");
     const snapshot = await ingestion.readConnectorSyncSnapshot(customerId, readyJob.jobId, readyJob.claimGeneration, reclaimedAt);
@@ -202,8 +210,8 @@ describe("durable Jira connector runtime", () => {
       terminal: true,
       records: [],
     };
-    const finalReclaimedAt = new Date(reclaimedAt.getTime() + 61_000);
-    const finalJob = await runtime.claimNextJob(customerId, finalReclaimedAt);
+    const finalReclaimedAt = await waitForLeaseExpiry();
+    const finalJob = await runtime.claimNextJob(customerId);
     expect(finalJob?.jobId).toBe(webhook.jobId);
     if (!finalJob) throw new Error("Expected expired page job to be reclaimed");
     expect(finalJob.claimGeneration).toBe(readyJob.claimGeneration + 1);
@@ -233,5 +241,5 @@ describe("durable Jira connector runtime", () => {
       SELECT state,"completedAt" FROM public."ConnectorSyncJob" WHERE id=${readyJob.jobId}::uuid`;
     expect(persistedJob[0]).toMatchObject({ state: "COMPLETED" });
     expect(persistedJob[0]!.completedAt).toBeInstanceOf(Date);
-  });
+  }, 30_000);
 });
