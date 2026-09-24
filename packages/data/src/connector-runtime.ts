@@ -304,10 +304,13 @@ export class DatabaseConnectorRuntimeRepository {
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 15000 });
   }
 
-  async accessOrBeginRotation(customerIdInput: string, sourceIdInput: string, now = new Date()): Promise<JiraOAuthAccess> {
+  async accessOrBeginRotation(customerIdInput: string, sourceIdInput: string, _now?: Date): Promise<JiraOAuthAccess> {
     const customerId = safeUuid(customerIdInput);
     const sourceId = safeUuid(sourceIdInput);
     return this.db.$transaction(async (tx) => {
+      const databaseClock = (await tx.$queryRaw<{ databaseNow: Date; leaseDeadline: Date }[]>`
+        SELECT date_trunc('milliseconds',CURRENT_TIMESTAMP) AS "databaseNow",
+          date_trunc('milliseconds',CURRENT_TIMESTAMP)+interval '60 seconds' AS "leaseDeadline"`)[0]!;
       const source = await this.lockSource(tx, customerId, sourceId);
       await this.lockCurrentServiceGrants(tx, source);
       const row = await this.credential(tx, customerId, sourceId, "jira_oauth");
@@ -315,10 +318,10 @@ export class DatabaseConnectorRuntimeRepository {
       if (row.state === "REAUTH_REQUIRED") return { kind: "unavailable", reason: "REAUTH_REQUIRED" } as const;
       const credentials = this.decryptOAuth(row);
       if (row.state === "ROTATING") {
-        if (row.rotationDeadline && row.rotationDeadline.getTime() > now.getTime())
+        if (row.rotationDeadline && row.rotationDeadline.getTime() > databaseClock.databaseNow.getTime())
           return { kind: "unavailable", reason: "ROTATION_IN_PROGRESS" } as const;
         const revision = row.revision + 1;
-        const changedAt = new Date(now);
+        const changedAt = databaseClock.databaseNow;
         const auditEventId = await this.audit(tx, customerId, runtimeActor, "ingestion.connector_credential.reauth_required", {
           sourceId, purpose: "jira_oauth", state: "REAUTH_REQUIRED", revision, rotationOperationId: null,
         }, changedAt);
@@ -328,12 +331,13 @@ export class DatabaseConnectorRuntimeRepository {
           WHERE id=${row.id}::uuid AND revision=${row.revision} AND state='ROTATING'`;
         return { kind: "unavailable", reason: "REAUTH_REQUIRED" } as const;
       }
-      if (Date.parse(credentials.expiresAt) > now.getTime() + 120_000)
+      const refreshAssessmentTime = Math.max(_now?.getTime() ?? 0, databaseClock.databaseNow.getTime());
+      if (Date.parse(credentials.expiresAt) > refreshAssessmentTime + 120_000)
         return { kind: "access", credentials, configRevision: source.currentConfigRevision!, mappingRevision: source.mappingRevision } as const;
       const operationId = randomUUID();
       const revision = row.revision + 1;
-      const deadline = addSeconds(now, 60);
-      const changedAt = new Date(now);
+      const deadline = databaseClock.leaseDeadline;
+      const changedAt = databaseClock.databaseNow;
       const auditEventId = await this.audit(tx, customerId, runtimeActor, "ingestion.connector_credential.rotation_started", {
         sourceId, purpose: "jira_oauth", state: "ROTATING", revision, rotationOperationId: operationId,
       }, changedAt);
@@ -348,18 +352,21 @@ export class DatabaseConnectorRuntimeRepository {
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 15000 });
   }
 
-  async completeOAuthRotation(rotation: JiraCredentialRotation, updatedInput: JiraOAuthCredential, now = new Date()) {
+  // Keep the optional fixture clock for call compatibility; lease validity is database-clock fenced.
+  async completeOAuthRotation(rotation: JiraCredentialRotation, updatedInput: JiraOAuthCredential, _now?: Date) {
     const updated = oauthPayloadSchema.parse(updatedInput);
     const encoded = this.vault.encrypt(JSON.stringify(updated), context(rotation.customerId, rotation.sourceId, "jira_oauth"));
     return this.db.$transaction(async (tx) => {
+      const databaseNow = (await tx.$queryRaw<{ databaseNow: Date }[]>`
+        SELECT date_trunc('milliseconds',CURRENT_TIMESTAMP) AS "databaseNow"`)[0]!.databaseNow;
       const source = await this.lockSource(tx, rotation.customerId, rotation.sourceId);
       await this.lockCurrentServiceGrants(tx, source);
       const row = await this.credential(tx, rotation.customerId, rotation.sourceId, "jira_oauth");
       if (!row || row.state !== "ROTATING" || row.rotationOperationId !== rotation.operationId || row.revision !== rotation.revision)
         return { committed: false as const, reason: "FENCED" as const };
-      if (row.rotationDeadline === null || row.rotationDeadline.getTime() <= now.getTime() || source.currentConfigRevision !== rotation.configRevision || source.mappingRevision !== rotation.mappingRevision || updated.cloudId !== rotation.credentials.cloudId || updated.selectedUrl !== rotation.credentials.selectedUrl || updated.scopes.some((scope) => !rotation.credentials.scopes.includes(scope))) {
+      if (row.rotationDeadline === null || row.rotationDeadline.getTime() <= databaseNow.getTime() || source.currentConfigRevision !== rotation.configRevision || source.mappingRevision !== rotation.mappingRevision || updated.cloudId !== rotation.credentials.cloudId || updated.selectedUrl !== rotation.credentials.selectedUrl || updated.scopes.some((scope) => !rotation.credentials.scopes.includes(scope))) {
         const revision = row.revision + 1;
-        const changedAt = new Date(now);
+        const changedAt = databaseNow;
         const auditEventId = await this.audit(tx, rotation.customerId, runtimeActor, "ingestion.connector_credential.reauth_required", {
           sourceId: rotation.sourceId, purpose: "jira_oauth", state: "REAUTH_REQUIRED", revision, rotationOperationId: null,
         }, changedAt);
@@ -370,14 +377,14 @@ export class DatabaseConnectorRuntimeRepository {
         return { committed: false as const, reason: "EXPIRED_OR_STALE" as const };
       }
       const revision = row.revision + 1;
-      const changedAt = new Date(now);
+      const changedAt = databaseNow;
       const auditEventId = await this.audit(tx, rotation.customerId, runtimeActor, "ingestion.connector_credential.rotation_completed", {
         sourceId: rotation.sourceId, purpose: "jira_oauth", state: "ACTIVE", revision, rotationOperationId: null,
       }, changedAt);
       const changed = await tx.$executeRaw`
         UPDATE public."ConnectorCredential" SET envelope=${encoded.envelope},"keyId"=${encoded.keyId},state='ACTIVE',revision=${revision},
           "rotationOperationId"=NULL,"rotationDeadline"=NULL,"auditEventId"=${auditEventId}::uuid,"changedBy"=${runtimeActor}
-        WHERE id=${row.id}::uuid AND revision=${rotation.revision} AND state='ROTATING' AND "rotationOperationId"=${rotation.operationId}::uuid AND "rotationDeadline">${now}`;
+        WHERE id=${row.id}::uuid AND revision=${rotation.revision} AND state='ROTATING' AND "rotationOperationId"=${rotation.operationId}::uuid AND "rotationDeadline">CURRENT_TIMESTAMP`;
       return { committed: Number(changed) === 1, reason: Number(changed) === 1 ? "COMMITTED" as const : "FENCED" as const };
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 15000 });
   }
@@ -530,6 +537,7 @@ export class DatabaseConnectorRuntimeRepository {
         WHERE s."customerId"=${customerId}::uuid AND s."sourceType"='jira' AND s."currentConfigRevision" IS NOT NULL
           AND EXISTS (SELECT 1 FROM public."IngestionConfigurationRevision" c WHERE c."customerId"=s."customerId" AND c."sourceId"=s.id AND c.revision=s."currentConfigRevision" AND c."mappingRevision"=s."mappingRevision" AND c.sealed AND c.mapping->>'kind'='CONNECTOR')
           AND (s."healthCheckedAt" IS NULL OR s."healthCheckedAt"<=${now}::timestamptz - make_interval(mins => ${intervalMinutes}))
+          AND NOT EXISTS (SELECT 1 FROM public."ConnectorSyncJob" prior WHERE prior."customerId"=s."customerId" AND prior."sourceId"=s.id AND prior.state IN ('FAILED','EXPIRED') AND prior."availableAt">${now}::timestamptz)
           AND NOT EXISTS (SELECT 1 FROM public."ConnectorSyncJob" j WHERE j."customerId"=s."customerId" AND j."sourceId"=s.id AND j.state IN ('READY','RUNNING'))
         ORDER BY s."healthCheckedAt" ASC NULLS FIRST,s.id LIMIT ${limit} FOR UPDATE OF s SKIP LOCKED`;
       const ids: string[] = [];
@@ -556,16 +564,21 @@ export class DatabaseConnectorRuntimeRepository {
         UPDATE public."ConnectorSyncJob" SET state='EXPIRED',"leaseUntil"=NULL
         WHERE "customerId"=${customerId}::uuid AND state IN ('READY','RUNNING') AND "expiresAt"<=CURRENT_TIMESTAMP`;
       const candidates = await tx.$queryRaw<{ id: string; sourceId: string }[]>`
-        SELECT id,"sourceId" FROM public."ConnectorSyncJob"
-        WHERE "customerId"=${customerId}::uuid AND "expiresAt">CURRENT_TIMESTAMP AND "availableAt"<=CURRENT_TIMESTAMP
-          AND (state='READY' OR (state='RUNNING' AND "leaseUntil"<=CURRENT_TIMESTAMP))
-        ORDER BY "availableAt","createdAt",id LIMIT 100`;
+        SELECT j.id,j."sourceId" FROM public."ConnectorSyncJob" j
+        WHERE j."customerId"=${customerId}::uuid AND j."expiresAt">CURRENT_TIMESTAMP AND j."availableAt"<=CURRENT_TIMESTAMP
+          AND (j.state='READY' OR (j.state='RUNNING' AND j."leaseUntil"<=CURRENT_TIMESTAMP))
+          AND NOT EXISTS (SELECT 1 FROM public."ConnectorSyncJob" prior WHERE prior."customerId"=j."customerId" AND prior."sourceId"=j."sourceId" AND prior.id<>j.id AND prior.state IN ('FAILED','EXPIRED') AND prior."availableAt">CURRENT_TIMESTAMP)
+        ORDER BY j."availableAt",j."createdAt",j.id LIMIT 100`;
       for (const candidate of candidates) {
         const sources = await tx.$queryRaw<SourceRow[]>`
           SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthCheckedAt"
           FROM public."IngestionSource" WHERE "customerId"=${customerId}::uuid AND id=${candidate.sourceId}::uuid FOR UPDATE SKIP LOCKED`;
         const source = sources[0];
         if (!source) continue;
+        const deferred = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id FROM public."ConnectorSyncJob" WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid
+            AND state IN ('FAILED','EXPIRED') AND "availableAt">CURRENT_TIMESTAMP LIMIT 1`;
+        if (deferred.length) continue;
         const jobs = await tx.$queryRaw<{
           id: string; sourceId: string; state: string; configRevision: number; mappingRevision: number; attempts: number;
           leaseUntil: Date | null; expiresAt: Date;
@@ -605,13 +618,14 @@ export class DatabaseConnectorRuntimeRepository {
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
   }
 
+  // Keep the optional fixture clock for call compatibility; leases and retry windows use database time.
   async failRunningJob(input: {
     customerId: string;
     jobId: string;
     claimGeneration: number;
     code: "INVALID_CREDENTIALS" | "EXPIRED_CREDENTIALS" | "PERMISSION_DENIED" | "RATE_LIMITED" | "TEMPORARILY_UNAVAILABLE" | "INVALID_RESPONSE" | "NOT_FOUND" | "UNKNOWN_OUTCOME" | "INTEGRITY_CONFLICT" | "CURSOR_CONFLICT";
     retryAfterMs?: number | null;
-  }, now = new Date()) {
+  }, _now?: Date) {
     const customerId = safeUuid(input.customerId);
     const jobId = safeUuid(input.jobId);
     const retryAfterMs = input.retryAfterMs ?? 0;
@@ -631,7 +645,9 @@ export class DatabaseConnectorRuntimeRepository {
         WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid FOR UPDATE`;
       const job = jobs[0];
       if (!job || job.state !== "RUNNING") return { state: job?.state ?? "MISSING" };
-      if (job.attempts !== input.claimGeneration || !job.leaseUntil || job.leaseUntil.getTime() <= now.getTime())
+      const databaseNow = (await tx.$queryRaw<{ databaseNow: Date }[]>`
+        SELECT date_trunc('milliseconds',CURRENT_TIMESTAMP) AS "databaseNow"`)[0]!.databaseNow;
+      if (job.attempts !== input.claimGeneration || !job.leaseUntil || job.leaseUntil.getTime() <= databaseNow.getTime())
         return { state: "STALE_CLAIM" };
       if (source.currentConfigRevision !== job.configRevision || source.mappingRevision !== job.mappingRevision) {
         await tx.$executeRaw`
@@ -647,9 +663,12 @@ export class DatabaseConnectorRuntimeRepository {
           WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid AND state='RUNNING'`;
         return { state: "EXPIRED" };
       }
-      const retryable = ["RATE_LIMITED", "TEMPORARILY_UNAVAILABLE", "UNKNOWN_OUTCOME"].includes(input.code) && job.attempts < 5;
+      const retryableFailure = ["RATE_LIMITED", "TEMPORARILY_UNAVAILABLE", "UNKNOWN_OUTCOME"].includes(input.code);
+      const retryable = retryableFailure && job.attempts < 5;
       const backoffMs = Math.max(retryAfterMs, Math.min(15 * 60_000, 1000 * 2 ** Math.max(0, job.attempts - 1)));
-      const availableAt = retryable ? addSeconds(now, backoffMs / 1000) : now;
+      // Retain the provider delay even after the retry budget is exhausted or
+      // this job expires; the scheduler and claim path use this as a source fence.
+      const availableAt = retryableFailure ? new Date(databaseNow.getTime() + backoffMs) : databaseNow;
       const nextState = retryable ? "READY" : "FAILED";
       await tx.$executeRaw`
         UPDATE public."ConnectorSyncJob" SET state=${nextState},"leaseUntil"=NULL,"availableAt"=${availableAt}
@@ -659,10 +678,10 @@ export class DatabaseConnectorRuntimeRepository {
       const healthCode = input.code;
       const auditEventId = await this.audit(tx, customerId, runtimeActor, "ingestion.health.updated", {
         sourceId: source.id, state: healthState, code: healthCode,
-      }, now);
+      }, databaseNow);
       void auditEventId;
       await tx.$executeRaw`
-        UPDATE public."IngestionSource" SET "healthState"=${healthState},"healthCode"=${healthCode},"healthCheckedAt"=${now}
+        UPDATE public."IngestionSource" SET "healthState"=${healthState},"healthCode"=${healthCode},"healthCheckedAt"=${databaseNow}
         WHERE "customerId"=${customerId}::uuid AND id=${source.id}::uuid`;
       if (failedCredential) {
         const row = await this.credential(tx, customerId, source.id, "jira_oauth");
@@ -670,7 +689,7 @@ export class DatabaseConnectorRuntimeRepository {
           const revision = row.revision + 1;
           const credentialAuditId = await this.audit(tx, customerId, runtimeActor, "ingestion.connector_credential.reauth_required", {
             sourceId: source.id, purpose: "jira_oauth", state: "REAUTH_REQUIRED", revision, rotationOperationId: null,
-          }, now);
+          }, databaseNow);
           await tx.$executeRaw`
             UPDATE public."ConnectorCredential" SET state='REAUTH_REQUIRED',revision=${revision},"auditEventId"=${credentialAuditId}::uuid,"changedBy"=${runtimeActor}
             WHERE id=${row.id}::uuid AND revision=${row.revision} AND state='ACTIVE'`;

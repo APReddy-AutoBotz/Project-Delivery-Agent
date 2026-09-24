@@ -114,7 +114,8 @@ describe("durable Jira connector runtime", () => {
     const webhookSecret = Buffer.alloc(32, 61).toString("hex");
     await runtime.setWebhookSecret({ customerId, sourceId, actorSubject: pmo.subject, secret: webhookSecret });
 
-    const rotation = await runtime.accessOrBeginRotation(customerId, sourceId, now);
+    const applicationClockAhead = new Date(Date.now() + 5 * 60_000);
+    const rotation = await runtime.accessOrBeginRotation(customerId, sourceId, applicationClockAhead);
     expect(rotation.kind).toBe("rotate");
     if (rotation.kind !== "rotate") throw new Error("Expected refresh lease");
     expect(await runtime.accessOrBeginRotation(customerId, sourceId, now)).toMatchObject({
@@ -127,7 +128,7 @@ describe("durable Jira connector runtime", () => {
       refreshToken: "rotated-refresh-token",
       expiresAt: new Date(now.getTime() + 3_600_000).toISOString(),
     };
-    expect(await runtime.completeOAuthRotation(rotation.rotation, renewed, now)).toMatchObject({ committed: true });
+    expect(await runtime.completeOAuthRotation(rotation.rotation, renewed, applicationClockAhead)).toMatchObject({ committed: true });
     expect(await runtime.completeOAuthRotation(rotation.rotation, renewed, now)).toMatchObject({ committed: false, reason: "FENCED" });
     expect(await runtime.accessOrBeginRotation(customerId, sourceId, now)).toMatchObject({ kind: "access" });
 
@@ -263,7 +264,11 @@ describe("durable Jira connector runtime", () => {
         expiresAt: new Date(Date.now() - 60_000).toISOString(),
       },
     });
-    const retryableRotation = await runtime.accessOrBeginRotation(customerId, sourceId);
+    const retryableRotation = await runtime.accessOrBeginRotation(
+      customerId,
+      sourceId,
+      new Date(Date.now() + 5 * 60_000),
+    );
     expect(retryableRotation.kind).toBe("rotate");
     if (retryableRotation.kind !== "rotate") throw new Error("Expected retryable refresh lease");
     expect(await runtime.deferOAuthRotation(retryableRotation.rotation)).toBe(true);
@@ -279,5 +284,46 @@ describe("durable Jira connector runtime", () => {
       retriedRotation.rotation,
       new Date(),
     )).toBe(true);
-  }, 30_000);
+
+    const rateLimitedBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated" }));
+    const rateLimitedWebhook = await runtime.acceptWebhook({
+      sourceId,
+      eventId: `rate-limit-${randomUUID()}`,
+      signature: "sha256=" + createHmac("sha256", webhookSecret).update(rateLimitedBody).digest("hex"),
+      rawBody: rateLimitedBody,
+    });
+    let rateLimitedJob = await runtime.claimNextJob(customerId);
+    expect(rateLimitedJob?.jobId).toBe(rateLimitedWebhook.jobId);
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      if (!rateLimitedJob) throw new Error("Expected rate-limited job claim");
+      const failure = await runtime.failRunningJob({
+        customerId,
+        jobId: rateLimitedJob.jobId,
+        claimGeneration: rateLimitedJob.claimGeneration,
+        code: "RATE_LIMITED",
+        retryAfterMs: attempt === 5 ? 86_400_000 : 0,
+      });
+      expect(failure.state).toBe(attempt < 5 ? "READY" : "FAILED");
+      if (attempt < 5) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1) + 100));
+        rateLimitedJob = await runtime.claimNextJob(customerId);
+        expect(rateLimitedJob?.jobId).toBe(rateLimitedWebhook.jobId);
+      }
+    }
+    expect(await runtime.enqueueDueJobs(
+      customerId,
+      15,
+      20,
+      new Date(Date.now() + 16 * 60_000),
+    )).toEqual([]);
+    const deferredBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated" }));
+    const deferredWebhook = await runtime.acceptWebhook({
+      sourceId,
+      eventId: `deferred-${randomUUID()}`,
+      signature: "sha256=" + createHmac("sha256", webhookSecret).update(deferredBody).digest("hex"),
+      rawBody: deferredBody,
+    });
+    expect(deferredWebhook.replayed).toBe(false);
+    expect(await runtime.claimNextJob(customerId)).toBeNull();
+  }, 60_000);
 });
