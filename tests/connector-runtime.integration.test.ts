@@ -254,22 +254,30 @@ describe("durable Jira connector runtime", () => {
       replayed: true,
     });
 
-    const retryAt = new Date(now.getTime() + 2 * 60 * 60_000);
-    const retryableRotation = await runtime.accessOrBeginRotation(customerId, sourceId, retryAt);
+    await runtime.setOAuthCredential({
+      customerId,
+      sourceId,
+      actorSubject: pmo.subject,
+      credential: {
+        ...renewed,
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      },
+    });
+    const retryableRotation = await runtime.accessOrBeginRotation(customerId, sourceId);
     expect(retryableRotation.kind).toBe("rotate");
     if (retryableRotation.kind !== "rotate") throw new Error("Expected retryable refresh lease");
-    expect(await runtime.deferOAuthRotation(retryableRotation.rotation, retryAt)).toBe(true);
+    expect(await runtime.deferOAuthRotation(retryableRotation.rotation)).toBe(true);
     const retriedRotation = await runtime.accessOrBeginRotation(
       customerId,
       sourceId,
-      new Date(retryAt.getTime() + 1000),
+      new Date(),
     );
     expect(retriedRotation.kind).toBe("rotate");
     if (retriedRotation.kind !== "rotate") throw new Error("Expected a fresh refresh lease");
     expect(retriedRotation.rotation.credentials.refreshToken).toBe(renewed.refreshToken);
     expect(await runtime.deferOAuthRotation(
       retriedRotation.rotation,
-      new Date(retryAt.getTime() + 1000),
+      new Date(),
     )).toBe(true);
   }, 30_000);
 });
