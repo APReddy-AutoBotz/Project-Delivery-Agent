@@ -698,8 +698,12 @@ export function createJiraReadOnlyConnector(
     const inwardProject = issueProject(scope, inwardKey);
     if (!outwardProject || !inwardProject) return null;
     // Jira returns the same relation when either endpoint is scanned. Emit once
-    // under a deterministic endpoint so cross-project scope remains explicit.
-    if ([outwardKey, inwardKey].sort()[0] !== sourceIssueKey) return null;
+    // under the deterministic endpoint's mapped project so the record reference
+    // and direct lookup use the same project owner.
+    const canonicalKey = [outwardKey, inwardKey].sort()[0]!;
+    if (canonicalKey !== sourceIssueKey) return null;
+    const canonicalProject = issueProject(scope, canonicalKey);
+    if (!canonicalProject) return null;
     const canonical = JSON.stringify({
       id: linkId,
       typeId,
@@ -712,7 +716,7 @@ export function createJiraReadOnlyConnector(
     const sourceContentHash = sha256(canonical);
     const recordId = linkId;
     return makeRecord(scope, {
-      projectId: outwardProject.projectId,
+      projectId: canonicalProject.projectId,
       recordType: "jira.issue_link",
       recordId,
       revision: `snapshot:${sourceContentHash}`,

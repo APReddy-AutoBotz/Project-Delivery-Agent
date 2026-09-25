@@ -574,6 +574,62 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
       );
   });
 
+  it("looks up cross-project links under the deterministic endpoint project", async () => {
+    const link = {
+      id: "42",
+      type: { id: "10000", name: "blocks" },
+      inwardIssue: { key: "SAFE-1" },
+      outwardIssue: { key: "OTHER-2" },
+    };
+    const safeIssue = issue("SAFE-1", "SAFE");
+    const linkedIssue = {
+      ...safeIssue,
+      fields: { ...safeIssue.fields, issuelinks: [link] },
+    };
+    const scopeBoth = { ...scope, projectIds: [projectId, otherProjectId] };
+    const fixture = configured(
+      {
+        async searchIssues() {
+          return { issues: [linkedIssue], isLast: true };
+        },
+        async getIssue({ issueIdOrKey }) {
+          return issue(issueIdOrKey, "SAFE");
+        },
+        async getIssueLink() {
+          return link;
+        },
+      },
+      { entities: { issueLinks: true } },
+    );
+    const pages: ConnectorChangePage[] = [];
+    let cursor: string | null = null;
+    for (let index = 0; index < 5; index += 1) {
+      const result = await fixture.adapter.pullChanges({ scope: scopeBoth, cursor });
+      if (!result.ok) throw new Error(result.failure.code);
+      pages.push(result.value);
+      if (result.value.terminal) break;
+      cursor = result.value.nextCursor;
+    }
+
+    const linkRecords = pages.flatMap((page) =>
+      page.records.filter((record) => record.ref.recordType === "jira.issue_link"),
+    );
+    expect(linkRecords).toHaveLength(1);
+    expect(linkRecords[0]?.ref.projectId).toBe(projectId);
+
+    const fetched = await fixture.adapter.getRecord(scopeBoth, linkRecords[0]!.ref);
+    expect(fetched).toMatchObject({
+      ok: true,
+      value: {
+        ref: {
+          projectId,
+          recordType: "jira.issue_link",
+          recordId: "42",
+        },
+      },
+    });
+  });
+
   it("withholds links to unmapped and currently out-of-scope projects", async () => {
     const exposed = [
       {
