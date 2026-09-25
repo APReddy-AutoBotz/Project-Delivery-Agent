@@ -11,6 +11,7 @@ import {
   validateConnectorConnection,
   type ConnectorChangePage,
   type ConnectorFailure,
+  type ConnectorReadRequest,
   type ConnectorReadScope,
   type ConnectorRecord,
   type ConnectorRecordRef,
@@ -1701,7 +1702,7 @@ export function createJiraOAuthCloudClient(options: {
     getBoard: async (input) =>
       (await agile.board.getBoard(input)) as unknown as JiraBoard,
     getSprints: async (input) =>
-      (await agile.sprint.getAllSprints(input)) as unknown as JiraOffsetPage<JiraSprint>,
+      (await agile.board.getAllSprints(input)) as unknown as JiraOffsetPage<JiraSprint>,
     getSprint: async (input) =>
       (await agile.sprint.getSprint(input)) as unknown as JiraSprint,
   };
