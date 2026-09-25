@@ -395,6 +395,10 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     body: sparseIndexForm,
   });
   expect(sparseIndexResponse.status).toBe(400);
+  expect(await sparseIndexResponse.json()).toEqual({
+    statusCode: 400,
+    message: "Invalid request",
+  });
   expect(sparseIndexResponse.headers.get("cache-control")).toBe("no-store");
   expect(sparseIndexResponse.headers.get("x-request-id")).toMatch(/^[a-f0-9-]{36}$/);
   expect(persistCsvPreview.mock.calls).toHaveLength(previewCallsBeforeSparseIndex);
