@@ -40,6 +40,18 @@ import {
 export const INGESTION_REPOSITORY = "INGESTION_REPOSITORY";
 const MAX_CSV_BYTES = 1_048_576;
 const MAX_MULTIPART_OVERHEAD = 16_384;
+const CSV_UPLOAD_LIMITS = {
+  fileSize: MAX_CSV_BYTES,
+  fieldSize: 256,
+  fieldNameSize: 64,
+  // The upload form has scalar fields only; reject numeric array field names.
+  fieldArrayIndexLimit: 0,
+  fields: 3,
+  files: 1,
+  // Busboy emits partsLimit as soon as the count reaches the configured value,
+  // so use 5 to accept the four required file/form parts and reject any fifth part.
+  parts: 5,
+};
 const unavailable = async (): Promise<never> => {
   throw new Error("Ingestion repository unavailable");
 };
@@ -162,20 +174,7 @@ export class IngestionController {
   @HttpCode(201)
   @UseGuards(CsvUploadBoundaryGuard)
   @UseInterceptors(FileInterceptor("file", {
-    limits: {
-      fileSize: MAX_CSV_BYTES,
-      fieldSize: 256,
-      fieldNameSize: 64,
-      // Multipart values are scalar; nested fields and numeric array indices are not used.
-      fieldNestingDepth: 0,
-      fieldArrayIndexLimit: 0,
-      fields: 3,
-      files: 1,
-      // Busboy emits partsLimit as soon as the count reaches the configured
-      // value, so use 5 to accept the four required file/form parts and reject
-      // any fifth part.
-      parts: 5,
-    },
+    limits: CSV_UPLOAD_LIMITS,
   }))
   @ApiConsumes("multipart/form-data")
   @ApiBody({ schema: {
