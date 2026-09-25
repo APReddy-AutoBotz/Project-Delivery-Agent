@@ -16,6 +16,8 @@ These decisions do not block creation of the documentation baseline. Recommended
 | OD-010 | AvalaOS integration | No integration in R1; API-compatible future boundary | Product roadmap |
 | OD-011 | Event demo dataset | Synthetic Atlas/Draco portfolio | Demo build |
 | OD-012 | Default deployment | Docker Compose/OCI on Linux with external PostgreSQL supported | R1 deployment |
+| OD-013 | Jira Cloud app distribution, OAuth callback and client-secret delivery for customer-hosted installs | No live OAuth onboarding until a policy-compliant distributable app and callback/secret model is approved | Before public Jira OAuth onboarding |
+| OD-014 | Jira comment body/author receipt, retention, visibility and deletion policy | Do not call comment endpoints or retain body/author data until an explicit privacy/retention policy is approved | Before comment ingestion |
 
 A change to a recommended default should update the related requirement, ADR or release document.
 
@@ -34,3 +36,11 @@ Under the Product Owner's delegated controller authorization:
 
 No unresolved product direction blocks EPIC-01. These dispositions do not claim
 customer credentials, pilot agreements or deployment approval already exist.
+
+
+## Jira Cloud onboarding and comment-data gates, 2026-09-26
+
+- OD-013 remains open. Atlassian's current [3LO app guidance](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/) states that apps collecting API tokens or instructing customers to create individual 3LO apps do not comply with its cloud app requirements. It recommends one distributable app, and requires the runtime `redirect_uri` to match the callback configured in the app. The product is customer-hosted and its approved architecture has no vendor-operated control plane, so callback reachability, shared app registration, client-secret delivery and installation lifecycle have product and policy consequences. Keep the public callback, onboarding UI and live activation disabled until those consequences have an approved design. Do not direct customers to create their own OAuth app or collect API tokens.
+- OD-014 remains open. Jira comment endpoints return comment bodies along with metadata, so a metadata-only normalizer does not by itself prevent the product from receiving body data. Until purpose, visibility, retention, redaction, deletion and access rules are explicitly approved, do not request Jira comments or persist comment body/author fields. Synthetic redaction fixtures may be used; they are not live connector evidence.
+
+These gates do not prevent progress on issue, selected custom-field, allowlisted changelog, issue-link and explicitly mapped board/sprint adapter work. No Issue #7 criterion or accepted-story count changes from this disposition.

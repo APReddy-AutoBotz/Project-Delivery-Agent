@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-24
+Updated: 2026-09-26
 
 ## Accepted implementation completion
 
@@ -18,6 +18,19 @@ accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://gith
 R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
+
+PR #58 merged the exact reviewed 71-file candidate `5977f08c6a453d079e647814cafd4ace425a5df1` as `8d9700da69b45f033c5304b1c09999680f49fd34`; the merge tree equals candidate tree `671090e3b46fae3b1e245f295093587bb5a0ca7c`, with ordered parents `4fc1b24f3ece9c10cce30ee6dc054455b5777b6e` and candidate. Both exact-head workflows passed, including isolated TLS/OIDC, packaged profiles, upgrade and whole-database recovery. The branch adds OAuth refresh, verified read-only webhook wakeups and scheduled Jira reconciliation, while proposals remain separate from canonical facts. The merge has 13 migrations and 63 business tables; earlier runtime checkpoint counts of 12 migrations/61 tables are superseded.
+
+Post-merge main Foundation run [36181813845](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36181813845) completed successfully on attempt 2. The targeted Browser workflows retry [108244821250](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36181813845) passed, isolated production-boundary job 108244822443 passed, and main Documentation run [36181813787](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36181813787) passed.
+
+The read-only Jira adapter now projects issue links only when both endpoints
+are in the active scope, allowlisted changelog fields, and board/sprint records
+through explicit board-to-project mappings. Changelog and relation IDs are
+numeric and stable; unmapped or out-of-scope data is withheld. Sprint features
+check the configured Jira Software scopes. Comments remain disabled under
+OD-014; OAuth callback/onboarding and live activation remain disabled under
+OD-013. No acceptance checkbox, story total, release hold, source-fact
+publication or external write changes here.
 
 PR #55 merged candidate `e5b03c3` as `937fee1` on 2026-09-22. The internal
 read-only connector contract and mapped CSV dry-run core are now on main: 103
@@ -44,20 +57,7 @@ acceptance remains withheld for unchanged shared GOLDEN-003 health/answer behavi
 No accepted-story count changes. Current distribution has 802 unresolved High/Critical
 scanner occurrences and five open release gates, not customer-release approval.
 
-Next branch `codex/durable-ingestion-persistence` starts from the verified PR55
-merge. [EXEC-009](exec-plans/EXEC-009-read-only-ingestion.md) records the next coherent
-stage: durable scoped source/import proposals and row outcomes, replay/revision
-deduplication, atomic cursor/health progress and authorized services, with native
-race/restart, populated-nine-schema upgrade and encrypted recovery evidence.
-Preparation found that existing fact history, SQL proof validators and presentation
-assume human statements; connector-instance IDs are not per-fact stream IDs.
-Publishing genuine source facts requires a coupled identity/provenance design,
-not a fabricated human actor. The concrete schema/role design still requires review
-before implementation. Jira/OAuth/webhooks/XLSX/upload/commit remain in full scope.
-No further runtime, permission, schema, UI/colour, dependency or external scope
-change is claimed by this postmerge record. The local failure history remains in
-EXEC-009; normal parallel hosted units passed without relaxing assertions or limits.
-
+The PR #55-era durable-ingestion preparation is historical: durable proposal persistence and service controls subsequently landed in the Stage 2 batch. Source proposals remain separate from the human fact ledger; connector-instance identity is not a per-fact stream identity. Live source publication remains outside this increment until its coupled provenance design is approved.
 ## EXEC-009 Stage 2 implementation checkpoint
 
 The reviewed synthetic-first design is now implemented locally as an additive

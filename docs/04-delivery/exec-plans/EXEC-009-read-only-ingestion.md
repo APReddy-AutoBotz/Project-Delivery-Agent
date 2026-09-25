@@ -7,7 +7,7 @@ FR-MOD-007, FR-EVD-001/002/011, NFR-SEC-001/002/004/005/006/008,
 NFR-REL-001, NFR-MNT-002, TR-JIRA-002, TR-TEST-003
 GitHub issue: #7 (EPIC-02, STORY-006..009)
 Target release: R1
-Last updated: 2026-09-24
+Last updated: 2026-09-26
 
 ## Objective
 
@@ -539,3 +539,43 @@ encrypted recovery validation are pending because the Docker service is unavaila
 The default `pdaa` database was not used. Implementation, Issue #7 acceptance and
 story totals remain separate: native database validation, independent exact-code
 review and matching CI are still required before this checkpoint can advance.
+
+
+## Post-PR #58 implementation stage and unresolved activation gates, 2026-09-26
+
+PR #58 merged candidate `5977f08c6a453d079e647814cafd4ace425a5df1` as merge `8d9700da69b45f033c5304b1c09999680f49fd34`; the final tree is unchanged from candidate tree `671090e3b46fae3b1e245f295093587bb5a0ca7c`. The merge has 13 migration entries and 63 business tables. The candidate passed both required workflows and the isolated production-boundary package/TLS/OIDC/customer-profile/upgrade/recovery checks. Post-merge Foundation run `36181813845` completed successfully on attempt 2. The targeted Browser workflows retry `108244821250` and isolated production-boundary job `108244822443` passed; Documentation run `36181813787` passed.
+
+### Bounded Jira entity projections
+
+The adapter exposes read-only issue-link records only when both endpoints map to
+the active project scope; it normalizes changelog items only for explicitly
+mapped fields; and it reads boards and sprints only through explicit
+board-to-project mappings. It retains numeric Jira IDs for relation/changelog
+identity, validates every source against the active project allowlist, and
+never enumerates site-wide boards. Issue links, boards and sprints without
+reliable source modification timestamps use content-derived revisions and
+snapshot observation times. Changelog revisions use the Jira history timestamp,
+history ID and item ordinal. The versioned first-party cursor remains bounded to
+2,048 characters, and entity pages stay within the connector's 100-record cap.
+
+The adapter continues to keep `jira.js` types inside
+`@pdaa/connectors-jira`. Synthetic tests cover endpoint scope, repeated link
+deduplication, identity and content revisions, Date coercion, mapped-field
+redaction, bounded paging, malformed cursor/page progress, and selected-site
+scope failures. No new database migration or API route is introduced by this
+projection layer.
+
+Comment reads remain disabled under OD-014 because Jira returns body data with
+comment metadata. Public OAuth onboarding, customer-specific app setup and live
+activation remain gated by OD-013. The adapter does not write to Jira or publish
+source values as canonical facts. AC-CON-001/003, AC-MNT-003, Issue #7 story
+acceptance and accepted-story totals remain open.
+
+### Verified PR #58 merge
+
+- Candidate/head: `5977f08c6a453d079e647814cafd4ace425a5df1`; tree: `671090e3b46fae3b1e245f295093587bb5a0ca7c`; base: `4fc1b24f3ece9c10cce30ee6dc054455b5777b6e`; 71 changed files.
+- Merge: `8d9700da69b45f033c5304b1c09999680f49fd34`, tree identical to candidate; ordered parents base then candidate. Main ref was verified at merge SHA.
+- Exact-candidate Foundation run 182 and Documentation run 240 passed. Foundation evidence includes 1,508 unit tests/78 files, 129 integration tests/10 files, 33 browser journeys, architecture/contracts, migration/seed, recovery and production-boundary customer-profile tests. Production-boundary acceptance includes TLS/OIDC and packaged, upgrade and whole-database restore profiles.
+- Distribution review evidence is complete but release remains blocked by all five review gates and trusted signing. The Codex Security launcher did not produce a scan ID; manual review is not an automated scanner result. No live Jira account, OAuth UI, comment reads or canonical fact publication is claimed.
+
+Earlier Stage 1–4 sections are historical descriptions of those batches. This post-merge section governs next implementation work and does not close their remaining acceptance criteria.

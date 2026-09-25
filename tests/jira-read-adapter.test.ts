@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { ConnectorChangePage } from "@pdaa/domain";
 import {
   createJiraReadOnlyConnector,
+  parseJiraReadAdapterOptions,
+  type JiraReadAdapterConfig,
   type JiraReadClient,
 } from "../packages/connectors-jira/src/index.js";
 
@@ -91,6 +94,20 @@ function fake(overrides: Partial<JiraReadClient> = {}) {
     adapter: createJiraReadOnlyConnector(client, config),
     calls,
     client,
+  };
+}
+
+function configured(
+  overrides: Partial<JiraReadClient> = {},
+  configOverrides: Partial<JiraReadAdapterConfig> = {},
+) {
+  const fixture = fake(overrides);
+  return {
+    ...fixture,
+    adapter: createJiraReadOnlyConnector(fixture.client, {
+      ...config,
+      ...configOverrides,
+    }),
   };
 }
 
@@ -382,4 +399,456 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
       "testConnection",
     ]);
   });
+
+  it("requires explicit project-bound board mappings and rejects unsupported entity options", () => {
+    const baseOptions = { projects: config.projects, fields: config.fields };
+    expect(() =>
+      parseJiraReadAdapterOptions({
+        ...baseOptions,
+        entities: { sprints: true },
+      }),
+    ).toThrow();
+    expect(() =>
+      parseJiraReadAdapterOptions({
+        ...baseOptions,
+        entities: { sprints: true },
+        boards: [
+          {
+            boardId: 42,
+            projectId: "10000000-0000-4000-8000-000000000005",
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      parseJiraReadAdapterOptions({
+        ...baseOptions,
+        entities: { sprints: false },
+        boards: [{ boardId: 42, projectId }],
+      }),
+    ).toThrow();
+    expect(() =>
+      parseJiraReadAdapterOptions({
+        ...baseOptions,
+        entities: { comments: true },
+      }),
+    ).toThrow();
+  });
+
+  it("pages issue links, de-duplicates each relation and keeps both endpoints inside the active scope", async () => {
+    const links = Array.from({ length: 26 }, (_, index) => ({
+      id: String(index + 1),
+      type: { id: "10000", name: "relates to" },
+      outwardIssue: { key: "SAFE-" + String(index + 2) },
+    }));
+    const inverse = {
+      id: "1",
+      type: { id: "10000", name: "relates to" },
+      inwardIssue: { key: "SAFE-1" },
+    };
+    const withLinks = (key: string, selected: unknown[]) => ({
+      ...issue(key),
+      id: key === "SAFE-2" ? "502" : "501",
+      fields: { ...issue(key).fields, issuelinks: selected },
+    });
+    const searchCalls: Array<{
+      maxResults: number;
+      token?: string;
+      fields: string[];
+    }> = [];
+    const fixture = configured(
+      {
+        async searchIssues(input) {
+          searchCalls.push({
+            maxResults: input.maxResults,
+            token: input.nextPageToken,
+            fields: input.fields,
+          });
+          if (input.maxResults > 1)
+            return { issues: [issue("SAFE-1"), issue("SAFE-2")], isLast: true };
+          if (input.nextPageToken === "issue-2")
+            return {
+              issues: [withLinks("SAFE-2", [inverse])],
+              isLast: true,
+            };
+          return {
+            issues: [withLinks("SAFE-1", links)],
+            nextPageToken: "issue-2",
+            isLast: false,
+          };
+        },
+        async getIssue({ issueIdOrKey }) {
+          return withLinks(
+            issueIdOrKey,
+            issueIdOrKey === "SAFE-1" ? links : [inverse],
+          );
+        },
+        async getIssueLink() {
+          return {
+            id: "1",
+            type: { id: "10000", name: "relates to" },
+            inwardIssue: { key: "SAFE-1" },
+            outwardIssue: { key: "SAFE-2" },
+          };
+        },
+      },
+      { entities: { issueLinks: true }, pageSize: 50 },
+    );
+    const pages: ConnectorChangePage[] = [];
+    let cursor: string | null = null;
+    for (let index = 0; index < 5; index += 1) {
+      const result = await fixture.adapter.pullChanges({ scope, cursor });
+      if (!result.ok) throw new Error(result.failure.code);
+      pages.push(result.value);
+      if (result.value.terminal) break;
+      cursor = result.value.nextCursor;
+    }
+    const linkRecords = pages.flatMap((page) =>
+      page.records.filter((record) => record.ref.recordType === "jira.issue_link"),
+    );
+    expect(linkRecords).toHaveLength(26);
+    expect(new Set(linkRecords.map((record) => record.ref.recordId)).size).toBe(26);
+    expect(linkRecords.some((record) => record.ref.recordId === "26")).toBe(true);
+    expect(
+      searchCalls
+        .filter((call) => call.maxResults === 1)
+        .every((call) => call.fields.includes("issuelinks")),
+    ).toBe(true);
+
+    const alternate = configured(changelogClient, {
+      entities: { changelog: true },
+      fields: config.fields.map((field) =>
+        field.jiraField === "summary"
+          ? { ...field, factType: "jira.title" }
+          : field,
+      ),
+    });
+    const alternatePages: ConnectorChangePage[] = [];
+    let alternateCursor: string | null = null;
+    for (let index = 0; index < 5; index += 1) {
+      const result = await alternate.adapter.pullChanges({
+        scope,
+        cursor: alternateCursor,
+      });
+      if (!result.ok) throw new Error(result.failure.code);
+      alternatePages.push(result.value);
+      if (result.value.terminal) break;
+      alternateCursor = result.value.nextCursor;
+    }
+    const alternateRecords = alternatePages.flatMap((page) =>
+      page.records.filter((record) => record.ref.recordType === "jira.changelog"),
+    );
+    expect(
+      alternateRecords.map((record) => [
+        record.ref.recordId,
+        record.revision,
+        record.sourceContentHash,
+      ]),
+    ).toEqual(
+      changeRecords.map((record) => [
+        record.ref.recordId,
+        record.revision,
+        record.sourceContentHash,
+      ]),
+    );
+    expect(alternateRecords[0]?.observations[0]?.factType).toBe("jira.title");
+
+    const fetched = await fixture.adapter.getRecord(scope, {
+      customerId,
+      sourceId,
+      projectId,
+      recordType: "jira.issue_link",
+      recordId: "1",
+    });
+    expect(fetched).toMatchObject({
+      ok: true,
+      value: { ref: { projectId, recordType: "jira.issue_link", recordId: "1" } },
+    });
+    if (fetched.ok)
+      expect(fetched.value.observations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ factType: "jira.issue_link.type" }),
+          expect.objectContaining({ factType: "jira.issue_link.inward" }),
+          expect.objectContaining({ factType: "jira.issue_link.outward" }),
+        ]),
+      );
+  });
+
+  it("withholds links to unmapped and currently out-of-scope projects", async () => {
+    const exposed = [
+      {
+        id: "11",
+        type: { name: "blocks" },
+        outwardIssue: { key: "OTHER-3" },
+      },
+      {
+        id: "12",
+        type: { name: "relates to" },
+        outwardIssue: { key: "UNMAPPED-4" },
+      },
+    ];
+    const linkedIssue = {
+      ...issue("SAFE-1"),
+      fields: { ...issue("SAFE-1").fields, issuelinks: exposed },
+    };
+    const fixture = configured(
+      {
+        async searchIssues(input) {
+          return { issues: [linkedIssue], isLast: true };
+        },
+      },
+      { entities: { issueLinks: true } },
+    );
+    const first = await fixture.adapter.pullChanges({ scope, cursor: null });
+    if (!first.ok) throw new Error(first.failure.code);
+    const second = await fixture.adapter.pullChanges({
+      scope,
+      cursor: first.value.nextCursor,
+    });
+    if (!second.ok) throw new Error(second.failure.code);
+    expect(
+      [...first.value.records, ...second.value.records].some(
+        (record) => record.ref.recordType === "jira.issue_link",
+      ),
+    ).toBe(false);
+    expect(JSON.stringify([first.value, second.value])).not.toContain("OTHER-3");
+    expect(JSON.stringify([first.value, second.value])).not.toContain("UNMAPPED-4");
+  });
+
+  it("normalizes only mapped changelog items, paginates them and accepts SDK Date values", async () => {
+    const history = {
+      id: "91",
+      created: new Date("2026-09-20T12:30:00.000Z"),
+      author: {
+        displayName: "Private Jira author",
+        emailAddress: "private@example.test",
+      },
+      items: Array.from({ length: 27 }, (_, index) =>
+        index === 24
+          ? {
+              fieldId: "customfield_10001",
+              field: "Custom size",
+              from: "3.5",
+              to: "4.5",
+              toString: "4.5",
+            }
+          : index === 25
+            ? {
+                fieldId: "description",
+                field: "Description",
+                fromString: "old private text",
+                toString: "UNMAPPED CHANGELOG SECRET",
+              }
+            : {
+                fieldId: "summary",
+                field: "Summary",
+                fromString: "Previous " + String(index),
+                toString: "Mapped summary " + String(index),
+                from: "previous",
+                to: "current",
+              },
+      ),
+    };
+    const starts: number[] = [];
+    const changelogClient: Partial<JiraReadClient> = {
+      async getChangeLogs(input) {
+        starts.push(input.startAt);
+        return { histories: [history], startAt: input.startAt, total: 1 };
+      },
+      async getIssue() {
+        return issue("SAFE-1");
+      },
+      async getChangeLogsByIds() {
+        return { histories: [history] };
+      },
+    };
+    const fixture = configured(changelogClient, {
+      entities: { changelog: true },
+    });
+    const pages: ConnectorChangePage[] = [];
+    let cursor: string | null = null;
+    for (let index = 0; index < 5; index += 1) {
+      const result = await fixture.adapter.pullChanges({ scope, cursor });
+      if (!result.ok) throw new Error(result.failure.code);
+      pages.push(result.value);
+      if (result.value.terminal) break;
+      cursor = result.value.nextCursor;
+    }
+    const changeRecords = pages.flatMap((page) =>
+      page.records.filter((record) => record.ref.recordType === "jira.changelog"),
+    );
+    expect(changeRecords).toHaveLength(26);
+    expect(starts).toEqual([0, 0, 0]);
+    expect(changeRecords[0]).toMatchObject({
+      ref: {
+        projectId,
+        recordType: "jira.changelog",
+        recordId: "501:91:0",
+      },
+      effectiveAt: "2026-09-20T12:30:00.000Z",
+      observations: [
+        {
+          factType: "jira.summary",
+          value: { type: "text", value: "Mapped summary 0" },
+        },
+      ],
+    });
+    expect(changeRecords.find((record) => record.ref.recordId === "501:91:24")).toMatchObject({
+      observations: [
+        { factType: "jira.size", value: { type: "number", value: 4.5 } },
+      ],
+    });
+    const serialized = JSON.stringify(changeRecords);
+    expect(serialized).not.toContain("Private Jira author");
+    expect(serialized).not.toContain("private@example.test");
+    expect(serialized).not.toContain("UNMAPPED CHANGELOG SECRET");
+
+    const fetched = await fixture.adapter.getRecord(scope, {
+      customerId,
+      sourceId,
+      projectId,
+      recordType: "jira.changelog",
+      recordId: "501:91:0",
+    });
+    expect(fetched).toMatchObject({ ok: true, value: changeRecords[0] });
+  });
+
+  it("reads only explicitly mapped boards and their sprints with stable IDs and timestamp values", async () => {
+    const sprint = {
+      id: 7,
+      name: "Delivery sprint",
+      state: "active",
+      originBoardId: 42,
+      startDate: new Date("2026-09-01T09:00:00.000Z"),
+      endDate: new Date("2026-09-15T17:00:00.000Z"),
+      completeDate: new Date("2026-09-15T16:00:00.000Z"),
+    };
+    const fixture = configured(
+      {
+        async getBoard({ boardId }) {
+          return { id: boardId, name: "Delivery Board", type: "scrum" };
+        },
+        async getSprints(input) {
+          return {
+            startAt: input.startAt,
+            maxResults: input.maxResults,
+            total: 1,
+            isLast: true,
+            values: [sprint],
+          };
+        },
+        async getSprint() {
+          return sprint;
+        },
+      },
+      {
+        entities: { sprints: true },
+        boards: [{ boardId: 42, projectId }],
+      },
+    );
+    const connected = await fixture.adapter.testConnection(scope);
+    expect(connected).toMatchObject({ ok: true });
+    const initial = await fixture.adapter.pullChanges({ scope, cursor: null });
+    if (!initial.ok) throw new Error(initial.failure.code);
+    const page = await fixture.adapter.pullChanges({
+      scope,
+      cursor: initial.value.nextCursor,
+    });
+    if (!page.ok) throw new Error(page.failure.code);
+    expect(page.value.terminal).toBe(true);
+    expect(page.value.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ref: { customerId, sourceId, projectId, recordType: "jira.board", recordId: "42" },
+          observations: expect.arrayContaining([
+            { factType: "jira.board.name", value: { type: "text", value: "Delivery Board" } },
+          ]),
+        }),
+        expect.objectContaining({
+          ref: { customerId, sourceId, projectId, recordType: "jira.sprint", recordId: "42:7" },
+          effectiveAt: "2026-09-24T00:00:00.000Z",
+          observations: expect.arrayContaining([
+            { factType: "jira.sprint.start_at", value: { type: "text", value: "2026-09-01T09:00:00.000Z" } },
+            { factType: "jira.sprint.end_at", value: { type: "text", value: "2026-09-15T17:00:00.000Z" } },
+            { factType: "jira.sprint.completed_at", value: { type: "text", value: "2026-09-15T16:00:00.000Z" } },
+          ]),
+        }),
+      ]),
+    );
+    const fetched = await fixture.adapter.getRecord(scope, {
+      customerId,
+      sourceId,
+      projectId,
+      recordType: "jira.sprint",
+      recordId: "42:7",
+    });
+    expect(fetched).toMatchObject({
+      ok: true,
+      value: { ref: { recordType: "jira.sprint", recordId: "42:7" } },
+    });
+    expect(
+      fixture.adapter.getDeepLink(scope, {
+        customerId,
+        sourceId,
+        projectId,
+        recordType: "jira.sprint",
+        recordId: "42:7",
+      }),
+    ).toBe("https://acme.atlassian.net/secure/RapidView.jspa?rapidView=42");
+  });
+
+  it("rejects noncanonical or inconsistent continuation state and malformed remote pages", async () => {
+    const fixture = configured(
+      {
+        async searchIssues() {
+          return { issues: [], isLast: false, nextPageToken: "same-token" };
+        },
+      },
+      { entities: { issueLinks: true } },
+    );
+    const result = await fixture.adapter.pullChanges({
+      scope,
+      cursor: '["j1","l","same-token",null,0]',
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      failure: { code: "INVALID_RESPONSE" },
+    });
+  });
+
+
+  it("rejects a relation endpoint whose present Jira object has no issue key", async () => {
+    const malformed = {
+      ...issue("SAFE-1"),
+      fields: {
+        ...issue("SAFE-1").fields,
+        issuelinks: [
+          {
+            id: "4",
+            type: { id: "10000", name: "relates to" },
+            outwardIssue: {},
+          },
+        ],
+      },
+    };
+    const fixture = configured(
+      {
+        async searchIssues(input) {
+          return { issues: [malformed], isLast: true };
+        },
+      },
+      { entities: { issueLinks: true } },
+    );
+    const first = await fixture.adapter.pullChanges({ scope, cursor: null });
+    if (!first.ok) throw new Error(first.failure.code);
+    const second = await fixture.adapter.pullChanges({
+      scope,
+      cursor: first.value.nextCursor,
+    });
+    expect(second).toMatchObject({
+      ok: false,
+      failure: { code: "INVALID_RESPONSE" },
+    });
+  });
+
 });

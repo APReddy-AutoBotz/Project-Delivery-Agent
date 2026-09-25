@@ -1,5 +1,19 @@
 # Decision Log
 
+## EXEC-009 Jira Cloud distribution and comment-data gates, 2026-09-26
+
+Current Atlassian guidance says apps that collect API tokens or instruct customers to create individual OAuth 2.0 3LO apps do not comply with its cloud app requirements; it recommends one distributable 3LO app. The configured OAuth redirect URI must exactly match the registered app callback. See [Atlassian 3LO app guidance](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/). The customer-hosted product architecture has no vendor-operated callback/control plane. This creates an unresolved app-distribution, callback reachability and client-secret delivery decision (OD-013). Do not add customer-specific app instructions, token collection, public OAuth callback, onboarding UI or live activation until an approved design resolves it.
+
+Jira comment reads return body data with comment metadata. Do not call comment endpoints or persist comment bodies/authors until OD-014 approves purpose, visibility, access, retention and deletion policy. Continue synthetic redaction work and independent issue/changelog/link/sprint sources. These constraints do not waive Issue #7 scope; AC-CON-001/003 and story acceptance stay open.
+
+## EXEC-009 PR #58 merge and current integration boundary, 2026-09-26
+
+PR #58 merged the exact reviewed 71-file candidate `5977f08c6a453d079e647814cafd4ace425a5df1` as `8d9700da69b45f033c5304b1c09999680f49fd34`. The merge tree equals the candidate tree `671090e3b46fae3b1e245f295093587bb5a0ca7c`; ordered parents are the prior main `4fc1b24f3ece9c10cce30ee6dc054455b5777b6e` and candidate. Exact-candidate Foundation, Documentation, production TLS/OIDC/customer-profile, package, upgrade and recovery gates passed. No source proposals were published as canonical facts and no acceptance totals changed.
+
+The verified PR merge contains 13 migrations and 63 business tables; this corrects earlier checkpoint text that listed 12 and 61. Post-merge Foundation run `36181813845` completed successfully on attempt 2: the targeted Browser workflows retry `108244821250` passed, and isolated production-boundary job `108244822443` passed. Main Documentation run `36181813787` also passed. The exact-candidate and post-merge evidence are distinct; each new PR still requires checks on its exact final head and separate non-author review.
+
+Proceed with bounded synthetic-first Jira issue links, allowlisted changelog fields, selected custom fields, and board/sprint reads through explicit board-to-project mappings. Keep every entity under the first-party connector identity/page contract, enforce project allowlists at both endpoints, check configured OAuth scopes before a source can be healthy, and keep SDK types inside the connector package. Comments remain disabled under OD-014; OAuth callback/onboarding/live activation remain disabled under OD-013. All acceptance criteria remain open until their full evidence is complete.
+
 ## EXEC-009 reviewed spreadsheet import semantics, 2026-09-24
 
 The Product Owner selected durable reviewed-import proposals as the import

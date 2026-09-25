@@ -120,7 +120,7 @@ function hasCode(error: unknown, code: string) {
 }
 
 class JiraRuntimeError extends Error {
-  constructor(readonly code: "STALE_CONFIGURATION") {
+  constructor(readonly code: "STALE_CONFIGURATION" | "MISSING_SCOPE") {
     super(code);
     this.name = "JiraRuntimeError";
   }
@@ -243,6 +243,26 @@ export class JiraRuntimeService {
         )
       )
         throw new JiraRuntimeError("STALE_CONFIGURATION");
+      const requiredScopes = options.entities?.sprints
+        ? [
+            "read:jira-work",
+            "read:board-scope:jira-software",
+            "read:project:jira",
+            "read:sprint:jira-software",
+          ]
+        : ["read:jira-work"];
+      if (requiredScopes.some((scope) => !credentials.scopes.includes(scope)))
+        throw new JiraRuntimeError("MISSING_SCOPE");
+      if (options.entities?.sprints)
+        this.assertSelectedCloud(
+          await getJiraAccessibleResources({
+            accessToken: credentials.accessToken,
+            fetchImpl: this.fetchImpl,
+          }),
+          credentials.cloudId,
+          snapshot.configuration.binding.origin,
+          requiredScopes,
+        );
       const client = createJiraOAuthCloudClient({ cloudId: credentials.cloudId, accessToken: credentials.accessToken });
       const connector = createJiraReadOnlyConnector(client, {
         ...options,
@@ -278,10 +298,17 @@ export class JiraRuntimeService {
     } catch (error) {
       if (hasCode(error, "STALE_CONFIGURATION"))
         await failRunningJob({ code: "INTEGRITY_CONFLICT" });
+      else if (hasCode(error, "MISSING_SCOPE"))
+        await failRunningJob({ code: "PERMISSION_DENIED" });
       else if (hasCode(error, "CURSOR_CONFLICT"))
         await failRunningJob({ code: "CURSOR_CONFLICT" });
       else if (hasCode(error, "CONFLICT"))
         await failRunningJob({ code: "TEMPORARILY_UNAVAILABLE", retryAfterMs: 15_000 });
+      else if (error instanceof JiraOAuthError)
+        await failRunningJob({
+          code: error.code,
+          retryAfterMs: error.retryAfterMs,
+        });
       else
         await failRunningJob({ code: "INVALID_RESPONSE" });
       return { status: "deferred" as const };
@@ -303,9 +330,18 @@ export class JiraRuntimeService {
     return "TEMPORARILY_UNAVAILABLE";
   }
 
-  private assertSelectedCloud(resources: readonly { cloudId: string; url: string; scopes: string[] }[], cloudId: string, selectedUrl: string) {
+  private assertSelectedCloud(
+    resources: readonly { cloudId: string; url: string; scopes: string[] }[],
+    cloudId: string,
+    selectedUrl: string,
+    requiredScopes: readonly string[] = ["read:jira-work"],
+  ) {
     const resource = resources.find((candidate) => candidate.cloudId === cloudId);
-    if (!resource || resource.url !== selectedUrl || !resource.scopes.includes("read:jira-work"))
+    if (
+      !resource ||
+      resource.url !== selectedUrl ||
+      requiredScopes.some((scope) => !resource.scopes.includes(scope))
+    )
       throw new JiraOAuthError("PERMISSION_DENIED");
   }
 }

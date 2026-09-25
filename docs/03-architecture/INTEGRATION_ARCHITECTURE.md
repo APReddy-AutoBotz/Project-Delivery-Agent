@@ -70,13 +70,18 @@ Write:
 
 Authentication:
 
-- OAuth 2.0 3LO preferred for production
-- Customer-owned app registration or approved integration account
+- OAuth 2.0 3LO is the intended Jira Cloud authorization mechanism, subject to OD-013.
+- Do not collect API tokens or instruct customers to create individual 3LO apps. Use only an approved distributable-app model.
+- The OAuth callback must match the registered app callback; callback reachability and client-secret delivery for customer-hosted installs are unresolved.
 - Encrypted refresh tokens
 - Atomic refresh-token rotation
 - Read-only mode
+- Keep public onboarding and live activation disabled until OD-013 is resolved.
 
 ### Current implementation boundary
+
+**Current authorization and data gates:** Atlassian's [3LO guidance](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/) prohibits collecting API tokens or directing customers to create individual OAuth apps and recommends a single distributable app. The OAuth `redirect_uri` must match the callback registered for that app. This product's customer-hosted deployment and no-vendor-control-plane requirement leave callback routing and client-secret distribution open (OD-013). No public authorization callback, onboarding UI, customer-specific app setup or live activation is enabled. Jira comment endpoints return comment bodies alongside metadata; comment reads are disabled until OD-014 approves retention, access, visibility, redaction and deletion rules.
+
 
 `@pdaa/connectors-jira` is the first Jira Cloud adapter. Its caller supplies a
 trusted, explicit mapping between internal project UUIDs and Jira project keys,
@@ -100,9 +105,16 @@ source/project grants.
 There is no public OAuth authorization callback or onboarding UI in this
 increment; OAuth credentials must be supplied through a separately authorized
 operator handoff. Jira writes and canonical fact publication remain disabled.
-Sprint, comment, full changelog and linked-issue observation normalization, plus
-spreadsheet upload/commit, remain later EXEC-009 work. No live Jira account or
-production credential has been activated.
+The read-only adapter's bounded entity projections cover issue links only when
+both endpoints map to the active scope, changelog items only for explicitly
+mapped fields, and board/sprint records only through explicit board-to-project
+mappings. Board and sprint reads require the configured Jira Software scopes;
+board enumeration does not widen project selection. Linked and historical values
+remain proposals and keep their source IDs and content revisions.
+
+Comment reads remain disabled under OD-014; spreadsheet import commits save
+reviewed proposals only. No live Jira account or production credential has been
+activated, and OD-013 still blocks public OAuth onboarding and live activation.
 
 ## Spreadsheet integration
 
