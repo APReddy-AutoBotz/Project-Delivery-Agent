@@ -170,14 +170,6 @@ type JiraIssue = {
   self?: string;
   fields: Record<string, unknown>;
 };
-type JiraHistoryItem = {
-  field?: unknown;
-  fieldId?: unknown;
-  from?: unknown;
-  to?: unknown;
-  fromString?: unknown;
-  toString?: unknown;
-};
 type JiraHistory = {
   id?: unknown;
   created?: unknown;
