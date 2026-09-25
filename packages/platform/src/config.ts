@@ -121,6 +121,14 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     throw new Error(
       "Production requires customer deployment, separated file secrets and verified TLS",
     );
+  if (
+    c.NODE_ENV === "production" &&
+    (c.JIRA_OAUTH_CLIENT_ID || c.JIRA_OAUTH_CLIENT_SECRET) &&
+    !env.JIRA_OAUTH_CLIENT_SECRET_FILE
+  )
+    throw new Error(
+      "Production Jira OAuth requires a mounted client secret file",
+    );
   if (c.AUTH_MODE === "development" && !c.SESSION_SECRET)
     throw new Error("Development identity requires SESSION_SECRET");
   if (Buffer.from(c.ENCRYPTION_KEY, "base64").length !== 32)

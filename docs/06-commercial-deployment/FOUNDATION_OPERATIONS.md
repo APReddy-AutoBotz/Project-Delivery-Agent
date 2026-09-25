@@ -86,6 +86,13 @@ until renewed or expired. Administrative roles do not grant project/portfolio
 business access. Restore the prior environment mapping and recreate the API to
 reverse a mapping change. See [the acceptance scope](../05-quality/OIDC_CONFIGURATION_VALIDATION.md).
 
+If Jira OAuth is configured in a future customer deployment, keep the client ID in
+non-secret runtime configuration and mount the client secret as a read-only file
+available to the API. Set `JIRA_OAUTH_CLIENT_SECRET_FILE` to its path; production
+rejects `JIRA_OAUTH_CLIENT_SECRET` supplied directly through the environment. Do not
+put the client secret in the operator env file or command line. This setting does
+not activate a live Jira connection, approve additional scopes, or enable Jira writes.
+
 ## Internal milestone reconciliation
 
 FR-EVD-004/009/012, FR-MOD-002, FR-ADM-005, NFR-SEC-001/004/005 and
