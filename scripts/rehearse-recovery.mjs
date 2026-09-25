@@ -169,6 +169,8 @@ try {
     "IngestionReceiptProjectScope",
     "IngestionCursorTransition",
     "IngestionRowOutcome",
+    "IngestionReviewedImport",
+    "IngestionReviewedImportRow",
     "ConnectorSyncGrant",
     "ConnectorSyncJob",
     "ConnectorWebhookReceipt",
@@ -243,6 +245,8 @@ try {
     "IngestionReceiptProjectScope",
     "IngestionCursorTransition",
     "IngestionRowOutcome",
+    "IngestionReviewedImport",
+    "IngestionReviewedImportRow",
     "ConnectorWebhookReceipt",
     "IngestionSyncReceiptProjectScope",
   ]) {
@@ -265,7 +269,7 @@ try {
   if (visible.length !== 1 || visible[0].code !== "ATL")
     throw new Error("Restored permissions differ");
   console.log(
-    `Recovery passed: all 61 business tables and the migration ledger match exactly; ingestion receipt, outcome, cursor, revision, projection, configuration and canonical history mutations were rejected. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all 63 business tables and the migration ledger match exactly; ingestion receipt, reviewed import, outcome, cursor, revision, projection, configuration and canonical history mutations were rejected. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

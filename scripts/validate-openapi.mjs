@@ -12,6 +12,8 @@ export function assertContractSnapshot(actual, committed) {
 export function compileContract(document) {
   const ajv = new Ajv({ strict: true, allErrors: false });
   addFormats(ajv);
+  // OpenAPI uses this media-specific marker for multipart file parts.
+  ajv.addFormat("binary", () => true);
   const responses = new Map(),
     requests = new Map();
   for (const [path, item] of Object.entries(document.paths))
@@ -34,15 +36,23 @@ export function compileContract(document) {
           throw new Error("Missing response schema: " + key + " " + status);
         responses.set(key + " " + status, schema ? ajv.compile(schema) : null);
       }
-      if (operation.requestBody)
-        requests.set(
-          key,
-          ajv.compile(operation.requestBody.content["application/json"].schema),
+      if (operation.requestBody) {
+        const validators = new Map(
+          Object.entries(operation.requestBody.content ?? {}).map(
+            ([mediaType, content]) => [mediaType, ajv.compile(content.schema)],
+          ),
         );
+        if (validators.size === 0)
+          throw new Error("Missing request schema: " + key);
+        requests.set(key, validators);
+      }
     }
   return {
-    request(method, path, value) {
-      const validate = requests.get(method.toLowerCase() + " " + path);
+    request(method, path, value, contentType) {
+      const validators = requests.get(method.toLowerCase() + " " + path);
+      const mediaType = contentType?.split(";", 1)[0]?.trim()
+        ?? (validators?.has("application/json") ? "application/json" : validators?.keys().next().value);
+      const validate = mediaType ? validators?.get(mediaType) : undefined;
       if (!validate || !validate(value))
         throw new Error("Request violates published contract");
     },

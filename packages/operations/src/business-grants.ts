@@ -48,7 +48,7 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT UPDATE (sealed) ON "MilestoneReconciliationRequest" TO pdaa_api;
     GRANT SELECT,INSERT ON "ScalarReconciliationRequest","ScalarReconciliationCheck","ScalarReconciliationAssignment" TO pdaa_api;
     GRANT UPDATE (sealed) ON "ScalarReconciliationRequest" TO pdaa_api;
-    GRANT SELECT,INSERT ON "IngestionSource","IngestionConfigurationRevision","IngestionConfigurationProject","IngestionConfigurationReader","IngestionRetentionPolicy","IngestionExternalRecord","IngestionFactStream","IngestionSourceRevision","IngestionProposalProjection","IngestionProposalContent","IngestionOperationReceipt","IngestionReceiptProjectScope","IngestionCursorTransition","IngestionRowOutcome" TO pdaa_api;
+    GRANT SELECT,INSERT ON "IngestionSource","IngestionConfigurationRevision","IngestionConfigurationProject","IngestionConfigurationReader","IngestionRetentionPolicy","IngestionExternalRecord","IngestionFactStream","IngestionSourceRevision","IngestionProposalProjection","IngestionProposalContent","IngestionOperationReceipt","IngestionReceiptProjectScope","IngestionCursorTransition","IngestionRowOutcome","IngestionReviewedImport","IngestionReviewedImportRow" TO pdaa_api;
     GRANT SELECT,INSERT ON "ConnectorSyncGrant" TO pdaa_api;
     GRANT UPDATE ("configRevision",revision,active,"changedBy","auditEventId","changedAt") ON "ConnectorSyncGrant" TO pdaa_api;
     GRANT SELECT,INSERT ON "ConnectorSyncJob" TO pdaa_api;

@@ -15,6 +15,7 @@ import {
 } from "./canonical-project.js";
 import "./style.css";
 import { ProjectEvidence } from "./project-evidence.js";
+import { CsvIngestion } from "./csv-ingestion.js";
 import { savedScalarReconciliationLink } from "./scalar-reconciliation.js";
 import {
   MilestoneReconciliation,
@@ -46,7 +47,7 @@ type AuthConfig = {
   scope: string;
   resource?: string;
 };
-type Actor = { subject: string; roles: string[] };
+type Actor = { subject: string; roles: string[]; customerId: string };
 type Project = {
   id: string;
   code: string;
@@ -91,10 +92,11 @@ function useProtectedQuery<T>(options: UseQueryOptions<T>) {
 }
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const requestToken = accessToken;
+  const isMultipart = typeof FormData !== "undefined" && init.body instanceof FormData;
   const response = await fetch("/api" + path, {
     ...init,
     headers: {
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(init.body && !isMultipart ? { "Content-Type": "application/json" } : {}),
       ...(requestToken ? { Authorization: "Bearer " + requestToken } : {}),
     },
   });
@@ -167,7 +169,7 @@ function App() {
   const [signedIn, setSignedIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [view, setView] = useState<"projects" | "platform">("projects");
+  const [view, setView] = useState<"projects" | "platform" | "ingestion">("projects");
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [linkedAssessment, setLinkedAssessment] = useState<string | null>(null);
@@ -215,6 +217,7 @@ function App() {
   const admin = me.data?.roles.some((r) =>
     ["system_admin", "pmo_admin"].includes(r),
   );
+  const pmoAdmin = me.data?.roles.includes("pmo_admin");
   const retainedProject =
     project.data ?? (!denied(project.error) ? project.lastData : undefined);
   const setup = useProtectedQuery({
@@ -492,6 +495,17 @@ function App() {
               <span aria-hidden="true">⚙</span> Platform & access
             </Button>
           )}
+          {pmoAdmin && (
+            <Button
+              className={view === "ingestion" ? "active" : ""}
+              onClick={() => {
+                navigateProject();
+                setView("ingestion");
+              }}
+            >
+              <span aria-hidden="true">⇧</span> Data imports
+            </Button>
+          )}
         </nav>
         <div className="sidebar-bottom">
           <span className="scope-dot" /> Customer-hosted workspace
@@ -502,7 +516,7 @@ function App() {
         <header className="topbar">
           <span>
             Workspace <span className="slash">/</span>{" "}
-            {view === "projects" ? "Projects" : "Platform"}
+            {view === "projects" ? "Projects" : view === "platform" ? "Platform" : "Data imports"}
           </span>
           <div>
             <span className="pill">
@@ -522,6 +536,8 @@ function App() {
               <h1>
                 {view === "platform"
                   ? "Platform & access"
+                  : view === "ingestion"
+                    ? "Data imports"
                   : selected
                     ? (project.data?.name ?? "Project workspace")
                     : "Your projects"}
@@ -529,6 +545,8 @@ function App() {
               <p className="muted">
                 {view === "platform"
                   ? "Service health, scoped access, and a record of administrative changes."
+                  : view === "ingestion"
+                    ? "Configure a CSV source, review its preview, and save selected proposals."
                   : selected
                     ? "A shared starting point for project evidence and decisions."
                     : "A focused view of the projects you have permission to access."}
@@ -549,6 +567,8 @@ function App() {
           )}
           {view === "platform" && admin ? (
             <PlatformView />
+          ) : view === "ingestion" && pmoAdmin && me.data ? (
+            <CsvIngestion request={request} projects={projects.data ?? []} actor={me.data} />
           ) : creating && setup.data ? (
             <CreateProject
               setup={setup.data}

@@ -40,6 +40,8 @@ const immutableMessages = {
   ConnectorWebhookReceipt: "Connector webhook receipts are immutable",
   IngestionCursorTransition: "Ingestion cursor transition is immutable",
   IngestionRowOutcome: "Ingestion row outcome is immutable",
+  IngestionReviewedImport: "Reviewed import header is immutable",
+  IngestionReviewedImportRow: "Reviewed import row linkage is immutable",
   ...Object.fromEntries(
     canonicalTables.map((table) => [
       table,
@@ -83,6 +85,8 @@ export async function verifyImmutableHistoryMutation(
     IngestionSyncReceiptProjectScope: "receiptId",
     IngestionCursorTransition: "receiptId",
     IngestionRowOutcome: "receiptId",
+    IngestionReviewedImport: "receiptId",
+    IngestionReviewedImportRow: "receiptId",
   }[table] ?? "id";
   const sql =
     operation === "UPDATE"

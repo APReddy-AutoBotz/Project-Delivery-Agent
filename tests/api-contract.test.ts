@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { Console } from "node:console";
 import { createDisclosureCheck } from "../scripts/acceptance/disclosure.mjs";
 import { createApp } from "../apps/api/dist/app.js";
+import { unavailableIngestionRepository } from "../apps/api/dist/ingestion-controller.js";
 import {
   scalarContractFixture,
   scalarScope,
@@ -14,6 +15,7 @@ import {
   IdentityService,
 } from "../packages/platform/dist/index.js";
 import type {
+  IngestionRepository,
   Project,
   ProjectRepository,
 } from "../packages/domain/src/index.js";
@@ -130,7 +132,7 @@ const config = loadConfig({
 });
 let app: Awaited<ReturnType<typeof createApp>>["app"];
 let spec: Awaited<ReturnType<typeof createApp>>["spec"];
-let base: string, operator: string, manager: string;
+let base: string, operator: string, manager: string, pmoPortfolio: string;
 let check: ReturnType<typeof compileContract>;
 const covered = new Set<string>();
 const evidence = evidenceContractFixture();
@@ -153,6 +155,86 @@ const scalarRepository = {
     replayed: false,
   })),
 };
+const ingestionSourceId = "30000000-0000-4000-8000-000000000101";
+const ingestionPreviewId = "30000000-0000-4000-8000-000000000102";
+const ingestionReviewId = "30000000-0000-4000-8000-000000000103";
+const ingestionConfiguration = {
+  binding: {
+    customerId,
+    sourceId: ingestionSourceId,
+    sourceType: "csv-upload",
+    origin: "https://csv-upload.invalid",
+  },
+  projects: [{ projectId: project.id, readers: ["pmo-portfolio"] }],
+  mapping: {
+    kind: "CSV" as const,
+    sheet: "Projects",
+    identityColumn: "Issue ID",
+    projectColumn: "Project ID",
+    fields: [{ column: "Forecast", factType: "project.forecast", type: "date" as const, required: true }],
+  },
+};
+let ingestionConfigured = false;
+const ingestionSource = {
+  sourceId: ingestionSourceId,
+  sourceType: "csv-upload",
+  origin: "https://csv-upload.invalid",
+  configuration: ingestionConfiguration,
+  configRevision: 1,
+  mappingRevision: 1,
+  healthState: "UNKNOWN" as const,
+  healthCode: "NONE" as const,
+  healthCheckedAt: null,
+};
+function ingestionReadReceipt(kind: "CSV_PREVIEW" | "CSV_REVIEWED_IMPORT", id: string) {
+  return {
+    receipt: {
+      id,
+      sourceId: ingestionSourceId,
+      actor: "pmo-portfolio",
+      kind,
+      eventId: null,
+      configRevision: 1,
+      mappingRevision: 1,
+      cursorRevisionBefore: null,
+      cursorRevisionAfter: null,
+      generationBefore: null,
+      generationAfter: null,
+      rowCount: 1,
+      createdAt: "2026-09-25T00:00:00.000Z",
+      parentPreviewReceiptId: kind === "CSV_REVIEWED_IMPORT" ? ingestionPreviewId : null,
+    },
+    outcomes: [{
+      ordinal: 1,
+      parentOrdinal: kind === "CSV_REVIEWED_IMPORT" ? 1 : null,
+      state: "ACCEPTED" as const,
+      operation: "CREATE" as const,
+      errorCodes: [],
+      projectId: project.id,
+      identity: ["spreadsheet:Projects", "a".repeat(64)] as [string, string],
+      contentAvailable: true,
+      proposals: [{ factType: "project.forecast", value: { type: "date", value: "2027-03-01" } }],
+    }],
+  };
+}
+const ingestionRepository: IngestionRepository = {
+  ...unavailableIngestionRepository,
+  listSources: vi.fn(async () => ingestionConfigured ? [ingestionSource] : []),
+  configure: vi.fn(async () => {
+    ingestionConfigured = true;
+    return { sourceId: ingestionSourceId, configRevision: 1, mappingRevision: 1 };
+  }),
+  persistCsvPreview: vi.fn(async () => ({ receiptId: ingestionPreviewId, replayed: false, rowCount: 1 })),
+  commitCsvReviewedImport: vi.fn(async () => ({
+    receiptId: ingestionReviewId,
+    parentPreviewReceiptId: ingestionPreviewId,
+    replayed: false,
+    rowCount: 1,
+  })),
+  readReceipt: vi.fn(async (_actor, input) => input.receiptId === ingestionPreviewId
+    ? ingestionReadReceipt("CSV_PREVIEW", ingestionPreviewId)
+    : ingestionReadReceipt("CSV_REVIEWED_IMPORT", ingestionReviewId)),
+};
 beforeAll(async () => {
   ({ app, spec } = await createApp(
     config,
@@ -163,6 +245,8 @@ beforeAll(async () => {
     evidence.authority,
     reconciliation.repository,
     scalarRepository,
+    undefined,
+    ingestionRepository,
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -170,6 +254,7 @@ beforeAll(async () => {
   const identity = new IdentityService(config);
   operator = await identity.developmentToken("operator");
   manager = await identity.developmentToken("pm-atlas");
+  pmoPortfolio = await identity.developmentToken("pmo-portfolio");
 });
 afterAll(async () => {
   await app?.close();
@@ -185,11 +270,11 @@ async function request(
     method,
     headers: {
       ...(token ? { Authorization: "Bearer " + token } : {}),
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
     },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(body !== undefined ? { body: body instanceof FormData ? body : JSON.stringify(body) } : {}),
   });
-  expect(response.status).toBe(status);
+  expect(response.status, await response.clone().text()).toBe(status);
   const route = Object.keys(spec.paths).find((template) =>
     new RegExp(
       "^" + template.replace(/\{[A-Za-z]+\}/g, "[^/]+") + "$",
@@ -281,19 +366,48 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     "POST",
     { expectedAssignmentRevision: 1, idempotencyKey: "scalar-assignment-http" },
   );
+  await request("/api/ingestion/sources", 200, pmoPortfolio);
+  check.request("POST", "/api/ingestion/sources/configuration", ingestionConfiguration);
+  await request("/api/ingestion/sources/configuration", 201, pmoPortfolio, "POST", ingestionConfiguration);
+  await request("/api/ingestion/sources", 200, pmoPortfolio);
+  const previewForm = new FormData();
+  previewForm.set("file", new Blob([`Issue ID,Project ID,Forecast\nD-1,${project.id},2027-03-01`], { type: "text/csv" }), "review.csv");
+  previewForm.set("commandKey", "contract-csv-preview");
+  previewForm.set("configRevision", "1");
+  previewForm.set("mappingRevision", "1");
+  check.request("POST", "/api/ingestion/sources/{sourceId}/csv-previews", {
+    file: "review.csv",
+    commandKey: "contract-csv-preview",
+    configRevision: 1,
+    mappingRevision: 1,
+  }, "multipart/form-data; boundary=contract");
+  await request(`/api/ingestion/sources/${ingestionSourceId}/csv-previews`, 201, pmoPortfolio, "POST", previewForm);
+  await request(`/api/ingestion/sources/${ingestionSourceId}/receipts/${ingestionPreviewId}`, 200, pmoPortfolio);
+  const reviewedImportBody = {
+    previewReceiptId: ingestionPreviewId,
+    rowOrdinals: [1],
+    commandKey: "contract-reviewed-import",
+  };
+  check.request("POST", "/api/ingestion/sources/{sourceId}/reviewed-imports", reviewedImportBody);
+  await request(`/api/ingestion/sources/${ingestionSourceId}/reviewed-imports`, 201, pmoPortfolio, "POST", reviewedImportBody);
+  await request(`/api/ingestion/sources/${ingestionSourceId}/receipts/${ingestionReviewId}`, 200, pmoPortfolio);
   const declared = Object.entries(spec.paths).flatMap(([path, item]) =>
     Object.keys(item)
       .filter((method) => ["get", "post", "delete"].includes(method))
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(36);
+  expect(covered.size).toBe(41);
   assertContractSnapshot(
     spec,
     JSON.parse(
       readFileSync("docs/03-architecture/OPENAPI_FOUNDATION.json", "utf8"),
     ),
   );
+});
+it("NFR-SEC-001: source ingestion administration requires the PMO administrator role", async () => {
+  await request("/api/ingestion/sources", 401);
+  await request("/api/ingestion/sources", 403, manager);
 });
 it("FR-EVD-009: scalar commands cannot override URL scope, identity or routing", async () => {
   const prefix = "/api/projects/" + scalarScope.projectId;
@@ -715,4 +829,18 @@ it("CI-FND-001: contract gates reject route/schema/export drift and malformed HT
     ).toThrow();
     expect(grantSchema.safeParse({ ...grant, subject }).success).toBe(false);
   }
+  const previewPath = "/api/ingestion/sources/{sourceId}/csv-previews";
+  const previewBody = {
+    file: "synthetic.csv",
+    commandKey: "browser-preview-1",
+    configRevision: 1,
+    mappingRevision: 1,
+  };
+  expect(() => check.request("POST", previewPath, previewBody, "multipart/form-data; boundary=synthetic" )).not.toThrow();
+  expect(() => check.request("POST", previewPath, { ...previewBody, mappingRevision: undefined }, "multipart/form-data" )).toThrow(/violates/);
+  expect(() => check.request("POST", "/api/ingestion/sources/{sourceId}/reviewed-imports", {
+    previewReceiptId: "30000000-0000-4000-8000-000000000001",
+    rowOrdinals: [1, 2],
+    commandKey: "review-command-1",
+  })).not.toThrow();
 });

@@ -473,6 +473,207 @@ describe("durable ingestion persistence", () => {
       WHERE "customerId"=${customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "receiptId"=${preview.receiptId}::uuid AND state='ACCEPTED'`;
     expect(persistedCsvOutcome).toHaveLength(1);
 
+    const canonicalCountsBefore = await db.$queryRaw<
+      { facts: number; versions: number; evidence: number; appendReceipts: number }[]
+    >`
+      SELECT
+        (SELECT count(*)::int FROM public."ProjectFact") AS facts,
+        (SELECT count(*)::int FROM public."ProjectFactVersion") AS versions,
+        (SELECT count(*)::int FROM public."FactEvidence") AS evidence,
+        (SELECT count(*)::int FROM public."FactAppendReceipt") AS "appendReceipts"`;
+    const reviewed = await repository.commitCsvReviewedImport(
+      manager,
+      {
+        sourceId,
+        previewReceiptId: preview.receiptId,
+        rowOrdinals: [1],
+        commandKey: "csv-reviewed-1",
+      },
+      "ingestion-test-csv-reviewed-import",
+    );
+    expect(reviewed).toMatchObject({
+      parentPreviewReceiptId: preview.receiptId,
+      replayed: false,
+      rowCount: 1,
+    });
+    const reviewedReceipt = await repository.readReceipt(manager, {
+      sourceId,
+      receiptId: reviewed.receiptId,
+    }) as {
+      receipt: { kind: string; parentPreviewReceiptId: string | null };
+      outcomes: { ordinal: number; parentOrdinal: number | null; state: string; operation: string; contentAvailable: boolean }[];
+    };
+    expect(reviewedReceipt.receipt).toMatchObject({
+      kind: "CSV_REVIEWED_IMPORT",
+      parentPreviewReceiptId: preview.receiptId,
+    });
+    expect(reviewedReceipt.outcomes).toEqual([{
+      ordinal: 1,
+      parentOrdinal: 1,
+      state: "ACCEPTED",
+      operation: "CREATE",
+      errorCodes: [],
+      projectId,
+      identity: ["spreadsheet:Exact Sheet", persistedCsvOutcome[0]!.recordKey],
+      contentAvailable: true,
+      proposals: [{ factType: "project.forecast", value: { type: "date", value: "2026-12-01" } }],
+    }]);
+    const reviewedLinks = await db.$queryRaw<
+      { receiptId: string; previewReceiptId: string; ordinal: number; previewOrdinal: number }[]
+    >`
+      SELECT "receiptId","previewReceiptId",ordinal,"previewOrdinal"
+      FROM public."IngestionReviewedImportRow"
+      WHERE "customerId"=${customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "receiptId"=${reviewed.receiptId}::uuid`;
+    expect(reviewedLinks).toEqual([{
+      receiptId: reviewed.receiptId,
+      previewReceiptId: preview.receiptId,
+      ordinal: 1,
+      previewOrdinal: 1,
+    }]);
+    expect(await db.$queryRaw`
+      SELECT public.valid_ingestion_receipt(${reviewed.receiptId}::uuid) AS valid`)
+      .toEqual([{ valid: true }]);
+    const canonicalCountsAfter = await db.$queryRaw<
+      { facts: number; versions: number; evidence: number; appendReceipts: number }[]
+    >`
+      SELECT
+        (SELECT count(*)::int FROM public."ProjectFact") AS facts,
+        (SELECT count(*)::int FROM public."ProjectFactVersion") AS versions,
+        (SELECT count(*)::int FROM public."FactEvidence") AS evidence,
+        (SELECT count(*)::int FROM public."FactAppendReceipt") AS "appendReceipts"`;
+    expect(canonicalCountsAfter).toEqual(canonicalCountsBefore);
+
+    const replayedReview = await repository.commitCsvReviewedImport(
+      manager,
+      {
+        sourceId,
+        previewReceiptId: preview.receiptId,
+        rowOrdinals: [1],
+        commandKey: "csv-reviewed-1",
+      },
+      "ingestion-test-csv-reviewed-replay",
+    );
+    expect(replayedReview).toMatchObject({ receiptId: reviewed.receiptId, replayed: true, rowCount: 1 });
+    await expect(repository.commitCsvReviewedImport(
+      manager,
+      {
+        sourceId,
+        previewReceiptId: preview.receiptId,
+        rowOrdinals: [2],
+        commandKey: "csv-reviewed-1",
+      },
+      "ingestion-test-csv-reviewed-altered-replay",
+    )).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(repository.commitCsvReviewedImport(
+      manager,
+      {
+        sourceId,
+        previewReceiptId: preview.receiptId,
+        rowOrdinals: [1],
+        commandKey: "csv-reviewed-second-command",
+      },
+      "ingestion-test-csv-reviewed-second-command",
+    )).rejects.toMatchObject({ code: "CONFLICT" });
+
+    const managerGrantForReplay = await db.$queryRaw<
+      { id: string; role: string; scopeType: string; scopeId: string }[]
+    >`SELECT id,role,"scopeType","scopeId" FROM public."AccessGrant"
+      WHERE "customerId"=${customerId}::uuid AND subject=${manager.subject}
+        AND "scopeType"='project' AND "scopeId"=${projectId}::uuid`;
+    await db.accessGrant.deleteMany({
+      where: { customerId, subject: manager.subject, scopeType: "project", scopeId: projectId },
+    });
+    await expect(repository.commitCsvReviewedImport(
+      manager,
+      {
+        sourceId,
+        previewReceiptId: preview.receiptId,
+        rowOrdinals: [1],
+        commandKey: "csv-reviewed-1",
+      },
+      "ingestion-test-csv-reviewed-revoked-grant",
+    )).rejects.toMatchObject({ code: "DENIED" });
+    await expect(repository.readReceipt(manager, { sourceId, receiptId: reviewed.receiptId }))
+      .rejects.toMatchObject({ code: "DENIED" });
+    await db.accessGrant.create({
+      data: {
+        id: managerGrantForReplay[0]!.id,
+        customerId,
+        subject: manager.subject,
+        role: "project_manager",
+        scopeType: "project",
+        scopeId: projectId,
+      },
+    });
+
+    const expiringPreview = await repository.persistCsvPreview(
+      manager,
+      {
+        sourceId,
+        configRevision: csvConfig.configRevision,
+        mappingRevision: csvConfig.mappingRevision,
+        commandKey: "csv-preview-expiring-review",
+        fileName: "do-not-retain-this-name.csv",
+        csv: `Issue ID,Project,Forecast\nCASE-EXPIRING,${projectId},2027-01-01`,
+      },
+      "ingestion-test-csv-expiring-review-preview",
+    );
+    const expiringOutcome = await db.$queryRaw<{ sourceRevisionId: string; receivedAt: Date }[]>`
+      SELECT o."sourceRevisionId",r."receivedAt"
+      FROM public."IngestionRowOutcome" o
+      JOIN public."IngestionSourceRevision" r ON r.id=o."sourceRevisionId" AND r."customerId"=o."customerId"
+      WHERE o."customerId"=${customerId}::uuid AND o."sourceId"=${sourceId}::uuid
+        AND o."receiptId"=${expiringPreview.receiptId}::uuid AND o.ordinal=1`;
+    const setCsvReceivedAt = async (receivedAt: Date) =>
+      db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe('ALTER TABLE public."IngestionSourceRevision" DISABLE TRIGGER ingestion_revision_guard');
+        try {
+          await tx.$executeRaw`UPDATE public."IngestionSourceRevision" SET "receivedAt"=${receivedAt} WHERE id=${expiringOutcome[0]!.sourceRevisionId}::uuid`;
+        } finally {
+          await tx.$executeRawUnsafe('ALTER TABLE public."IngestionSourceRevision" ENABLE TRIGGER ingestion_revision_guard');
+        }
+      });
+    await setCsvReceivedAt(new Date(Date.now() - 25 * 60 * 60 * 1000));
+    await expect(repository.commitCsvReviewedImport(
+      manager,
+      {
+        sourceId,
+        previewReceiptId: expiringPreview.receiptId,
+        rowOrdinals: [1],
+        commandKey: "csv-review-expired-content",
+      },
+      "ingestion-test-csv-review-expired-content",
+    )).rejects.toMatchObject({ code: "INVALID_PREVIEW" });
+    await setCsvReceivedAt(expiringOutcome[0]!.receivedAt);
+
+    const currentCsvConfigurationForStale = {
+      ...configuration,
+      projects: [{ projectId, readers: [manager.subject] }],
+      mapping: {
+        kind: "CSV" as const,
+        sheet: "Exact Sheet",
+        identityColumn: "Issue ID",
+        projectColumn: "Project",
+        fields: [{ column: "Forecast", factType: "project.forecast", type: "date" as const, required: true }],
+      },
+    };
+    const changedCsvRevision = await repository.configure(
+      pmo,
+      currentCsvConfigurationForStale,
+      "ingestion-test-csv-stale-preview-config",
+    );
+    expect(changedCsvRevision).toMatchObject({ configRevision: 5, mappingRevision: 3 });
+    await expect(repository.commitCsvReviewedImport(
+      manager,
+      {
+        sourceId,
+        previewReceiptId: expiringPreview.receiptId,
+        rowOrdinals: [1],
+        commandKey: "csv-review-stale-config",
+      },
+      "ingestion-test-csv-review-stale-config",
+    )).rejects.toMatchObject({ code: "INVALID_PREVIEW" });
+
     await expect(
       db.$transaction(async (tx) => {
         await tx.$executeRaw`
@@ -526,8 +727,8 @@ describe("durable ingestion persistence", () => {
             receiptId,
             kind,
             sourceId,
-            configRevision: 4,
-            mappingRevision: 3,
+            configRevision: changedCsvRevision.configRevision,
+            mappingRevision: changedCsvRevision.mappingRevision,
             scopeProjectIds: [projectId],
             requestHash: auditRequestHash,
             outcomeCount: auditCount,
@@ -537,7 +738,7 @@ describe("durable ingestion persistence", () => {
       });
       await tx.$executeRaw`
         INSERT INTO public."IngestionOperationReceipt" (id,"customerId","sourceId",subject,kind,"commandKey","requestHash","configRevision","mappingRevision","outcomeCount","auditEventId","createdAt")
-        VALUES (${receiptId}::uuid,${customerId}::uuid,${sourceId}::uuid,${manager.subject},${kind},${"direct-" + receiptId},${requestHash},4,3,${outcomeCount},${auditEventId}::uuid,${createdAt})`;
+        VALUES (${receiptId}::uuid,${customerId}::uuid,${sourceId}::uuid,${manager.subject},${kind},${"direct-" + receiptId},${requestHash},${changedCsvRevision.configRevision},${changedCsvRevision.mappingRevision},${outcomeCount},${auditEventId}::uuid,${createdAt})`;
       await tx.$executeRaw`
         INSERT INTO public."IngestionReceiptProjectScope" ("customerId","sourceId","receiptId","projectId","grantId","grantRole","grantScopeType","grantScopeId")
         VALUES (${customerId}::uuid,${sourceId}::uuid,${receiptId}::uuid,${projectId}::uuid,${managerGrant[0]!.id}::uuid,${"project_manager"},${managerGrant[0]!.scopeType},${managerGrant[0]!.scopeId}::uuid)`;
@@ -665,7 +866,7 @@ describe("durable ingestion persistence", () => {
       },
       "ingestion-test-reader-revoked",
     );
-    expect(readerRevoked).toMatchObject({ configRevision: 5, mappingRevision: 3 });
+    expect(readerRevoked).toMatchObject({ configRevision: 6, mappingRevision: 3 });
     await expect(
       repository.readReceipt(manager, { sourceId, receiptId: preview.receiptId }),
     ).rejects.toMatchObject({ code: "DENIED" });
@@ -674,7 +875,7 @@ describe("durable ingestion persistence", () => {
       currentCsvConfiguration,
       "ingestion-test-reader-restored",
     );
-    expect(readerRestored).toMatchObject({ configRevision: 6, mappingRevision: 3 });
+    expect(readerRestored).toMatchObject({ configRevision: 7, mappingRevision: 3 });
 
     const remap = await repository.configure(
       pmo,
@@ -688,7 +889,7 @@ describe("durable ingestion persistence", () => {
       },
       "ingestion-test-expired-remap-config",
     );
-    expect(remap).toMatchObject({ configRevision: 7, mappingRevision: 4 });
+    expect(remap).toMatchObject({ configRevision: 8, mappingRevision: 4 });
     const sourceRecord = await db.$queryRaw<{ id: string }[]>`
       SELECT id FROM public."IngestionExternalRecord"
       WHERE "customerId"=${customerId}::uuid AND "sourceId"=${sourceId}::uuid

@@ -37,8 +37,8 @@ function receipt() {
   return {
     customerId,
     persistence: {
-      businessTableCount: 61,
-      migrationCount: 12,
+      businessTableCount: 63,
+      migrationCount: 13,
       scalarReconciliationTables: [
         "ScalarReconciliationRequest",
         "ScalarReconciliationCheck",
