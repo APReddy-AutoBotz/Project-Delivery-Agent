@@ -166,6 +166,9 @@ export class IngestionController {
       fileSize: MAX_CSV_BYTES,
       fieldSize: 256,
       fieldNameSize: 64,
+      // Multipart values are scalar; nested fields and numeric array indices are not used.
+      fieldNestingDepth: 0,
+      fieldArrayIndexLimit: 0,
       fields: 3,
       files: 1,
       // Busboy emits partsLimit as soon as the count reaches the configured
