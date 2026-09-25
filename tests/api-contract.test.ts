@@ -382,6 +382,22 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     mappingRevision: 1,
   }, "multipart/form-data; boundary=contract");
   await request(`/api/ingestion/sources/${ingestionSourceId}/csv-previews`, 201, pmoPortfolio, "POST", previewForm);
+  const sparseIndexForm = new FormData();
+  sparseIndexForm.set("file", new Blob([`Issue ID,Project ID,Forecast\\nD-1,${project.id},2027-03-01`], { type: "text/csv" }), "review.csv");
+  sparseIndexForm.set("commandKey", "contract-csv-sparse-index");
+  sparseIndexForm.set("configRevision[100000000]", "1");
+  sparseIndexForm.set("mappingRevision", "1");
+  const persistCsvPreview = vi.mocked(ingestionRepository.persistCsvPreview);
+  const previewCallsBeforeSparseIndex = persistCsvPreview.mock.calls.length;
+  const sparseIndexResponse = await fetch(base + `/api/ingestion/sources/${ingestionSourceId}/csv-previews`, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + pmoPortfolio },
+    body: sparseIndexForm,
+  });
+  expect(sparseIndexResponse.status).toBe(400);
+  expect(sparseIndexResponse.headers.get("cache-control")).toBe("no-store");
+  expect(sparseIndexResponse.headers.get("x-request-id")).toMatch(/^[a-f0-9-]{36}$/);
+  expect(persistCsvPreview.mock.calls).toHaveLength(previewCallsBeforeSparseIndex);
   await request(`/api/ingestion/sources/${ingestionSourceId}/receipts/${ingestionPreviewId}`, 200, pmoPortfolio);
   const reviewedImportBody = {
     previewReceiptId: ingestionPreviewId,
