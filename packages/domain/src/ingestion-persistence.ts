@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   connectorBindingSchema,
+  ingestionProposalSchema,
   ingestionArray,
   ingestionFactType,
   ingestionText,
@@ -113,8 +114,104 @@ export const ingestionReceiptKindSchema = z.enum([
   "CONNECTOR_PAGE",
   "CONNECTOR_EVENT",
   "CSV_PREVIEW",
+  "CSV_REVIEWED_IMPORT",
   "SYNC_RESET",
 ]);
+export const ingestionSourceSummarySchema = z
+  .object({
+    sourceId: projectFactIdSchema,
+    sourceType: ingestionText(96),
+    origin: ingestionText(2048),
+    configuration: ingestionConfigurationSchema,
+    configRevision: z.number().int().min(1),
+    mappingRevision: z.number().int().min(1),
+    healthState: z.enum(["UNKNOWN", "HEALTHY", "DEGRADED", "FAILED"]),
+    healthCode: ingestionHealthCodeSchema,
+    healthCheckedAt: z.iso.datetime().nullable(),
+  })
+  .strict();
+export type IngestionSourceSummary = z.infer<typeof ingestionSourceSummarySchema>;
+export const ingestionCsvPreviewResultSchema = z
+  .object({
+    receiptId: projectFactIdSchema,
+    replayed: z.boolean(),
+    rowCount: z.number().int().min(0).max(1000),
+  })
+  .strict();
+export const ingestionCsvPreviewFormSchema = z
+  .object({
+    commandKey: ingestionCommandKeySchema,
+    configRevision: z.coerce.number().int().min(1).max(2_147_483_647),
+    mappingRevision: z.coerce.number().int().min(1).max(2_147_483_647),
+  })
+  .strict();
+export const ingestionConfigurationResultSchema = z
+  .object({
+    sourceId: projectFactIdSchema,
+    configRevision: z.number().int().min(1),
+    mappingRevision: z.number().int().min(1),
+  })
+  .strict();
+export const ingestionReviewedImportRequestSchema = z
+  .object({
+    sourceId: projectFactIdSchema,
+    previewReceiptId: projectFactIdSchema,
+    rowOrdinals: ingestionArray(z.number().int().min(1).max(1000), 1000).refine(
+      (ordinals) =>
+        ordinals.length > 0 &&
+        unique(ordinals.map((ordinal) => String(ordinal))) &&
+        ordinals.every((ordinal, index) => index === 0 || ordinals[index - 1]! < ordinal),
+    ),
+    commandKey: ingestionCommandKeySchema,
+  })
+  .strict();
+export const ingestionReviewedImportResultSchema = z
+  .object({
+    receiptId: projectFactIdSchema,
+    parentPreviewReceiptId: projectFactIdSchema,
+    replayed: z.boolean(),
+    rowCount: z.number().int().min(1).max(1000),
+  })
+  .strict();
+const receiptOrdinal = z.number().int().min(1).max(1000);
+export const ingestionReceiptReadResultSchema = z
+  .object({
+    receipt: z
+      .object({
+        id: projectFactIdSchema,
+        sourceId: projectFactIdSchema,
+        actor: ingestionText(256),
+        kind: ingestionReceiptKindSchema,
+        eventId: ingestionText(256).nullable(),
+        configRevision: z.number().int().min(1),
+        mappingRevision: z.number().int().min(1),
+        cursorRevisionBefore: z.number().int().min(0).nullable(),
+        cursorRevisionAfter: z.number().int().min(0).nullable(),
+        generationBefore: z.number().int().min(1).nullable(),
+        generationAfter: z.number().int().min(1).nullable(),
+        rowCount: z.number().int().min(0).max(1000),
+        createdAt: z.iso.datetime(),
+        parentPreviewReceiptId: projectFactIdSchema.nullable(),
+      })
+      .strict(),
+    outcomes: ingestionArray(
+      z
+        .object({
+          ordinal: receiptOrdinal,
+          parentOrdinal: receiptOrdinal.nullable(),
+          state: ingestionRowStateSchema,
+          operation: ingestionRowOperationSchema,
+          errorCodes: ingestionArray(ingestionSafeErrorSchema, 16),
+          projectId: projectFactIdSchema.nullable(),
+          identity: z.tuple([ingestionText(267), ingestionText(256)]).nullable(),
+          contentAvailable: z.boolean(),
+          proposals: ingestionArray(ingestionProposalSchema, 32).nullable(),
+        })
+        .strict(),
+      1000,
+    ),
+  })
+  .strict();
 export type IngestionSyncSnapshot = {
   sourceId: string;
   configuration: IngestionConfiguration;
@@ -138,6 +235,9 @@ export const ingestionRetentionSchema = z
 // Persistence is a narrow service port. Callers supply user intent and validated
 // actor identity; database implementations recheck current grants and source ACL.
 export interface IngestionRepository {
+  listSources(
+    actor: import("./actor.js").Actor,
+  ): Promise<IngestionSourceSummary[]>;
   readSyncSnapshot(
     actor: import("./actor.js").Actor,
     sourceId: string,
@@ -185,6 +285,11 @@ export interface IngestionRepository {
     },
     correlationId: string,
   ): Promise<{ receiptId: string; replayed: boolean; rowCount: number }>;
+  commitCsvReviewedImport(
+    actor: import("./actor.js").Actor,
+    input: z.infer<typeof ingestionReviewedImportRequestSchema>,
+    correlationId: string,
+  ): Promise<z.infer<typeof ingestionReviewedImportResultSchema>>;
   resetSync(
     actor: import("./actor.js").Actor,
     input: {

@@ -7,11 +7,16 @@ import {
   ingestionHealthCodeSchema,
   ingestionProposalSchema,
   ingestionPreviewRequestSchema,
+  ingestionReceiptReadResultSchema,
   ingestionReceiptReadSchema,
   ingestionRetentionSchema,
+  ingestionReviewedImportRequestSchema,
+  ingestionReviewedImportResultSchema,
   ingestionSafeErrorSchema,
   ingestionRowOperationSchema,
   ingestionRowStateSchema,
+  ingestionSourceSummarySchema,
+  IngestionPersistenceError,
   IngestionInputError,
   ingestionText,
   parseIngestion,
@@ -25,6 +30,7 @@ import {
   type Actor,
   type IngestionConfiguration,
   type IngestionRepository,
+  type IngestionSourceSummary,
   type IngestionSyncSnapshot,
   type SpreadsheetRowPreview,
 } from "@pdaa/domain";
@@ -90,25 +96,6 @@ type ReceiptRow = {
   auditEventId: string;
   createdAt: Date;
 };
-
-export class IngestionPersistenceError extends Error {
-  constructor(
-    readonly code:
-      | "DENIED"
-      | "INVALID_REQUEST"
-      | "CONFLICT"
-      | "STALE_CONFIGURATION"
-      | "CURSOR_CONFLICT"
-      | "RETENTION_REQUIRED"
-      | "NOT_FOUND"
-      | "INVALID_PREVIEW"
-      | "INTEGRITY_CONFLICT"
-      | "PERSISTENCE_FAILED",
-  ) {
-    super(code);
-    this.name = "IngestionPersistenceError";
-  }
-}
 
 const idSchema = projectFactIdSchema;
 const contextSchema = (value: unknown) => {
@@ -709,7 +696,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     correlationId: string,
     input: {
       sourceId: string;
-      kind: "CONNECTOR_PAGE" | "CONNECTOR_EVENT" | "CSV_PREVIEW" | "SYNC_RESET";
+      kind: "CONNECTOR_PAGE" | "CONNECTOR_EVENT" | "CSV_PREVIEW" | "CSV_REVIEWED_IMPORT" | "SYNC_RESET";
       commandKey: string;
       requestHash: string;
       eventId?: string | null;
@@ -746,7 +733,9 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           ? "ingestion.connector_event.persisted"
           : input.kind === "CSV_PREVIEW"
           ? "ingestion.csv_preview.persisted"
-            : "ingestion.sync_reset",
+            : input.kind === "CSV_REVIEWED_IMPORT"
+              ? "ingestion.csv_reviewed_import.persisted"
+              : "ingestion.sync_reset",
       {
         receiptId: id,
         kind: input.kind,
@@ -1374,6 +1363,37 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     });
   }
 
+  async listSources(actorInputValue: Actor): Promise<IngestionSourceSummary[]> {
+    const actor = parseActor(actorInputValue);
+    return this.run(actor, "source_list", "ingestion.source.list", "PERSISTENCE_FAILED", async () => {
+      const sources = await this.db.$queryRaw<{ id: string }[]>`
+        SELECT id FROM public."IngestionSource"
+        WHERE "customerId"=${actor.customerId}::uuid AND "currentConfigRevision" IS NOT NULL
+        ORDER BY id`;
+      const summaries: IngestionSourceSummary[] = [];
+      for (const source of sources) {
+        try {
+          const snapshot = await this.preflight(source.id, actor);
+          summaries.push(parseIngestion(ingestionSourceSummarySchema, {
+            sourceId: snapshot.source.id,
+            sourceType: snapshot.source.sourceType,
+            origin: snapshot.source.origin,
+            configuration: snapshot.configuration,
+            configRevision: snapshot.configRevision,
+            mappingRevision: snapshot.mappingRevision,
+            healthState: snapshot.source.healthState,
+            healthCode: snapshot.source.healthCode,
+            healthCheckedAt: snapshot.source.healthCheckedAt?.toISOString() ?? null,
+          }));
+        } catch (error) {
+          const safe = mapError(error, "PERSISTENCE_FAILED");
+          if (safe.code !== "DENIED" && safe.code !== "NOT_FOUND") throw safe;
+        }
+      }
+      return summaries;
+    });
+  }
+
   async listDueJiraSourceIds(
     customerIdInput: string,
     intervalMinutes: number,
@@ -1746,6 +1766,144 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     });
   }
 
+  async commitCsvReviewedImport(
+    actorInputValue: Actor,
+    inputValue: Parameters<IngestionRepository["commitCsvReviewedImport"]>[1],
+    correlationInput: string,
+  ) {
+    const actor = parseActor(actorInputValue);
+    const correlationId = contextSchema(correlationInput);
+    const request = parseIngestion(ingestionReviewedImportRequestSchema, inputValue);
+    const sourceId = uuid(request.sourceId);
+    const previewReceiptId = uuid(request.previewReceiptId);
+    const commandKey = parseIngestion(ingestionCommandKeySchema, request.commandKey);
+    const rowOrdinals = request.rowOrdinals;
+    return this.run(actor, "csv_reviewed_import", correlationId, "PERSISTENCE_FAILED", async () => {
+      const snapshot = await this.preflight(sourceId, actor);
+      if (snapshot.configuration.mapping.kind !== "CSV")
+        throw new IngestionPersistenceError("INVALID_REQUEST");
+      const projectIds = snapshot.configuration.projects.map((project) => project.projectId);
+      const requestHash = sha256(boundedJson({
+        sourceId,
+        previewReceiptId,
+        rowOrdinals,
+        configRevision: snapshot.configRevision,
+        mappingRevision: snapshot.mappingRevision,
+      }));
+      return this.db.$transaction(async (tx) => {
+        const { source } = await this.lockAuthorizedSource(tx, actor, sourceId, projectIds, "write");
+        if (source.currentConfigRevision !== snapshot.configRevision || source.mappingRevision !== snapshot.mappingRevision)
+          throw new IngestionPersistenceError("STALE_CONFIGURATION");
+        const parents = await tx.$queryRaw<{
+          id: string; configRevision: number; mappingRevision: number; valid: boolean;
+        }[]>`
+          SELECT r.id,r."configRevision",r."mappingRevision",public.valid_ingestion_receipt(r.id) AS valid
+          FROM public."IngestionOperationReceipt" r
+          WHERE r."customerId"=${actor.customerId}::uuid AND r."sourceId"=${sourceId}::uuid
+            AND r.id=${previewReceiptId}::uuid AND r.kind='CSV_PREVIEW'
+          FOR SHARE OF r`;
+        const parent = parents[0];
+        if (!parent || !parent.valid || parent.configRevision !== source.currentConfigRevision || parent.mappingRevision !== source.mappingRevision)
+          throw new IngestionPersistenceError("INVALID_PREVIEW");
+
+        const existing = await this.commandReceipt(tx, actor.customerId, sourceId, actor.subject, "CSV_REVIEWED_IMPORT", commandKey);
+        if (existing) {
+          const replayed = await this.replay(existing, requestHash);
+          const links = await tx.$queryRaw<{ previewReceiptId: string; valid: boolean }[]>`
+            SELECT i."previewReceiptId",public.valid_ingestion_receipt(i."receiptId") AS valid
+            FROM public."IngestionReviewedImport" i
+            WHERE i."customerId"=${actor.customerId}::uuid AND i."sourceId"=${sourceId}::uuid AND i."receiptId"=${existing.id}::uuid`;
+          if (!links[0] || links[0].previewReceiptId !== previewReceiptId || !links[0].valid)
+            throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+          return ingestionReviewedImportResultSchema.parse({
+            receiptId: replayed.receiptId,
+            parentPreviewReceiptId: previewReceiptId,
+            replayed: true,
+            rowCount: replayed.rowCount ?? 0,
+          });
+        }
+
+        const duplicate = await tx.$queryRaw<{ receiptId: string }[]>`
+          SELECT "receiptId" FROM public."IngestionReviewedImport"
+          WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "previewReceiptId"=${previewReceiptId}::uuid`;
+        if (duplicate.length) throw new IngestionPersistenceError("CONFLICT");
+        const retention = await tx.$queryRaw<{ retentionHours: number; revision: number }[]>`
+          SELECT "retentionHours",revision FROM public."IngestionRetentionPolicy"
+          WHERE "customerId"=${actor.customerId}::uuid FOR SHARE`;
+        if (!retention[0]) throw new IngestionPersistenceError("RETENTION_REQUIRED");
+        const rows = await tx.$queryRaw<{
+          ordinal: number; state: string; operation: string; errorCodes: string[];
+          projectId: string | null; recordKey: string | null; recordId: string | null;
+          sourceRevisionId: string | null; projectionId: string | null; proposals: unknown;
+          contentAvailable: boolean; proposalHash: string | null; actualProposalHash: string | null;
+        }[]>`
+          SELECT o.ordinal,o.state,o.operation,o."errorCodes",o."projectId",o."recordKey",o."recordId",o."sourceRevisionId",o."projectionId",c.proposals,
+            (c.proposals IS NOT NULL AND c."redactedAt" IS NULL AND v."receivedAt"+make_interval(hours=>policy."retentionHours")>clock_timestamp()) AS "contentAvailable",
+            p."proposalHash",CASE WHEN c.proposals IS NOT NULL THEN encode(sha256(convert_to(c.proposals::text,'UTF8')),'hex') ELSE NULL END AS "actualProposalHash"
+          FROM public."IngestionRowOutcome" o
+          JOIN public."IngestionProposalProjection" p ON p."customerId"=o."customerId" AND p."sourceId"=o."sourceId" AND p."recordId"=o."recordId" AND p.id=o."projectionId"
+          JOIN public."IngestionProposalContent" c ON c."customerId"=p."customerId" AND c."sourceId"=p."sourceId" AND c."recordId"=p."recordId" AND c."projectionId"=p.id
+          JOIN public."IngestionSourceRevision" v ON v."customerId"=p."customerId" AND v."sourceId"=p."sourceId" AND v."recordId"=p."recordId" AND v.id=p."sourceRevisionId"
+          JOIN public."IngestionRetentionPolicy" policy ON policy."customerId"=v."customerId"
+          WHERE o."customerId"=${actor.customerId}::uuid AND o."sourceId"=${sourceId}::uuid
+            AND o."receiptId"=${previewReceiptId}::uuid AND o.ordinal=ANY(${rowOrdinals}::integer[])
+          ORDER BY o.ordinal FOR SHARE OF c`;
+        if (rows.length !== rowOrdinals.length)
+          throw new IngestionPersistenceError("INVALID_PREVIEW");
+        const outcomes: OutcomeInput[] = rows.map((row) => {
+          if (row.state !== "ACCEPTED" || !["CREATE", "UPDATE", "UNCHANGED"].includes(row.operation) ||
+            row.errorCodes.length !== 0 || row.projectId === null || row.recordKey === null || row.recordId === null ||
+            row.sourceRevisionId === null || row.projectionId === null || !row.contentAvailable ||
+            row.proposalHash === null || row.proposalHash !== row.actualProposalHash || !Array.isArray(row.proposals))
+            throw new IngestionPersistenceError("INVALID_PREVIEW");
+          parseIngestion(ingestionProposalSchema.array().max(32), row.proposals);
+          return {
+            state: "ACCEPTED",
+            operation: ingestionRowOperationSchema.parse(row.operation),
+            errorCodes: [],
+            projectId: row.projectId,
+            recordKey: row.recordKey,
+            recordId: row.recordId,
+            sourceRevisionId: row.sourceRevisionId,
+            projectionId: row.projectionId,
+          };
+        });
+        const receiptId = await this.createReceipt(tx, actor, correlationId, {
+          sourceId,
+          kind: "CSV_REVIEWED_IMPORT",
+          commandKey,
+          requestHash,
+          configRevision: snapshot.configRevision,
+          mappingRevision: snapshot.mappingRevision,
+          scopeProjectIds: projectIds,
+          outcomes,
+        });
+        await tx.$executeRaw`
+          INSERT INTO public."IngestionReviewedImport" ("customerId","sourceId","receiptId","previewReceiptId")
+          VALUES (${actor.customerId}::uuid,${sourceId}::uuid,${receiptId}::uuid,${previewReceiptId}::uuid)`;
+        const links = rows.map((row, index) => ({
+          customerId: actor.customerId,
+          sourceId,
+          receiptId,
+          ordinal: index + 1,
+          previewReceiptId,
+          previewOrdinal: row.ordinal,
+        }));
+        await tx.$executeRaw`
+          INSERT INTO public."IngestionReviewedImportRow" ("customerId","sourceId","receiptId",ordinal,"previewReceiptId","previewOrdinal")
+          SELECT x."customerId",x."sourceId",x."receiptId",x.ordinal,x."previewReceiptId",x."previewOrdinal"
+          FROM jsonb_to_recordset(${canonical(links)}::jsonb) AS x("customerId" uuid,"sourceId" uuid,"receiptId" uuid,ordinal integer,"previewReceiptId" uuid,"previewOrdinal" integer)
+          ORDER BY x.ordinal`;
+        return ingestionReviewedImportResultSchema.parse({
+          receiptId,
+          parentPreviewReceiptId: previewReceiptId,
+          replayed: false,
+          rowCount: outcomes.length,
+        });
+      }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 60000 });
+    });
+  }
+
   async resetSync(
     actorInputValue: Actor,
     input: { sourceId: string; configRevision: number; expectedCursorRevision: number; expectedGeneration: number; commandKey: string },
@@ -1818,8 +1976,8 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     const sourceId = uuid(request.sourceId);
     const receiptId = uuid(request.receiptId);
     return this.run(actor, "receipt_read", "ingestion.receipt.read", "PERSISTENCE_FAILED", async () => {
-      const header = await this.db.$queryRaw<{ configRevision: number }[]>`
-        SELECT "configRevision" FROM public."IngestionOperationReceipt"
+      const header = await this.db.$queryRaw<{ configRevision: number; kind: string }[]>`
+        SELECT "configRevision",kind FROM public."IngestionOperationReceipt"
         WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND id=${receiptId}::uuid`;
       if (!header[0]) throw new IngestionPersistenceError("DENIED");
       const originalScope = await this.db.$queryRaw<{ projectId: string }[]>`
@@ -1839,10 +1997,19 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         const receipt = receipts[0];
         if (!receipt || receipt.configRevision !== header[0]!.configRevision)
           throw new IngestionPersistenceError("NOT_FOUND");
+        const validity = await tx.$queryRaw<{ valid: boolean }[]>`
+          SELECT public.valid_ingestion_receipt(${receiptId}::uuid) AS valid`;
+        if (!validity[0]?.valid)
+          throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        const reviewed = await tx.$queryRaw<{ previewReceiptId: string }[]>`
+          SELECT "previewReceiptId" FROM public."IngestionReviewedImport"
+          WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "receiptId"=${receiptId}::uuid`;
+        if ((receipt.kind === "CSV_REVIEWED_IMPORT") !== (reviewed.length === 1))
+          throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
         const rows = await tx.$queryRaw<{
-          ordinal: number; state: string; operation: string; errorCodes: string[]; projectId: string | null; recordKey: string | null; recordType: string | null; proposals: unknown; contentAvailable: boolean; proposalHash: string | null; actualProposalHash: string | null;
+          ordinal: number; parentOrdinal: number | null; state: string; operation: string; errorCodes: string[]; projectId: string | null; recordKey: string | null; recordType: string | null; proposals: unknown; contentAvailable: boolean; proposalHash: string | null; actualProposalHash: string | null;
         }[]>`
-          SELECT o.ordinal,o.state,o.operation,o."errorCodes",o."projectId",o."recordKey",e."recordType",
+          SELECT o.ordinal,link."previewOrdinal" AS "parentOrdinal",o.state,o.operation,o."errorCodes",o."projectId",o."recordKey",e."recordType",
             CASE WHEN c.proposals IS NOT NULL AND c."redactedAt" IS NULL AND v."receivedAt"+make_interval(hours=>policy."retentionHours")>clock_timestamp() THEN c.proposals ELSE NULL END AS proposals,
             (c.proposals IS NOT NULL AND c."redactedAt" IS NULL AND v."receivedAt"+make_interval(hours=>policy."retentionHours")>clock_timestamp()) AS "contentAvailable",
             p."proposalHash",CASE WHEN c.proposals IS NOT NULL THEN encode(sha256(convert_to(c.proposals::text,'UTF8')),'hex') ELSE NULL END AS "actualProposalHash"
@@ -1852,9 +2019,10 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           LEFT JOIN public."IngestionProposalProjection" p ON p.id=o."projectionId" AND p."customerId"=o."customerId"
           LEFT JOIN public."IngestionProposalContent" c ON c."projectionId"=o."projectionId" AND c."customerId"=o."customerId"
           LEFT JOIN public."IngestionRetentionPolicy" policy ON policy."customerId"=o."customerId"
+          LEFT JOIN public."IngestionReviewedImportRow" link ON link."customerId"=o."customerId" AND link."sourceId"=o."sourceId" AND link."receiptId"=o."receiptId" AND link.ordinal=o.ordinal
           WHERE o."customerId"=${actor.customerId}::uuid AND o."sourceId"=${sourceId}::uuid AND o."receiptId"=${receiptId}::uuid
           ORDER BY o.ordinal`;
-        return {
+        return ingestionReceiptReadResultSchema.parse({
           receipt: {
             id: receipt.id,
             sourceId: receipt.sourceId,
@@ -1869,6 +2037,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
             generationAfter: receipt.generationAfter === null ? null : Number(receipt.generationAfter),
             rowCount: receipt.outcomeCount,
             createdAt: receipt.createdAt.toISOString(),
+            parentPreviewReceiptId: reviewed[0]?.previewReceiptId ?? null,
           },
           outcomes: rows.map((row) => {
             const codes = row.errorCodes.map((code) => ingestionSafeErrorSchema.parse(code));
@@ -1881,6 +2050,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
               : null;
             return {
               ordinal: row.ordinal,
+              parentOrdinal: row.parentOrdinal,
               state: ingestionRowStateSchema.parse(row.state),
               operation: ingestionRowOperationSchema.parse(row.operation),
               errorCodes: codes,
@@ -1890,7 +2060,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
               proposals,
             };
           }),
-        };
+        });
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
     });
   }

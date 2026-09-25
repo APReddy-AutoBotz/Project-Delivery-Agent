@@ -1112,4 +1112,26 @@ model IngestionRowOutcome {
   sourceRevisionId String? @db.Uuid
   projectionId String? @db.Uuid
   @@id([receiptId, ordinal], map: "IngestionRowOutcome_pkey")
+  @@unique([customerId, sourceId, receiptId, ordinal], map: "IngestionRowOutcome_scope_ordinal_key")
+}
+
+model IngestionReviewedImport {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @id @db.Uuid
+  previewReceiptId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, sourceId, previewReceiptId], map: "IngestionReviewedImport_scope_parent_key")
+  @@unique([customerId, sourceId, receiptId, previewReceiptId], map: "IngestionReviewedImport_exact_scope_key")
+}
+
+model IngestionReviewedImportRow {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @db.Uuid
+  ordinal Int
+  previewReceiptId String @db.Uuid
+  previewOrdinal Int
+  @@id([receiptId, ordinal], map: "IngestionReviewedImportRow_pkey")
+  @@unique([customerId, sourceId, previewReceiptId, previewOrdinal], map: "IngestionReviewedImportRow_preview_row_key")
 }

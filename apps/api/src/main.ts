@@ -35,6 +35,7 @@ try {
     new DatabaseMilestoneReconciliationRepository(db),
     new DatabaseScalarReconciliationRepository(db),
     (target) => installConnectorRoutes(target, config, connectorRuntime, new JiraRuntimeService(config, connectorRuntime, ingestion)),
+    ingestion,
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

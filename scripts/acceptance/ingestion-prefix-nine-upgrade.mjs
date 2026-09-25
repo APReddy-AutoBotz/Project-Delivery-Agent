@@ -27,6 +27,8 @@ const ingestionTables = [
   "IngestionReceiptProjectScope",
   "IngestionCursorTransition",
   "IngestionRowOutcome",
+  "IngestionReviewedImport",
+  "IngestionReviewedImportRow",
 ];
 const jiraRuntimeTables = [
   "ConnectorSyncGrant",
@@ -82,10 +84,11 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 12);
+    assert.equal(migrations.length, 13);
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     assert.equal(migrations[10].name, "202609240001_jira_runtime");
+    assert.equal(migrations[12].name, "202609250001_reviewed_csv_import");
     assert.equal(migrations[11].name, "202609240002_jira_webhook_body_replay");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
     pool = new Pool(databaseConfig);
@@ -220,6 +223,23 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
           api_receipt_validator: true,
         },
       ]);
+      const reviewedAcl = await pool.query(`SELECT
+        has_table_privilege('pdaa_api','public."IngestionReviewedImport"','SELECT') AS api_review_read,
+        has_table_privilege('pdaa_api','public."IngestionReviewedImport"','INSERT') AS api_review_insert,
+        has_table_privilege('pdaa_worker','public."IngestionReviewedImport"','SELECT') AS worker_review_read,
+        has_table_privilege('pdaa_backup','public."IngestionReviewedImport"','SELECT') AS backup_review_read,
+        has_table_privilege('pdaa_api','public."IngestionReviewedImportRow"','INSERT') AS api_link_insert,
+        has_table_privilege('pdaa_worker','public."IngestionReviewedImportRow"','SELECT') AS worker_link_read,
+        has_table_privilege('pdaa_backup','public."IngestionReviewedImportRow"','SELECT') AS backup_link_read`);
+      assert.deepEqual(reviewedAcl.rows, [{
+        api_review_read: true,
+        api_review_insert: true,
+        worker_review_read: false,
+        backup_review_read: true,
+        api_link_insert: true,
+        worker_link_read: false,
+        backup_link_read: true,
+      }]);
       return {
         databaseName,
         status: "passed",

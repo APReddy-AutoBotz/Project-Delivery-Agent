@@ -303,6 +303,27 @@ None. Existing Zod only; no CSV/XLSX/Jira dependency or vendored source added.
 4. Authorized CSV/XLSX upload/preview/commit and admin journeys preserving styling.
 5. Native/package/customer-profile/upgrade/recovery matrix and full Issue #7 review.
 
+### Stage 4 implementation contract
+
+The Product Owner confirmed that an import commit saves an immutable reviewed-
+import proposal receipt for explicitly selected eligible preview rows. It never
+publishes or changes canonical facts. The receipt references the parent CSV
+preview and exact row ordinals/proposal projections; binds current source,
+configuration and mapping revisions; hashes the selected command; and rechecks
+full project grants plus configured source-reader grants on creation, replay and
+read. Only accepted rows with available, hash-valid proposal content may be
+selected. Commit writes only review/receipt metadata and selected proposal links;
+it creates no fact, evidence, authority, Jira write or worker grant. No Issue #7
+acceptance is inferred.
+
+This UI/API batch supports bounded CSV upload, preview and reviewed-proposal
+commit, plus the required administrator mapping journey. XLSX remains deferred
+until a permissively licensed parser passes independent review of expanded bytes,
+archive entries, workbook/sheet/row/column/cell limits, parse duration,
+concurrent resource use and adversarial files. Preserve existing product styling.
+Keep database guards, API role grants, restore/recovery inventories and populated-
+upgrade validation aligned with the new receipt type.
+
 ## Test and evaluation plan
 
 Run focused parser/preview/connector tests, full lint/typecheck/units/build,
@@ -322,6 +343,11 @@ stored data changes in this batch. Later persistence needs additive-compatible
 reverts or encrypted restore into a fresh quarantined database; never delete history.
 
 ## Progress log
+
+- 2026-09-24: the Product Owner selected reviewed-import proposals as the durable
+  CSV commit result. Canonical facts remain untouched. CSV is the bounded format
+  for this batch; XLSX parser adoption remains gated on independently verified
+  decompression, archive, workbook, time, concurrency and adversarial-file bounds.
 
 - 2026-09-23: approved the stage-two durable proposal design after independent
   review at section SHA256

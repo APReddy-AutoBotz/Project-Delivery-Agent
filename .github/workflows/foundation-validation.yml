@@ -53,6 +53,12 @@ jobs:
           name: milestone-reconciliation-browser
           path: artifacts/reconciliation-native-pm-proof.png
           if-no-files-found: error
+      - name: Publish reviewed CSV import browser proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: csv-reviewed-import-browser
+          path: artifacts/csv-reviewed-import.png
+          if-no-files-found: error
       - if: always()
         run: docker compose down
   production-boundary:

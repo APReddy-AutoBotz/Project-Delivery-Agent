@@ -1,5 +1,23 @@
 # Decision Log
 
+## EXEC-009 reviewed spreadsheet import semantics, 2026-09-24
+
+The Product Owner selected durable reviewed-import proposals as the import
+commit outcome. A user may select eligible rows from an authorized CSV preview;
+the system records an immutable receipt for that selection, tied to the exact
+preview rows, source/configuration/mapping revisions and current project/source-
+reader authorization. The receipt records review intent only. It does not append,
+publish or update canonical project facts, assert `SYSTEM_VERIFIED`, or authorize
+any external write. Invalid, identity-ambiguous, stale or expired rows cannot be
+selected. Preserve existing fact history and keep Issue #7 acceptance open.
+
+Implement CSV upload/preview/review in this batch. Defer XLSX parsing until a
+permissively licensed parser is independently checked for actual expanded-byte,
+entry-count, workbook/worksheet/row/column/cell, execution-time and concurrency
+bounds, with adversarial fixtures and a registered dependency review. The reviewed
+research found the available candidate parser path did not yet provide sufficient
+verified resource bounds; do not add an unverified XLSX runtime dependency.
+
 ## EXEC-009 Stage 3 Jira reader, 2026-09-24
 
 Proceed with the bounded Jira Cloud read adapter behind the first-party

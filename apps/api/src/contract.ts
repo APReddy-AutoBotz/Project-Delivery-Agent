@@ -38,6 +38,13 @@ import {
   scalarReconciliationDeliverySchema,
   scalarReconciliationAssignmentBodySchema,
   scalarReconciliationAssignmentResultSchema,
+  ingestionConfigurationResultSchema,
+  ingestionCsvPreviewResultSchema,
+  ingestionReviewedImportResultSchema,
+  ingestionProposalSchema,
+  ingestionSafeErrorSchema,
+  ingestionRowOperationSchema,
+  ingestionRowStateSchema,
 } from "@pdaa/domain";
 import {
   catalogueQuerySchema,
@@ -74,6 +81,90 @@ const project = z.strictObject({
 });
 const modes = z.enum(["oidc", "development"]);
 const dataModes = z.enum(["synthetic", "customer"]);
+// OpenAPI describes the same bounded wire shapes as the runtime domain
+// schemas. The domain's pre-parse array guards use z.custom so oversized input
+// is rejected before item parsing; those guards are intentionally not weakened
+// just to make the JSON Schema exporter accept them.
+const ingestionTextWire = (max: number) => z.string().min(1).max(max);
+const ingestionConfigurationWireSchema = z.strictObject({
+  binding: z.strictObject({
+    customerId: z.uuid(),
+    sourceId: z.uuid(),
+    sourceType: ingestionTextWire(96),
+    origin: ingestionTextWire(2048),
+  }),
+  projects: z.array(z.strictObject({
+    projectId: z.uuid(),
+    readers: z.array(ingestionTextWire(256)).max(100),
+  })).min(1).max(100),
+  mapping: z.discriminatedUnion("kind", [
+    z.strictObject({
+      kind: z.literal("CSV"),
+      sheet: ingestionTextWire(256),
+      identityColumn: ingestionTextWire(256),
+      projectColumn: ingestionTextWire(256),
+      fields: z.array(z.strictObject({
+        column: ingestionTextWire(256),
+        factType: z.string().min(1).max(96).regex(/^[a-z][a-z0-9_.-]*$/),
+        type: z.enum(["text", "date", "number", "boolean"]),
+        required: z.boolean(),
+      })).min(1).max(32),
+    }),
+    z.strictObject({
+      kind: z.literal("CONNECTOR"),
+      factTypes: z.array(z.string().min(1).max(96).regex(/^[a-z][a-z0-9_.-]*$/)).max(32),
+      adapterConfiguration: z.string().max(30_000).optional(),
+    }),
+  ]),
+});
+const ingestionSourceSummaryWireSchema = z.strictObject({
+  sourceId: z.uuid(),
+  sourceType: ingestionTextWire(96),
+  origin: ingestionTextWire(2048),
+  configuration: ingestionConfigurationWireSchema,
+  configRevision: z.number().int().min(1),
+  mappingRevision: z.number().int().min(1),
+  healthState: z.enum(["UNKNOWN", "HEALTHY", "DEGRADED", "FAILED"]),
+  healthCode: z.enum(["NONE", "INVALID_CREDENTIALS", "EXPIRED_CREDENTIALS", "PERMISSION_DENIED", "RATE_LIMITED", "TEMPORARILY_UNAVAILABLE", "INVALID_RESPONSE", "NOT_FOUND", "UNKNOWN_OUTCOME", "INTEGRITY_CONFLICT", "CURSOR_CONFLICT"]),
+  healthCheckedAt: z.iso.datetime().nullable(),
+});
+const receiptOrdinalWire = z.number().int().min(1).max(1000);
+const ingestionReceiptReadResultWireSchema = z.strictObject({
+  receipt: z.strictObject({
+    id: z.uuid(),
+    sourceId: z.uuid(),
+    actor: ingestionTextWire(256),
+    kind: z.enum(["CONNECTOR_PAGE", "CONNECTOR_EVENT", "CSV_PREVIEW", "CSV_REVIEWED_IMPORT", "SYNC_RESET"]),
+    eventId: ingestionTextWire(256).nullable(),
+    configRevision: z.number().int().min(1),
+    mappingRevision: z.number().int().min(1),
+    cursorRevisionBefore: z.number().int().min(0).nullable(),
+    cursorRevisionAfter: z.number().int().min(0).nullable(),
+    generationBefore: z.number().int().min(1).nullable(),
+    generationAfter: z.number().int().min(1).nullable(),
+    rowCount: z.number().int().min(0).max(1000),
+    createdAt: z.iso.datetime(),
+    parentPreviewReceiptId: z.uuid().nullable(),
+  }),
+  outcomes: z.array(z.strictObject({
+    ordinal: receiptOrdinalWire,
+    parentOrdinal: receiptOrdinalWire.nullable(),
+    state: ingestionRowStateSchema,
+    operation: ingestionRowOperationSchema,
+    errorCodes: z.array(ingestionSafeErrorSchema).max(16),
+    projectId: z.uuid().nullable(),
+    identity: z.tuple([ingestionTextWire(267), ingestionTextWire(256)]).nullable(),
+    contentAvailable: z.boolean(),
+    proposals: z.array(ingestionProposalSchema).max(32).nullable(),
+  })).max(1000),
+});
+const ingestionReviewedImportBodyWireSchema = z.strictObject({
+  previewReceiptId: z.uuid(),
+  rowOrdinals: z.array(receiptOrdinalWire).min(1).max(1000).refine(
+    (ordinals) => ordinals.every((ordinal, index) => index === 0 || ordinals[index - 1]! < ordinal),
+  ),
+  commandKey: z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/),
+});
 export type RouteContract = {
   status: number;
   response?: z.ZodType;
@@ -82,8 +173,54 @@ export type RouteContract = {
   errors?: number[];
   parameters?: Record<string, z.ZodType>;
   query?: Record<string, z.ZodType>;
+  requestContent?: Record<string, { schema: SchemaObject }>;
 };
 export const contracts: Record<string, RouteContract> = {
+  "get /api/ingestion/sources": {
+    status: 200,
+    response: z.array(ingestionSourceSummaryWireSchema),
+    errors: [400, 503],
+  },
+  "post /api/ingestion/sources/configuration": {
+    status: 201,
+    requestContent: { "application/json": { schema: wireSchema(ingestionConfigurationWireSchema) } },
+    response: ingestionConfigurationResultSchema,
+    errors: [400, 404, 409, 503],
+  },
+  "post /api/ingestion/sources/{sourceId}/csv-previews": {
+    status: 201,
+    response: ingestionCsvPreviewResultSchema,
+    parameters: { sourceId: z.uuid() },
+    requestContent: {
+      "multipart/form-data": {
+        schema: {
+          type: "object",
+          required: ["file", "commandKey", "configRevision", "mappingRevision"],
+          properties: {
+            file: { type: "string", format: "binary" },
+            commandKey: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9_-]+$" },
+            configRevision: { type: "integer", minimum: 1 },
+            mappingRevision: { type: "integer", minimum: 1 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    errors: [400, 404, 409, 413, 415, 503],
+  },
+  "post /api/ingestion/sources/{sourceId}/reviewed-imports": {
+    status: 201,
+    requestContent: { "application/json": { schema: wireSchema(ingestionReviewedImportBodyWireSchema) } },
+    response: ingestionReviewedImportResultSchema,
+    parameters: { sourceId: z.uuid() },
+    errors: [400, 404, 409, 503],
+  },
+  "get /api/ingestion/sources/{sourceId}/receipts/{receiptId}": {
+    status: 200,
+    response: ingestionReceiptReadResultWireSchema,
+    parameters: { sourceId: z.uuid(), receiptId: z.uuid() },
+    errors: [400, 404, 409, 503],
+  },
   "post /api/projects/{id}/scalar-reconciliation-checks": {
     status: 201,
     request: scalarReconciliationCheckBodySchema,
@@ -427,7 +564,12 @@ export function completeContract(document: OpenAPIObject) {
         errorSchema(status),
         "Request could not be completed",
       );
-    if (contract.request)
+    if (contract.requestContent)
+      operation.requestBody = {
+        required: true,
+        content: contract.requestContent,
+      };
+    else if (contract.request)
       operation.requestBody = {
         required: true,
         content: {
