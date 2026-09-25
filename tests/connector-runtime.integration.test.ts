@@ -318,7 +318,11 @@ describe("durable Jira connector runtime", () => {
       20,
       new Date(Date.now() + 16 * 60_000),
     )).toEqual([]);
-    const deferredBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated" }));
+    const deferredBody = Buffer.from(JSON.stringify({
+      webhookEvent: "jira:issue_updated",
+      timestamp: Date.now(),
+      issue: { id: `fence-probe-${randomUUID()}` },
+    }));
     const deferredWebhook = await runtime.acceptWebhook({
       sourceId,
       eventId: `deferred-${randomUUID()}`,
