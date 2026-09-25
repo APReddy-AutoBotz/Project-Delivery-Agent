@@ -581,10 +581,10 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
       inwardIssue: { key: "SAFE-1" },
       outwardIssue: { key: "OTHER-2" },
     };
-    const safeIssue = issue("SAFE-1", "SAFE");
+    const canonicalIssue = issue("OTHER-2", "OTHER");
     const linkedIssue = {
-      ...safeIssue,
-      fields: { ...safeIssue.fields, issuelinks: [link] },
+      ...canonicalIssue,
+      fields: { ...canonicalIssue.fields, issuelinks: [link] },
     };
     const scopeBoth = { ...scope, projectIds: [projectId, otherProjectId] };
     const fixture = configured(
@@ -593,7 +593,7 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
           return { issues: [linkedIssue], isLast: true };
         },
         async getIssue({ issueIdOrKey }) {
-          return issue(issueIdOrKey, "SAFE");
+          return issue(issueIdOrKey, "OTHER");
         },
         async getIssueLink() {
           return link;
@@ -615,14 +615,14 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
       page.records.filter((record) => record.ref.recordType === "jira.issue_link"),
     );
     expect(linkRecords).toHaveLength(1);
-    expect(linkRecords[0]?.ref.projectId).toBe(projectId);
+    expect(linkRecords[0]?.ref.projectId).toBe(otherProjectId);
 
     const fetched = await fixture.adapter.getRecord(scopeBoth, linkRecords[0]!.ref);
     expect(fetched).toMatchObject({
       ok: true,
       value: {
         ref: {
-          projectId,
+          projectId: otherProjectId,
           recordType: "jira.issue_link",
           recordId: "42",
         },
