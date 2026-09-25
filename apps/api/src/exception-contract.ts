@@ -7,6 +7,21 @@ import {
 } from "@nestjs/common";
 import { errorMessages, isErrorStatus } from "./contract.js";
 
+const multerErrorStatuses: Record<string, number> = {
+  LIMIT_PART_COUNT: 400,
+  LIMIT_FILE_SIZE: 413,
+  LIMIT_FILE_COUNT: 400,
+  LIMIT_FIELD_KEY: 400,
+  LIMIT_FIELD_VALUE: 400,
+  LIMIT_FIELD_COUNT: 400,
+  LIMIT_UNEXPECTED_FILE: 400,
+  MISSING_FIELD_NAME: 400,
+  LIMIT_FIELD_NESTING: 400,
+  LIMIT_FIELD_ARRAY_INDEX: 400,
+  STREAM_DESTROYED: 400,
+  INVALID_FIELD_NAME: 400,
+};
+
 @Catch()
 export class ExceptionContractFilter implements ExceptionFilter {
   constructor(
@@ -35,6 +50,16 @@ export class ExceptionContractFilter implements ExceptionFilter {
       };
       if (typeof exception.type === "string")
         proposed = parserStatuses[exception.type];
+    } else if (
+      exception &&
+      typeof exception === "object" &&
+      "name" in exception &&
+      exception.name === "MulterError" &&
+      "code" in exception &&
+      typeof exception.code === "string"
+    ) {
+      // Return fixed client errors for recognized upload parser failures only.
+      proposed = multerErrorStatuses[exception.code];
     }
     const status = isErrorStatus(proposed) ? proposed : 500;
     const response = host.switchToHttp().getResponse();

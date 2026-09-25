@@ -59,10 +59,17 @@ const added = [
   "IngestionReceiptProjectScope",
   "IngestionCursorTransition",
   "IngestionRowOutcome",
+  "IngestionReviewedImport",
+  "IngestionReviewedImportRow",
+  "ConnectorSyncGrant",
+  "ConnectorSyncJob",
+  "ConnectorWebhookReceipt",
+  "ConnectorTaskReceipt",
+  "IngestionSyncReceiptProjectScope",
 ];
 const receipt = () => ({
   priorMigrationCount: 1,
-  businessTableCount: 56,
+  businessTableCount: 63,
   retainedPriorBusinessTables: [...old],
   retainedPriorRowCounts: Object.fromEntries(old.map((table) => [table, 1])),
   emptyAddedTablesAfterUpgrade: [...added],

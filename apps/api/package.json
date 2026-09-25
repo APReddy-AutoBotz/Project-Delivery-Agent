@@ -11,6 +11,7 @@
     "@pdaa/domain": "workspace:*",
     "@pdaa/platform": "workspace:*",
     "@pdaa/data": "workspace:*",
+    "@pdaa/connectors-jira": "workspace:*",
     "@nestjs/common": "11.2.3",
     "@nestjs/core": "11.2.3",
     "@nestjs/platform-express": "11.2.3",

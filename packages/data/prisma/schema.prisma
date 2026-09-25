@@ -77,10 +77,17 @@ model AuditEvent {
 model ConnectorCredential {
   id String @id @default(uuid()) @db.Uuid
   customerId String @db.Uuid
+  sourceId String? @db.Uuid
+  purpose String? @db.VarChar(32)
   name String
   envelope String
   keyId String
   revision Int @default(1)
+  state String @default("ACTIVE") @db.VarChar(24)
+  rotationOperationId String? @db.Uuid
+  rotationDeadline DateTime? @db.Timestamptz(3)
+  auditEventId String? @db.Uuid
+  changedBy String? @db.VarChar(256)
   customer Customer @relation(fields: [customerId], references: [id])
 }
 model ServiceHeartbeat {
@@ -983,6 +990,8 @@ model IngestionOperationReceipt {
   commandKey String @db.VarChar(128)
   requestHash String @db.Char(64)
   eventId String? @db.VarChar(256)
+  executionMode String @default("HUMAN") @db.VarChar(24)
+  syncJobId String? @db.Uuid
   configRevision Int
   mappingRevision Int
   generationBefore BigInt?
@@ -1006,6 +1015,74 @@ model IngestionReceiptProjectScope {
   grantScopeType String @db.VarChar(16)
   grantScopeId String @db.Uuid
   @@id([receiptId, projectId], map: "IngestionReceiptProjectScope_pkey")
+}
+
+model ConnectorSyncGrant {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  projectId String @db.Uuid
+  configRevision Int
+  revision Int
+  active Boolean
+  changedBy String @db.VarChar(256)
+  auditEventId String @db.Uuid
+  changedAt DateTime @db.Timestamptz(3)
+  @@unique([customerId, sourceId, projectId], map: "ConnectorSyncGrant_identity_key")
+  @@unique([customerId, sourceId, projectId, id], map: "ConnectorSyncGrant_scope_key")
+}
+
+model ConnectorSyncJob {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  configRevision Int
+  mappingRevision Int
+  kind String @db.VarChar(16)
+  state String @default("READY") @db.VarChar(16)
+  eventId String? @db.VarChar(256)
+  idempotencyKey String @db.VarChar(320)
+  resetRequested Boolean @default(false)
+  resetCompleted Boolean @default(false)
+  attempts Int @default(0)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  availableAt DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+  leaseUntil DateTime? @db.Timestamptz(3)
+  completedAt DateTime? @db.Timestamptz(3)
+  @@unique([customerId, sourceId, id], map: "ConnectorSyncJob_scope_key")
+  @@unique([customerId, sourceId, idempotencyKey], map: "ConnectorSyncJob_idempotency_key")
+}
+
+model ConnectorWebhookReceipt {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  eventId String @db.VarChar(256)
+  payloadHash String @db.Char(64)
+  eventType String @db.VarChar(96)
+  jobId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, sourceId, eventId], map: "ConnectorWebhookReceipt_event_key")
+  @@unique([customerId, sourceId, payloadHash], map: "ConnectorWebhookReceipt_payload_key")
+  @@unique([customerId, sourceId, id], map: "ConnectorWebhookReceipt_scope_key")
+}
+
+model ConnectorTaskReceipt {
+  nonce String @id @db.Uuid
+  keyId String @db.VarChar(64)
+  requestTime DateTime @db.Timestamptz(3)
+  bodyHash String @db.Char(64)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+
+model IngestionSyncReceiptProjectScope {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @db.Uuid
+  projectId String @db.Uuid
+  syncGrantId String @db.Uuid
+  @@id([receiptId, projectId], map: "IngestionSyncReceiptProjectScope_pkey")
 }
 
 model IngestionCursorTransition {
@@ -1035,4 +1112,26 @@ model IngestionRowOutcome {
   sourceRevisionId String? @db.Uuid
   projectionId String? @db.Uuid
   @@id([receiptId, ordinal], map: "IngestionRowOutcome_pkey")
+  @@unique([customerId, sourceId, receiptId, ordinal], map: "IngestionRowOutcome_scope_ordinal_key")
+}
+
+model IngestionReviewedImport {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @id @db.Uuid
+  previewReceiptId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, sourceId, previewReceiptId], map: "IngestionReviewedImport_scope_parent_key")
+  @@unique([customerId, sourceId, receiptId, previewReceiptId], map: "IngestionReviewedImport_exact_scope_key")
+}
+
+model IngestionReviewedImportRow {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @db.Uuid
+  ordinal Int
+  previewReceiptId String @db.Uuid
+  previewOrdinal Int
+  @@id([receiptId, ordinal], map: "IngestionReviewedImportRow_pkey")
+  @@unique([customerId, sourceId, previewReceiptId, previewOrdinal], map: "IngestionReviewedImportRow_preview_row_key")
 }

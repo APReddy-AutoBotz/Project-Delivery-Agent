@@ -262,4 +262,3 @@ async function restoreArchive(
     rmSync(temporary, { recursive: true, force: true });
   }
 }
-

@@ -7,7 +7,7 @@ FR-MOD-007, FR-EVD-001/002/011, NFR-SEC-001/002/004/005/006/008,
 NFR-REL-001, NFR-MNT-002, TR-JIRA-002, TR-TEST-003
 GitHub issue: #7 (EPIC-02, STORY-006..009)
 Target release: R1
-Last updated: 2026-09-22
+Last updated: 2026-09-24
 
 ## Objective
 
@@ -26,6 +26,10 @@ mapped CSV dry-run core. It is not the complete ingestion workflow or story acce
   authorized CSV/XLSX upload, preview and explicit import commit with provenance.
 - Shared tests retain the whole AC-MNT-003 identity/sync/cursor/duplicate/permission/
   throttling/unknown-outcome contract. This read-only subset does not satisfy it alone.
+- Current Jira slice: a connector-package Jira Cloud adapter that restricts issue
+  search to configured project mappings, exposes only selected typed scalar fields,
+  validates exact source/project identity and normalizes finite redacted failures.
+  Synthetic tests cover the adapter; no live credential or product route is wired.
 
 ## Out of scope
 
@@ -162,7 +166,7 @@ expose an API route, or enable an external write.
   optional event key, exact config/mapping revisions, outcome count, and safe
   audit reference. Unique
   command key is `(customer,source,actor,kind,key)`; event key is `(source,event
-  ID)`; source revision is `(external record,opaque source revision)`; projection
+ID)`; source revision is `(external record,opaque source revision)`; projection
   key is `(source revision,mapping revision)`. These command, event,
   source-revision, projection and cursor compare-and-swap checks remain
   independent. Same command key with changed payload fails; same event ID with
@@ -299,6 +303,27 @@ None. Existing Zod only; no CSV/XLSX/Jira dependency or vendored source added.
 4. Authorized CSV/XLSX upload/preview/commit and admin journeys preserving styling.
 5. Native/package/customer-profile/upgrade/recovery matrix and full Issue #7 review.
 
+### Stage 4 implementation contract
+
+The Product Owner confirmed that an import commit saves an immutable reviewed-
+import proposal receipt for explicitly selected eligible preview rows. It never
+publishes or changes canonical facts. The receipt references the parent CSV
+preview and exact row ordinals/proposal projections; binds current source,
+configuration and mapping revisions; hashes the selected command; and rechecks
+full project grants plus configured source-reader grants on creation, replay and
+read. Only accepted rows with available, hash-valid proposal content may be
+selected. Commit writes only review/receipt metadata and selected proposal links;
+it creates no fact, evidence, authority, Jira write or worker grant. No Issue #7
+acceptance is inferred.
+
+This UI/API batch supports bounded CSV upload, preview and reviewed-proposal
+commit, plus the required administrator mapping journey. XLSX remains deferred
+until a permissively licensed parser passes independent review of expanded bytes,
+archive entries, workbook/sheet/row/column/cell limits, parse duration,
+concurrent resource use and adversarial files. Preserve existing product styling.
+Keep database guards, API role grants, restore/recovery inventories and populated-
+upgrade validation aligned with the new receipt type.
+
 ## Test and evaluation plan
 
 Run focused parser/preview/connector tests, full lint/typecheck/units/build,
@@ -318,6 +343,11 @@ stored data changes in this batch. Later persistence needs additive-compatible
 reverts or encrypted restore into a fresh quarantined database; never delete history.
 
 ## Progress log
+
+- 2026-09-24: the Product Owner selected reviewed-import proposals as the durable
+  CSV commit result. Canonical facts remain untouched. CSV is the bounded format
+  for this batch; XLSX parser adoption remains gated on independently verified
+  decompression, archive, workbook, time, concurrency and adversarial-file bounds.
 
 - 2026-09-23: approved the stage-two durable proposal design after independent
   review at section SHA256
@@ -439,6 +469,58 @@ No schema/role design is approved solely by this risk audit; no new runtime chan
 or acceptance is claimed. The full later Jira/OAuth/webhook/XLSX/upload/commit scope
 and existing Antigravity design remain unchanged.
 
+## Stage 3 Jira issue reader checkpoint, 2026-09-24
+
+At the Stage 3 checkpoint, this synthetic-first increment added `@pdaa/connectors-jira` as a connector-package
+adapter over the approved `jira.js` SDK. Explicit internal-project/Jira-key mappings
+bound project discovery, JQL issue search and direct record lookup. Only configured
+scalar fields are projected into typed, hashed proposals. The adapter rechecks
+project identity, same-origin links and first-party page/cursor contracts, and maps
+SDK failures to finite redacted classes. Ten synthetic contract cases cover
+connection, scope, permissions, projection, paging, lookup and failure redaction.
+
+PR #57 merged the exact reviewed Jira issue-reader increment. Its then-current
+scope had no runtime route or worker invocation. The checkpoint did not claim a
+live account, OAuth callback, webhook, scheduled reconciliation, full Jira entity
+coverage, source-fact publication or write method. AC-CON-001/002/003 and
+AC-MNT-003 remain incomplete; no Issue #7 story or acceptance total changes.
+
+## PR #58 OAuth, webhook and reconciliation runtime candidate, 2026-09-24
+
+This additive eleventh migration extends connector credentials with purpose,
+state, key ID and audited refresh-operation fencing; adds scoped service grants,
+durable one-time sync jobs, webhook/task receipts and service receipt scopes. The
+runtime encrypts OAuth access/refresh tokens with a keyring, uses a 60-second
+single-owner refresh lease, and rejects late or stale refresh responses. A fresh
+rotated refresh token is committed before the next external resource check. HMAC
+webhooks persist an immutable event digest and coalesce into source-bound read
+jobs; events never become proposal data. Signed short-lived internal task calls
+are protected by durable one-time nonce receipts.
+
+The worker wakes the internal API once a minute. The runtime also schedules Jira
+reconciliation every 15 minutes, validates the selected Cloud ID and read scope,
+uses the Stage 3 Jira issue reader, then commits typed proposals, cursor, health
+and service receipts in one transaction after rechecking configuration, cursor,
+mapping and each current source/project grant. Service receipts use a distinct
+connector identity and do not impersonate a project manager. No public OAuth
+authorization callback/UI, Jira write, canonical fact publication or activated
+production account is included.
+
+The five new tables are included in independent schema, upgrade and encrypted
+restore inventories (61 business tables; 12 migrations). Follow-up review hardening
+uses a source-scoped unique digest of the HMAC-authenticated request body to keep
+delivery retries on the same immutable receipt even when transport metadata varies.
+A definitive OAuth 429 releases the fenced refresh lease and honors bounded
+Retry-After; ambiguous refresh outcomes still require reauthorization. Synthetic
+auth/OAuth and isolated database runtime cases are added. The predecessor
+candidate passed local source typecheck, lint, architecture, contract, dependency
+and documentation checks, 1,502 database-independent unit tests across 76 files,
+and Prisma schema validation. The replay/429 follow-up still requires final-head
+validation. PostgreSQL migration/COMMIT, full integration,
+populated-prefix-nine upgrade, encrypted recovery, exact-SHA independent review
+and hosted CI are still required. AC-CON-004/005/006 and AC-MNT-003 remain
+incomplete. Issue #7 stories and acceptance totals do not change.
+
 ## Stage 2 implementation checkpoint, 2026-09-23
 
 The independently reviewed Stage 2 design is implemented locally through an
@@ -457,22 +539,3 @@ encrypted recovery validation are pending because the Docker service is unavaila
 The default `pdaa` database was not used. Implementation, Issue #7 acceptance and
 story totals remain separate: native database validation, independent exact-code
 review and matching CI are still required before this checkpoint can advance.
-## Stage 3 Jira issue reader checkpoint, 2026-09-24
-
-This synthetic-first increment adds `@pdaa/connectors-jira` as a connector-package
-adapter over the approved `jira.js` SDK. Explicit internal-project/Jira-key mappings
-bound project discovery, JQL issue search and direct record lookup. Only configured
-scalar fields are projected into typed, hashed proposals. The adapter rechecks
-project identity, same-origin links and first-party page/cursor contracts, and maps
-SDK failures to finite redacted classes. Ten synthetic contract cases cover
-connection, scope, permissions, projection, paging, lookup and failure redaction.
-
-No API or worker invokes the adapter. There is no live account, OAuth callback,
-refresh-token persistence, webhook, scheduled reconciliation, sprint/comment/full
-changelog/link normalization, source-fact publication or write method. The existing
-proposal persistence path is not yet wired to this reader. AC-CON-001/002/003 and
-AC-MNT-003 remain incomplete; no Issue #7 story or acceptance total changes. No new
-database migration is needed for this adapter-only boundary; the already merged
-Stage 2 proposal tables remain as previously documented. Next is independent exact-
-candidate review, complete relevant CI and PR integration, followed by the separate
-OAuth/webhook/reconciliation and spreadsheet-upload increments.

@@ -24,11 +24,16 @@ const policies = {
   },
   "@pdaa/data": {
     workspace: ["@pdaa/domain", "@pdaa/platform"],
-    external: ["@prisma/client", "@prisma/adapter-pg", "pg"],
+    external: ["@prisma/client", "@prisma/adapter-pg", "pg", "zod"],
     node: true,
   },
   "@pdaa/api": {
-    workspace: ["@pdaa/domain", "@pdaa/platform", "@pdaa/data"],
+    workspace: [
+      "@pdaa/domain",
+      "@pdaa/platform",
+      "@pdaa/data",
+      "@pdaa/connectors-jira",
+    ],
     external: [
       "@nestjs/common",
       "@nestjs/core",

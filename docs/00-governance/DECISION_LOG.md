@@ -1,5 +1,23 @@
 # Decision Log
 
+## EXEC-009 reviewed spreadsheet import semantics, 2026-09-24
+
+The Product Owner selected durable reviewed-import proposals as the import
+commit outcome. A user may select eligible rows from an authorized CSV preview;
+the system records an immutable receipt for that selection, tied to the exact
+preview rows, source/configuration/mapping revisions and current project/source-
+reader authorization. The receipt records review intent only. It does not append,
+publish or update canonical project facts, assert `SYSTEM_VERIFIED`, or authorize
+any external write. Invalid, identity-ambiguous, stale or expired rows cannot be
+selected. Preserve existing fact history and keep Issue #7 acceptance open.
+
+Implement CSV upload/preview/review in this batch. Defer XLSX parsing until a
+permissively licensed parser is independently checked for actual expanded-byte,
+entry-count, workbook/worksheet/row/column/cell, execution-time and concurrency
+bounds, with adversarial fixtures and a registered dependency review. The reviewed
+research found the available candidate parser path did not yet provide sufficient
+verified resource bounds; do not add an unverified XLSX runtime dependency.
+
 ## EXEC-009 Stage 3 Jira reader, 2026-09-24
 
 Proceed with the bounded Jira Cloud read adapter behind the first-party
@@ -11,6 +29,29 @@ proposals without asserting provenance or publishing fact versions. Keep the SDK
 client and any token handling inside the adapter package. This authorizes no live
 credential activation, OAuth persistence, webhook, write, app route or Issue #7
 acceptance. Complete exact-candidate review and checks before PR merge.
+
+## EXEC-009 Jira runtime follow-up, 2026-09-24
+
+Proceed with the bounded Jira Cloud runtime behind the Stage 3 read adapter.
+Persist OAuth credentials using the credential keyring, single-owner refresh
+lease, operation/revision fencing and atomic rotated-token commit. Verify the
+selected Cloud ID and read scope on each access. Accept an administrator-secret
+HMAC webhook only after a durable event receipt and idempotent reconciliation job
+are committed; treat its payload as a wake-up signal and fetch Jira state through
+the read adapter. Dispatch one-time internal tasks with signed short-lived
+requests and database nonce receipts. Persist proposals, cursor progress, source
+health and service receipts under the current configuration and exact active
+source/project grants, without impersonating a human or publishing source facts.
+
+The independent design review cleared refresh ownership/late-response fencing,
+page-commit authorization races, and the requested crash/recovery cases. The
+follow-up adds source-scoped uniqueness for authenticated webhook body digests,
+so duplicate bodies reuse their original receipt across delivery-ID changes.
+Definitive OAuth 429 responses release the refresh lease and honor bounded
+Retry-After; ambiguous refresh outcomes still require reauthorization. This
+increment does not add a public OAuth authorization callback or UI, Jira write,
+source-fact publication, or Issue #7 acceptance. Complete exact-candidate review,
+database/recovery checks and matching hosted workflows before merge.
 
 ## EXEC-009 durable proposal persistence design, 2026-09-23
 
@@ -156,18 +197,18 @@ trusted ingestion, durable versioning, policy resolution and API/browser evidenc
 in subsequent reviewed increments. Tracked planning and each immutable code
 candidate require independent non-author review and applicable validation.
 
-| Decision | Date | Status | Reference |
-|---|---|---|---|
-| Build as a standalone product rather than inside AvalaOS | 2026-09-05 | Accepted | BRD, PRODUCT_SCOPE |
-| Position as delivery assurance and coordination, not only reporting | 2026-09-05 | Accepted | VISION_AND_STRATEGY |
-| Use a TypeScript-first modular monolith | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-001, ADR-008 |
-| Use PostgreSQL and pgvector | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-002 |
-| Use Graphile Worker for schedules and durable background work | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-003 |
-| Use customer-controlled AI provider routing | 2026-09-05 | Accepted | ADR-004 |
-| Use customer-hosted, single-tenant deployments first | 2026-09-05 | Accepted | ADR-005 |
-| Require human approval for material writes | 2026-09-05 | Accepted | ADR-007 |
-| Adopt libraries through package managers, not copied repositories | 2026-09-05 | Accepted | OPEN_SOURCE_POLICY |
-| Defer broad connector support until the Jira-plus-spreadsheet loop is complete | 2026-09-05 | Accepted | RELEASE-1-VERTICAL-SLICE |
+| Decision                                                                       | Date       | Status                               | Reference                |
+| ------------------------------------------------------------------------------ | ---------- | ------------------------------------ | ------------------------ |
+| Build as a standalone product rather than inside AvalaOS                       | 2026-09-05 | Accepted                             | BRD, PRODUCT_SCOPE       |
+| Position as delivery assurance and coordination, not only reporting            | 2026-09-05 | Accepted                             | VISION_AND_STRATEGY      |
+| Use a TypeScript-first modular monolith                                        | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-001, ADR-008         |
+| Use PostgreSQL and pgvector                                                    | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-002                  |
+| Use Graphile Worker for schedules and durable background work                  | 2026-09-05 | Accepted under 2026-09-06 delegation | ADR-003                  |
+| Use customer-controlled AI provider routing                                    | 2026-09-05 | Accepted                             | ADR-004                  |
+| Use customer-hosted, single-tenant deployments first                           | 2026-09-05 | Accepted                             | ADR-005                  |
+| Require human approval for material writes                                     | 2026-09-05 | Accepted                             | ADR-007                  |
+| Adopt libraries through package managers, not copied repositories              | 2026-09-05 | Accepted                             | OPEN_SOURCE_POLICY       |
+| Defer broad connector support until the Jira-plus-spreadsheet loop is complete | 2026-09-05 | Accepted                             | RELEASE-1-VERTICAL-SLICE |
 
 ## 2026-09-06 delegated controller decisions
 
@@ -175,18 +216,18 @@ The Product Owner authorized applying the five controller corrections and starti
 implementation. Routine baseline/ADR decisions below are accepted under that
 delegation; independent review, checks and merge remain separate evidence gates.
 
-| Decision | Disposition | Reference |
-|---|---|---|
-| Routine baseline and ADR approval | Delegated to controller after documented gates | DOCUMENT_CONTROL.md |
-| Preserve fact origin through staleness/conflict | Accepted | ADR-009 |
-| Security enforced in foundation; review exact candidate with non-author | Accepted | ADR-010, CONTRIBUTING.md |
-| R1 Jira comments only; fields R2 | Accepted | OD-003, ADR-010 |
-| R1 single-project Q&A; portfolio analysis R3 | Accepted | ADR-010 |
-| R1 weekday/timezone/quiet hours; holidays R2 | Accepted | OD-006, ADR-010 |
-| PowerPoint required; PDF optional; two initial contradictions | Accepted | OD-007, ADR-010 |
-| Independent information satisfaction and external action | Accepted | WORKFLOW_ARCHITECTURE.md |
-| Retry preflight and restore quarantine | Accepted | APPROVAL_AND_WRITEBACK.md, DEPLOYMENT_AND_OPERATIONS.md |
-| No unsupported commercial outcome claim | Retain proposed terms; measure pilot evidence | PILOT_SUCCESS_METRICS.md |
+| Decision                                                                | Disposition                                    | Reference                                               |
+| ----------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------- |
+| Routine baseline and ADR approval                                       | Delegated to controller after documented gates | DOCUMENT_CONTROL.md                                     |
+| Preserve fact origin through staleness/conflict                         | Accepted                                       | ADR-009                                                 |
+| Security enforced in foundation; review exact candidate with non-author | Accepted                                       | ADR-010, CONTRIBUTING.md                                |
+| R1 Jira comments only; fields R2                                        | Accepted                                       | OD-003, ADR-010                                         |
+| R1 single-project Q&A; portfolio analysis R3                            | Accepted                                       | ADR-010                                                 |
+| R1 weekday/timezone/quiet hours; holidays R2                            | Accepted                                       | OD-006, ADR-010                                         |
+| PowerPoint required; PDF optional; two initial contradictions           | Accepted                                       | OD-007, ADR-010                                         |
+| Independent information satisfaction and external action                | Accepted                                       | WORKFLOW_ARCHITECTURE.md                                |
+| Retry preflight and restore quarantine                                  | Accepted                                       | APPROVAL_AND_WRITEBACK.md, DEPLOYMENT_AND_OPERATIONS.md |
+| No unsupported commercial outcome claim                                 | Retain proposed terms; measure pilot evidence  | PILOT_SUCCESS_METRICS.md                                |
 
 ## Publication and partial-increment acceptance, 2026-09-06
 

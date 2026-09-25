@@ -73,6 +73,9 @@ importers:
       '@pdaa/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@pdaa/connectors-jira':
+        specifier: workspace:*
+        version: link:../../packages/connectors-jira
       '@pdaa/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -177,6 +180,9 @@ importers:
       pg:
         specifier: 8.23.0
         version: 8.23.0
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
     devDependencies:
       '@types/pg':
         specifier: 8.23.1

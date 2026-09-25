@@ -22,6 +22,12 @@ import {
   unavailableCanonicalRepository,
 } from "./canonical-controller.js";
 import {
+  IngestionController,
+  IngestionIdentityGuard,
+  INGESTION_REPOSITORY,
+  unavailableIngestionRepository,
+} from "./ingestion-controller.js";
+import {
   completeContract,
   grantSchema,
   revokeSchema,
@@ -48,6 +54,7 @@ import {
   HttpException,
 } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import {
   SwaggerModule,
   DocumentBuilder,
@@ -63,6 +70,7 @@ import {
   type AuthorityRepository,
   type MilestoneReconciliationRepository,
   type ScalarReconciliationRepository,
+  type IngestionRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
@@ -199,6 +207,8 @@ export async function createApp(
   authority: AuthorityRepository = unavailableAuthorityRepository,
   reconciliation: MilestoneReconciliationRepository = unavailableReconciliationRepository,
   scalarReconciliation: ScalarReconciliationRepository = unavailableScalarReconciliationRepository,
+  preJsonBodyParser?: (app: NestExpressApplication) => void,
+  ingestion: IngestionRepository = unavailableIngestionRepository,
 ) {
   @Module({
     controllers: [
@@ -207,6 +217,7 @@ export async function createApp(
       EvidenceController,
       MilestoneController,
       ScalarReconciliationController,
+      IngestionController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -220,10 +231,12 @@ export async function createApp(
         useValue: scalarReconciliation,
       },
       { provide: IdentityService, useValue: identity },
+      { provide: INGESTION_REPOSITORY, useValue: ingestion },
+      IngestionIdentityGuard,
     ],
   })
   class AppModule {}
-  const app = await NestFactory.create(AppModule, { logger: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: false, rawBody: true, bodyParser: false });
   app.useGlobalInterceptors(new ResponseContractInterceptor());
   app.useGlobalFilters(new ExceptionContractFilter(app.getHttpAdapter()));
   app.enableCors({
@@ -257,6 +270,16 @@ export async function createApp(
       next();
     },
   );
+  app.useBodyParser("text", {
+    limit: "1mb",
+    type: (request) => {
+      const pathname = request.url?.split("?", 1)[0] ?? "";
+      return request.method === "POST" &&
+        (pathname.startsWith("/internal/connectors/") || pathname.startsWith("/webhooks/jira/"));
+    },
+  });
+  preJsonBodyParser?.(app);
+  app.useBodyParser("json", { limit: "100kb" });
   const spec = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()

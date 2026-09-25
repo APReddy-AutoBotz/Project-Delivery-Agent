@@ -170,6 +170,24 @@ describe("Production deployment boundary — TR-DEP-003, NFR-SEC-003/005, TR-AUT
     ])
       expect(() => loadConfig({ ...fixture(), ...patch })).toThrow();
   });
+  it("requires production Jira OAuth client secrets to come from mounted files", () => {
+    const clientSecret = randomBytes(32).toString("base64url");
+    let error: unknown;
+    try {
+      loadConfig({
+        ...fixture(),
+        JIRA_OAUTH_CLIENT_ID: "synthetic-client-id",
+        JIRA_OAUTH_CLIENT_SECRET: clientSecret,
+      });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe(
+      "Production Jira OAuth requires a mounted client secret file",
+    );
+    expect(inspect(error)).not.toContain(clientSecret);
+  });
   it("rejects missing, empty and conflicting secret files without disclosing their values", () => {
     for (const patch of [
       { ENCRYPTION_KEY: key },

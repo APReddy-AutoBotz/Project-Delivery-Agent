@@ -27,7 +27,17 @@ const ingestionTables = [
   "IngestionReceiptProjectScope",
   "IngestionCursorTransition",
   "IngestionRowOutcome",
+  "IngestionReviewedImport",
+  "IngestionReviewedImportRow",
 ];
+const jiraRuntimeTables = [
+  "ConnectorSyncGrant",
+  "ConnectorSyncJob",
+  "ConnectorWebhookReceipt",
+  "ConnectorTaskReceipt",
+  "IngestionSyncReceiptProjectScope",
+];
+const introducedTables = [...ingestionTables, ...jiraRuntimeTables];
 
 async function assignSyntheticTableOwners(pool) {
   await pool.query(`DO $owners$ DECLARE item record; BEGIN
@@ -74,9 +84,12 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 10);
+    assert.equal(migrations.length, 13);
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
+    assert.equal(migrations[10].name, "202609240001_jira_runtime");
+    assert.equal(migrations[12].name, "202609250001_reviewed_csv_import");
+    assert.equal(migrations[11].name, "202609240002_jira_webhook_body_replay");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
     pool = new Pool(databaseConfig);
     await assignSyntheticTableOwners(pool);
@@ -131,7 +144,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         ORDER BY tablename`
     ).map((row) => row.tablename);
     assert.equal(beforeTables.length, 42);
-    assert(ingestionTables.every((table) => !beforeTables.includes(table)));
+    assert(introducedTables.every((table) => !beforeTables.includes(table)));
     const beforeLedger = await prior.$queryRaw`SELECT migration_name,checksum FROM "_prisma_migrations" ORDER BY migration_name`;
     assert.equal(beforeLedger.length, 9);
 
@@ -157,7 +170,13 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
           WHERE schemaname='public' AND tablename<>'_prisma_migrations'
           ORDER BY tablename`
       ).map((row) => row.tablename);
-      assert.equal(afterTables.length, 56);
+      const replayIndexes = await after.$queryRaw`
+        SELECT indexname FROM pg_indexes
+        WHERE schemaname='public' AND tablename='ConnectorWebhookReceipt'
+          AND indexname='ConnectorWebhookReceipt_payload_key'`;
+      assert.equal(replayIndexes.length, 1);
+      assert.equal(afterTables.length, beforeTables.length + introducedTables.length);
+      assert(introducedTables.every((table) => afterTables.includes(table)));
       for (const table of beforeTables) {
         assert(afterTables.includes(table));
         assert.deepEqual(
@@ -168,7 +187,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
           `Released-nine ${table} rows must remain byte-for-byte equivalent`,
         );
       }
-      for (const table of ingestionTables) {
+      for (const table of introducedTables) {
         assert.equal(
           (
             await after.$queryRawUnsafe(
@@ -204,6 +223,23 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
           api_receipt_validator: true,
         },
       ]);
+      const reviewedAcl = await pool.query(`SELECT
+        has_table_privilege('pdaa_api','public."IngestionReviewedImport"','SELECT') AS api_review_read,
+        has_table_privilege('pdaa_api','public."IngestionReviewedImport"','INSERT') AS api_review_insert,
+        has_table_privilege('pdaa_worker','public."IngestionReviewedImport"','SELECT') AS worker_review_read,
+        has_table_privilege('pdaa_backup','public."IngestionReviewedImport"','SELECT') AS backup_review_read,
+        has_table_privilege('pdaa_api','public."IngestionReviewedImportRow"','INSERT') AS api_link_insert,
+        has_table_privilege('pdaa_worker','public."IngestionReviewedImportRow"','SELECT') AS worker_link_read,
+        has_table_privilege('pdaa_backup','public."IngestionReviewedImportRow"','SELECT') AS backup_link_read`);
+      assert.deepEqual(reviewedAcl.rows, [{
+        api_review_read: true,
+        api_review_insert: true,
+        worker_review_read: false,
+        backup_review_read: true,
+        api_link_insert: true,
+        worker_link_read: false,
+        backup_link_read: true,
+      }]);
       return {
         databaseName,
         status: "passed",
@@ -211,8 +247,8 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         retainedTableCount: beforeTables.length,
         retainedRowTables: beforeTables.filter((table) => beforeRows.get(table).length > 0),
         businessTableCount: afterTables.length,
-        addedMigration: ledger[9].migration_name,
-        newIngestionTablesEmpty: true,
+        addedMigrations: ledger.slice(9).map((row) => row.migration_name),
+        introducedTablesEmpty: true,
         finiteIngestionAcl: true,
       };
     } finally {
@@ -224,3 +260,4 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     await admin.$disconnect();
   }
 }
+
