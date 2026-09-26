@@ -822,11 +822,30 @@ describe("durable Jira connector runtime", () => {
 
     // A revoked refresh token stops the scheduled read and gives an authorized
     // administrator a finite reauthorization action without the provider body.
+    const revokedSourceId = randomUUID();
+    await ingestion.configure(
+      pmo,
+      {
+        binding: { ...binding, sourceId: revokedSourceId },
+        projects: [{ projectId, readers: [manager.subject, pmo.subject] }],
+        mapping: {
+          kind: "CONNECTOR",
+          factTypes: ["jira.status"],
+          adapterConfiguration: JSON.stringify({
+            projects: [{ projectId, projectKey: "SAFE" }],
+            fields: [
+              { jiraField: "status", factType: "jira.status", valueType: "text" },
+            ],
+          }),
+        },
+      },
+      "revoked-token-configure-" + revokedSourceId,
+    );
     const revokedRefreshToken = "synthetic-revoked-refresh-token";
     const revokedAccessToken = "synthetic-revoked-access-token";
     await runtime.setOAuthCredential({
       customerId: isolatedCustomerId,
-      sourceId,
+      sourceId: revokedSourceId,
       actorSubject: pmo.subject,
       credential: {
         cloudId: "cloud-1",
@@ -840,7 +859,7 @@ describe("durable Jira connector runtime", () => {
     const revokedWebhookSecret = Buffer.alloc(32, 73).toString("hex");
     await runtime.setWebhookSecret({
       customerId: isolatedCustomerId,
-      sourceId,
+      sourceId: revokedSourceId,
       actorSubject: pmo.subject,
       secret: revokedWebhookSecret,
     });
@@ -849,7 +868,7 @@ describe("durable Jira connector runtime", () => {
       timestamp: Date.now(),
     }));
     await runtime.acceptWebhook({
-      sourceId,
+      sourceId: revokedSourceId,
       eventId: "revoked-token-" + randomUUID(),
       signature: "sha256=" + createHmac("sha256", revokedWebhookSecret).update(revokedBody).digest("hex"),
       rawBody: revokedBody,
@@ -885,7 +904,7 @@ describe("durable Jira connector runtime", () => {
     expect(observedFailures).toContain("INVALID_CREDENTIALS");
 
     const revokedCredential = await db.connectorCredential.findFirstOrThrow({
-      where: { customerId: isolatedCustomerId, sourceId, purpose: "jira_oauth" },
+      where: { customerId: isolatedCustomerId, sourceId: revokedSourceId, purpose: "jira_oauth" },
       select: { state: true, rotationOperationId: true, rotationDeadline: true },
     });
     expect(revokedCredential).toEqual({
@@ -893,21 +912,22 @@ describe("durable Jira connector runtime", () => {
       rotationOperationId: null,
       rotationDeadline: null,
     });
-    await expect(runtime.accessOrBeginRotation(isolatedCustomerId, sourceId)).resolves.toMatchObject({
+    await expect(runtime.accessOrBeginRotation(isolatedCustomerId, revokedSourceId)).resolves.toMatchObject({
       kind: "unavailable",
       reason: "REAUTH_REQUIRED",
     });
     const reauthorizationSummary = await ingestion.listSources(pmo);
-    expect(reauthorizationSummary).toHaveLength(1);
-    expect(reauthorizationSummary[0]).toMatchObject({
-      sourceId,
+    expect(reauthorizationSummary).toHaveLength(2);
+    const revokedSummary = reauthorizationSummary.find((item) => item.sourceId === revokedSourceId);
+    expect(revokedSummary).toMatchObject({
+      sourceId: revokedSourceId,
       healthState: "FAILED",
       healthCode: "INVALID_CREDENTIALS",
     });
-    expect(reauthorizationSummary[0]?.healthCheckedAt).not.toBeNull();
+    expect(revokedSummary?.healthCheckedAt).not.toBeNull();
     const redactedAdminAction = JSON.stringify({
       action: revokedAction,
-      source: reauthorizationSummary[0],
+      source: revokedSummary,
     });
     expect(redactedAdminAction).not.toContain(revokedRefreshToken);
     expect(redactedAdminAction).not.toContain(revokedAccessToken);
