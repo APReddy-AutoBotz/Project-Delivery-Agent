@@ -1,5 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   createDatabase,
   DatabaseConnectorRuntimeRepository,
@@ -409,7 +409,7 @@ describe("durable Jira connector runtime", () => {
     expect(await runtime.claimNextJob(customerId)).toBeNull();
   }, 60_000);
 
-  it("runs a scheduled Jira read without a webhook and persists the returned issue and cursor", async () => {
+  it("recovers a missed Jira update and exposes safe health detail to an authorized administrator", async () => {
     const isolatedCustomerId = randomUUID();
     const portfolioId = randomUUID();
     const projectId = randomUUID();
@@ -478,7 +478,7 @@ describe("durable Jira connector runtime", () => {
       pmo,
       {
         binding,
-        projects: [{ projectId, readers: [manager.subject] }],
+        projects: [{ projectId, readers: [manager.subject, pmo.subject] }],
         mapping: {
           kind: "CONNECTOR",
           factTypes: ["jira.status"],
@@ -506,11 +506,17 @@ describe("durable Jira connector runtime", () => {
       },
     });
 
-    const observedAt = "2026-09-26T03:00:00.000Z";
+    const initialObservedAt = "2026-09-25T03:00:00.000Z";
+    const recoveredObservedAt = "2026-09-26T03:00:00.000Z";
+    let currentObservedAt = initialObservedAt;
+    let currentStatus = "To Do";
+    let failSearchWithSecret = false;
+    let scheduledAt = new Date(Math.floor(Date.now() / (15 * 60_000)) * (15 * 60_000) - 1_000);
     const searchCalls: { jql: string; fields: string[] }[] = [];
     const jiraClient = {
       searchIssues: async (input: { jql: string; fields: string[] }) => {
         searchCalls.push({ jql: input.jql, fields: input.fields });
+        if (failSearchWithSecret) throw new Error("socket closed; synthetic-secret-token");
         return {
           issues: [
             {
@@ -518,8 +524,8 @@ describe("durable Jira connector runtime", () => {
               key: "SAFE-77",
               fields: {
                 project: { id: "950", key: "SAFE" },
-                updated: observedAt,
-                status: { name: "In Progress" },
+                updated: currentObservedAt,
+                status: { name: currentStatus },
               },
             },
           ],
@@ -545,6 +551,13 @@ describe("durable Jira connector runtime", () => {
     const observedFailures: string[] = [];
     const observedRuntime = new Proxy(runtime, {
       get(target, property) {
+        if (property === "enqueueDueJobs") {
+          return (
+            customerId: string,
+            intervalMinutes?: number,
+            limit?: number,
+          ) => runtime.enqueueDueJobs(customerId, intervalMinutes, limit, scheduledAt);
+        }
         if (property === "failRunningJob") {
           return async (input: Parameters<typeof runtime.failRunningJob>[0]) => {
             observedFailures.push(input.code);
@@ -626,7 +639,7 @@ describe("durable Jira connector runtime", () => {
     const revision = await db.ingestionSourceRevision.findFirstOrThrow({
       where: { customerId: isolatedCustomerId, sourceId, recordId: record.id },
     });
-    expect(revision.revision).toBe(observedAt);
+    expect(revision.revision).toBe(initialObservedAt);
     const projection = await db.ingestionProposalProjection.findFirstOrThrow({
       where: { customerId: isolatedCustomerId, sourceId, recordId: record.id },
     });
@@ -634,7 +647,7 @@ describe("durable Jira connector runtime", () => {
       where: { projectionId: projection.id },
     });
     expect(content.proposals).toMatchObject([
-      { factType: "jira.status", value: { type: "text", value: "In Progress" } },
+      { factType: "jira.status", value: { type: "text", value: "To Do" } },
     ]);
     const receipt = await db.ingestionOperationReceipt.findFirstOrThrow({
       where: {
@@ -651,6 +664,92 @@ describe("durable Jira connector runtime", () => {
     });
     expect(sourceState.cursorState).toBe("TERMINAL");
     expect(sourceState.cursorRevision).toBeGreaterThan(0n);
+
+    const recordHealthyAt = async (checkedAt: Date) => {
+      const restoreTime = new Date();
+      vi.setSystemTime(checkedAt);
+      try {
+        await ingestion.recordHealth(
+          pmo,
+          sourceId,
+          "HEALTHY",
+          "NONE",
+          "scheduled-health-" + randomUUID(),
+        );
+      } finally {
+        vi.setSystemTime(restoreTime);
+      }
+    };
+
+    // No webhook is accepted for the changed issue. A later scheduled pass must
+    // discover it and persist a second source revision and proposal projection.
+    scheduledAt = new Date(scheduledAt.getTime() - 15 * 60_000);
+    await recordHealthyAt(new Date(scheduledAt.getTime() - 16 * 60_000));
+    currentObservedAt = recoveredObservedAt;
+    currentStatus = "In Progress";
+    await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
+    await expect(service.runOne()).resolves.toEqual({ status: "page_committed" });
+    expect(searchCalls).toHaveLength(2);
+    expect(await db.connectorWebhookReceipt.count({ where: { customerId: isolatedCustomerId, sourceId } })).toBe(0);
+
+    const recoveredRevisions = await db.ingestionSourceRevision.findMany({
+      where: { customerId: isolatedCustomerId, sourceId },
+    });
+    expect(recoveredRevisions.map((item) => item.revision).sort()).toEqual(
+      [initialObservedAt, recoveredObservedAt].sort(),
+    );
+    const recoveredProjections = await db.ingestionProposalProjection.findMany({
+      where: { customerId: isolatedCustomerId, sourceId },
+    });
+    expect(recoveredProjections).toHaveLength(2);
+    const recoveredContent = await Promise.all(
+      recoveredProjections.map((item) =>
+        db.ingestionProposalContent.findUniqueOrThrow({ where: { projectionId: item.id } }),
+      ),
+    );
+    const persistedProposals = JSON.stringify(recoveredContent.map((item) => item.proposals));
+    expect(persistedProposals).toContain('"value":"To Do"');
+    expect(persistedProposals).toContain('"value":"In Progress"');
+    expect(
+      await db.ingestionOperationReceipt.count({
+        where: {
+          customerId: isolatedCustomerId,
+          sourceId,
+          executionMode: "CONNECTOR_SYNC",
+          kind: "CONNECTOR_PAGE",
+        },
+      }),
+    ).toBe(2);
+
+    const recoveredSource = await db.ingestionSource.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, id: sourceId },
+    });
+    expect(recoveredSource.cursorState).toBe("TERMINAL");
+    expect(recoveredSource.cursorRevision).toBeGreaterThan(sourceState.cursorRevision);
+
+    // A third scheduled pass fails with a secret-bearing synthetic transport
+    // exception. Only finite health state/code/timestamp reach the authorized
+    // administrator-facing source summary.
+    scheduledAt = new Date(scheduledAt.getTime() - 15 * 60_000);
+    await recordHealthyAt(new Date(scheduledAt.getTime() - 16 * 60_000));
+    failSearchWithSecret = true;
+    await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
+    await expect(service.runOne()).resolves.toEqual({ status: "deferred" });
+    expect(observedFailures).toContain("UNKNOWN_OUTCOME");
+    const sourceSummaries = await ingestion.listSources(pmo);
+    expect(sourceSummaries).toHaveLength(1);
+    expect(sourceSummaries[0]).toMatchObject({
+      sourceId,
+      healthState: "DEGRADED",
+      healthCode: "UNKNOWN_OUTCOME",
+    });
+    expect(sourceSummaries[0]?.healthCheckedAt).not.toBeNull();
+    const safeSummary = JSON.stringify(sourceSummaries[0]);
+    expect(safeSummary).not.toContain("socket closed");
+    expect(safeSummary).not.toContain("synthetic-secret-token");
+    expect(safeSummary).not.toContain("synthetic-reconciliation-access");
+    expect(safeSummary).not.toContain("synthetic-reconciliation-refresh");
+    expect(await db.connectorWebhookReceipt.count({ where: { customerId: isolatedCustomerId, sourceId } })).toBe(0);
   }, 30_000);
 
 });
