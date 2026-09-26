@@ -651,7 +651,7 @@ database; the prior operation's replay remains fenced.
 A synthetic Atlassian `invalid_grant` response for a revoked refresh token causes
 the scheduled Jira read to stop with the finite `reauthorization_required` action.
 The credential is durably `REAUTH_REQUIRED`; subsequent reads cannot obtain access.
-An authorized PMO administrator receives only `INVALID_CREDENTIALS`, degraded
+An authorized PMO administrator receives only `INVALID_CREDENTIALS`, failed
 health and a timestamp. The provider error body and access/refresh tokens are
 absent from the administrator summary. This remains synthetic evidence: no live
 Jira account is activated, and Issue #7 checkboxes and accepted-story totals do

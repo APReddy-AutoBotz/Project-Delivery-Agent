@@ -215,8 +215,6 @@ describe("durable Jira connector runtime", () => {
 
     // Start a fresh Node process after closing the extra client. It must decrypt
     // the committed tokens from the database rather than rely on process memory.
-    const reloadedDb = createDatabase(url);
-    await reloadedDb.$disconnect();
     await runOAuthRestartProbe({
       customerId,
       sourceId,
@@ -878,10 +876,9 @@ describe("durable Jira connector runtime", () => {
       observedIngestion,
       revokedFetch,
     );
-    const firstRevokedResult = await revokedService.runOne();
-    const revokedAction = firstRevokedResult.status === "cursor_reset"
-      ? await revokedService.runOne()
-      : firstRevokedResult;
+    let revokedAction = await revokedService.runOne();
+    for (let reset = 0; reset < 4 && revokedAction.status === "cursor_reset"; reset++)
+      revokedAction = await revokedService.runOne();
     expect(revokedAction).toEqual({ status: "reauthorization_required" });
     expect(observedRefreshToken).toBe(revokedRefreshToken);
     expect(observedFailures).toContain("INVALID_CREDENTIALS");
@@ -903,7 +900,7 @@ describe("durable Jira connector runtime", () => {
     expect(reauthorizationSummary).toHaveLength(1);
     expect(reauthorizationSummary[0]).toMatchObject({
       sourceId,
-      healthState: "DEGRADED",
+      healthState: "FAILED",
       healthCode: "INVALID_CREDENTIALS",
     });
     expect(reauthorizationSummary[0]?.healthCheckedAt).not.toBeNull();
