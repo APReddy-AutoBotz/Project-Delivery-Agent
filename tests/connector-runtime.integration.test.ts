@@ -516,7 +516,11 @@ describe("durable Jira connector runtime", () => {
                   ? (error.meta as Record<string, unknown>)
                   : {};
               const databaseMessage =
-                typeof metadata.message === "string" ? metadata.message : "";
+                error instanceof Error
+                  ? error.message
+                  : typeof metadata.message === "string"
+                    ? metadata.message
+                    : "";
               const sanitizedDatabaseMessage = databaseMessage
                 .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "<uuid>")
                 .replace(/https?:\/\/[^\s]+/gi, "<url>")
