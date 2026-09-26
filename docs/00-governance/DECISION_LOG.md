@@ -6,6 +6,12 @@ Current Atlassian guidance says apps that collect API tokens or instruct custome
 
 Jira comment reads return body data with comment metadata. Do not call comment endpoints or persist comment bodies/authors until OD-014 approves purpose, visibility, access, retention and deletion policy. Continue synthetic redaction work and independent issue/changelog/link/sprint sources. These constraints do not waive Issue #7 scope; AC-CON-001/003 and story acceptance stay open.
 
+## EXEC-009 layered Jira unknown-outcome retry policy, 2026-09-26
+
+AC-MNT-003 review clarified two retry boundaries already present in the implementation. A Jira adapter classifies an ambiguous provider response as `UNKNOWN_OUTCOME` once and supplies no immediate retry hint; the shared adapter retry advice remains limited to rate-limit and temporary-unavailability failures. The durable scheduled-read runtime separately retries that idempotent job with capped exponential backoff for at most five claims. A failed read commits neither its page receipt nor its cursor transition, so the retry begins from the same persisted source position.
+
+The integration evidence must assert both the safe adapter result and the durable job state/cursor behavior. This is not approval for live Jira activation, comment reads, canonical fact publication, or Issue #7 acceptance.
+
 ## EXEC-009 PR #58 merge and current integration boundary, 2026-09-26
 
 PR #58 merged the exact reviewed 71-file candidate `5977f08c6a453d079e647814cafd4ace425a5df1` as `8d9700da69b45f033c5304b1c09999680f49fd34`. The merge tree equals the candidate tree `671090e3b46fae3b1e245f295093587bb5a0ca7c`; ordered parents are the prior main `4fc1b24f3ece9c10cce30ee6dc054455b5777b6e` and candidate. Exact-candidate Foundation, Documentation, production TLS/OIDC/customer-profile, package, upgrade and recovery gates passed. No source proposals were published as canonical facts and no acceptance totals changed.
