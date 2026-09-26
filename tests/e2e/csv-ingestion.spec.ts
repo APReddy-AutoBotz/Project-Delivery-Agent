@@ -121,7 +121,7 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
       return route.fulfill({ json: preview });
     if (path === `/ingestion/sources/${sourceId}/reviewed-imports` && request.method() === "POST") {
       reviewedSelection = request.postDataJSON() as Record<string, unknown>;
-      return route.fulfill({ status: 201, json: { receiptId: reviewedReceiptId, parentPreviewReceiptId: previewReceiptId, replayed: false, rowCount: 1 } });
+      return route.fulfill({ status: 201, json: { receiptId: reviewedReceiptId, parentPreviewReceiptId: previewReceiptId, replayed: false, rowCount: 2 } });
     }
     if (path === `/ingestion/sources/${sourceId}/receipts/${reviewedReceiptId}`)
       return route.fulfill({
@@ -186,6 +186,7 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
   await page.getByRole("button", { name: "Select eligible rows" }).click();
   await page.getByRole("button", { name: "Save 2 reviewed proposals" }).click();
   await expect(page.getByText("Reviewed import receipt saved")).toBeVisible();
+  await expect(page.getByText("2 reviewed proposals saved. Canonical project facts were not changed.")).toBeVisible();
   await expect(page.getByText("Canonical project facts were not changed.", { exact: true })).toBeVisible();
   expect(reviewedSelection).toMatchObject({ previewReceiptId, rowOrdinals: [1, 3] });
   expect(factWrites).toBe(0);
