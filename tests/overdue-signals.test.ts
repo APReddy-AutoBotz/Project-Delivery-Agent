@@ -205,15 +205,9 @@ describe("UNIT-HLT-007: deterministic overdue signals", () => {
         item(),
       ]),
     ]) {
-      try {
-        evaluateOverdueSignals(input);
-        throw new Error("Expected invalid overdue signal input");
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toBe(
-          "Invalid overdue signal input",
-        );
-      }
+      expect(() => evaluateOverdueSignals(input)).toThrow(
+        "Invalid overdue signal input",
+      );
     }
   });
 });
