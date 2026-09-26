@@ -659,3 +659,9 @@ This remains synthetic evidence. No live Jira identity or product-facing project
 `tests/jira-runtime.test.ts` exercises `JiraRuntimeService` through the configured issue, selected custom-field, issue-link, changelog, board and sprint projections. It captures every synthetic page passed to the persistence port and verifies each record carries the configured customer/source/project identity, a source revision, a content hash, and observed/effective timestamps.
 
 This covers the currently approved non-comment entity set only. Comments remain gated by OD-014, live Jira activation by OD-013, and AC-CON-003 remains partial. Issue #7 checkboxes, canonical facts and accepted-story totals are unchanged.
+
+## AC-MNT-003 scheduled runtime contract evidence candidate, 2026-09-26
+
+`tests/jira-runtime-contract.test.ts` covers duplicate Jira issue identities, a rate-limited Jira read, and an unknown transport outcome through `JiraRuntimeService`. Each case proves the page is not persisted and the saved cursor is not reset; rate limits retain their bounded retry delay, while provider details and secret markers do not reach the job failure receipt. The candidate is synthetic and still needs exact-head Foundation/Documentation workflows and independent review.
+
+This complements the AC-CON-003 runtime projection candidate on the parent branch. It does not activate Jira, enable comment reads, publish canonical facts, change Issue #7 checkboxes, or change R0/R1 accepted-story totals.
