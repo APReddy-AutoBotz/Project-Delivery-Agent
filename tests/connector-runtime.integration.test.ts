@@ -90,6 +90,7 @@ async function runOAuthRestartProbe(input: {
         PDAA_RESTART_ACCESS: input.accessToken ?? "",
         PDAA_RESTART_REFRESH: input.refreshToken ?? "",
       },
+      encoding: "utf8",
       timeout: 20_000,
     },
   );
@@ -213,7 +214,7 @@ describe("durable Jira connector runtime", () => {
     expect(persistedRotation.envelope).not.toContain("rotated-access-token");
     expect(persistedRotation.envelope).not.toContain("rotated-refresh-token");
 
-    // Start a fresh Node process after closing the extra client. It must decrypt
+    // Start a fresh Node process after the transaction commits. It must decrypt
     // the committed tokens from the database rather than rely on process memory.
     await runOAuthRestartProbe({
       customerId,
