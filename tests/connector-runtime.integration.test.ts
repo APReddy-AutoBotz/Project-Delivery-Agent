@@ -463,8 +463,10 @@ describe("durable Jira connector runtime", () => {
         } as never;
       },
     };
-    const fetchImpl: typeof fetch = async () =>
-      new Response(
+    let resourceLookups = 0;
+    const fetchImpl: typeof fetch = async () => {
+      resourceLookups++;
+      return new Response(
         JSON.stringify([
           {
             id: "cloud-1",
@@ -474,6 +476,8 @@ describe("durable Jira connector runtime", () => {
         ]),
         { status: 200, headers: { "content-type": "application/json" } },
       );
+    };
+    let jiraClientCreated = false;
     const observedFailures: string[] = [];
     const observedRuntime = new Proxy(runtime, {
       get(target, property) {
@@ -498,14 +502,17 @@ describe("durable Jira connector runtime", () => {
       observedRuntime,
       ingestion,
       fetchImpl,
-      () => jiraClient as never,
+      () => {
+        jiraClientCreated = true;
+        return jiraClient as never;
+      },
     );
 
     // A scheduled pass starts with a fenced reset, then reads Jira independently of webhook payloads.
     await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
     const scheduledResult = await service.runOne();
     if (scheduledResult.status === "deferred")
-      throw new Error(`Scheduled Jira reconciliation deferred: ${observedFailures.join(", ") || "no runtime failure code recorded"}`);
+      throw new Error(`Scheduled Jira reconciliation deferred: ${observedFailures.join(", ") || "no runtime failure code recorded"}; resourceLookups=${resourceLookups}; jiraClientCreated=${jiraClientCreated}; searches=${searchCalls.length}`);
     expect(scheduledResult).toEqual({ status: "page_committed" });
 
     expect(searchCalls).toHaveLength(1);
