@@ -1411,13 +1411,18 @@ tests:
   evidence: []
 - id: UNIT-HLT-007
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-HLT-007
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: Configured work-item/milestone due dates and thresholds produce reproducible overdue signals at boundary
-    times across time zones, identifying exact source dates and rule inputs.
-  evidence: []
+  behavior: >-
+    Configured open work-item/milestone due dates and thresholds produce
+    deterministic overdue signals at local calendar-day boundaries across IANA
+    time zones. Each signal retains the exact target, date field/value, source
+    identity, assessment time, local date, time zone, threshold and rule revision.
+  evidence:
+  - tests/overdue-signals.test.ts
+  - .github/workflows/foundation-validation.yml
 - id: UNIT-UPD-007
   release: R1
   status: planned
