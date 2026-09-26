@@ -70,7 +70,7 @@ function harness(searchIssues: () => Promise<unknown>) {
           }),
         },
       },
-      cursor: "cursor-before-read",
+      cursor: "opaque-0",
       cursorRevision: 8,
       generation: 2,
       resetRequired: false,
