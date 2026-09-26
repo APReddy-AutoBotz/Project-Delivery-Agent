@@ -808,6 +808,21 @@ describe("durable Jira connector runtime", () => {
     await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
     await expect(service.runOne()).resolves.toEqual({ status: "deferred" });
     expect(observedFailures).toContain("UNKNOWN_OUTCOME");
+    const unknownRetryJob = await db.connectorSyncJob.findFirstOrThrow({
+      where: {
+        customerId: isolatedCustomerId,
+        sourceId,
+        kind: "SCHEDULED",
+        state: "READY",
+      },
+      select: { attempts: true },
+    });
+    expect(unknownRetryJob.attempts).toBe(1);
+    const sourceAfterUnknownOutcome = await db.ingestionSource.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, id: sourceId },
+      select: { cursorRevision: true },
+    });
+    expect(sourceAfterUnknownOutcome.cursorRevision).toBe(recoveredSource.cursorRevision);
     const sourceSummaries = await ingestion.listSources(pmo);
     expect(sourceSummaries).toHaveLength(1);
     expect(sourceSummaries[0]).toMatchObject({
