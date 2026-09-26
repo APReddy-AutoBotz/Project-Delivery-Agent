@@ -201,6 +201,9 @@ describe("UNIT-HLT-007: deterministic overdue signals", () => {
       request("2026-02-30T07:00:00.000Z", "UTC"),
       request("2026-06-02T07:00:00Z", "UTC"),
       request("0000-12-31T23:30:00.000Z", "Etc/GMT+12"),
+      request("0001-01-01T00:00:00.000Z", "Etc/GMT+12", [
+        item({ dueDate: "0001-01-01" }),
+      ]),
       request("2026-06-02T07:00:00.000Z", "UTC", [
         item(),
         item(),

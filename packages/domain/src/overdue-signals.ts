@@ -111,12 +111,14 @@ function localDateAt(asOf: string, timeZone: string): string {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
+      era: "short",
     }).formatToParts(new Date(asOf));
     const fields = new Map(parts.map((part) => [part.type, part.value] as const));
     const year = fields.get("year");
     const month = fields.get("month");
     const day = fields.get("day");
-    if (!year || !month || !day) return invalid();
+    const era = fields.get("era");
+    if (!year || !month || !day || era !== "AD") return invalid();
     const result = year.padStart(4, "0") + "-" + month + "-" + day;
     if (!canonicalDateSchema.safeParse(result).success) return invalid();
     return result;
