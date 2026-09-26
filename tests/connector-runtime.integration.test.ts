@@ -7,6 +7,7 @@ import {
 } from "../packages/data/src/index.js";
 import { CredentialKeyRingVault, CredentialVault } from "../packages/platform/src/index.js";
 import type { Actor } from "../packages/domain/src/index.js";
+import { JiraRuntimeService } from "../apps/api/src/jira-runtime.js";
 
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
@@ -355,4 +356,188 @@ describe("durable Jira connector runtime", () => {
     expect(deferredWebhook.replayed).toBe(false);
     expect(await runtime.claimNextJob(customerId)).toBeNull();
   }, 60_000);
+
+  it("runs a scheduled Jira read without a webhook and persists the returned issue and cursor", async () => {
+    const isolatedCustomerId = randomUUID();
+    const portfolioId = randomUUID();
+    const projectId = randomUUID();
+    const sourceId = randomUUID();
+    const pmo: Actor = {
+      customerId: isolatedCustomerId,
+      subject: "reconciliation-pmo-" + randomUUID(),
+      roles: ["pmo_admin"],
+    };
+    const manager: Actor = {
+      customerId: isolatedCustomerId,
+      subject: "reconciliation-manager-" + randomUUID(),
+      roles: ["project_manager"],
+    };
+    await db.customer.create({
+      data: { id: isolatedCustomerId, name: "Synthetic Jira reconciliation fixture" },
+    });
+    await db.portfolio.create({
+      data: { id: portfolioId, customerId: isolatedCustomerId, name: "Reconciliation fixture" },
+    });
+    await db.project.create({
+      data: {
+        id: projectId,
+        customerId: isolatedCustomerId,
+        portfolioId,
+        code: "JR-" + projectId.slice(0, 8).toUpperCase(),
+        name: "Jira reconciliation fixture",
+        description: "Synthetic Jira source for scheduled recovery",
+        reportedStatus: "UNKNOWN",
+      },
+    });
+    for (const grant of [
+      { subject: pmo.subject, role: "pmo_admin" },
+      { subject: manager.subject, role: "project_manager" },
+    ] as const) {
+      await db.accessGrant.create({
+        data: {
+          customerId: isolatedCustomerId,
+          subject: grant.subject,
+          scopeType: "project",
+          scopeId: projectId,
+          role: grant.role,
+        },
+      });
+    }
+
+    const binding = {
+      customerId: isolatedCustomerId,
+      sourceId,
+      sourceType: "jira",
+      origin: "https://tenant.atlassian.net",
+    };
+    await ingestion.configure(
+      pmo,
+      {
+        binding,
+        projects: [{ projectId, readers: [manager.subject] }],
+        mapping: {
+          kind: "CONNECTOR",
+          factTypes: ["jira.status"],
+          adapterConfiguration: JSON.stringify({
+            projects: [{ projectId, projectKey: "SAFE" }],
+            fields: [
+              { jiraField: "status", factType: "jira.status", valueType: "text" },
+            ],
+          }),
+        },
+      },
+      "scheduled-reconciliation-configure-" + sourceId,
+    );
+    await runtime.setOAuthCredential({
+      customerId: isolatedCustomerId,
+      sourceId,
+      actorSubject: pmo.subject,
+      credential: {
+        cloudId: "cloud-1",
+        selectedUrl: binding.origin,
+        accessToken: "synthetic-reconciliation-access",
+        refreshToken: "synthetic-reconciliation-refresh",
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        scopes: ["read:jira-work", "offline_access"],
+      },
+    });
+
+    const observedAt = "2026-09-26T03:00:00.000Z";
+    const searchCalls: { jql: string; fields: string[] }[] = [];
+    const jiraClient = {
+      searchIssues: async (input: { jql: string; fields: string[] }) => {
+        searchCalls.push({ jql: input.jql, fields: input.fields });
+        return {
+          issues: [
+            {
+              id: "95001",
+              key: "SAFE-77",
+              fields: {
+                project: { id: "950", key: "SAFE" },
+                updated: observedAt,
+                status: { name: "In Progress" },
+              },
+            },
+          ],
+          isLast: true,
+        } as never;
+      },
+    };
+    const fetchImpl: typeof fetch = async () =>
+      new Response(
+        JSON.stringify([
+          {
+            id: "cloud-1",
+            url: binding.origin,
+            scopes: ["read:jira-work"],
+          },
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    const service = new JiraRuntimeService(
+      { CUSTOMER_ID: isolatedCustomerId } as never,
+      runtime,
+      ingestion,
+      fetchImpl,
+      () => jiraClient as never,
+    );
+
+    // A scheduled pass starts with a fenced reset, then reads Jira independently of webhook payloads.
+    await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
+    await expect(service.runOne()).resolves.toEqual({ status: "page_committed" });
+
+    expect(searchCalls).toHaveLength(1);
+    expect(searchCalls[0]?.jql).toContain('"SAFE"');
+    expect(searchCalls[0]?.fields).toContain("status");
+    expect(
+      await db.connectorWebhookReceipt.count({
+        where: { customerId: isolatedCustomerId, sourceId },
+      }),
+    ).toBe(0);
+
+    const job = await db.connectorSyncJob.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, sourceId },
+    });
+    expect(job).toMatchObject({ kind: "SCHEDULED", state: "COMPLETED" });
+    expect(job.completedAt).toBeInstanceOf(Date);
+    const record = await db.ingestionExternalRecord.findFirstOrThrow({
+      where: {
+        customerId: isolatedCustomerId,
+        sourceId,
+        recordType: "jira.issue",
+        recordKey: "SAFE-77",
+      },
+    });
+    const revision = await db.ingestionSourceRevision.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, sourceId, recordId: record.id },
+    });
+    expect(revision.revision).toBe(observedAt);
+    const projection = await db.ingestionProposalProjection.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, sourceId, recordId: record.id },
+    });
+    const content = await db.ingestionProposalContent.findUniqueOrThrow({
+      where: { projectionId: projection.id },
+    });
+    expect(content.proposals).toMatchObject([
+      { factType: "jira.status", value: { type: "text", value: "In Progress" } },
+    ]);
+    const receipt = await db.ingestionOperationReceipt.findFirstOrThrow({
+      where: {
+        customerId: isolatedCustomerId,
+        sourceId,
+        syncJobId: job.id,
+        kind: "CONNECTOR_PAGE",
+      },
+    });
+    expect(receipt.outcomeCount).toBe(1);
+    expect(receipt.cursorRevisionAfter).toBeGreaterThan(0n);
+    const sourceState = await db.ingestionSource.findFirstOrThrow({
+      where: {
+        customerId_id: { customerId: isolatedCustomerId, id: sourceId },
+      },
+    });
+    expect(sourceState.cursorState).toBe("TERMINAL");
+    expect(sourceState.cursorRevision).toBeGreaterThan(0n);
+  }, 30_000);
+
 });
