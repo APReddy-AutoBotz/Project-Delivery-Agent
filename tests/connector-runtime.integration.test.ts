@@ -474,9 +474,28 @@ describe("durable Jira connector runtime", () => {
         ]),
         { status: 200, headers: { "content-type": "application/json" } },
       );
+    const observedFailures: string[] = [];
+    const observedRuntime = new Proxy(runtime, {
+      get(target, property) {
+        if (property === "failRunningJob") {
+          return async (input: Parameters<typeof runtime.failRunningJob>[0]) => {
+            observedFailures.push(input.code);
+            return runtime.failRunningJob(input);
+          };
+        }
+        if (property === "deferOAuthRotation") {
+          return async (...args: Parameters<typeof runtime.deferOAuthRotation>) => {
+            observedFailures.push("OAUTH_ROTATION_DEFERRED");
+            return runtime.deferOAuthRotation(...args);
+          };
+        }
+        const value = Reflect.get(target, property, target) as unknown;
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
     const service = new JiraRuntimeService(
       { CUSTOMER_ID: isolatedCustomerId } as never,
-      runtime,
+      observedRuntime,
       ingestion,
       fetchImpl,
       () => jiraClient as never,
@@ -484,7 +503,10 @@ describe("durable Jira connector runtime", () => {
 
     // A scheduled pass starts with a fenced reset, then reads Jira independently of webhook payloads.
     await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
-    await expect(service.runOne()).resolves.toEqual({ status: "page_committed" });
+    const scheduledResult = await service.runOne();
+    if (scheduledResult.status === "deferred")
+      throw new Error(`Scheduled Jira reconciliation deferred: ${observedFailures.join(", ") || "no runtime failure code recorded"}`);
+    expect(scheduledResult).toEqual({ status: "page_committed" });
 
     expect(searchCalls).toHaveLength(1);
     expect(searchCalls[0]?.jql).toContain('"SAFE"');
