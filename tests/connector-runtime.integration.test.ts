@@ -806,6 +806,10 @@ describe("durable Jira connector runtime", () => {
     await recordHealthyAt(new Date(scheduledAt.getTime() - 16 * 60_000));
     failSearchWithSecret = true;
     await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
+    const sourceBeforeUnknownOutcome = await db.ingestionSource.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, id: sourceId },
+      select: { cursorRevision: true },
+    });
     await expect(service.runOne()).resolves.toEqual({ status: "deferred" });
     expect(observedFailures).toContain("UNKNOWN_OUTCOME");
     const unknownRetryJob = await db.connectorSyncJob.findFirstOrThrow({
@@ -822,7 +826,7 @@ describe("durable Jira connector runtime", () => {
       where: { customerId: isolatedCustomerId, id: sourceId },
       select: { cursorRevision: true },
     });
-    expect(sourceAfterUnknownOutcome.cursorRevision).toBe(recoveredSource.cursorRevision);
+    expect(sourceAfterUnknownOutcome.cursorRevision).toBe(sourceBeforeUnknownOutcome.cursorRevision);
     const sourceSummaries = await ingestion.listSources(pmo);
     expect(sourceSummaries).toHaveLength(1);
     expect(sourceSummaries[0]).toMatchObject({
