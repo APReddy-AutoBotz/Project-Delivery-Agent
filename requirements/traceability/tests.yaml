@@ -213,12 +213,15 @@ tests:
   evidence: []
 - id: E2E-CON-005
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-005
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: An Excel or CSV import previews mappings, invalid rows and planned changes before any facts are committed.
-  evidence: []
+  behavior: A PMO administrator saves selected reviewed CSV proposals after previewing mappings, planned CREATE/UPDATE rows and an invalid row; canonical facts remain unchanged.
+  evidence:
+  - "tests/e2e/csv-ingestion.spec.ts"
+  - ".github/workflows/foundation-validation.yml"
+  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
 - id: E2E-DEP-004
   release: R1
   status: planned
@@ -330,28 +333,28 @@ tests:
   evidence: []
 - id: FAIL-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-006
   - AC-CON-008
   specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
-  behavior: Expired credentials change connector health to failed or degraded and show a safe administrator-facing
-    reason without exposing the secret. Concurrent OAuth refresh attempts serialize rotation; the new encrypted
-    refresh token and revision persist atomically, survive restart, and an invalid/revoked token stops access with
-    a redacted admin action.
-  evidence: []
+  behavior: Expired access credentials trigger one serialized OAuth refresh under concurrent reads; the rotated access/refresh pair and revision commit atomically in encrypted storage without exposing either token.
+  evidence:
+  - "tests/connector-runtime.integration.test.ts"
+  - ".github/workflows/foundation-validation.yml"
+  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
 - id: FAIL-002
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-006
   - AC-CON-008
   specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
-  behavior: Expired credentials change connector health to failed or degraded and show a safe administrator-facing
-    reason without exposing the secret. Concurrent OAuth refresh attempts serialize rotation; the new encrypted
-    refresh token and revision persist atomically, survive restart, and an invalid/revoked token stops access with
-    a redacted admin action.
-  evidence: []
+  behavior: An invalid_grant refresh response stops synchronization, marks the credential REAUTH_REQUIRED, and returns a redacted administrator action without exposing token values or provider error details.
+  evidence:
+  - "tests/connector-runtime.integration.test.ts"
+  - ".github/workflows/foundation-validation.yml"
+  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
 - id: FAIL-003
   release: R1
   status: planned
@@ -364,32 +367,39 @@ tests:
   evidence: []
 - id: FAIL-004
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-007
   specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
-  behavior: Invalid authenticity/replay evidence has no domain effect. Supported valid webhooks are idempotent;
-    scheduled reconciliation with persisted cursor recovers a deliberately missed update and safe connector-health
-    detail records failures.
-  evidence: []
+  behavior: A duplicate supported webhook returns its original receipt and job, and replay with a changed body is rejected; persisted webhook receipts, jobs and source observations remain singular.
+  evidence:
+  - "tests/connector-runtime.integration.test.ts"
+  - "tests/connector-runtime-auth.test.ts"
+  - ".github/workflows/foundation-validation.yml"
+  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
 - id: FAIL-005
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-007
   specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
-  behavior: Invalid authenticity/replay evidence has no domain effect. Supported valid webhooks are idempotent;
-    scheduled reconciliation with persisted cursor recovers a deliberately missed update and safe connector-health
-    detail records failures.
-  evidence: []
+  behavior: When a Jira update has no webhook notification, scheduled reconciliation persists the newer source revision and projection with an advanced cursor, and exposes safe health detail to an authorized administrator.
+  evidence:
+  - "tests/connector-runtime.integration.test.ts"
+  - ".github/workflows/foundation-validation.yml"
+  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
 - id: FAIL-006
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-005
   specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
-  behavior: An Excel or CSV import previews mappings, invalid rows and planned changes before any facts are committed.
-  evidence: []
+  behavior: A possibly renamed, duplicate, moved or unidentified CSV row is blocked from becoming a CREATE proposal; the browser flow previews invalid rows and saves only explicitly selected proposals without changing canonical facts.
+  evidence:
+  - "tests/spreadsheet-preview.test.ts"
+  - "tests/e2e/csv-ingestion.spec.ts"
+  - ".github/workflows/foundation-validation.yml"
+  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
 - id: FAIL-007
   release: R1
   status: planned
@@ -861,13 +871,15 @@ tests:
   - tests/jira-runtime.test.ts
 - id: INT-CON-004
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-004
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: Submitting the same webhook event twice produces one source observation and no duplicate downstream
-    obligation.
-  evidence: []
+  behavior: Submitting the same verified webhook twice returns the original receipt and job and persists one webhook receipt, sync job and source observation.
+  evidence:
+  - "tests/connector-runtime.integration.test.ts"
+  - ".github/workflows/foundation-validation.yml"
+  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
 - id: INT-CON-006
   release: R1
   status: planned
@@ -879,23 +891,28 @@ tests:
   evidence: []
 - id: INT-CON-007
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-007
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: Invalid authenticity/replay evidence has no domain effect. Supported valid webhooks are idempotent;
-    scheduled reconciliation with persisted cursor recovers a deliberately missed update and safe connector-health
-    detail records failures.
-  evidence: []
+  behavior: Invalid webhook signatures are rejected before payload parsing or transactional writes; a deliberately missed Jira update is recovered by scheduled reconciliation with safe authorized health detail.
+  evidence:
+  - "tests/connector-runtime-auth.test.ts"
+  - "tests/connector-runtime.integration.test.ts"
+  - ".github/workflows/foundation-validation.yml"
+  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
 - id: INT-CON-008
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-008
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: Concurrent OAuth refresh attempts serialize rotation; the new encrypted refresh token and revision persist
-    atomically, survive restart, and an invalid/revoked token stops access with a redacted admin action.
-  evidence: []
+  behavior: Concurrent OAuth refresh attempts elect one lease owner; encrypted rotated credentials and revision commit atomically and remain readable from a separate process, while invalid_grant stops access and returns a redacted reauthorization action.
+  evidence:
+  - "tests/connector-runtime.integration.test.ts"
+  - "tests/connector-runtime-auth.test.ts"
+  - ".github/workflows/foundation-validation.yml"
+  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
 - id: INT-DATA-001
   release: R1
   status: implemented
