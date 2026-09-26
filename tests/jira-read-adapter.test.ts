@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ConnectorChangePage } from "@pdaa/domain";
+import {
+  connectorReadRetryAdvice,
+  type ConnectorChangePage,
+} from "@pdaa/domain";
 import {
   createJiraReadOnlyConnector,
   parseJiraReadAdapterOptions,
@@ -297,6 +300,22 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
     });
   });
 
+  it("rejects duplicate Jira issue identities through the shared page contract", async () => {
+    let attempts = 0;
+    const { adapter } = fake({
+      async searchIssues() {
+        attempts++;
+        return { issues: [issue("SAFE-9"), issue("SAFE-9")], isLast: true };
+      },
+    });
+    const result = await adapter.pullChanges({ scope, cursor: null });
+    expect(result).toEqual({
+      ok: false,
+      failure: { code: "INVALID_RESPONSE", retryAfterMs: null },
+    });
+    expect(attempts).toBe(1);
+  });
+
   it("rechecks issue project identity on direct lookup and withholds moved or cross-scope issues", async () => {
     const { adapter, calls } = fake({
       async getIssue({ issueIdOrKey }) {
@@ -387,6 +406,25 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)
       expect(JSON.stringify(result)).not.toContain("sensitive");
       expect(JSON.stringify(result)).not.toContain("secret-token");
     }
+  });
+
+  it("keeps unknown search outcomes finite, redacted and non-retryable", async () => {
+    let attempts = 0;
+    const { adapter } = fake({
+      async searchIssues() {
+        attempts++;
+        throw new Error("socket closed; synthetic-secret-token");
+      },
+    });
+    const result = await adapter.pullChanges({ scope, cursor: null });
+    expect(result).toEqual({
+      ok: false,
+      failure: { code: "UNKNOWN_OUTCOME", retryAfterMs: null },
+    });
+    if (result.ok) throw new Error("Expected an unknown connector failure");
+    expect(connectorReadRetryAdvice(result.failure, 1)).toEqual({ retry: false });
+    expect(attempts).toBe(1);
+    expect(JSON.stringify(result)).not.toContain("synthetic-secret-token");
   });
 
   it("has no external write method or live credential in the fixture API", () => {
