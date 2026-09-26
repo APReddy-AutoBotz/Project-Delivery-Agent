@@ -396,13 +396,22 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, AC-MNT-003, 
         "RATE_LIMITED",
       ],
     ] as const) {
+      let attempts = 0;
       const { adapter } = fake({
         async searchIssues() {
+          attempts++;
           throw error;
         },
       });
       const result = await adapter.pullChanges({ scope, cursor: null });
       expect(result).toMatchObject({ ok: false, failure: { code: expected } });
+      expect(attempts).toBe(1);
+      if (!result.ok)
+        expect(connectorReadRetryAdvice(result.failure, 1)).toEqual(
+          expected === "RATE_LIMITED"
+            ? { retry: true, delayMs: 9000 }
+            : { retry: false },
+        );
       expect(JSON.stringify(result)).not.toContain("sensitive");
       expect(JSON.stringify(result)).not.toContain("secret-token");
     }
