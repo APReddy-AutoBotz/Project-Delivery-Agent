@@ -849,13 +849,14 @@ tests:
   - tests/jira-runtime.test.ts
 - id: INT-CON-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: Configured issue, sprint, comment, changelog, link and selected custom-field data is normalized with
-    source IDs and revisions.
-  evidence: []
+  behavior: Configured issue, sprint, changelog, link and selected custom-field data is normalized with source IDs and revisions at the scheduled persistence boundary; comment reads remain deferred under OD-014.
+  evidence:
+  - tests/jira-read-adapter.test.ts
+  - tests/jira-runtime.test.ts
 - id: INT-CON-004
   release: R1
   status: planned
