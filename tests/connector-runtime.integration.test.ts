@@ -812,16 +812,19 @@ describe("durable Jira connector runtime", () => {
     });
     await expect(service.runOne()).resolves.toEqual({ status: "deferred" });
     expect(observedFailures).toContain("UNKNOWN_OUTCOME");
-    const unknownRetryJob = await db.connectorSyncJob.findFirstOrThrow({
+    // Cursor reset and the failed read each claim this scheduled job. The
+    // unknown outcome must leave that same single job READY for bounded retry.
+    const unknownRetryJobs = await db.connectorSyncJob.findMany({
       where: {
         customerId: isolatedCustomerId,
         sourceId,
         kind: "SCHEDULED",
         state: "READY",
       },
-      select: { attempts: true },
+      select: { id: true, attempts: true },
     });
-    expect(unknownRetryJob.attempts).toBe(1);
+    expect(unknownRetryJobs).toHaveLength(1);
+    expect(unknownRetryJobs[0]?.attempts).toBe(2);
     const sourceAfterUnknownOutcome = await db.ingestionSource.findFirstOrThrow({
       where: { customerId: isolatedCustomerId, id: sourceId },
       select: { cursorRevision: true },
