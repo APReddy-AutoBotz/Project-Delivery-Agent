@@ -40,22 +40,46 @@ const preview = {
   receipt: {
     id: previewReceiptId,
     kind: "CSV_PREVIEW",
-    rowCount: 1,
+    rowCount: 3,
     configRevision: 1,
     mappingRevision: 1,
     parentPreviewReceiptId: null,
   },
-  outcomes: [{
-    ordinal: 1,
-    parentOrdinal: null,
-    state: "ACCEPTED",
-    operation: "CREATE",
-    errorCodes: [],
-    projectId,
-    identity: ["spreadsheet:Projects", "a".repeat(64)],
-    contentAvailable: true,
-    proposals: [{ factType: "project.forecast", value: { type: "date", value: "2027-03-01" } }],
-  }],
+  outcomes: [
+    {
+      ordinal: 1,
+      parentOrdinal: null,
+      state: "ACCEPTED",
+      operation: "CREATE",
+      errorCodes: [],
+      projectId,
+      identity: ["spreadsheet:Projects", "a".repeat(64)],
+      contentAvailable: true,
+      proposals: [{ factType: "project.forecast", value: { type: "date", value: "2027-03-01" } }],
+    },
+    {
+      ordinal: 2,
+      parentOrdinal: null,
+      state: "INVALID",
+      operation: "NONE",
+      errorCodes: ["INVALID_VALUE"],
+      projectId,
+      identity: ["spreadsheet:Projects", "b".repeat(64)],
+      contentAvailable: false,
+      proposals: null,
+    },
+    {
+      ordinal: 3,
+      parentOrdinal: null,
+      state: "ACCEPTED",
+      operation: "UPDATE",
+      errorCodes: [],
+      projectId,
+      identity: ["spreadsheet:Projects", "c".repeat(64)],
+      contentAvailable: true,
+      proposals: [{ factType: "project.forecast", value: { type: "date", value: "2027-04-15" } }],
+    },
+  ],
 };
 
 test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing facts", async ({ page }) => {
@@ -91,7 +115,7 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
     if (path === `/ingestion/sources/${sourceId}/csv-previews` && request.method() === "POST") {
       previewContentType = request.headers()["content-type"] ?? "";
       previewBody = request.postDataBuffer()?.toString("utf8") ?? "";
-      return route.fulfill({ status: 201, json: { receiptId: previewReceiptId, replayed: false, rowCount: 1 } });
+      return route.fulfill({ status: 201, json: { receiptId: previewReceiptId, replayed: false, rowCount: 3 } });
     }
     if (path === `/ingestion/sources/${sourceId}/receipts/${previewReceiptId}`)
       return route.fulfill({ json: preview });
@@ -103,8 +127,16 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
       return route.fulfill({
         json: {
           ...preview,
-          receipt: { ...preview.receipt, id: reviewedReceiptId, kind: "CSV_REVIEWED_IMPORT", parentPreviewReceiptId: previewReceiptId },
-          outcomes: preview.outcomes.map((row) => ({ ...row, parentOrdinal: 1 })),
+          receipt: {
+            ...preview.receipt,
+            id: reviewedReceiptId,
+            kind: "CSV_REVIEWED_IMPORT",
+            rowCount: 2,
+            parentPreviewReceiptId: previewReceiptId,
+          },
+          outcomes: preview.outcomes
+            .filter((row) => row.ordinal === 1 || row.ordinal === 3)
+            .map((row) => ({ ...row, parentOrdinal: row.ordinal })),
         },
       });
     if (/\/facts(?:\/|$)/.test(path) && request.method() !== "GET") factWrites++;
@@ -127,19 +159,35 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
   await page.getByLabel("CSV file").setInputFiles({
     name: "review.csv",
     mimeType: "text/csv",
-    buffer: Buffer.from(`Issue ID,Project ID,Forecast\nDELIVERY-1,${projectId},2027-03-01`, "utf8"),
+    buffer: Buffer.from(`Issue ID,Project ID,Forecast\nDELIVERY-1,${projectId},2027-03-01\nDELIVERY-2,${projectId},not-a-date\nDELIVERY-3,${projectId},2027-04-15`, "utf8"),
   });
   await page.getByRole("button", { name: "Upload and preview" }).click();
   await expect(page.getByRole("heading", { name: `Preview ${previewReceiptId.slice(0, 8)}` })).toBeVisible();
   expect(previewContentType).toMatch(/^multipart\/form-data\s*;\s*boundary=/i);
   expect(previewContentType).not.toContain("application/json");
-  expect(previewBody).toContain(`Issue ID,Project ID,Forecast\nDELIVERY-1,${projectId},2027-03-01`);
+  expect(previewBody).toContain(`Issue ID,Project ID,Forecast\nDELIVERY-1,${projectId},2027-03-01\nDELIVERY-2,${projectId},not-a-date\nDELIVERY-3,${projectId},2027-04-15`);
+
+  // The preview presents both eligible planned operations and the invalid row
+  // together before any reviewed proposal is saved.
+  const previewRows = page.getByRole("row");
+  await expect(previewRows).toHaveCount(4);
+  await expect(previewRows.nth(1)).toContainText("ACCEPTED");
+  await expect(previewRows.nth(1)).toContainText("CREATE");
+  await expect(previewRows.nth(2)).toContainText("INVALID");
+  await expect(previewRows.nth(2)).toContainText("INVALID VALUE");
+  await expect(previewRows.nth(2)).toContainText("NONE");
+  await expect(previewRows.nth(3)).toContainText("ACCEPTED");
+  await expect(previewRows.nth(3)).toContainText("UPDATE");
+  await expect(previewRows.nth(3)).toContainText("2027-04-15");
+  await expect(page.getByRole("checkbox", { name: "Select row 1" })).toBeEnabled();
+  await expect(page.getByRole("checkbox", { name: "Select row 2" })).toBeDisabled();
+  await expect(page.getByRole("checkbox", { name: "Select row 3" })).toBeEnabled();
 
   await page.getByRole("button", { name: "Select eligible rows" }).click();
-  await page.getByRole("button", { name: "Save 1 reviewed proposal" }).click();
+  await page.getByRole("button", { name: "Save 2 reviewed proposals" }).click();
   await expect(page.getByText("Reviewed import receipt saved")).toBeVisible();
   await expect(page.getByText("Canonical project facts were not changed.", { exact: true })).toBeVisible();
-  expect(reviewedSelection).toMatchObject({ previewReceiptId, rowOrdinals: [1] });
+  expect(reviewedSelection).toMatchObject({ previewReceiptId, rowOrdinals: [1, 3] });
   expect(factWrites).toBe(0);
   await mkdir("artifacts", { recursive: true });
   await page.screenshot({ path: "artifacts/csv-reviewed-import.png", fullPage: true });
