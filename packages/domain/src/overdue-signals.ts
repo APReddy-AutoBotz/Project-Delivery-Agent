@@ -111,7 +111,7 @@ function localDateAt(asOf: string, timeZone: string): string {
       month: "2-digit",
       day: "2-digit",
     }).formatToParts(new Date(asOf));
-    const fields = new Map(parts.map((part) => [part.type, part.value]));
+    const fields = new Map(parts.map((part) => [part.type, part.value] as const));
     const year = fields.get("year");
     const month = fields.get("month");
     const day = fields.get("day");
