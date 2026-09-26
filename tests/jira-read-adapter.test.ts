@@ -114,7 +114,7 @@ function configured(
   };
 }
 
-describe("Jira read adapter synthetic contract (AC-CON-001/002/003, TR-JIRA-002)", () => {
+describe("Jira read adapter synthetic contract (AC-CON-001/002/003, AC-MNT-003, TR-JIRA-002)", () => {
   it("performs a read-only connection check against a configured project", async () => {
     const { adapter, calls } = fake();
     expect(await adapter.testConnection(scope)).toEqual({
