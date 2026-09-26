@@ -172,6 +172,80 @@ describe("Jira read adapter synthetic contract (AC-CON-001/002/003, AC-MNT-003, 
     expect(calls.projects).toEqual(["SAFE", "OTHER"]);
   });
 
+  it("omits Jira projects the configured identity cannot browse from discovery and reads", async () => {
+    const projectChecks: string[] = [];
+    const searchJql: string[] = [];
+    const issueReads: string[] = [];
+    const fixture = configured({
+      async getProject({ projectIdOrKey }) {
+        projectChecks.push(projectIdOrKey);
+        if (projectIdOrKey === "OTHER")
+          throw Object.assign(new Error("hidden-project-secret"), { status: 403 });
+        return { key: projectIdOrKey };
+      },
+      async searchIssues(input) {
+        searchJql.push(input.jql);
+        return { issues: [issue()], isLast: true };
+      },
+      async getIssue({ issueIdOrKey }) {
+        issueReads.push(issueIdOrKey);
+        if (issueIdOrKey === "OTHER-2")
+          throw Object.assign(new Error("hidden-issue-secret"), { status: 404 });
+        return issue(issueIdOrKey);
+      },
+    });
+    const configuredScope = { ...scope, projectIds: [projectId, otherProjectId] };
+    const discovered = await fixture.adapter.discoverScopes(configuredScope);
+    expect(discovered).toEqual({
+      ok: true,
+      value: { projectIds: [projectId], checkedAt: "2026-09-24T00:00:00.000Z" },
+    });
+    if (!discovered.ok) return;
+
+    // Synchronization uses the project set returned by permission discovery.
+    const authorizedScope = { ...configuredScope, projectIds: discovered.value.projectIds };
+    const page = await fixture.adapter.pullChanges({ scope: authorizedScope, cursor: null });
+    expect(page.ok).toBe(true);
+    if (!page.ok) return;
+    expect(page.value.records.map((record) => record.ref.recordId)).toEqual(["SAFE-1"]);
+    expect(searchJql).toEqual(['project in ("SAFE") ORDER BY updated ASC, key ASC']);
+    expect(projectChecks).toEqual(["SAFE", "OTHER"]);
+
+    // A source response that crosses the discovered scope invalidates the page.
+    const hostile = configured({
+      async searchIssues() {
+        return { issues: [issue("OTHER-2", "OTHER")], isLast: true };
+      },
+    });
+    expect(await hostile.adapter.pullChanges({ scope: authorizedScope, cursor: null })).toEqual({
+      ok: false,
+      failure: { code: "INVALID_RESPONSE", retryAfterMs: null },
+    });
+
+    const hiddenRef = {
+      customerId,
+      sourceId,
+      projectId: otherProjectId,
+      recordType: "jira.issue" as const,
+      recordId: "OTHER-2",
+    };
+    // The discovered scope denies the direct read before it reaches Jira.
+    expect(await fixture.adapter.getRecord(authorizedScope, hiddenRef)).toEqual({
+      ok: false,
+      failure: { code: "PERMISSION_DENIED", retryAfterMs: null },
+    });
+    expect(issueReads).toEqual([]);
+
+    // A stale configured scope still cannot reveal an issue Jira hides.
+    const staleScopeResult = await fixture.adapter.getRecord(configuredScope, hiddenRef);
+    expect(staleScopeResult).toEqual({
+      ok: false,
+      failure: { code: "NOT_FOUND", retryAfterMs: null },
+    });
+    expect(issueReads).toEqual(["OTHER-2"]);
+    expect(JSON.stringify(staleScopeResult)).not.toContain("hidden-issue-secret");
+  });
+
   it("uses an allowlisted project JQL, exact paging cursor and selected fields only", async () => {
     const { adapter, calls } = fake({
       async searchIssues(input) {

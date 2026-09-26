@@ -271,11 +271,32 @@ export class JiraRuntimeService {
         sourceId: job.sourceId,
         origin: snapshot.configuration.binding.origin,
       });
+      const configuredScope = {
+        binding: snapshot.configuration.binding,
+        projectIds: snapshot.configuration.projects.map((project) => project.projectId),
+      };
+      const discovery = await connector.discoverScopes(configuredScope);
+      if (!discovery.ok) {
+        await failRunningJob({
+          code: discovery.failure.code,
+          retryAfterMs: discovery.failure.retryAfterMs,
+        });
+        return { status: "deferred" as const };
+      }
+      const discoveredProjectIds = [...discovery.value.projectIds].sort();
+      if (
+        discoveredProjectIds.length !== configuredProjectIds.length ||
+        configuredProjectIds.some(
+          (projectId, index) => projectId !== discoveredProjectIds[index],
+        )
+      ) {
+        // A shared cursor cannot safely advance while any saved project is
+        // hidden: it could otherwise skip records if visibility returns later.
+        await failRunningJob({ code: "PERMISSION_DENIED" });
+        return { status: "deferred" as const };
+      }
       const result = await connector.pullChanges({
-        scope: {
-          binding: snapshot.configuration.binding,
-          projectIds: snapshot.configuration.projects.map((project) => project.projectId),
-        },
+        scope: { ...configuredScope, projectIds: discoveredProjectIds },
         cursor: snapshot.cursor,
       });
       if (!result.ok) {
