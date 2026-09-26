@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Config } from "@pdaa/platform";
+import type { ConnectorChangePage } from "../packages/domain/src/index.js";
 import { JiraRuntimeService } from "../apps/api/src/jira-runtime.js";
 
 describe("Jira runtime OAuth retry handling", () => {
@@ -330,4 +331,260 @@ describe("Jira runtime OAuth retry handling", () => {
     },
   );
 
+  it("preserves the configured Jira entity set, source IDs and revisions at scheduled persistence", async () => {
+    const customerId = "2b2ae50e-1b58-4c69-a763-54ce3e4934ca";
+    const sourceId = "13f95d34-1588-4d31-8f2e-40a213d37c91";
+    const projectId = "a5345f68-117c-43b5-91b6-ff77eefdbfee";
+    const binding = {
+      customerId,
+      sourceId,
+      sourceType: "jira",
+      origin: "https://tenant.atlassian.net",
+    };
+    const updated = "2026-09-25T10:20:30.000Z";
+    const historyCreated = "2026-09-25T11:20:30.000Z";
+    const issue = {
+      id: "501",
+      key: "SAFE-1",
+      fields: {
+        updated,
+        project: { key: "SAFE" },
+        summary: "Synthetic delivery issue",
+        customfield_10001: 3,
+        issuelinks: [
+          {
+            id: "91",
+            type: { id: "7", name: "blocks" },
+            inwardIssue: { key: "SAFE-1" },
+            outwardIssue: { key: "SAFE-2" },
+          },
+        ],
+      },
+    };
+    const history = {
+      id: "67",
+      created: historyCreated,
+      items: [
+        {
+          fieldId: "summary",
+          field: "Summary",
+          from: "Old summary",
+          to: "Updated summary",
+          fromString: "Old summary",
+          toString: "Updated summary",
+        },
+      ],
+    };
+    const sprint = {
+      id: 7,
+      name: "Sprint 7",
+      state: "active",
+      originBoardId: 42,
+      startDate: "2026-09-01T09:00:00.000Z",
+      endDate: "2026-09-15T17:00:00.000Z",
+      completeDate: "2026-09-15T16:00:00.000Z",
+    };
+    const adapterConfiguration = JSON.stringify({
+      projects: [{ projectId, projectKey: "SAFE" }],
+      fields: [
+        { jiraField: "summary", factType: "jira.summary", valueType: "text" },
+        { jiraField: "customfield_10001", factType: "jira.size", valueType: "number" },
+      ],
+      entities: { issueLinks: true, changelog: true, sprints: true },
+      boards: [{ boardId: 42, projectId }],
+    });
+    const credentials = {
+      cloudId: "cloud-1",
+      selectedUrl: binding.origin,
+      accessToken: "current-access",
+      refreshToken: "still-valid-refresh",
+      expiresAt: "2099-09-24T10:00:00.000Z",
+      scopes: [
+        "read:jira-work",
+        "read:board-scope:jira-software",
+        "read:project:jira",
+        "read:sprint:jira-software",
+        "offline_access",
+      ],
+    };
+    let cursor: string | null = null;
+    let cursorRevision = 1;
+    let claimCount = 0;
+    const pages: ConnectorChangePage[] = [];
+    const runtime = {
+      enqueueDueJobs: vi.fn().mockResolvedValue([]),
+      claimNextJob: vi.fn(async () => {
+        claimCount += 1;
+        return {
+          jobId: `scheduled-job-${claimCount}`,
+          customerId,
+          sourceId,
+          claimGeneration: 1,
+        };
+      }),
+      accessOrBeginRotation: vi.fn().mockResolvedValue({
+        kind: "access",
+        credentials,
+        configRevision: 4,
+        mappingRevision: 2,
+      }),
+      completeOAuthRotation: vi.fn(),
+      failOAuthRotation: vi.fn(),
+      deferOAuthRotation: vi.fn().mockResolvedValue(true),
+      failRunningJob: vi.fn().mockResolvedValue({ state: "READY" }),
+    };
+    const ingestion = {
+      readConnectorSyncSnapshot: vi.fn(
+        async (_customerId: string, jobId: string, _claimGeneration: number) => ({
+          jobId,
+          sourceId,
+          configRevision: 4,
+          mappingRevision: 2,
+          configuration: {
+            binding,
+            projects: [{ projectId }],
+            mapping: {
+              kind: "CONNECTOR",
+              factTypes: ["jira.summary", "jira.size"],
+              adapterConfiguration,
+            },
+          },
+          cursor,
+          cursorRevision,
+          generation: 1,
+          resetRequired: false,
+        }),
+      ),
+      resetConnectorCursorForJob: vi.fn(),
+      persistConnectorPageForJob: vi.fn(
+        async (input: { expectedCursorRevision: number; page: ConnectorChangePage }) => {
+          expect(input.expectedCursorRevision).toBe(cursorRevision);
+          expect(input.page.inputCursor).toBe(cursor);
+          pages.push(input.page);
+          cursor = input.page.nextCursor;
+          cursorRevision += 1;
+        },
+      ),
+    };
+    const jiraClient = {
+      getProject: vi.fn(async ({ projectIdOrKey }: { projectIdOrKey: string }) => ({
+        key: projectIdOrKey,
+      })),
+      searchIssues: vi.fn(
+        async ({ maxResults }: { maxResults: number; nextPageToken?: string }) => {
+          if (maxResults < 1) throw new Error("Unexpected Jira page size");
+          return { issues: [issue], isLast: true, nextPageToken: null };
+        },
+      ),
+      getIssue: vi.fn(async () => issue),
+      getChangeLogs: vi.fn(async ({ startAt }: { startAt: number }) => ({
+        histories: startAt === 0 ? [history] : [],
+        startAt,
+        total: 1,
+      })),
+      getChangeLogsByIds: vi.fn(async () => ({ histories: [history] })),
+      getBoard: vi.fn(async ({ boardId }: { boardId: number }) => ({
+        id: boardId,
+        name: "Delivery Board",
+        type: "scrum",
+      })),
+      getSprints: vi.fn(async ({ boardId, startAt }: { boardId: number; startAt: number }) => {
+        if (boardId !== 42) throw new Error("Unexpected Jira board");
+        return { values: [sprint], total: 1, startAt, isLast: true };
+      }),
+      getSprint: vi.fn(async () => sprint),
+    };
+    const resourceScopes = credentials.scopes.filter((scopeName) => scopeName !== "offline_access");
+    const fetchImpl: typeof fetch = async () =>
+      new Response(
+        JSON.stringify([
+          {
+            id: credentials.cloudId,
+            url: binding.origin,
+            scopes: resourceScopes,
+          },
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    const service = new JiraRuntimeService(
+      {
+        CUSTOMER_ID: customerId,
+        JIRA_OAUTH_CLIENT_ID: "client",
+        JIRA_OAUTH_CLIENT_SECRET: "client-secret",
+      } as Config,
+      runtime as never,
+      ingestion as never,
+      fetchImpl,
+      () => jiraClient as never,
+    );
+
+    for (let page = 0; page < 8; page += 1) {
+      await expect(service.runOne()).resolves.toEqual({ status: "page_committed" });
+      if (pages[pages.length - 1]?.terminal) break;
+    }
+
+    expect(pages[pages.length - 1]?.terminal).toBe(true);
+    expect(runtime.failRunningJob).not.toHaveBeenCalled();
+    expect(jiraClient.getProject).toHaveBeenCalled();
+    expect(jiraClient.getBoard).toHaveBeenCalledWith({ boardId: 42 });
+    expect(jiraClient.getSprints).toHaveBeenCalled();
+    const records = pages.flatMap((page) => page.records);
+    expect(new Set(records.map((record) => record.ref.recordType))).toEqual(
+      new Set(["jira.issue", "jira.issue_link", "jira.changelog", "jira.board", "jira.sprint"]),
+    );
+    for (const page of pages) {
+      expect(page.binding).toEqual(binding);
+      for (const record of page.records) {
+        expect(record.ref).toMatchObject({ customerId, sourceId, projectId });
+        expect(record.revision.length).toBeGreaterThan(0);
+        expect(record.sourceContentHash).toMatch(/^[a-f0-9]{64}$/);
+        expect(record.observedAt).toBeTruthy();
+        expect(record.effectiveAt).toBeTruthy();
+      }
+    }
+
+    const issueRecord = records.find((record) => record.ref.recordType === "jira.issue");
+    expect(issueRecord).toMatchObject({
+      ref: { customerId, sourceId, projectId, recordType: "jira.issue", recordId: "SAFE-1" },
+      revision: updated,
+    });
+    expect(issueRecord?.observations).toContainEqual({
+      factType: "jira.summary",
+      value: { type: "text", value: "Synthetic delivery issue" },
+    });
+    expect(issueRecord?.observations).toContainEqual({
+      factType: "jira.size",
+      value: { type: "number", value: 3 },
+    });
+
+    const linkRecord = records.find((record) => record.ref.recordType === "jira.issue_link");
+    expect(linkRecord).toMatchObject({
+      ref: { customerId, sourceId, projectId, recordType: "jira.issue_link", recordId: "91" },
+    });
+    expect(linkRecord?.revision).toBe(`snapshot:${linkRecord?.sourceContentHash}`);
+
+    const changelogRecord = records.find((record) => record.ref.recordType === "jira.changelog");
+    expect(changelogRecord).toMatchObject({
+      ref: {
+        customerId,
+        sourceId,
+        projectId,
+        recordType: "jira.changelog",
+        recordId: "501:67:0",
+      },
+      revision: `${historyCreated}:67:0`,
+    });
+
+    const boardRecord = records.find((record) => record.ref.recordType === "jira.board");
+    expect(boardRecord).toMatchObject({
+      ref: { customerId, sourceId, projectId, recordType: "jira.board", recordId: "42" },
+    });
+    expect(boardRecord?.revision).toBe(`snapshot:${boardRecord?.sourceContentHash}`);
+
+    const sprintRecord = records.find((record) => record.ref.recordType === "jira.sprint");
+    expect(sprintRecord).toMatchObject({
+      ref: { customerId, sourceId, projectId, recordType: "jira.sprint", recordId: "42:7" },
+    });
+    expect(sprintRecord?.revision).toBe(`snapshot:${sprintRecord?.sourceContentHash}`);
+  });
 });

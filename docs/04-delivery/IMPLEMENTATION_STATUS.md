@@ -653,3 +653,9 @@ recovery evidence and successful merged-main CI.
 The synthetic adapter case in `tests/jira-read-adapter.test.ts` verifies discovery omits a project denied by Jira, scoped adapter reads reject out-of-scope records, and direct lookups return only finite not-found or permission results without provider details. `tests/jira-runtime.test.ts` exercises the production worker path: when one configured project is no longer visible, `JiraRuntimeService` records `PERMISSION_DENIED` before issue search or page persistence, so the shared cursor does not advance.
 
 This remains synthetic evidence. No live Jira identity or product-facing project-discovery/onboarding path is active under OD-013; Issue #7 remains open, with checkboxes and accepted-story totals unchanged.
+
+## AC-CON-003 Jira scheduled entity projection evidence candidate, 2026-09-26
+
+`tests/jira-runtime.test.ts` exercises `JiraRuntimeService` through the configured issue, selected custom-field, issue-link, changelog, board and sprint projections. It captures every synthetic page passed to the persistence port and verifies each record carries the configured customer/source/project identity, a source revision, a content hash, and observed/effective timestamps.
+
+This covers the currently approved non-comment entity set only. Comments remain gated by OD-014, live Jira activation by OD-013, and AC-CON-003 remains partial. Issue #7 checkboxes, canonical facts and accepted-story totals are unchanged.
