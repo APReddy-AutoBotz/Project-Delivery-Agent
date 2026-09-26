@@ -595,9 +595,7 @@ describe("durable Jira connector runtime", () => {
     expect(receipt.outcomeCount).toBe(1);
     expect(receipt.cursorRevisionAfter).toBeGreaterThan(0n);
     const sourceState = await db.ingestionSource.findFirstOrThrow({
-      where: {
-        customerId_id: { customerId: isolatedCustomerId, id: sourceId },
-      },
+      where: { customerId: isolatedCustomerId, id: sourceId },
     });
     expect(sourceState.cursorState).toBe("TERMINAL");
     expect(sourceState.cursorRevision).toBeGreaterThan(0n);
