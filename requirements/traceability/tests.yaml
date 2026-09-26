@@ -966,8 +966,10 @@ tests:
   acceptance_criteria:
   - AC-MNT-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: The Jira adapter and scheduled runtime pass the common identity, sync, cursor, duplicate, permission, throttling
-    and unknown-outcome connector contract; a boundary check rejects external SDK types in domain modules.
+  behavior: The Jira adapter and scheduled runtime preserve common identity, sync, cursor, duplicate, permission,
+    throttling, and unknown-outcome behavior. The adapter returns unknown outcomes without an immediate retry hint;
+    the durable scheduler retries the read job with capped backoff under a five-claim budget and without cursor advance.
+    A boundary check rejects external SDK types in domain modules.
   evidence:
   - tests/connector.test.ts
   - tests/jira-read-adapter.test.ts
