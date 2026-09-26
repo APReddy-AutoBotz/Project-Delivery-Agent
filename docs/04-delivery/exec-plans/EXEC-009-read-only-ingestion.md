@@ -682,3 +682,9 @@ This validates adapter and runtime boundaries with synthetic Jira responses. The
 `tests/jira-runtime.test.ts` now runs `JiraRuntimeService` across the complete currently configured non-comment Jira entity set and captures every page passed to `persistConnectorPageForJob`. The synthetic run covers issue and selected custom-field observations, issue links, mapped changelog items, configured boards and sprints. It checks each record retains the configured customer/source/project identity, a source revision, a content hash and observed/effective timestamps at the scheduled persistence boundary.
 
 Comment reads remain deferred under OD-014, and live Jira activation remains gated by OD-013. AC-CON-003 and Issue #7 remain partial; no Issue #7 checkbox, canonical fact or accepted-story count changes.
+
+## AC-MNT-003 scheduled runtime contract evidence candidate, 2026-09-26
+
+`tests/jira-runtime-contract.test.ts` drives `JiraRuntimeService` through the Jira adapter with synthetic responses for duplicate issue identities, a rate limit, and an unknown transport outcome. The scheduled boundary rejects duplicate records, preserves bounded `Retry-After` only for throttling, keeps unknown outcomes non-retryable and redacted, and leaves the persisted cursor untouched on every failure.
+
+Together with `tests/jira-runtime.test.ts`, `tests/connector-runtime.integration.test.ts`, `tests/jira-read-adapter.test.ts`, `tests/connector.test.ts`, and the architecture boundary, the candidate covers runtime page identity/progression, permission denial, durable reconciliation, common read validation, retry classification, and SDK isolation. This remains synthetic evidence; live Jira stays gated by OD-013, comment reads by OD-014, and no Issue #7 checkbox, canonical fact, or accepted-story total changes. Exact-head hosted checks and independent review remain pending.
