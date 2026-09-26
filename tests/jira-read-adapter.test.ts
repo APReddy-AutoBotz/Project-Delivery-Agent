@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   connectorReadRetryAdvice,
   type ConnectorChangePage,
-} from "@pdaa/domain";
+} from "../packages/domain/src/index.js";
 import {
   createJiraReadOnlyConnector,
   parseJiraReadAdapterOptions,
