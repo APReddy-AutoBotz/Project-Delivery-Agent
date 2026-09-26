@@ -84,7 +84,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 13);
+    assert.equal(migrations.length, 14);
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     assert.equal(migrations[10].name, "202609240001_jira_runtime");
