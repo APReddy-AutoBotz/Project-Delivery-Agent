@@ -583,6 +583,9 @@ describe("durable Jira connector runtime", () => {
     let scheduledAt = new Date(Math.floor(Date.now() / (15 * 60_000)) * (15 * 60_000) - 1_000);
     const searchCalls: { jql: string; fields: string[] }[] = [];
     const jiraClient = {
+      getProject: async ({ projectIdOrKey }: { projectIdOrKey: string }) => ({
+        key: projectIdOrKey,
+      }),
       searchIssues: async (input: { jql: string; fields: string[] }) => {
         searchCalls.push({ jql: input.jql, fields: input.fields });
         if (failSearchWithSecret) throw new Error("socket closed; synthetic-secret-token");

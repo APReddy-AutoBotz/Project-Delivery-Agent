@@ -647,3 +647,9 @@ storage. Full database reads, migration/audit-trigger checks, fresh worker progr
 and seven browser workflows passed; web/API readiness is healthy. No pre-incident
 full database snapshot was available for an exact comparison. Issue #5 records the
 recovery evidence and successful merged-main CI.
+
+## AC-CON-002 Jira project visibility evidence candidate, 2026-09-26
+
+The synthetic adapter case in `tests/jira-read-adapter.test.ts` verifies discovery omits a project denied by Jira, scoped adapter reads reject out-of-scope records, and direct lookups return only finite not-found or permission results without provider details. `tests/jira-runtime.test.ts` exercises the production worker path: when one configured project is no longer visible, `JiraRuntimeService` records `PERMISSION_DENIED` before issue search or page persistence, so the shared cursor does not advance.
+
+This remains synthetic evidence. No live Jira identity or product-facing project-discovery/onboarding path is active under OD-013; Issue #7 remains open, with checkboxes and accepted-story totals unchanged.
