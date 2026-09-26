@@ -115,13 +115,18 @@ describe("durable Jira connector runtime", () => {
     await runtime.setWebhookSecret({ customerId, sourceId, actorSubject: pmo.subject, secret: webhookSecret });
 
     const applicationClockAhead = new Date(Date.now() + 5 * 60_000);
-    const rotation = await runtime.accessOrBeginRotation(customerId, sourceId, applicationClockAhead);
-    expect(rotation.kind).toBe("rotate");
-    if (rotation.kind !== "rotate") throw new Error("Expected refresh lease");
-    expect(await runtime.accessOrBeginRotation(customerId, sourceId, now)).toMatchObject({
-      kind: "unavailable",
-      reason: "ROTATION_IN_PROGRESS",
-    });
+    const concurrentRotations = await Promise.all([
+      runtime.accessOrBeginRotation(customerId, sourceId, applicationClockAhead),
+      runtime.accessOrBeginRotation(customerId, sourceId, applicationClockAhead),
+    ]);
+    const rotation = concurrentRotations.find((result) => result.kind === "rotate");
+    expect(concurrentRotations.filter((result) => result.kind === "rotate")).toHaveLength(1);
+    expect(
+      concurrentRotations.filter(
+        (result) => result.kind === "unavailable" && result.reason === "ROTATION_IN_PROGRESS",
+      ),
+    ).toHaveLength(1);
+    if (!rotation || rotation.kind !== "rotate") throw new Error("Expected one refresh lease");
     const renewed = {
       ...credential,
       accessToken: "rotated-access-token",
@@ -130,6 +135,24 @@ describe("durable Jira connector runtime", () => {
     };
     expect(await runtime.completeOAuthRotation(rotation.rotation, renewed, applicationClockAhead)).toMatchObject({ committed: true });
     expect(await runtime.completeOAuthRotation(rotation.rotation, renewed, now)).toMatchObject({ committed: false, reason: "FENCED" });
+    // A fresh database client and repository must read the atomically persisted rotated tokens.
+    const reloadedDb = createDatabase(url);
+    try {
+      const reloadedRuntime = new DatabaseConnectorRuntimeRepository(
+        reloadedDb,
+        new CredentialKeyRingVault(keyRing),
+        integrationLeaseDurationSeconds,
+      );
+      expect(await reloadedRuntime.accessOrBeginRotation(customerId, sourceId, now)).toMatchObject({
+        kind: "access",
+        credentials: {
+          accessToken: "rotated-access-token",
+          refreshToken: "rotated-refresh-token",
+        },
+      });
+    } finally {
+      await reloadedDb.$disconnect();
+    }
     expect(await runtime.accessOrBeginRotation(customerId, sourceId, now)).toMatchObject({ kind: "access" });
 
     const nonce = randomUUID();
