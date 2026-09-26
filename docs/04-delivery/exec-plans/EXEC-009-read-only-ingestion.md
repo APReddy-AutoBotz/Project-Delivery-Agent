@@ -62,8 +62,7 @@ cursor must match; a continuing page is nonempty and advances to a distinct non-
 cursor; a terminal page has null next cursor and may be empty. Duplicate detection
 is per-page only, not persisted or cross-page idempotency. Deep links remain data:
 canonical absolute HTTPS, no userinfo, same configured origin, no fetch/navigation.
-Finite read retry advice permits only rate-limit/temporary-unavailability failures,
-honors Retry-After up to 24h and allows at most 5 attempts. Unknown outcomes do not retry.
+Finite adapter retry advice permits retries only for rate-limit/temporary-unavailability failures, honors Retry-After up to 24h and caps advice at 5 attempts. An adapter returns UNKNOWN_OUTCOME once without an immediate retry hint. The durable scheduled-job runtime separately retries UNKNOWN_OUTCOME with capped exponential backoff under a five-claim budget; no record page or cursor transition commits on a failed read.
 
 CSV parsing accepts one leading BOM, comma delimiters, CR/LF/CRLF, quoted newlines/
 delimiters and doubled quotes. Reject stray/unclosed quotes, trailing junk after a
