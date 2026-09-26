@@ -1,4 +1,6 @@
+import { execFile } from "node:child_process";
 import { createHmac, randomUUID } from "node:crypto";
+import { promisify } from "node:util";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   createDatabase,
@@ -39,6 +41,60 @@ async function waitForLeaseExpiry() {
 
 function actor(role: Actor["roles"][number], subject: string): Actor {
   return { customerId, subject: `${subject}-${randomUUID()}`, roles: [role] };
+}
+
+const execFileAsync = promisify(execFile);
+
+async function runOAuthRestartProbe(input: {
+  customerId: string;
+  sourceId: string;
+  mode: "lease" | "rotated";
+  accessToken?: string;
+  refreshToken?: string;
+}) {
+  const probe = [
+    'import { resolve } from "node:path";',
+    'import { pathToFileURL } from "node:url";',
+    'const root = process.env.PDAA_RESTART_ROOT;',
+    'const data = await import(pathToFileURL(resolve(root, "packages/data/dist/index.js")).href);',
+    'const platform = await import(pathToFileURL(resolve(root, "packages/platform/dist/index.js")).href);',
+    'const keyId = process.env.PDAA_RESTART_KEY_ID;',
+    'const db = data.createDatabase(process.env.PDAA_DATABASE_URL);',
+    'try {',
+    '  const runtime = new data.DatabaseConnectorRuntimeRepository(db, new platform.CredentialKeyRingVault({ currentKeyId: keyId, keys: { [keyId]: process.env.PDAA_RESTART_KEY } }), 5);',
+    '  const access = await runtime.accessOrBeginRotation(process.env.PDAA_RESTART_CUSTOMER_ID, process.env.PDAA_RESTART_SOURCE_ID);',
+    '  if (process.env.PDAA_RESTART_MODE === "lease") {',
+    '    if (access.kind !== "unavailable" || access.reason !== "ROTATION_IN_PROGRESS") throw new Error("durable lease probe failed");',
+    '  } else if (access.kind !== "access" || access.credentials.accessToken !== process.env.PDAA_RESTART_ACCESS || access.credentials.refreshToken !== process.env.PDAA_RESTART_REFRESH) {',
+    '    throw new Error("rotated credential probe failed");',
+    '  }',
+    '  console.log("connector-restart-probe:ok");',
+    '} finally {',
+    '  await db.$disconnect();',
+    '}',
+  ].join("\n");
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ["--input-type=module", "-e", probe],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        PDAA_DATABASE_URL: url,
+        PDAA_RESTART_ROOT: process.cwd(),
+        PDAA_RESTART_CUSTOMER_ID: input.customerId,
+        PDAA_RESTART_SOURCE_ID: input.sourceId,
+        PDAA_RESTART_MODE: input.mode,
+        PDAA_RESTART_KEY_ID: keyRing.currentKeyId,
+        PDAA_RESTART_KEY: encryptionKey,
+        PDAA_RESTART_ACCESS: input.accessToken ?? "",
+        PDAA_RESTART_REFRESH: input.refreshToken ?? "",
+      },
+      encoding: "utf8",
+      timeout: 20_000,
+    },
+  );
+  expect(stdout.trim()).toBe("connector-restart-probe:ok");
 }
 
 describe("durable Jira connector runtime", () => {
@@ -111,7 +167,7 @@ describe("durable Jira connector runtime", () => {
       expiresAt: shortExpiry,
       scopes: ["read:jira-work", "offline_access"],
     };
-    await runtime.setOAuthCredential({ customerId, sourceId, actorSubject: pmo.subject, credential });
+    const configuredCredential = await runtime.setOAuthCredential({ customerId, sourceId, actorSubject: pmo.subject, credential });
     const webhookSecret = Buffer.alloc(32, 61).toString("hex");
     await runtime.setWebhookSecret({ customerId, sourceId, actorSubject: pmo.subject, secret: webhookSecret });
 
@@ -128,6 +184,9 @@ describe("durable Jira connector runtime", () => {
       ),
     ).toHaveLength(1);
     if (!rotation || rotation.kind !== "rotate") throw new Error("Expected one refresh lease");
+    // A separate Node process must observe the database-backed lease and cannot
+    // start a competing refresh while the original operation owns it.
+    await runOAuthRestartProbe({ customerId, sourceId, mode: "lease" });
     const renewed = {
       ...credential,
       accessToken: "rotated-access-token",
@@ -136,24 +195,34 @@ describe("durable Jira connector runtime", () => {
     };
     expect(await runtime.completeOAuthRotation(rotation.rotation, renewed, applicationClockAhead)).toMatchObject({ committed: true });
     expect(await runtime.completeOAuthRotation(rotation.rotation, renewed, now)).toMatchObject({ committed: false, reason: "FENCED" });
-    // A fresh database client and repository must read the atomically persisted rotated tokens.
-    const reloadedDb = createDatabase(url);
-    try {
-      const reloadedRuntime = new DatabaseConnectorRuntimeRepository(
-        reloadedDb,
-        new CredentialKeyRingVault(keyRing),
-        integrationLeaseDurationSeconds,
-      );
-      expect(await reloadedRuntime.accessOrBeginRotation(customerId, sourceId, now)).toMatchObject({
-        kind: "access",
-        credentials: {
-          accessToken: "rotated-access-token",
-          refreshToken: "rotated-refresh-token",
-        },
-      });
-    } finally {
-      await reloadedDb.$disconnect();
-    }
+    const persistedRotation = await db.connectorCredential.findFirstOrThrow({
+      where: { customerId, sourceId, purpose: "jira_oauth" },
+      select: {
+        revision: true,
+        state: true,
+        rotationOperationId: true,
+        rotationDeadline: true,
+        envelope: true,
+      },
+    });
+    expect(persistedRotation).toMatchObject({
+      revision: configuredCredential.revision + 2,
+      state: "ACTIVE",
+      rotationOperationId: null,
+      rotationDeadline: null,
+    });
+    expect(persistedRotation.envelope).not.toContain("rotated-access-token");
+    expect(persistedRotation.envelope).not.toContain("rotated-refresh-token");
+
+    // Start a fresh Node process after the transaction commits. It must decrypt
+    // the committed tokens from the database rather than rely on process memory.
+    await runOAuthRestartProbe({
+      customerId,
+      sourceId,
+      mode: "rotated",
+      accessToken: "rotated-access-token",
+      refreshToken: "rotated-refresh-token",
+    });
     expect(await runtime.accessOrBeginRotation(customerId, sourceId, now)).toMatchObject({ kind: "access" });
 
     const nonce = randomUUID();
@@ -750,6 +819,120 @@ describe("durable Jira connector runtime", () => {
     expect(safeSummary).not.toContain("synthetic-reconciliation-access");
     expect(safeSummary).not.toContain("synthetic-reconciliation-refresh");
     expect(await db.connectorWebhookReceipt.count({ where: { customerId: isolatedCustomerId, sourceId } })).toBe(0);
-  }, 30_000);
+
+    // A revoked refresh token stops the scheduled read and gives an authorized
+    // administrator a finite reauthorization action without the provider body.
+    const revokedSourceId = randomUUID();
+    await ingestion.configure(
+      pmo,
+      {
+        binding: { ...binding, sourceId: revokedSourceId },
+        projects: [{ projectId, readers: [manager.subject, pmo.subject] }],
+        mapping: {
+          kind: "CONNECTOR",
+          factTypes: ["jira.status"],
+          adapterConfiguration: JSON.stringify({
+            projects: [{ projectId, projectKey: "SAFE" }],
+            fields: [
+              { jiraField: "status", factType: "jira.status", valueType: "text" },
+            ],
+          }),
+        },
+      },
+      "revoked-token-configure-" + revokedSourceId,
+    );
+    const revokedRefreshToken = "synthetic-revoked-refresh-token";
+    const revokedAccessToken = "synthetic-revoked-access-token";
+    await runtime.setOAuthCredential({
+      customerId: isolatedCustomerId,
+      sourceId: revokedSourceId,
+      actorSubject: pmo.subject,
+      credential: {
+        cloudId: "cloud-1",
+        selectedUrl: binding.origin,
+        accessToken: revokedAccessToken,
+        refreshToken: revokedRefreshToken,
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+        scopes: ["read:jira-work", "offline_access"],
+      },
+    });
+    const revokedWebhookSecret = Buffer.alloc(32, 73).toString("hex");
+    await runtime.setWebhookSecret({
+      customerId: isolatedCustomerId,
+      sourceId: revokedSourceId,
+      actorSubject: pmo.subject,
+      secret: revokedWebhookSecret,
+    });
+    const revokedBody = Buffer.from(JSON.stringify({
+      webhookEvent: "jira:issue_updated",
+      timestamp: Date.now(),
+    }));
+    await runtime.acceptWebhook({
+      sourceId: revokedSourceId,
+      eventId: "revoked-token-" + randomUUID(),
+      signature: "sha256=" + createHmac("sha256", revokedWebhookSecret).update(revokedBody).digest("hex"),
+      rawBody: revokedBody,
+    });
+
+    let observedRefreshToken = "";
+    const revokedFetch: typeof fetch = async (_input, init) => {
+      const form = new URLSearchParams(String(init?.body ?? ""));
+      observedRefreshToken = form.get("refresh_token") ?? "";
+      return new Response(JSON.stringify({
+        error: "invalid_grant",
+        error_description: "The synthetic refresh token was revoked: " + revokedRefreshToken,
+      }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      });
+    };
+    const revokedService = new JiraRuntimeService(
+      {
+        CUSTOMER_ID: isolatedCustomerId,
+        JIRA_OAUTH_CLIENT_ID: "synthetic-client",
+        JIRA_OAUTH_CLIENT_SECRET: "synthetic-client-secret",
+      } as never,
+      observedRuntime,
+      observedIngestion,
+      revokedFetch,
+    );
+    let revokedAction = await revokedService.runOne();
+    for (let reset = 0; reset < 4 && revokedAction.status === "cursor_reset"; reset++)
+      revokedAction = await revokedService.runOne();
+    expect(revokedAction).toEqual({ status: "reauthorization_required" });
+    expect(observedRefreshToken).toBe(revokedRefreshToken);
+    expect(observedFailures).toContain("INVALID_CREDENTIALS");
+
+    const revokedCredential = await db.connectorCredential.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, sourceId: revokedSourceId, purpose: "jira_oauth" },
+      select: { state: true, rotationOperationId: true, rotationDeadline: true },
+    });
+    expect(revokedCredential).toEqual({
+      state: "REAUTH_REQUIRED",
+      rotationOperationId: null,
+      rotationDeadline: null,
+    });
+    await expect(runtime.accessOrBeginRotation(isolatedCustomerId, revokedSourceId)).resolves.toMatchObject({
+      kind: "unavailable",
+      reason: "REAUTH_REQUIRED",
+    });
+    const reauthorizationSummary = await ingestion.listSources(pmo);
+    expect(reauthorizationSummary).toHaveLength(2);
+    const revokedSummary = reauthorizationSummary.find((item) => item.sourceId === revokedSourceId);
+    expect(revokedSummary).toMatchObject({
+      sourceId: revokedSourceId,
+      healthState: "FAILED",
+      healthCode: "INVALID_CREDENTIALS",
+    });
+    expect(revokedSummary?.healthCheckedAt).not.toBeNull();
+    const redactedAdminAction = JSON.stringify({
+      action: revokedAction,
+      source: revokedSummary,
+    });
+    expect(redactedAdminAction).not.toContain(revokedRefreshToken);
+    expect(redactedAdminAction).not.toContain(revokedAccessToken);
+    expect(redactedAdminAction).not.toContain("invalid_grant");
+    expect(redactedAdminAction).not.toContain("revoked");
+  }, 45_000);
 
 });

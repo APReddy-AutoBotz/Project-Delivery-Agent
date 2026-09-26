@@ -601,7 +601,7 @@ This ledger maps current executable evidence and identifies what still prevents 
 | AC-CON-004 | `tests/connector-runtime.integration.test.ts` accepts one HMAC-signed synthetic Jira event, replays it with the same event ID and with a changed delivery ID, then verifies one webhook receipt/job, one completed connector-page receipt/outcome, one external issue record, one source revision, and one proposal projection; conflicting bodies remain rejected. | Partial. The durable database path is synthetic; live webhook activation remains gated by OD-013. This evidence does not publish canonical facts. |
 | AC-CON-005 | `tests/spreadsheet-preview.test.ts` covers CSV mappings, invalid rows and planned operations. `tests/ingestion-persistence.integration.test.ts` verifies preview and reviewed-import receipts while canonical fact/history counts remain unchanged. `tests/e2e/csv-ingestion.spec.ts` proves the visible CSV upload/reviewed-proposal flow and zero fact writes. | Partial. CSV satisfies the current “Excel or CSV” alternative; XLSX remains deferred. The user-approved commit for this stage saves selected proposals, not canonical facts. Add a browser journey showing valid and invalid rows and planned changes together before proposal save. Do not publish canonical facts without the coupled provenance/authority design. |
 | AC-CON-007 | `tests/connector-routes.test.ts` verifies raw-body signature authentication precedes parsing; `tests/connector-runtime-auth.test.ts` checks bad-signature rejection; `tests/connector-runtime.integration.test.ts` persists an older Jira issue revision, leaves a changed issue without a webhook receipt, then proves scheduled reconciliation persists the newer revision/proposal and advances the cursor. A third scheduled transport failure records `DEGRADED`/`UNKNOWN_OUTCOME`; authorized `pmo_admin` source listing returns only finite health state/code/timestamp. Migration `202609260001_connector_outcome_sync_scope` validates accepted service outcomes against the immutable sync receipt scope. | Partial. The sequence is synthetic; live Jira activation remains gated by OD-013. No customer activation or canonical fact publication is claimed. |
-| AC-CON-008 | `tests/connector-runtime.integration.test.ts` covers a single-owner refresh lease, atomic completion and stale-operation fencing; token and retry classes are covered in `tests/connector-runtime-auth.test.ts` and `tests/jira-runtime.test.ts`. | Partial. PR #62 adds two concurrent refresh attempts and reads the rotated tokens through a newly constructed database client and repository. This does not prove a process restart; durable lease-token behavior and a revoked-token failure with a redacted administrator action remain. |
+| AC-CON-008 | `tests/connector-runtime.integration.test.ts` races two refresh attempts, confirms a separate Node process observes the durable active lease, verifies credential revision and encrypted token commit, and starts a post-commit Node process that decrypts the rotated tokens. It also runs `JiraRuntimeService` against synthetic `invalid_grant`, checks access stops in `REAUTH_REQUIRED`, and verifies an authorized administrator receives only the finite reauthorization action and health summary. | Partial. Credentials and provider responses remain synthetic; no customer Jira site is active. Issue #7 checkboxes and accepted-story totals remain unchanged. |
 | AC-MNT-003 | `tests/connector.test.ts` exercises the shared synthetic identity/page/cursor/duplicate/permission/retry contract; `tests/jira-read-adapter.test.ts` now also rejects duplicate Jira issue identities through the shared page validator and checks unknown-outcome redaction, non-retry advice and one attempt. Existing Jira cases cover exact source identity/cursor, project permission and throttling. Hosted architecture/contracts checks enforce the SDK boundary. | Partial. These are synthetic adapter conformance cases; retain exact-head Foundation evidence and complete the remaining runtime-level shared-contract review before acceptance. |
 
 **Scope discrepancy:** Issue #7's body lists AC-CON-005 followed by AC-CON-007, while the canonical `docs/04-delivery/ACCEPTANCE_CRITERIA.md` also defines AC-CON-006. This ledger does not silently add or remove an issue criterion. Reconcile that scope through change control before changing Issue #7 or its completion count.
@@ -638,3 +638,21 @@ containing a synthetic token maps to finite `UNKNOWN_OUTCOME` health; an authori
 without the exception or token. This evidence is synthetic and does not publish
 canonical facts, activate a Jira customer site, change Issue #7 checkboxes or alter
 accepted-story totals.
+
+## AC-CON-008 OAuth process-restart and revoked-token evidence candidate, 2026-09-26
+
+The integration test races two refresh attempts, then starts a separate Node process
+while the database-backed 60-second rotation lease is active; that process observes
+`ROTATION_IN_PROGRESS` and cannot acquire a second lease. The winning operation
+commits the encrypted access/refresh token pair and revision together. A second
+Node process starts after that commit and decrypts the rotated pair from the
+database; the prior operation's replay remains fenced.
+
+A synthetic Atlassian `invalid_grant` response for a revoked refresh token causes
+the scheduled Jira read to stop with the finite `reauthorization_required` action.
+The credential is durably `REAUTH_REQUIRED`; subsequent reads cannot obtain access.
+An authorized PMO administrator receives only `INVALID_CREDENTIALS`, failed
+health and a timestamp. The provider error body and access/refresh tokens are
+absent from the administrator summary. This remains synthetic evidence: no live
+Jira account is activated, and Issue #7 checkboxes and accepted-story totals do
+not change.
