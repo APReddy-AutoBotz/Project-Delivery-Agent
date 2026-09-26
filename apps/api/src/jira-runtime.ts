@@ -132,6 +132,7 @@ export class JiraRuntimeService {
     private readonly runtime: ConnectorRuntimePort,
     private readonly ingestion: JiraIngestionPort,
     private readonly fetchImpl: typeof fetch = fetch,
+    private readonly jiraClientFactory: typeof createJiraOAuthCloudClient = createJiraOAuthCloudClient,
   ) {}
 
   async runOne() {
@@ -263,7 +264,7 @@ export class JiraRuntimeService {
           snapshot.configuration.binding.origin,
           requiredScopes,
         );
-      const client = createJiraOAuthCloudClient({ cloudId: credentials.cloudId, accessToken: credentials.accessToken });
+      const client = this.jiraClientFactory({ cloudId: credentials.cloudId, accessToken: credentials.accessToken });
       const connector = createJiraReadOnlyConnector(client, {
         ...options,
         customerId: job.customerId,
