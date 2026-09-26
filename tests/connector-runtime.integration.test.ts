@@ -517,27 +517,17 @@ describe("durable Jira connector runtime", () => {
                   : {};
               const databaseMessage =
                 typeof metadata.message === "string" ? metadata.message : "";
-              const safeDatabaseMessages = [
-                "Ingestion row outside authorized receipt scope",
-                "Incomplete ingestion receipt cannot commit",
-                "Ingestion sync receipt job is not current",
-                "Ingestion sync receipt scope is outside its configuration",
-                "Ingestion sync receipt lacks current source/project service scope",
-                "Ingestion sync receipt configuration is stale",
-                "Cursor advance requires an exact operation receipt",
-                "Ingestion health update lacks current source and project authorization",
-                "Orphan ingestion identity cannot commit",
-                "Accepted outcome identity must match its external record",
-              ];
-              const safeDatabaseMessage = safeDatabaseMessages.find((message) =>
-                databaseMessage.includes(message),
-              );
+              const sanitizedDatabaseMessage = databaseMessage
+                .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "<uuid>")
+                .replace(/https?:\/\/[^\s]+/gi, "<url>")
+                .replace(/[A-Za-z0-9_-]{32,}/g, "<token>")
+                .replace(/\s+/g, " ")
+                .slice(0, 180);
               pagePersistenceError =
                 error instanceof Error
                   ? String(error.name) + "/" + ("code" in error ? String(error.code) : "NO_CODE") +
-                    (safeDatabaseMessage
-                      ? "/" + String(metadata.code ?? "DB_ERROR") + "/" + safeDatabaseMessage
-                      : "")
+                    "/" + String(metadata.code ?? "DB_ERROR") + "/" +
+                    (sanitizedDatabaseMessage || "NO_DB_MESSAGE")
                   : "NON_ERROR";
               throw error;
             }
