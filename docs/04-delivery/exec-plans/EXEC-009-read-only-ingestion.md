@@ -600,7 +600,7 @@ This ledger maps current executable evidence and identifies what still prevents 
 | AC-CON-003 | `tests/jira-read-adapter.test.ts` covers selected scalar/custom fields, issue-link identity and scope, mapped changelog revisions/redaction, and explicit board/sprint projections. | Partial. Comments are still part of the criterion but are intentionally not requested or retained while OD-014 is open. Evidence must also show the complete configured entity set and source identity/revision at the runtime boundary. |
 | AC-CON-004 | `tests/connector-runtime.integration.test.ts` accepts one HMAC-signed synthetic Jira event, replays it with the same event ID and with a changed delivery ID, then verifies one webhook receipt/job, one completed connector-page receipt/outcome, one external issue record, one source revision, and one proposal projection; conflicting bodies remain rejected. | Partial. The durable database path is synthetic; live webhook activation remains gated by OD-013. This evidence does not publish canonical facts. |
 | AC-CON-005 | `tests/spreadsheet-preview.test.ts` covers CSV mappings, invalid rows and planned operations. `tests/ingestion-persistence.integration.test.ts` verifies preview and reviewed-import receipts while canonical fact/history counts remain unchanged. `tests/e2e/csv-ingestion.spec.ts` proves the visible CSV upload/reviewed-proposal flow and zero fact writes. | Partial. CSV satisfies the current “Excel or CSV” alternative; XLSX remains deferred. The user-approved commit for this stage saves selected proposals, not canonical facts. Add a browser journey showing valid and invalid rows and planned changes together before proposal save. Do not publish canonical facts without the coupled provenance/authority design. |
-| AC-CON-007 | `tests/connector-routes.test.ts` verifies raw-body signature authentication precedes parsing; `tests/connector-runtime-auth.test.ts` checks bad-signature rejection; `tests/connector-runtime.integration.test.ts` covers replay protection, job retries, cursor-fenced recovery, and a scheduled `JiraRuntimeService` read that persists a Jira issue proposal/revision and cursor with zero webhook receipts. Migration `202609260001_connector_outcome_sync_scope` now validates accepted service outcomes against the immutable connector sync receipt scope. | Partial. This proves scheduled reconciliation can read and persist the current issue state, but does not first persist an older revision and then simulate a missed webhook for a changed issue. Add that outage/recovery sequence and verify safe administrator-facing failure detail. |
+| AC-CON-007 | `tests/connector-routes.test.ts` verifies raw-body signature authentication precedes parsing; `tests/connector-runtime-auth.test.ts` checks bad-signature rejection; `tests/connector-runtime.integration.test.ts` persists an older Jira issue revision, leaves a changed issue without a webhook receipt, then proves scheduled reconciliation persists the newer revision/proposal and advances the cursor. A third scheduled transport failure records `DEGRADED`/`UNKNOWN_OUTCOME`; authorized `pmo_admin` source listing returns only finite health state/code/timestamp. Migration `202609260001_connector_outcome_sync_scope` validates accepted service outcomes against the immutable sync receipt scope. | Partial. The sequence is synthetic; live Jira activation remains gated by OD-013. No customer activation or canonical fact publication is claimed. |
 | AC-CON-008 | `tests/connector-runtime.integration.test.ts` covers a single-owner refresh lease, atomic completion and stale-operation fencing; token and retry classes are covered in `tests/connector-runtime-auth.test.ts` and `tests/jira-runtime.test.ts`. | Partial. PR #62 adds two concurrent refresh attempts and reads the rotated tokens through a newly constructed database client and repository. This does not prove a process restart; durable lease-token behavior and a revoked-token failure with a redacted administrator action remain. |
 | AC-MNT-003 | `tests/connector.test.ts` exercises the shared synthetic identity/page/cursor/duplicate/permission/retry contract; `tests/jira-read-adapter.test.ts` now also rejects duplicate Jira issue identities through the shared page validator and checks unknown-outcome redaction, non-retry advice and one attempt. Existing Jira cases cover exact source identity/cursor, project permission and throttling. Hosted architecture/contracts checks enforce the SDK boundary. | Partial. These are synthetic adapter conformance cases; retain exact-head Foundation evidence and complete the remaining runtime-level shared-contract review before acceptance. |
 
@@ -622,7 +622,19 @@ migrations, and the populated-prefix-nine rehearsal preserves its existing nine
 migration starting point.
 
 This fixes durable proposal-page persistence for the scheduled runtime without
-publishing proposals as canonical facts. AC-CON-007 remains partial: a persisted
-older revision followed by a deliberately missed Jira change and recovery, plus
-safe administrator-facing failure detail, are still outstanding. Issue #7
+publishing proposals as canonical facts. At the PR #63 merge checkpoint, AC-CON-007
+still lacked older-revision/missed-update recovery evidence and safe administrator
+health detail; the follow-up candidate evidence is recorded below. Issue #7
 checkboxes and accepted-story totals remain unchanged.
+
+## AC-CON-007 scheduled missed-update evidence candidate, 2026-09-26
+
+`tests/connector-runtime.integration.test.ts` now starts with an older Jira issue
+revision, deliberately accepts no webhook for a changed issue, then verifies a
+scheduled reconciliation persists the newer source revision and proposal with a
+persisted cursor and zero webhook receipts. A later scheduled transport failure
+containing a synthetic token maps to finite `UNKNOWN_OUTCOME` health; an authorized
+`pmo_admin` source listing returns the `DEGRADED` state, finite code and timestamp
+without the exception or token. This evidence is synthetic and does not publish
+canonical facts, activate a Jira customer site, change Issue #7 checkboxes or alter
+accepted-story totals.
