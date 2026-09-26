@@ -232,7 +232,17 @@ describe("durable Jira connector runtime", () => {
       inputCursor: null,
       nextCursor: null,
       terminal: true,
-      records: [],
+      records: [
+        {
+          ref: { customerId, sourceId, projectId, recordType: "jira.issue", recordId: "SAFE-77" },
+          revision: now.toISOString(),
+          sourceContentHash: "a".repeat(64),
+          observedAt: now.toISOString(),
+          effectiveAt: now.toISOString(),
+          deepLink: "https://tenant.atlassian.net/browse/SAFE-77",
+          observations: [{ factType: "jira.status", value: { type: "text", value: "In Progress" } }],
+        },
+      ],
     };
     const finalReclaimedAt = await waitForLeaseExpiry();
     const finalJob = await runtime.claimNextJob(customerId);
@@ -276,6 +286,47 @@ describe("durable Jira connector runtime", () => {
       receiptId: webhook.receiptId,
       jobId: webhook.jobId,
       replayed: true,
+    });
+
+    const [
+      externalRecords,
+      sourceRevisions,
+      proposalProjections,
+      pageReceipts,
+      rowOutcomes,
+      webhookReceipts,
+      webhookJobs,
+    ] = await Promise.all([
+      db.ingestionExternalRecord.count({
+        where: { customerId, sourceId, recordType: "jira.issue", recordKey: "SAFE-77" },
+      }),
+      db.ingestionSourceRevision.count({ where: { customerId, sourceId } }),
+      db.ingestionProposalProjection.count({ where: { customerId, sourceId } }),
+      db.ingestionOperationReceipt.count({
+        where: { customerId, sourceId, executionMode: "CONNECTOR_SYNC", kind: "CONNECTOR_PAGE" },
+      }),
+      db.ingestionRowOutcome.count({
+        where: { customerId, sourceId, recordKey: "SAFE-77" },
+      }),
+      db.connectorWebhookReceipt.count({ where: { customerId, sourceId } }),
+      db.connectorSyncJob.count({ where: { customerId, sourceId, kind: "WEBHOOK" } }),
+    ]);
+    expect({
+      externalRecords,
+      sourceRevisions,
+      proposalProjections,
+      pageReceipts,
+      rowOutcomes,
+      webhookReceipts,
+      webhookJobs,
+    }).toEqual({
+      externalRecords: 1,
+      sourceRevisions: 1,
+      proposalProjections: 1,
+      pageReceipts: 1,
+      rowOutcomes: 1,
+      webhookReceipts: 1,
+      webhookJobs: 1,
     });
 
     await runtime.setOAuthCredential({
