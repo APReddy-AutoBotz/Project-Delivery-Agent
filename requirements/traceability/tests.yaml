@@ -962,13 +962,21 @@ tests:
   evidence: []
 - id: INT-MNT-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-MNT-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: The Jira adapter passes the common identity, sync, cursor, duplicate, permission, throttling and unknown-outcome
-    connector contract; a boundary check rejects external SDK types in domain modules.
-  evidence: []
+  behavior: The Jira adapter and scheduled runtime pass the common identity, sync, cursor, duplicate, permission, throttling
+    and unknown-outcome connector contract; a boundary check rejects external SDK types in domain modules.
+  evidence:
+  - tests/connector.test.ts
+  - tests/jira-read-adapter.test.ts
+  - tests/jira-runtime-contract.test.ts
+  - tests/jira-runtime.test.ts
+  - tests/connector-runtime.integration.test.ts
+  - tests/architecture.test.ts
+  - scripts/check-architecture.mjs
+  - .github/workflows/foundation-validation.yml
 - id: INT-MOD-001
   release: R1
   status: implemented
