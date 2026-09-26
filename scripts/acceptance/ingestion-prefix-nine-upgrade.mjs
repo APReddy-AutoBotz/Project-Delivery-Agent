@@ -89,6 +89,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     assert.equal(migrations[10].name, "202609240001_jira_runtime");
     assert.equal(migrations[12].name, "202609250001_reviewed_csv_import");
+    assert.equal(migrations[13].name, "202609260001_connector_outcome_sync_scope");
     assert.equal(migrations[11].name, "202609240002_jira_webhook_body_replay");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
     pool = new Pool(databaseConfig);
