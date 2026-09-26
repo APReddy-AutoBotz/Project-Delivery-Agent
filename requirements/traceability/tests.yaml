@@ -338,7 +338,7 @@ tests:
   - AC-CON-006
   - AC-CON-008
   specification: docs/05-quality/FAILURE_AND_RECOVERY_TESTS.md
-  behavior: Expired access credentials trigger one serialized OAuth refresh under concurrent reads; the rotated access/refresh pair and revision commit atomically in encrypted storage without exposing either token.
+  behavior: Concurrent refresh lease requests for an expired credential elect exactly one rotation owner; completion atomically persists the encrypted credential pair and revision without exposing token values.
   evidence:
   - "tests/connector-runtime.integration.test.ts"
   - ".github/workflows/foundation-validation.yml"
