@@ -372,6 +372,11 @@ describe("durable Jira connector runtime", () => {
       subject: "reconciliation-manager-" + randomUUID(),
       roles: ["project_manager"],
     };
+    const systemAdmin: Actor = {
+      customerId: isolatedCustomerId,
+      subject: "reconciliation-system-admin-" + randomUUID(),
+      roles: ["system_admin"],
+    };
     await db.customer.create({
       data: { id: isolatedCustomerId, name: "Synthetic Jira reconciliation fixture" },
     });
@@ -392,6 +397,7 @@ describe("durable Jira connector runtime", () => {
     for (const grant of [
       { subject: pmo.subject, role: "pmo_admin" },
       { subject: manager.subject, role: "project_manager" },
+      { subject: systemAdmin.subject, role: "system_admin" },
     ] as const) {
       await db.accessGrant.create({
         data: {
@@ -403,6 +409,12 @@ describe("durable Jira connector runtime", () => {
         },
       });
     }
+
+    await ingestion.setRetention(
+      systemAdmin,
+      { retentionHours: 24 },
+      "scheduled-reconciliation-retention-" + sourceId,
+    );
 
     const binding = {
       customerId: isolatedCustomerId,
@@ -507,31 +519,9 @@ describe("durable Jira connector runtime", () => {
             try {
               return await ingestion.persistConnectorPageForJob(...args);
             } catch (error) {
-              const metadata =
-                error !== null &&
-                typeof error === "object" &&
-                "meta" in error &&
-                error.meta !== null &&
-                typeof error.meta === "object"
-                  ? (error.meta as Record<string, unknown>)
-                  : {};
-              const databaseMessage =
-                error instanceof Error
-                  ? error.message
-                  : typeof metadata.message === "string"
-                    ? metadata.message
-                    : "";
-              const sanitizedDatabaseMessage = databaseMessage
-                .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "<uuid>")
-                .replace(/https?:\/\/[^\s]+/gi, "<url>")
-                .replace(/[A-Za-z0-9_-]{32,}/g, "<token>")
-                .replace(/\s+/g, " ")
-                .slice(0, 180);
               pagePersistenceError =
                 error instanceof Error
-                  ? String(error.name) + "/" + ("code" in error ? String(error.code) : "NO_CODE") +
-                    "/" + String(metadata.code ?? "DB_ERROR") + "/" +
-                    (sanitizedDatabaseMessage || "NO_DB_MESSAGE")
+                  ? `${error.name}/${"code" in error ? String(error.code) : "NO_CODE"}`
                   : "NON_ERROR";
               throw error;
             }
