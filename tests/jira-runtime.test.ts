@@ -471,11 +471,10 @@ describe("Jira runtime OAuth retry handling", () => {
         key: projectIdOrKey,
       })),
       searchIssues: vi.fn(
-        async ({ maxResults }: { maxResults: number; nextPageToken?: string }) => ({
-          issues: [issue],
-          isLast: true,
-          nextPageToken: null,
-        }),
+        async ({ maxResults }: { maxResults: number; nextPageToken?: string }) => {
+          if (maxResults < 1) throw new Error("Unexpected Jira page size");
+          return { issues: [issue], isLast: true, nextPageToken: null };
+        },
       ),
       getIssue: vi.fn(async () => issue),
       getChangeLogs: vi.fn(async ({ startAt }: { startAt: number }) => ({
@@ -489,12 +488,10 @@ describe("Jira runtime OAuth retry handling", () => {
         name: "Delivery Board",
         type: "scrum",
       })),
-      getSprints: vi.fn(async ({ boardId, startAt }: { boardId: number; startAt: number }) => ({
-        values: [sprint],
-        total: 1,
-        startAt,
-        isLast: true,
-      })),
+      getSprints: vi.fn(async ({ boardId, startAt }: { boardId: number; startAt: number }) => {
+        if (boardId !== 42) throw new Error("Unexpected Jira board");
+        return { values: [sprint], total: 1, startAt, isLast: true };
+      }),
       getSprint: vi.fn(async () => sprint),
     };
     const resourceScopes = credentials.scopes.filter((scopeName) => scopeName !== "offline_access");
