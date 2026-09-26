@@ -497,10 +497,32 @@ describe("durable Jira connector runtime", () => {
         return typeof value === "function" ? value.bind(target) : value;
       },
     });
+    let pagePersistenceReached = false;
+    let pagePersistenceError = "none";
+    const observedIngestion = new Proxy(ingestion, {
+      get(target, property) {
+        if (property === "persistConnectorPageForJob") {
+          return async (...args: Parameters<typeof ingestion.persistConnectorPageForJob>) => {
+            pagePersistenceReached = true;
+            try {
+              return await ingestion.persistConnectorPageForJob(...args);
+            } catch (error) {
+              pagePersistenceError =
+                error instanceof Error
+                  ? `${error.name}/${"code" in error ? String(error.code) : "NO_CODE"}`
+                  : "NON_ERROR";
+              throw error;
+            }
+          };
+        }
+        const value = Reflect.get(target, property, target) as unknown;
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
     const service = new JiraRuntimeService(
       { CUSTOMER_ID: isolatedCustomerId } as never,
       observedRuntime,
-      ingestion,
+      observedIngestion,
       fetchImpl,
       () => {
         jiraClientCreated = true;
@@ -512,7 +534,7 @@ describe("durable Jira connector runtime", () => {
     await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
     const scheduledResult = await service.runOne();
     if (scheduledResult.status === "deferred")
-      throw new Error(`Scheduled Jira reconciliation deferred: ${observedFailures.join(", ") || "no runtime failure code recorded"}; resourceLookups=${resourceLookups}; jiraClientCreated=${jiraClientCreated}; searches=${searchCalls.length}`);
+      throw new Error(`Scheduled Jira reconciliation deferred: ${observedFailures.join(", ") || "no runtime failure code recorded"}; resourceLookups=${resourceLookups}; jiraClientCreated=${jiraClientCreated}; searches=${searchCalls.length}; pagePersistenceReached=${pagePersistenceReached}; pagePersistenceError=${pagePersistenceError}`);
     expect(scheduledResult).toEqual({ status: "page_committed" });
 
     expect(searchCalls).toHaveLength(1);
