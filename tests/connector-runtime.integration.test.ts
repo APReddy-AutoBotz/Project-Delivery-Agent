@@ -507,9 +507,37 @@ describe("durable Jira connector runtime", () => {
             try {
               return await ingestion.persistConnectorPageForJob(...args);
             } catch (error) {
+              const metadata =
+                error !== null &&
+                typeof error === "object" &&
+                "meta" in error &&
+                error.meta !== null &&
+                typeof error.meta === "object"
+                  ? (error.meta as Record<string, unknown>)
+                  : {};
+              const databaseMessage =
+                typeof metadata.message === "string" ? metadata.message : "";
+              const safeDatabaseMessages = [
+                "Ingestion row outside authorized receipt scope",
+                "Incomplete ingestion receipt cannot commit",
+                "Ingestion sync receipt job is not current",
+                "Ingestion sync receipt scope is outside its configuration",
+                "Ingestion sync receipt lacks current source/project service scope",
+                "Ingestion sync receipt configuration is stale",
+                "Cursor advance requires an exact operation receipt",
+                "Ingestion health update lacks current source and project authorization",
+                "Orphan ingestion identity cannot commit",
+                "Accepted outcome identity must match its external record",
+              ];
+              const safeDatabaseMessage = safeDatabaseMessages.find((message) =>
+                databaseMessage.includes(message),
+              );
               pagePersistenceError =
                 error instanceof Error
-                  ? `${error.name}/${"code" in error ? String(error.code) : "NO_CODE"}`
+                  ? String(error.name) + "/" + ("code" in error ? String(error.code) : "NO_CODE") +
+                    (safeDatabaseMessage
+                      ? "/" + String(metadata.code ?? "DB_ERROR") + "/" + safeDatabaseMessage
+                      : "")
                   : "NON_ERROR";
               throw error;
             }
