@@ -853,7 +853,9 @@ tests:
   acceptance_criteria:
   - AC-CON-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: Configured issue, sprint, changelog, link and selected custom-field data is normalized with source IDs and revisions at the scheduled persistence boundary; comment reads remain deferred under OD-014.
+  behavior: Configured issue, sprint, changelog, link and selected custom-field data is
+    normalized with source IDs and revisions at the scheduled persistence boundary;
+    comment reads remain deferred under OD-014.
   evidence:
   - tests/jira-read-adapter.test.ts
   - tests/jira-runtime.test.ts
