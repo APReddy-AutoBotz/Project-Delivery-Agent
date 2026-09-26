@@ -253,7 +253,9 @@ try {
     for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
       await verifyImmutableHistoryMutation(restored, table, operation);
   }
-  const credential = await restored.connectorCredential.findFirstOrThrow();
+  const credential = await restored.connectorCredential.findFirstOrThrow({
+    where: { customerId: process.env.CUSTOMER_ID, name: "synthetic" },
+  });
   if (
     new CredentialVault(process.env.ENCRYPTION_KEY).decrypt(
       credential.envelope,
