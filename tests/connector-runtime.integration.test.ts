@@ -806,8 +806,30 @@ describe("durable Jira connector runtime", () => {
     await recordHealthyAt(new Date(scheduledAt.getTime() - 16 * 60_000));
     failSearchWithSecret = true;
     await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
+    const sourceBeforeUnknownOutcome = await db.ingestionSource.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, id: sourceId },
+      select: { cursorRevision: true },
+    });
     await expect(service.runOne()).resolves.toEqual({ status: "deferred" });
     expect(observedFailures).toContain("UNKNOWN_OUTCOME");
+    // Cursor reset and the failed read each claim this scheduled job. The
+    // unknown outcome must leave that same single job READY for bounded retry.
+    const unknownRetryJobs = await db.connectorSyncJob.findMany({
+      where: {
+        customerId: isolatedCustomerId,
+        sourceId,
+        kind: "SCHEDULED",
+        state: "READY",
+      },
+      select: { id: true, attempts: true },
+    });
+    expect(unknownRetryJobs).toHaveLength(1);
+    expect(unknownRetryJobs[0]?.attempts).toBe(2);
+    const sourceAfterUnknownOutcome = await db.ingestionSource.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, id: sourceId },
+      select: { cursorRevision: true },
+    });
+    expect(sourceAfterUnknownOutcome.cursorRevision).toBe(sourceBeforeUnknownOutcome.cursorRevision);
     const sourceSummaries = await ingestion.listSources(pmo);
     expect(sourceSummaries).toHaveLength(1);
     expect(sourceSummaries[0]).toMatchObject({

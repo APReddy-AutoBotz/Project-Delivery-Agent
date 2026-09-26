@@ -62,8 +62,7 @@ cursor must match; a continuing page is nonempty and advances to a distinct non-
 cursor; a terminal page has null next cursor and may be empty. Duplicate detection
 is per-page only, not persisted or cross-page idempotency. Deep links remain data:
 canonical absolute HTTPS, no userinfo, same configured origin, no fetch/navigation.
-Finite read retry advice permits only rate-limit/temporary-unavailability failures,
-honors Retry-After up to 24h and allows at most 5 attempts. Unknown outcomes do not retry.
+Finite adapter retry advice permits retries only for rate-limit/temporary-unavailability failures, honors Retry-After up to 24h and caps advice at 5 attempts. An adapter returns UNKNOWN_OUTCOME once without an immediate retry hint. The durable scheduled-job runtime separately retries UNKNOWN_OUTCOME with capped exponential backoff under a five-claim budget; no record page or cursor transition commits on a failed read.
 
 CSV parsing accepts one leading BOM, comma delimiters, CR/LF/CRLF, quoted newlines/
 delimiters and doubled quotes. Reject stray/unclosed quotes, trailing junk after a
@@ -682,3 +681,9 @@ This validates adapter and runtime boundaries with synthetic Jira responses. The
 `tests/jira-runtime.test.ts` now runs `JiraRuntimeService` across the complete currently configured non-comment Jira entity set and captures every page passed to `persistConnectorPageForJob`. The synthetic run covers issue and selected custom-field observations, issue links, mapped changelog items, configured boards and sprints. It checks each record retains the configured customer/source/project identity, a source revision, a content hash and observed/effective timestamps at the scheduled persistence boundary.
 
 Comment reads remain deferred under OD-014, and live Jira activation remains gated by OD-013. AC-CON-003 and Issue #7 remain partial; no Issue #7 checkbox, canonical fact or accepted-story count changes.
+
+## AC-MNT-003 scheduled runtime contract evidence candidate, 2026-09-26
+
+`tests/jira-runtime-contract.test.ts` drives `JiraRuntimeService` through the Jira adapter with synthetic responses for duplicate issue identities, a rate limit, and an unknown transport outcome. The scheduled boundary rejects duplicate records and preserves bounded `Retry-After` for throttling. For `UNKNOWN_OUTCOME`, the adapter returns a finite failure without an immediate retry hint; the durable scheduler may queue a bounded retry, while the page and cursor remain unchanged unless the atomic page commit succeeds.
+
+Together with `tests/jira-runtime.test.ts`, `tests/connector-runtime.integration.test.ts`, `tests/jira-read-adapter.test.ts`, `tests/connector.test.ts`, and the architecture boundary, the candidate covers runtime page identity/progression, permission denial, durable reconciliation, common read validation, retry classification, and SDK isolation. This remains synthetic evidence; live Jira stays gated by OD-013, comment reads by OD-014, and no Issue #7 checkbox, canonical fact, or accepted-story total changes. Exact-head hosted checks and independent review remain pending.
