@@ -70,13 +70,14 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 13);
+  assert.equal(migrations.length, 14);
   assert.equal(
     migrations[9].name,
     "202609230001_durable_ingestion",
   );
   assert.equal(migrations[10].name, "202609240001_jira_runtime");
   assert.equal(migrations[11].name, "202609240002_jira_webhook_body_replay");
+  assert.equal(migrations[13].name, "202609260001_connector_outcome_sync_scope");
   assert.equal(
     migrations[8].name,
     "202609220001_milestone_validation_projection",
