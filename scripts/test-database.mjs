@@ -254,6 +254,11 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
   };
   const repository = new DatabaseHealthAssessmentRepository(db);
   const actor = { customerId, subject, roles: ["project_manager"] };
+  const otherActor = {
+    customerId,
+    subject: "health-retention-other",
+    roles: ["project_manager"],
+  };
   const digest = (value) =>
     createHash("sha256").update(value).digest("hex");
   try {
@@ -287,6 +292,15 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
       projectId,
       "project_manager",
     );
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."AccessGrant" (id,"customerId",subject,"scopeType","scopeId",role) VALUES ($1::uuid,$2::uuid,$3,$4,$5::uuid,$6)',
+      randomUUID(),
+      customerId,
+      otherActor.subject,
+      "project",
+      projectId,
+      "project_manager",
+    );
     const policyChangedAt = new Date(Date.now() - 80 * 3600000);
     await db.$executeRawUnsafe(
       'INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId",detail,"occurredAt") VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6::jsonb,$7)',
@@ -307,6 +321,67 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
       "health-retention-admin",
       policyEventId,
       policyChangedAt,
+    );
+
+    const overdueWorkItemId = randomUUID();
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."CanonicalProject" (id,"customerId","portfolioId","createdBy",sealed,"responsibilitiesCount","sprintsCount","milestonesCount","workItemsCount","requiredWorkItemsCount","raidItemsCount","sourceMappingsCount") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,true,0,0,0,1,0,0,0)',
+      projectId,
+      customerId,
+      portfolioId,
+      "health-retention-fixture",
+    );
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."WorkItem" (id,"customerId","projectId",key,title,state,"plannedEnd") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7)',
+      overdueWorkItemId,
+      customerId,
+      projectId,
+      "HLT-WI-OVERDUE",
+      "Synthetic overdue work item",
+      "OPEN",
+      new Date("2000-01-01T00:00:00.000Z"),
+    );
+    const firstAssessmentKey = "first-write-race";
+    const [firstWrite, concurrentReplay] = await Promise.all([
+      repository.create(actor, projectId, firstAssessmentKey, randomUUID()),
+      repository.create(actor, projectId, firstAssessmentKey, randomUUID()),
+    ]);
+    assert.equal(firstWrite.assessmentId, concurrentReplay.assessmentId);
+    assert.deepEqual(
+      [firstWrite.replayed, concurrentReplay.replayed].sort(),
+      [false, true],
+    );
+    assert.equal(firstWrite.coverage, "SCHEDULE_ONLY");
+    assert.equal(firstWrite.contentAvailable, true);
+    assert.equal(firstWrite.result.calculated.status, "RED");
+    const storedFirstWrite = await db.$queryRawUnsafe(
+      'SELECT h.id AS "assessmentId",h.input,h.result,h."envelopeHash",e.event,e.detail FROM public."HealthAssessment" h JOIN public."AuditEvent" e ON e."customerId"=h."customerId" AND e.event=\'health.assessment.created\' AND e.detail->>\'healthAssessmentId\'=h.id WHERE h.id=$1::uuid',
+      firstWrite.assessmentId,
+    );
+    assert.equal(storedFirstWrite.length, 1);
+    assert.equal(storedFirstWrite[0]?.event, "health.assessment.created");
+    assert.equal(storedFirstWrite[0]?.input.signals[0]?.targetSource.recordId, overdueWorkItemId);
+    assert.equal(
+      storedFirstWrite[0]?.input.signals[0]?.sourceFacts.find(
+        (fact) => fact.field === "selectedDueDate",
+      )?.value,
+      "2000-01-01",
+    );
+    assert.equal(storedFirstWrite[0]?.result.calculated.status, "RED");
+    assert.equal(
+      storedFirstWrite[0]?.detail.healthAssessmentId,
+      firstWrite.assessmentId,
+    );
+    assert.equal(storedFirstWrite[0]?.detail.envelopeHash, firstWrite.envelopeHash);
+    await assert.rejects(
+      () =>
+        repository.create(
+          otherActor,
+          projectId,
+          firstAssessmentKey,
+          randomUUID(),
+        ),
+      (error) => error?.code === "CONFLICT",
     );
 
     const fixture = async (commandKey, ageHours) => {
@@ -430,7 +505,11 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
     );
     assert.deepEqual(
       survivingReceipts.map((row) => row.commandKeyHash.trim()).sort(),
-      [redaction.commandKeyHash, tombstone.commandKeyHash].sort(),
+      [
+        redaction.commandKeyHash,
+        tombstone.commandKeyHash,
+        digest(firstAssessmentKey),
+      ].sort(),
     );
 
     const afterRedactionReplay = await repository.create(
@@ -466,6 +545,16 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
       purged_assessment_count: 0,
       purged_receipt_count: 0,
     });
+    await db.$executeRawUnsafe(
+      'DELETE FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND "scopeId"=$3::uuid',
+      customerId,
+      subject,
+      projectId,
+    );
+    await assert.rejects(
+      () => repository.latest(actor, projectId),
+      (error) => error?.code === "DENIED",
+    );
     console.log(
       "Health retention database checks passed: content redaction, policy-event expiry, tombstone purge, receipt horizon, replay and repeat sweep.",
     );

@@ -202,7 +202,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
     return this.transaction(async (tx) => {
       await this.authorizeProject(tx, current, id);
       await tx.$queryRawUnsafe(
-        "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0)) IS NULL AS locked",
         current.customerId + ":" + id + ":" + commandHash,
       );
       const now = await this.now(tx);
@@ -309,7 +309,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
     } catch { throw new HealthAssessmentError("INVALID_REQUEST"); }
     return this.transaction(async (tx) => {
       await tx.$queryRawUnsafe(
-        "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0)) IS NULL AS locked",
         "health-assessment-retention:" + current.customerId,
       );
       const previous = await this.readPolicy(tx, current.customerId, true);
