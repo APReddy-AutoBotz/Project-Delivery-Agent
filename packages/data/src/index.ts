@@ -7,6 +7,7 @@ export { DatabaseMilestoneReconciliationRepository } from "./milestone-reconcili
 export { DatabaseScalarReconciliationRepository } from "./scalar-reconciliation.js";
 export { DatabaseCanonicalProjectRepository } from "./canonical-project.js";
 export { DatabaseIngestionRepository } from "./ingestion-persistence.js";
+export { DatabaseHealthAssessmentRepository } from "./health-assessment.js";
 export { IngestionPersistenceError } from "@pdaa/domain";
 export { DatabaseConnectorRuntimeRepository } from "./connector-runtime.js";
 export type { JiraOAuthAccess, JiraOAuthCredential, JiraCredentialRotation } from "./connector-runtime.js";

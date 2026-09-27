@@ -126,6 +126,7 @@ const signalKind = z.enum([
   "OVERDUE_MILESTONE",
   "OVERDUE_WORK_ITEM",
   "COMPLETENESS",
+  "SCHEDULE_COVERAGE",
 ]);
 const signalSchema = z.strictObject({
   signalId: canonicalKeySchema,
@@ -252,6 +253,7 @@ function validateRequest(request: z.infer<typeof requestSchema>) {
       (signal.kind === "UPDATE_FRESHNESS" &&
         signal.targetType !== "PROJECT") ||
       (signal.kind === "COMPLETENESS" && signal.targetType !== "PROJECT") ||
+      (signal.kind === "SCHEDULE_COVERAGE" && signal.targetType !== "PROJECT") ||
       (signal.kind === "BLOCKER_AGE" &&
         signal.targetType !== "RAID_ITEM" &&
         signal.targetType !== "WORK_ITEM" &&

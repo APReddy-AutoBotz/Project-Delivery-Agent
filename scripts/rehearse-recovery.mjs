@@ -176,6 +176,9 @@ try {
     "ConnectorWebhookReceipt",
     "ConnectorTaskReceipt",
     "IngestionSyncReceiptProjectScope",
+    "HealthAssessmentRetentionPolicy",
+    "HealthAssessment",
+    "HealthAssessmentCommandReceipt",
   ];
   for (const table of tables) {
     const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
@@ -253,6 +256,9 @@ try {
     for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
       await verifyImmutableHistoryMutation(restored, table, operation);
   }
+  for (const table of ["HealthAssessment", "HealthAssessmentCommandReceipt"])
+    for (const operation of ["UPDATE", "DELETE"])
+      await verifyImmutableHistoryMutation(restored, table, operation);
   const credential = await restored.connectorCredential.findFirstOrThrow({
     where: { customerId: process.env.CUSTOMER_ID, name: "synthetic" },
   });
@@ -271,7 +277,7 @@ try {
   if (visible.length !== 1 || visible[0].code !== "ATL")
     throw new Error("Restored permissions differ");
   console.log(
-    `Recovery passed: all 63 business tables and the migration ledger match exactly; ingestion receipt, reviewed import, outcome, cursor, revision, projection, configuration and canonical history mutations were rejected. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all 66 business tables and the migration ledger match exactly; ingestion receipt, reviewed import, outcome, cursor, revision, projection, configuration and canonical history mutations were rejected. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

@@ -44,7 +44,8 @@ it("requires the complete pinned release ledger after a prior-prefix upgrade", (
     "scripts/acceptance/project-fact-upgrade.mjs",
     "utf8",
   );
-  expect(helper).toContain("assert.equal(migrations.length, 14)");
+  expect(helper).toContain("assert.equal(migrations.length, 15)");
+  expect(helper).toContain('"202609270001_health_assessment"');
   expect(helper).toContain('"202609220001_milestone_validation_projection"');
   expect(helper).toContain('"202609260001_connector_outcome_sync_scope"');
   expect(helper).toContain("assert.equal(applied.length, migrations.length)");

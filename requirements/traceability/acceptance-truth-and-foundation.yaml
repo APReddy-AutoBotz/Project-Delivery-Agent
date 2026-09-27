@@ -176,6 +176,8 @@ acceptance_criteria:
   priority: P0
   tests:
   - UNIT-HLT-004
+  - UNIT-HLT-004-RETENTION
+  - UNIT-HLT-004-SCHEDULE
   - E2E-HLT-004
   - GOLDEN-002
 - id: AC-HLT-005

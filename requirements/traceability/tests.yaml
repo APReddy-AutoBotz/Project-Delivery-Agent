@@ -1435,10 +1435,42 @@ tests:
     signal-rule inputs, calculation and contradiction rule revisions, rationale,
     and a reported-versus-calculated discrepancy. Incomplete snapshots fail
     closed; unassessable inputs cannot produce GREEN without known RED evidence.
-    Persistence and product display remain for a later increment.
+    Persistence and product display are implemented in separate scoped API/UI layers; this unit test still covers only the pure evaluator.
   evidence:
   - packages/domain/src/delivery-health.ts
   - tests/delivery-health.test.ts
+- id: UNIT-HLT-004-RETENTION
+  release: R1
+  status: implemented
+  acceptance_criteria:
+  - AC-HLT-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: >-
+    The hourly worker task runs the injected database retention procedure and
+    fails closed when the privileged callback is not wired. Isolated PostgreSQL
+    checks exercise read-time expiry, privileged content redaction, per-revision
+    retention-event expiry, assessment tombstone and audit purge, receipt expiry,
+    replay after redaction, expired-result conflict and repeat-sweep idempotency.
+    Database migration checks also assert API and worker table/function grants.
+    This does not accept the complete health criterion.
+  evidence:
+  - apps/worker/src/tasks.ts
+  - tests/health-assessment-worker.test.ts
+  - scripts/test-database.mjs
+- id: UNIT-HLT-004-SCHEDULE
+  release: R1
+  status: implemented
+  acceptance_criteria:
+  - AC-HLT-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: >-
+    Server-owned schedule-only assessment inputs select saved forecastEnd then
+    plannedEnd values, use UTC day boundaries, and distinguish overdue,
+    complete/cancelled, missing-date, and empty-schedule cases. This bounded
+    unit contract does not cover source authority or complete AC-HLT-004 acceptance.
+  evidence:
+  - packages/domain/src/health-assessment.ts
+  - tests/schedule-health.test.ts
 - id: UNIT-HLT-006
   release: R1
   status: planned

@@ -1135,3 +1135,48 @@ model IngestionReviewedImportRow {
   @@id([receiptId, ordinal], map: "IngestionReviewedImportRow_pkey")
   @@unique([customerId, sourceId, previewReceiptId, previewOrdinal], map: "IngestionReviewedImportRow_preview_row_key")
 }
+
+model HealthAssessmentRetentionPolicy {
+  customerId String @id @db.Uuid
+  contentRetentionHours Int
+  auditRetentionHours Int
+  idempotencyRetentionHours Int
+  revision Int
+  changedBy String @db.VarChar(256)
+  auditEventId String? @unique @db.Uuid
+  changedAt DateTime @db.Timestamptz(3)
+}
+
+model HealthAssessment {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  actorSubject String @db.VarChar(256)
+  assessedAt DateTime @db.Timestamptz(3)
+  commandKeyHash String @db.Char(64)
+  ruleRevision String @db.VarChar(64)
+  input Json?
+  result Json?
+  envelopeHash String @db.Char(64)
+  contentExpiresAt DateTime @db.Timestamptz(3)
+  auditExpiresAt DateTime @db.Timestamptz(3)
+  redactedAt DateTime? @db.Timestamptz(3)
+  @@unique([customerId, projectId, id], map: "HealthAssessment_scope_key")
+  @@unique([customerId, projectId, commandKeyHash], map: "HealthAssessment_command_key")
+  @@index([customerId, projectId, assessedAt(sort: Desc), id(sort: Desc)], map: "HealthAssessment_latest_idx")
+  @@index([contentExpiresAt], map: "HealthAssessment_content_expiry_idx")
+  @@index([auditExpiresAt], map: "HealthAssessment_audit_expiry_idx")
+}
+
+model HealthAssessmentCommandReceipt {
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  commandKeyHash String @db.Char(64)
+  actorSubject String @db.VarChar(256)
+  requestHash String @db.Char(64)
+  assessmentId String @db.Uuid
+  createdAt DateTime @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+  @@id([customerId, projectId, commandKeyHash], map: "HealthAssessmentCommandReceipt_pkey")
+  @@index([expiresAt], map: "HealthAssessmentCommandReceipt_expiry_idx")
+}

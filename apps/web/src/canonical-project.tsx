@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, TextField, SelectField, Message } from "./components.js";
 
 export type RequestFn = <T>(path: string, init?: RequestInit) => Promise<T>;
@@ -793,6 +793,130 @@ type DetailRow = {
   dates?: Dates;
   [key: string]: string | Dates | null | undefined;
 };
+
+type HealthAssessmentView = {
+  assessmentId: string;
+  projectId: string;
+  assessedAt: string;
+  coverage: "SCHEDULE_ONLY";
+  ruleRevision: string;
+  envelopeHash: string;
+  contentAvailable: boolean;
+  input: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
+  replayed: boolean;
+};
+type HealthResult = {
+  reported: { status: string; sourceFact: { source: { recordId: string } } };
+  calculated: { status: string; rationale: { text: string } };
+  contradiction: { severity: string; rationale: string } | null;
+  objectiveSignals: {
+    signalId: string;
+    kind: string;
+    targetType: string;
+    targetKey: string;
+    targetSource: { recordId: string };
+    state: string;
+    severity: string;
+    rule: { parameters: { name: string; value: unknown }[] };
+    sourceFacts: { field: string; value: unknown }[];
+  }[];
+};
+function HealthAssessmentPanel({ id, request }: { id: string; request: RequestFn }) {
+  const queryClient = useQueryClient();
+  const commandKey = useRef<string | null>(null);
+  const latest = useQuery({
+    queryKey: ["health-assessment", id],
+    queryFn: () => request<HealthAssessmentView | null>("/projects/" + id + "/health-assessments/latest"),
+  });
+  const assessment = useMutation({
+    mutationFn: (key: string) => request<HealthAssessmentView>("/projects/" + id + "/health-assessments", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ commandKey: key }),
+    }),
+    onSuccess: (value) => {
+      commandKey.current = null;
+      queryClient.setQueryData(["health-assessment", id], value);
+    },
+  });
+  const run = () => {
+    commandKey.current ??= crypto.randomUUID();
+    assessment.mutate(commandKey.current);
+  };
+  const value = assessment.data ?? latest.data;
+  const result = value?.contentAvailable && value.result
+    ? (value.result as unknown as HealthResult)
+    : null;
+  return (
+    <section className="canonical-section" aria-labelledby="health-assessment-title">
+      <h3 id="health-assessment-title">Schedule health assessment</h3>
+      <p className="muted">
+        Uses saved project configuration only. Source mappings and external systems are not retrieved or verified.
+        Coverage is schedule only.
+      </p>
+      <Button onClick={run} disabled={assessment.isPending}>
+        {assessment.isPending ? "Assessing…" : "Assess schedule"}
+      </Button>
+      {assessment.error && <p role="alert" className="error">{assessment.error.message}</p>}
+      {latest.isPending && !value && <p role="status">Loading latest assessment…</p>}
+      {latest.error && !value && <p role="alert" className="error">{latest.error.message}</p>}
+      {!latest.isPending && !latest.error && !value && <p className="muted">No assessment has been saved.</p>}
+      {value && (
+        <div className="canonical-records">
+          <div className="canonical-review-row">
+            <p><strong>Assessed:</strong> {value.assessedAt} (UTC)</p>
+            <p><strong>Coverage:</strong> SCHEDULE_ONLY</p>
+            <p><strong>Rule:</strong> {value.ruleRevision}</p>
+            <p><strong>Envelope SHA-256:</strong> <code>{value.envelopeHash}</code></p>
+          </div>
+          {!value.contentAvailable || !result ? (
+            <p className="muted">Assessment content has expired under the configured retention policy.</p>
+          ) : (
+            <>
+              <div className="canonical-review-row">
+                <p>
+                  <strong>Reported status:</strong> {result.reported.status}
+                  {" "}· project record {result.reported.sourceFact.source.recordId}
+                </p>
+                <p><strong>Calculated schedule status:</strong> {result.calculated.status}</p>
+                <p>{result.calculated.rationale.text}</p>
+                {result.contradiction && (
+                  <p role="status"><strong>Reported/calculated discrepancy ({result.contradiction.severity}):</strong> {result.contradiction.rationale}</p>
+                )}
+              </div>
+              <ul>
+                {result.objectiveSignals.map((signal) => (
+                  <li key={signal.signalId}>
+                    <strong>{signal.kind}</strong> · {signal.state} · {signal.severity}
+                    <p>
+                      Target: {signal.targetType} {signal.targetKey} · source ID{" "}
+                      {signal.targetSource.recordId}
+                    </p>
+                    <p>
+                      Rule inputs:{" "}
+                      {signal.rule.parameters
+                        .map((parameter) => parameter.name + "=" + String(parameter.value))
+                        .join(", ") || "None"}
+                    </p>
+                    <ul>
+                      {signal.sourceFacts.map((fact, index) => (
+                        <li key={signal.signalId + "-" + fact.field + "-" + index}>
+                          {fact.field}: {fact.value === null ? "Not set" : String(fact.value)}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 type Detail = {
   id: string;
   configured: boolean;
@@ -898,6 +1022,7 @@ export function CanonicalProjectDetails({
           })}
         </>
       )}
+      <HealthAssessmentPanel id={id} request={request} />
     </section>
   );
 }

@@ -66,10 +66,13 @@ const added = [
   "ConnectorWebhookReceipt",
   "ConnectorTaskReceipt",
   "IngestionSyncReceiptProjectScope",
+  "HealthAssessmentRetentionPolicy",
+  "HealthAssessment",
+  "HealthAssessmentCommandReceipt",
 ];
 const receipt = () => ({
   priorMigrationCount: 1,
-  businessTableCount: 63,
+  businessTableCount: 66,
   retainedPriorBusinessTables: [...old],
   retainedPriorRowCounts: Object.fromEntries(old.map((table) => [table, 1])),
   emptyAddedTablesAfterUpgrade: [...added],

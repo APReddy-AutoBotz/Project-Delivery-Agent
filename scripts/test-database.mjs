@@ -9,7 +9,10 @@ import {
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createDatabase } from "../packages/data/dist/index.js";
+import {
+  createDatabase,
+  DatabaseHealthAssessmentRepository,
+} from "../packages/data/dist/index.js";
 import { assertSyntheticDatabaseUrl } from "../packages/platform/dist/index.js";
 import { verifyIngestionPrefixNineUpgrade } from "./acceptance/ingestion-prefix-nine-upgrade.mjs";
 const source = assertSyntheticDatabaseUrl(
@@ -124,6 +127,9 @@ try {
     "ConnectorWebhookReceipt",
     "ConnectorTaskReceipt",
     "IngestionSyncReceiptProjectScope",
+    "HealthAssessmentRetentionPolicy",
+    "HealthAssessment",
+    "HealthAssessmentCommandReceipt",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -134,6 +140,51 @@ try {
       tables.some((row) => row.tablename === table),
       "Missing foundation table: " + table,
     );
+  const [healthPrivileges] = await migrated.$queryRaw`SELECT
+      has_table_privilege('pdaa_api','public."HealthAssessment"','SELECT') AS api_assessment_select,
+      has_table_privilege('pdaa_api','public."HealthAssessment"','INSERT') AS api_assessment_insert,
+      has_table_privilege('pdaa_api','public."HealthAssessment"','UPDATE') AS api_assessment_update,
+      has_table_privilege('pdaa_api','public."HealthAssessment"','DELETE') AS api_assessment_delete,
+      has_table_privilege('pdaa_api','public."HealthAssessmentCommandReceipt"','SELECT') AS api_receipt_select,
+      has_table_privilege('pdaa_api','public."HealthAssessmentCommandReceipt"','INSERT') AS api_receipt_insert,
+      has_table_privilege('pdaa_api','public."HealthAssessmentCommandReceipt"','UPDATE') AS api_receipt_update,
+      has_table_privilege('pdaa_api','public."HealthAssessmentCommandReceipt"','DELETE') AS api_receipt_delete,
+      has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','SELECT') AS api_policy_select,
+      has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','INSERT') AS api_policy_insert,
+      has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','UPDATE') AS api_policy_update,
+      has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','DELETE') AS api_policy_delete,
+      has_table_privilege('pdaa_worker','public."HealthAssessment"','SELECT') AS worker_assessment_select,
+      has_table_privilege('pdaa_worker','public."HealthAssessment"','INSERT') AS worker_assessment_insert,
+      has_table_privilege('pdaa_worker','public."HealthAssessment"','UPDATE') AS worker_assessment_update,
+      has_table_privilege('pdaa_worker','public."HealthAssessment"','DELETE') AS worker_assessment_delete,
+      has_table_privilege('pdaa_worker','public."HealthAssessmentCommandReceipt"','SELECT') AS worker_receipt_select,
+      has_table_privilege('pdaa_worker','public."HealthAssessmentCommandReceipt"','INSERT') AS worker_receipt_insert,
+      has_table_privilege('pdaa_worker','public."HealthAssessmentRetentionPolicy"','UPDATE') AS worker_policy_update,
+      has_function_privilege('pdaa_worker','public.purge_expired_health_assessments()','EXECUTE') AS worker_purge_execute,
+      has_function_privilege('pdaa_api','public.purge_expired_health_assessments()','EXECUTE') AS api_purge_execute`;
+  assert.deepEqual(healthPrivileges, {
+    api_assessment_select: true,
+    api_assessment_insert: true,
+    api_assessment_update: false,
+    api_assessment_delete: false,
+    api_receipt_select: true,
+    api_receipt_insert: true,
+    api_receipt_update: false,
+    api_receipt_delete: false,
+    api_policy_select: true,
+    api_policy_insert: true,
+    api_policy_update: true,
+    api_policy_delete: false,
+    worker_assessment_select: false,
+    worker_assessment_insert: false,
+    worker_assessment_update: false,
+    worker_assessment_delete: false,
+    worker_receipt_select: false,
+    worker_receipt_insert: false,
+    worker_policy_update: false,
+    worker_purge_execute: true,
+    api_purge_execute: false,
+  });
   ledger =
     await migrated.$queryRaw`SELECT migration_name,checksum,finished_at,rolled_back_at,applied_steps_count FROM "_prisma_migrations" ORDER BY migration_name`;
   const names = readdirSync("packages/data/prisma/migrations", {
@@ -188,6 +239,348 @@ try {
   await repeated.$disconnect();
 }
 node(["packages/data/dist/seed.js"]);
+
+async function verifyHealthAssessmentRetention(databaseUrl) {
+  const db = createDatabase(databaseUrl);
+  const customerId = randomUUID();
+  const portfolioId = randomUUID();
+  const projectId = randomUUID();
+  const subject = "health-retention-reviewer";
+  const policyEventId = randomUUID();
+  const policy = {
+    contentRetentionHours: 1,
+    auditRetentionHours: 48,
+    idempotencyRetentionHours: 120,
+  };
+  const repository = new DatabaseHealthAssessmentRepository(db);
+  const actor = { customerId, subject, roles: ["project_manager"] };
+  const otherActor = {
+    customerId,
+    subject: "health-retention-other",
+    roles: ["project_manager"],
+  };
+  const digest = (value) =>
+    createHash("sha256").update(value).digest("hex");
+  try {
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."Customer" (id,name) VALUES ($1::uuid,$2)',
+      customerId,
+      "Synthetic health-retention customer",
+    );
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."Portfolio" (id,"customerId",name) VALUES ($1::uuid,$2::uuid,$3)',
+      portfolioId,
+      customerId,
+      "Synthetic health-retention portfolio",
+    );
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."Project" (id,"customerId","portfolioId",code,name,description,"reportedStatus") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7)',
+      projectId,
+      customerId,
+      portfolioId,
+      "HLT-" + projectId.slice(0, 8),
+      "Synthetic health-retention project",
+      "Isolated worker-retention fixture",
+      "UNKNOWN",
+    );
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."AccessGrant" (id,"customerId",subject,"scopeType","scopeId",role) VALUES ($1::uuid,$2::uuid,$3,$4,$5::uuid,$6)',
+      randomUUID(),
+      customerId,
+      subject,
+      "project",
+      projectId,
+      "project_manager",
+    );
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."AccessGrant" (id,"customerId",subject,"scopeType","scopeId",role) VALUES ($1::uuid,$2::uuid,$3,$4,$5::uuid,$6)',
+      randomUUID(),
+      customerId,
+      otherActor.subject,
+      "project",
+      projectId,
+      "project_manager",
+    );
+    const policyChangedAt = new Date(Date.now() - 80 * 3600000);
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId",detail,"occurredAt") VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6::jsonb,$7)',
+      policyEventId,
+      customerId,
+      "health-retention-admin",
+      "health.assessment.retention.changed",
+      "health-retention-fixture",
+      JSON.stringify({ ...policy, revision: 1 }),
+      policyChangedAt,
+    );
+    await db.$executeRawUnsafe(
+      'INSERT INTO public."HealthAssessmentRetentionPolicy" ("customerId","contentRetentionHours","auditRetentionHours","idempotencyRetentionHours",revision,"changedBy","auditEventId","changedAt") VALUES ($1::uuid,$2,$3,$4,1,$5,$6::uuid,$7)',
+      customerId,
+      policy.contentRetentionHours,
+      policy.auditRetentionHours,
+      policy.idempotencyRetentionHours,
+      "health-retention-admin",
+      policyEventId,
+      policyChangedAt,
+    );
+
+    const overdueWorkItemId = randomUUID();
+    await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."CanonicalProject" (id,"customerId","portfolioId","createdBy","responsibilitiesCount","sprintsCount","milestonesCount","workItemsCount","requiredWorkItemsCount","raidItemsCount","sourceMappingsCount") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,0,0,0,1,0,0,0)',
+        projectId,
+        customerId,
+        portfolioId,
+        "health-retention-fixture",
+      );
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."WorkItem" (id,"customerId","projectId",key,title,state,"plannedEnd") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7)',
+        overdueWorkItemId,
+        customerId,
+        projectId,
+        "HLT-WI-OVERDUE",
+        "Synthetic overdue work item",
+        "OPEN",
+        new Date("2000-01-01T00:00:00.000Z"),
+      );
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."CanonicalCreationReceipt" (id,"customerId","portfolioId",subject,"idempotencyKey",operation,"requestHash","projectId") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8::uuid)',
+        randomUUID(),
+        customerId,
+        portfolioId,
+        "health-retention-fixture",
+        "health-retention-key",
+        "PROJECT",
+        digest("health-retention-fixture:" + projectId),
+        projectId,
+      );
+      await tx.$executeRawUnsafe(
+        'UPDATE public."CanonicalProject" SET sealed=true WHERE id=$1::uuid',
+        projectId,
+      );
+    });
+    const firstAssessmentKey = "first-write-race";
+    const [firstWrite, concurrentReplay] = await Promise.all([
+      repository.create(actor, projectId, firstAssessmentKey, randomUUID()),
+      repository.create(actor, projectId, firstAssessmentKey, randomUUID()),
+    ]);
+    assert.equal(firstWrite.assessmentId, concurrentReplay.assessmentId);
+    assert.deepEqual(
+      [firstWrite.replayed, concurrentReplay.replayed].sort(),
+      [false, true],
+    );
+    assert.equal(firstWrite.coverage, "SCHEDULE_ONLY");
+    assert.equal(firstWrite.contentAvailable, true);
+    assert.equal(firstWrite.result.calculated.status, "RED");
+    const storedFirstWrite = await db.$queryRawUnsafe(
+      'SELECT h.id AS "assessmentId",h.input,h.result,h."envelopeHash",e.event,e.detail FROM public."HealthAssessment" h JOIN public."AuditEvent" e ON e."customerId"=h."customerId" AND e.event=\'health.assessment.created\' AND e.detail->>\'healthAssessmentId\'=h.id::text WHERE h.id=$1::uuid',
+      firstWrite.assessmentId,
+    );
+    assert.equal(storedFirstWrite.length, 1);
+    assert.equal(storedFirstWrite[0]?.event, "health.assessment.created");
+    assert.equal(storedFirstWrite[0]?.input.signals[0]?.targetSource.recordId, overdueWorkItemId);
+    assert.equal(
+      storedFirstWrite[0]?.input.signals[0]?.sourceFacts.find(
+        (fact) => fact.field === "selectedDueDate",
+      )?.value,
+      "2000-01-01",
+    );
+    assert.equal(storedFirstWrite[0]?.result.calculated.status, "RED");
+    assert.equal(
+      storedFirstWrite[0]?.detail.healthAssessmentId,
+      firstWrite.assessmentId,
+    );
+    assert.equal(storedFirstWrite[0]?.detail.envelopeHash, firstWrite.envelopeHash);
+    await assert.rejects(
+      () =>
+        repository.create(
+          otherActor,
+          projectId,
+          firstAssessmentKey,
+          randomUUID(),
+        ),
+      (error) => error?.code === "CONFLICT",
+    );
+
+    const fixture = async (commandKey, ageHours) => {
+      const assessmentId = randomUUID();
+      const commandKeyHash = digest(commandKey);
+      const assessedAt = new Date(Date.now() - ageHours * 3600000);
+      const contentExpiresAt = new Date(assessedAt.getTime() + 3600000);
+      const auditExpiresAt = new Date(assessedAt.getTime() + 48 * 3600000);
+      const receiptExpiresAt = new Date(assessedAt.getTime() + 120 * 3600000);
+      const requestHash = digest(
+        JSON.stringify({ operation: "health.assessment", projectId }),
+      );
+      const input = { privateFixture: commandKey };
+      const result = { coverage: "SCHEDULE_ONLY", status: "UNKNOWN" };
+      await db.$executeRawUnsafe(
+        'INSERT INTO public."HealthAssessment" (id,"customerId","projectId","actorSubject","assessedAt","commandKeyHash","ruleRevision",input,result,"envelopeHash","contentExpiresAt","auditExpiresAt") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,\'schedule-health@1\',$7::jsonb,$8::jsonb,$9,$10,$11)',
+        assessmentId,
+        customerId,
+        projectId,
+        subject,
+        assessedAt,
+        commandKeyHash,
+        JSON.stringify(input),
+        JSON.stringify(result),
+        digest("envelope:" + commandKey),
+        contentExpiresAt,
+        auditExpiresAt,
+      );
+      await db.$executeRawUnsafe(
+        'INSERT INTO public."HealthAssessmentCommandReceipt" ("customerId","projectId","commandKeyHash","actorSubject","requestHash","assessmentId","createdAt","expiresAt") VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7,$8)',
+        customerId,
+        projectId,
+        commandKeyHash,
+        subject,
+        requestHash,
+        assessmentId,
+        assessedAt,
+        receiptExpiresAt,
+      );
+      await db.$executeRawUnsafe(
+        'INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId",detail,"occurredAt") VALUES ($1::uuid,$2::uuid,$3,\'health.assessment.created\',$4,$5::jsonb,$6)',
+        randomUUID(),
+        customerId,
+        subject,
+        "health-retention-fixture",
+        JSON.stringify({ healthAssessmentId: assessmentId, projectId }),
+        assessedAt,
+      );
+      return { assessmentId, commandKey, commandKeyHash };
+    };
+    const redaction = await fixture("redaction-replay", 2);
+    const tombstone = await fixture("tombstone-before-idempotency", 80);
+    const expiredReceipt = await fixture("expired-receipt", 200);
+
+    const hiddenReplay = await repository.create(
+      actor,
+      projectId,
+      redaction.commandKey,
+      randomUUID(),
+    );
+    assert.equal(hiddenReplay.assessmentId, redaction.assessmentId);
+    assert.equal(hiddenReplay.replayed, true);
+    assert.equal(hiddenReplay.contentAvailable, false);
+    assert.equal(hiddenReplay.input, null);
+    assert.equal(hiddenReplay.result, null);
+    const beforeRedaction = await db.$queryRawUnsafe(
+      'SELECT input,result FROM public."HealthAssessment" WHERE id=$1::uuid',
+      redaction.assessmentId,
+    );
+    assert(beforeRedaction[0]?.input);
+    assert(beforeRedaction[0]?.result);
+
+    const purge = async () =>
+      db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          'SET SESSION AUTHORIZATION "pdaa_worker"',
+        );
+        const identity = await tx.$queryRawUnsafe(
+          "SELECT session_user::text AS role",
+        );
+        assert.equal(identity[0]?.role, "pdaa_worker");
+        const rows = await tx.$queryRawUnsafe(
+          "SELECT * FROM public.purge_expired_health_assessments()",
+        );
+        await tx.$executeRawUnsafe("RESET SESSION AUTHORIZATION");
+        return rows[0];
+      });
+    assert.deepEqual(await purge(), {
+      redacted_count: 3,
+      purged_assessment_count: 2,
+      purged_receipt_count: 1,
+    });
+
+    const redacted = await db.$queryRawUnsafe(
+      'SELECT input,result,"redactedAt" FROM public."HealthAssessment" WHERE id=$1::uuid',
+      redaction.assessmentId,
+    );
+    assert.equal(redacted[0]?.input, null);
+    assert.equal(redacted[0]?.result, null);
+    assert(redacted[0]?.redactedAt instanceof Date);
+    const policyRow = await db.$queryRawUnsafe(
+      'SELECT "auditEventId" FROM public."HealthAssessmentRetentionPolicy" WHERE "customerId"=$1::uuid',
+      customerId,
+    );
+    assert.equal(policyRow[0]?.auditEventId, null);
+    const expiredPolicyEvents = await db.$queryRawUnsafe(
+      'SELECT count(*)::int AS count FROM public."AuditEvent" WHERE "customerId"=$1::uuid AND event=\'health.assessment.retention.changed\'',
+      customerId,
+    );
+    assert.equal(expiredPolicyEvents[0]?.count, 0);
+    const survivingAssessmentEvents = await db.$queryRawUnsafe(
+      'SELECT count(*)::int AS count FROM public."AuditEvent" WHERE "customerId"=$1::uuid AND detail->>\'healthAssessmentId\'=$2',
+      customerId,
+      redaction.assessmentId,
+    );
+    assert.equal(survivingAssessmentEvents[0]?.count, 2);
+    const survivingReceipts = await db.$queryRawUnsafe(
+      'SELECT "commandKeyHash" FROM public."HealthAssessmentCommandReceipt" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY "commandKeyHash"',
+      customerId,
+      projectId,
+    );
+    assert.deepEqual(
+      survivingReceipts.map((row) => row.commandKeyHash.trim()).sort(),
+      [
+        redaction.commandKeyHash,
+        tombstone.commandKeyHash,
+        digest(firstAssessmentKey),
+      ].sort(),
+    );
+
+    const afterRedactionReplay = await repository.create(
+      actor,
+      projectId,
+      redaction.commandKey,
+      randomUUID(),
+    );
+    assert.equal(afterRedactionReplay.assessmentId, redaction.assessmentId);
+    assert.equal(afterRedactionReplay.replayed, true);
+    assert.equal(afterRedactionReplay.contentAvailable, false);
+    assert.equal(afterRedactionReplay.input, null);
+    assert.equal(afterRedactionReplay.result, null);
+    await assert.rejects(
+      () =>
+        repository.create(
+          actor,
+          projectId,
+          tombstone.commandKey,
+          randomUUID(),
+        ),
+      (error) => error?.code === "IDEMPOTENCY_RESULT_EXPIRED",
+    );
+    const expiredReceiptRows = await db.$queryRawUnsafe(
+      'SELECT count(*)::int AS count FROM public."HealthAssessmentCommandReceipt" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "commandKeyHash"=$3',
+      customerId,
+      projectId,
+      expiredReceipt.commandKeyHash,
+    );
+    assert.equal(expiredReceiptRows[0]?.count, 0);
+    assert.deepEqual(await purge(), {
+      redacted_count: 0,
+      purged_assessment_count: 0,
+      purged_receipt_count: 0,
+    });
+    await db.$executeRawUnsafe(
+      'DELETE FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND "scopeId"=$3::uuid',
+      customerId,
+      subject,
+      projectId,
+    );
+    await assert.rejects(
+      () => repository.latest(actor, projectId),
+      (error) => error?.code === "DENIED",
+    );
+    console.log(
+      "Health retention database checks passed: content redaction, policy-event expiry, tombstone purge, receipt horizon, replay and repeat sweep.",
+    );
+  } finally {
+    await db.$disconnect();
+  }
+}
+await verifyHealthAssessmentRetention(source.toString());
+
 node([
   "node_modules/vitest/vitest.mjs",
   "run",
@@ -291,7 +684,8 @@ writeFileSync(
       ],
       ingestionPersistenceChecks: "passed",
       prefixNineUpgrade,
-      businessTables: 63,
+      businessTables: 66,
+      healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({

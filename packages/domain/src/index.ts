@@ -97,3 +97,4 @@ export * from "./freshness-signals.js";
 export * from "./completeness-signals.js";
 export * from "./blocker-age-signals.js";
 export * from "./delivery-health.js";
+export * from "./health-assessment.js";

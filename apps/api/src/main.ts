@@ -8,6 +8,7 @@ import {
   DatabaseScalarReconciliationRepository,
   DatabaseConnectorRuntimeRepository,
   DatabaseIngestionRepository,
+  DatabaseHealthAssessmentRepository,
 } from "@pdaa/data";
 import {
   loadConfig,
@@ -24,6 +25,7 @@ try {
   const config = loadConfig(process.env);
   const db = createDatabase(config.database);
   const ingestion = new DatabaseIngestionRepository(db, new CredentialVault(config.ENCRYPTION_KEY));
+  const healthAssessment = new DatabaseHealthAssessmentRepository(db);
   const connectorRuntime = new DatabaseConnectorRuntimeRepository(db, new CredentialKeyRingVault(config.credentialKeys));
   const { app } = await createApp(
     config,
@@ -36,6 +38,7 @@ try {
     new DatabaseScalarReconciliationRepository(db),
     (target) => installConnectorRoutes(target, config, connectorRuntime, new JiraRuntimeService(config, connectorRuntime, ingestion)),
     ingestion,
+    healthAssessment,
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

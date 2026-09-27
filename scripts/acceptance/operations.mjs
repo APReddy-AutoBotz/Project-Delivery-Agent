@@ -425,7 +425,7 @@ try {
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 63,
+          businessTableCount: 66,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
             await verifyScalarReconciliationWorkerDenials(
