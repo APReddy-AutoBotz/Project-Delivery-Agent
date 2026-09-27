@@ -538,7 +538,7 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 15);
+    assert.equal(upgrade.migrations.length, 18);
     assert(Number.isFinite(upgrade.upgradeMeasurement.elapsedMs));
     assert(upgrade.upgradeMeasurement.elapsedMs > 0);
     assert(

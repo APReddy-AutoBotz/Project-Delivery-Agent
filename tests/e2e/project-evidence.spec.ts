@@ -549,6 +549,18 @@ test("E2E-HLT-003: PMO reviews the blocker-age threshold and unresolved inventor
   request,
 }) => {
   const f = await fixture(request);
+  const assessmentRetention = await f.api(
+    "pmo-portfolio",
+    "/admin/health-assessment-retention",
+    "POST",
+    {
+      contentRetentionHours: 24,
+      auditRetentionHours: 48,
+      idempotencyRetentionHours: 72,
+    },
+  );
+  expect(assessmentRetention.status()).toBe(200);
+
   const policyResponse = await f.api(
     "pmo-portfolio",
     "/admin/blocker-age-threshold-policy",
