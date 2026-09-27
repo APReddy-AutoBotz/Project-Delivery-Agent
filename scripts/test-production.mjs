@@ -629,9 +629,9 @@ try {
         "ConnectorWebhookReceipt",
         "ConnectorTaskReceipt",
         "IngestionSyncReceiptProjectScope",
-        "HealthAssessmentRetentionPolicy",
         "HealthAssessment",
         "HealthAssessmentCommandReceipt",
+        "HealthAssessmentRetentionPolicy",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [
