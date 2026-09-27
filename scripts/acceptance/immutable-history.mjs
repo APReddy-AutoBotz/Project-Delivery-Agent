@@ -103,6 +103,9 @@ export async function verifyImmutableHistoryMutation(
       : new Set([
           (operation === "UPDATE" && sealMessages[table]) ||
             immutableMessages[table],
+          ...(operation === "UPDATE" && table === "RaidItem"
+            ? ["Canonical RAID state is immutable outside guarded reopen"]
+            : []),
         ]);
   await assert.rejects(
     () =>
