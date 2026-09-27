@@ -478,7 +478,7 @@ describe("FR-ADM-005 / FR-EVD-003/004/006/007/009/010/012: historical authority"
 
     const prior = input.versions[0]!;
     const newer = version(11, {
-      source: { ...prior.source, revision: "2" },
+      source: { ...prior.source, revision: "11" },
       effectiveAt: time(4),
       observedAt: time(4),
       provenance: "HUMAN_CONFIRMED",
@@ -501,7 +501,7 @@ describe("FR-ADM-005 / FR-EVD-003/004/006/007/009/010/012: historical authority"
     expect(row(out, 11).assessment.freshness).toBe("CURRENT");
 
     const withdrawn = version(12, {
-      source: { ...prior.source, revision: "3" },
+      source: { ...prior.source, revision: "12" },
       effectiveAt: time(5),
       observedAt: time(5),
       provenance: "HUMAN_CONFIRMED",
