@@ -543,6 +543,78 @@ test("FR-EVD-009: a controlled second-page queue retains the exact assignment re
     queue.getByRole("button", { name: "Refresh scalar queue", exact: true }),
   ).toBeEnabled();
 });
+
+test("E2E-HLT-003: PMO reviews the blocker-age threshold and unresolved inventory stays unassessable", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request);
+  const policyResponse = await f.api(
+    "pmo-portfolio",
+    "/admin/blocker-age-threshold-policy",
+  );
+  expect(policyResponse.status()).toBe(200);
+  const existingPolicy = await policyResponse.json();
+
+  await open(page, f.payload.name);
+  const panel = page.getByRole("region", {
+    name: "Schedule and blocker age",
+    exact: true,
+  });
+  const minimumAge = panel.getByLabel(
+    "Minimum blocker age (UTC calendar days)",
+    { exact: true },
+  );
+  const retention = panel.getByLabel(
+    "Threshold audit retention (hours)",
+    { exact: true },
+  );
+  await expect(minimumAge).toBeVisible();
+  await minimumAge.fill("10");
+  await retention.fill("720");
+  const thresholdSaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/admin/blocker-age-threshold-policy") &&
+      response.request().method() === "POST",
+  );
+  await panel
+    .getByRole("button", { name: "Save customer threshold", exact: true })
+    .click();
+  const thresholdResponse = await thresholdSaved;
+  expect(thresholdResponse.status()).toBe(200);
+  const savedPolicy = await thresholdResponse.json();
+  expect(savedPolicy.minimumBlockerAgeDays).toBe(10);
+  expect(savedPolicy.auditRetentionHours).toBe(720);
+  expect(savedPolicy.revision).toBe((existingPolicy?.revision ?? 0) + 1);
+  await expect(panel).toContainText(
+    `Current revision ${savedPolicy.revision}: blockers age after 10 UTC calendar days. Audit retention is 720 hours.`,
+  );
+
+  const assessmentSaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(
+        `/projects/${f.projectId}/health-assessments`,
+      ) && response.request().method() === "POST",
+  );
+  await panel
+    .getByRole("button", { name: "Run assessment", exact: true })
+    .click();
+  const assessmentResponse = await assessmentSaved;
+  expect(assessmentResponse.status()).toBe(201);
+  const assessment = await assessmentResponse.json();
+  expect(assessment.result.blockerAge.coverage).toBe("UNASSESSABLE");
+  expect(assessment.result.blockerAge.noOpenBlockers).toBeNull();
+  expect(assessment.result.blockerAge.unknownCandidateCount).toBeGreaterThan(0);
+  expect(assessment.result.blockerAge.agedBlockerCount).toBe(0);
+  expect(assessment.result.calculated.status).toEqual(expect.any(String));
+  await expect(panel.getByText("GREEN · unchanged", { exact: true })).toBeVisible();
+  await expect(panel).toContainText("Blocker-age coverage: unassessable");
+  await expect(panel).toContainText("Blocker age is unassessable.");
+  await expect(panel).not.toContainText(
+    "No open blockers were classified in the current, source-authorized complete inventory.",
+  );
+  await expect(panel.locator("table tbody tr")).toHaveCount(6);
+});
 async function fixture(
   request: APIRequestContext,
   scalarPm = false,
