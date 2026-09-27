@@ -15,23 +15,26 @@ This plan requires independent design review at an immutable candidate SHA befor
 
 ## In scope
 
-- Define an open blocker for this increment as a canonical RAID item whose kind is ISSUE or DEPENDENCY and whose state is OPEN or IN_PROGRESS. COMPLETE and CANCELLED items are excluded. RISK, ASSUMPTION, DECISION, and ACTION are outside this blocker-age rule.
-- Use the explicit date ProjectFact whose exact fact type is raid_item.<lowercase RAID-item UUID>.opened_at. Do not use RAID-item or mapping creation times, titles, descriptions, connector payloads, source mappings, or reviewed import proposals as the date.
-- Resolve each date at the database assessment time through the existing source-authority resolver. Use a date only when the history is complete and the current policy resolves it as current, unconflicted, authority-permitted, and readable by the requesting actor. Current persistence represents supported fact sources as human_statement; this increment therefore uses an explicitly confirmed human source date only. Missing policy, missing/invalid date, stale/unknown freshness, conflict, restricted/revoked evidence, or incomplete history yields UNASSESSABLE for that blocker.
-- Add one per-customer, audited BlockerAgeThresholdPolicy with minimumBlockerAgeDays in the evaluator's supported range. A pmo_admin can view and update it through a strict API and a small admin UI. No implicit default is introduced: an absent policy makes blocker-age coverage UNASSESSABLE and never CLEAR.
-- Use UTC calendar days in v1, matching the existing stored assessment's database UTC clock and the schedule-health implementation. Freeze the threshold value, threshold-policy revision, rule revision, as-of time, time zone, source date, fact/version/evidence identifiers, authority-policy revision, status and explanation into the immutable assessment envelope. The calculation uses ageDays >= minimumBlockerAgeDays, as the existing pure evaluator specifies.
-- Add blocker-age results as a separately labeled signal family in the stored assessment and project UI. Do not feed blocker-age outcomes into the existing calculated schedule RAG in this increment; its severity effect on overall project health is not specified by AC-HLT-003. Preserve the reported RAG and schedule result unchanged.
-- Retain the existing caller contract: clients submit only the project ID and command key. Build source snapshots, threshold, time, calculation, authorization, persistence and audit on the server.
-- On every assessment read and idempotent replay, recheck project authorization and current access for every source fact referenced by blocker-age content. If any referenced source is no longer accessible, return the assessment metadata with content hidden; do not expose stored dates or derived blocker details to a project reader without current source permission.
-- Keep schedule-only historical assessment rows readable under their existing contract. New assessment rows identify both rule families and separately state blocker-age coverage as complete, partial, or unassessable.
-- Update API/OpenAPI schemas, admin behavior, UI labels, migration and restore inventories, source-authority explanations, traceability, tests, and implementation evidence.
+- Define the v1 inventory as every active canonical RAID item in the sealed project: all RAID kinds in OPEN or IN_PROGRESS state. It is a blocker only when the exact source-authorized boolean ProjectFact `raid_item.<lowercase RAID-item UUID>.blocks_delivery` resolves to true at assessment time. A resolved false excludes that item; an unresolved classification remains visible and prevents a false-clear result. Work-item or external blockers must first be represented in the canonical RAID inventory for this increment; mappings and proposals never classify them.
+- Require a separate, exact project fact `project.open_blocker_inventory_complete` to resolve true under current source authority. It attests that the canonical RAID inventory contains every open delivery blocker at assessment time. A missing, false, stale, unknown, inaccessible or conflicted assertion, an incomplete or over-bound snapshot, or an empty query without this assertion is UNASSESSABLE rather than evidence that no blockers exist.
+- For each item classified as a blocker, use only the exact date ProjectFact `raid_item.<lowercase RAID-item UUID>.opened_at`. It means the start of the current uninterrupted open period. A close followed by a reopen requires a new immutable fact version with the reopened date; never infer it from local creation time or state-change metadata. No source mapping, source URL, title, description, connector payload or reviewed import proposal supplies classification or date.
+- Resolve the inventory-completeness, blocker-classification and opened-date facts at the database assessment time through the existing source-authority resolver. Use only current, unconflicted, authority-permitted, reader-accessible `human_statement` facts in this increment. Give `opened_at` an explicit `UNTIL_SUPERSEDED` validity mode: the selected applicable event-date fact remains CURRENT until superseded or withdrawn, without an arbitrary finite lifetime. Require an explicitly configured finite freshness policy for the inventory-completeness and blocker-classification facts; absent, stale or unknown policy outcomes are unresolved.
+- Add one customer-scoped, audited `BlockerAgeThresholdPolicy` with `minimumBlockerAgeDays` in the evaluator's supported range. Require a customer-scoped `pmo_admin` capability to view or change it through a strict API and small admin UI. A missing policy makes blocker-age coverage UNASSESSABLE; no implicit default is introduced.
+- Use UTC calendar days in v1. Freeze the threshold value and revision, `blocker-age@1` rule revision, as-of time, timezone, inventory assertion, each classification/date fact and version/evidence identifier, authority-policy revision, per-item outcome and aggregate coverage in the immutable assessment envelope. The calculation uses `ageDays >= minimumBlockerAgeDays`.
+- Aggregate blocker-age coverage precisely: COMPLETE requires the current true inventory assertion, a complete bounded snapshot, a configured threshold, a current true/false classification for every active RAID item, and a current resolved date for every item classified as a blocker. COMPLETE with zero blockers is a positive, attested empty inventory and must display “No open blockers.” PARTIAL requires at least one fully assessed blocker and at least one unresolved active candidate; show assessed results and unknown rows without any aggregate clear/no-blocker claim. UNASSESSABLE applies when a global gate fails, or when unresolved candidates leave no fully assessed blocker result. Missing threshold or inventory evidence never renders as CLEAR.
+- Add blocker-age results as a separately labeled signal family in the stored assessment and project UI. Do not feed blocker-age outcomes into the existing calculated schedule RAG until approved severity semantics exist. Preserve the reported RAG and schedule result unchanged.
+- Keep the existing caller contract: clients submit only project ID and command key. Build candidate inventory, source snapshots, threshold, time, calculation, authorization, persistence and audit on the server.
+- On every assessment read and idempotent replay, recheck project authorization and current access for every source fact referenced by blocker-age content. If any referenced source is no longer accessible, return allowed assessment metadata with content hidden; do not expose stored dates or derived blocker details without current source permission.
+- Keep schedule-only historical assessment rows readable under their existing contract. New assessment rows identify both rule families and separately report blocker-age coverage as COMPLETE, PARTIAL or UNASSESSABLE using the aggregation above.
+- Update API/OpenAPI schemas, admin behavior, UI labels, migration and restore inventories, source-authority schemas/explanations, traceability, tests, and implementation evidence.
 
 ## Out of scope
 
-- Reading Jira or other connector data, resolving external mappings, importing spreadsheet rows as canonical facts, or promoting reviewed proposals.
-- Inferring an opened date from a local createdAt value, a source URL, an external record pointer, or an unreviewed proposal.
-- Changing canonical RAID state or writing a source fact during assessment.
-- Changing the existing calculated schedule RAG, defining the RAG severity of an aged blocker, completing AC-HLT-004/005/007, closing Issue #8, or accepting STORY-013..015.
+- Reading Jira or another connector, resolving external mappings, importing spreadsheet rows as canonical facts, or promoting reviewed proposals.
+- Calculating age directly from work-item or external-record rows in this increment. Represent a blocker discovered there in the canonical RAID inventory before it participates in this rule.
+- Inferring an opened date from a local createdAt value, a state-change timestamp not captured as an explicit fact, a source URL, an external record pointer, or an unreviewed proposal.
+- Changing canonical RAID state or writing a ProjectFact during assessment.
+- Changing the existing calculated schedule RAG, defining aged-blocker severity for overall project health, completing AC-HLT-004/005/007, closing Issue #8, or accepting STORY-013..015.
 - AI or embedding use, portfolio aggregation, new external writes, and broad authority-policy wildcard support.
 
 ## Current state
@@ -48,23 +51,33 @@ This plan requires independent design review at an immutable candidate SHA befor
 
 ### Source-date identity and resolution
 
-Use the fixed, documented fact-type function raid_item.<lowercase RAID-item UUID>.opened_at. It fits the existing 96-character fact-type bound, maps one fact to one canonical blocker, and avoids ambiguous matching by user-facing key or source mapping. The fact value must have type date and pass the canonical date schema. The existing fact-authoring/evidence boundary records the explicit human statement; the administrator configures the exact fact type's source authority policy using the existing API. No authority policy is synthesized by the assessment path.
+Use three exact fact identities: `project.open_blocker_inventory_complete` (boolean), `raid_item.<lowercase RAID-item UUID>.blocks_delivery` (boolean), and `raid_item.<lowercase RAID-item UUID>.opened_at` (date). The first is a current completeness attestation that every open delivery blocker is represented in the canonical RAID inventory. The second explicitly classifies each active RAID candidate. The third is the start date of its current uninterrupted open period. All fit the existing fact-type bound and use the existing human fact/evidence authoring boundary; the assessment path does not create or infer them. Each exact fact type requires its own current source-authority policy. If any required source fact has no current policy, is not `HUMAN_CONFIRMED`, conflicts, is inapplicable, lacks a valid typed value, has incomplete history, or is not readable by the actor, retain its row as unresolved and do not silently omit it.
 
-Within the assessment transaction:
+The source-authority selector for `opened_at` must support explicit `UNTIL_SUPERSEDED` validity. The resolver returns freshness CURRENT only for the selected applicable version while it remains the current version under the configured authority policy, unconflicted and accessible; supersession or withdrawal ends that validity. `UNTIL_SUPERSEDED` applies only to this historical event-date fact type. A finite freshness validity remains available and becomes STALE at its configured boundary. An unset validity policy remains UNKNOWN. Add this mode to the strict authority-policy schema/resolver and its proof output; do not encode an infinite timestamp or silently treat null validity as current.
 
-1. Recheck the authenticated actor and project/portfolio read grant, holding locks in the established Project-then-grant order.
-2. Lock and read the sealed CanonicalProject and a complete, bounded RAID snapshot under the same tenant/project scope. Query ISSUE/DEPENDENCY records only; reject an over-bound snapshot as unassessable rather than truncating it.
-3. Sort the exact opened-date fact rows by stable ID/fact type and acquire the fact locks before taking the single database UTC assessment instant. A Project lock serializes existing fact and authority mutations that follow the fact-authorization contract. Load the matching bounded history, current authority policy/revision, conflicts and source-access rows through the existing transaction-scoped resolver.
-4. For each blocker, accept only one resolver result with status RESOLVED, a date value, and current actor access. Record only the date and minimum metadata needed to reproduce and authorize the result; never copy originalStatement or other narrative.
-5. Run the existing pure blocker-age evaluator over this complete authorized snapshot with timeZone=UTC, ruleRevision=blocker-age@1, and the policy's exact minimum days. Translate unresolved inputs to explicit UNASSESSABLE rows with a reason code. A future date is unassessable, not a negative age or a clear result.
-6. Save the blocker-age inputs/result in the existing immutable health assessment with the schedule result, retention deadlines, envelope hash and audit event in the same transaction. The new top-level assessment revision is schedule-health@1+blocker-age@1; the existing schedule signals remain schedule-health@1. New threshold policy revisions apply to subsequent assessment commands; retries return the original snapshot.
-7. On latest/read and replay delivery, parse the stored source dependency list and recheck current FactSourceAccess. If any required source is missing, revoked, restricted, or lacks the reader, hide the complete assessment content while preserving allowed assessment metadata. Read-time content expiry still applies first.
+The classification and completeness facts use explicit configured finite freshness periods. No assessment default is synthesized. The product administrator chooses a suitable confirmation cadence through the existing authority-policy surface; a missing or non-current rule leaves the affected classification/inventory gate unresolved. No query over local RAID rows alone proves that the inventory contains every open blocker.
 
-The blocker-age panel shows each blocker key, source date and field, calendar age, applied minimum-age threshold, outcome, blocker-age@1, threshold-policy revision, and a concise authority/freshness/conflict/access status. Missing threshold/date and incomplete coverage are visible; no absent data is rendered as within threshold. The panel is separate from the calculated schedule RAG and reported RAG.
+Within a new assessment transaction:
+
+1. Recheck the authenticated actor and acquire the app `Project` row `FOR SHARE`; then acquire matching project/portfolio `AccessGrant` rows `FOR SHARE ORDER BY id` and verify the current read grant. This is the compatible read lock order for writers that take `Project FOR UPDATE` before grant changes.
+2. Acquire `pg_advisory_xact_lock_shared` on a stable transaction-scoped customer key under a reserved, documented namespace. Threshold readers use this shared key; threshold writers use `pg_advisory_xact_lock` with the same key. This serializes the absent-policy-row case as well as reads and updates. Then read an existing `BlockerAgeThresholdPolicy` row `FOR SHARE`; if absent, record missing-policy coverage as UNASSESSABLE.
+3. Lock and read the sealed `CanonicalProject` and every active RAID item for the same customer/project `FOR SHARE ORDER BY id`, across all RAID kinds. Require a complete query and enforce the bound of 50 without truncation. A failed or over-bound read makes blocker-age coverage UNASSESSABLE while preserving an otherwise valid schedule result.
+4. Collect exact fact rows for the inventory-completeness assertion and every active candidate's `blocks_delivery` and `opened_at` types; acquire relevant ProjectFact locks and authority-policy snapshots in stable `(factType, id)` order. Resolve facts using `DatabaseAuthorityRepository.prepareAssessmentInTransaction`. Read and lock the selected source-access rows in stable source-ID order. Existing authority/source-access mutations take `Project FOR UPDATE`, so they cannot cross the held project read lock.
+5. After the project/grant, customer-policy, canonical RAID, ProjectFact, authority-policy and source-access locks are held, take the transaction's single database UTC `asOf`. Use that same instant for every freshness, authority, access, classification, opened-date, threshold and age calculation. Do not read a separate wall clock per blocker.
+6. Require the inventory fact to resolve true. Require every active RAID candidate's boolean classifier to resolve true or false. A false item is excluded. For each true item, require one resolved date fact with a date value and CURRENT `UNTIL_SUPERSEDED` validity. Store explicit unresolved rows/reason codes for unknown classification, missing or invalid date, stale/unknown freshness, conflict, inaccessible evidence, or future date.
+7. Run the existing pure evaluator over only the source-authorized true blockers with `timeZone=UTC` and `ruleRevision=blocker-age@1`. Apply the exact coverage aggregation defined in Scope. An attested complete inventory with no active RAID rows, or with every active row explicitly classified false, is COMPLETE with zero blockers. Without the assertion, the same empty read is UNASSESSABLE. Never turn an unresolved candidate into WITHIN_THRESHOLD.
+8. Save bounded candidate classifications, authorized input values and results, coverage, retention deadlines, envelope hash and audit event atomically with the schedule result. New threshold revisions apply only to new assessment commands; an idempotent retry returns the original frozen threshold and assessment. The top-level rule revision becomes `schedule-health@1+blocker-age@1`; existing schedule signals remain `schedule-health@1`.
+9. On latest/read and replay delivery, reacquire project `FOR SHARE`, grant rows `FOR SHARE ORDER BY id`, and the relevant source-access rows in the same deterministic order. Recheck current source visibility for every referenced fact. If any supporting source is revoked, restricted or no longer readable, hide all assessment content while preserving only permitted metadata; content retention expiry still applies first.
+
+The blocker-age panel shows blocker key/kind, source date and fact field, current open-period age, applied numeric threshold, outcome, rule and threshold revisions, inventory-completeness status, aggregate coverage and concise authority/freshness/conflict/access status. A COMPLETE zero-blocker result is shown only with its current source-authorized completeness proof; PARTIAL and UNASSESSABLE never appear as no blockers or within-threshold.
 
 ### Threshold policy
 
-Add BlockerAgeThresholdPolicy, keyed by customer, with minimumBlockerAgeDays, monotonic revision, changedBy, changedAt, and an audit-event reference. Validate 1..3650 days. The administrator API requires an authenticated pmo_admin, strict input, and expectedRevision for serialized updates; every successful change appends an audit event. A missing policy is allowed but leaves blocker age unassessable. A rule edit never changes an already stored assessment.
+Add one `BlockerAgeThresholdPolicy` row per customer with `minimumBlockerAgeDays`, monotonic revision, `changedBy` and `changedAt`. Validate 1..3650 days. Only an authenticated principal with a customer-scoped `pmo_admin` capability may read or update this customer-wide setting; a project-scoped admin grant is insufficient. A strict update requires `expectedRevision` (`0` for first creation, otherwise the exact current revision). In one transaction, the writer takes the customer advisory lock exclusively, locks the existing policy row `FOR UPDATE`, checks the revision, writes the next revision, and appends an `AuditEvent` describing actor, customer, object, revision and change time. The policy update and audit event commit or roll back together.
+
+Threshold audit events use the existing append-only generic `AuditEvent` behavior; the current schema has no generic audit expiry job. `HealthAssessmentRetentionPolicy` governs assessment evidence only and does not govern threshold configuration events. Do not add a restrictive per-policy foreign key to an individual audit event; link the event by customer, object type/id and revision in its immutable fields so a future generic audit-retention policy cannot block threshold updates or policy recovery. No separate retention window is introduced in this increment.
+
+An absent policy is allowed but blocker-age coverage is UNASSESSABLE. A successful threshold change affects subsequent new assessments only; an existing assessment and same-key replay retain the exact policy revision/value originally used.
 
 ### Bounds and failure behavior
 
@@ -75,30 +88,30 @@ Add BlockerAgeThresholdPolicy, keyed by customer, with minimumBlockerAgeDays, mo
 
 ## Files and modules expected to change
 
-- Domain blocker-age, health-assessment and delivery-health schemas/builders, plus package exports.
+- Domain blocker-age, health-assessment, delivery-health and source-authority contracts/builders, strict authority selector schemas/resolver, and package exports.
 - Data health-assessment repository, authority-resolution composition, strict threshold-policy repository, Prisma schema, additive migration and runtime ACLs.
-- API health-assessment controller, strict threshold-policy routes, OpenAPI contract and app composition.
-- Web canonical project health panel and a pmo_admin threshold editor; visible source/evidence status and unassessable cases.
-- Unit, repository, PostgreSQL integration, API/RBAC, browser and recovery tests; a registered runtime acceptance test if needed.
-- Requirement/test traceability, API/config documentation, migration/upgrade/restore inventories, IMPLEMENTATION_STATUS.md, and this ExecPlan.
+- API health-assessment controller, strict customer-scoped threshold routes, OpenAPI contract and app composition.
+- Web canonical project health panel and a `pmo_admin` threshold editor; visible inventory-completeness, source, partial and unassessable states.
+- Unit, authority-resolver, repository, PostgreSQL integration, API/RBAC, browser and recovery tests; a registered runtime acceptance test if needed.
+- Requirement/test traceability, source-authority/API/config documentation, migration/upgrade/restore inventories, `IMPLEMENTATION_STATUS.md`, and this ExecPlan.
 
 ## Data model or migration impact
 
-Add one customer-scoped policy table with bounded minimum age, revision and audit metadata. Extend the health-assessment rule-revision constraint and strict API schemas additively while retaining existing schedule-only rows. The assessment JSON will include bounded blocker-age input/output and referenced fact/source/evidence IDs; it will not store raw human statements.
+Add one customer-scoped threshold-policy table with bounded minimum age and revision metadata. Extend the immutable health-assessment envelope/schema to store bounded inventory completeness, blocker classifications, source dates, coverage and references to fact/source/evidence versions; never store raw human statements. Existing ProjectFact tables hold the inventory/classification/date facts, so do not add a parallel canonical blocker flag or edit applied migrations.
 
-The new migration must be additive and follow the current migration sequence. It must maintain customer foreign keys, unique constraints, safe check constraints, the API's minimum policy access, and the existing insert/read-only assessment and retention-worker boundaries. Update generated Prisma artifacts and every clean, repeat, prefix-upgrade, table-count, production-boundary, backup and restore inventory. Do not edit an applied migration.
+Extend the strict source-authority selector/proof schema to represent `UNTIL_SUPERSEDED` validity for the exact opened-date fact type. Preserve current behavior for existing policy selectors; an unset validity remains UNKNOWN. Review SQL proof validators and migration constraints for whether the new policy JSON field needs an additive constraint update. The health/threshold migration remains additive, keeps customer foreign keys and unique/check constraints, enforces the API's minimum access, and preserves assessment insert/read-only and retention-worker boundaries. Update generated Prisma artifacts and every clean, repeat, table-count, production-boundary, backup, upgrade and restore inventory.
 
 ## Security and privacy impact
 
-- Use the current server actor and authorization locks for both assessment writes and reads; never trust caller-supplied blocker lists, date values, threshold, as-of time or evidence IDs.
-- Require current source-level authorization for resolved dates. Recheck it on later delivery and hide stored assessment content if any supporting source is no longer accessible. Tests must cover revocation before retry and before latest-read.
-- Store no source narrative. Bound input, result and evidence references; hash the canonical serialized envelope and enforce existing retention/redaction behavior.
-- Restrict threshold updates to pmo_admin, scope the policy by customer, audit successful revisions, and never permit threshold updates through a project-level client role.
-- Keep imported proposals, source URLs, connector credentials, and model tooling outside the health calculation.
+- Use the current server actor and authorization locks for assessment writes and reads; never trust caller-supplied candidate lists, classification/date values, completeness assertions, threshold, as-of time or evidence IDs.
+- Require current source-level authorization for inventory, classification and opened-date facts. Recheck source access on later delivery and hide stored assessment content if any supporting source access is revoked.
+- Store no source narrative. Bound input, result and evidence references; hash the canonical serialized envelope and enforce existing assessment content/audit retention behavior.
+- Restrict threshold access to a customer-scoped `pmo_admin`, scope the row by customer, audit every successful revision, and never permit threshold updates through a project-only role.
+- Keep imported proposals, source URLs, connector credentials and model tooling outside the health calculation.
 
 ## Connector and permission impact
 
-No connector call or permission scope is added. Existing project/portfolio read grants remain required; exact fact-source reader grants are an additional requirement for exposing blocker-age content. Only a pmo_admin can configure the customer-wide blocker threshold. Exact per-project opened-date authority remains under the existing authority-policy administrator surface.
+No connector call or permission scope is added. Existing project/portfolio read grants remain required; exact source-reader grants for the inventory-completeness, `blocks_delivery` and `opened_at` facts are additionally required before their content can be exposed. Only a customer-scoped `pmo_admin` can configure the customer-wide blocker threshold. Exact per-project fact authority for these three fact types remains under the existing authority-policy administrator surface.
 
 ## Open-source dependency impact
 
@@ -118,12 +131,15 @@ None.
 
 Use only synthetic fixtures and isolated databases.
 
-- Extend UNIT-HLT-003 for date-age equality/below/above the threshold, UTC date boundary, DST-independent UTC behavior, missing/invalid/future source dates, closed blockers, and visible rule/policy threshold values.
-- Test the full stored path with ISSUE and DEPENDENCY blockers, complete and over-bound snapshots, matching/nonmatching fact types, date versus text value, no policy, disabled/nonapplicable authority policy, stale/unknown/conflicting facts, current resolved human fact, and restricted/revoked source access. Confirm unresolved inputs never become WITHIN_THRESHOLD or CLEAR.
-- Test a concurrent assessment against fact, authority-policy, source-access and threshold-policy changes; all captured inputs must be from one documented assessment boundary. Same-key retries preserve the original snapshot and audit count. Changed expected policy revision conflicts without a duplicate policy event.
-- Test project/customer isolation, denied roles, pmo_admin-only threshold edits, source access revoked before latest-read/replay, and content expiry/redaction using the existing health retention policy.
-- Verify output displays exact source date, applied numeric threshold, blocker rule revision, authority-policy revision, and explicit assessment time. Verify reported RAG and calculated schedule RAG remain unchanged by blocker-age results.
-- Run unit, integration, API contract/OpenAPI, browser, lint, typecheck, build, architecture, clean/repeat migration, prefix upgrade, production-boundary and restore suites through the required hosted workflows. Do not claim local results if workspace execution remains unavailable. No real customer data and no AI calls.
+- Extend UNIT-HLT-003 for age equality/below/above threshold, UTC date boundary and DST-independent behavior, missing/invalid/future dates, closed-item exclusion, current-open-period/reopen semantics, and visible rule/policy threshold values.
+- Test blocker candidate identity with all RAID kinds in OPEN/IN_PROGRESS, false classification exclusion, true classification inclusion, unresolved classification retained as unknown, and closed RAID rows excluded. Work-item/external pointers and mappings/proposals must never enter the candidate list.
+- Test a current true inventory attestation with zero RAID rows yields COMPLETE “No open blockers”; an empty query without it, false/missing/stale/unknown/restricted assertion, incomplete snapshot and over-bound query yield UNASSESSABLE. Test complete all-false classification yields COMPLETE with zero blockers.
+- Test exact fact identities, boolean/date type validation, unset authority policy, missing history, stale/unknown finite classification/completeness facts, CURRENT `UNTIL_SUPERSEDED` opened date, superseded/reopened date, finite-validity expiry, conflicts, inaccessible/revoked sources and future opened dates. Verify unknown inputs never become WITHIN_THRESHOLD or CLEAR.
+- Test aggregation: all facts resolve and at least one blocker gives COMPLETE; one assessed blocker plus unresolved candidate gives PARTIAL; unresolved candidates with no fully assessed blocker gives UNASSESSABLE. No unknown candidate may be dropped from the coverage calculation.
+- Test the complete stored path, schedule-result preservation, as-of boundary, output rule/policy/authority revisions, source dependency retention, content hide on revocation before latest-read and replay, and content expiry/redaction.
+- Test concurrent assessments against fact, authority-policy and source-access changes under the Project/grant/fact lock order. Test concurrent threshold assessment vs create/update with both a policy row present and absent, expectedRevision conflict without duplicate audit events, customer isolation, denied project-scoped admin, authorized customer `pmo_admin`, and rollback of the policy/audit pair.
+- Verify threshold audit uses generic `AuditEvent`, remains independent of `HealthAssessmentRetentionPolicy`, and does not create a restrictive event FK from the policy row.
+- Run unit, integration, API/OpenAPI, browser, lint, typecheck, build, architecture, clean/repeat migration, prefix upgrade, production-boundary and restore suites through required hosted workflows. Do not claim local results if workspace execution is unavailable. Use no real customer data or AI calls.
 
 ## Rollback and recovery
 
@@ -131,26 +147,29 @@ The migration is additive; preserve all earlier migrations, facts, proposals and
 
 ## Progress log
 
-- 2026-09-27: Drafted after confirming PR #82 is evaluator-only and PR #85/86 leave runtime assessment schedule-only. No application code changed. Independent design review and exact-SHA approval are pending.
+- 2026-09-27: Drafted after confirming PR #82 is evaluator-only and PR #85/86 leave runtime assessment schedule-only. The first independent review rejected candidate `67abadcc` for missing blocker predicate/inventory completeness, historical-date freshness, and threshold lock-order semantics. This revision addresses those findings. No application code changed; new exact-SHA review and required plan validation are pending.
 
 ## Decisions made
 
-- Reuse explicit authority-resolved ProjectFacts rather than infer dates from RAID-item createdAt or use mapping/proposal data.
-- Use exact blocker fact type raid_item.<lowercase RAID-item UUID>.opened_at; require its current per-project authority policy and current reader access.
-- Treat canonical ISSUE and DEPENDENCY records in OPEN or IN_PROGRESS as blockers for this criterion; exclude other RAID kinds and closed states.
-- Configure minimum age once per customer, require pmo_admin, and leave it unset by default. Missing threshold is UNASSESSABLE.
-- Use UTC calendar days in v1. Show blocker-age signals separately without changing the existing schedule RAG.
+- Bound v1 candidates to all active canonical RAID items. Require an exact, current, source-authorized `blocks_delivery` boolean for every candidate instead of treating RAID kind alone as blocker status.
+- Require a current source-authorized `project.open_blocker_inventory_complete=true` assertion before any complete/no-blocker result. An empty local query never proves the inventory is empty.
+- Define `opened_at` as the beginning of the current uninterrupted open period; a reopen creates a new immutable fact version.
+- Use `UNTIL_SUPERSEDED` freshness only for the historical `opened_at` event fact; keep classification/completeness freshness explicit and finite. Never assign an arbitrary long opened-date lifetime.
+- Use UTC calendar days, a customer-scoped audited threshold, no default, and a customer-scoped `pmo_admin` capability.
+- Serialize threshold policy read/write and absent-row creation with the same customer advisory-lock key. Assessment locks Project `FOR SHARE`, then grant rows `FOR SHARE ORDER BY id`, then the shared customer advisory lock, and takes one `asOf` only after canonical, fact, authority and source-access locks.
+- Keep blocker-age output separate from schedule RAG until approved severity semantics exist.
 
-These are proposed routine implementation decisions under the existing controller delegation; they remain subject to independent design review before code changes.
+These proposed implementation decisions follow the existing delegation and remain subject to independent exact-SHA design review before code changes.
 
 ## Risks and mitigations
 
-- A user may record a plausible date without an authority policy. Mitigation: resolver status must be RESOLVED; otherwise show UNASSESSABLE.
-- Project read permission may be broader than source evidence permission. Mitigation: source-level check at calculation and every delivery; hide the content if access changes.
-- A future connector may produce date proposals that look authoritative. Mitigation: proposal tables, mappings and connector payloads are explicitly excluded; source publication needs a separate reviewed design.
-- Large histories or partial database reads could create false-clear results. Mitigation: fixed complete-snapshot bounds; over-bound/incomplete blocker coverage is UNASSESSABLE.
-- Threshold changes could make old results appear current. Mitigation: freeze policy revision/value in each assessment and return original values on idempotent replay.
-- Treating aged blockers as an overall RED/AMBER status could change product semantics. Mitigation: keep blocker-age separate from the schedule RAG until an approved health severity rule defines aggregation.
+- A local RAID list may be empty or incomplete. Mitigation: require the current authorized completeness assertion and classify every active item; otherwise report UNASSESSABLE/PARTIAL, never no blockers or clear.
+- A human may provide an unconfirmed, stale or conflicting blocker fact. Mitigation: use the source resolver and explicit finite policies for classification/completeness; require authority-permitted CURRENT event-date facts.
+- A reopened item may be measured from its original first-ever opening. Mitigation: define `opened_at` as the beginning of the current uninterrupted open period and require a new immutable version after reopening.
+- Project permission may be broader than evidence permission. Mitigation: check source access at calculation and every delivery; hide the content when access changes.
+- Threshold creation/update may race with assessment, especially when the row is absent. Mitigation: shared/exclusive transaction advisory locks derived from the same customer key, plus row locks and expected-revision updates.
+- Threshold audit retention may be confused with health-assessment retention. Mitigation: use append-only generic `AuditEvent` behavior and no restrictive policy-row FK; no new retention window in this increment.
+- A future connector may submit plausible dates or classifications. Mitigation: proposals, mappings and connector payloads remain explicitly excluded until a separate source-publication design is approved.
 
 ## Validation evidence
 
