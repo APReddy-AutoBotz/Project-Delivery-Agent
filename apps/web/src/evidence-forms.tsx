@@ -6,7 +6,9 @@ import type {
   SourceAccessView,
   SourceAccessChange,
   ActiveAuthorityPolicy,
+  AuthorityDefinition,
 } from "@pdaa/domain";
+import { isBlockerOpenedAtFactType } from "@pdaa/domain";
 import type { RequestFn } from "./canonical-project.js";
 import { Button, TextField, SelectField, Message } from "./components.js";
 import {
@@ -18,6 +20,15 @@ import {
 } from "./evidence-state.js";
 import { FactValue } from "./evidence-display.js";
 
+type SelectorValidity = NonNullable<
+  AuthorityDefinition["tiers"][number]["selectors"][number]["validity"]
+>;
+function validityLabel(validity: SelectorValidity | null) {
+  if (validity === null) return "No configured duration";
+  return "mode" in validity
+    ? "Until superseded, subject to explicit source expiry"
+    : `${validity.durationMs} ms after ${validity.basis}`;
+}
 type WriteProps = {
   request: RequestFn;
   projectId: string;
@@ -306,6 +317,7 @@ export function PolicyForm({
       "RETAIN_CONFLICT" | "REQUEST_RECONCILIATION"
     >("RETAIN_CONFLICT"),
     [effectiveAt, setEffectiveAt] = useState(utcNow);
+  const isOpenedAt = isBlockerOpenedAtFactType(factType);
   const state = useReviewedWrite<AuthorityPolicyChange>(
     request,
     `/projects/${projectId}/authority-policies`,
@@ -346,8 +358,11 @@ export function PolicyForm({
                         requiredApproval: approval as
                           | "APPROVED"
                           | "NOT_REQUIRED",
-                        validity:
-                          durationMs === null ? null : { basis, durationMs },
+                        validity: isOpenedAt
+                          ? { mode: "UNTIL_SUPERSEDED" }
+                          : durationMs === null
+                            ? null
+                            : { basis, durationMs },
                       },
                     ],
                   },
@@ -359,6 +374,8 @@ export function PolicyForm({
       state.setError((error as Error).message);
     }
   }
+  const reviewedValidity =
+    state.review?.definition?.tiers[0]?.selectors[0]?.validity ?? null;
   return (
     <details className="evidence-editor">
       <summary>Configure authority (PMO)</summary>
@@ -389,13 +406,7 @@ export function PolicyForm({
                     .requiredApproval
                 }
               </p>
-              <p>
-                Validity:{" "}
-                {state.review.definition.tiers[0]!.selectors[0]!.validity
-                  ? `${state.review.definition.tiers[0]!.selectors[0]!.validity!.durationMs} ms after ${state.review.definition.tiers[0]!.selectors[0]!.validity!.basis}`
-                  : "No configured duration"}
-                .
-              </p>
+              <p>Validity: {validityLabel(reviewedValidity)}.</p>
               <p>
                 Conflict behavior: {state.review.definition.conflictBehavior}.
               </p>
@@ -444,27 +455,35 @@ export function PolicyForm({
                 leaves them ineligible until an approved source-decision
                 workflow is available.
               </p>
-              <div className="form-row">
-                <TextField
-                  label="Validity duration (seconds, optional)"
-                  type="number"
-                  min="0.001"
-                  step="0.001"
-                  value={duration}
-                  onChange={(event) => setDuration(event.target.value)}
-                  help="Blank leaves freshness dependent on the statement's explicit deadline."
-                />
-                <SelectField
-                  label="Validity starts from"
-                  value={basis}
-                  onChange={(event) =>
-                    setBasis(event.target.value as typeof basis)
-                  }
-                >
-                  <option value="effectiveAt">Effective time</option>
-                  <option value="observedAt">Observed time</option>
-                </SelectField>
-              </div>
+              {isOpenedAt ? (
+                <p>
+                  Validity: Until superseded. This event date has no automatic
+                  freshness deadline; a newer authorized version or withdrawal
+                  replaces the current opened period.
+                </p>
+              ) : (
+                <div className="form-row">
+                  <TextField
+                    label="Validity duration (seconds, optional)"
+                    type="number"
+                    min="0.001"
+                    step="0.001"
+                    value={duration}
+                    onChange={(event) => setDuration(event.target.value)}
+                    help="Blank leaves freshness dependent on the statement's explicit deadline."
+                  />
+                  <SelectField
+                    label="Validity starts from"
+                    value={basis}
+                    onChange={(event) =>
+                      setBasis(event.target.value as typeof basis)
+                    }
+                  >
+                    <option value="effectiveAt">Effective time</option>
+                    <option value="observedAt">Observed time</option>
+                  </SelectField>
+                </div>
+              )}
               <SelectField
                 label="Conflict behavior"
                 value={behavior}
