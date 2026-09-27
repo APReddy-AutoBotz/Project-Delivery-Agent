@@ -15,6 +15,7 @@ import {
   CanonicalProjectError,
   canonicalProgrammeCreateSchema,
   canonicalProjectCreateSchema,
+  canonicalRaidReopenRequestSchema,
   projectFactIdSchema,
   type Actor,
   type CanonicalProjectRepository,
@@ -35,6 +36,9 @@ export const unavailableCanonicalRepository: CanonicalProjectRepository = {
     throw new CanonicalProjectError("UNAVAILABLE");
   },
   async detail() {
+    throw new CanonicalProjectError("UNAVAILABLE");
+  },
+  async reopenRaidItem() {
     throw new CanonicalProjectError("UNAVAILABLE");
   },
 };
@@ -102,6 +106,32 @@ export class CanonicalController {
     if (!input.success) throw new HttpException("", 400);
     return this.run(() =>
       this.repository.createProject(actor, input.data, req.correlationId),
+    );
+  }
+  @Post("projects/:id/raid-items/:raidItemId/reopen")
+  @HttpCode(200)
+  async reopenRaidItem(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Param("raidItemId") raidItemId: string,
+    @Body() body: unknown,
+  ) {
+    const actor = await this.actor(req);
+    if (
+      !projectFactIdSchema.safeParse(id).success ||
+      !projectFactIdSchema.safeParse(raidItemId).success
+    )
+      throw new HttpException("", 404);
+    const input = canonicalRaidReopenRequestSchema.safeParse(body);
+    if (!input.success) throw new HttpException("", 400);
+    return this.run(() =>
+      this.repository.reopenRaidItem(
+        actor,
+        id,
+        raidItemId,
+        input.data,
+        req.correlationId,
+      ),
     );
   }
   @Get("projects/:id/canonical") async detail(

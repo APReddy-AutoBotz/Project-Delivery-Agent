@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   canonicalProjectCreateSchema,
+  canonicalRaidReopenRequestSchema,
   canonicalDateSchema,
   canonicalUrlSchema,
   canonicalActorSchema,
@@ -121,4 +122,37 @@ describe("INT-MOD-001 / FR-MOD-001/002/004/005/007 canonical request invariants"
       canonicalActorSchema.safeParse({ ...actor, roles: ["SPONSOR"] }).success,
     ).toBe(false);
   });
+describe("FR-HLT-004: guarded RAID reopen date command contract", () => {
+  const request = {
+    expectedState: "COMPLETE" as const,
+    newState: "OPEN" as const,
+    expectedFactRevision: 0,
+    openedAt: "2026-09-28",
+    validUntil: null,
+    idempotencyKey: "reopen-key-001",
+    originalStatement: "The delivery blocker reopened on this date.",
+  };
+  it("requires a new explicit date and returns the typed fact append inputs", () => {
+    expect(canonicalRaidReopenRequestSchema.parse(request)).toEqual(request);
+    const withoutExpiry: Record<string, unknown> = { ...request };
+    delete withoutExpiry.validUntil;
+    expect(canonicalRaidReopenRequestSchema.parse(withoutExpiry).validUntil).toBeNull();
+  });
+  it.each([
+    { expectedState: "OPEN" },
+    { newState: "COMPLETE" },
+    { expectedFactRevision: -1 },
+    { openedAt: "2026-09-31" },
+    { validUntil: "2026-09-27T23:59:59.999Z" },
+    { originalStatement: "   " },
+    { idempotencyKey: "bad key" },
+    { factType: "caller.supplied.fact" },
+    { provenance: "SYSTEM_VERIFIED" },
+  ])("rejects malformed or authority-forged reopen request %#", (change) => {
+    expect(
+      canonicalRaidReopenRequestSchema.safeParse({ ...request, ...change }).success,
+    ).toBe(false);
+  });
+});
+
 });

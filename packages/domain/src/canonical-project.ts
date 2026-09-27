@@ -1,6 +1,7 @@
 // FR-MOD-001/002/003/004/005/006/007: explicit human configuration, never evidence.
 import { z } from "zod";
 import { roles, roleSchema, type Actor } from "./actor.js";
+import { humanStatementSchema, projectFactInstantSchema } from "./project-facts.js";
 // eslint-disable-next-line no-control-regex -- PostgreSQL text rejects NUL; preserve ordinary multiline text.
 const nulFreeText = /^[^\u0000]*$/;
 
@@ -276,6 +277,37 @@ export const canonicalProjectCreateSchema = z
         fail("A source mapping target must belong to this project draft");
     }
   });
+export const canonicalRaidReopenRequestSchema = z
+  .strictObject({
+    expectedState: z.enum(["COMPLETE", "CANCELLED"]),
+    newState: z.enum(["OPEN", "IN_PROGRESS"]),
+    expectedFactRevision: humanStatementSchema.shape.expectedRevision,
+    openedAt: canonicalDateSchema,
+    validUntil: projectFactInstantSchema.nullable().default(null),
+    idempotencyKey: humanStatementSchema.shape.idempotencyKey.min(8),
+    originalStatement: humanStatementSchema.shape.originalStatement,
+  })
+  .refine(
+    (request) =>
+      request.validUntil === null ||
+      Date.parse(request.validUntil) >=
+        Date.parse(`${request.openedAt}T00:00:00.000Z`),
+  );
+export type CanonicalRaidReopenRequest = z.infer<
+  typeof canonicalRaidReopenRequestSchema
+>;
+export const canonicalRaidReopenResultSchema = z.strictObject({
+  projectId: z.uuid(),
+  raidItemId: z.uuid(),
+  state: z.enum(["OPEN", "IN_PROGRESS"]),
+  factId: z.uuid(),
+  versionId: z.uuid(),
+  factRevision: z.number().int().min(1).max(2147483647),
+  replayed: z.boolean(),
+});
+export type CanonicalRaidReopenResult = z.infer<
+  typeof canonicalRaidReopenResultSchema
+>;
 export const canonicalProgrammeSchema = z.strictObject({
   id: z.uuid(),
   code: key,
@@ -354,4 +386,11 @@ export interface CanonicalProjectRepository {
     correlationId: string,
   ): Promise<{ id: string }>;
   detail(actor: Actor, id: string): Promise<CanonicalProjectDetail>;
+  reopenRaidItem(
+    actor: Actor,
+    projectId: string,
+    raidItemId: string,
+    input: CanonicalRaidReopenRequest,
+    correlationId: string,
+  ): Promise<CanonicalRaidReopenResult>;
 }

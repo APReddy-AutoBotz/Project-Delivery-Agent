@@ -508,3 +508,107 @@ it("configured sixth OIDC role authorizes only matching current scope; remapping
     repository.detail(await unmapped.authenticate(signed), projectId),
   ).rejects.toMatchObject({ code: "DENIED" });
 });
+
+
+it("reopens a closed RAID item atomically with one explicit opened_at fact version", async () => {
+  const payload = canonicalFixture(portfolioId, null);
+  payload.code = "REOPEN-" + randomUUID().slice(0, 8);
+  payload.idempotencyKey = randomUUID().replaceAll("-", "");
+  payload.raidItems[0].state = "COMPLETE";
+  const created = await api(manager, "/projects", "POST", payload);
+  expect(created.status).toBe(201);
+  const reopenedProjectId = (await created.json()).id as string;
+  const raid = await db.raidItem.findFirstOrThrow({
+    where: {
+      customerId,
+      projectId: reopenedProjectId,
+      key: payload.raidItems[0].key,
+    },
+  });
+  const path =
+    "/projects/" + reopenedProjectId + "/raid-items/" + raid.id + "/reopen";
+  const request = {
+    expectedState: "COMPLETE",
+    newState: "OPEN",
+    expectedFactRevision: 0,
+    openedAt: "2026-09-28",
+    validUntil: null,
+    idempotencyKey: randomUUID().replaceAll("-", ""),
+    originalStatement: "Synthetic evidence for a reopened delivery blocker.",
+  };
+  const malformed = await api(manager, path, "POST", {
+    ...request,
+    openedAt: undefined,
+  });
+  expect(malformed.status).toBe(400);
+  expect(
+    (await db.raidItem.findUniqueOrThrow({ where: { id: raid.id } })).state,
+  ).toBe("COMPLETE");
+
+  await expect(
+    db.$executeRaw`UPDATE "RaidItem" SET state='OPEN' WHERE id=${raid.id}::uuid`,
+  ).rejects.toThrow();
+
+  const leader: Actor = {
+    customerId,
+    subject: "reopen-leader-" + randomUUID(),
+    roles: ["leadership"],
+  };
+  await grant(leader, reopenedProjectId, "leadership", "project");
+  const denied = await api(leader, path, "POST", request);
+  expect(denied.status).toBe(404);
+  expect(
+    (await db.raidItem.findUniqueOrThrow({ where: { id: raid.id } })).state,
+  ).toBe("COMPLETE");
+
+  const response = await api(manager, path, "POST", request);
+  expect(response.status).toBe(200);
+  const result = await response.json();
+  expect(result).toMatchObject({
+    projectId: reopenedProjectId,
+    raidItemId: raid.id,
+    state: "OPEN",
+    factRevision: 1,
+    replayed: false,
+  });
+  const factType = `raid_item.${raid.id}.opened_at`;
+  const fact = await db.projectFact.findUniqueOrThrow({
+    where: {
+      customerId_projectId_factType: {
+        customerId,
+        projectId: reopenedProjectId,
+        factType,
+      },
+    },
+  });
+  const versions = await db.projectFactVersion.findMany({
+    where: { customerId, projectId: reopenedProjectId, factId: fact.id },
+  });
+  expect(fact.revision).toBe(1);
+  expect(versions).toHaveLength(1);
+  expect(versions[0]!.value).toEqual({ type: "date", value: request.openedAt });
+  expect(
+    await db.factAppendReceipt.count({
+      where: {
+        customerId,
+        projectId: reopenedProjectId,
+        subject: manager.subject,
+        idempotencyKey: request.idempotencyKey,
+      },
+    }),
+  ).toBe(1);
+
+  const replay = await api(manager, path, "POST", request);
+  expect(replay.status).toBe(200);
+  expect(await replay.json()).toEqual({ ...result, replayed: true });
+  const conflict = await api(manager, path, "POST", {
+    ...request,
+    openedAt: "2026-09-29",
+  });
+  expect(conflict.status).toBe(409);
+  expect(
+    await db.projectFactVersion.count({
+      where: { customerId, projectId: reopenedProjectId, factId: fact.id },
+    }),
+  ).toBe(1);
+});

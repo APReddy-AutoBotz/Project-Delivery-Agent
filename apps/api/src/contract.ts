@@ -12,6 +12,8 @@ import {
   canonicalProgrammeCreateSchema,
   canonicalProjectCreateSchema,
   canonicalProjectDetailSchema,
+  canonicalRaidReopenRequestSchema,
+  canonicalRaidReopenResultSchema,
   factCatalogueSchema,
   humanStatementSchema,
   factHistoryPageSchema,
@@ -386,6 +388,13 @@ export const contracts: Record<string, RouteContract> = {
     status: 201,
     request: canonicalProjectCreateSchema,
     response: z.strictObject({ id: z.uuid() }),
+    errors: [404, 409, 503],
+  },
+  "post /api/projects/{id}/raid-items/{raidItemId}/reopen": {
+    status: 200,
+    request: canonicalRaidReopenRequestSchema,
+    response: canonicalRaidReopenResultSchema,
+    parameters: { id: z.uuid(), raidItemId: z.uuid() },
     errors: [404, 409, 503],
   },
   "get /api/projects/{id}/canonical": {
