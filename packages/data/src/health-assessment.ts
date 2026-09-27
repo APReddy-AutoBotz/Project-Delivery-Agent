@@ -6,12 +6,16 @@ import {
   healthAssessmentCommandSchema,
   healthAssessmentRetentionPolicySchema,
   healthAssessmentRetentionViewSchema,
+  blockerAgeThresholdPolicyChangeSchema,
+  blockerAgeThresholdPolicyViewSchema,
   healthAssessmentViewSchema,
   HealthAssessmentError,
   type Actor,
   type HealthAssessmentRepository,
   type HealthAssessmentRetentionPolicy,
   type HealthAssessmentRetentionView,
+  type BlockerAgeThresholdPolicyChange,
+  type BlockerAgeThresholdPolicyView,
   type HealthAssessmentView,
 } from "@pdaa/domain";
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
@@ -22,6 +26,14 @@ type PolicyRow = {
   contentRetentionHours: number;
   auditRetentionHours: number;
   idempotencyRetentionHours: number;
+  revision: number;
+  changedBy: string;
+  changedAt: Date;
+};
+type BlockerAgeThresholdPolicyRow = {
+  customerId: string;
+  minimumBlockerAgeDays: number;
+  auditRetentionHours: number;
   revision: number;
   changedBy: string;
   changedAt: Date;
@@ -80,6 +92,17 @@ function toPolicyView(row: PolicyRow): HealthAssessmentRetentionView {
     contentRetentionHours: row.contentRetentionHours,
     auditRetentionHours: row.auditRetentionHours,
     idempotencyRetentionHours: row.idempotencyRetentionHours,
+    revision: row.revision,
+    changedBy: row.changedBy,
+    changedAt: row.changedAt.toISOString(),
+  });
+}
+function toBlockerAgeThresholdPolicyView(
+  row: BlockerAgeThresholdPolicyRow,
+): BlockerAgeThresholdPolicyView {
+  return blockerAgeThresholdPolicyViewSchema.parse({
+    minimumBlockerAgeDays: row.minimumBlockerAgeDays,
+    auditRetentionHours: row.auditRetentionHours,
     revision: row.revision,
     changedBy: row.changedBy,
     changedAt: row.changedAt.toISOString(),
@@ -145,6 +168,25 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       });
       return row;
     } catch { throw new HealthAssessmentError("UNAVAILABLE"); }
+  }
+  private async readBlockerAgeThresholdPolicy(
+    tx: Tx,
+    customerId: string,
+    update = false,
+  ): Promise<BlockerAgeThresholdPolicyRow | null> {
+    const lock = update ? " FOR UPDATE" : " FOR SHARE";
+    const rows = await tx.$queryRawUnsafe<BlockerAgeThresholdPolicyRow[]>(
+      'SELECT "customerId","minimumBlockerAgeDays","auditRetentionHours",revision,"changedBy","changedAt" FROM public."BlockerAgeThresholdPolicy" WHERE "customerId"=$1::uuid' + lock,
+      customerId,
+    );
+    const row = rows[0];
+    if (!row) return null;
+    try {
+      toBlockerAgeThresholdPolicyView(row);
+      return row;
+    } catch {
+      throw new HealthAssessmentError("UNAVAILABLE");
+    }
   }
   private async now(tx: Tx) {
     const rows = await tx.$queryRawUnsafe<{ now: Date }[]>(
@@ -327,6 +369,93 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       );
       return healthAssessmentRetentionViewSchema.parse({
         ...policy, revision, changedBy: current.subject, changedAt: changedAt.toISOString(),
+      });
+    });
+  }
+  async blockerAgeThresholdPolicy(currentValue: Actor) {
+    const current = actor(currentValue);
+    admin(current);
+    return this.transaction(async (tx) => {
+      const row = await this.readBlockerAgeThresholdPolicy(tx, current.customerId);
+      return row ? toBlockerAgeThresholdPolicyView(row) : null;
+    });
+  }
+  async setBlockerAgeThresholdPolicy(
+    currentValue: Actor,
+    policyValue: BlockerAgeThresholdPolicyChange,
+    correlationId: string,
+  ) {
+    const current = actor(currentValue);
+    admin(current);
+    let policy: BlockerAgeThresholdPolicyChange;
+    try {
+      policy = blockerAgeThresholdPolicyChangeSchema.parse(policyValue);
+      z.uuid().parse(correlationId);
+    } catch {
+      throw new HealthAssessmentError("INVALID_REQUEST");
+    }
+    return this.transaction(async (tx) => {
+      // Serialize even the first insert, where there is no policy row to lock.
+      await tx.$queryRawUnsafe(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0)) IS NULL AS locked",
+        "blocker-age-threshold:" + current.customerId,
+      );
+      const previous = await this.readBlockerAgeThresholdPolicy(
+        tx,
+        current.customerId,
+        true,
+      );
+      if ((previous?.revision ?? 0) !== policy.expectedRevision)
+        throw new HealthAssessmentError("CONFLICT");
+
+      const revision = policy.expectedRevision + 1;
+      const changedAt = await this.now(tx);
+      const detail = json({
+        objectType: "BlockerAgeThresholdPolicy",
+        objectId: current.customerId,
+        minimumBlockerAgeDays: policy.minimumBlockerAgeDays,
+        auditRetentionHours: policy.auditRetentionHours,
+        revision,
+      });
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId",detail,"occurredAt") VALUES ($1::uuid,$2::uuid,$3,\'health.blocker_age.threshold.changed\',$4,$5::jsonb,$6)',
+        randomUUID(),
+        current.customerId,
+        current.subject,
+        correlationId,
+        detail,
+        changedAt,
+      );
+      let affected: number;
+      if (previous) {
+        affected = await tx.$executeRawUnsafe(
+          'UPDATE public."BlockerAgeThresholdPolicy" SET "minimumBlockerAgeDays"=$2,"auditRetentionHours"=$3,revision=$4,"changedBy"=$5,"changedAt"=$6 WHERE "customerId"=$1::uuid AND revision=$7',
+          current.customerId,
+          policy.minimumBlockerAgeDays,
+          policy.auditRetentionHours,
+          revision,
+          current.subject,
+          changedAt,
+          policy.expectedRevision,
+        );
+      } else {
+        affected = await tx.$executeRawUnsafe(
+          'INSERT INTO public."BlockerAgeThresholdPolicy" ("customerId","minimumBlockerAgeDays","auditRetentionHours",revision,"changedBy","changedAt") VALUES ($1::uuid,$2,$3,$4,$5,$6)',
+          current.customerId,
+          policy.minimumBlockerAgeDays,
+          policy.auditRetentionHours,
+          revision,
+          current.subject,
+          changedAt,
+        );
+      }
+      if (affected !== 1) throw new HealthAssessmentError("CONFLICT");
+      return blockerAgeThresholdPolicyViewSchema.parse({
+        minimumBlockerAgeDays: policy.minimumBlockerAgeDays,
+        auditRetentionHours: policy.auditRetentionHours,
+        revision,
+        changedBy: current.subject,
+        changedAt: changedAt.toISOString(),
       });
     });
   }

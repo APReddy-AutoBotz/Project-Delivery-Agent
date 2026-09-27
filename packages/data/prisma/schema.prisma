@@ -1172,6 +1172,15 @@ model HealthAssessmentRetentionPolicy {
   changedAt DateTime @db.Timestamptz(3)
 }
 
+model BlockerAgeThresholdPolicy {
+  customerId String @id @db.Uuid
+  minimumBlockerAgeDays Int
+  auditRetentionHours Int
+  revision Int
+  changedBy String @db.VarChar(256)
+  changedAt DateTime @db.Timestamptz(3)
+}
+
 model HealthAssessment {
   id String @id @db.Uuid
   customerId String @db.Uuid

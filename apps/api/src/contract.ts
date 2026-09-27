@@ -50,6 +50,8 @@ import {
   healthAssessmentCommandSchema,
   healthAssessmentRetentionPolicySchema,
   healthAssessmentRetentionViewSchema,
+  blockerAgeThresholdPolicyChangeSchema,
+  blockerAgeThresholdPolicyViewSchema,
   healthAssessmentViewSchema,
 } from "@pdaa/domain";
 import {
@@ -426,6 +428,17 @@ export const contracts: Record<string, RouteContract> = {
     request: healthAssessmentRetentionPolicySchema,
     response: healthAssessmentRetentionViewSchema,
     errors: [403, 503],
+  },
+  "get /api/admin/blocker-age-threshold-policy": {
+    status: 200,
+    response: blockerAgeThresholdPolicyViewSchema.nullable(),
+    errors: [403, 503],
+  },
+  "post /api/admin/blocker-age-threshold-policy": {
+    status: 200,
+    request: blockerAgeThresholdPolicyChangeSchema,
+    response: blockerAgeThresholdPolicyViewSchema,
+    errors: [403, 409, 503],
   },
   "get /api/health/live": {
     status: 200,

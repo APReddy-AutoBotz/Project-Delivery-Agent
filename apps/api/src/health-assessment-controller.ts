@@ -15,6 +15,7 @@ import {
   HealthAssessmentError,
   healthAssessmentCommandSchema,
   healthAssessmentRetentionPolicySchema,
+  blockerAgeThresholdPolicyChangeSchema,
   projectFactIdSchema,
   type Actor,
   type HealthAssessmentRepository,
@@ -30,6 +31,8 @@ export const unavailableHealthAssessmentRepository: HealthAssessmentRepository =
   async latest() { throw new HealthAssessmentError("UNAVAILABLE"); },
   async retention() { throw new HealthAssessmentError("UNAVAILABLE"); },
   async setRetention() { throw new HealthAssessmentError("UNAVAILABLE"); },
+  async blockerAgeThresholdPolicy() { throw new HealthAssessmentError("UNAVAILABLE"); },
+  async setBlockerAgeThresholdPolicy() { throw new HealthAssessmentError("UNAVAILABLE"); },
 };
 @ApiTags("Health assessments")
 @ApiBearerAuth()
@@ -100,6 +103,28 @@ export class HealthAssessmentController {
     if (!policy.success) throw new HttpException("", 400);
     return this.run(() =>
       this.repository.setRetention(actor, policy.data, req.correlationId),
+    );
+  }
+  @Get("admin/blocker-age-threshold-policy")
+  async blockerAgeThresholdPolicy(@Req() req: Request) {
+    const actor = await this.pmoAdmin(req);
+    return this.run(() => this.repository.blockerAgeThresholdPolicy(actor));
+  }
+  @Post("admin/blocker-age-threshold-policy")
+  @HttpCode(200)
+  async setBlockerAgeThresholdPolicy(
+    @Req() req: Request,
+    @Body() body: unknown,
+  ) {
+    const actor = await this.pmoAdmin(req);
+    const policy = blockerAgeThresholdPolicyChangeSchema.safeParse(body);
+    if (!policy.success) throw new HttpException("", 400);
+    return this.run(() =>
+      this.repository.setBlockerAgeThresholdPolicy(
+        actor,
+        policy.data,
+        req.correlationId,
+      ),
     );
   }
 }

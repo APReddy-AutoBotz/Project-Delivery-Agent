@@ -270,6 +270,20 @@ const healthAssessmentRepository: HealthAssessmentRepository = {
   latest: vi.fn(async () => null),
   retention: vi.fn(async () => healthAssessmentRetentionView),
   setRetention: vi.fn(async () => healthAssessmentRetentionView),
+  blockerAgeThresholdPolicy: vi.fn(async () => ({
+    minimumBlockerAgeDays: 30,
+    auditRetentionHours: 720,
+    revision: 1,
+    changedBy: "pmo-portfolio",
+    changedAt: "2026-09-27T00:00:00.000Z",
+  })),
+  setBlockerAgeThresholdPolicy: vi.fn(async (_actor, policy) => ({
+    minimumBlockerAgeDays: policy.minimumBlockerAgeDays,
+    auditRetentionHours: policy.auditRetentionHours,
+    revision: policy.expectedRevision + 1,
+    changedBy: "pmo-portfolio",
+    changedAt: "2026-09-27T00:00:00.000Z",
+  })),
 };
 beforeAll(async () => {
   ({ app, spec } = await createApp(
@@ -402,6 +416,18 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       idempotencyRetentionHours: 720,
     },
   );
+  await request("/api/admin/blocker-age-threshold-policy", 200, pmoPortfolio);
+  await request(
+    "/api/admin/blocker-age-threshold-policy",
+    200,
+    pmoPortfolio,
+    "POST",
+    {
+      expectedRevision: 0,
+      minimumBlockerAgeDays: 30,
+      auditRetentionHours: 720,
+    },
+  );
   await request("/api/platform", 200, operator);
   await request("/api/audit", 200, operator);
   await request("/api/access-grants", 204, operator, "POST", grant);
@@ -492,7 +518,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(46);
+  expect(covered.size).toBe(48);
   assertContractSnapshot(
     spec,
     JSON.parse(

@@ -97,6 +97,25 @@ export type HealthAssessmentRetentionView = z.infer<
   typeof healthAssessmentRetentionViewSchema
 >;
 
+export const blockerAgeThresholdPolicyChangeSchema = z.strictObject({
+  expectedRevision: z.number().int().min(0).max(2147483646),
+  minimumBlockerAgeDays: z.number().int().min(1).max(3650),
+  auditRetentionHours: z.number().int().min(1).max(87600),
+});
+export type BlockerAgeThresholdPolicyChange = z.infer<
+  typeof blockerAgeThresholdPolicyChangeSchema
+>;
+export const blockerAgeThresholdPolicyViewSchema = z.strictObject({
+  minimumBlockerAgeDays: z.number().int().min(1).max(3650),
+  auditRetentionHours: z.number().int().min(1).max(87600),
+  revision: z.number().int().min(1).max(2147483647),
+  changedBy: z.string().min(1).max(256),
+  changedAt: instant,
+});
+export type BlockerAgeThresholdPolicyView = z.infer<
+  typeof blockerAgeThresholdPolicyViewSchema
+>;
+
 export class HealthAssessmentError extends Error {
   constructor(
     readonly code:
@@ -126,6 +145,14 @@ export interface HealthAssessmentRepository {
     policy: HealthAssessmentRetentionPolicy,
     correlationId: string,
   ): Promise<HealthAssessmentRetentionView>;
+  blockerAgeThresholdPolicy(
+    actor: Actor,
+  ): Promise<BlockerAgeThresholdPolicyView | null>;
+  setBlockerAgeThresholdPolicy(
+    actor: Actor,
+    policy: BlockerAgeThresholdPolicyChange,
+    correlationId: string,
+  ): Promise<BlockerAgeThresholdPolicyView>;
 }
 
 const scheduleRule = {
