@@ -343,6 +343,17 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
         new Date("2000-01-01T00:00:00.000Z"),
       );
       await tx.$executeRawUnsafe(
+        'INSERT INTO public."CanonicalCreationReceipt" (id,"customerId","portfolioId",subject,"idempotencyKey",operation,"requestHash","projectId") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8::uuid)',
+        randomUUID(),
+        customerId,
+        portfolioId,
+        "health-retention-fixture",
+        "health-retention-key",
+        "PROJECT",
+        digest("health-retention-fixture:" + projectId),
+        projectId,
+      );
+      await tx.$executeRawUnsafe(
         'UPDATE public."CanonicalProject" SET sealed=true WHERE id=$1::uuid',
         projectId,
       );
