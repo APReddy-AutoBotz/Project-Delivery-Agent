@@ -1394,12 +1394,20 @@ tests:
   - .github/workflows/foundation-validation.yml
 - id: UNIT-HLT-002
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-HLT-002
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: The completeness check lists the exact required facts that are missing or unconfirmed.
-  evidence: []
+  behavior: >-
+    A deterministic, read-only completeness check requires the complete configured
+    fact list and one source-authority summary per required type. It lists fields
+    with no canonical versions as missing; unresolved, ambiguous, conflicting,
+    incomplete or revalidation-required authority as unconfirmed. Proposals are
+    excluded from canonical counts, and results retain the rule and assessment
+    pins without persisting facts or signals.
+  evidence:
+  - tests/completeness-signals.test.ts
+  - .github/workflows/foundation-validation.yml
 - id: UNIT-HLT-003
   release: R1
   status: planned
