@@ -8,7 +8,6 @@ import type {
   ActiveAuthorityPolicy,
   AuthorityDefinition,
 } from "@pdaa/domain";
-import { isBlockerOpenedAtFactType } from "@pdaa/domain";
 import type { RequestFn } from "./canonical-project.js";
 import { Button, TextField, SelectField, Message } from "./components.js";
 import {
@@ -20,6 +19,11 @@ import {
 } from "./evidence-state.js";
 import { FactValue } from "./evidence-display.js";
 
+const openedAtFactTypePattern =
+  /^raid_item\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.opened_at$/;
+function isOpenedAtFactType(factType: string) {
+  return openedAtFactTypePattern.test(factType);
+}
 type SelectorValidity = NonNullable<
   AuthorityDefinition["tiers"][number]["selectors"][number]["validity"]
 >;
@@ -317,7 +321,7 @@ export function PolicyForm({
       "RETAIN_CONFLICT" | "REQUEST_RECONCILIATION"
     >("RETAIN_CONFLICT"),
     [effectiveAt, setEffectiveAt] = useState(utcNow);
-  const isOpenedAt = isBlockerOpenedAtFactType(factType);
+  const isOpenedAt = isOpenedAtFactType(factType);
   const state = useReviewedWrite<AuthorityPolicyChange>(
     request,
     `/projects/${projectId}/authority-policies`,
@@ -329,7 +333,8 @@ export function PolicyForm({
     state.setError("");
     try {
       utcInstant(effectiveAt);
-      const durationMs = duration === "" ? null : Number(duration) * 1000;
+      const durationMs =
+        isOpenedAt || duration === "" ? null : Number(duration) * 1000;
       if (
         durationMs !== null &&
         (!Number.isSafeInteger(durationMs) || durationMs < 1)
