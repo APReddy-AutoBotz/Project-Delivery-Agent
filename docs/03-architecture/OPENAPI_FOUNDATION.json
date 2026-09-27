@@ -29580,7 +29580,8 @@
                     "coverage": {
                       "type": "string",
                       "enum": [
-                        "SCHEDULE_ONLY"
+                        "SCHEDULE_ONLY",
+                        "SCHEDULE_AND_BLOCKER_AGE"
                       ]
                     },
                     "ruleRevision": {
@@ -29972,7 +29973,8 @@
                     "coverage": {
                       "type": "string",
                       "enum": [
-                        "SCHEDULE_ONLY"
+                        "SCHEDULE_ONLY",
+                        "SCHEDULE_AND_BLOCKER_AGE"
                       ]
                     },
                     "ruleRevision": {
