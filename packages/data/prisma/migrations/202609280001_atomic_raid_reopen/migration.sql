@@ -277,6 +277,17 @@ BEGIN
     WHERE s."customerId"=p_customer_id AND s."projectId"=p_project_id
       AND s."factId"=v_fact_id AND s."providedBy"=p_subject FOR UPDATE;
   v_source_found:=FOUND;
+  -- A different human provider has a separate immutable source stream. Do not
+  -- report a successful reopen if this date could conflict with or bypass it.
+  IF EXISTS (
+    SELECT 1 FROM public."FactSource" other_source
+    WHERE other_source."customerId"=p_customer_id
+      AND other_source."projectId"=p_project_id
+      AND other_source."factId"=v_fact_id
+      AND other_source."providedBy"<>p_subject
+  ) THEN
+    outcome:='CONFLICT'; RETURN NEXT; RETURN;
+  END IF;
   IF v_source_found THEN
     SELECT a.state INTO v_access_state FROM public."FactSourceAccess" a
       WHERE a."customerId"=p_customer_id AND a."projectId"=p_project_id

@@ -4,6 +4,7 @@ import { SignJWT, generateKeyPair } from "jose";
 import {
   createDatabase,
   DatabaseCanonicalProjectRepository,
+  DatabaseProjectFactRepository,
   DatabaseProjectRepository,
 } from "../packages/data/dist/index.js";
 import {
@@ -611,4 +612,104 @@ it("reopens a closed RAID item atomically with one explicit opened_at fact versi
       where: { customerId, projectId: reopenedProjectId, factId: fact.id },
     }),
   ).toBe(1);
+});
+
+it("rejects a reopen by a different provider before creating a competing opened_at stream", async () => {
+  const payload = canonicalFixture(portfolioId, null);
+  payload.code = "REOPEN-CROSS-" + randomUUID().slice(0, 8);
+  payload.idempotencyKey = randomUUID().replaceAll("-", "");
+  payload.raidItems[0].state = "COMPLETE";
+  const created = await api(manager, "/projects", "POST", payload);
+  expect(created.status).toBe(201);
+  const reopenedProjectId = (await created.json()).id as string;
+  const raid = await db.raidItem.findFirstOrThrow({
+    where: {
+      customerId,
+      projectId: reopenedProjectId,
+      key: payload.raidItems[0].key,
+    },
+  });
+  const factType = `raid_item.${raid.id}.opened_at`;
+  const originalAuthor: Actor = {
+    customerId,
+    subject: "reopen-original-" + randomUUID(),
+    roles: ["project_manager"],
+  };
+  await grant(originalAuthor, reopenedProjectId, "project_manager", "project");
+  const facts = new DatabaseProjectFactRepository(db);
+  await facts.appendHumanStatement(
+    originalAuthor,
+    {
+      projectId: reopenedProjectId,
+      factType,
+      expectedRevision: 0,
+      idempotencyKey: randomUUID().replaceAll("-", ""),
+      value: { type: "date", value: "2026-08-01" },
+      effectiveAt: "2026-08-01T00:00:00.000Z",
+      validUntil: null,
+      originalStatement: "Synthetic prior opened date before the handoff.",
+    },
+    { correlationId: "raid-reopen-cross-provider" },
+  );
+
+  const reopener: Actor = {
+    customerId,
+    subject: "reopen-next-" + randomUUID(),
+    roles: ["project_manager"],
+  };
+  await grant(reopener, reopenedProjectId, "project_manager", "project");
+  const idempotencyKey = randomUUID().replaceAll("-", "");
+  const response = await api(
+    reopener,
+    `/projects/${reopenedProjectId}/raid-items/${raid.id}/reopen`,
+    "POST",
+    {
+      expectedState: "COMPLETE",
+      newState: "OPEN",
+      expectedFactRevision: 1,
+      openedAt: "2026-09-28",
+      validUntil: null,
+      idempotencyKey,
+      originalStatement: "Synthetic reopened date from another authorized manager.",
+    },
+  );
+  expect(response.status).toBe(409);
+  expect(
+    (await db.raidItem.findUniqueOrThrow({ where: { id: raid.id } })).state,
+  ).toBe("COMPLETE");
+  const fact = await db.projectFact.findUniqueOrThrow({
+    where: {
+      customerId_projectId_factType: {
+        customerId,
+        projectId: reopenedProjectId,
+        factType,
+      },
+    },
+  });
+  expect(fact.revision).toBe(1);
+  expect(
+    await db.projectFactVersion.count({
+      where: { customerId, projectId: reopenedProjectId, factId: fact.id },
+    }),
+  ).toBe(1);
+  expect(
+    await db.raidReopenReceipt.count({
+      where: {
+        customerId,
+        projectId: reopenedProjectId,
+        subject: reopener.subject,
+        idempotencyKey,
+      },
+    }),
+  ).toBe(0);
+  expect(
+    await db.factAppendReceipt.count({
+      where: {
+        customerId,
+        projectId: reopenedProjectId,
+        subject: reopener.subject,
+        idempotencyKey,
+      },
+    }),
+  ).toBe(0);
 });
