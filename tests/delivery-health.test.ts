@@ -41,6 +41,7 @@ const canonicalFact = (
   value: string | number | boolean | null,
   recordType: "PROJECT" | "MILESTONE" | "WORK_ITEM" | "RAID_ITEM",
   recordId: string,
+  revision = 1,
 ) => ({
   factType,
   field,
@@ -49,7 +50,7 @@ const canonicalFact = (
     kind: "canonical_record" as const,
     recordType,
     recordId,
-    revision: 1,
+    revision,
   },
 });
 const signal = (
@@ -134,6 +135,7 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
           "OPEN",
           "RAID_ITEM",
           blockerId,
+          3,
         ),
         canonicalFact(
           "blocker.createdAt",
@@ -141,6 +143,7 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
           "2026-09-10",
           "RAID_ITEM",
           blockerId,
+          3,
         ),
         canonicalFact(
           "blocker.severity",
@@ -148,6 +151,7 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
           "CRITICAL",
           "RAID_ITEM",
           blockerId,
+          3,
         ),
       ],
     });
