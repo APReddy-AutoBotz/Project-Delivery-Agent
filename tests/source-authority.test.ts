@@ -449,6 +449,83 @@ describe("FR-ADM-005 / FR-EVD-003/004/006/007/009/010/012: historical authority"
     input.versions[0]!.validUntil = time(4);
     expect(row(resolveSourceAuthority(input)).assessedValidUntil).toBe(time(4));
   });
+  it("resolves until-superseded validity only for exact RAID opened_at fact identities", () => {
+    const input = snapshot([version(10, { validUntil: null })]);
+    const openedAt = `raid_item.${id(88)}.opened_at`;
+    input.scope.factType = openedAt;
+    input.policy!.factType = openedAt;
+    for (const version of input.versions) version.scope.factType = openedAt;
+    for (const item of input.evidence) item.scope.factType = openedAt;
+    input.policy!.tiers[0]!.selectors[0]!.sourceType = "human_statement";
+    input.sources[0]!.sourceType = "human_statement";
+    input.versions[0]!.provenance = "HUMAN_CONFIRMED";
+    input.policy!.tiers[0]!.selectors[0]!.validity = {
+      mode: "UNTIL_SUPERSEDED",
+    };
+
+    expect(resolveSourceAuthority(input)).toMatchObject({
+      status: "RESOLVED",
+      resolvedValue: input.versions[0]!.value,
+    });
+    expect(row(resolveSourceAuthority(input)).assessment.freshness).toBe(
+      "CURRENT",
+    );
+
+    const prior = input.versions[0]!;
+    const newer = version(11, {
+      source: { ...prior.source, revision: "2" },
+      effectiveAt: time(4),
+      observedAt: time(4),
+      provenance: "HUMAN_CONFIRMED",
+      validUntil: null,
+      value: { type: "date", value: "2026-10-02" },
+    });
+    newer.scope.factType = openedAt;
+    input.versions.push(newer);
+    input.evidence.push({
+      id: newer.evidenceIds[0]!,
+      scope: { ...input.scope },
+      access: "AUTHORIZED",
+      verification: "VALID",
+    });
+    let out = resolveSourceAuthority(input);
+    expect(out.status).toBe("RESOLVED");
+    expect(out.supportingVersionIds).toEqual([id(11)]);
+    expect(row(out, 10).assessment.freshness).toBe("UNKNOWN");
+    expect(row(out, 11).assessment.freshness).toBe("CURRENT");
+
+    const withdrawn = version(12, {
+      source: { ...prior.source, revision: "3" },
+      effectiveAt: time(5),
+      observedAt: time(5),
+      provenance: "HUMAN_CONFIRMED",
+      validUntil: null,
+      value: { type: "empty", value: null },
+    });
+    withdrawn.scope.factType = openedAt;
+    input.versions.push(withdrawn);
+    input.evidence.push({
+      id: withdrawn.evidenceIds[0]!,
+      scope: { ...input.scope },
+      access: "AUTHORIZED",
+      verification: "VALID",
+    });
+    out = resolveSourceAuthority(input);
+    expect(out.status).toBe("RESOLVED");
+    expect(out.supportingVersionIds).toEqual([id(12)]);
+    expect(out.resolvedValue).toEqual({ type: "empty", value: null });
+    expect(out.supportingVersionIds).not.toContain(id(10));
+    expect(out.supportingVersionIds).not.toContain(id(11));
+  });
+
+  it("rejects until-superseded for another fact type", () => {
+    const input = snapshot();
+    input.policy!.tiers[0]!.selectors[0]!.validity = {
+      mode: "UNTIL_SUPERSEDED",
+    };
+    rejected(input);
+  });
+
   it("applies independent validity policies to different source selectors", () => {
     const input = fallback({ validUntil: null }, { validUntil: null });
     input.policy!.tiers[0]!.selectors[0]!.validity = {

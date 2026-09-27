@@ -19,6 +19,8 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
+PR #87 merged the approved EXEC-011 blocker-age design candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as merge `d93218886e4256159caa92e1f1f365bdd162b489`. Exact-head Foundation verify, production-boundary and Documentation checks passed. Implementation is now underway on `feature/ac-hlt-003-blocker-age-assessment-20260927`; the current slice extends explicit `UNTIL_SUPERSEDED` source-authority handling for exact RAID `opened_at` facts. Its own exact-head checks and independent implementation review remain pending. AC-HLT-003 and all Issue #8 acceptance checks stay open; accepted-story totals remain R0 3/5, R1 2/33, combined 5/38 (13.2%).
+
 PR #84 merged the exact pure delivery-health evaluator candidate `1a22063e93af7188c558e07ab5b53bd871072085` from base `521c015de680280c0dc4ac237bd06f63b1ac7f37` as merge `eae1a386b90fb1124f39298fd3ae0ac006ee4c25`. Exact-head Foundation #292 and Documentation #357 passed; post-merge Documentation #36305803463 passed. Post-merge Foundation initially failed during packaged restore and passed on retry attempt 2, run #36305803465, including production-boundary and verify jobs.
 
 PR #84 adds deterministic evaluation over a bounded, complete caller-authorized health snapshot, preserving reported status separately from calculated status and retaining signal facts, rule inputs, rationale and discrepancy output. It does not persist assessments, resolve sources, establish source authority, write canonical facts or publish proposals. Its evaluator is a building block; AC-HLT-004 remains open.

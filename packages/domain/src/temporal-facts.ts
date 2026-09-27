@@ -73,6 +73,17 @@ const versionSchema = z
   })
   .strict();
 
+const finiteValidityRuleSchema = z
+  .object({
+    basis: z.enum(["effectiveAt", "observedAt"]),
+    durationMs: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+  })
+  .strict();
+export const factValidityRuleSchema = z.union([
+  finiteValidityRuleSchema,
+  z.object({ mode: z.literal("UNTIL_SUPERSEDED") }).strict(),
+]);
+
 export const temporalFactSnapshotSchema = z
   .object({
     scope: scopeSchema,
@@ -83,13 +94,7 @@ export const temporalFactSnapshotSchema = z
         customerId: id,
         projectId: id,
         factType,
-        validity: z
-          .object({
-            basis: z.enum(["effectiveAt", "observedAt"]),
-            durationMs: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-          })
-          .strict()
-          .nullable(),
+        validity: factValidityRuleSchema.nullable(),
       })
       .strict(),
     versions: z.array(versionSchema).max(1000),
@@ -262,7 +267,10 @@ export function assessTemporalFactHistory(input: unknown) {
   const assessed = versions.map((version) => {
     const expiries: string[] =
       version.validUntil === null ? [] : [version.validUntil];
-    if (validityPolicy.validity !== null) {
+    if (
+      validityPolicy.validity !== null &&
+      !("mode" in validityPolicy.validity)
+    ) {
       const { basis, durationMs } = validityPolicy.validity;
       const expiry = Date.parse(version[basis]) + durationMs;
       requireValid(Number.isSafeInteger(expiry) && Math.abs(expiry) <= 8.64e15);
@@ -289,6 +297,13 @@ export function assessTemporalFactHistory(input: unknown) {
         {
           provenance: version.provenance,
           validUntil: known ? validUntil : null,
+          validityMode:
+            known &&
+            temporalApplicability === "APPLICABLE" &&
+            validityPolicy.validity !== null &&
+            "mode" in validityPolicy.validity
+              ? "UNTIL_SUPERSEDED"
+              : undefined,
           conflicting: unresolvedConflictIds.length > 0,
         },
         new Date(asOf),

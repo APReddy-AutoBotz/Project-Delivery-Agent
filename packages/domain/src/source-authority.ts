@@ -2,6 +2,7 @@ import { z } from "zod";
 import { assessFact } from "./fact-state.js";
 import {
   assessTemporalFactHistory,
+  factValidityRuleSchema,
   temporalFactSnapshotSchema,
 } from "./temporal-facts.js";
 
@@ -11,12 +12,22 @@ const temporal = temporalFactSnapshotSchema.shape;
 const id = temporal.scope.shape.factId;
 const instant = temporal.asOf;
 const sourceType = temporal.scope.shape.factType;
+const openedAtFactType =
+  /^raid_item\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.opened_at$/;
+export function isBlockerOpenedAtFactType(factType: string) {
+  const match = openedAtFactType.exec(factType);
+  return (
+    match !== null &&
+    z.string().uuid().safeParse(match[1]).success &&
+    match[1] === match[1]!.toLowerCase()
+  );
+}
 const selectorSchema = z
   .object({
     sourceType,
     instanceId: id.nullable(),
     requiredApproval: z.enum(["APPROVED", "NOT_REQUIRED"]),
-    validity: temporal.validityPolicy.shape.validity,
+    validity: factValidityRuleSchema.nullable(),
   })
   .strict();
 export const sourceAuthorityPolicySchema = z
@@ -149,6 +160,25 @@ function resolveSnapshot(input: unknown) {
         policy.projectId === scope.projectId &&
         policy.factType === scope.factType,
     );
+    const usesUntilSuperseded = policy.tiers.some((tier) =>
+      tier.selectors.some(
+        (selector) =>
+          selector.validity !== null && "mode" in selector.validity,
+      ),
+    );
+    if (usesUntilSuperseded) {
+      requireValid(
+        isBlockerOpenedAtFactType(scope.factType) &&
+          policy.tiers.every((tier) =>
+            tier.selectors.every(
+              (selector) =>
+                selector.sourceType === "human_statement" &&
+                selector.validity !== null &&
+                "mode" in selector.validity,
+            ),
+          ),
+      );
+    }
     for (const [tier, entry] of policy.tiers.entries()) {
       for (const selector of entry.selectors) {
         requireValid(
@@ -233,6 +263,7 @@ function resolveSnapshot(input: unknown) {
               selector.instanceId === version.source.instanceId),
         )
       : undefined;
+    const selectorValidity = match?.selector.validity ?? null;
     const allowed = version.evidenceIds.every((evidenceId) => {
       const item = evidence.get(evidenceId)!;
       return item.access === "AUTHORIZED" && item.verification === "VALID";
@@ -247,8 +278,11 @@ function resolveSnapshot(input: unknown) {
       (match.selector.requiredApproval === "NOT_REQUIRED" ||
         approvalState === "APPROVED");
     let expiry = version.assessedValidUntil;
-    if (match?.selector.validity) {
-      const { basis, durationMs } = match.selector.validity;
+    if (
+      selectorValidity !== null &&
+      !("mode" in selectorValidity)
+    ) {
+      const { basis, durationMs } = selectorValidity;
       const time = Date.parse(version[basis]) + durationMs;
       requireValid(Number.isSafeInteger(time) && Math.abs(time) <= 8.64e15);
       const deadline = new Date(time).toISOString();
@@ -261,17 +295,27 @@ function resolveSnapshot(input: unknown) {
     const known =
       version.temporalApplicability !== "NOT_YET_OBSERVED" &&
       version.temporalApplicability !== "NOT_YET_EFFECTIVE";
+    const validityMode =
+      known &&
+      version.temporalApplicability === "APPLICABLE" &&
+      selectorValidity !== null &&
+      "mode" in selectorValidity
+        ? "UNTIL_SUPERSEDED"
+        : undefined;
     const assessment = assessFact(
       {
         provenance: version.provenance,
         validUntil: known ? expiry : null,
+        validityMode,
         conflicting: version.unresolvedConflictIds.length > 0,
       },
       new Date(asOf),
     );
     const trustedOrigin =
-      version.provenance === "SYSTEM_VERIFIED" ||
-      version.provenance === "HUMAN_CONFIRMED";
+      validityMode === "UNTIL_SUPERSEDED"
+        ? version.provenance === "HUMAN_CONFIRMED"
+        : version.provenance === "SYSTEM_VERIFIED" ||
+          version.provenance === "HUMAN_CONFIRMED";
     const reasons: Reason[] = [];
     if (!match) reasons.push("NO_AUTHORITY_RULE");
     if (!head) reasons.push("NOT_APPLICABLE");
@@ -293,6 +337,7 @@ function resolveSnapshot(input: unknown) {
       head,
       trustedOrigin,
       expiry,
+      validityMode,
       assessment,
       reasons,
       valueKey: valueKey(version.value),
@@ -450,6 +495,7 @@ function resolveSnapshot(input: unknown) {
               row.version.temporalApplicability === "NOT_YET_EFFECTIVE"
                 ? null
                 : row.expiry,
+            validityMode: row.validityMode,
             conflicting: conflictingIds.has(row.version.id),
           },
           new Date(asOf),

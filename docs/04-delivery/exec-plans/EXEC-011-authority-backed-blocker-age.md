@@ -39,7 +39,7 @@ This plan requires independent design review at an immutable candidate SHA befor
 
 ## Current state
 
-- main is 93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7.
+- PR #87 merged the approved plan-only candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as merge `d93218886e4256159caa92e1f1f365bdd162b489`. Main is based on that merge; the feature branch starts from the same tree.
 - PR #82 provides a deterministic pure blocker-age evaluator with a caller-supplied time zone, date field, threshold, closed-record exclusion, and unassessable missing dates. It does not establish source authority or connect to API/UI/persistence.
 - PR #85 provides an authenticated stored schedule-only assessment, separate from reported RAG, with immutable payloads, idempotency, retention and an API/UI. PR #86 and the latest post-merge Foundation and Documentation checks passed.
 - EXEC-010 explicitly excludes source mapping resolution, source authority, proposals, blocker age and other unimplemented health families. This increment is a new plan and will not silently widen EXEC-010.
@@ -152,7 +152,8 @@ The migration is additive; preserve all earlier migrations, facts, proposals and
 
 ## Progress log
 
-- 2026-09-27: Drafted after confirming PR #82 is evaluator-only and PR #85/86 leave runtime assessment schedule-only. Reviews of `67abadcc` and `d65c4ed` identified and drove fixes for blocker/inventory classification, freshness, lock order, audit retention and reopen enforcement. The independent reviewer approved plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` against base `93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7`, with no blocking findings; the approved Proposed design section SHA256 is `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`. The final governance-recording PR revision remains subject to exact-head review and hosted validation before merge. No application code or acceptance status changed.
+- 2026-09-27: PR #87 merged the approved plan-only candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as `d93218886e4256159caa92e1f1f365bdd162b489`. Exact-head Foundation verify, production-boundary and Documentation checks passed. The design gate is complete; this implementation plan is active.
+- 2026-09-27: Drafted after confirming PR #82 is evaluator-only and PR #85/86 leave runtime assessment schedule-only. Reviews of `67abadcc` and `d65c4ed` identified and drove fixes for blocker/inventory classification, freshness, lock order, audit retention and reopen enforcement. The independent reviewer approved plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` against base `93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7`, with no blocking findings; the approved Proposed design section SHA256 is `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`. PR #87 merged as `d93218886e4256159caa92e1f1f365bdd162b489` after exact-head Foundation (`verify` and `production-boundary`) and Documentation checks passed. The approved plan design gate is closed; implementation and AC-HLT-003 acceptance remain incomplete.
 
 ## Decisions made
 
@@ -164,7 +165,7 @@ The migration is additive; preserve all earlier migrations, facts, proposals and
 - Serialize threshold policy read/write and absent-row creation with the same customer advisory-lock key. Assessment locks Project `FOR SHARE`, then grant rows `FOR SHARE ORDER BY id`, then the shared customer advisory lock, and takes one `asOf` only after canonical, fact, authority and source-access locks.
 - Keep blocker-age output separate from schedule RAG until approved severity semantics exist.
 
-These design decisions were approved at exact plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` (Proposed design section SHA256 `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`). Implementation remains gated on this plan PR's required exact-head validations and merge, and a separately reviewed implementation candidate with its required checks.
+These design decisions were approved at exact plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` (Proposed design section SHA256 `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`). PR #87's exact-head validations and merge completed. Application changes now require their own independent exact-candidate review, required checks, and expected-head merge guard.
 
 ## Risks and mitigations
 
@@ -178,7 +179,7 @@ These design decisions were approved at exact plan-only candidate `83df679cd847f
 
 ## Validation evidence
 
-Independent non-author review approved plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` against base `93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7`, with Proposed design section SHA256 `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`. The final governance-recording PR head must still pass its exact-head Foundation and Documentation validations before merge. Application code, AC-HLT-003 acceptance and story closure are not claimed.
+The approved design section SHA256 is `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`. Non-author review approved the plan design, and PR #87 merged its reviewed final candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as `d93218886e4256159caa92e1f1f365bdd162b489`. Exact-head Foundation verify, Foundation production-boundary and Documentation checks passed. No implementation candidate has completed its own review or validation yet; AC-HLT-003 acceptance, Issue #8 checkboxes and story closure remain unchanged.
 
 ## Completion summary
 

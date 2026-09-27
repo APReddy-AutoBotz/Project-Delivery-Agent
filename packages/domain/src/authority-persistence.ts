@@ -7,6 +7,7 @@ import {
   type FactMutationContext,
 } from "./project-facts.js";
 import {
+  isBlockerOpenedAtFactType,
   sourceAuthorityPolicySchema,
   type resolveSourceAuthority,
 } from "./source-authority.js";
@@ -44,6 +45,32 @@ export const authorityPolicyChangeSchema = authorityTargetSchema.extend({
   idempotencyKey: humanStatementSchema.shape.idempotencyKey,
   effectiveAt: projectFactInstantSchema,
   definition: authorityDefinitionSchema.nullable(),
+}).superRefine((request, context) => {
+  const usesUntilSuperseded =
+    request.definition?.tiers.some((tier) =>
+      tier.selectors.some(
+        (selector) =>
+          selector.validity !== null && "mode" in selector.validity,
+      ),
+    ) ?? false;
+  if (
+    usesUntilSuperseded &&
+    (!isBlockerOpenedAtFactType(request.factType) ||
+      request.definition?.tiers.some((tier) =>
+        tier.selectors.some(
+          (selector) =>
+            selector.sourceType !== "human_statement" ||
+            selector.validity === null ||
+            !("mode" in selector.validity),
+        ),
+      ))
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["factType"],
+      message: "UNTIL_SUPERSEDED is limited to RAID opened_at facts",
+    });
+  }
 });
 export const assessmentCaptureSchema = authorityTargetSchema.extend({
   idempotencyKey: humanStatementSchema.shape.idempotencyKey,
