@@ -5,7 +5,7 @@ CREATE TABLE public."HealthAssessmentRetentionPolicy" (
   "idempotencyRetentionHours" integer NOT NULL CHECK ("idempotencyRetentionHours" BETWEEN 1 AND 87600),
   revision integer NOT NULL CHECK (revision >= 1),
   "changedBy" varchar(256) NOT NULL,
-  "auditEventId" uuid NOT NULL UNIQUE,
+  "auditEventId" uuid UNIQUE,
   "changedAt" timestamptz(3) NOT NULL,
   CONSTRAINT "HealthAssessmentRetentionPolicy_order_check"
     CHECK ("auditRetentionHours" >= "contentRetentionHours"
@@ -69,8 +69,7 @@ CREATE INDEX "HealthAssessmentCommandReceipt_expiry_idx"
 
 CREATE OR REPLACE FUNCTION public.guard_health_assessment_mutation()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY INVOKER
-SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
 BEGIN
   IF session_user <> 'pdaa_worker' OR current_user = session_user THEN
     RAISE EXCEPTION 'Health assessment history is append-only';
@@ -84,30 +83,41 @@ CREATE TRIGGER "HealthAssessment_immutable"
   BEFORE UPDATE OR DELETE ON public."HealthAssessment"
   FOR EACH ROW EXECUTE FUNCTION public.guard_health_assessment_mutation();
 CREATE TRIGGER "HealthAssessmentCommandReceipt_immutable"
-  BEFORE DELETE ON public."HealthAssessmentCommandReceipt"
+  BEFORE UPDATE OR DELETE ON public."HealthAssessmentCommandReceipt"
   FOR EACH ROW EXECUTE FUNCTION public.guard_health_assessment_mutation();
 
--- Keep the existing append-only audit trigger, with one narrow expiry path.
+-- Retention events use the audit window captured in that event's policy revision.
 CREATE OR REPLACE FUNCTION public.reject_audit_mutation()
 RETURNS trigger
-LANGUAGE plpgsql SECURITY INVOKER
-SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
 BEGIN
-  IF TG_OP = 'DELETE' THEN
-    IF session_user = 'pdaa_worker'
-      AND current_user <> session_user
-      AND OLD.event IN ('health.assessment.created','health.assessment.redacted')
-      AND OLD.detail ? 'healthAssessmentId'
-    THEN
-      RETURN OLD;
-    END IF;
+  IF TG_OP = 'DELETE'
+    AND session_user = 'pdaa_worker'
+    AND current_user <> session_user
+    AND (
+      (OLD.event IN ('health.assessment.created','health.assessment.redacted')
+        AND OLD.detail ? 'healthAssessmentId')
+      OR (
+        OLD.event = 'health.assessment.retention.changed'
+        AND CASE
+          WHEN jsonb_typeof(OLD.detail->'auditRetentionHours') = 'number'
+            AND OLD.detail->>'auditRetentionHours' ~ '^[0-9]{1,5}$'
+          THEN (OLD.detail->>'auditRetentionHours')::integer BETWEEN 1 AND 87600
+            AND OLD."occurredAt"
+              + make_interval(hours => (OLD.detail->>'auditRetentionHours')::integer)
+              <= clock_timestamp()
+          ELSE false
+        END
+      )
+    )
+  THEN
+    RETURN OLD;
   END IF;
   RAISE EXCEPTION 'Audit records are immutable';
 END $$;
 CREATE FUNCTION public.purge_expired_health_assessments()
 RETURNS TABLE(redacted_count integer, purged_assessment_count integer, purged_receipt_count integer)
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE
   cutoff timestamptz := clock_timestamp();
   item record;
@@ -154,6 +164,32 @@ BEGIN
         AND e.detail->>'healthAssessmentId'=item.id::text;
     DELETE FROM public."HealthAssessment" WHERE id=item.id AND "customerId"=item."customerId";
     purged_assessments := purged_assessments + 1;
+  END LOOP;
+
+  -- Expire each policy-change event using its own captured audit window. Clear
+  -- the optional current-policy pointer before deleting its referenced event.
+  FOR item IN
+    SELECT e.id,e."customerId"
+    FROM public."AuditEvent" e
+    WHERE e.event = 'health.assessment.retention.changed'
+      AND CASE
+        WHEN jsonb_typeof(e.detail->'auditRetentionHours') = 'number'
+          AND e.detail->>'auditRetentionHours' ~ '^[0-9]{1,5}$'
+        THEN (e.detail->>'auditRetentionHours')::integer BETWEEN 1 AND 87600
+          AND e."occurredAt"
+            + make_interval(hours => (e.detail->>'auditRetentionHours')::integer)
+            <= cutoff
+        ELSE false
+      END
+    ORDER BY e."occurredAt",e.id
+    LIMIT 500
+    FOR UPDATE OF e SKIP LOCKED
+  LOOP
+    UPDATE public."HealthAssessmentRetentionPolicy"
+      SET "auditEventId"=NULL
+      WHERE "customerId"=item."customerId" AND "auditEventId"=item.id;
+    DELETE FROM public."AuditEvent"
+      WHERE "customerId"=item."customerId" AND id=item.id;
   END LOOP;
 
   WITH expired AS (

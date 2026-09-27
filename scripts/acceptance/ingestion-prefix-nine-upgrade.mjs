@@ -37,7 +37,16 @@ const jiraRuntimeTables = [
   "ConnectorTaskReceipt",
   "IngestionSyncReceiptProjectScope",
 ];
-const introducedTables = [...ingestionTables, ...jiraRuntimeTables];
+const healthAssessmentTables = [
+  "HealthAssessmentRetentionPolicy",
+  "HealthAssessment",
+  "HealthAssessmentCommandReceipt",
+];
+const introducedTables = [
+  ...ingestionTables,
+  ...jiraRuntimeTables,
+  ...healthAssessmentTables,
+];
 
 async function assignSyntheticTableOwners(pool) {
   await pool.query(`DO $owners$ DECLARE item record; BEGIN
@@ -84,12 +93,13 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 14);
+    assert.equal(migrations.length, 15);
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     assert.equal(migrations[10].name, "202609240001_jira_runtime");
     assert.equal(migrations[12].name, "202609250001_reviewed_csv_import");
     assert.equal(migrations[13].name, "202609260001_connector_outcome_sync_scope");
+    assert.equal(migrations[14].name, "202609270001_health_assessment");
     assert.equal(migrations[11].name, "202609240002_jira_webhook_body_replay");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
     pool = new Pool(databaseConfig);
@@ -241,6 +251,35 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         worker_link_read: false,
         backup_link_read: true,
       }]);
+      const healthAcl = await pool.query(`SELECT
+        has_table_privilege('pdaa_api','public."HealthAssessment"','SELECT') AS api_assessment_read,
+        has_table_privilege('pdaa_api','public."HealthAssessment"','INSERT') AS api_assessment_insert,
+        has_table_privilege('pdaa_api','public."HealthAssessment"','UPDATE') AS api_assessment_update,
+        has_table_privilege('pdaa_api','public."HealthAssessment"','DELETE') AS api_assessment_delete,
+        has_table_privilege('pdaa_api','public."HealthAssessmentCommandReceipt"','UPDATE') AS api_receipt_update,
+        has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','UPDATE') AS api_policy_update,
+        has_table_privilege('pdaa_worker','public."HealthAssessment"','SELECT') AS worker_assessment_read,
+        has_table_privilege('pdaa_worker','public."HealthAssessment"','INSERT') AS worker_assessment_insert,
+        has_table_privilege('pdaa_worker','public."HealthAssessment"','UPDATE') AS worker_assessment_update,
+        has_table_privilege('pdaa_worker','public."HealthAssessmentCommandReceipt"','DELETE') AS worker_receipt_delete,
+        has_table_privilege('pdaa_worker','public."HealthAssessmentRetentionPolicy"','UPDATE') AS worker_policy_update,
+        has_function_privilege('pdaa_worker','public.purge_expired_health_assessments()','EXECUTE') AS worker_purge_execute,
+        has_function_privilege('pdaa_api','public.purge_expired_health_assessments()','EXECUTE') AS api_purge_execute`);
+      assert.deepEqual(healthAcl.rows, [{
+        api_assessment_read: true,
+        api_assessment_insert: true,
+        api_assessment_update: false,
+        api_assessment_delete: false,
+        api_receipt_update: false,
+        api_policy_update: true,
+        worker_assessment_read: false,
+        worker_assessment_insert: false,
+        worker_assessment_update: false,
+        worker_receipt_delete: false,
+        worker_policy_update: false,
+        worker_purge_execute: true,
+        api_purge_execute: false,
+      }]);
       return {
         databaseName,
         status: "passed",
@@ -251,6 +290,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         addedMigrations: ledger.slice(9).map((row) => row.migration_name),
         introducedTablesEmpty: true,
         finiteIngestionAcl: true,
+        finiteHealthAssessmentAcl: true,
       };
     } finally {
       await after.$disconnect();

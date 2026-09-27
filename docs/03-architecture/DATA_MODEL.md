@@ -308,10 +308,12 @@ mappings, import proposals and connector payloads are excluded. The API labels
 the result `SCHEDULE_ONLY` and keeps reported and calculated RAG separate.
 
 `HealthAssessmentRetentionPolicy` stores independently configured content,
-audit and idempotency windows. `HealthAssessmentCommandReceipt` stores a
-hashed command key and survives assessment tombstone purge through its configured
-retry horizon. Only the worker role can execute the fixed-scope retention
-procedure; ordinary API access cannot update or delete assessment history.
-Assessment availability and expiry are rechecked against current project grants
-on every read. This increment does not establish source authority or accept
-AC-HLT-004.
+audit and idempotency windows. Each retention-change audit event carries the
+audit window selected for that revision and expires from its recorded event time;
+the nullable current-event pointer is cleared before that event is deleted.
+`HealthAssessmentCommandReceipt` stores a hashed command key and survives
+assessment tombstone purge through its configured retry horizon. Only the worker
+role can execute the fixed-scope retention procedure; ordinary API access cannot
+update or delete assessment history. Assessment availability and expiry are
+rechecked against current project grants on every read. This increment does not
+establish source authority or accept AC-HLT-004.

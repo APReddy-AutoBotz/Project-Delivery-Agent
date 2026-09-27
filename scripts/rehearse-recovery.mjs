@@ -256,6 +256,9 @@ try {
     for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
       await verifyImmutableHistoryMutation(restored, table, operation);
   }
+  for (const table of ["HealthAssessment", "HealthAssessmentCommandReceipt"])
+    for (const operation of ["UPDATE", "DELETE"])
+      await verifyImmutableHistoryMutation(restored, table, operation);
   const credential = await restored.connectorCredential.findFirstOrThrow({
     where: { customerId: process.env.CUSTOMER_ID, name: "synthetic" },
   });

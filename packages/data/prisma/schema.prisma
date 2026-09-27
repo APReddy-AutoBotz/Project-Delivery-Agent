@@ -1143,7 +1143,7 @@ model HealthAssessmentRetentionPolicy {
   idempotencyRetentionHours Int
   revision Int
   changedBy String @db.VarChar(256)
-  auditEventId String @unique @db.Uuid
+  auditEventId String? @unique @db.Uuid
   changedAt DateTime @db.Timestamptz(3)
 }
 

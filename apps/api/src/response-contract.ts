@@ -14,7 +14,7 @@ export class ResponseContractInterceptor implements NestInterceptor {
       .getRequest<{ method: string; route: { path: string } }>();
     const response = context
       .switchToHttp()
-      .getResponse<{ statusCode: number }>();
+      .getResponse<{ statusCode: number; setHeader(name: string, value: string): void }>();
     const path = request.route.path.replace(/:([A-Za-z0-9_]+)/g, "{$1}");
     // Express automatically serves HEAD through GET and strips the wire body.
     const method =
@@ -31,6 +31,12 @@ export class ResponseContractInterceptor implements NestInterceptor {
         const result = contract.response.safeParse(value);
         // Never emit validation issues or the malformed (potentially sensitive) data.
         if (!result.success) throw new InternalServerErrorException();
+        // Nest treats a bare null as an empty 200 response. Preserve the
+        // nullable JSON contract for browser clients and retention reads.
+        if (result.data === null) {
+          response.setHeader("content-type", "application/json; charset=utf-8");
+          return "null";
+        }
         return result.data;
       }),
     );

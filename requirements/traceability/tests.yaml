@@ -1447,9 +1447,12 @@ tests:
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: >-
     The hourly worker task runs the injected database retention procedure and
-    fails closed when the privileged callback is not wired. Database migration
-    checks assert API and worker table/function grants. This does not by itself
-    verify expiry timing or accept the complete health criterion.
+    fails closed when the privileged callback is not wired. Isolated PostgreSQL
+    checks exercise read-time expiry, privileged content redaction, per-revision
+    retention-event expiry, assessment tombstone and audit purge, receipt expiry,
+    replay after redaction, expired-result conflict and repeat-sweep idempotency.
+    Database migration checks also assert API and worker table/function grants.
+    This does not accept the complete health criterion.
   evidence:
   - apps/worker/src/tasks.ts
   - tests/health-assessment-worker.test.ts
