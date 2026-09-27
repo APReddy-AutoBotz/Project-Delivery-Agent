@@ -29587,7 +29587,8 @@
                     "ruleRevision": {
                       "type": "string",
                       "enum": [
-                        "schedule-health@1"
+                        "schedule-health@1",
+                        "schedule-health@1+blocker-age@1"
                       ]
                     },
                     "envelopeHash": {
@@ -29980,7 +29981,8 @@
                     "ruleRevision": {
                       "type": "string",
                       "enum": [
-                        "schedule-health@1"
+                        "schedule-health@1",
+                        "schedule-health@1+blocker-age@1"
                       ]
                     },
                     "envelopeHash": {
