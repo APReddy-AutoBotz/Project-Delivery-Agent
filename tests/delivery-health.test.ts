@@ -8,6 +8,7 @@ import {
 const projectId = "10000000-0000-4000-8000-000000000001";
 const milestoneId = "20000000-0000-4000-8000-000000000001";
 const blockerId = "30000000-0000-4000-8000-000000000001";
+const blocker2Id = "30000000-0000-4000-8000-000000000002";
 const calculationRule = {
   key: "DELIVERY-HEALTH-RAG",
   revision: "rag-v1",
@@ -192,8 +193,8 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
       "OVERDUE-MILESTONE-1",
     );
     expect(result.objectiveSignals).toHaveLength(3);
-    expect(result.objectiveSignals[1]?.rule.revision).toBe("blocker-v4");
-    expect(result.objectiveSignals[1]?.sourceFacts).toContainEqual(
+    expect(result.objectiveSignals[0]?.rule.revision).toBe("blocker-v4");
+    expect(result.objectiveSignals[0]?.sourceFacts).toContainEqual(
       expect.objectContaining({ value: "2026-09-10" }),
     );
     expect(result.contradiction).toMatchObject({
@@ -225,6 +226,32 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
 
     expect(result.reported.status).toBe("AMBER");
     expect(result.calculated.status).toBe("AMBER");
+    expect(result.contradiction).toBeNull();
+  });
+
+  it("calculates GREEN from a complete snapshot with no elevated active signals", () => {
+    const result = assessDeliveryHealth(
+      request({
+        signals: [
+          signal({
+            signalId: "CLEARED-MILESTONE",
+            state: "CLEAR",
+            severity: "CRITICAL",
+          }),
+          signal({
+            signalId: "LOW-DELIVERY-NOTE",
+            state: "ACTIVE",
+            severity: "LOW",
+          }),
+        ],
+      }),
+    );
+
+    expect(result.reported.status).toBe("GREEN");
+    expect(result.calculated.status).toBe("GREEN");
+    expect(result.calculated.rationale.code).toBe(
+      "NO_ELEVATED_ACTIVE_SIGNALS",
+    );
     expect(result.contradiction).toBeNull();
   });
 
@@ -269,15 +296,24 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
         signals: [
           signal(),
           signal({
-            signalId: "MISSING-DUE-DATE",
+            signalId: "MISSING-BLOCKER-DATE",
+            kind: "BLOCKER_AGE",
+            targetType: "RAID_ITEM",
+            targetKey: "RAID-2",
+            targetSource: {
+              kind: "canonical_record",
+              recordType: "RAID_ITEM",
+              recordId: blocker2Id,
+              revision: 1,
+            },
             state: "UNASSESSABLE",
             sourceFacts: [
               canonicalFact(
-                "milestone.forecastEnd",
-                "forecastEnd",
+                "blocker.openedAt",
+                "openedAt",
                 null,
-                "MILESTONE",
-                milestoneId,
+                "RAID_ITEM",
+                blocker2Id,
               ),
             ],
           }),
@@ -306,7 +342,9 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
     expect(Object.isFrozen(result.objectiveSignals)).toBe(true);
     expect(Object.isFrozen(result.objectiveSignals[0]?.sourceFacts)).toBe(true);
     inputs[0]!.sourceFacts[0]!.value = "MUTATED";
-    expect(result.objectiveSignals[1]?.sourceFacts[0]?.value).toBe("OPEN");
+    expect(result.objectiveSignals[1]?.sourceFacts).toContainEqual(
+      expect.objectContaining({ value: "OPEN" }),
+    );
   });
 
   it("rejects incomplete, contradictory, duplicate, and malformed inputs", () => {
