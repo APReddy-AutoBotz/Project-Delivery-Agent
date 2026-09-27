@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-26
+Updated: 2026-09-27
 
 ## Accepted implementation completion
 
@@ -18,6 +18,11 @@ accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://gith
 R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
+
+PR #78 merged the exact candidate `a2c0b4e3ce2389bd95805fecbee71523d2bd63a4` from base `e999e3cea4442b15f3bb0703c21705cf10dd8b51` as merge `e2b07dd8869e8b6e13c4a5677636a9b48bb30242`. Merge tree `fd1fb6695e780baea334dcc7febd98170fc827eb` matches the candidate tree; ordered parents are base then candidate, and `main` points to the merge. Independent exact-head review approved with no findings. Exact-head [Foundation #277](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36261979738) and [Documentation #335](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36261979767) passed. Post-merge [Foundation #278](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36287576412) and [Documentation #336](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36287576457) also passed.
+
+PR #78 adds a deterministic read-only AC-HLT-001 freshness assessment. It compares the latest valid update (or project creation if none exists) to the explicit policy window and returns an explainable freshness signal plus a configured update-obligation descriptor and stable deduplication key for later caller persistence. It does not persist or deliver obligations, write canonical facts, or call external systems. UNIT-HLT-001 covers the descriptor contract. No migration was added. Issue #8 remains open with all acceptance criteria unchecked; this criterion does not accept a story or change official totals: R0 3/5, R1 2/33, combined 5/38 (13.2%).
+
 
 PR #76 merged exact candidate `29543f2a1ee55049286d966e7c2b0a1b1bdaa017` as merge `611d52f57e011fbe9d044b37bda59a183cf61269`. The merge tree `bd53f3d5c63f1d83bfd5fafe27f674f34cbebe4a` matches the candidate; ordered parents are base `1f81c4ce5e6b64609e1469b33eb41d01881c5a7b` then candidate, and `main` points to the merge. Independent exact-candidate review approved with no findings. Exact-head [Foundation #273](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36253512784) and [Documentation #331](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36253512788) passed; post-merge [Foundation #274](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36255111260) and [Documentation #332](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36255111252) also passed. PR #76 adds a deterministic, read-only AC-HLT-007 evaluator for date-only due dates and configured local-calendar-day thresholds, including DST and BCE-local-date boundaries, exact source/rule inputs, and UNIT-HLT-007 coverage. It adds no migration, API/UI, connector call, canonical write, or external side effect. Issue #8 remains open with acceptance criteria unchecked; this single criterion does not accept STORY-013/014/015 or change official totals: R0 3/5, R1 2/33, combined 5/38 (13.2%).
 
