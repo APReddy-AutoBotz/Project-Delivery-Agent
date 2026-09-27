@@ -6,32 +6,45 @@ import { isDeepStrictEqual } from "node:util";
 function firstDifference(actual, expected, path = "$") {
   if (isDeepStrictEqual(actual, expected)) return null;
   if (Array.isArray(actual) || Array.isArray(expected)) {
-    if (!Array.isArray(actual) || !Array.isArray(expected)) return path;
+    if (!Array.isArray(actual) || !Array.isArray(expected))
+      return { path, actual, expected };
     const length = Math.min(actual.length, expected.length);
     for (let index = 0; index < length; index++) {
       const difference = firstDifference(actual[index], expected[index], path + "[" + index + "]");
       if (difference) return difference;
     }
-    return actual.length === expected.length ? path : path + ".length";
+    return actual.length === expected.length
+      ? { path, actual, expected }
+      : { path: path + ".length", actual: actual.length, expected: expected.length };
   }
   if (actual && expected && typeof actual === "object" && typeof expected === "object") {
     const keys = [...new Set([...Object.keys(actual), ...Object.keys(expected)])].sort();
     for (const key of keys) {
-      if (!Object.hasOwn(actual, key) || !Object.hasOwn(expected, key))
-        return path + "[" + JSON.stringify(key) + "]";
+      const actualHas = Object.hasOwn(actual, key);
+      const expectedHas = Object.hasOwn(expected, key);
+      if (!actualHas || !expectedHas)
+        return {
+          path: path + "[" + JSON.stringify(key) + "]",
+          actual: actualHas ? actual[key] : undefined,
+          expected: expectedHas ? expected[key] : undefined,
+        };
       const difference = firstDifference(actual[key], expected[key], path + "[" + JSON.stringify(key) + "]");
       if (difference) return difference;
     }
   }
-  return path;
+  return { path, actual, expected };
 }
 export function assertContractSnapshot(actual, committed) {
   const normalized = JSON.parse(JSON.stringify(actual));
   const difference = firstDifference(normalized, committed);
-  if (difference)
+  if (difference) {
+    const show = (value) => value === undefined ? "<missing>" : JSON.stringify(value);
     throw new Error(
-      "OpenAPI export differs from runtime at " + difference + "; regenerate and review the document",
+      "OpenAPI export differs from runtime at " + difference.path +
+        " (runtime=" + show(difference.actual) + ", snapshot=" + show(difference.expected) +
+        "); regenerate and review the document",
     );
+  }
 }
 export function compileContract(document) {
   const ajv = new Ajv({ strict: true, allErrors: false });
