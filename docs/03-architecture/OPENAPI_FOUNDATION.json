@@ -7806,27 +7806,56 @@
                                                   ]
                                                 },
                                                 "validity": {
-                                                  "nullable": true,
-                                                  "type": "object",
-                                                  "properties": {
-                                                    "basis": {
-                                                      "type": "string",
-                                                      "enum": [
-                                                        "effectiveAt",
-                                                        "observedAt"
+                                                  "anyOf": [
+                                                    {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "basis": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "effectiveAt",
+                                                                "observedAt"
+                                                              ]
+                                                            },
+                                                            "durationMs": {
+                                                              "type": "integer",
+                                                              "minimum": 1,
+                                                              "maximum": 9007199254740991
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "basis",
+                                                            "durationMs"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "mode": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "UNTIL_SUPERSEDED"
+                                                              ]
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "mode"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
                                                       ]
                                                     },
-                                                    "durationMs": {
-                                                      "type": "integer",
-                                                      "minimum": 1,
-                                                      "maximum": 9007199254740991
+                                                    {
+                                                      "type": "string",
+                                                      "nullable": true,
+                                                      "enum": [
+                                                        null
+                                                      ]
                                                     }
-                                                  },
-                                                  "required": [
-                                                    "basis",
-                                                    "durationMs"
-                                                  ],
-                                                  "additionalProperties": false
+                                                  ]
                                                 }
                                               },
                                               "required": [
@@ -8298,27 +8327,56 @@
                                               ]
                                             },
                                             "validity": {
-                                              "nullable": true,
-                                              "type": "object",
-                                              "properties": {
-                                                "basis": {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "effectiveAt",
-                                                    "observedAt"
+                                              "anyOf": [
+                                                {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "basis": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "effectiveAt",
+                                                            "observedAt"
+                                                          ]
+                                                        },
+                                                        "durationMs": {
+                                                          "type": "integer",
+                                                          "minimum": 1,
+                                                          "maximum": 9007199254740991
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "basis",
+                                                        "durationMs"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "mode": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "UNTIL_SUPERSEDED"
+                                                          ]
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "mode"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
                                                   ]
                                                 },
-                                                "durationMs": {
-                                                  "type": "integer",
-                                                  "minimum": 1,
-                                                  "maximum": 9007199254740991
+                                                {
+                                                  "type": "string",
+                                                  "nullable": true,
+                                                  "enum": [
+                                                    null
+                                                  ]
                                                 }
-                                              },
-                                              "required": [
-                                                "basis",
-                                                "durationMs"
-                                              ],
-                                              "additionalProperties": false
+                                              ]
                                             }
                                           },
                                           "required": [
@@ -10408,27 +10466,56 @@
                                               ]
                                             },
                                             "validity": {
-                                              "nullable": true,
-                                              "type": "object",
-                                              "properties": {
-                                                "basis": {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "effectiveAt",
-                                                    "observedAt"
+                                              "anyOf": [
+                                                {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "basis": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "effectiveAt",
+                                                            "observedAt"
+                                                          ]
+                                                        },
+                                                        "durationMs": {
+                                                          "type": "integer",
+                                                          "minimum": 1,
+                                                          "maximum": 9007199254740991
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "basis",
+                                                        "durationMs"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "mode": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "UNTIL_SUPERSEDED"
+                                                          ]
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "mode"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
                                                   ]
                                                 },
-                                                "durationMs": {
-                                                  "type": "integer",
-                                                  "minimum": 1,
-                                                  "maximum": 9007199254740991
+                                                {
+                                                  "type": "string",
+                                                  "nullable": true,
+                                                  "enum": [
+                                                    null
+                                                  ]
                                                 }
-                                              },
-                                              "required": [
-                                                "basis",
-                                                "durationMs"
-                                              ],
-                                              "additionalProperties": false
+                                              ]
                                             }
                                           },
                                           "required": [
@@ -13080,27 +13167,56 @@
                                                                 ]
                                                               },
                                                               "validity": {
-                                                                "nullable": true,
-                                                                "type": "object",
-                                                                "properties": {
-                                                                  "basis": {
-                                                                    "type": "string",
-                                                                    "enum": [
-                                                                      "effectiveAt",
-                                                                      "observedAt"
+                                                                "anyOf": [
+                                                                  {
+                                                                    "anyOf": [
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "basis": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "effectiveAt",
+                                                                              "observedAt"
+                                                                            ]
+                                                                          },
+                                                                          "durationMs": {
+                                                                            "type": "integer",
+                                                                            "minimum": 1,
+                                                                            "maximum": 9007199254740991
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "basis",
+                                                                          "durationMs"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      },
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "mode": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "UNTIL_SUPERSEDED"
+                                                                            ]
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "mode"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      }
                                                                     ]
                                                                   },
-                                                                  "durationMs": {
-                                                                    "type": "integer",
-                                                                    "minimum": 1,
-                                                                    "maximum": 9007199254740991
+                                                                  {
+                                                                    "type": "string",
+                                                                    "nullable": true,
+                                                                    "enum": [
+                                                                      null
+                                                                    ]
                                                                   }
-                                                                },
-                                                                "required": [
-                                                                  "basis",
-                                                                  "durationMs"
-                                                                ],
-                                                                "additionalProperties": false
+                                                                ]
                                                               }
                                                             },
                                                             "required": [
@@ -14140,27 +14256,56 @@
                                                                 ]
                                                               },
                                                               "validity": {
-                                                                "nullable": true,
-                                                                "type": "object",
-                                                                "properties": {
-                                                                  "basis": {
-                                                                    "type": "string",
-                                                                    "enum": [
-                                                                      "effectiveAt",
-                                                                      "observedAt"
+                                                                "anyOf": [
+                                                                  {
+                                                                    "anyOf": [
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "basis": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "effectiveAt",
+                                                                              "observedAt"
+                                                                            ]
+                                                                          },
+                                                                          "durationMs": {
+                                                                            "type": "integer",
+                                                                            "minimum": 1,
+                                                                            "maximum": 9007199254740991
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "basis",
+                                                                          "durationMs"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      },
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "mode": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "UNTIL_SUPERSEDED"
+                                                                            ]
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "mode"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      }
                                                                     ]
                                                                   },
-                                                                  "durationMs": {
-                                                                    "type": "integer",
-                                                                    "minimum": 1,
-                                                                    "maximum": 9007199254740991
+                                                                  {
+                                                                    "type": "string",
+                                                                    "nullable": true,
+                                                                    "enum": [
+                                                                      null
+                                                                    ]
                                                                   }
-                                                                },
-                                                                "required": [
-                                                                  "basis",
-                                                                  "durationMs"
-                                                                ],
-                                                                "additionalProperties": false
+                                                                ]
                                                               }
                                                             },
                                                             "required": [
@@ -15200,27 +15345,56 @@
                                                                 ]
                                                               },
                                                               "validity": {
-                                                                "nullable": true,
-                                                                "type": "object",
-                                                                "properties": {
-                                                                  "basis": {
-                                                                    "type": "string",
-                                                                    "enum": [
-                                                                      "effectiveAt",
-                                                                      "observedAt"
+                                                                "anyOf": [
+                                                                  {
+                                                                    "anyOf": [
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "basis": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "effectiveAt",
+                                                                              "observedAt"
+                                                                            ]
+                                                                          },
+                                                                          "durationMs": {
+                                                                            "type": "integer",
+                                                                            "minimum": 1,
+                                                                            "maximum": 9007199254740991
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "basis",
+                                                                          "durationMs"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      },
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "mode": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "UNTIL_SUPERSEDED"
+                                                                            ]
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "mode"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      }
                                                                     ]
                                                                   },
-                                                                  "durationMs": {
-                                                                    "type": "integer",
-                                                                    "minimum": 1,
-                                                                    "maximum": 9007199254740991
+                                                                  {
+                                                                    "type": "string",
+                                                                    "nullable": true,
+                                                                    "enum": [
+                                                                      null
+                                                                    ]
                                                                   }
-                                                                },
-                                                                "required": [
-                                                                  "basis",
-                                                                  "durationMs"
-                                                                ],
-                                                                "additionalProperties": false
+                                                                ]
                                                               }
                                                             },
                                                             "required": [
@@ -18493,27 +18667,56 @@
                                                                 ]
                                                               },
                                                               "validity": {
-                                                                "nullable": true,
-                                                                "type": "object",
-                                                                "properties": {
-                                                                  "basis": {
-                                                                    "type": "string",
-                                                                    "enum": [
-                                                                      "effectiveAt",
-                                                                      "observedAt"
+                                                                "anyOf": [
+                                                                  {
+                                                                    "anyOf": [
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "basis": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "effectiveAt",
+                                                                              "observedAt"
+                                                                            ]
+                                                                          },
+                                                                          "durationMs": {
+                                                                            "type": "integer",
+                                                                            "minimum": 1,
+                                                                            "maximum": 9007199254740991
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "basis",
+                                                                          "durationMs"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      },
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "mode": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "UNTIL_SUPERSEDED"
+                                                                            ]
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "mode"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      }
                                                                     ]
                                                                   },
-                                                                  "durationMs": {
-                                                                    "type": "integer",
-                                                                    "minimum": 1,
-                                                                    "maximum": 9007199254740991
+                                                                  {
+                                                                    "type": "string",
+                                                                    "nullable": true,
+                                                                    "enum": [
+                                                                      null
+                                                                    ]
                                                                   }
-                                                                },
-                                                                "required": [
-                                                                  "basis",
-                                                                  "durationMs"
-                                                                ],
-                                                                "additionalProperties": false
+                                                                ]
                                                               }
                                                             },
                                                             "required": [
@@ -19553,27 +19756,56 @@
                                                                 ]
                                                               },
                                                               "validity": {
-                                                                "nullable": true,
-                                                                "type": "object",
-                                                                "properties": {
-                                                                  "basis": {
-                                                                    "type": "string",
-                                                                    "enum": [
-                                                                      "effectiveAt",
-                                                                      "observedAt"
+                                                                "anyOf": [
+                                                                  {
+                                                                    "anyOf": [
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "basis": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "effectiveAt",
+                                                                              "observedAt"
+                                                                            ]
+                                                                          },
+                                                                          "durationMs": {
+                                                                            "type": "integer",
+                                                                            "minimum": 1,
+                                                                            "maximum": 9007199254740991
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "basis",
+                                                                          "durationMs"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      },
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "mode": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "UNTIL_SUPERSEDED"
+                                                                            ]
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "mode"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      }
                                                                     ]
                                                                   },
-                                                                  "durationMs": {
-                                                                    "type": "integer",
-                                                                    "minimum": 1,
-                                                                    "maximum": 9007199254740991
+                                                                  {
+                                                                    "type": "string",
+                                                                    "nullable": true,
+                                                                    "enum": [
+                                                                      null
+                                                                    ]
                                                                   }
-                                                                },
-                                                                "required": [
-                                                                  "basis",
-                                                                  "durationMs"
-                                                                ],
-                                                                "additionalProperties": false
+                                                                ]
                                                               }
                                                             },
                                                             "required": [
@@ -20613,27 +20845,56 @@
                                                                 ]
                                                               },
                                                               "validity": {
-                                                                "nullable": true,
-                                                                "type": "object",
-                                                                "properties": {
-                                                                  "basis": {
-                                                                    "type": "string",
-                                                                    "enum": [
-                                                                      "effectiveAt",
-                                                                      "observedAt"
+                                                                "anyOf": [
+                                                                  {
+                                                                    "anyOf": [
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "basis": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "effectiveAt",
+                                                                              "observedAt"
+                                                                            ]
+                                                                          },
+                                                                          "durationMs": {
+                                                                            "type": "integer",
+                                                                            "minimum": 1,
+                                                                            "maximum": 9007199254740991
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "basis",
+                                                                          "durationMs"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      },
+                                                                      {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                          "mode": {
+                                                                            "type": "string",
+                                                                            "enum": [
+                                                                              "UNTIL_SUPERSEDED"
+                                                                            ]
+                                                                          }
+                                                                        },
+                                                                        "required": [
+                                                                          "mode"
+                                                                        ],
+                                                                        "additionalProperties": false
+                                                                      }
                                                                     ]
                                                                   },
-                                                                  "durationMs": {
-                                                                    "type": "integer",
-                                                                    "minimum": 1,
-                                                                    "maximum": 9007199254740991
+                                                                  {
+                                                                    "type": "string",
+                                                                    "nullable": true,
+                                                                    "enum": [
+                                                                      null
+                                                                    ]
                                                                   }
-                                                                },
-                                                                "required": [
-                                                                  "basis",
-                                                                  "durationMs"
-                                                                ],
-                                                                "additionalProperties": false
+                                                                ]
                                                               }
                                                             },
                                                             "required": [
@@ -22568,27 +22829,56 @@
                                                   ]
                                                 },
                                                 "validity": {
-                                                  "nullable": true,
-                                                  "type": "object",
-                                                  "properties": {
-                                                    "basis": {
-                                                      "type": "string",
-                                                      "enum": [
-                                                        "effectiveAt",
-                                                        "observedAt"
+                                                  "anyOf": [
+                                                    {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "basis": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "effectiveAt",
+                                                                "observedAt"
+                                                              ]
+                                                            },
+                                                            "durationMs": {
+                                                              "type": "integer",
+                                                              "minimum": 1,
+                                                              "maximum": 9007199254740991
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "basis",
+                                                            "durationMs"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "mode": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "UNTIL_SUPERSEDED"
+                                                              ]
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "mode"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
                                                       ]
                                                     },
-                                                    "durationMs": {
-                                                      "type": "integer",
-                                                      "minimum": 1,
-                                                      "maximum": 9007199254740991
+                                                    {
+                                                      "type": "string",
+                                                      "nullable": true,
+                                                      "enum": [
+                                                        null
+                                                      ]
                                                     }
-                                                  },
-                                                  "required": [
-                                                    "basis",
-                                                    "durationMs"
-                                                  ],
-                                                  "additionalProperties": false
+                                                  ]
                                                 }
                                               },
                                               "required": [
@@ -25338,27 +25628,56 @@
                                                   ]
                                                 },
                                                 "validity": {
-                                                  "nullable": true,
-                                                  "type": "object",
-                                                  "properties": {
-                                                    "basis": {
-                                                      "type": "string",
-                                                      "enum": [
-                                                        "effectiveAt",
-                                                        "observedAt"
+                                                  "anyOf": [
+                                                    {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "basis": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "effectiveAt",
+                                                                "observedAt"
+                                                              ]
+                                                            },
+                                                            "durationMs": {
+                                                              "type": "integer",
+                                                              "minimum": 1,
+                                                              "maximum": 9007199254740991
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "basis",
+                                                            "durationMs"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "mode": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "UNTIL_SUPERSEDED"
+                                                              ]
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "mode"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
                                                       ]
                                                     },
-                                                    "durationMs": {
-                                                      "type": "integer",
-                                                      "minimum": 1,
-                                                      "maximum": 9007199254740991
+                                                    {
+                                                      "type": "string",
+                                                      "nullable": true,
+                                                      "enum": [
+                                                        null
+                                                      ]
                                                     }
-                                                  },
-                                                  "required": [
-                                                    "basis",
-                                                    "durationMs"
-                                                  ],
-                                                  "additionalProperties": false
+                                                  ]
                                                 }
                                               },
                                               "required": [
