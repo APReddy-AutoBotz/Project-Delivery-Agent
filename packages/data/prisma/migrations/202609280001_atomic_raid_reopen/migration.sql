@@ -117,6 +117,9 @@ END $$;
 CREATE FUNCTION public.guard_canonical_raid_reopen() RETURNS trigger
 LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
 BEGIN
+  IF TG_OP='DELETE' THEN
+    RAISE EXCEPTION 'Canonical RAID state is immutable outside guarded reopen';
+  END IF;
   IF TG_OP<>'UPDATE'
     OR OLD.state NOT IN ('COMPLETE','CANCELLED')
     OR NEW.state NOT IN ('OPEN','IN_PROGRESS')
@@ -368,7 +371,7 @@ CREATE TRIGGER "RaidReopenReceipt_no_truncate"
 
 DROP TRIGGER canonical_no_mutation ON public."RaidItem";
 CREATE TRIGGER canonical_raid_reopen_guard
-  BEFORE UPDATE ON public."RaidItem"
+  BEFORE UPDATE OR DELETE ON public."RaidItem"
   FOR EACH ROW EXECUTE FUNCTION public.guard_canonical_raid_reopen();
 
 REVOKE ALL ON FUNCTION public.guard_raid_reopen_receipt(),public.guard_canonical_raid_reopen() FROM PUBLIC;

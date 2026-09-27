@@ -103,7 +103,8 @@ export async function verifyImmutableHistoryMutation(
       : new Set([
           (operation === "UPDATE" && sealMessages[table]) ||
             immutableMessages[table],
-          ...(operation === "UPDATE" && table === "RaidItem"
+          ...((operation === "UPDATE" || operation === "DELETE") &&
+          table === "RaidItem"
             ? ["Canonical RAID state is immutable outside guarded reopen"]
             : []),
         ]);
