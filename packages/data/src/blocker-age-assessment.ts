@@ -368,7 +368,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
       reason: null,
       value: result.resolvedValue.value,
       factId: prepared.fact.id,
-      versionIds: supporting,
+      versionIds: result.supportingVersionIds,
       evidenceIds,
     };
   };
