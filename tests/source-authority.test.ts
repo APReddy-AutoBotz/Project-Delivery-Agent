@@ -450,7 +450,7 @@ describe("FR-ADM-005 / FR-EVD-003/004/006/007/009/010/012: historical authority"
     expect(row(resolveSourceAuthority(input)).assessedValidUntil).toBe(time(4));
   });
   it("resolves until-superseded validity only for exact RAID opened_at fact identities", () => {
-    const input = snapshot([version(10, { validUntil: null })]);
+    const input = snapshot([version(10, { validUntil: time(6) })]);
     const openedAt = `raid_item.${id(88)}.opened_at`;
     input.scope.factType = openedAt;
     input.policy!.factType = openedAt;
@@ -470,6 +470,11 @@ describe("FR-ADM-005 / FR-EVD-003/004/006/007/009/010/012: historical authority"
     expect(row(resolveSourceAuthority(input)).assessment.freshness).toBe(
       "CURRENT",
     );
+    input.asOf = time(6);
+    let expiryResult = resolveSourceAuthority(input);
+    expect(expiryResult.status).toBe("UNKNOWN");
+    expect(row(expiryResult).assessment.freshness).toBe("STALE");
+    input.asOf = time(5);
 
     const prior = input.versions[0]!;
     const newer = version(11, {
