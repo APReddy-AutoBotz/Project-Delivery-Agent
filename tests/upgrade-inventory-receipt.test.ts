@@ -69,10 +69,12 @@ const added = [
   "HealthAssessmentRetentionPolicy",
   "HealthAssessment",
   "HealthAssessmentCommandReceipt",
+  "RaidReopenReceipt",
+  "BlockerAgeThresholdPolicy",
 ];
 const receipt = () => ({
   priorMigrationCount: 1,
-  businessTableCount: 66,
+  businessTableCount: 68,
   retainedPriorBusinessTables: [...old],
   retainedPriorRowCounts: Object.fromEntries(old.map((table) => [table, 1])),
   emptyAddedTablesAfterUpgrade: [...added],

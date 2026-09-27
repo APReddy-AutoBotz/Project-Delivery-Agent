@@ -460,6 +460,8 @@ export async function verifyFoundationUpgrade(
       "HealthAssessment",
       "HealthAssessmentCommandReceipt",
       "HealthAssessmentRetentionPolicy",
+      "RaidReopenReceipt",
+      "BlockerAgeThresholdPolicy",
     ];
     for (const table of addedTables)
       assert.equal(

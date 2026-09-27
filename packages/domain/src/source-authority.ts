@@ -428,6 +428,9 @@ function resolveSnapshot(input: unknown) {
   if (higherConflictIds.size)
     addConflict("HIGHER_AUTHORITY_CONTRADICTION", [...higherConflictIds]);
   conflicts.sort((a, b) => compare(JSON.stringify(a), JSON.stringify(b)));
+  const conflictingIds = new Set(
+    conflicts.flatMap((conflict) => conflict.versionIds),
+  );
   const revalidationRequired = rows.some((row) => !row.allowed);
   const ambiguous = selected.some(
     (row) => row.version.temporalApplicability === "AMBIGUOUS",
@@ -488,7 +491,9 @@ function resolveSnapshot(input: unknown) {
         authorityTier: row.tier,
         eligibilityReasons: row.reasons,
         assessedValidUntil: row.expiry,
-        assessment: row.assessment,
+        assessment: conflictingIds.has(row.version.id)
+          ? { ...row.assessment, conflict: "CONFLICTING" as const }
+          : row.assessment,
       };
     }),
   });

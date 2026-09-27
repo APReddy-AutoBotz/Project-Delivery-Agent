@@ -734,7 +734,7 @@ writeFileSync(
       prefixNineUpgrade,
       raidReopenTables: ["RaidReopenReceipt"],
       blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
-      businessTables: 66,
+      businessTables: 68,
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
