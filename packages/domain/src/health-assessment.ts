@@ -153,7 +153,7 @@ function scheduleSignal(
   snapshot: ScheduleHealthSnapshot,
   item: z.infer<typeof scheduleRecord>,
   recordType: "MILESTONE" | "WORK_ITEM",
-) {
+): DeliveryHealthSignalInput {
   const targetSource = source(recordType, item.id, null);
   const asOfDate = snapshot.assessedAt.slice(0, 10);
   const selectedDate = item.forecastEnd ?? item.plannedEnd;
