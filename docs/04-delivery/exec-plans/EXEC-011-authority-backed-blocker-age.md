@@ -1,6 +1,6 @@
 # EXEC-011: Authority-backed blocker-age assessment
 
-Status: Draft
+Status: Approved
 Owner: Implementation controller
 Requirement IDs: AC-HLT-003, FR-HLT-004/009/010/011, FR-EVD-001/002/003/006/007/009/010/012, FR-ADM-005/006, FR-MOD-006, FR-AUD-001/005/007, NFR-SEC-001/002, NFR-PRV-004, NFR-REL-001/003
 GitHub issue: #8 (EPIC-04, STORY-013..015)
@@ -152,7 +152,7 @@ The migration is additive; preserve all earlier migrations, facts, proposals and
 
 ## Progress log
 
-- 2026-09-27: Drafted after confirming PR #82 is evaluator-only and PR #85/86 leave runtime assessment schedule-only. Independent review of `67abadcc` found blocker/inventory, freshness and lock-order gaps; review of `d65c4ed` confirmed those fixes and identified audit retention plus reopen enforcement. The reviewer approved plan candidate `04ae26de94b564352c0fee3061a7817a33f4499e` for the design gate and left two nonblocking precision requests: prevent older-date reactivation after withdrawal and specify reopen idempotency. This revision incorporates both; exact-head review and plan validation remain pending. No application code changed.
+- 2026-09-27: Drafted after confirming PR #82 is evaluator-only and PR #85/86 leave runtime assessment schedule-only. Reviews of `67abadcc` and `d65c4ed` identified and drove fixes for blocker/inventory classification, freshness, lock order, audit retention and reopen enforcement. The independent reviewer approved plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` against base `93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7`, with no blocking findings; the approved Proposed design section SHA256 is `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`. The final governance-recording PR revision remains subject to exact-head review and hosted validation before merge. No application code or acceptance status changed.
 
 ## Decisions made
 
@@ -164,7 +164,7 @@ The migration is additive; preserve all earlier migrations, facts, proposals and
 - Serialize threshold policy read/write and absent-row creation with the same customer advisory-lock key. Assessment locks Project `FOR SHARE`, then grant rows `FOR SHARE ORDER BY id`, then the shared customer advisory lock, and takes one `asOf` only after canonical, fact, authority and source-access locks.
 - Keep blocker-age output separate from schedule RAG until approved severity semantics exist.
 
-These proposed implementation decisions follow the existing delegation and remain subject to independent exact-SHA design review before code changes.
+These design decisions were approved at exact plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` (Proposed design section SHA256 `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`). Implementation remains gated on this plan PR's required exact-head validations and merge, and a separately reviewed implementation candidate with its required checks.
 
 ## Risks and mitigations
 
@@ -178,8 +178,8 @@ These proposed implementation decisions follow the existing delegation and remai
 
 ## Validation evidence
 
-Pending independent design review of the exact candidate SHA, plan validation, and reviewer disposition. No implementation or AC-HLT-003 acceptance is claimed by this draft.
+Independent non-author review approved plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` against base `93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7`, with Proposed design section SHA256 `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`. The final governance-recording PR head must still pass its exact-head Foundation and Documentation validations before merge. Application code, AC-HLT-003 acceptance and story closure are not claimed.
 
 ## Completion summary
 
-Not complete. This plan is not yet approved; application-code work is gated on independent exact-SHA design review.
+The design gate is approved and complete. Implementation and AC-HLT-003 acceptance remain incomplete and require their own exact-candidate review and validation.

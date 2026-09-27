@@ -1,5 +1,13 @@
 # Decision Log
 
+## EXEC-011 source-authorized blocker-age design, 2026-09-27
+
+Approve the plan-only design in [EXEC-011](../04-delivery/exec-plans/EXEC-011-authority-backed-blocker-age.md), independently reviewed at Proposed design section SHA256 `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2` in candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` against base `93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7`. The exact fact identities and source authority rules, blocker inventory attestation, current-open-period date semantics, coverage states, lock order, customer-scoped threshold capability, finite captured audit retention, source-access rechecks and atomic reopen/date update are part of the approved boundary. Withdrawal cannot reactivate an older date, and reopen retries cannot append duplicate date versions.
+
+The reviewer found no blockers. Preserve project-first locking and serialize different-key reopen requests with a row lock or compare-and-set when implementing the command. Require the plan PR's exact-head validations and separate exact-candidate implementation review, integration, upgrade and recovery checks before merge.
+
+This decision approves design only. AC-HLT-003/STORY-013..015 acceptance remains open; Issue #8 remains open; accepted-story totals remain R0 3/5 and R1 2/33 (5/38 combined, 13.2%). No release or customer activation is approved.
+
 ## EXEC-009 Jira Cloud distribution and comment-data gates, 2026-09-26
 
 Current Atlassian guidance says apps that collect API tokens or instruct customers to create individual OAuth 2.0 3LO apps do not comply with its cloud app requirements; it recommends one distributable 3LO app. The configured OAuth redirect URI must exactly match the registered app callback. See [Atlassian 3LO app guidance](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/). The customer-hosted product architecture has no vendor-operated callback/control plane. This creates an unresolved app-distribution, callback reachability and client-secret delivery decision (OD-013). Do not add customer-specific app instructions, token collection, public OAuth callback, onboarding UI or live activation until an approved design resolves it.
