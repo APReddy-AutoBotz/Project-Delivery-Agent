@@ -538,7 +538,7 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 14);
+    assert.equal(upgrade.migrations.length, 15);
     assert(Number.isFinite(upgrade.upgradeMeasurement.elapsedMs));
     assert(upgrade.upgradeMeasurement.elapsedMs > 0);
     assert(
@@ -561,7 +561,7 @@ try {
       assert.equal(row.rolled_back_at, null);
       assert.equal(row.applied_steps_count, 1);
     }
-    assert.equal(upgrade.businessTableCount, 63);
+    assert.equal(upgrade.businessTableCount, 66);
     assert.deepEqual(
       Object.keys(upgrade.retainedPriorRowCounts).sort(),
       [...upgrade.retainedPriorBusinessTables].sort(),
@@ -629,6 +629,9 @@ try {
         "ConnectorWebhookReceipt",
         "ConnectorTaskReceipt",
         "IngestionSyncReceiptProjectScope",
+        "HealthAssessmentRetentionPolicy",
+        "HealthAssessment",
+        "HealthAssessmentCommandReceipt",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [

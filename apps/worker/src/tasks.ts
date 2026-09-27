@@ -22,9 +22,14 @@ export function createTasks(
   config?: WorkerConnectorConfig,
   fetchImpl: typeof fetch = fetch,
   signTaskRequest?: TaskSigner,
+  purgeHealthAssessments?: () => Promise<void>,
 ) {
   return {
     foundation_heartbeat: async () => heartbeat.recordHeartbeat(new Date()),
+    health_assessment_retention: async () => {
+      if (!purgeHealthAssessments) throw new Error("health_assessment_retention_unavailable");
+      await purgeHealthAssessments();
+    },
     connector_sync_dispatch: async () => {
       if (!config?.INTERNAL_API_URL || !config.connectorTaskKeys) return;
       if (!signTaskRequest) throw new Error("connector_dispatch_unavailable");

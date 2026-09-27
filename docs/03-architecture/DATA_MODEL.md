@@ -44,6 +44,11 @@ erDiagram
     PROJECT ||--o{ REPORT_RUN : included_in
     REPORT_RUN ||--o{ REPORT_ARTIFACT : generates
     CUSTOMER ||--o{ AUDIT_EVENT : records
+    CUSTOMER ||--o| HEALTH_ASSESSMENT_RETENTION_POLICY : configures
+    CUSTOMER ||--o{ HEALTH_ASSESSMENT : owns
+    PROJECT ||--o{ HEALTH_ASSESSMENT : assessed
+    CUSTOMER ||--o{ HEALTH_ASSESSMENT_COMMAND_RECEIPT : scopes
+    PROJECT ||--o{ HEALTH_ASSESSMENT_COMMAND_RECEIPT : scopes
 ```
 
 ## Core tables
@@ -292,3 +297,21 @@ Show all dimensions alongside that label. Only current, unconflicted,
 authority-permitted SYSTEM_VERIFIED or HUMAN_CONFIRMED claims may be presented as
 settled facts. Human confirmation establishes attribution; it does not override
 source authority. A stale, conflicting human statement retains all three states.
+
+## Stored deterministic schedule health assessment
+
+The incremental AC-HLT-004 implementation stores an immutable, project-scoped
+assessment containing the bounded evaluator input, result, rule revision,
+envelope hash and absolute content/audit expiry deadlines. The input reads only
+reported project status and sealed milestone/work-item schedule fields; source
+mappings, import proposals and connector payloads are excluded. The API labels
+the result `SCHEDULE_ONLY` and keeps reported and calculated RAG separate.
+
+`HealthAssessmentRetentionPolicy` stores independently configured content,
+audit and idempotency windows. `HealthAssessmentCommandReceipt` stores a
+hashed command key and survives assessment tombstone purge through its configured
+retry horizon. Only the worker role can execute the fixed-scope retention
+procedure; ordinary API access cannot update or delete assessment history.
+Assessment availability and expiry are rechecked against current project grants
+on every read. This increment does not establish source authority or accept
+AC-HLT-004.

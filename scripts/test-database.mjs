@@ -124,6 +124,9 @@ try {
     "ConnectorWebhookReceipt",
     "ConnectorTaskReceipt",
     "IngestionSyncReceiptProjectScope",
+    "HealthAssessmentRetentionPolicy",
+    "HealthAssessment",
+    "HealthAssessmentCommandReceipt",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -134,6 +137,53 @@ try {
       tables.some((row) => row.tablename === table),
       "Missing foundation table: " + table,
     );
+  const healthPrivileges = (
+    await migrated.$queryRaw`SELECT
+      has_table_privilege('pdaa_api','public."HealthAssessment"','SELECT') AS api_assessment_select,
+      has_table_privilege('pdaa_api','public."HealthAssessment"','INSERT') AS api_assessment_insert,
+      has_table_privilege('pdaa_api','public."HealthAssessment"','UPDATE') AS api_assessment_update,
+      has_table_privilege('pdaa_api','public."HealthAssessment"','DELETE') AS api_assessment_delete,
+      has_table_privilege('pdaa_api','public."HealthAssessmentCommandReceipt"','SELECT') AS api_receipt_select,
+      has_table_privilege('pdaa_api','public."HealthAssessmentCommandReceipt"','INSERT') AS api_receipt_insert,
+      has_table_privilege('pdaa_api','public."HealthAssessmentCommandReceipt"','UPDATE') AS api_receipt_update,
+      has_table_privilege('pdaa_api','public."HealthAssessmentCommandReceipt"','DELETE') AS api_receipt_delete,
+      has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','SELECT') AS api_policy_select,
+      has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','INSERT') AS api_policy_insert,
+      has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','UPDATE') AS api_policy_update,
+      has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','DELETE') AS api_policy_delete,
+      has_table_privilege('pdaa_worker','public."HealthAssessment"','SELECT') AS worker_assessment_select,
+      has_table_privilege('pdaa_worker','public."HealthAssessment"','INSERT') AS worker_assessment_insert,
+      has_table_privilege('pdaa_worker','public."HealthAssessment"','UPDATE') AS worker_assessment_update,
+      has_table_privilege('pdaa_worker','public."HealthAssessment"','DELETE') AS worker_assessment_delete,
+      has_table_privilege('pdaa_worker','public."HealthAssessmentCommandReceipt"','SELECT') AS worker_receipt_select,
+      has_table_privilege('pdaa_worker','public."HealthAssessmentCommandReceipt"','INSERT') AS worker_receipt_insert,
+      has_table_privilege('pdaa_worker','public."HealthAssessmentRetentionPolicy"','UPDATE') AS worker_policy_update,
+      has_function_privilege('pdaa_worker','public.purge_expired_health_assessments()','EXECUTE') AS worker_purge_execute,
+      has_function_privilege('pdaa_api','public.purge_expired_health_assessments()','EXECUTE') AS api_purge_execute`,
+  )[0];
+  assert.deepEqual(healthPrivileges, {
+    api_assessment_select: true,
+    api_assessment_insert: true,
+    api_assessment_update: false,
+    api_assessment_delete: false,
+    api_receipt_select: true,
+    api_receipt_insert: true,
+    api_receipt_update: false,
+    api_receipt_delete: false,
+    api_policy_select: true,
+    api_policy_insert: true,
+    api_policy_update: true,
+    api_policy_delete: false,
+    worker_assessment_select: false,
+    worker_assessment_insert: false,
+    worker_assessment_update: false,
+    worker_assessment_delete: false,
+    worker_receipt_select: false,
+    worker_receipt_insert: false,
+    worker_policy_update: false,
+    worker_purge_execute: true,
+    api_purge_execute: false,
+  });
   ledger =
     await migrated.$queryRaw`SELECT migration_name,checksum,finished_at,rolled_back_at,applied_steps_count FROM "_prisma_migrations" ORDER BY migration_name`;
   const names = readdirSync("packages/data/prisma/migrations", {
@@ -291,7 +341,7 @@ writeFileSync(
       ],
       ingestionPersistenceChecks: "passed",
       prefixNineUpgrade,
-      businessTables: 63,
+      businessTables: 66,
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
       migrations: ledger.map((row) => ({

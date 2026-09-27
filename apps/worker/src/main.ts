@@ -42,7 +42,7 @@ try {
     concurrency: 1,
     noHandleSignals: true,
     logger: new Logger(() => () => operationalLog("worker.event")),
-    crontab: "* * * * * foundation_heartbeat\n* * * * * connector_sync_dispatch",
+    crontab: "* * * * * foundation_heartbeat\n* * * * * connector_sync_dispatch\n0 * * * * health_assessment_retention",
     taskList: createTasks(
       {
         recordHeartbeat: async (at) => {
@@ -53,6 +53,10 @@ try {
       config,
       fetch,
       signConnectorTaskRequest,
+      async () => {
+        await db.$queryRawUnsafe("SELECT public.purge_expired_health_assessments()");
+        lastProgress = Date.now();
+      },
     ),
   });
   operationalLog("worker.started");

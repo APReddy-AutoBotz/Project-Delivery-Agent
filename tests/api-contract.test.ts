@@ -15,6 +15,7 @@ import {
   IdentityService,
 } from "../packages/platform/dist/index.js";
 import type {
+  HealthAssessmentRepository,
   IngestionRepository,
   Project,
   ProjectRepository,
@@ -235,6 +236,32 @@ const ingestionRepository: IngestionRepository = {
     ? ingestionReadReceipt("CSV_PREVIEW", ingestionPreviewId)
     : ingestionReadReceipt("CSV_REVIEWED_IMPORT", ingestionReviewId)),
 };
+const healthAssessmentView = {
+  assessmentId: "60000000-0000-4000-8000-000000000001",
+  projectId: project.id,
+  assessedAt: "2026-09-27T00:00:00.000Z",
+  coverage: "SCHEDULE_ONLY" as const,
+  ruleRevision: "schedule-health@1" as const,
+  envelopeHash: "a".repeat(64),
+  contentAvailable: true,
+  input: {},
+  result: {},
+  replayed: false,
+};
+const healthAssessmentRetentionView = {
+  contentRetentionHours: 24,
+  auditRetentionHours: 168,
+  idempotencyRetentionHours: 720,
+  revision: 1,
+  changedBy: "pmo-portfolio",
+  changedAt: "2026-09-27T00:00:00.000Z",
+};
+const healthAssessmentRepository: HealthAssessmentRepository = {
+  create: vi.fn(async () => healthAssessmentView),
+  latest: vi.fn(async () => null),
+  retention: vi.fn(async () => healthAssessmentRetentionView),
+  setRetention: vi.fn(async () => healthAssessmentRetentionView),
+};
 beforeAll(async () => {
   ({ app, spec } = await createApp(
     config,
@@ -247,6 +274,7 @@ beforeAll(async () => {
     scalarRepository,
     undefined,
     ingestionRepository,
+    healthAssessmentRepository,
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -327,6 +355,30 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     canonicalFixture(project.portfolioId),
   );
   await request("/api/projects/" + project.id + "/canonical", 200, manager);
+  await request(
+    "/api/projects/" + project.id + "/health-assessments/latest",
+    200,
+    manager,
+  );
+  await request(
+    "/api/projects/" + project.id + "/health-assessments",
+    201,
+    manager,
+    "POST",
+    { commandKey: "contract-assessment" },
+  );
+  await request("/api/admin/health-assessment-retention", 200, pmoPortfolio);
+  await request(
+    "/api/admin/health-assessment-retention",
+    200,
+    pmoPortfolio,
+    "POST",
+    {
+      contentRetentionHours: 24,
+      auditRetentionHours: 168,
+      idempotencyRetentionHours: 720,
+    },
+  );
   await request("/api/platform", 200, operator);
   await request("/api/audit", 200, operator);
   await request("/api/access-grants", 204, operator, "POST", grant);
@@ -417,7 +469,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(41);
+  expect(covered.size).toBe(45);
   assertContractSnapshot(
     spec,
     JSON.parse(
@@ -425,9 +477,32 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     ),
   );
 });
-it("NFR-SEC-001: source ingestion administration requires the PMO administrator role", async () => {
+it("NFR-SEC-001: administrator-only endpoints require the PMO administrator role", async () => {
   await request("/api/ingestion/sources", 401);
   await request("/api/ingestion/sources", 403, manager);
+  await request("/api/admin/health-assessment-retention", 403, manager);
+  await request(
+    "/api/admin/health-assessment-retention",
+    403,
+    manager,
+    "POST",
+    {
+      contentRetentionHours: 24,
+      auditRetentionHours: 168,
+      idempotencyRetentionHours: 720,
+    },
+  );
+  await request(
+    "/api/admin/health-assessment-retention",
+    400,
+    pmoPortfolio,
+    "POST",
+    {
+      contentRetentionHours: 48,
+      auditRetentionHours: 24,
+      idempotencyRetentionHours: 720,
+    },
+  );
 });
 it("FR-EVD-009: scalar commands cannot override URL scope, identity or routing", async () => {
   const prefix = "/api/projects/" + scalarScope.projectId;

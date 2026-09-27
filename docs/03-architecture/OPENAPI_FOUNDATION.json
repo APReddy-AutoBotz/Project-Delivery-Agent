@@ -29161,6 +29161,1305 @@
           "Spreadsheet ingestion"
         ]
       }
+    },
+    "/api/projects/{id}/health-assessments": {
+      "post": {
+        "operationId": "HealthAssessmentController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assessmentId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "projectId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "assessedAt": {
+                      "type": "string",
+                      "minLength": 24,
+                      "maxLength": 24
+                    },
+                    "coverage": {
+                      "type": "string",
+                      "enum": [
+                        "SCHEDULE_ONLY"
+                      ]
+                    },
+                    "ruleRevision": {
+                      "type": "string",
+                      "enum": [
+                        "schedule-health@1"
+                      ]
+                    },
+                    "envelopeHash": {
+                      "type": "string",
+                      "minLength": 64,
+                      "maxLength": 64,
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "contentAvailable": {
+                      "type": "boolean"
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {},
+                      "nullable": true
+                    },
+                    "result": {
+                      "type": "object",
+                      "additionalProperties": {},
+                      "nullable": true
+                    },
+                    "replayed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "assessmentId",
+                    "projectId",
+                    "assessedAt",
+                    "coverage",
+                    "ruleRevision",
+                    "envelopeHash",
+                    "contentAvailable",
+                    "input",
+                    "result",
+                    "replayed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        409
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Creation conflicts with an existing request or record"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Health assessments"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "commandKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  }
+                },
+                "required": [
+                  "commandKey"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/health-assessments/latest": {
+      "get": {
+        "operationId": "HealthAssessmentController_latest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assessmentId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "projectId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "assessedAt": {
+                      "type": "string",
+                      "minLength": 24,
+                      "maxLength": 24
+                    },
+                    "coverage": {
+                      "type": "string",
+                      "enum": [
+                        "SCHEDULE_ONLY"
+                      ]
+                    },
+                    "ruleRevision": {
+                      "type": "string",
+                      "enum": [
+                        "schedule-health@1"
+                      ]
+                    },
+                    "envelopeHash": {
+                      "type": "string",
+                      "minLength": 64,
+                      "maxLength": 64,
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "contentAvailable": {
+                      "type": "boolean"
+                    },
+                    "input": {
+                      "type": "object",
+                      "additionalProperties": {},
+                      "nullable": true
+                    },
+                    "result": {
+                      "type": "object",
+                      "additionalProperties": {},
+                      "nullable": true
+                    },
+                    "replayed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "assessmentId",
+                    "projectId",
+                    "assessedAt",
+                    "coverage",
+                    "ruleRevision",
+                    "envelopeHash",
+                    "contentAvailable",
+                    "input",
+                    "result",
+                    "replayed"
+                  ],
+                  "additionalProperties": false,
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Health assessments"
+        ]
+      }
+    },
+    "/api/admin/health-assessment-retention": {
+      "get": {
+        "operationId": "HealthAssessmentController_retention",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "contentRetentionHours": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 87600
+                        },
+                        "auditRetentionHours": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 87600
+                        },
+                        "idempotencyRetentionHours": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 87600
+                        },
+                        "revision": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "changedBy": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "changedAt": {
+                          "type": "string",
+                          "minLength": 24,
+                          "maxLength": 24
+                        }
+                      },
+                      "required": [
+                        "contentRetentionHours",
+                        "auditRetentionHours",
+                        "idempotencyRetentionHours",
+                        "revision",
+                        "changedBy",
+                        "changedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "string",
+                      "nullable": true,
+                      "enum": [
+                        null
+                      ]
+                    }
+                  ],
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Health assessments"
+        ]
+      },
+      "post": {
+        "operationId": "HealthAssessmentController_setRetention",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contentRetentionHours": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 87600
+                    },
+                    "auditRetentionHours": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 87600
+                    },
+                    "idempotencyRetentionHours": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 87600
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "changedBy": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "changedAt": {
+                      "type": "string",
+                      "minLength": 24,
+                      "maxLength": 24
+                    }
+                  },
+                  "required": [
+                    "contentRetentionHours",
+                    "auditRetentionHours",
+                    "idempotencyRetentionHours",
+                    "revision",
+                    "changedBy",
+                    "changedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Health assessments"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentRetentionHours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 87600
+                  },
+                  "auditRetentionHours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 87600
+                  },
+                  "idempotencyRetentionHours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 87600
+                  }
+                },
+                "required": [
+                  "contentRetentionHours",
+                  "auditRetentionHours",
+                  "idempotencyRetentionHours"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
     }
   },
   "info": {

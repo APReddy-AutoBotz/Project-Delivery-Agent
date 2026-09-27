@@ -45,6 +45,10 @@ import {
   ingestionSafeErrorSchema,
   ingestionRowOperationSchema,
   ingestionRowStateSchema,
+  healthAssessmentCommandSchema,
+  healthAssessmentRetentionPolicySchema,
+  healthAssessmentRetentionViewSchema,
+  healthAssessmentViewSchema,
 } from "@pdaa/domain";
 import {
   catalogueQuerySchema,
@@ -389,6 +393,30 @@ export const contracts: Record<string, RouteContract> = {
     response: canonicalProjectDetailSchema,
     parameters: { id: z.uuid() },
     errors: [404, 503],
+  },
+  "post /api/projects/{id}/health-assessments": {
+    status: 201,
+    request: healthAssessmentCommandSchema,
+    response: healthAssessmentViewSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 409, 503],
+  },
+  "get /api/projects/{id}/health-assessments/latest": {
+    status: 200,
+    response: healthAssessmentViewSchema.nullable(),
+    parameters: { id: z.uuid() },
+    errors: [404, 503],
+  },
+  "get /api/admin/health-assessment-retention": {
+    status: 200,
+    response: healthAssessmentRetentionViewSchema.nullable(),
+    errors: [403, 503],
+  },
+  "post /api/admin/health-assessment-retention": {
+    status: 200,
+    request: healthAssessmentRetentionPolicySchema,
+    response: healthAssessmentRetentionViewSchema,
+    errors: [403, 503],
   },
   "get /api/health/live": {
     status: 200,

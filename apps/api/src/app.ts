@@ -17,6 +17,11 @@ import {
   unavailableAuthorityRepository,
 } from "./evidence-controller.js";
 import {
+  HealthAssessmentController,
+  HEALTH_ASSESSMENT_REPOSITORY,
+  unavailableHealthAssessmentRepository,
+} from "./health-assessment-controller.js";
+import {
   CanonicalController,
   CANONICAL_REPOSITORY,
   unavailableCanonicalRepository,
@@ -71,6 +76,7 @@ import {
   type MilestoneReconciliationRepository,
   type ScalarReconciliationRepository,
   type IngestionRepository,
+  type HealthAssessmentRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
@@ -209,6 +215,7 @@ export async function createApp(
   scalarReconciliation: ScalarReconciliationRepository = unavailableScalarReconciliationRepository,
   preJsonBodyParser?: (app: NestExpressApplication) => void,
   ingestion: IngestionRepository = unavailableIngestionRepository,
+  healthAssessment: HealthAssessmentRepository = unavailableHealthAssessmentRepository,
 ) {
   @Module({
     controllers: [
@@ -218,6 +225,7 @@ export async function createApp(
       MilestoneController,
       ScalarReconciliationController,
       IngestionController,
+      HealthAssessmentController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -232,6 +240,7 @@ export async function createApp(
       },
       { provide: IdentityService, useValue: identity },
       { provide: INGESTION_REPOSITORY, useValue: ingestion },
+      { provide: HEALTH_ASSESSMENT_REPOSITORY, useValue: healthAssessment },
       IngestionIdentityGuard,
     ],
   })
