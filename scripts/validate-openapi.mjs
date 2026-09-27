@@ -3,10 +3,34 @@ import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import { isDeepStrictEqual } from "node:util";
 
+function firstDifference(actual, expected, path = "$") {
+  if (isDeepStrictEqual(actual, expected)) return null;
+  if (Array.isArray(actual) || Array.isArray(expected)) {
+    if (!Array.isArray(actual) || !Array.isArray(expected)) return path;
+    const length = Math.min(actual.length, expected.length);
+    for (let index = 0; index < length; index++) {
+      const difference = firstDifference(actual[index], expected[index], path + "[" + index + "]");
+      if (difference) return difference;
+    }
+    return actual.length === expected.length ? path : path + ".length";
+  }
+  if (actual && expected && typeof actual === "object" && typeof expected === "object") {
+    const keys = [...new Set([...Object.keys(actual), ...Object.keys(expected)])].sort();
+    for (const key of keys) {
+      if (!Object.hasOwn(actual, key) || !Object.hasOwn(expected, key))
+        return path + "[" + JSON.stringify(key) + "]";
+      const difference = firstDifference(actual[key], expected[key], path + "[" + JSON.stringify(key) + "]");
+      if (difference) return difference;
+    }
+  }
+  return path;
+}
 export function assertContractSnapshot(actual, committed) {
-  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(actual)), committed))
+  const normalized = JSON.parse(JSON.stringify(actual));
+  const difference = firstDifference(normalized, committed);
+  if (difference)
     throw new Error(
-      "OpenAPI export differs from runtime; regenerate and review the document",
+      "OpenAPI export differs from runtime at " + difference + "; regenerate and review the document",
     );
 }
 export function compileContract(document) {
