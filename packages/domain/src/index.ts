@@ -94,3 +94,4 @@ export * from "./ingestion-persistence.js";
 export * from "./ingestion-persistence-error.js";
 export * from "./overdue-signals.js";
 export * from "./freshness-signals.js";
+export * from "./completeness-signals.js";
