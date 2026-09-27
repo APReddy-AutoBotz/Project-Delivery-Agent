@@ -207,6 +207,29 @@ try {
     worker_purge_execute: true,
     api_purge_execute: false,
   });
+  const [raidReopenPrivileges] = await migrated.$queryRaw`SELECT
+      has_table_privilege('pdaa_api','public."RaidReopenReceipt"','SELECT') AS api_reopen_receipt_select,
+      has_table_privilege('pdaa_api','public."RaidReopenReceipt"','INSERT') AS api_reopen_receipt_insert,
+      has_table_privilege('pdaa_api','public."RaidReopenReceipt"','UPDATE') AS api_reopen_receipt_update,
+      has_table_privilege('pdaa_api','public."RaidReopenReceipt"','DELETE') AS api_reopen_receipt_delete,
+      has_table_privilege('pdaa_worker','public."RaidReopenReceipt"','SELECT') AS worker_reopen_receipt_select,
+      has_table_privilege('pdaa_worker','public."RaidReopenReceipt"','INSERT') AS worker_reopen_receipt_insert,
+      has_table_privilege('pdaa_worker','public."RaidReopenReceipt"','UPDATE') AS worker_reopen_receipt_update,
+      has_table_privilege('pdaa_worker','public."RaidReopenReceipt"','DELETE') AS worker_reopen_receipt_delete,
+      has_function_privilege('pdaa_api','public.reopen_canonical_raid_item(uuid,uuid,uuid,text,jsonb,text,text,integer,date,timestamptz,text,text,text,text,text)','EXECUTE') AS api_reopen_execute,
+      has_function_privilege('pdaa_worker','public.reopen_canonical_raid_item(uuid,uuid,uuid,text,jsonb,text,text,integer,date,timestamptz,text,text,text,text,text)','EXECUTE') AS worker_reopen_execute`;
+  assert.deepEqual(raidReopenPrivileges, {
+    api_reopen_receipt_select: false,
+    api_reopen_receipt_insert: false,
+    api_reopen_receipt_update: false,
+    api_reopen_receipt_delete: false,
+    worker_reopen_receipt_select: false,
+    worker_reopen_receipt_insert: false,
+    worker_reopen_receipt_update: false,
+    worker_reopen_receipt_delete: false,
+    api_reopen_execute: true,
+    worker_reopen_execute: false,
+  });
   ledger =
     await migrated.$queryRaw`SELECT migration_name,checksum,finished_at,rolled_back_at,applied_steps_count FROM "_prisma_migrations" ORDER BY migration_name`;
   const names = readdirSync("packages/data/prisma/migrations", {
