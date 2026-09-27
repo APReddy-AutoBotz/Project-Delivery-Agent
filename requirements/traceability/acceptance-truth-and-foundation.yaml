@@ -175,6 +175,7 @@ acceptance_criteria:
   - FR-MOD-006
   priority: P0
   tests:
+  - UNIT-HLT-004
   - E2E-HLT-004
   - GOLDEN-002
 - id: AC-HLT-005
