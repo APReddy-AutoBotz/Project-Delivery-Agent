@@ -551,7 +551,8 @@ export async function buildBlockerAgeAssessmentInTransaction(
     thresholdRevision: threshold!.revision,
     minimumBlockerAgeDays: threshold!.minimumBlockerAgeDays,
     coverage,
-    noOpenBlockers: coverage === "COMPLETE" && assessedBlockerCount === 0,
+    noOpenBlockers:
+      coverage === "COMPLETE" ? assessedBlockerCount === 0 : null,
     candidateCount: raids.length,
     assessedBlockerCount,
     unknownCandidateCount,
