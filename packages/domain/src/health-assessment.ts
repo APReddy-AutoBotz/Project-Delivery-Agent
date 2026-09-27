@@ -89,7 +89,7 @@ export const healthAssessmentRetentionViewSchema = z.strictObject({
   contentRetentionHours: hours,
   auditRetentionHours: hours,
   idempotencyRetentionHours: hours,
-  revision: z.number().int().min(1),
+  revision: z.number().int().min(1).max(2147483647),
   changedBy: z.string().min(1).max(256),
   changedAt: instant,
 });
