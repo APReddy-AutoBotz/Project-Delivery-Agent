@@ -30,7 +30,7 @@ const projectSource = {
   revision: 1,
 } as const;
 const reportedFact = (status: "GREEN" | "AMBER" | "RED" | "UNKNOWN") => ({
-  factType: "project.reportedStatus",
+  factType: "project.reported_status",
   field: "reportedStatus",
   value: status,
   source: projectSource,
@@ -83,7 +83,7 @@ const signal = (
         milestoneId,
       ),
       canonicalFact(
-        "milestone.forecastEnd",
+        "milestone.forecast_end",
         "forecastEnd",
         "2026-08-01",
         "MILESTONE",
@@ -138,7 +138,7 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
           3,
         ),
         canonicalFact(
-          "blocker.createdAt",
+          "blocker.created_at",
           "createdAt",
           "2026-09-10",
           "RAID_ITEM",
@@ -169,7 +169,7 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
       },
       sourceFacts: [
         canonicalFact(
-          "project.latestUpdateAt",
+          "project.latest_update_at",
           "latestUpdateAt",
           "2026-08-01T12:00:00.000Z",
           "PROJECT",
@@ -292,7 +292,7 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
             state: "UNASSESSABLE",
             sourceFacts: [
               canonicalFact(
-                "blocker.openedAt",
+                "blocker.opened_at",
                 "openedAt",
                 null,
                 "RAID_ITEM",
@@ -328,7 +328,7 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
             state: "UNASSESSABLE",
             sourceFacts: [
               canonicalFact(
-                "blocker.openedAt",
+                "blocker.opened_at",
                 "openedAt",
                 null,
                 "RAID_ITEM",

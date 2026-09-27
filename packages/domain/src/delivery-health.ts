@@ -225,7 +225,7 @@ function validateRequest(request: z.infer<typeof requestSchema>) {
   }
   const reported = request.reportedStatusFact;
   if (
-    reported.factType !== "project.reportedStatus" ||
+    reported.factType !== "project.reported_status" ||
     reported.field !== "reportedStatus" ||
     reported.value !== request.reportedStatus ||
     reported.source.kind !== "canonical_record" ||
