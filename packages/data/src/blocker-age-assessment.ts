@@ -214,7 +214,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
         factIds,
       )
     : [];
-  const policyLocks = await tx.$queryRawUnsafe<{ id: string }[]>(
+  await tx.$queryRawUnsafe<{ id: string }[]>(
     'SELECT id FROM public."AuthorityPolicy" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factType"=ANY($3::text[]) ORDER BY "factType",id FOR SHARE',
     actor.customerId,
     projectId,
