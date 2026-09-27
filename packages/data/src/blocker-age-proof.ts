@@ -5,7 +5,7 @@ type Resolution = {
     tiers: {
       selectors: {
         validity:
-          | { mode?: string }
+          | { mode: string }
           | { basis: string; durationMs: number }
           | null;
       }[];
@@ -27,12 +27,19 @@ export function hasTrustedBlockerAgeEvidence(
   requireOpenedPeriod: boolean,
 ) {
   const selectors = result.policy?.tiers.flatMap((tier) => tier.selectors) ?? [];
-  const usesUntilSuperseded = selectors.some(
-    (selector) =>
-      selector.validity !== null &&
-      typeof selector.validity === "object" &&
-      "mode" in selector.validity,
-  );
+  const allFiniteValidity =
+    selectors.length > 0 &&
+    selectors.every((selector) => {
+      const validity = selector.validity;
+      return (
+        validity !== null &&
+        typeof validity === "object" &&
+        "basis" in validity &&
+        (validity.basis === "effectiveAt" || validity.basis === "observedAt") &&
+        Number.isSafeInteger(validity.durationMs) &&
+        validity.durationMs > 0
+      );
+    });
   const allUntilSuperseded =
     selectors.length > 0 &&
     selectors.every(
@@ -44,7 +51,7 @@ export function hasTrustedBlockerAgeEvidence(
     );
   const validityAllowed = requireOpenedPeriod
     ? isBlockerOpenedAtFactType(factType) && allUntilSuperseded
-    : !usesUntilSuperseded;
+    : allFiniteValidity;
   if (!validityAllowed) return false;
 
   const supporting = result.supportingVersionIds;

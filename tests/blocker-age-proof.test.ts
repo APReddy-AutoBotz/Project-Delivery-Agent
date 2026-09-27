@@ -6,7 +6,10 @@ type Evidence = Parameters<typeof hasTrustedBlockerAgeEvidence>[0];
 function resolution(
   sourceType: string,
   provenance: string,
-  validity: { mode: "UNTIL_SUPERSEDED" } | { basis: "observedAt"; durationMs: number },
+  validity:
+    | { mode: "UNTIL_SUPERSEDED" }
+    | { basis: "observedAt"; durationMs: number }
+    | null,
   freshness = "CURRENT",
   visibility = "available",
 ): Evidence {
@@ -56,6 +59,33 @@ it("requires current human-confirmed facts for blocker classification and invent
     hasTrustedBlockerAgeEvidence(
       resolution("human_statement", "HUMAN_CONFIRMED", {
         mode: "UNTIL_SUPERSEDED",
+      }),
+      factType,
+      false,
+    ),
+  ).toBe(false);
+  expect(
+    hasTrustedBlockerAgeEvidence(
+      resolution("human_statement", "HUMAN_CONFIRMED", null),
+      factType,
+      false,
+    ),
+  ).toBe(false);
+  expect(
+    hasTrustedBlockerAgeEvidence(
+      resolution("human_statement", "HUMAN_CONFIRMED", {
+        basis: "observedAt",
+        durationMs: 0,
+      }),
+      factType,
+      false,
+    ),
+  ).toBe(false);
+  expect(
+    hasTrustedBlockerAgeEvidence(
+      resolution("human_statement", "HUMAN_CONFIRMED", {
+        basis: "observedAt",
+        durationMs: Number.POSITIVE_INFINITY,
       }),
       factType,
       false,
