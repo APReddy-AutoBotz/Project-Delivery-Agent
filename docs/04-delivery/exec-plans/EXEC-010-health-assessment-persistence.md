@@ -110,6 +110,7 @@ Migration is additive; prior migrations and rows remain unchanged. Disable asses
 - 2026-09-27: Review identified retention-change audit rows that were not expiring and missing database behavior checks. The migration now expires each policy-change event under the audit window captured in that revision, clears the optional current-event pointer first, and the isolated database script exercises redaction, event/tombstone/receipt expiry, replay and repeat sweeps. Exact-head hosted validation remains pending.
 - 2026-09-27: The follow-up candidate also fixes nullable JSON response serialization, preserves health API privileges when shared grants are rebuilt, includes the three health tables and ACL checks in prefix-nine upgrade rehearsal, and checks assessment/receipt immutability during recovery. New hosted validation and exact-head review remain pending.
 - 2026-09-27: Foundation #306 passed static checks and unit tests, then exposed that a plain clean synthetic migration may run before service roles are provisioned. The candidate now conditionally applies the finite API/worker ACLs when those roles exist, while always revoking PUBLIC access. Fresh exact-head validation remains pending.
+- 2026-09-27: Foundation #307 passed its build, static checks and all 1,564 unit tests; clean migration/seed succeeded. The isolated DB integration then exposed an assertion comparing Prisma's one-row result array to an object. The assertion now extracts the returned row before checking the finite ACL.
 
 ## Decisions made
 

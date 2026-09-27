@@ -140,7 +140,7 @@ try {
       tables.some((row) => row.tablename === table),
       "Missing foundation table: " + table,
     );
-  const healthPrivileges = await migrated.$queryRaw`SELECT
+  const [healthPrivileges] = await migrated.$queryRaw`SELECT
       has_table_privilege('pdaa_api','public."HealthAssessment"','SELECT') AS api_assessment_select,
       has_table_privilege('pdaa_api','public."HealthAssessment"','INSERT') AS api_assessment_insert,
       has_table_privilege('pdaa_api','public."HealthAssessment"','UPDATE') AS api_assessment_update,
