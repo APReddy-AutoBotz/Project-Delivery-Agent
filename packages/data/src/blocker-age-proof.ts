@@ -5,7 +5,7 @@ type Resolution = {
     tiers: {
       selectors: {
         validity:
-          | { mode: string }
+          | { mode?: string }
           | { basis: string; durationMs: number }
           | null;
       }[];
