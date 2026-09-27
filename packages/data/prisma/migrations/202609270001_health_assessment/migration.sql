@@ -209,12 +209,29 @@ BEGIN
 
   RETURN QUERY SELECT redacted,purged_assessments,purged_receipts;
 END $$;
-REVOKE ALL ON FUNCTION public.purge_expired_health_assessments() FROM PUBLIC,pdaa_api;
-GRANT EXECUTE ON FUNCTION public.purge_expired_health_assessments() TO pdaa_worker;
+REVOKE ALL ON FUNCTION public.purge_expired_health_assessments() FROM PUBLIC;
+REVOKE ALL ON TABLE public."HealthAssessment" FROM PUBLIC;
+REVOKE ALL ON TABLE public."HealthAssessmentCommandReceipt" FROM PUBLIC;
+REVOKE ALL ON TABLE public."HealthAssessmentRetentionPolicy" FROM PUBLIC;
 
-REVOKE ALL ON TABLE public."HealthAssessment" FROM PUBLIC,pdaa_worker,pdaa_api;
-REVOKE ALL ON TABLE public."HealthAssessmentCommandReceipt" FROM PUBLIC,pdaa_worker,pdaa_api;
-REVOKE ALL ON TABLE public."HealthAssessmentRetentionPolicy" FROM PUBLIC,pdaa_worker,pdaa_api;
-GRANT SELECT,INSERT ON TABLE public."HealthAssessment" TO pdaa_api;
-GRANT SELECT,INSERT ON TABLE public."HealthAssessmentCommandReceipt" TO pdaa_api;
-GRANT SELECT,INSERT,UPDATE ON TABLE public."HealthAssessmentRetentionPolicy" TO pdaa_api;
+-- Plain synthetic migrations may run before the named service roles are provisioned.
+-- Provisioned releases create these roles and receive the finite ACL below.
+DO $health_acl$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='pdaa_api') THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.purge_expired_health_assessments() FROM pdaa_api';
+    EXECUTE 'REVOKE ALL ON TABLE public."HealthAssessment" FROM pdaa_api';
+    EXECUTE 'REVOKE ALL ON TABLE public."HealthAssessmentCommandReceipt" FROM pdaa_api';
+    EXECUTE 'REVOKE ALL ON TABLE public."HealthAssessmentRetentionPolicy" FROM pdaa_api';
+    EXECUTE 'GRANT SELECT,INSERT ON TABLE public."HealthAssessment" TO pdaa_api';
+    EXECUTE 'GRANT SELECT,INSERT ON TABLE public."HealthAssessmentCommandReceipt" TO pdaa_api';
+    EXECUTE 'GRANT SELECT,INSERT,UPDATE ON TABLE public."HealthAssessmentRetentionPolicy" TO pdaa_api';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='pdaa_worker') THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.purge_expired_health_assessments() FROM pdaa_worker';
+    EXECUTE 'REVOKE ALL ON TABLE public."HealthAssessment" FROM pdaa_worker';
+    EXECUTE 'REVOKE ALL ON TABLE public."HealthAssessmentCommandReceipt" FROM pdaa_worker';
+    EXECUTE 'REVOKE ALL ON TABLE public."HealthAssessmentRetentionPolicy" FROM pdaa_worker';
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.purge_expired_health_assessments() TO pdaa_worker';
+  END IF;
+END $health_acl$;
