@@ -324,23 +324,29 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
     );
 
     const overdueWorkItemId = randomUUID();
-    await db.$executeRawUnsafe(
-      'INSERT INTO public."CanonicalProject" (id,"customerId","portfolioId","createdBy",sealed,"responsibilitiesCount","sprintsCount","milestonesCount","workItemsCount","requiredWorkItemsCount","raidItemsCount","sourceMappingsCount") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,true,0,0,0,1,0,0,0)',
-      projectId,
-      customerId,
-      portfolioId,
-      "health-retention-fixture",
-    );
-    await db.$executeRawUnsafe(
-      'INSERT INTO public."WorkItem" (id,"customerId","projectId",key,title,state,"plannedEnd") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7)',
-      overdueWorkItemId,
-      customerId,
-      projectId,
-      "HLT-WI-OVERDUE",
-      "Synthetic overdue work item",
-      "OPEN",
-      new Date("2000-01-01T00:00:00.000Z"),
-    );
+    await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."CanonicalProject" (id,"customerId","portfolioId","createdBy","responsibilitiesCount","sprintsCount","milestonesCount","workItemsCount","requiredWorkItemsCount","raidItemsCount","sourceMappingsCount") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,0,0,0,1,0,0,0)',
+        projectId,
+        customerId,
+        portfolioId,
+        "health-retention-fixture",
+      );
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."WorkItem" (id,"customerId","projectId",key,title,state,"plannedEnd") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7)',
+        overdueWorkItemId,
+        customerId,
+        projectId,
+        "HLT-WI-OVERDUE",
+        "Synthetic overdue work item",
+        "OPEN",
+        new Date("2000-01-01T00:00:00.000Z"),
+      );
+      await tx.$executeRawUnsafe(
+        'UPDATE public."CanonicalProject" SET sealed=true WHERE id=$1::uuid',
+        projectId,
+      );
+    });
     const firstAssessmentKey = "first-write-race";
     const [firstWrite, concurrentReplay] = await Promise.all([
       repository.create(actor, projectId, firstAssessmentKey, randomUUID()),
@@ -355,7 +361,7 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
     assert.equal(firstWrite.contentAvailable, true);
     assert.equal(firstWrite.result.calculated.status, "RED");
     const storedFirstWrite = await db.$queryRawUnsafe(
-      'SELECT h.id AS "assessmentId",h.input,h.result,h."envelopeHash",e.event,e.detail FROM public."HealthAssessment" h JOIN public."AuditEvent" e ON e."customerId"=h."customerId" AND e.event=\'health.assessment.created\' AND e.detail->>\'healthAssessmentId\'=h.id WHERE h.id=$1::uuid',
+      'SELECT h.id AS "assessmentId",h.input,h.result,h."envelopeHash",e.event,e.detail FROM public."HealthAssessment" h JOIN public."AuditEvent" e ON e."customerId"=h."customerId" AND e.event=\'health.assessment.created\' AND e.detail->>\'healthAssessmentId\'=h.id::text WHERE h.id=$1::uuid',
       firstWrite.assessmentId,
     );
     assert.equal(storedFirstWrite.length, 1);
