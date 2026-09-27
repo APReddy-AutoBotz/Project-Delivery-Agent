@@ -205,6 +205,22 @@ it("composes current RAID authority into partial and complete frozen assessments
   const firstClassification = "raid_item." + first.id + ".blocks_delivery";
   const firstOpenedAt = "raid_item." + first.id + ".opened_at";
   const secondClassification = "raid_item." + second.id + ".blocks_delivery";
+  const acceptedOpenedRule = await db.$queryRawUnsafe<{ valid: boolean }[]>(
+    "SELECT public.valid_authority_sources($1::uuid,$2::uuid,$3::varchar,$4::jsonb) AS valid",
+    customerId,
+    projectId,
+    firstOpenedAt,
+    JSON.stringify(openedAtDefinition),
+  );
+  const rejectedNonOpenedRule = await db.$queryRawUnsafe<{ valid: boolean }[]>(
+    "SELECT public.valid_authority_sources($1::uuid,$2::uuid,$3::varchar,$4::jsonb) AS valid",
+    customerId,
+    projectId,
+    "project.open_blocker_inventory_complete",
+    JSON.stringify(openedAtDefinition),
+  );
+  expect(acceptedOpenedRule[0]?.valid).toBe(true);
+  expect(rejectedNonOpenedRule[0]?.valid).toBe(false);
   await configure(firstClassification, currentDefinition);
   const firstFact = await append(firstClassification, {
     type: "boolean",

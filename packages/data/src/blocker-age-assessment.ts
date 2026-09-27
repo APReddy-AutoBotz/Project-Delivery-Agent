@@ -1,11 +1,11 @@
 import {
   evaluateBlockerAgeSignals,
   blockerAgeThresholdPolicyViewSchema,
-  isBlockerOpenedAtFactType,
   type Actor,
 } from "@pdaa/domain";
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
 import { DatabaseAuthorityRepository } from "./authority-persistence.js";
+import { hasTrustedBlockerAgeEvidence } from "./blocker-age-proof.js";
 
 type Tx = Prisma.TransactionClient;
 type Raid = { id: string; key: string; kind: string; state: string };
@@ -38,6 +38,7 @@ type Resolution = {
     assessment?: { freshness?: string };
   }[];
 };
+
 const unique = (values: string[]) => [...new Set(values)].sort();
 const valueReason = (value: unknown) =>
   value && typeof value === "object" && "status" in value
@@ -350,34 +351,8 @@ export async function buildBlockerAgeAssessmentInTransaction(
         versionIds: [],
         evidenceIds: [],
       };
-    const supporting = result.supportingVersionIds;
-    const untilSuperseded =
-      result.policy !== null &&
-      result.policy !== undefined &&
-      result.policy.tiers.every((tier) =>
-        tier.selectors.every(
-          (selector) =>
-            selector.validity !== null &&
-            typeof selector.validity === "object" &&
-            "mode" in selector.validity &&
-            selector.validity.mode === "UNTIL_SUPERSEDED",
-        ),
-      );
-    const selectedRows = result.versions.filter((version) =>
-      supporting.includes(version.id),
-    );
     if (
-      supporting.length === 0 ||
-      selectedRows.length !== supporting.length ||
-      selectedRows.some(
-        (version) =>
-          version.visibility !== "available" ||
-          version.assessment?.freshness !== "CURRENT" ||
-          (requireOpenedPeriod &&
-            (!isBlockerOpenedAtFactType(factType) ||
-              !untilSuperseded ||
-              version.provenance !== "HUMAN_CONFIRMED")),
-      )
+      !hasTrustedBlockerAgeEvidence(result, factType, requireOpenedPeriod)
     )
       return {
         status: "UNKNOWN" as const,
