@@ -1410,12 +1410,18 @@ tests:
   - .github/workflows/foundation-validation.yml
 - id: UNIT-HLT-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-HLT-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: Blocker age is calculated from source dates and the applied threshold is visible.
-  evidence: []
+  behavior: >-
+    Calculates calendar-day age for each open blocker from its source date
+    and exposes that date, the applied threshold and rule revision. Missing
+    source dates remain unassessable; closed blockers are excluded.
+  evidence:
+  - packages/domain/src/blocker-age-signals.ts
+  - tests/blocker-age-signals.test.ts
+  - .github/workflows/foundation-validation.yml
 - id: UNIT-HLT-006
   release: R1
   status: planned
