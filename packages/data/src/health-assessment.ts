@@ -123,7 +123,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
     const project = rows[0];
     if (!project) throw new HealthAssessmentError("DENIED");
     const grants = await tx.$queryRawUnsafe<{ role: string }[]>(
-      'SELECT role FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND ((\"scopeType\"=\'portfolio\' AND \"scopeId\"=$3::uuid) OR (\"scopeType\"=\'project\' AND \"scopeId\"=$4::uuid)) ORDER BY id FOR SHARE',
+      'SELECT role FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND (("scopeType"=\'portfolio\' AND "scopeId"=$3::uuid) OR ("scopeType"=\'project\' AND "scopeId"=$4::uuid)) ORDER BY id FOR SHARE',
       current.customerId, current.subject, project.portfolioId, id,
     );
     if (!grants.some((grant) => readers.includes(grant.role) && current.roles.includes(grant.role as Actor["roles"][number])))

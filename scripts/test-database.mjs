@@ -137,8 +137,7 @@ try {
       tables.some((row) => row.tablename === table),
       "Missing foundation table: " + table,
     );
-  const healthPrivileges = (
-    await migrated.$queryRaw`SELECT
+  const healthPrivileges = await migrated.$queryRaw`SELECT
       has_table_privilege('pdaa_api','public."HealthAssessment"','SELECT') AS api_assessment_select,
       has_table_privilege('pdaa_api','public."HealthAssessment"','INSERT') AS api_assessment_insert,
       has_table_privilege('pdaa_api','public."HealthAssessment"','UPDATE') AS api_assessment_update,
@@ -159,8 +158,7 @@ try {
       has_table_privilege('pdaa_worker','public."HealthAssessmentCommandReceipt"','INSERT') AS worker_receipt_insert,
       has_table_privilege('pdaa_worker','public."HealthAssessmentRetentionPolicy"','UPDATE') AS worker_policy_update,
       has_function_privilege('pdaa_worker','public.purge_expired_health_assessments()','EXECUTE') AS worker_purge_execute,
-      has_function_privilege('pdaa_api','public.purge_expired_health_assessments()','EXECUTE') AS api_purge_execute`,
-  )[0];
+      has_function_privilege('pdaa_api','public.purge_expired_health_assessments()','EXECUTE') AS api_purge_execute`;
   assert.deepEqual(healthPrivileges, {
     api_assessment_select: true,
     api_assessment_insert: true,
