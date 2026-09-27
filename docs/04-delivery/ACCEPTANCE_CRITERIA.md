@@ -19,7 +19,7 @@ Canonical definitions are in `requirements/traceability.yaml`. These criteria an
 | AC-HLT-001 | A project whose required update is older than policy is shown as stale and creates the configured obligation. | P0 | FR-HLT-001, FR-UPD-001 | UNIT-HLT-001, E2E-UPD-001 |
 | AC-HLT-002 | The completeness check lists the exact required facts that are missing or unconfirmed. | P0 | FR-HLT-002 | UNIT-HLT-002 |
 | AC-HLT-003 | Blocker age is calculated from source dates and the applied threshold is visible. | P0 | FR-HLT-004, FR-HLT-009, FR-HLT-011 | UNIT-HLT-003 |
-| AC-HLT-004 | Reported GREEN and independently calculated RED are stored and displayed separately with reproducible input facts, rule revision and rationale. | P0 | FR-HLT-007, FR-HLT-008, FR-MOD-006 | E2E-HLT-004, GOLDEN-002 |
+| AC-HLT-004 | Reported GREEN and independently calculated RED are stored and displayed separately with reproducible input facts, rule revision and rationale. | P0 | FR-HLT-007, FR-HLT-008, FR-MOD-006 | UNIT-HLT-004, E2E-HLT-004, GOLDEN-002 |
 | AC-HLT-005 | A completed milestone with mandatory open linked issues creates a contradiction signal and a PM reconciliation action. | P0 | FR-HLT-008, FR-HLT-009 | INT-HLT-005, GOLDEN-003 |
 | AC-HLT-006 | The health result is reproducible with the AI provider disabled. | P0 | FR-HLT-011, NFR-REL-003 | UNIT-HLT-006 |
 | AC-FND-001 | The pnpm TypeScript workspace builds web, NestJS API and worker applications; domain package boundaries have no cycles or external SDK leakage, and API routes publish a generated, runtime-validated OpenAPI contract. | P0 | TR-STACK-001, TR-STACK-002, TR-STACK-003, NFR-MNT-001, NFR-MNT-002, TR-API-001 | CI-FND-001 |
