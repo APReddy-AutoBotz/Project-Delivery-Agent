@@ -760,11 +760,13 @@ try {
         "milestone-reconciliation-workflow-fixture",
       ).receipt,
       canonicalTables,
+      raidReopenTables: ["RaidReopenReceipt"],
+      blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 66,
-      migrationCount: 15,
+      businessTableCount: 68,
+      migrationCount: 18,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({

@@ -29610,6 +29610,14 @@
                     },
                     "replayed": {
                       "type": "boolean"
+                    },
+                    "blockerAgeCoverage": {
+                      "type": "string",
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL",
+                        "UNASSESSABLE"
+                      ]
                     }
                   },
                   "required": [
@@ -29994,6 +30002,14 @@
                     },
                     "replayed": {
                       "type": "boolean"
+                    },
+                    "blockerAgeCoverage": {
+                      "type": "string",
+                      "enum": [
+                        "COMPLETE",
+                        "PARTIAL",
+                        "UNASSESSABLE"
+                      ]
                     }
                   },
                   "required": [
