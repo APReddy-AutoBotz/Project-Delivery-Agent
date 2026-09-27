@@ -70,7 +70,9 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 15);
+  assert.equal(migrations.length, 17);
+  assert.equal(migrations[15].name, "202609280001_atomic_raid_reopen");
+  assert.equal(migrations[16].name, "202609280002_blocker_age_threshold");
   assert.equal(migrations[14].name, "202609270001_health_assessment");
   assert.equal(
     migrations[9].name,

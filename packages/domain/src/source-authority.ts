@@ -302,10 +302,14 @@ function resolveSnapshot(input: unknown) {
       "mode" in selectorValidity
         ? "UNTIL_SUPERSEDED"
         : undefined;
+    const supersededEventDate =
+      selectorValidity !== null &&
+      "mode" in selectorValidity &&
+      version.temporalApplicability === "SUPERSEDED";
     const assessment = assessFact(
       {
         provenance: version.provenance,
-        validUntil: known ? expiry : null,
+        validUntil: known && !supersededEventDate ? expiry : null,
         validityMode,
         conflicting: version.unresolvedConflictIds.length > 0,
       },
@@ -487,19 +491,7 @@ function resolveSnapshot(input: unknown) {
         authorityTier: row.tier,
         eligibilityReasons: row.reasons,
         assessedValidUntil: row.expiry,
-        assessment: assessFact(
-          {
-            provenance: row.version.provenance,
-            validUntil:
-              row.version.temporalApplicability === "NOT_YET_OBSERVED" ||
-              row.version.temporalApplicability === "NOT_YET_EFFECTIVE"
-                ? null
-                : row.expiry,
-            validityMode: row.validityMode,
-            conflicting: conflictingIds.has(row.version.id),
-          },
-          new Date(asOf),
-        ),
+        assessment: row.assessment,
       };
     }),
   });
