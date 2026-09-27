@@ -295,7 +295,7 @@ function resolveSnapshot(input: unknown) {
     const known =
       version.temporalApplicability !== "NOT_YET_OBSERVED" &&
       version.temporalApplicability !== "NOT_YET_EFFECTIVE";
-    const validityMode =
+    const validityMode: "UNTIL_SUPERSEDED" | undefined =
       known &&
       version.temporalApplicability === "APPLICABLE" &&
       selectorValidity !== null &&
