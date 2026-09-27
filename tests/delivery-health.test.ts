@@ -7,9 +7,10 @@ import {
 
 const projectId = "10000000-0000-4000-8000-000000000001";
 const milestoneId = "20000000-0000-4000-8000-000000000001";
+const milestone2Id = "20000000-0000-4000-8000-000000000002";
 const blockerId = "30000000-0000-4000-8000-000000000001";
 const blocker2Id = "30000000-0000-4000-8000-000000000002";
-const calculationRule = {
+const calculationRule: DeliveryHealthAssessmentInput["calculationRule"] = {
   key: "DELIVERY-HEALTH-RAG",
   revision: "rag-v1",
   severityBands: {
@@ -17,7 +18,7 @@ const calculationRule = {
     amber: ["HIGH", "MEDIUM"],
     green: ["LOW"],
   },
-} as const;
+};
 const contradictionRule = {
   key: "REPORTED-VS-CALCULATED",
   revision: "contradiction-v1",
@@ -53,62 +54,60 @@ const canonicalFact = (
 });
 const signal = (
   overrides: Partial<DeliveryHealthSignalInput> = {},
-): DeliveryHealthSignalInput => ({
-  signalId: "OVERDUE-MILESTONE-1",
-  kind: "OVERDUE_MILESTONE",
-  targetType: "MILESTONE",
-  targetKey: "MS-1",
-  targetSource: {
-    kind: "canonical_record",
-    recordType: "MILESTONE",
-    recordId: milestoneId,
-    revision: 1,
-  },
-  state: "ACTIVE",
-  severity: "CRITICAL",
-  rule: {
-    key: "MILESTONE-OVERDUE",
-    revision: "milestone-v2",
-    parameters: [{ name: "minimumOverdueDays", value: 1 }],
-  },
-  sourceFacts: [
-    canonicalFact(
-      "milestone.state",
-      "state",
-      "OPEN",
-      "MILESTONE",
-      milestoneId,
-    ),
-    canonicalFact(
-      "milestone.forecastEnd",
-      "forecastEnd",
-      "2026-08-01",
-      "MILESTONE",
-      milestoneId,
-    ),
-  ],
-  ...overrides,
-});
+): DeliveryHealthSignalInput =>
+  ({
+    signalId: "OVERDUE-MILESTONE-1",
+    kind: "OVERDUE_MILESTONE",
+    targetType: "MILESTONE",
+    targetKey: "MS-1",
+    targetSource: {
+      kind: "canonical_record",
+      recordType: "MILESTONE",
+      recordId: milestoneId,
+      revision: 1,
+    },
+    state: "ACTIVE",
+    severity: "CRITICAL",
+    rule: {
+      key: "MILESTONE-OVERDUE",
+      revision: "milestone-v2",
+      parameters: [{ name: "minimumOverdueDays", value: 1 }],
+    },
+    sourceFacts: [
+      canonicalFact(
+        "milestone.state",
+        "state",
+        "OPEN",
+        "MILESTONE",
+        milestoneId,
+      ),
+      canonicalFact(
+        "milestone.forecastEnd",
+        "forecastEnd",
+        "2026-08-01",
+        "MILESTONE",
+        milestoneId,
+      ),
+    ],
+    ...overrides,
+  }) as DeliveryHealthSignalInput;
 const request = (
   overrides: Partial<DeliveryHealthAssessmentInput> = {},
 ): DeliveryHealthAssessmentInput => {
   const reportedStatus = overrides.reportedStatus ?? "GREEN";
   return {
-    projectId,
-    assessedAt: "2026-09-27T12:00:00.000Z",
-    timeZone: "Asia/Kolkata",
-    sourceSnapshotComplete: true,
+    projectId: overrides.projectId ?? projectId,
+    assessedAt: overrides.assessedAt ?? "2026-09-27T12:00:00.000Z",
+    timeZone: overrides.timeZone ?? "Asia/Kolkata",
+    sourceSnapshotComplete: overrides.sourceSnapshotComplete ?? true,
     reportedStatus,
-    reportedStatusFact: reportedFact(reportedStatus),
-    calculationRule,
-    contradictionRule,
-    signals: [],
-    ...overrides,
     reportedStatusFact:
       overrides.reportedStatusFact ?? reportedFact(reportedStatus),
+    calculationRule: overrides.calculationRule ?? calculationRule,
+    contradictionRule: overrides.contradictionRule ?? contradictionRule,
+    signals: overrides.signals ?? [],
   };
 };
-
 describe("UNIT-HLT-004: reported and calculated health separation", () => {
   it("reproduces GOLDEN-002 without replacing reported GREEN", () => {
     const overdueMilestone = signal();
@@ -240,8 +239,24 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
           }),
           signal({
             signalId: "LOW-DELIVERY-NOTE",
+            targetKey: "MS-2",
+            targetSource: {
+              kind: "canonical_record",
+              recordType: "MILESTONE",
+              recordId: milestone2Id,
+              revision: 1,
+            },
             state: "ACTIVE",
             severity: "LOW",
+            sourceFacts: [
+              canonicalFact(
+                "milestone.state",
+                "state",
+                "OPEN",
+                "MILESTONE",
+                milestone2Id,
+              ),
+            ],
           }),
         ],
       }),
@@ -331,7 +346,27 @@ describe("UNIT-HLT-004: reported and calculated health separation", () => {
   it("sorts signal output deterministically and freezes a detached assessment", () => {
     const inputs = [
       signal({ signalId: "SIGNAL-B", severity: "LOW", state: "CLEAR" }),
-      signal({ signalId: "SIGNAL-A", severity: "LOW", state: "CLEAR" }),
+      signal({
+        signalId: "SIGNAL-A",
+        targetKey: "MS-2",
+        targetSource: {
+          kind: "canonical_record",
+          recordType: "MILESTONE",
+          recordId: milestone2Id,
+          revision: 1,
+        },
+        severity: "LOW",
+        state: "CLEAR",
+        sourceFacts: [
+          canonicalFact(
+            "milestone.state",
+            "state",
+            "COMPLETE",
+            "MILESTONE",
+            milestone2Id,
+          ),
+        ],
+      }),
     ];
     const result = assessDeliveryHealth(request({ signals: inputs }));
     expect(result.objectiveSignals.map((item) => item.signalId)).toEqual([
