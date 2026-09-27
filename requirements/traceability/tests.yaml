@@ -1422,6 +1422,23 @@ tests:
   - packages/domain/src/blocker-age-signals.ts
   - tests/blocker-age-signals.test.ts
   - .github/workflows/foundation-validation.yml
+- id: UNIT-HLT-004
+  release: R1
+  status: implemented
+  acceptance_criteria:
+  - AC-HLT-004
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: >-
+    A pure deterministic health evaluator preserves the reported RAG separately
+    from the calculated RAG, aggregates a complete caller-authorized objective
+    signal snapshot with explicit severity bands, and returns source facts,
+    signal-rule inputs, calculation and contradiction rule revisions, rationale,
+    and a reported-versus-calculated discrepancy. Incomplete snapshots fail
+    closed; unassessable inputs cannot produce GREEN without known RED evidence.
+    Persistence and product display remain for a later increment.
+  evidence:
+  - packages/domain/src/delivery-health.ts
+  - tests/delivery-health.test.ts
 - id: UNIT-HLT-006
   release: R1
   status: planned
