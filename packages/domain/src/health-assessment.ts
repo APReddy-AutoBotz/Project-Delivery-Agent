@@ -76,8 +76,14 @@ export const healthAssessmentViewSchema = z.strictObject({
   assessmentId: safeId,
   projectId: safeId,
   assessedAt: instant,
-  coverage: z.literal("SCHEDULE_ONLY"),
-  ruleRevision: z.literal("schedule-health@1"),
+  coverage: z.enum(["SCHEDULE_ONLY", "SCHEDULE_AND_BLOCKER_AGE"]),
+  ruleRevision: z.enum([
+    "schedule-health@1",
+    "schedule-health@1+blocker-age@1",
+  ]),
+  blockerAgeCoverage: z
+    .enum(["COMPLETE", "PARTIAL", "UNASSESSABLE"])
+    .optional(),
   envelopeHash: z.string().length(64).regex(/^[0-9a-f]{64}$/),
   contentAvailable: z.boolean(),
   input: z.record(z.string(), z.unknown()).nullable(),

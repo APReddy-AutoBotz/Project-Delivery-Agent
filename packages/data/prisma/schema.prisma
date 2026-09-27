@@ -1189,6 +1189,7 @@ model HealthAssessment {
   assessedAt DateTime @db.Timestamptz(3)
   commandKeyHash String @db.Char(64)
   ruleRevision String @db.VarChar(64)
+  blockerAgeCoverage String? @db.VarChar(16)
   input Json?
   result Json?
   envelopeHash String @db.Char(64)
