@@ -98,6 +98,15 @@ const canonical: CanonicalProjectRepository = {
     sourceMappings: [],
     sourceMappingsWithheld: true,
   }),
+  reopenRaidItem: vi.fn(async (_actor, _projectId, raidItemId, request) => ({
+    projectId: project.id,
+    raidItemId,
+    state: request.newState,
+    factId: "40000000-0000-4000-8000-000000000104",
+    versionId: "50000000-0000-4000-8000-000000000104",
+    factRevision: request.expectedFactRevision + 1,
+    replayed: false,
+  })),
 };
 const repository: ProjectRepository = {
   listProjects: vi.fn(async () => [project]),
@@ -356,6 +365,20 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   );
   await request("/api/projects/" + project.id + "/canonical", 200, manager);
   await request(
+    "/api/projects/" + project.id + "/raid-items/30000000-0000-4000-8000-000000000104/reopen",
+    200,
+    manager,
+    "POST",
+    {
+      expectedState: "COMPLETE",
+      newState: "OPEN",
+      expectedFactRevision: 0,
+      openedAt: "2026-09-27",
+      idempotencyKey: "reopen-contract",
+      originalStatement: "The delivery issue has reopened.",
+    },
+  );
+  await request(
     "/api/projects/" + project.id + "/health-assessments/latest",
     200,
     manager,
@@ -469,7 +492,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(45);
+  expect(covered.size).toBe(46);
   assertContractSnapshot(
     spec,
     JSON.parse(

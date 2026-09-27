@@ -482,6 +482,7 @@ describe("FR-ADM-005 / FR-EVD-003/004/006/007/009/010/012: historical authority"
       effectiveAt: time(4),
       observedAt: time(4),
       provenance: "HUMAN_CONFIRMED",
+      approval: { state: "APPROVED", decisionId: id(311), decisionAt: time(4) },
       validUntil: null,
       value: { type: "date", value: "2026-10-02" },
     });
@@ -504,6 +505,7 @@ describe("FR-ADM-005 / FR-EVD-003/004/006/007/009/010/012: historical authority"
       effectiveAt: time(5),
       observedAt: time(5),
       provenance: "HUMAN_CONFIRMED",
+      approval: { state: "APPROVED", decisionId: id(312), decisionAt: time(5) },
       validUntil: null,
       value: { type: "empty", value: null },
     });
