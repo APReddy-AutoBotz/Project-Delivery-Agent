@@ -145,32 +145,6 @@ export const projectUpdatePreviewSchema = z.strictObject({
 });
 export type ProjectUpdatePreview = z.infer<typeof projectUpdatePreviewSchema>;
 
-export type ProjectUpdatePreview = {
-  id: string;
-  revision: number;
-  createdAt: string;
-  project: { id: string; code: string; name: string };
-  reportedStatus: string;
-  policyRevision: number;
-  assessedAt: string;
-  freshnessThresholdAt: string;
-  sourceDateField: "project.createdAt" | "project.latestValidUpdateAt";
-  sourceDate: string;
-  timestampBasis:
-    | "REQUIRED_FACTS"
-    | "PROJECT_CREATED_AT"
-    | "UNCONFIRMED";
-  completenessState: "COMPLETE" | "INCOMPLETE";
-  freshnessState: "CURRENT" | "STALE";
-  requiredFacts: Array<{
-    factType: string;
-    label: string;
-    state: "CONFIRMED" | "MISSING" | "UNCONFIRMED";
-    reasonCodes: readonly string[];
-  }>;
-  evidence: ProjectUpdateFactReference[];
-};
-
 export type ProjectUpdateAssessmentView = {
   project: { id: string; code: string; name: string; reportedStatus: string };
   assessedAt: string;
