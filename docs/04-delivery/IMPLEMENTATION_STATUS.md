@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-27
+Updated: 2026-09-28
 
 ## Accepted implementation completion
 
@@ -19,7 +19,11 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
-PR #87 merged the approved EXEC-011 blocker-age design candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as merge `d93218886e4256159caa92e1f1f365bdd162b489`. Exact-head Foundation verify, production-boundary and Documentation checks passed. Implementation is now underway on `feature/ac-hlt-003-blocker-age-assessment-20260927`; the current slice extends explicit `UNTIL_SUPERSEDED` source-authority handling for exact RAID `opened_at` facts. Its own exact-head checks and independent implementation review remain pending. AC-HLT-003 and all Issue #8 acceptance checks stay open; accepted-story totals remain R0 3/5, R1 2/33, combined 5/38 (13.2%).
+PR #89 merged the positive source-authorized browser acceptance candidate `70167967b2d56ef5d3b78b82038fbcd3d348c540` as merge `a695192bc5b9a85df418a464626279370241f192`. Exact-head Foundation #362 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36365313715)) and Documentation #427 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36365313675)) passed; independent exact-head review approved without blocking findings. Post-merge Foundation #363 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36367025947)) and Documentation #428 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36367025974)) passed. E2E-HLT-003 verifies a COMPLETE assessment from synthetic human-authorized inventory, classification and opened-date facts, with the source date, calculated age and configured threshold visible. The unresolved-inventory case remains unassessable. No proposal becomes a canonical fact. AC-HLT-003 is accepted and checked in Issue #8; the issue stays open with six criteria unchecked. EXEC-011 implementation and acceptance are complete. Accepted story totals remain R0 3/5, R1 2/33, combined 5/38 (13.2%).
+
+PR #88 merged the authority-backed blocker-age implementation candidate `bb074f143f43b3fa62a29eccaa25b842a0141b34` as merge `18a33232a4a89ef3e8fedf6fd1974b56c7d7ea2d`. Exact-head Foundation #360 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36361340771)) and Documentation #425 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36361340767)) passed; independent exact-head review approved. Post-merge Foundation #361 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36363102935)) and Documentation #426 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36363102937)) passed. This implementation retains source authority, finite inventory/classification freshness, source-access rechecks, threshold/audit policy, transactional assessment and reopen behavior. AC-HLT-003 remained partial pending the positive browser acceptance supplied by PR #89.
+
+PR #87 merged the approved EXEC-011 design candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as merge `d93218886e4256159caa92e1f1f365bdd162b489`. Exact-head Foundation verify, production-boundary and Documentation checks passed. The design was approved before application implementation.
 
 PR #84 merged the exact pure delivery-health evaluator candidate `1a22063e93af7188c558e07ab5b53bd871072085` from base `521c015de680280c0dc4ac237bd06f63b1ac7f37` as merge `eae1a386b90fb1124f39298fd3ae0ac006ee4c25`. Exact-head Foundation #292 and Documentation #357 passed; post-merge Documentation #36305803463 passed. Post-merge Foundation initially failed during packaged restore and passed on retry attempt 2, run #36305803465, including production-boundary and verify jobs.
 
