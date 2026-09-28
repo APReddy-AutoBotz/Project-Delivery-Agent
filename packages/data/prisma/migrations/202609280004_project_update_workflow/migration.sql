@@ -213,16 +213,21 @@ CREATE TRIGGER "ProjectUpdateObligation_immutable"
   BEFORE UPDATE OR DELETE ON public."ProjectUpdateObligation"
   FOR EACH ROW EXECUTE FUNCTION public.guard_project_update_obligation();
 
-ALTER TABLE public."ProjectUpdatePolicy" OWNER TO pdaa_migrate;
-ALTER TABLE public."ProjectUpdatePolicyRevision" OWNER TO pdaa_migrate;
-ALTER TABLE public."ProjectUpdateAssessment" OWNER TO pdaa_migrate;
-ALTER TABLE public."ProjectUpdateObligation" OWNER TO pdaa_migrate;
-ALTER TABLE public."ProjectUpdatePreview" OWNER TO pdaa_migrate;
-ALTER FUNCTION public.valid_project_update_facts(jsonb) OWNER TO pdaa_migrate;
-ALTER FUNCTION public.project_update_json_has_values(jsonb) OWNER TO pdaa_migrate;
-ALTER FUNCTION public.prevent_project_update_immutable_rewrite() OWNER TO pdaa_migrate;
-ALTER FUNCTION public.guard_project_update_preview() OWNER TO pdaa_migrate;
-ALTER FUNCTION public.guard_project_update_obligation() OWNER TO pdaa_migrate;
+DO $$
+BEGIN
+  IF to_regrole('pdaa_migrate') IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE public."ProjectUpdatePolicy" OWNER TO pdaa_migrate';
+    EXECUTE 'ALTER TABLE public."ProjectUpdatePolicyRevision" OWNER TO pdaa_migrate';
+    EXECUTE 'ALTER TABLE public."ProjectUpdateAssessment" OWNER TO pdaa_migrate';
+    EXECUTE 'ALTER TABLE public."ProjectUpdateObligation" OWNER TO pdaa_migrate';
+    EXECUTE 'ALTER TABLE public."ProjectUpdatePreview" OWNER TO pdaa_migrate';
+    EXECUTE 'ALTER FUNCTION public.valid_project_update_facts(jsonb) OWNER TO pdaa_migrate';
+    EXECUTE 'ALTER FUNCTION public.project_update_json_has_values(jsonb) OWNER TO pdaa_migrate';
+    EXECUTE 'ALTER FUNCTION public.prevent_project_update_immutable_rewrite() OWNER TO pdaa_migrate';
+    EXECUTE 'ALTER FUNCTION public.guard_project_update_preview() OWNER TO pdaa_migrate';
+    EXECUTE 'ALTER FUNCTION public.guard_project_update_obligation() OWNER TO pdaa_migrate';
+  END IF;
+END $$;
 
 REVOKE ALL ON FUNCTION public.valid_project_update_facts(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.project_update_json_has_values(jsonb) FROM PUBLIC;
