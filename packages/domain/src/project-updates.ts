@@ -96,6 +96,7 @@ export type ProjectUpdatePreview = {
   revision: number;
   createdAt: string;
   project: { id: string; code: string; name: string };
+  reportedStatus: string;
   policyRevision: number;
   assessedAt: string;
   freshnessThresholdAt: string;
