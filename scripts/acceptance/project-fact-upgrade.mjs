@@ -386,6 +386,23 @@ export async function verifyFoundationUpgrade(
     const applied = await migrateRelease(release, migrations);
     const upgradeElapsedMs = performance.now() - upgradeStarted;
     assert.equal(applied.length, migrations.length);
+    if (priorCount >= 2) {
+      // The final additive migration assigns these values to retained legacy
+      // human statements; validate them separately from the old-column projection.
+      const defaults = (
+        await owner.query(`
+          SELECT
+            (SELECT count(*)::int FROM "FactSource"
+              WHERE "sourceType" IS DISTINCT FROM 'human_statement') AS invalid_source_types,
+            (SELECT count(*)::int FROM "ProjectFactVersion"
+              WHERE "effectiveAtValidated" IS DISTINCT FROM false) AS invalid_validation_markers
+        `)
+      ).rows[0];
+      assert.deepEqual(defaults, {
+        invalid_source_types: 0,
+        invalid_validation_markers: 0,
+      });
+    }
     assert.deepEqual(await oldProjection(), before);
     if (priorCount < 5) {
       assert.equal(
