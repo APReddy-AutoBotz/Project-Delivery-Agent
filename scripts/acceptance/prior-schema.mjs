@@ -203,7 +203,7 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
             get(delegate, operation) {
               if (typeof delegate[operation] !== "function")
                 return delegate[operation];
-              return (input = {}) => {
+              return async (input = {}) => {
                 assert(
                   [
                     "create",
@@ -217,8 +217,18 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                 const args = globalThis.structuredClone(input);
                 if (property === "factSource")
                   omitAbsent(args, "sourceType");
-                if (property === "projectFactVersion")
+                let supplyLegacySourceType = false;
+                if (property === "projectFactVersion") {
                   omitAbsent(args, "effectiveAtValidated");
+                  const sourceSelect =
+                    args.include?.evidence?.select?.source?.select;
+                  if (sourceSelect?.sourceType === true) {
+                    delete sourceSelect.sourceType;
+                    if (Object.keys(sourceSelect).length === 0)
+                      sourceSelect.id = true;
+                    supplyLegacySourceType = true;
+                  }
+                }
                 if (property === "factAssessment") scalarProjection(args);
                 if (property === "milestoneConsistencyAssessment") {
                   for (const projection of [args.include, args.select]) {
@@ -288,7 +298,15 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                 if (operation === "create") {
                   return insertPriorRow(target, property, args, prefixCount);
                 }
-                return delegate[operation](args);
+                const result = await delegate[operation](args);
+                if (supplyLegacySourceType) {
+                  const rows = Array.isArray(result) ? result : [result];
+                  for (const row of rows) {
+                    if (row?.evidence?.source)
+                      row.evidence.source.sourceType = "human_statement";
+                  }
+                }
+                return result;
               };
             },
           });
