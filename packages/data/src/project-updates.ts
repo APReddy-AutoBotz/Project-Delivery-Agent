@@ -94,6 +94,8 @@ type Resolution = {
   } | null;
   versions: Array<{ id: string; visibility: string; sourceType?: string; effectiveAtValidated?: boolean }>;
 };
+const SCHEDULED_SCAN_INTERVAL_SECONDS = 60 * 60;
+const SCHEDULED_SCAN_RETRY_SECONDS = 5 * 60;
 const projectIdSchema = z.uuid().refine((value) => value === value.toLowerCase());
 const correlationSchema = z.uuid();
 const factsSchema = z.array(projectUpdateRequiredFactSchema).min(1).max(100);
@@ -816,15 +818,16 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           customerId: string;
           projectId: string;
         }>>(
-          'SELECT p."customerId",p."projectId" FROM public."ProjectUpdatePolicy" p JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r.revision=p.revision WHERE r."scheduledScanEnabled"=true AND r."scheduledServiceSubject"=$1 ORDER BY p."scheduledScanLastAttemptAt" ASC NULLS FIRST,p."customerId",p."projectId" LIMIT 1 FOR UPDATE OF p SKIP LOCKED',
+          'SELECT p."customerId",p."projectId" FROM public."ProjectUpdatePolicy" p JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r.revision=p.revision WHERE r."scheduledScanEnabled"=true AND r."scheduledServiceSubject"=$1 AND (p."scheduledScanNextEligibleAt" IS NULL OR p."scheduledScanNextEligibleAt"<=clock_timestamp()) ORDER BY p."scheduledScanLastAttemptAt" ASC NULLS FIRST,p."customerId",p."projectId" LIMIT 1 FOR UPDATE OF p SKIP LOCKED',
           this.serviceSubject,
         );
         const selected = rows[0];
         if (!selected) return null;
         await tx.$executeRawUnsafe(
-          'UPDATE public."ProjectUpdatePolicy" SET "scheduledScanLastAttemptAt"=date_trunc(\'milliseconds\',clock_timestamp()) WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid',
+          'UPDATE public."ProjectUpdatePolicy" SET "scheduledScanLastAttemptAt"=date_trunc(\'milliseconds\',clock_timestamp()),"scheduledScanNextEligibleAt"=date_trunc(\'milliseconds\',clock_timestamp())+($3::int*interval \'1 second\') WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid',
           selected.customerId,
           selected.projectId,
+          SCHEDULED_SCAN_INTERVAL_SECONDS,
         );
         return selected;
       }, {
@@ -839,9 +842,21 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       subject: this.serviceSubject,
       roles: [],
     };
-    // The durable attempt timestamp is written before assessment. A failure
-    // therefore rotates this project behind other enabled projects next time.
-    await this.assessCore(serviceActor, candidate.projectId, randomUUID(), true);
+    // Persisted eligibility caps immutable history growth. Failures receive a shorter
+    // retry delay; the attempt timestamp still rotates this project behind peers.
+    try {
+      await this.assessCore(serviceActor, candidate.projectId, randomUUID(), true);
+    } catch (error) {
+      try {
+        await this.db.$executeRawUnsafe(
+          'UPDATE public."ProjectUpdatePolicy" SET "scheduledScanNextEligibleAt"=date_trunc(\'milliseconds\',clock_timestamp())+($3::int*interval \'1 second\') WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid',
+          candidate.customerId,
+          candidate.projectId,
+          SCHEDULED_SCAN_RETRY_SECONDS,
+        );
+      } catch (retryError) { mapError(retryError); }
+      throw error;
+    }
     return 1;
   }
 }
