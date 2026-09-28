@@ -179,10 +179,10 @@ function selectorBasis(policy: Resolution["policy"], selectedTier: number | null
 }
 
 /**
- * Timestamp authorization for canonical project facts. The persisted authority
- * model currently supplies human statements only, and has no adapter validation
- * receipt for connector effectiveAt values. Keep those timestamps untrusted until
- * that provenance and receipt are persisted in the authority snapshot.
+ * Timestamp authorization for canonical project facts. Human statements always
+ * use server observation time; connector effectiveAt values require an explicit
+ * adapter-validation receipt from the authoritative version snapshot. Visibility
+ * only proves reader access and cannot authorize a timestamp.
  */
 export function selectCanonicalProjectUpdateTimestamp(input: {
   sourceType: string;
