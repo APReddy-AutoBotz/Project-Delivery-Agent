@@ -853,6 +853,145 @@ test("E2E-HLT-003 unresolved case: PMO reviews the threshold and incomplete inve
   );
   await expect(panel.locator("table tbody tr")).toHaveCount(6);
 });
+test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule result with reproducible evidence and rationale", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request);
+  const retention = await f.api(
+    "pmo-portfolio",
+    "/admin/health-assessment-retention",
+    "POST",
+    {
+      contentRetentionHours: 24,
+      auditRetentionHours: 48,
+      idempotencyRetentionHours: 72,
+    },
+  );
+  expect(retention.status()).toBe(200);
+
+  await open(page, f.payload.name);
+  const panel = page.getByRole("region", {
+    name: "Schedule health assessment",
+    exact: true,
+  });
+  const savedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(f.prefix + "/health-assessments") &&
+      response.request().method() === "POST",
+  );
+  await panel
+    .getByRole("button", { name: "Assess schedule", exact: true })
+    .click();
+  const response = await savedResponse;
+  expect(response.status()).toBe(201);
+  const assessment = await response.json();
+  expect(assessment.coverage).toBe("SCHEDULE_ONLY");
+  expect(assessment.ruleRevision).toBe("schedule-health@1");
+  expect(assessment.contentAvailable).toBe(true);
+
+  const input = assessment.input as {
+    reportedStatus: string;
+    calculationRule: { key: string; revision: string };
+    signals: Array<{
+      signalId: string;
+      kind: string;
+      targetType: string;
+      targetKey: string;
+      state: string;
+      severity: string;
+      rule: {
+        key: string;
+        revision: string;
+        parameters: Array<{ name: string; value: unknown }>;
+      };
+      sourceFacts: Array<{ field: string; value: unknown }>;
+    }>;
+  };
+  const result = assessment.result as {
+    reported: { status: string };
+    calculated: {
+      status: string;
+      rationale: { code: string; text: string; signalIds: string[] };
+    };
+    contradiction: {
+      kind: string;
+      severity: string;
+      reportedStatus: string;
+      calculatedStatus: string;
+    } | null;
+  };
+  expect(input.reportedStatus).toBe("GREEN");
+  expect(input.calculationRule).toEqual({ key: "schedule-health", revision: "1" });
+  expect(result.reported.status).toBe("GREEN");
+  expect(result.calculated.status).toBe("RED");
+  expect(result.calculated.rationale.code).toBe("ACTIVE_RED_SIGNALS");
+  expect(result.calculated.rationale.text).toContain("schedule-health@1");
+  expect(result.contradiction).toMatchObject({
+    kind: "REPORTED_CALCULATED_MISMATCH",
+    reportedStatus: "GREEN",
+    calculatedStatus: "RED",
+  });
+
+  const overdueMilestone = input.signals.find(
+    (signal) => signal.kind === "OVERDUE_MILESTONE",
+  );
+  expect(overdueMilestone).toBeTruthy();
+  if (!overdueMilestone)
+    throw new Error("The stored schedule input omitted its overdue milestone");
+  const expectedMilestone = f.payload.milestones[0];
+  expect(overdueMilestone).toMatchObject({
+    kind: "OVERDUE_MILESTONE",
+    targetType: "MILESTONE",
+    targetKey: expectedMilestone.key,
+    state: "ACTIVE",
+    severity: "HIGH",
+    rule: { key: "schedule-health", revision: "1" },
+  });
+  expect(overdueMilestone.rule.parameters).toEqual(
+    expect.arrayContaining([
+      { name: "minimumOverdueDays", value: 1 },
+      { name: "selectedDateField", value: "forecastEnd" },
+    ]),
+  );
+  expect(overdueMilestone.sourceFacts).toEqual(
+    expect.arrayContaining([
+      { field: "forecastEnd", value: expectedMilestone.dates.forecastEnd },
+      { field: "plannedEnd", value: expectedMilestone.dates.plannedEnd },
+      { field: "selectedDueDate", value: expectedMilestone.dates.forecastEnd },
+    ]),
+  );
+  expect(result.calculated.rationale.signalIds).toContain(
+    overdueMilestone.signalId,
+  );
+
+  const latestResponse = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/health-assessments/latest",
+  );
+  expect(latestResponse.status()).toBe(200);
+  const latest = await latestResponse.json();
+  expect(latest.assessmentId).toBe(assessment.assessmentId);
+  expect(latest.input).toEqual(assessment.input);
+  expect(latest.result).toEqual(assessment.result);
+
+  await expect(panel).toContainText("Coverage: SCHEDULE_ONLY");
+  await expect(panel).toContainText("Rule: schedule-health@1");
+  await expect(panel).toContainText(/Reported status: GREEN/);
+  await expect(panel).toContainText("Calculated schedule status: RED");
+  await expect(panel).toContainText(result.calculated.rationale.text);
+  await expect(panel).toContainText("OVERDUE_MILESTONE · ACTIVE · HIGH");
+  await expect(panel).toContainText(
+    "minimumOverdueDays=1, selectedDateField=forecastEnd",
+  );
+  await expect(panel).toContainText(
+    "forecastEnd: " + expectedMilestone.dates.forecastEnd,
+  );
+  await expect(panel).toContainText(
+    "selectedDueDate: " + expectedMilestone.dates.forecastEnd,
+  );
+});
+
 async function fixture(
   request: APIRequestContext,
   scalarPm = false,
