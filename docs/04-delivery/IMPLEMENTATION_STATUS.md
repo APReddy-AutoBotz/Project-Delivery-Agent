@@ -715,4 +715,12 @@ PR #71 merged the independently reviewed AC-MNT-003 runtime contract candidate. 
 
 Exact-head [Foundation #260](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36231255070) and [Documentation #318](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36231255100) passed. Foundation included database integration, recovery, browser, production TLS/OIDC/customer-profile and packaged-runtime acceptance, plus distribution-evidence collection and manifest verification. Post-merge [Foundation #261](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36232567007) and [Documentation #319](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36232566988) also passed. The independent exact-candidate review approved `f6545e3` against `00f224e`.
 
-The synthetic runtime contract evidence is complete for this increment; AC-MNT-003 remains partial. Jira stays synthetic under OD-013, comment reads remain gated by OD-014, Issue #7 checkboxes remain open, canonical facts are untouched, and R0/R1 accepted-story totals remain unchanged.
+At this 2026-09-26 checkpoint, AC-MNT-003 remained partial and Issue #7 checkboxes were open. The 2026-09-28 checkpoint below supersedes that criterion-level status for the tested synthetic software behavior only; it does not accept an Issue #7 story, enable live Jira or comment reads, publish canonical facts, or change R0/R1 accepted-story totals.
+
+## Issue #7 synthetic criterion acceptance checkpoint, 2026-09-28
+
+Record software-behavior acceptance for AC-CON-002, AC-CON-005, AC-CON-007, AC-CON-008 and AC-MNT-003 on the merged synthetic adapter/runtime and CSV proposal flow. Exact evidence and implementation candidate SHAs are listed in [EXEC-009](exec-plans/EXEC-009-read-only-ingestion.md#issue-7-synthetic-criterion-acceptance-2026-09-28); their exact-head Foundation and Documentation checks passed.
+
+AC-CON-004 remains partial: the signed-event replay evidence reaches one durable receipt/job, source observation and proposal projection, but does not create and count the downstream domain obligation required by the criterion.
+
+AC-CON-001 remains partial because OD-013 keeps public OAuth onboarding and live activation disabled. AC-CON-003 remains partial because OD-014 keeps Jira comment reads and body/author retention disabled. Issue #7 stays open; no story or accepted-story total changes (R0 3/5, R1 2/33; 5/38 combined). No customer Jira site is activated and no proposal becomes a canonical fact.
