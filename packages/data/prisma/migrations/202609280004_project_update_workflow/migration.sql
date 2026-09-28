@@ -118,7 +118,7 @@ CREATE TABLE public."ProjectUpdateObligation" (
   "freshnessThresholdAt" timestamptz(3) NOT NULL,
   "responsibleSubject" varchar(256) NOT NULL CHECK (btrim("responsibleSubject") <> ''),
   "requiredFacts" jsonb NOT NULL CHECK (public.valid_project_update_facts("requiredFacts")),
-  state varchar(16) NOT NULL CHECK (state IN ('OPEN','SUPERSEDED')),
+  state varchar(16) NOT NULL,
   "createdAt" timestamptz(3) NOT NULL,
   "supersededAt" timestamptz(3),
   CONSTRAINT "ProjectUpdateObligation_scope_key" UNIQUE ("customerId","projectId",id),
