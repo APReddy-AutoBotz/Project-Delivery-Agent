@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assessUpdateFreshness,
+  selectProjectUpdateTimestamp,
   type FreshnessAssessmentInput,
 } from "../packages/domain/src/index.js";
 
@@ -90,6 +91,80 @@ describe("UNIT-HLT-001: update freshness and obligation descriptors", () => {
     expect(result.obligation).toMatchObject({
       reason: "UPDATE_OUTSIDE_FRESHNESS_WINDOW",
       freshness: { sourceDate: "2026-05-30T00:00:00.000Z" },
+    });
+  });
+
+  it("keeps a delayed connector update stale when policy selects its validated effective time", () => {
+    const asOf = new Date("2026-06-10T00:00:00.000Z");
+    const selected = selectProjectUpdateTimestamp({
+      sourceType: "jira_connector",
+      selectedBasis: "effectiveAt",
+      observedAt: new Date("2026-06-10T00:00:00.000Z"),
+      effectiveAt: new Date("2026-06-01T00:00:00.000Z"),
+      effectiveAtValidated: true,
+      asOf,
+    });
+    expect(selected).toEqual({
+      timestampBasis: "CONNECTOR_EFFECTIVE_AT",
+      timestamp: new Date("2026-06-01T00:00:00.000Z"),
+    });
+
+    const result = assessUpdateFreshness(request({
+      asOf: asOf.toISOString(),
+      project: {
+        ...request().project,
+        createdAt: "2026-06-05T00:00:00.000Z",
+        latestValidUpdateAt: selected.timestamp!.toISOString(),
+      },
+      policy: {
+        ...request().policy,
+        freshnessWindowSeconds: 86400,
+        obligationDueAt: "2026-06-02T00:00:00.000Z",
+      },
+    }));
+    expect(result.freshness).toMatchObject({
+      state: "STALE",
+      sourceDateField: "project.latestValidUpdateAt",
+      sourceDate: "2026-06-01T00:00:00.000Z",
+    });
+    expect(result.obligation?.dueAt).toBe("2026-06-02T00:00:00.000Z");
+  });
+
+  it("does not fall back to observation time for an unvalidated or future effective time", () => {
+    const base = {
+      sourceType: "jira_connector",
+      selectedBasis: "effectiveAt",
+      observedAt: new Date("2026-06-10T00:00:00.000Z"),
+      effectiveAt: new Date("2026-06-01T00:00:00.000Z"),
+      effectiveAtValidated: false,
+      asOf: new Date("2026-06-10T00:00:00.000Z"),
+    };
+    expect(selectProjectUpdateTimestamp(base)).toEqual({
+      timestampBasis: "UNCONFIRMED",
+      timestamp: null,
+    });
+    expect(selectProjectUpdateTimestamp({
+      ...base,
+      effectiveAtValidated: true,
+      effectiveAt: new Date("2026-06-11T00:00:00.000Z"),
+    })).toEqual({
+      timestampBasis: "UNCONFIRMED",
+      timestamp: null,
+    });
+  });
+
+  it("always uses server observation time for human statements", () => {
+    const selected = selectProjectUpdateTimestamp({
+      sourceType: "human_statement",
+      selectedBasis: "effectiveAt",
+      observedAt: new Date("2026-06-09T00:00:00.000Z"),
+      effectiveAt: new Date("2026-05-01T00:00:00.000Z"),
+      effectiveAtValidated: true,
+      asOf: new Date("2026-06-10T00:00:00.000Z"),
+    });
+    expect(selected).toEqual({
+      timestampBasis: "HUMAN_OBSERVED_AT",
+      timestamp: new Date("2026-06-09T00:00:00.000Z"),
     });
   });
 
