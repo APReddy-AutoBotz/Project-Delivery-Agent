@@ -31,7 +31,7 @@ BEGIN
   IF jsonb_typeof(v) = 'object' THEN
     FOR k,item IN SELECT key,value FROM jsonb_each(v) LOOP
       IF lower(k) IN ('value','factvalue','factvalues','resolvedvalue','originalstatement')
-        OR NOT public.project_update_json_has_values(item) THEN RETURN true; END IF;
+        OR public.project_update_json_has_values(item) THEN RETURN true; END IF;
     END LOOP;
   ELSIF jsonb_typeof(v) = 'array' THEN
     FOR item IN SELECT value FROM jsonb_array_elements(v) LOOP
