@@ -14,6 +14,7 @@ import { IdentityService } from "@pdaa/platform";
 import {
   projectFactIdSchema,
   projectUpdatePolicyChangeSchema,
+  projectUpdateAssessmentRequestSchema,
   ProjectUpdateError,
   type Actor,
   type ProjectUpdateRepository,
@@ -98,9 +99,11 @@ export class ProjectUpdateController {
 
   @Post("project-update-assessments")
   @HttpCode(201)
-  async assess(@Req() req: Request, @Param("id") rawId: string) {
+  async assess(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
     const actor = await this.actor(req);
     const id = this.projectId(rawId);
+    if (!projectUpdateAssessmentRequestSchema.safeParse(body).success)
+      throw new HttpException("", 400);
     return this.run(() =>
       this.repository.assess(actor, id, req.correlationId),
     );
