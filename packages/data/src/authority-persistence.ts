@@ -121,8 +121,8 @@ export function buildSourceAuthoritySnapshot(
       evidence: [],
     };
   const bySource = new Map(access.map((row) => [row.sourceId, row]));
-  // Canonical facts currently enter through human evidence. Connector imports remain proposals,
-  // so they are not authority sources or timestamp-validation evidence in this snapshot.
+  // Carry the source identity and per-version adapter validation receipt persisted with each
+  // canonical fact. Reviewed connector imports remain proposals until an authorized commit.
   const sourceTypeBySource = new Map(
     versions.map((row) => [row.sourceId, row.evidence.source.sourceType] as const),
   );
