@@ -95,6 +95,13 @@ const adminConfig = config(
 const admin = new Pool(adminConfig);
 const migrations = readMigrations("/workspace/packages/data/prisma/migrations");
 const output = process.env.PDAA_ARTIFACT_DIR;
+const projectUpdateTables = [
+  "ProjectUpdatePolicy",
+  "ProjectUpdatePolicyRevision",
+  "ProjectUpdateAssessment",
+  "ProjectUpdateObligation",
+  "ProjectUpdatePreview",
+];
 const target = (database) => ({ ...adminConfig, database });
 async function inDatabase(name, fn) {
   const pool = new Pool(target(name));
@@ -124,6 +131,12 @@ const projection = async (pool) => {
   ])
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
+    ).rows;
+  for (const table of projectUpdateTables)
+    result[table] = (
+      await pool.query(
+        `SELECT * FROM "${table}" ORDER BY to_jsonb("${table}")::text COLLATE "C"`,
+      )
     ).rows;
   result.graphileVersion = (
     await pool.query("SELECT max(id) AS n FROM graphile_worker.migrations")
@@ -424,10 +437,11 @@ try {
           canonicalTables,
           raidReopenTables: ["RaidReopenReceipt"],
           blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
+          projectUpdateTables,
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 68,
+          businessTableCount: 73,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
             await verifyScalarReconciliationWorkerDenials(
