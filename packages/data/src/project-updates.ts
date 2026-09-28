@@ -93,11 +93,8 @@ type Resolution = {
   } | null;
   versions: Array<{ id: string; visibility: string; sourceType?: string }>;
 };
-type PolicySelector = NonNullable<Resolution["policy"]>["tiers"][number]["selectors"][number];
 const projectIdSchema = z.uuid().refine((value) => value === value.toLowerCase());
 const correlationSchema = z.uuid();
-const serviceSubjectSchema = z.string().min(1).max(256)
-  .refine((value) => value.trim().length > 0 && !/[\\0\\p{Surrogate}]/u.test(value));
 const factsSchema = z.array(projectUpdateRequiredFactSchema).min(1).max(100);
 const safeObject = z.record(z.string(), z.unknown());
 const iso = (value: Date) => value.toISOString();
@@ -266,7 +263,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return this.transaction(async (tx) => {
       try { await authorizeFactProject(tx, current, id, "access"); }
       catch { throw new ProjectUpdateError("DENIED"); }
-      const project = await this.loadProject(tx, current.customerId, id);
+      await this.loadProject(tx, current.customerId, id);
       const owner = await tx.$queryRawUnsafe<{ subject: string }[]>(
         'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'RESPONSIBLE_OWNER\' AND subject=$3 FOR SHARE',
         current.customerId, id, change.responsibleSubject,
