@@ -157,6 +157,9 @@ CREATE TABLE public."ProjectUpdatePreview" (
   CONSTRAINT "ProjectUpdatePreview_assessment_fkey" FOREIGN KEY ("customerId","projectId","assessmentId")
     REFERENCES public."ProjectUpdateAssessment"("customerId","projectId",id) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
+CREATE UNIQUE INDEX "ProjectUpdatePreview_one_current_per_obligation"
+  ON public."ProjectUpdatePreview" ("customerId","projectId","obligationId")
+  WHERE state='CURRENT';
 CREATE INDEX "ProjectUpdatePreview_project_idx"
   ON public."ProjectUpdatePreview" ("customerId","projectId","createdAt" DESC,id DESC);
 
