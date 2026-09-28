@@ -95,7 +95,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 18);
+    assert.equal(migrations.length, 19);
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     assert.equal(migrations[10].name, "202609240001_jira_runtime");
@@ -105,6 +105,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     assert.equal(migrations[15].name, "202609280001_atomic_raid_reopen");
     assert.equal(migrations[16].name, "202609280002_blocker_age_threshold");
     assert.equal(migrations[17].name, "202609280003_blocker_age_assessment");
+    assert.equal(migrations[18].name, "202609280004_project_update_workflow");
     assert.equal(migrations[11].name, "202609240002_jira_webhook_body_replay");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
     pool = new Pool(databaseConfig);
