@@ -93,6 +93,7 @@ try {
     "WorkItem",
     "RequiredWorkItem",
     "RaidItem",
+    "RaidReopenReceipt",
     "CanonicalSourceMapping",
     "CanonicalCreationReceipt",
     "CanonicalStateBinding",
@@ -130,6 +131,7 @@ try {
     "HealthAssessmentRetentionPolicy",
     "HealthAssessment",
     "HealthAssessmentCommandReceipt",
+    "BlockerAgeThresholdPolicy",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -153,6 +155,16 @@ try {
       has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','INSERT') AS api_policy_insert,
       has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','UPDATE') AS api_policy_update,
       has_table_privilege('pdaa_api','public."HealthAssessmentRetentionPolicy"','DELETE') AS api_policy_delete,
+      has_table_privilege('pdaa_api','public."BlockerAgeThresholdPolicy"','SELECT') AS api_threshold_select,
+      has_table_privilege('pdaa_api','public."BlockerAgeThresholdPolicy"','INSERT') AS api_threshold_insert,
+      has_table_privilege('pdaa_api','public."BlockerAgeThresholdPolicy"','UPDATE') AS api_threshold_update,
+      has_table_privilege('pdaa_api','public."BlockerAgeThresholdPolicy"','DELETE') AS api_threshold_delete,
+      has_table_privilege('pdaa_worker','public."BlockerAgeThresholdPolicy"','SELECT') AS worker_threshold_select,
+      has_table_privilege('pdaa_worker','public."BlockerAgeThresholdPolicy"','INSERT') AS worker_threshold_insert,
+      has_table_privilege('pdaa_worker','public."BlockerAgeThresholdPolicy"','UPDATE') AS worker_threshold_update,
+      has_table_privilege('pdaa_worker','public."BlockerAgeThresholdPolicy"','DELETE') AS worker_threshold_delete,
+      has_function_privilege('pdaa_worker','public.purge_expired_blocker_age_threshold_audit_events()','EXECUTE') AS worker_threshold_purge_execute,
+      has_function_privilege('pdaa_api','public.purge_expired_blocker_age_threshold_audit_events()','EXECUTE') AS api_threshold_purge_execute,
       has_table_privilege('pdaa_worker','public."HealthAssessment"','SELECT') AS worker_assessment_select,
       has_table_privilege('pdaa_worker','public."HealthAssessment"','INSERT') AS worker_assessment_insert,
       has_table_privilege('pdaa_worker','public."HealthAssessment"','UPDATE') AS worker_assessment_update,
@@ -175,6 +187,16 @@ try {
     api_policy_insert: true,
     api_policy_update: true,
     api_policy_delete: false,
+    api_threshold_select: true,
+    api_threshold_insert: true,
+    api_threshold_update: true,
+    api_threshold_delete: false,
+    worker_threshold_select: false,
+    worker_threshold_insert: false,
+    worker_threshold_update: false,
+    worker_threshold_delete: false,
+    worker_threshold_purge_execute: true,
+    api_threshold_purge_execute: false,
     worker_assessment_select: false,
     worker_assessment_insert: false,
     worker_assessment_update: false,
@@ -184,6 +206,29 @@ try {
     worker_policy_update: false,
     worker_purge_execute: true,
     api_purge_execute: false,
+  });
+  const [raidReopenPrivileges] = await migrated.$queryRaw`SELECT
+      has_table_privilege('pdaa_api','public."RaidReopenReceipt"','SELECT') AS api_reopen_receipt_select,
+      has_table_privilege('pdaa_api','public."RaidReopenReceipt"','INSERT') AS api_reopen_receipt_insert,
+      has_table_privilege('pdaa_api','public."RaidReopenReceipt"','UPDATE') AS api_reopen_receipt_update,
+      has_table_privilege('pdaa_api','public."RaidReopenReceipt"','DELETE') AS api_reopen_receipt_delete,
+      has_table_privilege('pdaa_worker','public."RaidReopenReceipt"','SELECT') AS worker_reopen_receipt_select,
+      has_table_privilege('pdaa_worker','public."RaidReopenReceipt"','INSERT') AS worker_reopen_receipt_insert,
+      has_table_privilege('pdaa_worker','public."RaidReopenReceipt"','UPDATE') AS worker_reopen_receipt_update,
+      has_table_privilege('pdaa_worker','public."RaidReopenReceipt"','DELETE') AS worker_reopen_receipt_delete,
+      has_function_privilege('pdaa_api','public.reopen_canonical_raid_item(uuid,uuid,uuid,text,jsonb,text,text,integer,date,timestamptz,text,text,text,text,text)','EXECUTE') AS api_reopen_execute,
+      has_function_privilege('pdaa_worker','public.reopen_canonical_raid_item(uuid,uuid,uuid,text,jsonb,text,text,integer,date,timestamptz,text,text,text,text,text)','EXECUTE') AS worker_reopen_execute`;
+  assert.deepEqual(raidReopenPrivileges, {
+    api_reopen_receipt_select: false,
+    api_reopen_receipt_insert: false,
+    api_reopen_receipt_update: false,
+    api_reopen_receipt_delete: false,
+    worker_reopen_receipt_select: false,
+    worker_reopen_receipt_insert: false,
+    worker_reopen_receipt_update: false,
+    worker_reopen_receipt_delete: false,
+    api_reopen_execute: true,
+    worker_reopen_execute: false,
   });
   ledger =
     await migrated.$queryRaw`SELECT migration_name,checksum,finished_at,rolled_back_at,applied_steps_count FROM "_prisma_migrations" ORDER BY migration_name`;
@@ -368,8 +413,10 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
       [firstWrite.replayed, concurrentReplay.replayed].sort(),
       [false, true],
     );
-    assert.equal(firstWrite.coverage, "SCHEDULE_ONLY");
+    assert.equal(firstWrite.coverage, "SCHEDULE_AND_BLOCKER_AGE");
+    assert.equal(firstWrite.blockerAgeCoverage, "UNASSESSABLE");
     assert.equal(firstWrite.contentAvailable, true);
+    assert.equal(firstWrite.result?.blockerAge?.coverage, "UNASSESSABLE");
     assert.equal(firstWrite.result.calculated.status, "RED");
     const storedFirstWrite = await db.$queryRawUnsafe(
       'SELECT h.id AS "assessmentId",h.input,h.result,h."envelopeHash",e.event,e.detail FROM public."HealthAssessment" h JOIN public."AuditEvent" e ON e."customerId"=h."customerId" AND e.event=\'health.assessment.created\' AND e.detail->>\'healthAssessmentId\'=h.id::text WHERE h.id=$1::uuid',
@@ -587,6 +634,7 @@ node([
   "tests/database.integration.test.ts",
   "tests/project-facts.integration.test.ts",
   "tests/authority-persistence.integration.test.ts",
+  "tests/blocker-age-assessment.integration.test.ts",
   "tests/canonical-project.integration.test.ts",
   "tests/milestone-persistence.integration.test.ts",
   "tests/milestone-reconciliation.integration.test.ts",
@@ -684,7 +732,9 @@ writeFileSync(
       ],
       ingestionPersistenceChecks: "passed",
       prefixNineUpgrade,
-      businessTables: 66,
+      raidReopenTables: ["RaidReopenReceipt"],
+      blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
+      businessTables: 68,
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",

@@ -98,6 +98,15 @@ const canonical: CanonicalProjectRepository = {
     sourceMappings: [],
     sourceMappingsWithheld: true,
   }),
+  reopenRaidItem: vi.fn(async (_actor, _projectId, raidItemId, request) => ({
+    projectId: project.id,
+    raidItemId,
+    state: request.newState,
+    factId: "40000000-0000-4000-8000-000000000104",
+    versionId: "50000000-0000-4000-8000-000000000104",
+    factRevision: request.expectedFactRevision + 1,
+    replayed: false,
+  })),
 };
 const repository: ProjectRepository = {
   listProjects: vi.fn(async () => [project]),
@@ -261,6 +270,20 @@ const healthAssessmentRepository: HealthAssessmentRepository = {
   latest: vi.fn(async () => null),
   retention: vi.fn(async () => healthAssessmentRetentionView),
   setRetention: vi.fn(async () => healthAssessmentRetentionView),
+  blockerAgeThresholdPolicy: vi.fn(async () => ({
+    minimumBlockerAgeDays: 30,
+    auditRetentionHours: 720,
+    revision: 1,
+    changedBy: "pmo-portfolio",
+    changedAt: "2026-09-27T00:00:00.000Z",
+  })),
+  setBlockerAgeThresholdPolicy: vi.fn(async (_actor, policy) => ({
+    minimumBlockerAgeDays: policy.minimumBlockerAgeDays,
+    auditRetentionHours: policy.auditRetentionHours,
+    revision: policy.expectedRevision + 1,
+    changedBy: "pmo-portfolio",
+    changedAt: "2026-09-27T00:00:00.000Z",
+  })),
 };
 beforeAll(async () => {
   ({ app, spec } = await createApp(
@@ -356,6 +379,20 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   );
   await request("/api/projects/" + project.id + "/canonical", 200, manager);
   await request(
+    "/api/projects/" + project.id + "/raid-items/30000000-0000-4000-8000-000000000104/reopen",
+    200,
+    manager,
+    "POST",
+    {
+      expectedState: "COMPLETE",
+      newState: "OPEN",
+      expectedFactRevision: 0,
+      openedAt: "2026-09-27",
+      idempotencyKey: "reopen-contract",
+      originalStatement: "The delivery issue has reopened.",
+    },
+  );
+  await request(
     "/api/projects/" + project.id + "/health-assessments/latest",
     200,
     manager,
@@ -377,6 +414,18 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       contentRetentionHours: 24,
       auditRetentionHours: 168,
       idempotencyRetentionHours: 720,
+    },
+  );
+  await request("/api/admin/blocker-age-threshold-policy", 200, pmoPortfolio);
+  await request(
+    "/api/admin/blocker-age-threshold-policy",
+    200,
+    pmoPortfolio,
+    "POST",
+    {
+      expectedRevision: 0,
+      minimumBlockerAgeDays: 30,
+      auditRetentionHours: 720,
     },
   );
   await request("/api/platform", 200, operator);
@@ -469,7 +518,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(45);
+  expect(covered.size).toBe(48);
   assertContractSnapshot(
     spec,
     JSON.parse(

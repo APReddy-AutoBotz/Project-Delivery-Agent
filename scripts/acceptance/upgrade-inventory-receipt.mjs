@@ -85,6 +85,8 @@ const releases = [
     "HealthAssessmentRetentionPolicy",
     "HealthAssessment",
     "HealthAssessmentCommandReceipt",
+    "RaidReopenReceipt",
+    "BlockerAgeThresholdPolicy",
   ],
 ];
 export function assertUpgradeInventory(receipt, prefix) {
@@ -92,7 +94,7 @@ export function assertUpgradeInventory(receipt, prefix) {
   assert.equal(receipt.priorMigrationCount, prefix);
   const oldTables = releases.slice(0, prefix).flat().sort();
   const addedTables = releases.slice(prefix).flat().sort();
-  assert.equal(receipt.businessTableCount, 66);
+  assert.equal(receipt.businessTableCount, 68);
   assert.deepEqual([...receipt.retainedPriorBusinessTables].sort(), oldTables);
   assert.deepEqual(
     Object.keys(receipt.retainedPriorRowCounts).sort(),

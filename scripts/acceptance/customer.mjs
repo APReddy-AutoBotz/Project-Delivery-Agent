@@ -507,7 +507,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 15);
+    assert.equal(migrations.length, 18);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -760,11 +760,13 @@ try {
         "milestone-reconciliation-workflow-fixture",
       ).receipt,
       canonicalTables,
+      raidReopenTables: ["RaidReopenReceipt"],
+      blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 66,
-      migrationCount: 15,
+      businessTableCount: 68,
+      migrationCount: 18,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({

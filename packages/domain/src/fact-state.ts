@@ -13,6 +13,7 @@ export function assessFact(
   input: {
     provenance: Provenance;
     validUntil: string | null;
+    validityMode?: "UNTIL_SUPERSEDED";
     conflicting: boolean;
   },
   asOf: Date,
@@ -21,7 +22,9 @@ export function assessFact(
   if (!Number.isFinite(asOf.getTime()))
     throw new Error("Invalid assessment time");
   const freshness = !Number.isFinite(expiry)
-    ? "UNKNOWN"
+    ? input.validityMode === "UNTIL_SUPERSEDED"
+      ? "CURRENT"
+      : "UNKNOWN"
     : asOf.getTime() >= expiry
       ? "STALE"
       : "CURRENT";

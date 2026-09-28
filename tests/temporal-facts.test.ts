@@ -199,6 +199,35 @@ describe("FR-EVD-001/002/003/004/006/007/010/012: internal temporal history", ()
     );
   });
 
+  it("keeps an explicitly until-superseded event date current only while it is applicable", () => {
+    const input = snapshot([version(10, { validUntil: null })]);
+    input.validityPolicy.validity = { mode: "UNTIL_SUPERSEDED" };
+    let out = assessTemporalFactHistory(input);
+    expect(row(out, 10)).toMatchObject({
+      assessedValidUntil: null,
+      temporalApplicability: "APPLICABLE",
+      assessment: { freshness: "CURRENT" },
+    });
+
+    input.versions.push(
+      version(11, {
+        effectiveAt: time(4),
+        observedAt: time(4),
+        validUntil: null,
+      }),
+    );
+    input.asOf = time(5);
+    out = assessTemporalFactHistory(input);
+    expect(row(out, 10)).toMatchObject({
+      temporalApplicability: "SUPERSEDED",
+      assessment: { freshness: "UNKNOWN" },
+    });
+    expect(row(out, 11)).toMatchObject({
+      temporalApplicability: "APPLICABLE",
+      assessment: { freshness: "CURRENT" },
+    });
+  });
+
   it("expires exactly at the deadline", () => {
     const input = snapshot([version(10, { validUntil: time(5) })]);
     input.asOf = new Date(Date.parse(time(5)) - 1).toISOString();

@@ -40,6 +40,7 @@ model Project {
   portfolio Portfolio @relation(fields: [customerId, portfolioId], references: [customerId, id])
   facts ProjectFact[]
   authorityPolicies AuthorityPolicy[]
+  raidReopenReceipts RaidReopenReceipt[]
   @@unique([customerId, code])
   @@unique([customerId, id])
 }
@@ -180,6 +181,7 @@ model ProjectFactVersion {
   fact ProjectFact @relation(fields: [customerId, projectId, factId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
   evidence FactEvidence @relation(fields: [customerId, projectId, factId, sourceId, evidenceId], references: [customerId, projectId, factId, sourceId, id], onDelete: Restrict, onUpdate: Restrict, map: "ProjectFactVersion_evidence_fkey")
   receipts FactAppendReceipt[]
+  raidReopenReceipts RaidReopenReceipt[]
   conflictLeft FactAuthorityConflict[] @relation("conflictLeft")
   conflictRight FactAuthorityConflict[] @relation("conflictRight")
   assessments FactAssessmentVersion[]
@@ -500,6 +502,7 @@ model RaidItem {
   @@unique([customerId, projectId, key], map: "RaidItem_u1")
   project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "RaidItem_project_fk")
   canonicalSourceMapping_raidItem CanonicalSourceMapping[]
+  reopenReceipts RaidReopenReceipt[]
 }
 
 model CanonicalSourceMapping {
@@ -525,6 +528,28 @@ model CanonicalSourceMapping {
   raidItem RaidItem? @relation(fields: [customerId, projectId, raidItemId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "CanonicalSourceMapping_raidItem_fk")
 }
 
+model RaidReopenReceipt {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  raidItemId String @db.Uuid
+  subject String @db.VarChar(256)
+  idempotencyKey String @db.VarChar(128)
+  requestHash String @db.Char(64)
+  factRequestHash String @db.Char(64)
+  expectedState String @db.VarChar(16)
+  newState String @db.VarChar(16)
+  factId String @db.Uuid
+  versionId String @db.Uuid
+  transactionId BigInt @db.BigInt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "RaidReopenReceipt_project_fk")
+  raidItem RaidItem @relation(fields: [customerId, projectId, raidItemId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "RaidReopenReceipt_raid_fk")
+  version ProjectFactVersion @relation(fields: [customerId, projectId, factId, versionId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict, map: "RaidReopenReceipt_version_fk")
+  @@unique([customerId, projectId, subject, idempotencyKey], map: "RaidReopenReceipt_request_key")
+  @@unique([customerId, projectId, factId, versionId], map: "RaidReopenReceipt_version_key")
+  @@unique([customerId, projectId, id], map: "RaidReopenReceipt_scope_key")
+}
 model CanonicalCreationReceipt {
   scalarReconciliationAssignments ScalarReconciliationAssignment[]
   @@unique([customerId, portfolioId, programmeId], map: "CanonicalCreationReceipt_programme_scope_key")
@@ -1147,6 +1172,15 @@ model HealthAssessmentRetentionPolicy {
   changedAt DateTime @db.Timestamptz(3)
 }
 
+model BlockerAgeThresholdPolicy {
+  customerId String @id @db.Uuid
+  minimumBlockerAgeDays Int
+  auditRetentionHours Int
+  revision Int
+  changedBy String @db.VarChar(256)
+  changedAt DateTime @db.Timestamptz(3)
+}
+
 model HealthAssessment {
   id String @id @db.Uuid
   customerId String @db.Uuid
@@ -1155,6 +1189,7 @@ model HealthAssessment {
   assessedAt DateTime @db.Timestamptz(3)
   commandKeyHash String @db.Char(64)
   ruleRevision String @db.VarChar(64)
+  blockerAgeCoverage String? @db.VarChar(16)
   input Json?
   result Json?
   envelopeHash String @db.Char(64)

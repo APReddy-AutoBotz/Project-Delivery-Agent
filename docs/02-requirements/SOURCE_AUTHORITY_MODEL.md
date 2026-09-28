@@ -63,6 +63,13 @@ Example default periods, configurable by customer:
 | Risk mitigation | 7 days for critical risk |
 | Budget | Until the next approved financial refresh |
 
+An explicit `UNTIL_SUPERSEDED` validity rule is reserved for the exact
+`raid_item.<lowercase UUID>.opened_at` fact identity. It keeps the current,
+applicable, unconflicted and accessible event-date version current until a
+newer version supersedes it; a finite version expiry can still make it stale.
+An unconfigured validity remains UNKNOWN. A source-authorized withdrawal must
+supersede the prior date and cannot reactivate an older opened date.
+
 ## Human confirmation
 
 A human-provided fact is valid only when:

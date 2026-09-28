@@ -55,6 +55,9 @@ try {
       signConnectorTaskRequest,
       async () => {
         await db.$queryRawUnsafe("SELECT public.purge_expired_health_assessments()");
+        await db.$queryRawUnsafe(
+          "SELECT public.purge_expired_blocker_age_threshold_audit_events()",
+        );
         lastProgress = Date.now();
       },
     ),

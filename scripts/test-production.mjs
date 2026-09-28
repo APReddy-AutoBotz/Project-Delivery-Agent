@@ -538,7 +538,7 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 15);
+    assert.equal(upgrade.migrations.length, 18);
     assert(Number.isFinite(upgrade.upgradeMeasurement.elapsedMs));
     assert(upgrade.upgradeMeasurement.elapsedMs > 0);
     assert(
@@ -561,7 +561,7 @@ try {
       assert.equal(row.rolled_back_at, null);
       assert.equal(row.applied_steps_count, 1);
     }
-    assert.equal(upgrade.businessTableCount, 66);
+    assert.equal(upgrade.businessTableCount, 68);
     assert.deepEqual(
       Object.keys(upgrade.retainedPriorRowCounts).sort(),
       [...upgrade.retainedPriorBusinessTables].sort(),
@@ -632,6 +632,8 @@ try {
         "HealthAssessment",
         "HealthAssessmentCommandReceipt",
         "HealthAssessmentRetentionPolicy",
+        "RaidReopenReceipt",
+        "BlockerAgeThresholdPolicy",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [

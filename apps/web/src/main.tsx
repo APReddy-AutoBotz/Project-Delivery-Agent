@@ -15,6 +15,7 @@ import {
 } from "./canonical-project.js";
 import "./style.css";
 import { ProjectEvidence } from "./project-evidence.js";
+import { HealthAssessmentPanel } from "./health-assessment.js";
 import { CsvIngestion } from "./csv-ingestion.js";
 import { savedScalarReconciliationLink } from "./scalar-reconciliation.js";
 import {
@@ -598,6 +599,16 @@ function App() {
               {retainedProject ? (
                 <>
                   {project.data && <ProjectDetail project={project.data} />}
+                  {project.data && (
+                    <HealthAssessmentPanel
+                      key={project.data.id}
+                      projectId={project.data.id}
+                      reportedStatus={project.data.reportedStatus}
+                      request={request}
+                      pmoAdmin={pmoAdmin ?? false}
+                      visible={!project.isFetching && !project.isError}
+                    />
+                  )}
                   <MilestoneReconciliation
                     key={`reconciliation:${retainedProject.id}`}
                     projectId={retainedProject.id}
@@ -639,7 +650,7 @@ function App() {
                 </div>
                 <div>
                   <span>Delivery assessment</span>
-                  <strong className="quiet-value">Not yet available</strong>
+                  <strong className="quiet-value">Available on project detail</strong>
                 </div>
               </div>
               <div className="section-title">
@@ -747,16 +758,17 @@ function ProjectDetail({ project }: { project: Project }) {
           </div>
           <div>
             <dt>Assessed health</dt>
-            <dd>Not yet available</dd>
+            <dd>Available in the panel below</dd>
           </div>
         </dl>
       </section>
       <section className="panel next-step">
-        <span className="eyebrow">NEXT MILESTONE</span>
-        <h2>Connect the evidence</h2>
+        <span className="eyebrow">CURRENT CHECKS</span>
+        <h2>Assess the delivery record</h2>
         <p>
-          Source setup will bring traceable project updates into this workspace.
-          Until then, delivery status remains unassessed.
+          Run an assessment against the current schedule and source-authorized
+          RAID evidence. Missing facts remain unresolved, and reported status
+          stays separate from both calculations.
         </p>
         <div className="timeline">
           <span>01</span>
@@ -768,8 +780,8 @@ function ProjectDetail({ project }: { project: Project }) {
         <div className="timeline muted">
           <span>02</span>
           <div>
-            <strong>Evidence & delivery checks</strong>
-            <small>Planned</small>
+            <strong>Schedule & blocker age</strong>
+            <small>Assessment available below</small>
           </div>
         </div>
         <div className="timeline muted">

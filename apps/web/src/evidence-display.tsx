@@ -4,10 +4,20 @@ import type {
   FactHistoryEntry,
   ProjectFactValue,
   ActiveAuthorityPolicy,
+  AuthorityDefinition,
 } from "@pdaa/domain";
 import { Button } from "./components.js";
 import { savedEvidenceLink } from "./evidence-state.js";
 
+type SelectorValidity = NonNullable<
+  AuthorityDefinition["tiers"][number]["selectors"][number]["validity"]
+>;
+function validityLabel(validity: SelectorValidity | null) {
+  if (validity === null) return "No configured duration";
+  return "mode" in validity
+    ? "Until superseded, subject to explicit source expiry"
+    : `${validity.durationMs} ms after ${validity.basis}`;
+}
 export function FactValue({ value }: { value: ProjectFactValue }) {
   return (
     <span className="fact-value">
@@ -117,9 +127,7 @@ export function PolicyDisplay({ policy }: { policy: ActiveAuthorityPolicy }) {
                       {selector.sourceType} ·{" "}
                       {selector.instanceId ?? "All source instances"} ·
                       Approval: {selector.requiredApproval} · Validity:{" "}
-                      {selector.validity
-                        ? `${selector.validity.durationMs} ms after ${selector.validity.basis}`
-                        : "No configured duration"}
+                      {validityLabel(selector.validity)}
                     </li>
                   ))}
                 </ul>

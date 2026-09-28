@@ -2,6 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   canonicalActorSchema,
   canonicalProjectCreateSchema,
+  canonicalRaidReopenRequestSchema,
+  canonicalRaidReopenResultSchema,
   canonicalProgrammeCreateSchema,
   canonicalProjectDetailSchema,
   canonicalDateFields,
@@ -11,6 +13,8 @@ import {
   type Actor,
   type CanonicalDates,
   type CanonicalProjectCreate,
+  type CanonicalRaidReopenRequest,
+  type CanonicalRaidReopenResult,
   type CanonicalProgrammeCreate,
   type CanonicalProjectDetail,
   type CanonicalProjectRepository,
@@ -422,6 +426,96 @@ export class DatabaseCanonicalProjectRepository
         },
       });
       return { id };
+    });
+  }
+  async reopenRaidItem(
+    actorValue: Actor,
+    projectIdValue: string,
+    raidItemIdValue: string,
+    requestValue: CanonicalRaidReopenRequest,
+    correlationId: string,
+  ): Promise<CanonicalRaidReopenResult> {
+    const projectId = input(() => projectFactIdSchema.parse(projectIdValue));
+    const raidItemId = input(() => projectFactIdSchema.parse(raidItemIdValue));
+    const request = input(() => canonicalRaidReopenRequestSchema.parse(requestValue));
+    if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(correlationId))
+      throw new CanonicalProjectError("INVALID_REQUEST");
+    return this.transaction(actorValue, async (tx, actor) => {
+      const factType = `raid_item.${raidItemId}.opened_at`;
+      const effectiveAt = new Date(
+        `${request.openedAt}T00:00:00.000Z`,
+      ).toISOString();
+      const factValue = { type: "date" as const, value: request.openedAt };
+      const requestHash = hash("RAID_REOPEN", {
+        projectId,
+        raidItemId,
+        expectedState: request.expectedState,
+        newState: request.newState,
+        expectedFactRevision: request.expectedFactRevision,
+        openedAt: request.openedAt,
+        validUntil: request.validUntil,
+        originalStatement: request.originalStatement,
+      });
+      const factRequestHash = createHash("sha256")
+        .update(
+          JSON.stringify({
+            projectId,
+            factType,
+            expectedRevision: request.expectedFactRevision,
+            value: factValue,
+            effectiveAt,
+            validUntil: request.validUntil,
+            originalStatement: request.originalStatement,
+          }),
+        )
+        .digest("hex");
+      const rows = await tx.$queryRaw<
+        {
+          outcome: string;
+          project_id: string | null;
+          raid_item_id: string | null;
+          state: string | null;
+          fact_id: string | null;
+          version_id: string | null;
+          fact_revision: number | null;
+          replayed: boolean;
+        }[]
+      >`SELECT * FROM public.reopen_canonical_raid_item(
+        ${actor.customerId}::uuid,
+        ${projectId}::uuid,
+        ${raidItemId}::uuid,
+        ${actor.subject}::text,
+        ${JSON.stringify(actor.roles)}::jsonb,
+        ${request.expectedState}::text,
+        ${request.newState}::text,
+        ${request.expectedFactRevision}::integer,
+        ${request.openedAt}::date,
+        ${request.validUntil}::timestamptz,
+        ${request.originalStatement}::text,
+        ${request.idempotencyKey}::text,
+        ${requestHash}::text,
+        ${factRequestHash}::text,
+        ${correlationId}::text
+      )`;
+      const result = rows[0];
+      if (!result) throw new CanonicalProjectError("UNAVAILABLE");
+      if (result.outcome === "DENIED")
+        throw new CanonicalProjectError("DENIED");
+      if (result.outcome === "CONFLICT")
+        throw new CanonicalProjectError("CONFLICT");
+      if (result.outcome === "INVALID")
+        throw new CanonicalProjectError("INVALID_REQUEST");
+      if (result.outcome !== "SUCCESS")
+        throw new CanonicalProjectError("UNAVAILABLE");
+      return canonicalRaidReopenResultSchema.parse({
+        projectId: result.project_id,
+        raidItemId: result.raid_item_id,
+        state: result.state,
+        factId: result.fact_id,
+        versionId: result.version_id,
+        factRevision: result.fact_revision,
+        replayed: result.replayed,
+      });
     });
   }
   async detail(

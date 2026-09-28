@@ -5,6 +5,7 @@ export * from "./evidence-responses.js";
 export * from "./canonical-project.js";
 export {
   resolveSourceAuthority,
+  isBlockerOpenedAtFactType,
   sourceAuthorityPolicySchema,
   sourceAuthoritySnapshotSchema,
   type SourceAuthorityPolicy,

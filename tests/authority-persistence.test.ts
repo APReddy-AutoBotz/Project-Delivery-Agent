@@ -42,6 +42,51 @@ describe("Authority persistence input boundaries", () => {
       definition,
     );
   });
+  it("accepts UNTIL_SUPERSEDED only for the exact RAID opened_at fact identity", () => {
+    const openedAt = `raid_item.${projectId}.opened_at`;
+    const untilSuperseded = {
+      ...definition,
+      tiers: [{
+        selectors: [{
+          ...selector,
+          validity: { mode: "UNTIL_SUPERSEDED" },
+        }],
+      }],
+    };
+    expect(
+      authorityPolicyChangeSchema.safeParse({
+        ...request,
+        definition: untilSuperseded,
+      }).success,
+    ).toBe(false);
+    expect(
+      authorityPolicyChangeSchema.safeParse({
+        ...request,
+        factType: openedAt,
+        definition: untilSuperseded,
+      }).success,
+    ).toBe(true);
+    expect(
+      authorityPolicyChangeSchema.safeParse({
+        ...request,
+        factType: openedAt,
+        definition: {
+          ...untilSuperseded,
+          tiers: [
+            {
+              selectors: [
+                {
+                  ...selector,
+                  sourceType: "portfolio",
+                  validity: { mode: "UNTIL_SUPERSEDED" },
+                },
+              ],
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false);
+  });
   it.each([
     "customerId",
     "recordedBy",

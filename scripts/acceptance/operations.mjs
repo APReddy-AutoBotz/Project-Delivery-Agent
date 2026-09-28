@@ -422,10 +422,12 @@ try {
           scalarVersionBoundary,
           milestoneConcurrency,
           canonicalTables,
+          raidReopenTables: ["RaidReopenReceipt"],
+          blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 66,
+          businessTableCount: 68,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
             await verifyScalarReconciliationWorkerDenials(

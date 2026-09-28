@@ -12,6 +12,8 @@ import {
   canonicalProgrammeCreateSchema,
   canonicalProjectCreateSchema,
   canonicalProjectDetailSchema,
+  canonicalRaidReopenRequestSchema,
+  canonicalRaidReopenResultSchema,
   factCatalogueSchema,
   humanStatementSchema,
   factHistoryPageSchema,
@@ -48,6 +50,8 @@ import {
   healthAssessmentCommandSchema,
   healthAssessmentRetentionPolicySchema,
   healthAssessmentRetentionViewSchema,
+  blockerAgeThresholdPolicyChangeSchema,
+  blockerAgeThresholdPolicyViewSchema,
   healthAssessmentViewSchema,
 } from "@pdaa/domain";
 import {
@@ -388,6 +392,13 @@ export const contracts: Record<string, RouteContract> = {
     response: z.strictObject({ id: z.uuid() }),
     errors: [404, 409, 503],
   },
+  "post /api/projects/{id}/raid-items/{raidItemId}/reopen": {
+    status: 200,
+    request: canonicalRaidReopenRequestSchema,
+    response: canonicalRaidReopenResultSchema,
+    parameters: { id: z.uuid(), raidItemId: z.uuid() },
+    errors: [404, 409, 503],
+  },
   "get /api/projects/{id}/canonical": {
     status: 200,
     response: canonicalProjectDetailSchema,
@@ -417,6 +428,17 @@ export const contracts: Record<string, RouteContract> = {
     request: healthAssessmentRetentionPolicySchema,
     response: healthAssessmentRetentionViewSchema,
     errors: [403, 503],
+  },
+  "get /api/admin/blocker-age-threshold-policy": {
+    status: 200,
+    response: blockerAgeThresholdPolicyViewSchema.nullable(),
+    errors: [403, 503],
+  },
+  "post /api/admin/blocker-age-threshold-policy": {
+    status: 200,
+    request: blockerAgeThresholdPolicyChangeSchema,
+    response: blockerAgeThresholdPolicyViewSchema,
+    errors: [403, 409, 503],
   },
   "get /api/health/live": {
     status: 200,

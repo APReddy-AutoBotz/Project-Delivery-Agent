@@ -76,8 +76,14 @@ export const healthAssessmentViewSchema = z.strictObject({
   assessmentId: safeId,
   projectId: safeId,
   assessedAt: instant,
-  coverage: z.literal("SCHEDULE_ONLY"),
-  ruleRevision: z.literal("schedule-health@1"),
+  coverage: z.enum(["SCHEDULE_ONLY", "SCHEDULE_AND_BLOCKER_AGE"]),
+  ruleRevision: z.enum([
+    "schedule-health@1",
+    "schedule-health@1+blocker-age@1",
+  ]),
+  blockerAgeCoverage: z
+    .enum(["COMPLETE", "PARTIAL", "UNASSESSABLE"])
+    .optional(),
   envelopeHash: z.string().length(64).regex(/^[0-9a-f]{64}$/),
   contentAvailable: z.boolean(),
   input: z.record(z.string(), z.unknown()).nullable(),
@@ -95,6 +101,25 @@ export const healthAssessmentRetentionViewSchema = z.strictObject({
 });
 export type HealthAssessmentRetentionView = z.infer<
   typeof healthAssessmentRetentionViewSchema
+>;
+
+export const blockerAgeThresholdPolicyChangeSchema = z.strictObject({
+  expectedRevision: z.number().int().min(0).max(2147483646),
+  minimumBlockerAgeDays: z.number().int().min(1).max(3650),
+  auditRetentionHours: z.number().int().min(1).max(87600),
+});
+export type BlockerAgeThresholdPolicyChange = z.infer<
+  typeof blockerAgeThresholdPolicyChangeSchema
+>;
+export const blockerAgeThresholdPolicyViewSchema = z.strictObject({
+  minimumBlockerAgeDays: z.number().int().min(1).max(3650),
+  auditRetentionHours: z.number().int().min(1).max(87600),
+  revision: z.number().int().min(1).max(2147483647),
+  changedBy: z.string().min(1).max(256),
+  changedAt: instant,
+});
+export type BlockerAgeThresholdPolicyView = z.infer<
+  typeof blockerAgeThresholdPolicyViewSchema
 >;
 
 export class HealthAssessmentError extends Error {
@@ -126,6 +151,14 @@ export interface HealthAssessmentRepository {
     policy: HealthAssessmentRetentionPolicy,
     correlationId: string,
   ): Promise<HealthAssessmentRetentionView>;
+  blockerAgeThresholdPolicy(
+    actor: Actor,
+  ): Promise<BlockerAgeThresholdPolicyView | null>;
+  setBlockerAgeThresholdPolicy(
+    actor: Actor,
+    policy: BlockerAgeThresholdPolicyChange,
+    correlationId: string,
+  ): Promise<BlockerAgeThresholdPolicyView>;
 }
 
 const scheduleRule = {
