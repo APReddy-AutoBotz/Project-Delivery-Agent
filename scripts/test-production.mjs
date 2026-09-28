@@ -634,6 +634,11 @@ try {
         "HealthAssessmentRetentionPolicy",
         "RaidReopenReceipt",
         "BlockerAgeThresholdPolicy",
+        "ProjectUpdatePolicy",
+        "ProjectUpdatePolicyRevision",
+        "ProjectUpdateAssessment",
+        "ProjectUpdateObligation",
+        "ProjectUpdatePreview",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [
