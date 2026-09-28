@@ -278,6 +278,7 @@ tests:
     remains unassessable and cannot become a no-blocker claim.
   evidence:
   - tests/e2e/project-evidence.spec.ts
+  - tests/delivery-health.test.ts
   - .github/workflows/foundation-validation.yml
 
 - id: E2E-HLT-004
