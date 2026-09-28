@@ -129,7 +129,9 @@ function insertPriorRow(target, property, args, prefixCount) {
     ),
   );
   const values = supplied.map((column) =>
-    column === "result" ? JSON.stringify(args.data[column]) : args.data[column],
+    ["result", "value"].includes(column)
+      ? JSON.stringify(args.data[column])
+      : args.data[column],
   );
   const sql = `INSERT INTO "${table}" (${supplied
     .map((column) => `"${column}"`)
