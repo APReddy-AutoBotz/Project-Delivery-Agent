@@ -938,9 +938,14 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
     value: "GREEN",
     source: { recordId: f.projectId },
   });
-  expect(input.calculationRule).toEqual({
+  expect(input.calculationRule).toMatchObject({
     key: "schedule-health",
     revision: "1",
+    severityBands: {
+      red: ["CRITICAL", "HIGH"],
+      amber: ["MEDIUM"],
+      green: ["LOW"],
+    },
   });
   expect(result.reported.status).toBe("GREEN");
   expect(result.calculated.status).toBe("RED");
