@@ -691,3 +691,22 @@ Together with `tests/jira-runtime.test.ts`, `tests/connector-runtime.integration
 Exact-head [Foundation #260](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36231255070) and [Documentation #318](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36231255100) passed, as did post-merge [Foundation #261](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36232567007) and [Documentation #319](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36232566988). Foundation acceptance included the database, recovery, browser, production TLS/OIDC/customer-profile, packaged-runtime and distribution-evidence checks.
 
 This remains synthetic evidence: AC-MNT-003 and Issue #7 remain partial, live Jira stays gated by OD-013, comment reads by OD-014, and no Issue #7 checkbox, canonical fact, or accepted-story total changes.
+
+## Issue #7 synthetic criterion acceptance, 2026-09-28
+
+After review of the merged implementation and its exact-head hosted checks, accept the following Issue #7 criteria at the software-behavior level:
+
+| Criterion | Evidence |
+| --- | --- |
+| AC-CON-002 | Synthetic Jira visibility denial is enforced by both adapter and scheduled runtime; a hidden configured project fails before search or cursor/page persistence. [PR #69](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/69), candidate `bc5ffdca637287fb96512e0a8fa152c73aca69a3`. |
+| AC-CON-004 | Replaying the same signed event (including a changed delivery ID) yields one durable event/job/observation/proposal; conflicting payloads are rejected. [PR #64](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/64), candidate `b94c532196a05835dce9f9dc17719984a5fa020e`. |
+| AC-CON-005 | CSV mapping, invalid rows and planned CREATE/UPDATE changes are visible before save; only eligible reviewed rows are saved as proposals, with zero canonical fact writes. [PR #59](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/59) and [PR #68](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/68), candidates `397e5eefbc5d2cdb97b84c8dab8cfb8426587ade` and `3a64ce190e3fe105b18eb4b2bbe9c2b9633f3a5f`. This satisfies the CSV alternative; XLSX is not required by the criterion. |
+| AC-CON-007 | Invalid signature/replay has no domain effect; synthetic valid events are idempotent; scheduled reconciliation recovers a missed revision using a persisted cursor; failure health is finite and redacted. [PR #58](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/58) and [PR #66](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/66), candidate `8a74c36ace88cdf083b6ed4c8a4c001c03b2b898` for the reconciliation proof. |
+| AC-CON-008 | Concurrent refresh is serialized; the encrypted token pair and revision survive a process restart; revoked-token failure stops reads and returns a redacted administrator action. [PR #58](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/58) and [PR #67](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/67), candidate `4d3d2c7e1976fb6687b8791adbcc8014f578f3c0`. |
+| AC-MNT-003 | The Jira adapter/runtime contract covers identity, page/cursor progress, duplicates, permissions, throttling and unknown outcomes; the domain boundary excludes SDK types. [PR #65](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/65) and [PR #71](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/71), candidate `f6545e380b2a6b18ae1466f770d49a0b107878e3`. |
+
+Each listed candidate passed its exact-head Foundation `verify` and `production-boundary` checks and Documentation `validate` check before merge. The synthetic behavior tests are the acceptance evidence; they do not claim a live Jira site, OAuth onboarding, comment reads or customer activation.
+
+AC-CON-001 remains open under OD-013; live OAuth onboarding stays disabled. AC-CON-003 remains open under OD-014; comment endpoints and comment body/author retention stay disabled. Issue #7 remains open, no story is accepted, no source proposal is published as a canonical fact, and accepted-story totals remain R0 3/5, R1 2/33 (5/38 combined).
+
+See the current [Issue #7 evidence ledger](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7) and the related implementation checkpoints above.
