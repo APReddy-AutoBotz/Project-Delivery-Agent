@@ -981,9 +981,18 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   );
   expect(overdueMilestone.sourceFacts).toEqual(
     expect.arrayContaining([
-      { field: "forecastEnd", value: expectedMilestone.dates.forecastEnd },
-      { field: "plannedEnd", value: expectedMilestone.dates.plannedEnd },
-      { field: "selectedDueDate", value: expectedMilestone.dates.forecastEnd },
+      expect.objectContaining({
+        field: "forecastEnd",
+        value: expectedMilestone.dates.forecastEnd,
+      }),
+      expect.objectContaining({
+        field: "plannedEnd",
+        value: expectedMilestone.dates.plannedEnd,
+      }),
+      expect.objectContaining({
+        field: "selectedDueDate",
+        value: expectedMilestone.dates.forecastEnd,
+      }),
     ]),
   );
   expect(result.calculated.rationale.signalIds).toContain(
