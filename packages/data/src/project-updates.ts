@@ -5,6 +5,7 @@ import {
   assessUpdateFreshness,
   projectUpdatePolicyChangeSchema,
   projectUpdateFactReferenceSchema,
+  projectUpdateKnownPositionSchema,
   canonicalSubjectSchema,
   projectUpdateRequiredFactSchema,
   ProjectUpdateError,
@@ -106,6 +107,10 @@ function jsonValue(value: unknown): unknown {
     catch { throw new ProjectUpdateError("UNAVAILABLE"); }
   }
   return value;
+}
+function knownPositionValue(value: unknown): ProjectUpdateKnownPosition["value"] {
+  try { return projectUpdateKnownPositionSchema.shape.value.parse(value); }
+  catch { throw new ProjectUpdateError("UNAVAILABLE"); }
 }
 function stable(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stable);
@@ -459,7 +464,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           knownPosition.push({
             factType: requirement.factType,
             label: requirement.label,
-            value: version.value,
+            value: knownPositionValue(version.value),
             versionId: reference.versionId,
             evidenceId: reference.evidenceId,
             sourceId: reference.sourceId,
@@ -583,7 +588,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
               factType: fact.factType,
               label: fact.label,
               state: fact.state,
-              reasonCodes: fact.reasonCodes,
+              reasonCodes: [...fact.reasonCodes],
             })),
             evidence,
           }
@@ -709,7 +714,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       return {
         factType: row.factType,
         label,
-        value: row.value,
+        value: knownPositionValue(row.value),
         versionId: row.versionId,
         evidenceId: row.evidenceId,
         sourceId: row.sourceId,
