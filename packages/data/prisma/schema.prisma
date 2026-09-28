@@ -1215,3 +1215,83 @@ model HealthAssessmentCommandReceipt {
   @@id([customerId, projectId, commandKeyHash], map: "HealthAssessmentCommandReceipt_pkey")
   @@index([expiresAt], map: "HealthAssessmentCommandReceipt_expiry_idx")
 }
+
+model ProjectUpdatePolicy {
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  key String @db.VarChar(64)
+  revision Int @default(0)
+  changedBy String @db.VarChar(256)
+  changedAt DateTime @db.Timestamptz(3)
+  @@id([customerId, projectId], map: "ProjectUpdatePolicy_pkey")
+  @@unique([customerId, projectId, key], map: "ProjectUpdatePolicy_scope_key")
+}
+
+model ProjectUpdatePolicyRevision {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  revision Int
+  freshnessWindowSeconds Int
+  timeZone String @db.VarChar(64)
+  requiredFacts Json
+  responsibleSubject String @db.VarChar(256)
+  scheduledScanEnabled Boolean
+  scheduledServiceSubject String? @db.VarChar(256)
+  changedBy String @db.VarChar(256)
+  changedAt DateTime @db.Timestamptz(3)
+  @@unique([customerId, projectId, revision], map: "ProjectUpdatePolicyRevision_counter_key")
+  @@unique([customerId, projectId, id, revision], map: "ProjectUpdatePolicyRevision_scope_key")
+}
+
+model ProjectUpdateAssessment {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  policyRevisionId String @db.Uuid
+  policyRevision Int
+  assessedAt DateTime @db.Timestamptz(3)
+  input Json
+  result Json
+  dependencies Json
+  envelopeHash String @db.Char(64)
+  auditEventId String @db.Uuid
+  @@unique([customerId, projectId, id], map: "ProjectUpdateAssessment_scope_key")
+  @@index([customerId, projectId, assessedAt(sort: Desc), id(sort: Desc)], map: "ProjectUpdateAssessment_latest_idx")
+}
+
+model ProjectUpdateObligation {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  policyRevisionId String @db.Uuid
+  policyRevision Int
+  assessmentId String @db.Uuid
+  cycleHash String @db.Char(64)
+  sourceDateField String @db.VarChar(64)
+  sourceDate DateTime @db.Timestamptz(3)
+  freshnessThresholdAt DateTime @db.Timestamptz(3)
+  responsibleSubject String @db.VarChar(256)
+  requiredFacts Json
+  state String @db.VarChar(16)
+  createdAt DateTime @db.Timestamptz(3)
+  supersededAt DateTime? @db.Timestamptz(3)
+  @@unique([customerId, projectId, id], map: "ProjectUpdateObligation_scope_key")
+  @@index([customerId, projectId, createdAt(sort: Desc), id(sort: Desc)], map: "ProjectUpdateObligation_project_idx")
+}
+
+model ProjectUpdatePreview {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  obligationId String @db.Uuid
+  assessmentId String @db.Uuid
+  revision Int
+  state String @default("CURRENT") @db.VarChar(16)
+  preview Json
+  envelopeHash String @db.Char(64)
+  createdAt DateTime @db.Timestamptz(3)
+  @@unique([customerId, projectId, obligationId, revision], map: "ProjectUpdatePreview_revision_key")
+  @@unique([customerId, projectId, id], map: "ProjectUpdatePreview_scope_key")
+  @@index([customerId, projectId, createdAt(sort: Desc), id(sort: Desc)], map: "ProjectUpdatePreview_project_idx")
+}
