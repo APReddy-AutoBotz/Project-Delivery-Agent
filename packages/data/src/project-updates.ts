@@ -222,7 +222,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
 
   private async loadPolicy(tx: Tx, customerId: string, id: string, lock = false): Promise<PolicyRow | null> {
     const rows = await tx.$queryRawUnsafe<PolicyRow[]>(
-      'SELECT r.id AS "policyRevisionId",r."projectId",r.revision,r."freshnessWindowSeconds",r."timeZone",r."requiredFacts",r."responsibleSubject",r."scheduledScanEnabled",r."scheduledServiceSubject",r."changedBy",r."changedAt" FROM public."ProjectUpdatePolicy" p JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r.revision=p.revision WHERE p."customerId"=$1::uuid AND p."projectId"=$2::uuid AND p.key=\'project-update\'' + (lock ? " FOR SHARE OF p,r" : ""),
+      'SELECT r.id AS "policyRevisionId",r."projectId",r.revision,r."freshnessWindowSeconds",r."timeZone",r."requiredFacts",r."responsibleSubject",r."scheduledScanEnabled",r."scheduledServiceSubject",r."changedBy",r."changedAt" FROM public."ProjectUpdatePolicy" p JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r.revision=p.revision WHERE p."customerId"=$1::uuid AND p."projectId"=$2::uuid AND p.key=\'project-update\'' + (lock ? " FOR UPDATE OF p" : ""),
       customerId, id,
     );
     return rows[0] ?? null;
@@ -514,12 +514,15 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const sourceDate = freshnessAssessment.freshness.sourceDate;
       const sourceDateTime = datesFromJson(sourceDate);
       if (!sourceDateTime) throw new ProjectUpdateError("UNAVAILABLE");
+      const cycleRequiredFacts = [...requiredFacts].sort((left, right) =>
+        left.factType.localeCompare(right.factType),
+      );
       const cycleHash = hash({
         sourceDateField: freshnessAssessment.freshness.sourceDateField,
         sourceDate,
         thresholdAt: iso(freshnessThresholdAt),
         responsibleSubject: policy.responsibleSubject,
-        requiredFacts,
+        requiredFacts: cycleRequiredFacts,
       });
       const assessmentId = randomUUID();
       const open = await this.currentOpen(tx, current.customerId, id);
@@ -623,7 +626,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           policy.revision, assessmentId, cycleHash,
           freshnessAssessment.freshness.sourceDateField, sourceDateTime,
           freshnessThresholdAt, policy.responsibleSubject,
-          stringify(requiredFacts), asOf,
+          stringify(cycleRequiredFacts), asOf,
         );
       }
       if (stale && preview && previewHash) {
