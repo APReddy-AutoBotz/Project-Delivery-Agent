@@ -5,7 +5,7 @@ Owner: Implementation controller
 Requirement IDs: AC-HLT-004, FR-HLT-007/008/009/011, FR-MOD-006, NFR-PRV-004, NFR-REL-001/003, NFR-SEC-001/002/004/005/006
 GitHub issue: #8 (EPIC-04, STORY-013..015)
 Target release: R1
-Last updated: 2026-09-27
+Last updated: 2026-09-28
 
 ## Objective
 
@@ -119,6 +119,9 @@ Migration is additive; prior migrations and rows remain unchanged. Disable asses
 - 2026-09-27: Foundation #314 for head `124407f` passed the full verify job. Production-boundary TLS/OIDC, token expiry, secret exclusion, migration interoperation, restore and database/worker recovery checks passed; the shipped-customer profile then exposed stale `customer.mjs` assumptions of 14 migrations and a scalar recovery receipt fixture with 63 tables/14 migrations. The candidate updates these to 15 migrations and 66 tables/15 migrations.
 
 - 2026-09-27: Foundation #315 passed on exact candidate `4fe32ff01789d64b61e2854cbbfe160e74fe08e1`; Documentation #380 passed and independent exact-head review approved with no findings. PR #85 merged as `9344ab0f1cfb0fac69b428ff09e535282351a794`; its tree matches candidate tree `2c31ad6cee41d36bf0135e56f48836947d6aef29`, ordered parents are base then candidate, and `main` points to the merge. Post-merge Documentation #381 passed. Foundation #316 verify passed; the first production-boundary attempt failed during external-customer restore at `sessions_before_commit`, while retry attempt 2 passed production acceptance and distribution evidence. Issue #8, AC-HLT-004 and its seven acceptance checks remain open; official totals remain 5/38 (13.2%).
+
+
+- 2026-09-28: Added an E2E-HLT-004 candidate using the synthetic canonical project: the saved reported GREEN remains distinct from a RED schedule calculation, and the test checks the persisted latest read, overdue milestone inputs, selected date, rule revision, rationale, and UI rendering. This stays within schedule-only coverage; it does not claim the stored assessment evaluates the blocker-age or update-freshness signals from the full GOLDEN-002 scenario. The existing UNIT-HLT-004 test covers the complete evaluator Golden snapshot. Exact-head hosted validation and independent review are pending; AC-HLT-004 and Issue #8 remain open.
 
 
 ## Decisions made
