@@ -89,12 +89,72 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
     freshnessState: "STALE",
     completenessState: "COMPLETE",
   });
-  expect(JSON.stringify(assessment)).not.toContain("First synthetic forecast");
+  expect(assessment.knownPosition).toEqual([
+    expect.objectContaining({
+      factType: f.factType,
+      label: "Current forecast",
+      value: { type: "text", value: "First synthetic forecast" },
+      timestampBasis: "HUMAN_OBSERVED_AT",
+      observedAt,
+    }),
+  ]);
+  expect(JSON.stringify(assessment.preview)).not.toContain("First synthetic forecast");
 
-  await expect(panel).toContainText("Saved request preview · Draft");
+  await expect(panel).toContainText("Saved request preview · Draft · revision 1");
+  await expect(panel).toContainText("Authorized current known position");
+  await expect(panel).toContainText("First synthetic forecast");
   await expect(panel).toContainText("This preview has not been sent.");
   await expect(panel.getByRole("button", { name: /send/i })).toHaveCount(0);
-  const previewId = assessment.preview.id;
+  const firstObligationId = assessment.obligation.id;
+  const firstPreviewId = assessment.preview.id;
+
+  const repeatedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(f.prefix + "/project-update-assessments") &&
+      response.request().method() === "POST",
+  );
+  await panel.getByRole("button", { name: "Assess project", exact: true }).click();
+  const repeatedResponseValue = await repeatedResponse;
+  expect(repeatedResponseValue.status()).toBe(201);
+  const repeated = await repeatedResponseValue.json();
+  expect(repeated.obligation.id).toBe(firstObligationId);
+  expect(repeated.preview.id).not.toBe(firstPreviewId);
+  expect(repeated.preview.revision).toBe(2);
+  await expect(panel).toContainText("Saved request preview · Draft · revision 2");
+
+  await page.getByLabel(/^Required facts/).fill(
+    f.factType + " | Current forecast\\nproject.schedule | Next milestone",
+  );
+  await page.getByRole("button", { name: "Save policy revision", exact: true }).click();
+  await expect(panel).toContainText("Reporting policy saved as an immutable revision.");
+  const incompleteResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(f.prefix + "/project-update-assessments") &&
+      response.request().method() === "POST",
+  );
+  await panel.getByRole("button", { name: "Assess project", exact: true }).click();
+  const incompleteResponseValue = await incompleteResponse;
+  expect(incompleteResponseValue.status()).toBe(201);
+  const incomplete = await incompleteResponseValue.json();
+  expect(incomplete.completeness).toMatchObject({
+    state: "INCOMPLETE",
+    confirmedCount: 1,
+    requiredCount: 2,
+  });
+  expect(incomplete.freshness).toMatchObject({
+    state: "STALE",
+    sourceDateField: "project.createdAt",
+  });
+  expect(incomplete.obligation.id).not.toBe(firstObligationId);
+  expect(incomplete.preview.requiredFacts).toContainEqual(
+    expect.objectContaining({
+      factType: "project.schedule",
+      label: "Next milestone",
+      state: "MISSING",
+      reasonCodes: ["NO_CANONICAL_VALUE"],
+    }),
+  );
+  expect(JSON.stringify(incomplete.preview)).not.toContain("First synthetic forecast");
 
   await open(page, f.payload.name);
   const persisted = page.getByRole("region", {
@@ -109,7 +169,7 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
       f.prefix + "/project-update-assessments/latest",
     )
   ).json();
-  expect(saved.preview.id).toBe(previewId);
+  expect(saved.preview.id).toBe(incomplete.preview.id);
 
   const historyAfter = await (
     await f.api("pmo-portfolio", f.prefix + "/facts/" + f.factType + "/history")
@@ -117,6 +177,23 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   expect(historyAfter.entries.map((entry: { id: string }) => entry.id)).toEqual(
     historyBefore.entries.map((entry: { id: string }) => entry.id),
   );
+
+  const accessPath = f.prefix + "/fact-sources/" + statement.entry.sourceId + "/access";
+  const currentAccess = await (await f.api("pmo-portfolio", accessPath)).json();
+  const revoked = await f.api("pmo-portfolio", accessPath, "POST", {
+    projectId: f.projectId,
+    sourceId: statement.entry.sourceId,
+    expectedRevision: currentAccess.revision,
+    state: "REVOKED",
+    readers: [],
+  });
+  expect(revoked.status()).toBe(200);
+  const protectedLatest = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/project-update-assessments/latest",
+  );
+  expect(protectedLatest.status()).toBe(200);
+  expect(await protectedLatest.json()).toBeNull();
 });
 
 async function fixture(request: APIRequestContext) {
