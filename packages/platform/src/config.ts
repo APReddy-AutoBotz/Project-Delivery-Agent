@@ -34,6 +34,8 @@ const schema = z.object({
   CREDENTIAL_KEY_ID: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/).default("primary"),
   CREDENTIAL_KEYRING_FILE: z.string().min(1).optional(),
   CONNECTOR_TASK_KEYS_FILE: z.string().min(1).optional(),
+  PROJECT_UPDATE_TASK_KEYS_FILE: z.string().min(1).optional(),
+  PROJECT_UPDATE_SERVICE_SUBJECT: z.string().min(1).max(256).optional(),
   INTERNAL_API_URL: z.url().optional(),
   JIRA_OAUTH_CLIENT_ID: z.string().min(1).optional(),
   JIRA_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
@@ -72,6 +74,8 @@ export type Config = z.infer<typeof schema> & {
   groupRoles: Record<string, Role[]>;
   credentialKeys: { currentKeyId: string; keys: Record<string, string> };
   connectorTaskKeys: { currentKeyId: string; keys: Record<string, string> } | null;
+  projectUpdateTaskKeys: { currentKeyId: string; keys: Record<string, string> } | null;
+  projectUpdateServiceSubject: string | null;
 };
 
 export function readSecretFile(path: string, key: string): string {
@@ -182,6 +186,25 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   }
   if (!!c.INTERNAL_API_URL !== !!connectorTaskKeys)
     throw new Error("Connector task API URL and key file must be configured together");
+  const projectUpdateKeyFile = c.PROJECT_UPDATE_TASK_KEYS_FILE
+    ? taskKeySchema.safeParse(secretJson(c.PROJECT_UPDATE_TASK_KEYS_FILE, "PROJECT_UPDATE_TASK_KEYS"))
+    : null;
+  if (projectUpdateKeyFile && !projectUpdateKeyFile.success)
+    throw new Error("Invalid project update task key configuration");
+  const projectUpdateTaskKeys = projectUpdateKeyFile?.success
+    ? projectUpdateKeyFile.data
+    : null;
+  if (!!projectUpdateTaskKeys !== !!c.PROJECT_UPDATE_SERVICE_SUBJECT)
+    throw new Error("Project update service subject and task key file must be configured together");
+  if (projectUpdateTaskKeys) {
+    if (!projectUpdateTaskKeys.keys[projectUpdateTaskKeys.currentKeyId])
+      throw new Error("Current project update task key is unavailable");
+    for (const key of Object.values(projectUpdateTaskKeys.keys))
+      if (Buffer.from(key, "base64url").length < 32)
+        throw new Error("Invalid project update task key");
+  }
+  if (projectUpdateTaskKeys && !c.INTERNAL_API_URL)
+    throw new Error("Project update task authentication requires INTERNAL_API_URL");
   if (c.INTERNAL_API_URL) {
     const internal = new URL(c.INTERNAL_API_URL);
     if (internal.username || internal.password || internal.hash || internal.search || internal.pathname !== "/" ||
@@ -227,7 +250,16 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   } catch {
     throw new Error("Invalid OIDC group-role mapping");
   }
-  return { ...c, PDAA_DATABASE_URL, database, groupRoles, credentialKeys, connectorTaskKeys };
+  return {
+    ...c,
+    PDAA_DATABASE_URL,
+    database,
+    groupRoles,
+    credentialKeys,
+    connectorTaskKeys,
+    projectUpdateTaskKeys,
+    projectUpdateServiceSubject: c.PROJECT_UPDATE_SERVICE_SUBJECT ?? null,
+  };
 }
 
 const databaseSchema = schema.pick({
