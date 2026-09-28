@@ -1,17 +1,17 @@
 # EXEC-012: Project update freshness and completeness
 
-Status: Draft — design candidate awaiting independent review
+Status: Completed — implementation and required acceptance complete
 Owner: Implementation controller
 Requirement IDs: AC-HLT-001/002, AC-UPD-001, FR-HLT-001/002, FR-UPD-001/002/003, NFR-REL-003, NFR-SEC-001/002
 GitHub issue: #8 (EPIC-04, STORY-013..015); linked request behavior in #9
 Target release: R1
-Last updated: 2026-09-28
+Last updated: 2026-09-29
 
 ## Objective
 
 Complete the authorized project-update freshness and required-fact completeness path on top of the existing pure evaluators. A stale configured update must produce one durable, explainable project obligation. The PM/owner view must identify the project context and exact missing or unconfirmed required facts. Server code resolves source authority and access; clients cannot choose source dates or submit health results.
 
-This is a design candidate only. Do not change application code until a separate non-author reviewer approves the immutable design candidate. Preserve Issue #8, STORY-013..015 and accepted-story totals as open until the complete acceptance and all gates pass.
+The design candidate was independently approved at PR #95 head `985a394d350d680d4661be7c4fb2e398407613f4`. Implementation, acceptance tests and hosted validation are complete. Preserve Issue #8, Issue #9, STORY-013..015 and accepted-story totals as open; this increment only supports the scoped acceptance criteria listed below.
 
 ## In scope
 
@@ -37,7 +37,7 @@ This is a design candidate only. Do not change application code until a separate
 - Issue #8 records AC-HLT-003 accepted from PR #89 and AC-HLT-004 accepted from PR #91; AC-HLT-001 and AC-HLT-002 remain unchecked. Issue #9 also tracks AC-HLT-001 and AC-UPD-001, and both map to E2E-UPD-001. AC-HLT-005 and AC-HLT-006 remain unchecked; AC-HLT-007 is present only in Issue #8 and is not in the canonical acceptance criteria register. AC-UPD-002, which requires sending only to the configured owner, is a separate dispatch criterion and remains out of scope here.
 - PR #78 added the pure `assessUpdateFreshness` calculation. It compares an explicit latest-valid-update instant (or project creation if there is none) with a configured elapsed-seconds window and returns an explainable obligation descriptor plus a stable deduplication key. It intentionally does not persist or dispatch obligations.
 - PR #80 added the pure `assessProjectCompleteness` calculation. It requires a complete configured fact list and one authority result per fact, and separates missing from unconfirmed fields without exposing values.
-- Current main has no ProjectUpdatePolicy or UpdateObligation Prisma model, update-policy/admin route, update-obligation API, or update-obligation worker. `E2E-UPD-001` is planned. Existing ProjectFact histories and source-authority resolution must remain the only source for canonical update evidence.
+- PR #96 implemented the versioned policy/revision model, scoped APIs/UI, source-authorized assessment, persisted obligation and immutable value-free preview, signed bounded scheduler, additive migration, and upgrade/recovery inventory. PR #97 fixed raw-body capture for the signed internal scan and completed scheduled-path E2E-UPD-001. Existing ProjectFact histories and source-authority resolution remain the only source for canonical update evidence; import proposals are excluded.
 - The canonical model already records project responsibilities, including `RESPONSIBLE_OWNER`; select only an existing scoped responsibility rather than accepting arbitrary recipients.
 
 ## Proposed design
@@ -118,7 +118,9 @@ The additive migration keeps existing project facts, authority policy and health
 
 ## Progress log
 
-- 2026-09-28: Live main inspection confirmed AC-HLT-003 and AC-HLT-004 are already accepted; AC-HLT-001/002 remain open. The current source contains only the pure evaluators and no obligation, request-preview storage or update workflow. Started this design gate from main merge `3b7d4ecffec7b0cdb910f718a05ba75d463c988c`.
+- 2026-09-28: Live main inspection confirmed AC-HLT-003/004 were already accepted and opened the design gate from merge `3b7d4ecffec7b0cdb910f718a05ba75d463c988c`.
+- 2026-09-29: PR #96 implemented the authorized freshness/completeness workflow and merged as `b45f9188343d1dc635ea9abb5c252fb221fe7bf4` after hosted exact-head and post-merge validation.
+- 2026-09-29: PR #97 completed the scheduled E2E coverage, synthetic loopback task-signing boundary and raw-body parser fix; exact-head and post-merge Foundation/Documentation validation passed, and the independent exact-head review approved candidate `0e157120c6b680fddccec432b0ce2d45ce309b98`.
 
 ## Decisions made
 
@@ -141,8 +143,12 @@ The additive migration keeps existing project facts, authority policy and health
 
 ## Validation evidence
 
-Design-stage checks and independent review are pending on the exact candidate SHA. No implementation or acceptance claim is made by this plan-only change.
+PR #96 implementation candidate `16d7577e24030e00a9e4e3370425c0b41ca97995` merged as `b45f9188343d1dc635ea9abb5c252fb221fe7bf4`; its exact-head Foundation #491 / run `36486323748` and Documentation #533 / run `36486323686` passed, as did post-merge Foundation #492 / run `36489403220` and Documentation #534 / run `36489403554`. Independent implementation review reported no actionable findings at implementation commit `371506726cd5f14e2029367c6663b612a5f992d4`; subsequent candidate changes were acceptance fixtures and release-inventory assertions.
+
+The scheduled-path follow-up candidate `0e157120c6b680fddccec432b0ce2d45ce309b98` merged as `f3027dd902466f5030924dde8bbbd2a6fdc80d38`. Exact-head Foundation #494 / run `36493039261` passed on attempt 2, including verify and production-boundary; Documentation #536 / run `36493039367` passed. Independent exact-candidate review approved without blockers. The first production-boundary attempt failed during the bundled restore at `sessions_before_commit`; the failed job was rerun on the same reviewed SHA and passed. Post-merge Foundation #495 / run `36497312417` and Documentation #537 / run `36497312413` passed.
+
+E2E-UPD-001 passed in the Foundation verify job: all 37 browser tests passed. It exercises the signed scheduler on a synthetic local project, checks the persisted stale assessment/obligation/preview, project code and name, authorized current known position, exact missing `project.schedule` information, and no outbound dispatch. Database, integration, recovery, build, architecture/contracts, lint, typecheck, dependency and audit checks passed. Exact acceptance evidence is recorded in `requirements/traceability/tests.yaml` and `docs/04-delivery/IMPLEMENTATION_STATUS.md.
 
 ## Completion summary
 
-Pending design review. This plan does not mark AC-HLT-001/002 implemented or accepted.
+EXEC-012 implementation and acceptance are complete. E2E-UPD-001 supports AC-HLT-001, AC-HLT-002 and AC-UPD-001 with source-authorized persistence and scheduled-path browser evidence. The issues remain open; AC-UPD-002, AC-HLT-005, AC-HLT-006 and Issue #8-only AC-HLT-007 remain unchecked. No request was sent, no canonical fact was written, live Jira onboarding/activation remains disabled under OD-013, and official accepted-story totals remain R0 3/5, R1 2/33, combined 5/38 (13.2%).
