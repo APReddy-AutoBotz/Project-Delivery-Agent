@@ -1,5 +1,11 @@
 -- EXEC-012: versioned reporting policy, read-only assessment snapshots,
 -- one open update obligation per project, and an immutable review preview.
+
+-- Preserve source identity and explicit adapter validation for authoritative timestamps.
+ALTER TABLE public."FactSource"
+  ADD COLUMN "sourceType" varchar(96) NOT NULL DEFAULT 'human_statement';
+ALTER TABLE public."ProjectFactVersion"
+  ADD COLUMN "effectiveAtValidated" boolean NOT NULL DEFAULT false;
 CREATE OR REPLACE FUNCTION public.valid_project_update_facts(f jsonb)
 RETURNS boolean LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE item jsonb; seen text[] := ARRAY[]::text[]; kind text; caption text;
