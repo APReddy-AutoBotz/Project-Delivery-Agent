@@ -19,13 +19,52 @@ type ProjectUpdateTaskContext = {
 function projectUpdateTaskContext(): ProjectUpdateTaskContext | null {
   try {
     const local = parseEnv(readFileSync(".env", "utf8"));
-    const taskKeysFile = local.PROJECT_UPDATE_TASK_KEYS_FILE;
-    const internalApiUrl = local.INTERNAL_API_URL;
-    const serviceSubject = local.PROJECT_UPDATE_SERVICE_SUBJECT;
-    if (!taskKeysFile || !internalApiUrl || !serviceSubject) return null;
-    const keyRing = JSON.parse(readFileSync(taskKeysFile, "utf8")) as
-      ProjectUpdateTaskContext["keyRing"];
-    return { internalApiUrl, serviceSubject, keyRing };
+    const localDatabase = new URL(local.PDAA_DATABASE_URL ?? "");
+    if (
+      local.NODE_ENV !== "development" ||
+      local.AUTH_MODE !== "development" ||
+      local.DATA_MODE !== "synthetic" ||
+      (local.DEPLOYMENT_MODE !== undefined && local.DEPLOYMENT_MODE !== "local") ||
+      localDatabase.protocol !== "postgresql:" ||
+      localDatabase.hostname !== "127.0.0.1" ||
+      localDatabase.port !== "55432" ||
+      localDatabase.pathname !== "/pdaa" ||
+      localDatabase.username !== "pdaa" ||
+      !localDatabase.password ||
+      localDatabase.search ||
+      localDatabase.hash ||
+      local.INTERNAL_API_URL !== "http://127.0.0.1:3001" ||
+      local.PROJECT_UPDATE_TASK_KEYS_FILE !== ".project-update-task-keys.local" ||
+      local.PROJECT_UPDATE_SERVICE_SUBJECT !== "local-project-update-scheduler"
+    )
+      return null;
+
+    const keyId = "local-project-update-v1";
+    const parsed = JSON.parse(
+      readFileSync(".project-update-task-keys.local", "utf8"),
+    ) as { currentKeyId?: unknown; keys?: unknown };
+    if (
+      parsed.currentKeyId !== keyId ||
+      !parsed.keys ||
+      typeof parsed.keys !== "object" ||
+      Array.isArray(parsed.keys)
+    )
+      return null;
+    const keys = parsed.keys as Record<string, unknown>;
+    const encodedKey = keys[keyId];
+    if (
+      Object.keys(keys).length !== 1 ||
+      typeof encodedKey !== "string" ||
+      !/^[A-Za-z0-9_-]{43}$/.test(encodedKey) ||
+      Buffer.from(encodedKey, "base64url").byteLength !== 32
+    )
+      return null;
+
+    return {
+      internalApiUrl: "http://127.0.0.1:3001",
+      serviceSubject: "local-project-update-scheduler",
+      keyRing: { currentKeyId: keyId, keys: { [keyId]: encodedKey } },
+    };
   } catch {
     return null;
   }
@@ -163,8 +202,12 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
       // The required set is incomplete, so freshness uses project creation.
       // The fixture has already crossed the one-second policy boundary.
       const scanResponse = await runScheduledProjectUpdateScan(request, f.taskContext);
-      expect(scanResponse.status()).toBe(200);
-      const scan = await scanResponse.json();
+      const scanResponseBody = await scanResponse.text();
+      expect(
+        scanResponse.status(),
+        "Scheduled project-update scan rejected the synthetic request: " + scanResponseBody,
+      ).toBe(200);
+      const scan = JSON.parse(scanResponseBody);
       expect([0, 1]).toContain(scan.processed);
 
       const policyResponse = await f.api(
