@@ -70,6 +70,29 @@ describe("UNIT-HLT-001: update freshness and obligation descriptors", () => {
     });
   });
 
+  it("accepts a trusted source update earlier than canonical row creation", () => {
+    const result = assessUpdateFreshness(
+      request({
+        asOf: "2026-06-02T00:00:00.000Z",
+        project: {
+          ...request().project,
+          createdAt: "2026-06-01T00:00:00.000Z",
+          latestValidUpdateAt: "2026-05-30T00:00:00.000Z",
+        },
+      }),
+    );
+    expect(result.freshness).toMatchObject({
+      state: "STALE",
+      sourceDateField: "project.latestValidUpdateAt",
+      sourceDate: "2026-05-30T00:00:00.000Z",
+      ageMilliseconds: 259200000,
+    });
+    expect(result.obligation).toMatchObject({
+      reason: "UPDATE_OUTSIDE_FRESHNESS_WINDOW",
+      freshness: { sourceDate: "2026-05-30T00:00:00.000Z" },
+    });
+  });
+
   it("uses project creation as the source date when no valid update exists", () => {
     const result = assessUpdateFreshness(
       request({
