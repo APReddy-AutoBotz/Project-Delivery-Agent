@@ -560,7 +560,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             policyRevision: policy.revision,
             assessedAt: iso(asOf),
             freshnessThresholdAt: iso(freshnessThresholdAt),
-            sourceDateField: freshnessAssessment.freshness.sourceDateField,
+            sourceDateField: freshnessAssessment.freshness.sourceDateField as ProjectUpdatePreview["sourceDateField"],
             sourceDate,
             timestampBasis: allTrusted
               ? "REQUIRED_FACTS"
