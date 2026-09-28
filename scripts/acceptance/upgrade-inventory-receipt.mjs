@@ -38,7 +38,6 @@ const releases = [
     "WorkItem",
     "RequiredWorkItem",
     "RaidItem",
-    "RaidReopenReceipt",
     "CanonicalSourceMapping",
     "CanonicalCreationReceipt",
   ],
@@ -86,6 +85,7 @@ const releases = [
     "HealthAssessmentRetentionPolicy",
     "HealthAssessment",
     "HealthAssessmentCommandReceipt",
+    "RaidReopenReceipt",
     "BlockerAgeThresholdPolicy",
   ],
 ];

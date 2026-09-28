@@ -82,6 +82,46 @@ const receipt = () => ({
 it("NFR-REL-001: accepts the exact independent prior and added table inventories", () => {
   expect(assertUpgradeInventory(receipt(), 1)).toBe(true);
 });
+it("NFR-REL-001: keeps feature-added RAID receipts out of retained prefix-four history", () => {
+  const retainedPriorTables = [
+    ...old,
+    "ProjectFact",
+    "FactSource",
+    "FactSourceAccess",
+    "FactSourceReader",
+    "FactEvidence",
+    "ProjectFactVersion",
+    "FactAppendReceipt",
+    "AuthorityPolicy",
+    "AuthorityPolicyRevision",
+    "AuthorityPolicyReceipt",
+    "FactAuthorityConflict",
+    "FactAssessment",
+    "FactAssessmentVersion",
+    "FactAssessmentConflict",
+    "Programme",
+    "CanonicalProject",
+    "ProjectResponsibility",
+    "Sprint",
+    "Milestone",
+    "WorkItem",
+    "RequiredWorkItem",
+    "RaidItem",
+    "CanonicalSourceMapping",
+    "CanonicalCreationReceipt",
+  ];
+  const value = receipt();
+  value.priorMigrationCount = 4;
+  value.retainedPriorBusinessTables = retainedPriorTables;
+  value.retainedPriorRowCounts = Object.fromEntries(
+    retainedPriorTables.map((table) => [table, 1]),
+  );
+  value.emptyAddedTablesAfterUpgrade = added.filter(
+    (table) => !retainedPriorTables.includes(table),
+  );
+  expect(value.emptyAddedTablesAfterUpgrade).toContain("RaidReopenReceipt");
+  expect(assertUpgradeInventory(value, 4)).toBe(true);
+});
 it("NFR-REL-001: rejects a self-consistent renamed original table", () => {
   const value = receipt();
   value.retainedPriorBusinessTables[0] = "FakeCustomer";
