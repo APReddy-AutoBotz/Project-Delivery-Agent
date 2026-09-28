@@ -293,7 +293,9 @@ export async function createApp(
     type: (request) => {
       const pathname = request.url?.split("?", 1)[0] ?? "";
       return request.method === "POST" &&
-        (pathname.startsWith("/internal/connectors/") || pathname.startsWith("/webhooks/jira/"));
+        (pathname.startsWith("/internal/connectors/") ||
+          pathname.startsWith("/internal/project-updates/") ||
+          pathname.startsWith("/webhooks/jira/"));
     },
   });
   preJsonBodyParser?.(app);
