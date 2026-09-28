@@ -484,11 +484,8 @@ function resolveSnapshot(input: unknown) {
           visibility: "restricted" as const,
           revalidationRequired: true as const,
         };
-      const effectiveAtValidated =
-        original.get(row.version.id)!.effectiveAtValidated;
       return {
         ...row.version,
-        ...(effectiveAtValidated === undefined ? {} : { effectiveAtValidated }),
         visibility: "available" as const,
         revalidationRequired: false as const,
         sourceType: row.sourceType,
