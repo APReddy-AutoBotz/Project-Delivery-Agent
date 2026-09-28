@@ -628,6 +628,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       }
       if (stale && preview && previewHash) {
         await tx.$executeRawUnsafe(
+          'UPDATE public."ProjectUpdatePreview" SET state=\\'SUPERSEDED\\' WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "obligationId"=$3::uuid AND state=\\'CURRENT\\'',
+          current.customerId, id, obligationId,
+        );
+        await tx.$executeRawUnsafe(
           'INSERT INTO public."ProjectUpdatePreview" (id,"customerId","projectId","obligationId","assessmentId",revision,state,preview,"envelopeHash","createdAt") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,\'CURRENT\',$7::jsonb,$8,$9)',
           preview.id, current.customerId, id, obligationId, assessmentId,
           preview.revision, stringify(preview), previewHash, asOf,
