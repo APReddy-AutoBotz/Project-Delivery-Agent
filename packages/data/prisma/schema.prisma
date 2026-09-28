@@ -123,6 +123,7 @@ model FactSource {
   projectId String @db.Uuid
   factId String @db.Uuid
   providedBy String @db.VarChar(256)
+  sourceType String @default("human_statement") @db.VarChar(96)
   fact ProjectFact @relation(fields: [customerId, projectId, factId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
   access FactSourceAccess?
   evidence FactEvidence[]
@@ -176,6 +177,7 @@ model ProjectFactVersion {
   revision Int
   value Json
   provenance String @default("HUMAN_CONFIRMED") @db.VarChar(24)
+  effectiveAtValidated Boolean @default(false)
   effectiveAt DateTime @db.Timestamptz(3)
   validUntil DateTime? @db.Timestamptz(3)
   fact ProjectFact @relation(fields: [customerId, projectId, factId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
