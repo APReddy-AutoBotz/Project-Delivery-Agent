@@ -248,7 +248,7 @@ function resolveSnapshot(input: unknown) {
       validity: null,
     },
     versions: snapshot.versions.map(
-      ({ approval: _approval, ...version }) => version,
+      ({ approval: _approval, effectiveAtValidated: _effectiveAtValidated, ...version }) => version,
     ),
     conflicts: snapshot.conflicts,
   });
@@ -257,6 +257,8 @@ function resolveSnapshot(input: unknown) {
   );
   const rows = history.versions.map((version) => {
     const approval = original.get(version.id)!.approval;
+    const effectiveAtValidated =
+      original.get(version.id)!.effectiveAtValidated === true;
     const type = sourceTypes.get(version.source.instanceId)!;
     const match = policyApplicable
       ? selectors.find(
@@ -486,6 +488,7 @@ function resolveSnapshot(input: unknown) {
         };
       return {
         ...row.version,
+        effectiveAtValidated,
         visibility: "available" as const,
         revalidationRequired: false as const,
         sourceType: row.sourceType,
