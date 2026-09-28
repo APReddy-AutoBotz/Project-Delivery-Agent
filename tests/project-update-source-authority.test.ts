@@ -1,62 +1,117 @@
 import { describe, expect, it } from "vitest";
+import {
+  resolveSourceAuthority,
+  type SourceAuthoritySnapshot,
+} from "../packages/domain/dist/index.js";
 import { buildSourceAuthoritySnapshot } from "../packages/data/dist/authority-persistence.js";
 import { selectCanonicalProjectUpdateTimestamp } from "../packages/data/dist/project-updates.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const projectId = "30000000-0000-4000-8000-000000000001";
 const factId = "40000000-0000-4000-8000-000000000001";
-const sourceId = "50000000-0000-4000-8000-000000000001";
-const versionId = "60000000-0000-4000-8000-000000000001";
-const evidenceId = "70000000-0000-4000-8000-000000000001";
 const observedAt = new Date("2026-06-09T00:00:00.000Z");
 const effectiveAt = new Date("2026-05-01T00:00:00.000Z");
 const asOf = new Date("2026-06-10T00:00:00.000Z");
 
-describe("Project update timestamp authority boundary", () => {
-  it("uses the persisted canonical source identity and never treats visibility as adapter validation", () => {
-    const authority = buildSourceAuthoritySnapshot(
-      { customerId, projectId, factId, factType: "project.status" } as never,
-      asOf.toISOString(),
-      null,
-      [{
-        id: versionId,
-        sourceId,
-        evidenceId,
-        value: { type: "text", value: "In progress" },
-        provenance: "HUMAN_CONFIRMED",
-        effectiveAt,
-        validUntil: null,
-        evidence: { observedAt },
-      }] as never,
-      [],
-      [],
-      true,
-    );
+function snapshot(input: {
+  sourceType: string;
+  effectiveAtValidated: boolean;
+  provenance: string;
+  sourceId: string;
+  versionId: string;
+  evidenceId: string;
+}): SourceAuthoritySnapshot {
+  return buildSourceAuthoritySnapshot(
+    { customerId, projectId, factId, factType: "project.status" } as never,
+    asOf.toISOString(),
+    null,
+    [{
+      id: input.versionId,
+      sourceId: input.sourceId,
+      evidenceId: input.evidenceId,
+      value: { type: "text", value: "In progress" },
+      provenance: input.provenance,
+      effectiveAtValidated: input.effectiveAtValidated,
+      effectiveAt,
+      validUntil: null,
+      evidence: {
+        observedAt,
+        source: { sourceType: input.sourceType },
+      },
+    }] as never,
+    [],
+    [{
+      sourceId: input.sourceId,
+      state: "AVAILABLE",
+      readers: [{ subject: "reviewer@example.invalid" }],
+    }] as never,
+    true,
+  );
+}
 
-    expect(authority.sources).toEqual([{
-      instanceId: sourceId,
+describe("Project update timestamp authority boundary", () => {
+  it("carries source identity and explicit adapter validation through authority resolution", () => {
+    const humanSnapshot = snapshot({
       sourceType: "human_statement",
-    }]);
-    const human = selectCanonicalProjectUpdateTimestamp({
-      sourceType: authority.sources[0]!.sourceType,
+      effectiveAtValidated: false,
+      provenance: "HUMAN_CONFIRMED",
+      sourceId: "50000000-0000-4000-8000-000000000001",
+      versionId: "60000000-0000-4000-8000-000000000001",
+      evidenceId: "70000000-0000-4000-8000-000000000001",
+    });
+    const human = resolveSourceAuthority(humanSnapshot).versions[0]!;
+    expect(human).toMatchObject({
+      sourceType: "human_statement",
+      effectiveAtValidated: false,
+      visibility: "available",
+    });
+    expect(selectCanonicalProjectUpdateTimestamp({
+      sourceType: human.sourceType!,
       selectedBasis: "effectiveAt",
       observedAt,
       effectiveAt,
+      effectiveAtValidated: human.effectiveAtValidated === true,
       asOf,
-    });
-    expect(human).toEqual({
+    })).toEqual({
       timestampBasis: "HUMAN_OBSERVED_AT",
       timestamp: observedAt,
     });
 
-    const connectorWithoutValidation = selectCanonicalProjectUpdateTimestamp({
+    const validatedConnectorSnapshot = snapshot({
+      sourceType: "jira_connector",
+      effectiveAtValidated: true,
+      provenance: "SYSTEM_VERIFIED",
+      sourceId: "50000000-0000-4000-8000-000000000002",
+      versionId: "60000000-0000-4000-8000-000000000002",
+      evidenceId: "70000000-0000-4000-8000-000000000002",
+    });
+    const connector = resolveSourceAuthority(validatedConnectorSnapshot).versions[0]!;
+    expect(connector).toMatchObject({
+      sourceType: "jira_connector",
+      effectiveAtValidated: true,
+      visibility: "available",
+    });
+    expect(selectCanonicalProjectUpdateTimestamp({
+      sourceType: connector.sourceType!,
+      selectedBasis: "effectiveAt",
+      observedAt,
+      effectiveAt,
+      effectiveAtValidated: connector.effectiveAtValidated === true,
+      asOf,
+    })).toEqual({
+      timestampBasis: "CONNECTOR_EFFECTIVE_AT",
+      timestamp: effectiveAt,
+    });
+
+    const unvalidated = selectCanonicalProjectUpdateTimestamp({
       sourceType: "jira_connector",
       selectedBasis: "effectiveAt",
       observedAt,
       effectiveAt,
+      effectiveAtValidated: false,
       asOf,
     });
-    expect(connectorWithoutValidation).toEqual({
+    expect(unvalidated).toEqual({
       timestampBasis: "UNCONFIRMED",
       timestamp: null,
     });
