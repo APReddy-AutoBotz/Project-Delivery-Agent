@@ -7,19 +7,9 @@ import {
 import type { assessProjectCompleteness } from "./completeness-signals.js";
 import type { assessUpdateFreshness } from "./freshness-signals.js";
 
-const safeId = z.uuid().refine((value) => value === value.toLowerCase());
-const instant = z.string().length(24).refine((value) => {
-  const parsed = Date.parse(value);
-  return (
-    /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value) &&
-    Number(value.slice(0, 4)) >= 1 &&
-    Number.isFinite(parsed) &&
-    new Date(parsed).toISOString() === value
-  );
-});
 const factType = z.string().min(1).max(96).regex(/^[a-z][a-z0-9_.-]*$/);
 const label = z.string().min(1).max(160).refine(
-  (value) => value.trim().length > 0 && !/[\\0\\p{Surrogate}]/u.test(value),
+  (value) => value.trim().length > 0 && !/[\0\p{Surrogate}]/u.test(value),
 );
 const revision = z.number().int().min(0).max(2147483646);
 
