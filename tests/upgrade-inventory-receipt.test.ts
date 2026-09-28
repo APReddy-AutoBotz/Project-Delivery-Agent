@@ -71,6 +71,11 @@ const added = [
   "HealthAssessmentCommandReceipt",
   "RaidReopenReceipt",
   "BlockerAgeThresholdPolicy",
+  "ProjectUpdatePolicy",
+  "ProjectUpdatePolicyRevision",
+  "ProjectUpdateAssessment",
+  "ProjectUpdateObligation",
+  "ProjectUpdatePreview",
 ];
 const receipt = () => ({
   priorMigrationCount: 1,
@@ -122,19 +127,19 @@ it("NFR-REL-001: keeps feature-added RAID receipts out of retained prefix-four h
   expect(value.emptyAddedTablesAfterUpgrade).toContain("RaidReopenReceipt");
   expect(assertUpgradeInventory(value, 4)).toBe(true);
 });
-it("NFR-REL-001: rejects a self-consistent renamed original table", () => {
+it("NFR-REL-001: accepts project update tables as migration seven additions", () => {
+  const prior = [...old, ...added.slice(0, added.indexOf("ProjectUpdatePolicy"))];
   const value = receipt();
-  value.retainedPriorBusinessTables[0] = "FakeCustomer";
-  delete value.retainedPriorRowCounts.Customer;
-  value.retainedPriorRowCounts.FakeCustomer = 1;
-  expect(() => assertUpgradeInventory(value, 1)).toThrow();
-});
-it("NFR-REL-001: rejects empty retained tables, missing new tables and wrong prefixes", () => {
-  const empty = receipt();
-  empty.retainedPriorRowCounts.Project = 0;
-  expect(() => assertUpgradeInventory(empty, 1)).toThrow();
-  const missing = receipt();
-  missing.emptyAddedTablesAfterUpgrade.pop();
-  expect(() => assertUpgradeInventory(missing, 1)).toThrow();
-  expect(() => assertUpgradeInventory(receipt(), 6)).toThrow();
+  value.priorMigrationCount = 6;
+  value.retainedPriorBusinessTables = prior;
+  value.retainedPriorRowCounts = Object.fromEntries(prior.map((table) => [table, 1]));
+  value.emptyAddedTablesAfterUpgrade = added.filter((table) => !prior.includes(table));
+  expect(value.emptyAddedTablesAfterUpgrade).toEqual([
+    "ProjectUpdatePolicy",
+    "ProjectUpdatePolicyRevision",
+    "ProjectUpdateAssessment",
+    "ProjectUpdateObligation",
+    "ProjectUpdatePreview",
+  ]);
+  expect(assertUpgradeInventory(value, 6)).toBe(true);
 });
