@@ -544,7 +544,233 @@ test("FR-EVD-009: a controlled second-page queue retains the exact assignment re
   ).toBeEnabled();
 });
 
-test("E2E-HLT-003: PMO reviews the blocker-age threshold and unresolved inventory stays unassessable", async ({
+test("E2E-HLT-003 source-authorized case: visible age uses current human facts and the configured threshold", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request);
+  const assessmentRetention = await f.api(
+    "pmo-portfolio",
+    "/admin/health-assessment-retention",
+    "POST",
+    {
+      contentRetentionHours: 24,
+      auditRetentionHours: 48,
+      idempotencyRetentionHours: 72,
+    },
+  );
+  expect(assessmentRetention.status()).toBe(200);
+
+  const policyResponse = await f.api(
+    "pmo-portfolio",
+    "/admin/blocker-age-threshold-policy",
+  );
+  expect(policyResponse.status()).toBe(200);
+  const existingPolicy = await policyResponse.json();
+
+  await open(page, f.payload.name);
+  const panel = page.getByRole("region", {
+    name: "Schedule and blocker age",
+    exact: true,
+  });
+  const minimumAge = panel.getByLabel(
+    "Minimum blocker age (UTC calendar days)",
+    { exact: true },
+  );
+  const retention = panel.getByLabel(
+    "Threshold audit retention (hours)",
+    { exact: true },
+  );
+  await minimumAge.fill("10");
+  await retention.fill("720");
+  const thresholdSaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/admin/blocker-age-threshold-policy") &&
+      response.request().method() === "POST",
+  );
+  await panel
+    .getByRole("button", { name: "Save customer threshold", exact: true })
+    .click();
+  const thresholdResponse = await thresholdSaved;
+  expect(thresholdResponse.status()).toBe(200);
+  const savedPolicy = await thresholdResponse.json();
+  expect(savedPolicy.minimumBlockerAgeDays).toBe(10);
+  expect(savedPolicy.auditRetentionHours).toBe(720);
+  expect(savedPolicy.revision).toBe((existingPolicy?.revision ?? 0) + 1);
+  await expect(panel).toContainText(
+    "Current revision " +
+      savedPolicy.revision +
+      ": blockers age after 10 UTC calendar days. Audit retention is 720 hours.",
+  );
+
+  const canonicalResponse = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/canonical",
+  );
+  expect(canonicalResponse.status()).toBe(200);
+  const canonical = (await canonicalResponse.json()) as {
+    raidItems: Array<{ id: string; key: string; state: string }>;
+  };
+  expect(canonical.raidItems).toHaveLength(6);
+
+  const effectiveAt = f.effectiveAt;
+  const finiteValidity = {
+    basis: "observedAt",
+    durationMs: 86_400_000,
+  };
+  const currentDefinition = {
+    tiers: [
+      {
+        selectors: [
+          {
+            sourceType: "human_statement",
+            instanceId: null,
+            requiredApproval: "NOT_REQUIRED",
+            validity: finiteValidity,
+          },
+        ],
+      },
+    ],
+    conflictBehavior: "REQUEST_RECONCILIATION",
+  };
+  const openedAtDefinition = {
+    tiers: [
+      {
+        selectors: [
+          {
+            sourceType: "human_statement",
+            instanceId: null,
+            requiredApproval: "NOT_REQUIRED",
+            validity: { mode: "UNTIL_SUPERSEDED" },
+          },
+        ],
+      },
+    ],
+    conflictBehavior: "REQUEST_RECONCILIATION",
+  };
+  const configure = async (factType: string, definition: unknown) => {
+    const response = await f.api(
+      "pmo-portfolio",
+      f.prefix + "/authority-policies",
+      "POST",
+      {
+        projectId: f.projectId,
+        factType,
+        expectedRevision: 0,
+        idempotencyKey: randomUUID(),
+        effectiveAt,
+        definition,
+      },
+    );
+    expect(response.status()).toBe(201);
+  };
+  const append = async (
+    factType: string,
+    value:
+      | { type: "boolean"; value: boolean }
+      | { type: "date"; value: string },
+  ) => {
+    const response = await f.api(
+      "pm-atlas",
+      f.prefix + "/fact-statements",
+      "POST",
+      {
+        projectId: f.projectId,
+        factType,
+        expectedRevision: 0,
+        idempotencyKey: randomUUID(),
+        value,
+        originalStatement:
+          "Synthetic authority input for blocker-age browser acceptance.",
+        effectiveAt,
+        validUntil: null,
+      },
+    );
+    expect(response.status()).toBe(201);
+    const saved = (await response.json()) as {
+      entry: { sourceId: string };
+    };
+    await f.share(saved.entry.sourceId);
+  };
+
+  await configure(
+    "project.open_blocker_inventory_complete",
+    currentDefinition,
+  );
+  await append("project.open_blocker_inventory_complete", {
+    type: "boolean",
+    value: true,
+  });
+
+  const blockingRaid = canonical.raidItems[0]!;
+  const openedDate = new Date(Date.now() - 30 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  for (const [index, raid] of canonical.raidItems.entries()) {
+    const classificationType =
+      "raid_item." + raid.id + ".blocks_delivery";
+    await configure(classificationType, currentDefinition);
+    const blocksDelivery = index === 0;
+    await append(classificationType, {
+      type: "boolean",
+      value: blocksDelivery,
+    });
+    if (blocksDelivery) {
+      const openedAtType = "raid_item." + raid.id + ".opened_at";
+      await configure(openedAtType, openedAtDefinition);
+      await append(openedAtType, { type: "date", value: openedDate });
+    }
+  }
+
+  const assessmentSaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(
+        "/projects/" + f.projectId + "/health-assessments",
+      ) && response.request().method() === "POST",
+  );
+  await panel
+    .getByRole("button", { name: "Run assessment", exact: true })
+    .click();
+  const assessmentResponse = await assessmentSaved;
+  expect(assessmentResponse.status()).toBe(201);
+  const assessment = await assessmentResponse.json();
+  const blockerAge = assessment.result.blockerAge;
+  expect(blockerAge).toMatchObject({
+    coverage: "COMPLETE",
+    minimumBlockerAgeDays: 10,
+    thresholdRevision: savedPolicy.revision,
+    assessedBlockerCount: 1,
+    unknownCandidateCount: 0,
+    agedBlockerCount: 1,
+    noOpenBlockers: false,
+  });
+  const signal = blockerAge.assessments.find(
+    (item: { targetKey: string }) => item.targetKey === blockingRaid.key,
+  );
+  expect(signal).toMatchObject({
+    targetKey: blockingRaid.key,
+    sourceDate: openedDate,
+    status: "AGED",
+  });
+  expect(signal.ageDays).toBeGreaterThanOrEqual(10);
+  expect(assessment.result.calculated.status).toEqual(expect.any(String));
+
+  await expect(panel.getByText("GREEN · unchanged", { exact: true })).toBeVisible();
+  await expect(panel).toContainText("Blocker-age coverage: complete");
+  await expect(panel).toContainText(
+    "1 blocker(s) assessed; 1 meet or exceed the threshold.",
+  );
+  await expect(panel.getByText("10 days", { exact: true })).toBeVisible();
+  const blockerRow = panel
+    .locator("tbody tr")
+    .filter({ hasText: blockingRaid.key });
+  await expect(blockerRow).toContainText(openedDate);
+  await expect(blockerRow).toContainText(
+    /AGED · \d+ days · threshold 10/,
+  );
+});
+
+test("E2E-HLT-003 unresolved case: PMO reviews the threshold and incomplete inventory stays unassessable", async ({
   page,
   request,
 }) => {

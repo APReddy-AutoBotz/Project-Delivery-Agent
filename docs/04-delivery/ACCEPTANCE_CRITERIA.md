@@ -18,7 +18,7 @@ Canonical definitions are in `requirements/traceability.yaml`. These criteria an
 | AC-EVD-006 | A confirmed response records the confirming user, timestamp, original response and linked evidence. | P0 | FR-EVD-005, FR-UPD-008 | INT-EVD-006 |
 | AC-HLT-001 | A project whose required update is older than policy is shown as stale and creates the configured obligation. | P0 | FR-HLT-001, FR-UPD-001 | UNIT-HLT-001, E2E-UPD-001 |
 | AC-HLT-002 | The completeness check lists the exact required facts that are missing or unconfirmed. | P0 | FR-HLT-002 | UNIT-HLT-002 |
-| AC-HLT-003 | Blocker age is calculated from source dates and the applied threshold is visible. | P0 | FR-HLT-004, FR-HLT-009, FR-HLT-011 | UNIT-HLT-003 |
+| AC-HLT-003 | Blocker age is calculated from source dates and the applied threshold is visible. | P0 | FR-HLT-004, FR-HLT-009, FR-HLT-011 | UNIT-HLT-003, E2E-HLT-003 |
 | AC-HLT-004 | Reported GREEN and independently calculated RED are stored and displayed separately with reproducible input facts, rule revision and rationale. | P0 | FR-HLT-007, FR-HLT-008, FR-MOD-006 | UNIT-HLT-004, E2E-HLT-004, GOLDEN-002 |
 | AC-HLT-005 | A completed milestone with mandatory open linked issues creates a contradiction signal and a PM reconciliation action. | P0 | FR-HLT-008, FR-HLT-009 | INT-HLT-005, GOLDEN-003 |
 | AC-HLT-006 | The health result is reproducible with the AI provider disabled. | P0 | FR-HLT-011, NFR-REL-003 | UNIT-HLT-006 |

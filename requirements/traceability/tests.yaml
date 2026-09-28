@@ -265,6 +265,21 @@ tests:
     project, versions facts/evidence and applies field authority, detects missing/stale information, asks the correct
     owner a contextual question, and presents an evidence-backed answer without replacing project-management tools.
   evidence: []
+- id: E2E-HLT-003
+  release: R1
+  status: implemented
+  acceptance_criteria:
+  - AC-HLT-003
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: >-
+    A PMO administrator configures the threshold and current human-authorized
+    inventory, blocker classifications and opened date. The assessment displays
+    the source date, calculated age and applied threshold; an incomplete inventory
+    remains unassessable and cannot become a no-blocker claim.
+  evidence:
+  - tests/e2e/project-evidence.spec.ts
+  - .github/workflows/foundation-validation.yml
+
 - id: E2E-HLT-004
   release: R1
   status: planned

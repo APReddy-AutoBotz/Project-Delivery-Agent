@@ -165,6 +165,7 @@ acceptance_criteria:
   priority: P0
   tests:
   - UNIT-HLT-003
+  - E2E-HLT-003
 - id: AC-HLT-004
   title: Separate reported and calculated health
   criterion: Reported GREEN and independently calculated RED are stored and displayed separately with reproducible
