@@ -132,6 +132,11 @@ try {
     "HealthAssessment",
     "HealthAssessmentCommandReceipt",
     "BlockerAgeThresholdPolicy",
+    "ProjectUpdatePolicy",
+    "ProjectUpdatePolicyRevision",
+    "ProjectUpdateAssessment",
+    "ProjectUpdateObligation",
+    "ProjectUpdatePreview",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
