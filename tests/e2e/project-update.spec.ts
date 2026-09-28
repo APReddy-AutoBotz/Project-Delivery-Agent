@@ -123,7 +123,7 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   await expect(panel).toContainText("Saved request preview · Draft · revision 2");
 
   await page.getByLabel(/^Required facts/).fill(
-    f.factType + " | Current forecast\\nproject.schedule | Next milestone",
+    f.factType + " | Current forecast\nproject.schedule | Next milestone",
   );
   await page.getByRole("button", { name: "Save policy revision", exact: true }).click();
   await expect(panel).toContainText("Reporting policy saved as an immutable revision.");
@@ -163,6 +163,9 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   });
   await expect(persisted).toContainText("Saved request preview · Draft");
   await expect(persisted).toContainText(observedAt);
+  await expect(persisted).toContainText("Next milestone: MISSING");
+  await expect(persisted).toContainText("NO_CANONICAL_VALUE");
+  await expect(persisted).toContainText("First synthetic forecast");
   const saved = await (
     await f.api(
       "pmo-portfolio",
