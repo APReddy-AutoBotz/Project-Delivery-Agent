@@ -258,7 +258,7 @@ function resolveSnapshot(input: unknown) {
   const rows = history.versions.map((version) => {
     const approval = original.get(version.id)!.approval;
     const effectiveAtValidated =
-      original.get(version.id)!.effectiveAtValidated === true;
+      original.get(version.id)!.effectiveAtValidated;
     const type = sourceTypes.get(version.source.instanceId)!;
     const match = policyApplicable
       ? selectors.find(
@@ -488,7 +488,7 @@ function resolveSnapshot(input: unknown) {
         };
       return {
         ...row.version,
-        effectiveAtValidated,
+        ...(effectiveAtValidated === undefined ? {} : { effectiveAtValidated }),
         visibility: "available" as const,
         revalidationRequired: false as const,
         sourceType: row.sourceType,
