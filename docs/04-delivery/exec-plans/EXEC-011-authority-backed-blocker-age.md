@@ -1,11 +1,11 @@
 # EXEC-011: Authority-backed blocker-age assessment
 
-Status: Approved
+Status: Complete — AC-HLT-003 implementation and acceptance
 Owner: Implementation controller
 Requirement IDs: AC-HLT-003, FR-HLT-004/009/010/011, FR-EVD-001/002/003/006/007/009/010/012, FR-ADM-005/006, FR-MOD-006, FR-AUD-001/005/007, NFR-SEC-001/002, NFR-PRV-004, NFR-REL-001/003
 GitHub issue: #8 (EPIC-04, STORY-013..015)
 Target release: R1
-Last updated: 2026-09-27
+Last updated: 2026-09-28
 
 ## Objective
 
@@ -39,14 +39,11 @@ This plan requires independent design review at an immutable candidate SHA befor
 
 ## Current state
 
-- PR #87 merged the approved plan-only candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as merge `d93218886e4256159caa92e1f1f365bdd162b489`. Main is based on that merge; the feature branch starts from the same tree.
-- PR #82 provides a deterministic pure blocker-age evaluator with a caller-supplied time zone, date field, threshold, closed-record exclusion, and unassessable missing dates. It does not establish source authority or connect to API/UI/persistence.
-- PR #85 provides an authenticated stored schedule-only assessment, separate from reported RAG, with immutable payloads, idempotency, retention and an API/UI. PR #86 and the latest post-merge Foundation and Documentation checks passed.
-- EXEC-010 explicitly excludes source mapping resolution, source authority, proposals, blocker age and other unimplemented health families. This increment is a new plan and will not silently widen EXEC-010.
-- RAID items have no source opened date. Canonical source mappings are pointers, and ingestion rows are proposals. The project-fact model supports date values and existing source-authority resolution, with per-project/per-fact-type policy, history, conflict, freshness and source-access checks.
-- DatabaseAuthorityRepository.prepareAssessmentInTransaction is the read-only resolution seam. Its documented callers hold the Project and relevant fact locks before taking one asOf. The existing health route currently locks project access and a sealed canonical schedule graph, but does not load RAID items or ProjectFacts.
-- Issue #8 remains open with all seven checkboxes unchecked. Current accepted-story totals are R0 3/5, R1 2/33, combined 5/38 (13.2%). UNIT-HLT-003 is evidence for the pure evaluator only; AC-HLT-003 remains partial.
-
+- PR #87 merged the approved design-only candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as merge `d93218886e4256159caa92e1f1f365bdd162b489`; its design gate preceded application changes.
+- PR #88 merged implementation candidate `bb074f143f43b3fa62a29eccaa25b842a0141b34` as merge `18a33232a4a89ef3e8fedf6fd1974b56c7d7ea2d`. It implements current source-authority resolution, blocker-age persistence/display, required customer threshold policy/audit, and guarded atomic reopen behavior.
+- PR #89 merged positive browser acceptance candidate `70167967b2d56ef5d3b78b82038fbcd3d348c540` as merge `a695192bc5b9a85df418a464626279370241f192`. E2E-HLT-003 demonstrates source-authorized COMPLETE blocker-age assessment and visible source date, age, threshold and revision, while the unresolved-inventory case remains unassessable.
+- Exact-head Foundation #362 and Documentation #427, independent exact-head review, and post-merge Foundation #363 and Documentation #428 passed.
+- Issue #8 remains open; AC-HLT-003 is checked and the other six criteria remain open. STORY-013..015 and accepted-story totals are unchanged. Spreadsheet rows remain reviewed proposals, not canonical facts.
 ## Proposed design
 
 ### Source-date identity and resolution
@@ -152,9 +149,9 @@ The migration is additive; preserve all earlier migrations, facts, proposals and
 
 ## Progress log
 
-- 2026-09-27: PR #87 merged the approved plan-only candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as `d93218886e4256159caa92e1f1f365bdd162b489`. Exact-head Foundation verify, production-boundary and Documentation checks passed. The design gate is complete; this implementation plan is active.
-- 2026-09-27: Drafted after confirming PR #82 is evaluator-only and PR #85/86 leave runtime assessment schedule-only. Reviews of `67abadcc` and `d65c4ed` identified and drove fixes for blocker/inventory classification, freshness, lock order, audit retention and reopen enforcement. The independent reviewer approved plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` against base `93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7`, with no blocking findings; the approved Proposed design section SHA256 is `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`. PR #87 merged as `d93218886e4256159caa92e1f1f365bdd162b489` after exact-head Foundation (`verify` and `production-boundary`) and Documentation checks passed. The approved plan design gate is closed; implementation and AC-HLT-003 acceptance remain incomplete.
-
+- 2026-09-28: PR #89 merged reviewed acceptance candidate `70167967b2d56ef5d3b78b82038fbcd3d348c540` as `a695192bc5b9a85df418a464626279370241f192`. Exact-head Foundation #362 and Documentation #427 passed; independent exact-head review approved; post-merge Foundation #363 and Documentation #428 passed. The positive E2E-HLT-003 case verifies the visible, source-authorized blocker age and applied threshold; its negative case retains the unassessable incomplete-inventory behavior.
+- 2026-09-28: PR #88 merged the authority-backed assessment implementation candidate `bb074f143f43b3fa62a29eccaa25b842a0141b34` as `18a33232a4a89ef3e8fedf6fd1974b56c7d7ea2d`. Exact-head Foundation #360 and Documentation #425, independent review, and post-merge Foundation #361 and Documentation #426 passed.
+- 2026-09-27: PR #87 merged the approved plan-only candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as `d93218886e4256159caa92e1f1f365bdd162b489`. Exact-head Foundation verify, production-boundary and Documentation checks passed. The design gate was completed before implementation.
 ## Decisions made
 
 - Bound v1 candidates to all active canonical RAID items. Require an exact, current, source-authorized `blocks_delivery` boolean for every candidate instead of treating RAID kind alone as blocker status.
@@ -179,8 +176,11 @@ These design decisions were approved at exact plan-only candidate `83df679cd847f
 
 ## Validation evidence
 
-The approved design section SHA256 is `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`. Non-author review approved the plan design, and PR #87 merged its reviewed final candidate `1e62ba3984b1b4f8bbc9b1573e247d4b0bec7130` as `d93218886e4256159caa92e1f1f365bdd162b489`. Exact-head Foundation verify, Foundation production-boundary and Documentation checks passed. No implementation candidate has completed its own review or validation yet; AC-HLT-003 acceptance, Issue #8 checkboxes and story closure remain unchanged.
+PR #89 candidate `70167967b2d56ef5d3b78b82038fbcd3d348c540` was independently approved and merged as `a695192bc5b9a85df418a464626279370241f192`. Exact-head [Foundation #362](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36365313715) and [Documentation #427](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36365313675) passed. Post-merge [Foundation #363](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36367025947) and [Documentation #428](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36367025974) passed. The browser acceptance uses only synthetic human-authorized facts and confirms the visible source date, calculated blocker age and threshold. The incomplete-inventory negative case remains unassessable.
 
+PR #88 implemented the authority-backed assessment and merged candidate `bb074f143f43b3fa62a29eccaa25b842a0141b34` as `18a33232a4a89ef3e8fedf6fd1974b56c7d7ea2d`. Its exact-head Foundation #360 and Documentation #425 checks, independent review, and post-merge Foundation #361 and Documentation #426 checks passed.
+
+Issue #8 remains open with AC-HLT-003 checked after merge and post-merge validation; its other six acceptance criteria remain unchecked. STORY-013..015 are not accepted, and R0/R1 accepted-story totals have not changed.
 ## Completion summary
 
-The design gate is approved and complete. Implementation and AC-HLT-003 acceptance remain incomplete and require their own exact-candidate review and validation.
+The approved design, authority-backed implementation and AC-HLT-003 acceptance are complete. Exact-head review and candidate workflows passed, the candidate merge was guarded by its approved SHA, and post-merge Foundation and Documentation checks passed. Issue #8 remains open because six criteria remain incomplete; no STORY-013..015 completion or story-count change is claimed.
