@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Config } from "@pdaa/platform";
 import { verifyConnectorTaskRequest } from "@pdaa/platform";
 import type { JiraRuntimeService } from "./jira-runtime.js";
+import type { ProjectUpdateRepository } from "@pdaa/domain";
 
 const eventIdSchema = z.string().min(1).max(256).regex(/^[\x21-\x7e]+$/);
 type ConnectorRequest = {
@@ -51,16 +52,17 @@ export function installConnectorRoutes(
   config: Config,
   runtime: ConnectorHttpRuntimePort,
   jira: JiraRuntimeService,
+  projectUpdates?: ProjectUpdateRepository,
 ) {
   app.use(async (request: ConnectorRequest, response: ConnectorResponse, next: Next) => {
     const req = request;
     const pathname = req.path;
     const rawBody = req.rawBody;
-    if (req.method !== "POST" || (!pathname.startsWith("/internal/connectors/") && !pathname.startsWith("/webhooks/jira/"))) {
+    if (req.method !== "POST" || (!pathname.startsWith("/internal/connectors/") && !pathname.startsWith("/internal/project-updates/") && !pathname.startsWith("/webhooks/jira/"))) {
       next();
       return;
     }
-    if (pathname !== "/internal/connectors/run" && !/^\/webhooks\/jira\/[0-9a-f-]{36}$/i.test(pathname)) {
+    if (pathname !== "/internal/connectors/run" && pathname !== "/internal/project-updates/scan" && !/^\/webhooks\/jira\/[0-9a-f-]{36}$/i.test(pathname)) {
       fixedError(response, 404, "Resource unavailable");
       return;
     }
@@ -104,6 +106,43 @@ export function installConnectorRoutes(
           return;
         }
         response.status(200).json(await jira.runOne());
+      } catch {
+        fixedError(response, 503, "Service unavailable");
+      }
+      return;
+    }
+    if (pathname === "/internal/project-updates/scan") {
+      const headers = req.headers as Record<string, string | string[] | undefined>;
+      if (!config.projectUpdateTaskKeys || !projectUpdates || !verifyConnectorTaskRequest({
+        method: req.method,
+        path: pathname,
+        body: rawBody,
+        headers,
+        keyRing: config.projectUpdateTaskKeys,
+      })) {
+        fixedError(response, 401, "Access denied");
+        return;
+      }
+      if (rawBody.byteLength > 64) {
+        fixedError(response, 400, "Invalid request");
+        return;
+      }
+      let body: unknown;
+      try { body = JSON.parse(rawBody.toString("utf8")) as unknown; }
+      catch { fixedError(response, 400, "Invalid request"); return; }
+      if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 0) {
+        fixedError(response, 400, "Invalid request");
+        return;
+      }
+      try {
+        const nonce = req.get("x-pdaa-task-nonce") ?? "";
+        const keyId = req.get("x-pdaa-task-key") ?? "";
+        const timestampSeconds = req.get("x-pdaa-task-time") ?? "";
+        if (!(await runtime.acceptTaskNonce({ nonce, keyId, timestampSeconds, body: rawBody }))) {
+          fixedError(response, 409, "Task request already used");
+          return;
+        }
+        response.status(200).json({ processed: await projectUpdates.scanScheduledProjects(25) });
       } catch {
         fixedError(response, 503, "Service unavailable");
       }
