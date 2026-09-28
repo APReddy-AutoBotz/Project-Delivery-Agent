@@ -92,7 +92,7 @@ type Resolution = {
       }>;
     }>;
   } | null;
-  versions: Array<{ id: string; visibility: string; sourceType?: string; effectiveAtValidated?: boolean }>;
+  versions: Array<{ id: string; visibility: string; sourceType?: string }>;
 };
 const SCHEDULED_SCAN_INTERVAL_SECONDS = 60 * 60;
 const SCHEDULED_SCAN_RETRY_SECONDS = 5 * 60;
@@ -440,6 +440,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         }
         for (const version of selected) {
           const authorityVersion = resolved.versions.find((item) => item.id === version.id);
+          const effectiveAtValidated = prepared.snapshot.versions.some(
+            (item) => item.id === version.id && item.effectiveAtValidated === true,
+          );
           const access = prepared.access.find((item) => item.sourceId === version.sourceId);
           if (
             authorityVersion?.visibility !== "available" ||
@@ -460,7 +463,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             selectedBasis: basis,
             observedAt,
             effectiveAt,
-            effectiveAtValidated: authorityVersion?.effectiveAtValidated === true,
+            effectiveAtValidated,
             asOf,
           });
           const timestampBasis = selectedTime.timestampBasis;
