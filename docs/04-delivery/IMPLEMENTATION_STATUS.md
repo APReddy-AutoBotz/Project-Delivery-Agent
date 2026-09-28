@@ -716,3 +716,9 @@ PR #71 merged the independently reviewed AC-MNT-003 runtime contract candidate. 
 Exact-head [Foundation #260](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36231255070) and [Documentation #318](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36231255100) passed. Foundation included database integration, recovery, browser, production TLS/OIDC/customer-profile and packaged-runtime acceptance, plus distribution-evidence collection and manifest verification. Post-merge [Foundation #261](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36232567007) and [Documentation #319](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36232566988) also passed. The independent exact-candidate review approved `f6545e3` against `00f224e`.
 
 The synthetic runtime contract evidence is complete for this increment; AC-MNT-003 remains partial. Jira stays synthetic under OD-013, comment reads remain gated by OD-014, Issue #7 checkboxes remain open, canonical facts are untouched, and R0/R1 accepted-story totals remain unchanged.
+
+## Issue #7 synthetic criterion acceptance checkpoint, 2026-09-28
+
+Accept AC-CON-002/004/005/007/008 and AC-MNT-003 at the software-behavior level on the merged synthetic adapter/runtime and CSV proposal flow. Their exact-head Foundation and Documentation checks passed. The evidence and candidate SHAs are recorded in [EXEC-009](exec-plans/EXEC-009-read-only-ingestion.md#issue-7-synthetic-criterion-acceptance-2026-09-28).
+
+AC-CON-001 remains partial because OD-013 keeps live OAuth onboarding disabled. AC-CON-003 remains partial because OD-014 keeps Jira comment reads and body/author retention disabled. Issue #7 stays open; stories and accepted-story totals do not change (R0 3/5, R1 2/33; 5/38 combined). No live site is activated and no proposal becomes a canonical fact.
