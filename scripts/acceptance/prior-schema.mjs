@@ -15,6 +15,32 @@ const priorColumns = {
       createdAt: "timestamptz",
     },
   },
+  factSource: {
+    table: "FactSource",
+    columns: {
+      id: "uuid",
+      customerId: "uuid",
+      projectId: "uuid",
+      factId: "uuid",
+      providedBy: "varchar(256)",
+    },
+  },
+  projectFactVersion: {
+    table: "ProjectFactVersion",
+    columns: {
+      id: "uuid",
+      customerId: "uuid",
+      projectId: "uuid",
+      factId: "uuid",
+      sourceId: "uuid",
+      evidenceId: "uuid",
+      revision: "integer",
+      value: "jsonb",
+      provenance: "varchar(24)",
+      effectiveAt: "timestamptz",
+      validUntil: "timestamptz",
+    },
+  },
   factAssessment: {
     table: "FactAssessment",
     columns: {
@@ -122,9 +148,15 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
     "A populated prior fixture must name its exact released migration prefix",
   );
   const preMilestone = prefixCount < 5;
-  const adaptedModels = preMilestone
-    ? ["projectFact", "factAssessment"]
-    : ["factAssessment", "milestoneConsistencyAssessment"];
+  const adaptedModels = [
+    ...(preMilestone
+      ? ["projectFact", "factAssessment"]
+      : ["factAssessment", "milestoneConsistencyAssessment"]),
+    // These current-client fields were added after every populated prefix used
+    // by this fixture and must be absent from its pre-upgrade operations.
+    "factSource",
+    "projectFactVersion",
+  ];
 
   // Current generated clients implicitly read all scalar fields, including in
   // relation includes. Keep absent ownership out of every prior projection.
@@ -181,6 +213,10 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                   `Unsupported prior fixture operation: ${String(property)}.${String(operation)}`,
                 );
                 const args = globalThis.structuredClone(input);
+                if (property === "factSource")
+                  omitAbsent(args, "sourceType");
+                if (property === "projectFactVersion")
+                  omitAbsent(args, "effectiveAtValidated");
                 if (property === "factAssessment") scalarProjection(args);
                 if (property === "milestoneConsistencyAssessment") {
                   for (const projection of [args.include, args.select]) {
