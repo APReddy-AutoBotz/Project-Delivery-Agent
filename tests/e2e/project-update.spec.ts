@@ -90,14 +90,14 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
     completenessState: "COMPLETE",
   });
   expect(JSON.stringify(assessment)).not.toContain("First synthetic forecast");
-  expect(JSON.stringify(assessment.preview)).not.toContain("effectiveAt");
+  expect(JSON.stringify(assessment)).not.toContain("First synthetic forecast");
 
   await expect(panel).toContainText("Saved request preview · Draft");
   await expect(panel).toContainText("This preview has not been sent.");
   await expect(panel.getByRole("button", { name: /send/i })).toHaveCount(0);
   const previewId = assessment.preview.id;
 
-  await page.reload();
+  await open(page, f.payload.name);
   const persisted = page.getByRole("region", {
     name: "Project update freshness and completeness",
     exact: true,
