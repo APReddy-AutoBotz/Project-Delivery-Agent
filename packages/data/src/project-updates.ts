@@ -102,7 +102,6 @@ const serviceSubjectSchema = z.string().min(1).max(256)
 const factsSchema = z.array(projectUpdateRequiredFactSchema).min(1).max(100);
 const safeObject = z.record(z.string(), z.unknown());
 const iso = (value: Date) => value.toISOString();
-const maxDate = (a: Date, b: Date) => a.getTime() > b.getTime() ? a : b;
 function jsonValue(value: unknown): unknown {
   if (typeof value === "string") {
     try { return JSON.parse(value) as unknown; }
@@ -663,7 +662,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       state: string | null;
       subject: string | null;
     }>>(
-      'WITH d AS (SELECT * FROM jsonb_to_recordset($3::jsonb) AS x("factId" uuid,"sourceId" uuid,"versionId" uuid,"evidenceId" uuid)) SELECT v.id AS "versionId",e.id AS "evidenceId",a.state,r.subject FROM d LEFT JOIN public."ProjectFactVersion" v ON v."customerId"=$1::uuid AND v."projectId"=$2::uuid AND v."factId"=d."factId" AND v."sourceId"=d."sourceId" AND v.id=d."versionId" AND v."evidenceId"=d."evidenceId" LEFT JOIN public."FactEvidence" e ON e."customerId"=v."customerId" AND e."projectId"=v."projectId" AND e."factId"=v."factId" AND e."sourceId"=v."sourceId" AND e.id=v."evidenceId" LEFT JOIN public."FactSourceAccess" a ON a."customerId"=$1::uuid AND a."projectId"=$2::uuid AND a."factId"=d."factId" AND a."sourceId"=d."sourceId" LEFT JOIN public."FactSourceReader" r ON r."customerId"=a."customerId" AND r."projectId"=a."projectId" AND r."factId"=a."factId" AND r."sourceId"=a."sourceId" AND r.subject=$4 ORDER BY d."factId",d."sourceId" FOR SHARE OF a',
+      'WITH d AS (SELECT * FROM jsonb_to_recordset($3::jsonb) AS x("factId" uuid,"sourceId" uuid,"versionId" uuid,"evidenceId" uuid)) SELECT v.id AS "versionId",e.id AS "evidenceId",a.state,r.subject FROM d LEFT JOIN public."ProjectFactVersion" v ON v."customerId"=$1::uuid AND v."projectId"=$2::uuid AND v."factId"=d."factId" AND v."sourceId"=d."sourceId" AND v.id=d."versionId" AND v."evidenceId"=d."evidenceId" LEFT JOIN public."FactEvidence" e ON e."customerId"=v."customerId" AND e."projectId"=v."projectId" AND e."factId"=v."factId" AND e."sourceId"=v."sourceId" AND e.id=v."evidenceId" LEFT JOIN public."FactSourceAccess" a ON a."customerId"=$1::uuid AND a."projectId"=$2::uuid AND a."factId"=d."factId" AND a."sourceId"=d."sourceId" LEFT JOIN public."FactSourceReader" r ON r."customerId"=a."customerId" AND r."projectId"=a."projectId" AND r."factId"=a."factId" AND r."sourceId"=a."sourceId" AND r.subject=$4 ORDER BY d."factId",d."sourceId"',
       current.customerId, id, stringify(entries), current.subject,
     );
     return result.length === entries.length &&
