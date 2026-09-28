@@ -9,7 +9,10 @@ import type { assessUpdateFreshness } from "./freshness-signals.js";
 
 const factType = z.string().min(1).max(96).regex(/^[a-z][a-z0-9_.-]*$/);
 const label = z.string().min(1).max(160).refine(
-  (value) => value.trim().length > 0 && !/[\0\p{Surrogate}]/u.test(value),
+  (value) =>
+    value.trim().length > 0 &&
+    !/[\p{Cc}\p{Surrogate}]/u.test(value) &&
+    new TextEncoder().encode(value).length <= 160,
 );
 const revision = z.number().int().min(0).max(2147483646);
 
