@@ -5,7 +5,7 @@ Owner: Implementation controller
 Requirement IDs: AC-HLT-004, FR-HLT-007/008/009/011, FR-MOD-006, NFR-PRV-004, NFR-REL-001/003, NFR-SEC-001/002/004/005/006
 GitHub issue: #8 (EPIC-04, STORY-013..015)
 Target release: R1
-Last updated: 2026-09-27
+Last updated: 2026-09-28
 
 ## Objective
 
@@ -28,14 +28,17 @@ Store and display an authenticated, reproducible assessment that keeps the proje
 
 - Connector fetches, source mapping resolution, source proposal use, or publication/writeback.
 - Claiming configured values are externally verified source facts.
-- Declaring freshness, completeness, blocker age, milestone reconciliation, or other unimplemented signal families clear.
+- Merging blocker-age coverage into the schedule RAG or treating unassessable blocker-age evidence as clear.
+- Declaring update freshness, completeness, milestone reconciliation, or other unimplemented signal families clear.
 - AI use, editing canonical configuration, configurable rule UI, project time-zone configuration, and acceptance of Issue #8.
 
 ## Current state
 
 PR #82 added the pure blocker-age evaluator and PR #84 added the pure reported-versus-calculated evaluator. PR #84 merged as `eae1a386b90fb1124f39298fd3ae0ac006ee4c25`; its candidate tree is `1313ba645edbfba7252ca948238ba7f6c21cddf8`. The evaluator is deterministic but its caller supplies an already-authorized complete snapshot.
 
-The revised plan head `dae098bd06c0fad25cf0146850fceba13ce09ca5` was approved by independent review with no findings. Exact-head [Documentation validation #361](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36308322917) and [Foundation validation #296](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36308322882) passed, including the production-boundary job. The candidate implementation adds a server-built UTC schedule-only assessment, scoped persistence and reads, idempotency receipts, strict retention-policy API, privileged expiry worker and separately labeled project display. Full implementation validation and independent exact-head review remain pending.
+The revised plan head `dae098bd06c0fad25cf0146850fceba13ce09ca5` was approved by independent review with no findings. Exact-head Documentation #361 and Foundation #296 passed, including production-boundary validation. The stored schedule-assessment implementation merged in PR #85 as `9344ab0f1cfb0fac69b428ff09e535282351a794`; its exact-head Foundation #315 and Documentation #380 checks and independent review passed, and post-merge validation passed after the packaged restore retry.
+
+PR #88 added a source-authorized blocker-age assessment alongside the schedule result, with separate coverage and no change to schedule RAG. PR #89's positive and unresolved E2E-HLT-003 cases passed exact-head and post-merge validation; AC-HLT-003 is checked. PR #90 refreshed the delivery-status records. AC-HLT-004 remains open pending its own E2E-HLT-004 acceptance evidence. Draft PR #91 adds that journey, confirms the latest persisted assessment renders in the UI, and distinguishes envelope coverage from schedule-calculation scope. Exact-head Foundation validation and independent review of the corrected PR #91 candidate are pending.
 
 Project status and delivery structure currently live in `Project` and sealed canonical configuration tables. `CanonicalProjectRepository.detail` enforces current project and portfolio grants. Configured source mappings are pointers only; connector imports remain proposals and are not canonical evidence. Existing `IngestionRetentionPolicy` only covers proposal-content redaction and is not reused for health assessment retention.
 
@@ -119,6 +122,9 @@ Migration is additive; prior migrations and rows remain unchanged. Disable asses
 - 2026-09-27: Foundation #314 for head `124407f` passed the full verify job. Production-boundary TLS/OIDC, token expiry, secret exclusion, migration interoperation, restore and database/worker recovery checks passed; the shipped-customer profile then exposed stale `customer.mjs` assumptions of 14 migrations and a scalar recovery receipt fixture with 63 tables/14 migrations. The candidate updates these to 15 migrations and 66 tables/15 migrations.
 
 - 2026-09-27: Foundation #315 passed on exact candidate `4fe32ff01789d64b61e2854cbbfe160e74fe08e1`; Documentation #380 passed and independent exact-head review approved with no findings. PR #85 merged as `9344ab0f1cfb0fac69b428ff09e535282351a794`; its tree matches candidate tree `2c31ad6cee41d36bf0135e56f48836947d6aef29`, ordered parents are base then candidate, and `main` points to the merge. Post-merge Documentation #381 passed. Foundation #316 verify passed; the first production-boundary attempt failed during external-customer restore at `sessions_before_commit`, while retry attempt 2 passed production acceptance and distribution evidence. Issue #8, AC-HLT-004 and its seven acceptance checks remain open; official totals remain 5/38 (13.2%).
+
+
+- 2026-09-28: Added an E2E-HLT-004 candidate using the synthetic canonical project: the saved reported GREEN remains distinct from a RED schedule calculation, and the test checks the persisted latest read, overdue milestone inputs, selected date, rule revision, rationale, and UI rendering. The calculated RAG remains schedule-only, while the stored envelope also records blocker-age coverage separately. The E2E verifies that this fixture's blocker-age result stays UNASSESSABLE rather than implying no blockers; it does not claim persisted update-freshness coverage. The existing UNIT-HLT-004 test covers the complete evaluator Golden snapshot. Exact-head hosted validation and independent review are pending; AC-HLT-004 and Issue #8 remain open.
 
 
 ## Decisions made

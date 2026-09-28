@@ -798,8 +798,9 @@ type HealthAssessmentView = {
   assessmentId: string;
   projectId: string;
   assessedAt: string;
-  coverage: "SCHEDULE_ONLY";
+  coverage: "SCHEDULE_ONLY" | "SCHEDULE_AND_BLOCKER_AGE";
   ruleRevision: string;
+  blockerAgeCoverage?: "COMPLETE" | "PARTIAL" | "UNASSESSABLE";
   envelopeHash: string;
   contentAvailable: boolean;
   input: Record<string, unknown> | null;
@@ -853,7 +854,8 @@ function HealthAssessmentPanel({ id, request }: { id: string; request: RequestFn
       <h3 id="health-assessment-title">Schedule health assessment</h3>
       <p className="muted">
         Uses saved project configuration only. Source mappings and external systems are not retrieved or verified.
-        Coverage is schedule only.
+        The reported status is preserved separately from the schedule calculation. Any blocker-age coverage is stored
+        separately and does not change the schedule result.
       </p>
       <Button onClick={run} disabled={assessment.isPending}>
         {assessment.isPending ? "Assessing…" : "Assess schedule"}
@@ -866,7 +868,11 @@ function HealthAssessmentPanel({ id, request }: { id: string; request: RequestFn
         <div className="canonical-records">
           <div className="canonical-review-row">
             <p><strong>Assessed:</strong> {value.assessedAt} (UTC)</p>
-            <p><strong>Coverage:</strong> SCHEDULE_ONLY</p>
+            <p><strong>Assessment coverage:</strong> {value.coverage}</p>
+            <p><strong>Schedule calculation scope:</strong> SCHEDULE_ONLY</p>
+            {value.blockerAgeCoverage && (
+              <p><strong>Blocker-age coverage:</strong> {value.blockerAgeCoverage}</p>
+            )}
             <p><strong>Rule:</strong> {value.ruleRevision}</p>
             <p><strong>Envelope SHA-256:</strong> <code>{value.envelopeHash}</code></p>
           </div>
@@ -880,7 +886,10 @@ function HealthAssessmentPanel({ id, request }: { id: string; request: RequestFn
                   {" "}· project record {result.reported.sourceFact.source.recordId}
                 </p>
                 <p><strong>Calculated schedule status:</strong> {result.calculated.status}</p>
-                <p>{result.calculated.rationale.text}</p>
+                <p>
+                  <strong>Calculation rationale:</strong>{" "}
+                  {result.calculated.rationale.text}
+                </p>
                 {result.contradiction && (
                   <p role="status"><strong>Reported/calculated discrepancy ({result.contradiction.severity}):</strong> {result.contradiction.rationale}</p>
                 )}
