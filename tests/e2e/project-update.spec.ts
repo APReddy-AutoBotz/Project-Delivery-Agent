@@ -196,7 +196,10 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
     f.prefix + "/project-update-assessments/latest",
   );
   expect(protectedLatest.status()).toBe(200);
-  expect(await protectedLatest.json()).toBeNull();
+  const protectedView = await protectedLatest.json();
+  expect(protectedView.knownPosition).toEqual([]);
+  expect(protectedView.preview.evidence).toEqual([]);
+  expect(JSON.stringify(protectedView)).not.toContain("First synthetic forecast");
 });
 
 async function fixture(request: APIRequestContext) {
