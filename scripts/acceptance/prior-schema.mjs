@@ -203,7 +203,7 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
             get(delegate, operation) {
               if (typeof delegate[operation] !== "function")
                 return delegate[operation];
-              return async (input = {}) => {
+              return (input = {}) => {
                 assert(
                   [
                     "create",
@@ -298,15 +298,16 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                 if (operation === "create") {
                   return insertPriorRow(target, property, args, prefixCount);
                 }
-                const result = await delegate[operation](args);
-                if (supplyLegacySourceType) {
-                  const rows = Array.isArray(result) ? result : [result];
-                  for (const row of rows) {
+                const result = delegate[operation](args);
+                if (!supplyLegacySourceType) return result;
+                return result.then((rows) => {
+                  const records = Array.isArray(rows) ? rows : [rows];
+                  for (const row of records) {
                     if (row?.evidence?.source)
                       row.evidence.source.sourceType = "human_statement";
                   }
-                }
-                return result;
+                  return rows;
+                });
               };
             },
           });
