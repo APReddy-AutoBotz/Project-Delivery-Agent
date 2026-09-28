@@ -102,6 +102,46 @@ export type ProjectUpdateFactReference = z.infer<
   typeof projectUpdateFactReferenceSchema
 >;
 
+export type ProjectUpdateTimestampSelection = {
+  timestampBasis: ProjectUpdateFactReference["timestampBasis"];
+  timestamp: Date | null;
+};
+
+/**
+ * Select the timestamp authorized by the active source policy. Human statements
+ * always use server observation time. A connector effectiveAt is usable only
+ * when its adapter validated the source update instant on the selected version.
+ */
+export function selectProjectUpdateTimestamp(input: {
+  sourceType: string;
+  selectedBasis: string | null;
+  observedAt: Date | null;
+  effectiveAt: Date | null;
+  effectiveAtValidated: boolean;
+  asOf: Date;
+}): ProjectUpdateTimestampSelection {
+  const humanStatement = input.sourceType === "human_statement";
+  const basis = humanStatement ? "observedAt" : input.selectedBasis;
+  const candidate = basis === "observedAt"
+    ? input.observedAt
+    : basis === "effectiveAt" && input.effectiveAtValidated
+      ? input.effectiveAt
+      : null;
+  const candidateTime = candidate?.getTime() ?? Number.NaN;
+  const asOfTime = input.asOf.getTime();
+  if (!candidate || !Number.isFinite(candidateTime) ||
+      !Number.isFinite(asOfTime) || candidateTime > asOfTime)
+    return { timestampBasis: "UNCONFIRMED", timestamp: null };
+  return {
+    timestampBasis: humanStatement
+      ? "HUMAN_OBSERVED_AT"
+      : basis === "effectiveAt"
+        ? "CONNECTOR_EFFECTIVE_AT"
+        : "CONNECTOR_OBSERVED_AT",
+    timestamp: candidate,
+  };
+}
+
 export type ProjectUpdateJson =
   | null
   | boolean
