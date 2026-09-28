@@ -75,6 +75,7 @@ export type ProjectUpdatePolicyView = {
 };
 
 export type ProjectUpdateFactReference = {
+  factId: string;
   factType: string;
   versionId: string;
   evidenceId: string;
