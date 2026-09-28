@@ -88,9 +88,16 @@ const releases = [
     "RaidReopenReceipt",
     "BlockerAgeThresholdPolicy",
   ],
+  [
+    "ProjectUpdatePolicy",
+    "ProjectUpdatePolicyRevision",
+    "ProjectUpdateAssessment",
+    "ProjectUpdateObligation",
+    "ProjectUpdatePreview",
+  ],
 ];
 export function assertUpgradeInventory(receipt, prefix) {
-  assert([1, 2, 3, 4, 5, 6].includes(prefix));
+  assert([1, 2, 3, 4, 5, 6, 7, 8].includes(prefix));
   assert.equal(receipt.priorMigrationCount, prefix);
   const oldTables = releases.slice(0, prefix).flat().sort();
   const addedTables = releases.slice(prefix).flat().sort();
