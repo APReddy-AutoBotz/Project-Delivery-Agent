@@ -87,7 +87,8 @@ export type ProjectUpdateFactReference = {
   timestampBasis:
     | "HUMAN_OBSERVED_AT"
     | "CONNECTOR_EFFECTIVE_AT"
-    | "CONNECTOR_OBSERVED_AT";
+    | "CONNECTOR_OBSERVED_AT"
+    | "UNCONFIRMED";
 };
 
 export type ProjectUpdatePreview = {
