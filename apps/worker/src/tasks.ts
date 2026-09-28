@@ -49,7 +49,7 @@ export function createTasks(
           headers: { ...headers, "content-type": "application/json" },
           body,
           redirect: "error",
-          signal: AbortSignal.timeout(25_000),
+          signal: AbortSignal.timeout(30_000),
         });
       } catch {
         throw new Error("project_update_scan_unavailable");
