@@ -1223,6 +1223,7 @@ model ProjectUpdatePolicy {
   revision Int @default(0)
   changedBy String @db.VarChar(256)
   changedAt DateTime @db.Timestamptz(3)
+  scheduledScanLastAttemptAt DateTime? @db.Timestamptz(3)
   @@id([customerId, projectId], map: "ProjectUpdatePolicy_pkey")
   @@unique([customerId, projectId, key], map: "ProjectUpdatePolicy_scope_key")
 }
