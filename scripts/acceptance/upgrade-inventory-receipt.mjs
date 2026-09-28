@@ -75,8 +75,6 @@ const releases = [
     "IngestionRowOutcome",
     "IngestionReviewedImport",
     "IngestionReviewedImportRow",
-  ],
-  [
     "ConnectorSyncGrant",
     "ConnectorSyncJob",
     "ConnectorWebhookReceipt",
