@@ -176,6 +176,26 @@ function selectorBasis(policy: Resolution["policy"], selectedTier: number | null
   return validity && "basis" in validity ? validity.basis ?? null : null;
 }
 
+/**
+ * Timestamp authorization for canonical project facts. The persisted authority
+ * model currently supplies human statements only, and has no adapter validation
+ * receipt for connector effectiveAt values. Keep those timestamps untrusted until
+ * that provenance and receipt are persisted in the authority snapshot.
+ */
+export function selectCanonicalProjectUpdateTimestamp(input: {
+  sourceType: string;
+  selectedBasis: string | null;
+  observedAt: Date | null;
+  effectiveAt: Date | null;
+  asOf: Date;
+}) {
+  return selectProjectUpdateTimestamp({
+    ...input,
+    selectedBasis: input.sourceType === "human_statement" ? "observedAt" : input.selectedBasis,
+    effectiveAtValidated: false,
+  });
+}
+
 export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository {
   private readonly authority: DatabaseAuthorityRepository;
   private readonly serviceSubject: string | null;
@@ -432,14 +452,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             : selectorBasis(resolved.policy, resolved.selectedTier, sourceType, version.sourceId);
           const observedAt = version.evidence.observedAt;
           const effectiveAt = version.effectiveAt;
-          const selectedTime = selectProjectUpdateTimestamp({
+          const selectedTime = selectCanonicalProjectUpdateTimestamp({
             sourceType,
             selectedBasis: basis,
             observedAt,
             effectiveAt,
-            // Visibility proves reader access only. This canonical authority model has no
-            // persisted adapter-validation result; connector imports remain proposals.
-            effectiveAtValidated: false,
             asOf,
           });
           const timestampBasis = selectedTime.timestampBasis;
