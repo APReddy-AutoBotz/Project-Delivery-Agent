@@ -92,7 +92,7 @@ type Resolution = {
       }>;
     }>;
   } | null;
-  versions: Array<{ id: string; visibility: string; sourceType?: string }>;
+  versions: Array<{ id: string; visibility: string; sourceType?: string; effectiveAtValidated?: boolean }>;
 };
 const projectIdSchema = z.uuid().refine((value) => value === value.toLowerCase());
 const correlationSchema = z.uuid();
@@ -187,12 +187,13 @@ export function selectCanonicalProjectUpdateTimestamp(input: {
   selectedBasis: string | null;
   observedAt: Date | null;
   effectiveAt: Date | null;
+  effectiveAtValidated: boolean;
   asOf: Date;
 }) {
   return selectProjectUpdateTimestamp({
     ...input,
     selectedBasis: input.sourceType === "human_statement" ? "observedAt" : input.selectedBasis,
-    effectiveAtValidated: false,
+    effectiveAtValidated: input.sourceType !== "human_statement" && input.effectiveAtValidated,
   });
 }
 
@@ -457,6 +458,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             selectedBasis: basis,
             observedAt,
             effectiveAt,
+            effectiveAtValidated: authorityVersion?.effectiveAtValidated === true,
             asOf,
           });
           const timestampBasis = selectedTime.timestampBasis;
