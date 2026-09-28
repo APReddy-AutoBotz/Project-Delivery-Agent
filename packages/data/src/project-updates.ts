@@ -6,6 +6,7 @@ import {
   projectUpdatePolicyChangeSchema,
   projectUpdateFactReferenceSchema,
   projectUpdateKnownPositionSchema,
+  selectProjectUpdateTimestamp,
   canonicalSubjectSchema,
   projectUpdateRequiredFactSchema,
   ProjectUpdateError,
@@ -429,20 +430,20 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           const basis = sourceType === "human_statement"
             ? "observedAt"
             : selectorBasis(resolved.policy, resolved.selectedTier, sourceType, version.sourceId);
-          const timestampBasis: ProjectUpdateFactReference["timestampBasis"] =
-            sourceType === "human_statement"
-              ? "HUMAN_OBSERVED_AT"
-              : basis === "observedAt"
-                ? "CONNECTOR_OBSERVED_AT"
-                : basis === "effectiveAt"
-                  ? "UNCONFIRMED"
-                  : "UNCONFIRMED";
           const observedAt = version.evidence.observedAt;
           const effectiveAt = version.effectiveAt;
-          const trusted = timestampBasis === "HUMAN_OBSERVED_AT" ||
-            timestampBasis === "CONNECTOR_OBSERVED_AT";
-          if (trusted && observedAt.getTime() <= asOf.getTime())
-            trustedTimes.push(observedAt.getTime());
+          const selectedTime = selectProjectUpdateTimestamp({
+            sourceType,
+            selectedBasis: basis,
+            observedAt,
+            effectiveAt,
+            effectiveAtValidated: sourceType !== "human_statement" &&
+              basis === "effectiveAt" && authorityVersion?.visibility === "available",
+            asOf,
+          });
+          const timestampBasis = selectedTime.timestampBasis;
+          if (selectedTime.timestamp)
+            trustedTimes.push(selectedTime.timestamp.getTime());
           else
             allTrusted = false;
           const reference: ProjectUpdateFactReference = {
@@ -786,7 +787,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
 
   async scanScheduledProjects(limitValue: number) {
     if (!this.serviceSubject) throw new ProjectUpdateError("UNAVAILABLE");
-    const limit = z.number().int().min(1).max(50).safeParse(limitValue);
+    const limit = z.number().int().min(1).max(1).safeParse(limitValue);
     if (!limit.success) throw new ProjectUpdateError("INVALID_REQUEST");
     let candidates: Array<{ customerId: string; projectId: string }>;
     try {
