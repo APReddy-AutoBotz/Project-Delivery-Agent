@@ -142,7 +142,7 @@ export function installConnectorRoutes(
           fixedError(response, 409, "Task request already used");
           return;
         }
-        response.status(200).json({ processed: await projectUpdates.scanScheduledProjects(25) });
+        response.status(200).json({ processed: await projectUpdates.scanScheduledProjects(1) });
       } catch {
         fixedError(response, 503, "Service unavailable");
       }
