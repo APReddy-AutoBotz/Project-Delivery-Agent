@@ -292,6 +292,7 @@ tests:
     families are clear.
   evidence:
   - tests/e2e/project-evidence.spec.ts
+  - tests/delivery-health.test.ts
   - .github/workflows/foundation-validation.yml
 - id: E2E-MNT-001
   release: R1
