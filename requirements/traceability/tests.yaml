@@ -282,13 +282,16 @@ tests:
 
 - id: E2E-HLT-004
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-HLT-004
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Reported GREEN and independently calculated RED are stored and displayed separately with reproducible
-    input facts, rule revision and rationale.
-  evidence: []
+    input facts, rule revision and rationale; the schedule-only acceptance flow does not claim unimplemented signal
+    families are clear.
+  evidence:
+  - tests/e2e/project-evidence.spec.ts
+  - .github/workflows/foundation-validation.yml
 - id: E2E-MNT-001
   release: R1
   status: planned
