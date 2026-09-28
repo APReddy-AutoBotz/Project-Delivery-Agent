@@ -886,8 +886,15 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   const response = await savedResponse;
   expect(response.status()).toBe(201);
   const assessment = await response.json();
-  expect(assessment.coverage).toBe("SCHEDULE_ONLY");
-  expect(assessment.ruleRevision).toBe("schedule-health@1");
+  expect(assessment.coverage).toBe("SCHEDULE_AND_BLOCKER_AGE");
+  expect(assessment.ruleRevision).toBe(
+    "schedule-health@1+blocker-age@1",
+  );
+  expect(assessment.blockerAgeCoverage).toBe("UNASSESSABLE");
+  expect(assessment.result.blockerAge).toMatchObject({
+    coverage: "UNASSESSABLE",
+    noOpenBlockers: null,
+  });
   expect(assessment.contentAvailable).toBe(true);
 
   const input = assessment.input as {
@@ -988,8 +995,18 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   expect(latest.input).toEqual(assessment.input);
   expect(latest.result).toEqual(assessment.result);
 
-  await expect(panel).toContainText("Coverage: SCHEDULE_ONLY");
-  await expect(panel).toContainText("Rule: schedule-health@1");
+  await expect(panel).toContainText(
+    "Assessment coverage: SCHEDULE_AND_BLOCKER_AGE",
+  );
+  await expect(panel).toContainText(
+    "Schedule calculation scope: SCHEDULE_ONLY",
+  );
+  await expect(panel).toContainText(
+    "Blocker-age coverage: UNASSESSABLE",
+  );
+  await expect(panel).toContainText(
+    "Rule: schedule-health@1+blocker-age@1",
+  );
   await expect(panel).toContainText(/Reported status: GREEN/);
   await expect(panel).toContainText("Calculated schedule status: RED");
   await expect(panel).toContainText(result.calculated.rationale.text);
