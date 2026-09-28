@@ -102,7 +102,7 @@ export type ProjectUpdatePreview = {
     factType: string;
     label: string;
     state: "CONFIRMED" | "MISSING" | "UNCONFIRMED";
-    reasonCodes: string[];
+    reasonCodes: readonly string[];
   }>;
   evidence: ProjectUpdateFactReference[];
 };
