@@ -891,7 +891,12 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   expect(assessment.contentAvailable).toBe(true);
 
   const input = assessment.input as {
+    assessedAt: string;
     reportedStatus: string;
+    reportedStatusFact: {
+      value: string;
+      source: { recordId: string };
+    };
     calculationRule: { key: string; revision: string };
     signals: Array<{
       signalId: string;
@@ -922,7 +927,14 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
     } | null;
   };
   expect(input.reportedStatus).toBe("GREEN");
-  expect(input.calculationRule).toEqual({ key: "schedule-health", revision: "1" });
+  expect(input.reportedStatusFact).toMatchObject({
+    value: "GREEN",
+    source: { recordId: f.projectId },
+  });
+  expect(input.calculationRule).toEqual({
+    key: "schedule-health",
+    revision: "1",
+  });
   expect(result.reported.status).toBe("GREEN");
   expect(result.calculated.status).toBe("RED");
   expect(result.calculated.rationale.code).toBe("ACTIVE_RED_SIGNALS");
@@ -950,6 +962,7 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   });
   expect(overdueMilestone.rule.parameters).toEqual(
     expect.arrayContaining([
+      { name: "assessedUtcDate", value: input.assessedAt.slice(0, 10) },
       { name: "minimumOverdueDays", value: 1 },
       { name: "selectedDateField", value: "forecastEnd" },
     ]),
@@ -981,6 +994,9 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   await expect(panel).toContainText("Calculated schedule status: RED");
   await expect(panel).toContainText(result.calculated.rationale.text);
   await expect(panel).toContainText("OVERDUE_MILESTONE · ACTIVE · HIGH");
+  await expect(panel).toContainText(
+    "assessedUtcDate=" + input.assessedAt.slice(0, 10),
+  );
   await expect(panel).toContainText(
     "minimumOverdueDays=1, selectedDateField=forecastEnd",
   );
