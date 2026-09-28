@@ -688,6 +688,11 @@ describe("Durable authority policy and server assessment", () => {
       complete: true,
     });
     expect(available(saved).supportingVersionIds).toEqual([first.entry.id]);
+    expect(available(saved).versions.find((version) => version.id === first.entry.id))
+      .toMatchObject({
+        sourceType: "human_statement",
+        effectiveAtValidated: false,
+      });
     expect(Object.isFrozen(saved)).toBe(true);
     expect(Object.isFrozen(available(saved))).toBe(true);
     await append(f, f.pm, "2026-11-01", 1);
