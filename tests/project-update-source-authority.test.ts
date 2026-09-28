@@ -50,7 +50,7 @@ function snapshot(input: {
 }
 
 describe("Project update timestamp authority boundary", () => {
-  it("carries source identity and explicit adapter validation through authority resolution", () => {
+  it("keeps adapter validation in the trusted input snapshot, outside persisted assessment output", () => {
     const humanSnapshot = snapshot({
       sourceType: "human_statement",
       effectiveAtValidated: false,
@@ -60,17 +60,19 @@ describe("Project update timestamp authority boundary", () => {
       evidenceId: "70000000-0000-4000-8000-000000000001",
     });
     const human = resolveSourceAuthority(humanSnapshot).versions[0]!;
+    const humanVersion = humanSnapshot.versions[0]!;
     expect(human).toMatchObject({
       sourceType: "human_statement",
-      effectiveAtValidated: false,
       visibility: "available",
     });
+    expect(human).not.toHaveProperty("effectiveAtValidated");
+    expect(humanVersion).toMatchObject({ effectiveAtValidated: false });
     expect(selectCanonicalProjectUpdateTimestamp({
       sourceType: human.sourceType!,
       selectedBasis: "effectiveAt",
       observedAt,
       effectiveAt,
-      effectiveAtValidated: human.effectiveAtValidated === true,
+      effectiveAtValidated: humanVersion.effectiveAtValidated === true,
       asOf,
     })).toEqual({
       timestampBasis: "HUMAN_OBSERVED_AT",
@@ -86,17 +88,19 @@ describe("Project update timestamp authority boundary", () => {
       evidenceId: "70000000-0000-4000-8000-000000000002",
     });
     const connector = resolveSourceAuthority(validatedConnectorSnapshot).versions[0]!;
+    const connectorVersion = validatedConnectorSnapshot.versions[0]!;
     expect(connector).toMatchObject({
       sourceType: "jira_connector",
-      effectiveAtValidated: true,
       visibility: "available",
     });
+    expect(connector).not.toHaveProperty("effectiveAtValidated");
+    expect(connectorVersion).toMatchObject({ effectiveAtValidated: true });
     expect(selectCanonicalProjectUpdateTimestamp({
       sourceType: connector.sourceType!,
       selectedBasis: "effectiveAt",
       observedAt,
       effectiveAt,
-      effectiveAtValidated: connector.effectiveAtValidated === true,
+      effectiveAtValidated: connectorVersion.effectiveAtValidated === true,
       asOf,
     })).toEqual({
       timestampBasis: "CONNECTOR_EFFECTIVE_AT",
