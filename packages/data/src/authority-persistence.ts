@@ -93,7 +93,7 @@ function resolverPolicy(row: Event | null): SourceAuthorityPolicy | null {
     effectiveAt: row.effectiveAt.toISOString(),
   };
 }
-function snapshot(
+export function buildSourceAuthoritySnapshot(
   scope: Scope,
   asOf: string,
   policy: SourceAuthorityPolicy | null,
@@ -607,7 +607,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
           })
         : []);
     const policy = resolverPolicy(event);
-    let authoritySnapshot = snapshot(
+    let authoritySnapshot = buildSourceAuthoritySnapshot(
       scope,
       asOf.toISOString(),
       policy,
@@ -682,7 +682,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       );
       conflictThroughRevision += newConflicts.length;
       complete = conflicts.length <= 1000;
-      authoritySnapshot = snapshot(
+      authoritySnapshot = buildSourceAuthoritySnapshot(
         scope,
         asOf.toISOString(),
         policy,
