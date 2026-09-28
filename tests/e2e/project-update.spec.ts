@@ -90,7 +90,6 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
     completenessState: "COMPLETE",
   });
   expect(JSON.stringify(assessment)).not.toContain("First synthetic forecast");
-  expect(JSON.stringify(assessment)).not.toContain("First synthetic forecast");
 
   await expect(panel).toContainText("Saved request preview · Draft");
   await expect(panel).toContainText("This preview has not been sent.");
