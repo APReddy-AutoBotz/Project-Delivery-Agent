@@ -719,7 +719,7 @@ At this 2026-09-26 checkpoint, AC-MNT-003 remained partial and Issue #7 checkbox
 
 ## Issue #7 synthetic criterion acceptance checkpoint, 2026-09-28
 
-Record software-behavior acceptance for AC-CON-002, AC-CON-005, AC-CON-007, AC-CON-008 and AC-MNT-003 on the merged synthetic adapter/runtime and CSV proposal flow. Exact evidence and implementation candidate SHAs are listed in [EXEC-009](exec-plans/EXEC-009-read-only-ingestion.md#issue-7-synthetic-criterion-acceptance-2026-09-28); their exact-head Foundation and Documentation checks passed.
+Record software-behavior acceptance for AC-CON-002, AC-CON-005, AC-CON-006, AC-CON-007, AC-CON-008 and AC-MNT-003 on the merged synthetic adapter/runtime, OAuth-revocation and CSV proposal flows. AC-CON-006 restores the canonical acceptance mapping for FR-CON-009 already listed in Issue #7; this scope correction is proposed through reviewable change control because the checklist omitted it. Exact evidence and implementation candidate SHAs are listed in [EXEC-009](exec-plans/EXEC-009-read-only-ingestion.md#issue-7-synthetic-criterion-acceptance-2026-09-28). PR #93 merged as `150447436074a26dfeab093e3918159877bcba06`; its exact-head and post-merge Foundation and Documentation checks passed.
 
 AC-CON-004 remains partial: the signed-event replay evidence reaches one durable receipt/job, source observation and proposal projection, but does not create and count the downstream domain obligation required by the criterion.
 
