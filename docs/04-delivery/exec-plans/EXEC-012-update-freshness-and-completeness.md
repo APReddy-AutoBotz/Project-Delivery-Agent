@@ -19,7 +19,7 @@ This is a design candidate only. Do not change application code until a separate
 - A server-authorized read that gathers every configured required fact and resolves current source authority at one database as-of time. Inaccessible, absent, stale, conflicting or otherwise unresolved evidence is shown only as unconfirmed. Spreadsheet/import proposals are never canonical inputs.
 - Deterministic freshness and completeness results using the existing `assessUpdateFreshness` and `assessProjectCompleteness` contracts where they fit. Return the exact missing/unconfirmed field labels and reasons without disclosing unauthorized fact content.
 - Durable, idempotent creation of the configured `PROJECT_UPDATE` obligation and audit event when its freshness rule becomes due. A repeated assessment or worker retry must not create a duplicate obligation.
-- A bounded Graphile Worker scan of configured projects, plus authenticated, project-scoped read/configuration APIs and a small project/admin UI. The scan operates on server-selected policy/project rows, not caller-provided project IDs.
+- A bounded Graphile Worker scan of configured projects, plus authenticated, project-scoped read/configuration APIs and a small project/admin UI. The scan operates on server-selected policy/project rows, not caller-provided project IDs, and requires the separately configured scheduled-action service identity and service policy mandated by RBAC.
 - An update request preview that names the project, distinguishes reported status from verified evidence, shows the source date and configured threshold, and lists the specific stale, missing or unconfirmed information.
 - Additive migration, strict schemas, authorization and denial tests, migration/upgrade/recovery inventory updates and operator documentation.
 
@@ -60,7 +60,7 @@ Use `assessProjectCompleteness` over the exact policy fact set and one current a
 
 ### Scheduling and presentation
 
-Add a bounded Graphile Worker task that scans active configured policies in stable project order and processes a capped page per run. It creates obligations only through the same transactional repository operation used by an authenticated assessment; a retry is safe and a cursor resumes after restart. The internal task endpoint must use a dedicated signed worker-task capability, strict body/path checks and nonce replay protection. It cannot impersonate a project user or accept arbitrary project IDs.
+Add a bounded Graphile Worker task that scans active configured policies in stable project order and processes a capped page per run. It creates obligations only through the same transactional repository operation used by an authenticated assessment; a retry is safe and a cursor resumes after restart. The internal task endpoint must use a dedicated signed worker-task capability, strict body/path checks and nonce replay protection. The job also requires an explicitly configured non-human scheduled-action service identity and per-customer/project service policy limited to freshness/completeness evaluation and obligation creation. This is a separate capability from the task-signing key, never inherits the last interactive user's permissions, and cannot impersonate a project user or accept arbitrary project IDs. Without that service policy, the scan fails closed without reading source content or creating obligations.
 
 The project view presents reported status separately from the update freshness result. Show the policy revision/window, as-of/source date, exact missing or unconfirmed labels, responsible owner and open obligation due instant. The request preview may include only project context and authorized current information; do not expose source values to a recipient who lacks source access. No notification is emitted.
 
@@ -81,7 +81,7 @@ Additive only. Add immutable `ProjectUpdatePolicyRevision` rows and durable `Upd
 
 ## Security and privacy impact
 
-Every policy write and obligation read rechecks authenticated identity and current project/portfolio grant. Only a scoped PMO administrator can configure policy. A configured recipient must be a current project responsibility. Resolve source evidence under explicit policy and reader ACLs; return no value or source excerpt when access is absent or revoked. Strict API schemas reject client-supplied freshness dates, fact assessments, policy revisions and computed results. The worker has a separate least-privilege signed capability, bounded to the update scan route and operation. Log fixed event categories and IDs only; no raw fact values or original statements.
+Every policy write and obligation read rechecks authenticated identity and current project/portfolio grant. Only a scoped PMO administrator can configure policy. A configured recipient must be a current project responsibility. The scheduled job uses the RBAC-mandated separately configured service identity and explicit customer/project operation policy; it never borrows a user's grant. Resolve source evidence under explicit authority policy and source-reader ACLs; return no value or source excerpt when access is absent or revoked. Strict API schemas reject client-supplied freshness dates, fact assessments, policy revisions and computed results. The worker has a separate least-privilege signed task capability, bounded to the update scan route and operation. Log fixed event categories and IDs only; no raw fact values or original statements.
 
 ## Connector and permission impact
 
@@ -103,6 +103,7 @@ No new runtime or development package is planned. Continue using TypeScript, Pos
 - Preserve `UNIT-HLT-001` and `UNIT-HLT-002` boundary, malformed-input and deterministic-order cases.
 - Add repository tests for policy revision conflicts, arbitrary/removed recipients, missing project scope, complete fact-set enforcement, current source-policy resolution, source-reader revocation and proposal exclusion.
 - Add obligation tests for threshold boundary, project-creation fallback, stale/current transition, stable deduplication, simultaneous scan collision, audit atomicity, retry after API/worker restart and bounded cursor continuation.
+- Deny the scheduled scan when its service identity/policy is absent, expired, revoked or outside a project scope; verify it never falls back to the last interactive actor.
 - `E2E-UPD-001` must configure an authorized project policy and responsibility, supply synthetic human-authorized source facts, cross the configured freshness boundary, run the scheduled path, and show one persisted obligation plus its project context and exact missing/stale information. Include no-authority/revoked-reader and incomplete-required-set cases; they cannot claim a valid update or disclose protected values.
 - Run applicable lint, typecheck, unit/integration, build, Playwright, migration/restore and documentation validation through hosted checks on the exact candidate.
 
@@ -126,6 +127,7 @@ The additive migration keeps existing project facts, authority policy and health
 - **Wrong authority or stale-source leakage:** resolve each configured fact at one as-of time, require current source access, disclose only labels/reasons to unauthorized readers, and test revoked-access responses.
 - **Duplicate or skipped obligation:** same transaction, stable deduplication identity, unique constraint, bounded cursor and retry/race tests.
 - **Arbitrary recipients:** select and recheck one configured `RESPONSIBLE_OWNER`; do not accept free-form email or subject identifiers.
+- **Overbroad scheduled access:** require a distinct explicitly configured service identity and narrow project operation policy, with source-reader checks on each fact; deny by default.
 - **Misleading freshness:** use system-observed fact times and the oldest required current fact; distinguish missing, unconfirmed and stale results and label all policy inputs.
 - **Unintended external effect:** prohibit dispatch in this scope, including from the scheduled task; verify zero outbound calls in hosted acceptance.
 - **Scope drift:** do not check AC-HLT-005/006 or Issue #8-only AC-HLT-007 in this stage; reconcile that criterion against canonical acceptance change control separately.
