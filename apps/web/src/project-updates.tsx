@@ -58,6 +58,19 @@ type Assessment = {
   };
   obligation: { id: string; state: "OPEN" | "SUPERSEDED"; dueAt: string } | null;
   preview: Preview | null;
+  knownPosition: Array<{
+    factType: string;
+    label: string;
+    value: unknown;
+    versionId: string;
+    evidenceId: string;
+    sourceId: string;
+    sourceAccessRevision: number;
+    authorityRevision: number | null;
+    observedAt: string;
+    effectiveAt: string;
+    timestampBasis: string;
+  }>;
 };
 
 export function ProjectUpdates({
@@ -200,9 +213,27 @@ export function ProjectUpdates({
           ))}
         </ul>
       )}
+      {latestQuery.data?.knownPosition.length ? (
+        <section className="callout" aria-label="Authorized current known position">
+          <h3>Authorized current known position</h3>
+          <ul>
+            {latestQuery.data.knownPosition.map((fact) => (
+              <li key={fact.versionId}>
+                <strong>{fact.label}</strong>
+                <p>{displayFactValue(fact.value)}</p>
+                <small>
+                  {fact.timestampBasis} · observed {fact.observedAt} · source effective {fact.effectiveAt}
+                  · source access revision {fact.sourceAccessRevision}
+                  {fact.authorityRevision === null ? "" : ` · authority revision ${fact.authorityRevision}`}
+                </small>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {latestQuery.data?.preview && (
         <div className="callout">
-          <h3>Saved request preview · Draft</h3>
+          <h3>Saved request preview · Draft · revision {latestQuery.data.preview.revision}</h3>
           <p>
             Project {latestQuery.data.preview.project.code}: {latestQuery.data.preview.project.name}.
             Reported status: {latestQuery.data.preview.reportedStatus}.
@@ -278,4 +309,12 @@ export function ProjectUpdates({
       {!pmoAdmin && message && <Message error={isError}>{message}</Message>}
     </section>
   );
+}
+
+function displayFactValue(value: unknown): string {
+  if (value !== null && typeof value === "object" && !Array.isArray(value) &&
+      "type" in value && value.type === "text" && "value" in value &&
+      typeof value.value === "string")
+    return value.value;
+  return JSON.stringify(value);
 }
