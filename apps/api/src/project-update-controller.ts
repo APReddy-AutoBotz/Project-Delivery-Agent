@@ -12,7 +12,6 @@ import {
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { IdentityService } from "@pdaa/platform";
 import {
-  HealthAssessmentError,
   projectFactIdSchema,
   projectUpdatePolicyChangeSchema,
   ProjectUpdateError,
