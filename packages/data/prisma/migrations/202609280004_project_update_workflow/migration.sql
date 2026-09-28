@@ -50,6 +50,7 @@ CREATE TABLE public."ProjectUpdatePolicy" (
   revision integer NOT NULL DEFAULT 0 CHECK (revision >= 0),
   "changedBy" varchar(256) NOT NULL,
   "changedAt" timestamptz(3) NOT NULL,
+  "scheduledScanLastAttemptAt" timestamptz(3),
   CONSTRAINT "ProjectUpdatePolicy_pkey" PRIMARY KEY ("customerId","projectId"),
   CONSTRAINT "ProjectUpdatePolicy_scope_key" UNIQUE ("customerId","projectId",key),
   CONSTRAINT "ProjectUpdatePolicy_project_fkey" FOREIGN KEY ("customerId","projectId")
