@@ -253,7 +253,10 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                   if (!args.select) {
                     args.omit = { ...args.omit, reconciliationCheckId: true };
                   }
-                } else if (preMilestone) {
+                } else if (
+                  preMilestone &&
+                  ["projectFact", "factAssessment"].includes(property)
+                ) {
                   // Preserve the existing genuine-prefix2-4 adaptations.
                   if (!args.select) {
                     args.omit = {
