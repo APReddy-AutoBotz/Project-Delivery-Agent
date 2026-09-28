@@ -22,7 +22,7 @@ describe("Project update timestamp authority boundary", () => {
         id: versionId,
         sourceId,
         evidenceId,
-        value: { type: "string", value: "In progress" },
+        value: { type: "text", value: "In progress" },
         provenance: "HUMAN_CONFIRMED",
         effectiveAt,
         validUntil: null,
