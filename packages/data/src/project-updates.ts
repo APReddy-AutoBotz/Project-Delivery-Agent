@@ -675,7 +675,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     id: string,
     value: unknown,
     requiredFactsValue: unknown,
-  ): Promise<ProjectUpdateKnownPosition[] | null> {
+  ): Promise<ProjectUpdateKnownPosition[]> {
     let entries: DependencyRow[];
     try {
       entries = z.array(projectUpdateFactReferenceSchema)
@@ -698,7 +698,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       'WITH d AS (SELECT * FROM jsonb_to_recordset($3::jsonb) AS x("factId" uuid,"factType" text,"versionId" uuid,"evidenceId" uuid,"sourceId" uuid,"sourceAccessRevision" integer,"authorityRevision" integer,"observedAt" timestamptz,"effectiveAt" timestamptz,"timestampBasis" text)) SELECT d."factType",v.value,d."versionId",d."evidenceId",d."sourceId",d."sourceAccessRevision",d."authorityRevision",d."observedAt",d."effectiveAt",d."timestampBasis" FROM d JOIN public."ProjectFact" f ON f."customerId"=$1::uuid AND f."projectId"=$2::uuid AND f.id=d."factId" AND f."factType"=d."factType" JOIN public."ProjectFactVersion" v ON v."customerId"=f."customerId" AND v."projectId"=f."projectId" AND v."factId"=f.id AND v."sourceId"=d."sourceId" AND v.id=d."versionId" AND v."evidenceId"=d."evidenceId" JOIN public."FactEvidence" e ON e."customerId"=v."customerId" AND e."projectId"=v."projectId" AND e."factId"=v."factId" AND e."sourceId"=v."sourceId" AND e.id=v."evidenceId" JOIN public."FactSourceAccess" a ON a."customerId"=v."customerId" AND a."projectId"=v."projectId" AND a."factId"=v."factId" AND a."sourceId"=v."sourceId" AND a.state=\'AVAILABLE\' JOIN public."FactSourceReader" r ON r."customerId"=a."customerId" AND r."projectId"=a."projectId" AND r."factId"=a."factId" AND r."sourceId"=a."sourceId" AND r.subject=$4 ORDER BY d."factType",d."sourceId",d."versionId"',
       current.customerId, id, stringify(entries), current.subject,
     );
-    if (rows.length !== entries.length) return null;
+    // Missing or revoked references are omitted; their values never enter the response.
     const labels = new Map(policyFacts(requiredFactsValue).map((fact) => [
       fact.factType,
       fact.label,
@@ -728,12 +728,17 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           tx, current, row.projectId, row.dependencies, row.requiredFacts,
         )
       : [];
-    if (knownPosition === null) return null;
     const result = safeObject.parse(jsonValue(row.result));
     let preview: ProjectUpdatePreview | null = null;
     if (row.preview) {
-      try { preview = row.preview as ProjectUpdatePreview; }
-      catch { throw new ProjectUpdateError("UNAVAILABLE"); }
+      try {
+        const stored = row.preview as ProjectUpdatePreview;
+        const readableVersions = new Set(knownPosition.map((fact) => fact.versionId));
+        preview = {
+          ...stored,
+          evidence: stored.evidence.filter((fact) => readableVersions.has(fact.versionId)),
+        };
+      } catch { throw new ProjectUpdateError("UNAVAILABLE"); }
     }
     return {
       project: {
