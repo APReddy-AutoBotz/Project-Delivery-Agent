@@ -188,3 +188,55 @@ $$;
 CREATE TRIGGER "ProjectUpdatePreview_immutable"
   BEFORE UPDATE OR DELETE ON public."ProjectUpdatePreview"
   FOR EACH ROW EXECUTE FUNCTION public.guard_project_update_preview();
+
+CREATE OR REPLACE FUNCTION public.guard_project_update_obligation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP='DELETE' THEN
+    RAISE EXCEPTION 'project update obligations cannot be deleted' USING ERRCODE='55000';
+  END IF;
+  IF (to_jsonb(NEW)-'state'-'supersededAt') IS DISTINCT FROM (to_jsonb(OLD)-'state'-'supersededAt')
+    OR OLD.state <> 'OPEN'
+    OR NEW.state <> 'SUPERSEDED'
+    OR NEW."supersededAt" IS NULL THEN
+    RAISE EXCEPTION 'project update obligation content is immutable' USING ERRCODE='55000';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER "ProjectUpdateObligation_immutable"
+  BEFORE UPDATE OR DELETE ON public."ProjectUpdateObligation"
+  FOR EACH ROW EXECUTE FUNCTION public.guard_project_update_obligation();
+
+ALTER TABLE public."ProjectUpdatePolicy" OWNER TO pdaa_migrate;
+ALTER TABLE public."ProjectUpdatePolicyRevision" OWNER TO pdaa_migrate;
+ALTER TABLE public."ProjectUpdateAssessment" OWNER TO pdaa_migrate;
+ALTER TABLE public."ProjectUpdateObligation" OWNER TO pdaa_migrate;
+ALTER TABLE public."ProjectUpdatePreview" OWNER TO pdaa_migrate;
+ALTER FUNCTION public.valid_project_update_facts(jsonb) OWNER TO pdaa_migrate;
+ALTER FUNCTION public.project_update_json_has_values(jsonb) OWNER TO pdaa_migrate;
+ALTER FUNCTION public.prevent_project_update_immutable_rewrite() OWNER TO pdaa_migrate;
+ALTER FUNCTION public.guard_project_update_preview() OWNER TO pdaa_migrate;
+ALTER FUNCTION public.guard_project_update_obligation() OWNER TO pdaa_migrate;
+
+REVOKE ALL ON FUNCTION public.valid_project_update_facts(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.project_update_json_has_values(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.prevent_project_update_immutable_rewrite() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.guard_project_update_preview() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.guard_project_update_obligation() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.valid_project_update_facts(jsonb) TO pdaa_api;
+GRANT EXECUTE ON FUNCTION public.project_update_json_has_values(jsonb) TO pdaa_api;
+
+GRANT SELECT,INSERT,UPDATE ON public."ProjectUpdatePolicy" TO pdaa_api;
+GRANT SELECT,INSERT ON public."ProjectUpdatePolicyRevision" TO pdaa_api;
+GRANT SELECT,INSERT ON public."ProjectUpdateAssessment" TO pdaa_api;
+GRANT SELECT,INSERT ON public."ProjectUpdateObligation" TO pdaa_api;
+GRANT UPDATE ("state","supersededAt") ON public."ProjectUpdateObligation" TO pdaa_api;
+GRANT SELECT,INSERT ON public."ProjectUpdatePreview" TO pdaa_api;
+GRANT UPDATE ("state") ON public."ProjectUpdatePreview" TO pdaa_api;
+
+GRANT SELECT ON public."ProjectUpdatePolicy" TO pdaa_backup;
+GRANT SELECT ON public."ProjectUpdatePolicyRevision" TO pdaa_backup;
+GRANT SELECT ON public."ProjectUpdateAssessment" TO pdaa_backup;
+GRANT SELECT ON public."ProjectUpdateObligation" TO pdaa_backup;
+GRANT SELECT ON public."ProjectUpdatePreview" TO pdaa_backup;
