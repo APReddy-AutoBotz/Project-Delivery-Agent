@@ -42,10 +42,18 @@ const healthAssessmentTables = [
   "HealthAssessment",
   "HealthAssessmentCommandReceipt",
 ];
+const projectUpdateTables = [
+  "ProjectUpdatePolicy",
+  "ProjectUpdatePolicyRevision",
+  "ProjectUpdateAssessment",
+  "ProjectUpdateObligation",
+  "ProjectUpdatePreview",
+];
 const introducedTables = [
   ...ingestionTables,
   ...jiraRuntimeTables,
   ...healthAssessmentTables,
+  ...projectUpdateTables,
   "RaidReopenReceipt",
   "BlockerAgeThresholdPolicy",
 ];
