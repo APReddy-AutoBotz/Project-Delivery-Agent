@@ -114,6 +114,8 @@ function snapshot(
       evidence: [],
     };
   const bySource = new Map(access.map((row) => [row.sourceId, row]));
+  // Canonical facts currently enter through human evidence. Connector imports remain proposals,
+  // so they are not authority sources or timestamp-validation evidence in this snapshot.
   const sources = [...new Set(versions.map((row) => row.sourceId))].map(
     (instanceId) => ({ instanceId, sourceType: "human_statement" }),
   );
