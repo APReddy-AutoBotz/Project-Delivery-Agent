@@ -316,5 +316,6 @@ function displayFactValue(value: unknown): string {
       "type" in value && value.type === "text" && "value" in value &&
       typeof value.value === "string")
     return value.value;
-  return JSON.stringify(value);
+  const encoded = JSON.stringify(value);
+  return encoded === undefined ? String(value) : encoded;
 }
