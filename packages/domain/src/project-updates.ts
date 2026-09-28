@@ -102,10 +102,24 @@ export type ProjectUpdateFactReference = z.infer<
   typeof projectUpdateFactReferenceSchema
 >;
 
+export type ProjectUpdateJson =
+  | null
+  | boolean
+  | number
+  | string
+  | ProjectUpdateJson[]
+  | { [key: string]: ProjectUpdateJson };
+
+// Values come from JSONB. Keep the input schema open for OpenAPI export while
+// exposing its parsed output as the precise JSON value type.
+const projectUpdateJsonSchema = z.unknown().transform(
+  (value): ProjectUpdateJson => value as ProjectUpdateJson,
+);
+
 export const projectUpdateKnownPositionSchema = z.strictObject({
   factType,
   label,
-  value: z.json(),
+  value: projectUpdateJsonSchema,
   versionId: z.uuid(),
   evidenceId: z.uuid(),
   sourceId: z.uuid(),
