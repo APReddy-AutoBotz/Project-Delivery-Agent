@@ -995,6 +995,9 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   expect(latest.input).toEqual(assessment.input);
   expect(latest.result).toEqual(assessment.result);
 
+  // Reopen the project so the UI renders the persisted latest read, not the POST cache.
+  await open(page, f.payload.name);
+
   await expect(panel).toContainText(
     "Assessment coverage: SCHEDULE_AND_BLOCKER_AGE",
   );
