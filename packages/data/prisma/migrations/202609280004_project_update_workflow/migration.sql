@@ -2,7 +2,7 @@
 -- one open update obligation per project, and an immutable review preview.
 CREATE OR REPLACE FUNCTION public.valid_project_update_facts(f jsonb)
 RETURNS boolean LANGUAGE plpgsql IMMUTABLE AS $$
-DECLARE item jsonb; seen jsonb := '[]'::jsonb; kind text; caption text;
+DECLARE item jsonb; seen text[] := ARRAY[]::text[]; kind text; caption text;
 BEGIN
   IF jsonb_typeof(f) IS DISTINCT FROM 'array'
     OR jsonb_array_length(f) NOT BETWEEN 1 AND 100 THEN RETURN false; END IF;
@@ -16,8 +16,8 @@ BEGIN
     IF kind !~ '^[a-z][a-z0-9_.-]{0,95}$'
       OR octet_length(caption) NOT BETWEEN 1 AND 160
       OR btrim(caption) = '' OR caption ~ '[[:cntrl:]]'
-      OR seen ? kind THEN RETURN false; END IF;
-    seen := seen || jsonb_build_object(kind,true);
+      OR kind = ANY(seen) THEN RETURN false; END IF;
+    seen := array_append(seen,kind);
   END LOOP;
   RETURN true;
 EXCEPTION WHEN OTHERS THEN RETURN false;
@@ -176,8 +176,10 @@ CREATE TRIGGER "ProjectUpdateAssessment_immutable"
 CREATE OR REPLACE FUNCTION public.guard_project_update_preview()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF TG_OP='DELETE'
-    OR (to_jsonb(NEW)-'state') IS DISTINCT FROM (to_jsonb(OLD)-'state')
+  IF TG_OP='DELETE' THEN
+    RAISE EXCEPTION 'project update previews cannot be deleted' USING ERRCODE='55000';
+  END IF;
+  IF (to_jsonb(NEW)-'state') IS DISTINCT FROM (to_jsonb(OLD)-'state')
     OR OLD.state <> 'CURRENT'
     OR NEW.state <> 'SUPERSEDED' THEN
     RAISE EXCEPTION 'project update preview content is immutable' USING ERRCODE='55000';
