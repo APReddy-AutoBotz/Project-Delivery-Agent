@@ -4,6 +4,7 @@ import {
   assessProjectCompleteness,
   assessUpdateFreshness,
   projectUpdatePolicyChangeSchema,
+  canonicalSubjectSchema,
   projectUpdateRequiredFactSchema,
   ProjectUpdateError,
   type Actor,
@@ -185,7 +186,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   ) {
     this.authority = new DatabaseAuthorityRepository(db);
     this.serviceSubject = configuredServiceSubject
-      ? serviceSubjectSchema.parse(configuredServiceSubject)
+      ? canonicalSubjectSchema.parse(configuredServiceSubject)
       : null;
   }
 
@@ -674,7 +675,6 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (requireAccess &&
         !(await this.sourceReferencesReadable(tx, current, row.projectId, row.dependencies)))
       return null;
-    const input = safeObject.parse(jsonValue(row.input));
     const result = safeObject.parse(jsonValue(row.result));
     let preview: ProjectUpdatePreview | null = null;
     if (row.preview) {
