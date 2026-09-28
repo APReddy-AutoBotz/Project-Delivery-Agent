@@ -437,8 +437,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             selectedBasis: basis,
             observedAt,
             effectiveAt,
-            effectiveAtValidated: sourceType !== "human_statement" &&
-              basis === "effectiveAt" && authorityVersion?.visibility === "available",
+            // Visibility proves reader access only. This canonical authority model has no
+            // persisted adapter-validation result; connector imports remain proposals.
+            effectiveAtValidated: false,
             asOf,
           });
           const timestampBasis = selectedTime.timestampBasis;
@@ -789,28 +790,39 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (!this.serviceSubject) throw new ProjectUpdateError("UNAVAILABLE");
     const limit = z.number().int().min(1).max(1).safeParse(limitValue);
     if (!limit.success) throw new ProjectUpdateError("INVALID_REQUEST");
-    let candidates: Array<{ customerId: string; projectId: string }>;
+    let candidate: { customerId: string; projectId: string } | null;
     try {
-      candidates = await this.db.$queryRawUnsafe(
-        'SELECT p."customerId",p."projectId" FROM public."ProjectUpdatePolicy" p JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r.revision=p.revision LEFT JOIN LATERAL (SELECT a."assessedAt" FROM public."ProjectUpdateAssessment" a WHERE a."customerId"=p."customerId" AND a."projectId"=p."projectId" ORDER BY a."assessedAt" DESC,a.id DESC LIMIT 1) latest ON true WHERE r."scheduledScanEnabled"=true AND r."scheduledServiceSubject"=$1 ORDER BY latest."assessedAt" ASC NULLS FIRST,p."customerId",p."projectId" LIMIT $2',
-        this.serviceSubject, limit.data,
-      );
+      candidate = await this.db.$transaction(async (tx) => {
+        const rows = await tx.$queryRawUnsafe<Array<{
+          customerId: string;
+          projectId: string;
+        }>>(
+          'SELECT p."customerId",p."projectId" FROM public."ProjectUpdatePolicy" p JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r.revision=p.revision WHERE r."scheduledScanEnabled"=true AND r."scheduledServiceSubject"=$1 ORDER BY p."scheduledScanLastAttemptAt" ASC NULLS FIRST,p."customerId",p."projectId" LIMIT 1 FOR UPDATE OF p SKIP LOCKED',
+          this.serviceSubject,
+        );
+        const selected = rows[0];
+        if (!selected) return null;
+        await tx.$executeRawUnsafe(
+          'UPDATE public."ProjectUpdatePolicy" SET "scheduledScanLastAttemptAt"=date_trunc(\'milliseconds\',clock_timestamp()) WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid',
+          selected.customerId,
+          selected.projectId,
+        );
+        return selected;
+      }, {
+        isolationLevel: "ReadCommitted",
+        maxWait: 5000,
+        timeout: 10000,
+      });
     } catch (error) { mapError(error); }
-    let completed = 0;
-    for (const candidate of candidates!) {
-      const serviceActor: Actor = {
-        customerId: candidate.customerId,
-        subject: this.serviceSubject,
-        roles: [],
-      };
-      await this.assessCore(
-        serviceActor,
-        candidate.projectId,
-        randomUUID(),
-        true,
-      );
-      completed += 1;
-    }
-    return completed;
+    if (!candidate) return 0;
+    const serviceActor: Actor = {
+      customerId: candidate.customerId,
+      subject: this.serviceSubject,
+      roles: [],
+    };
+    // The durable attempt timestamp is written before assessment. A failure
+    // therefore rotates this project behind other enabled projects next time.
+    await this.assessCore(serviceActor, candidate.projectId, randomUUID(), true);
+    return 1;
   }
 }
