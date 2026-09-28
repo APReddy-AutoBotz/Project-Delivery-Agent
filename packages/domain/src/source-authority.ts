@@ -257,8 +257,6 @@ function resolveSnapshot(input: unknown) {
   );
   const rows = history.versions.map((version) => {
     const approval = original.get(version.id)!.approval;
-    const effectiveAtValidated =
-      original.get(version.id)!.effectiveAtValidated;
     const type = sourceTypes.get(version.source.instanceId)!;
     const match = policyApplicable
       ? selectors.find(
@@ -486,6 +484,8 @@ function resolveSnapshot(input: unknown) {
           visibility: "restricted" as const,
           revalidationRequired: true as const,
         };
+      const effectiveAtValidated =
+        original.get(row.version.id)!.effectiveAtValidated;
       return {
         ...row.version,
         ...(effectiveAtValidated === undefined ? {} : { effectiveAtValidated }),
