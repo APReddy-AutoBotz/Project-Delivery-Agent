@@ -4,12 +4,14 @@ import {
   assessProjectCompleteness,
   assessUpdateFreshness,
   projectUpdatePolicyChangeSchema,
+  projectUpdateFactReferenceSchema,
   canonicalSubjectSchema,
   projectUpdateRequiredFactSchema,
   ProjectUpdateError,
   type Actor,
   type ProjectUpdateAssessmentView,
   type ProjectUpdateFactReference,
+  type ProjectUpdateKnownPosition,
   type ProjectUpdatePolicyChange,
   type ProjectUpdatePolicyView,
   type ProjectUpdatePreview,
@@ -41,12 +43,7 @@ type ProjectRow = {
   createdAt: Date;
 };
 type FactRow = { id: string; factType: string; revision: number };
-type DependencyRow = {
-  factId: string;
-  sourceId: string;
-  versionId: string;
-  evidenceId: string;
-};
+type DependencyRow = ProjectUpdateFactReference;
 type AssessmentRow = {
   id: string;
   customerId: string;
@@ -364,6 +361,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         conflict: "NONE" | "CONFLICTING";
       }> = [];
       const evidence: ProjectUpdateFactReference[] = [];
+      const knownPosition: ProjectUpdateKnownPosition[] = [];
       const trustedTimes: number[] = [];
       let allTrusted = true;
       for (const requirement of requiredFacts) {
@@ -445,7 +443,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             trustedTimes.push(observedAt.getTime());
           else
             allTrusted = false;
-          evidence.push({
+          const reference: ProjectUpdateFactReference = {
             factId: fact.id,
             factType: requirement.factType,
             versionId: version.id,
@@ -456,6 +454,20 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             observedAt: iso(observedAt),
             effectiveAt: iso(effectiveAt),
             timestampBasis,
+          };
+          evidence.push(reference);
+          knownPosition.push({
+            factType: requirement.factType,
+            label: requirement.label,
+            value: version.value,
+            versionId: reference.versionId,
+            evidenceId: reference.evidenceId,
+            sourceId: reference.sourceId,
+            sourceAccessRevision: reference.sourceAccessRevision,
+            authorityRevision: reference.authorityRevision,
+            observedAt: reference.observedAt,
+            effectiveAt: reference.effectiveAt,
+            timestampBasis: reference.timestampBasis,
           });
         }
       }
@@ -535,12 +547,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         completeness,
         freshness: freshnessAssessment.freshness,
       };
-      const dependencyData: DependencyRow[] = evidence.map((entry) => ({
-        factId: entry.factId,
-        sourceId: entry.sourceId,
-        versionId: entry.versionId,
-        evidenceId: entry.evidenceId,
-      }));
+      const dependencyData: DependencyRow[] = evidence;
       const envelopeHash = hash({ input: safeInput, result: safeResult, dependencies: dependencyData });
       const previewId = stale ? randomUUID() : null;
       const previewRevisionRows = stale
@@ -639,6 +646,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           ? { id: obligationId, state: obligationState!, dueAt: iso(freshnessThresholdAt) }
           : null,
         preview,
+        knownPosition: knownPosition.sort((left, right) =>
+          left.factType.localeCompare(right.factType) ||
+          left.sourceId.localeCompare(right.sourceId) ||
+          left.versionId.localeCompare(right.versionId),
+        ),
       };
     });
   }
@@ -650,31 +662,66 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return this.assessCore(current, id, correlationId, false);
   }
 
-  private async sourceReferencesReadable(tx: Tx, current: Actor, id: string, value: unknown) {
+  private async resolveKnownPosition(
+    tx: Tx,
+    current: Actor,
+    id: string,
+    value: unknown,
+    requiredFactsValue: unknown,
+  ): Promise<ProjectUpdateKnownPosition[] | null> {
     let entries: DependencyRow[];
-    try { entries = z.array(z.strictObject({
-      factId: z.uuid(), sourceId: z.uuid(), versionId: z.uuid(), evidenceId: z.uuid(),
-    })).max(1000).parse(jsonValue(value)); }
-    catch { throw new ProjectUpdateError("UNAVAILABLE"); }
-    if (entries.length === 0) return true;
-    const result = await tx.$queryRawUnsafe<Array<{
-      versionId: string | null;
-      evidenceId: string | null;
-      state: string | null;
-      subject: string | null;
+    try {
+      entries = z.array(projectUpdateFactReferenceSchema)
+        .max(1000)
+        .parse(jsonValue(value));
+    } catch { throw new ProjectUpdateError("UNAVAILABLE"); }
+    if (entries.length === 0) return [];
+    const rows = await tx.$queryRawUnsafe<Array<{
+      factType: string;
+      value: unknown;
+      versionId: string;
+      evidenceId: string;
+      sourceId: string;
+      sourceAccessRevision: number;
+      authorityRevision: number | null;
+      observedAt: Date;
+      effectiveAt: Date;
+      timestampBasis: ProjectUpdateFactReference["timestampBasis"];
     }>>(
-      'WITH d AS (SELECT * FROM jsonb_to_recordset($3::jsonb) AS x("factId" uuid,"sourceId" uuid,"versionId" uuid,"evidenceId" uuid)) SELECT v.id AS "versionId",e.id AS "evidenceId",a.state,r.subject FROM d LEFT JOIN public."ProjectFactVersion" v ON v."customerId"=$1::uuid AND v."projectId"=$2::uuid AND v."factId"=d."factId" AND v."sourceId"=d."sourceId" AND v.id=d."versionId" AND v."evidenceId"=d."evidenceId" LEFT JOIN public."FactEvidence" e ON e."customerId"=v."customerId" AND e."projectId"=v."projectId" AND e."factId"=v."factId" AND e."sourceId"=v."sourceId" AND e.id=v."evidenceId" LEFT JOIN public."FactSourceAccess" a ON a."customerId"=$1::uuid AND a."projectId"=$2::uuid AND a."factId"=d."factId" AND a."sourceId"=d."sourceId" LEFT JOIN public."FactSourceReader" r ON r."customerId"=a."customerId" AND r."projectId"=a."projectId" AND r."factId"=a."factId" AND r."sourceId"=a."sourceId" AND r.subject=$4 ORDER BY d."factId",d."sourceId"',
+      'WITH d AS (SELECT * FROM jsonb_to_recordset($3::jsonb) AS x("factId" uuid,"factType" text,"versionId" uuid,"evidenceId" uuid,"sourceId" uuid,"sourceAccessRevision" integer,"authorityRevision" integer,"observedAt" timestamptz,"effectiveAt" timestamptz,"timestampBasis" text)) SELECT d."factType",v.value,d."versionId",d."evidenceId",d."sourceId",d."sourceAccessRevision",d."authorityRevision",d."observedAt",d."effectiveAt",d."timestampBasis" FROM d JOIN public."ProjectFact" f ON f."customerId"=$1::uuid AND f."projectId"=$2::uuid AND f.id=d."factId" AND f."factType"=d."factType" JOIN public."ProjectFactVersion" v ON v."customerId"=f."customerId" AND v."projectId"=f."projectId" AND v."factId"=f.id AND v."sourceId"=d."sourceId" AND v.id=d."versionId" AND v."evidenceId"=d."evidenceId" JOIN public."FactEvidence" e ON e."customerId"=v."customerId" AND e."projectId"=v."projectId" AND e."factId"=v."factId" AND e."sourceId"=v."sourceId" AND e.id=v."evidenceId" JOIN public."FactSourceAccess" a ON a."customerId"=v."customerId" AND a."projectId"=v."projectId" AND a."factId"=v."factId" AND a."sourceId"=v."sourceId" AND a.state=\'AVAILABLE\' JOIN public."FactSourceReader" r ON r."customerId"=a."customerId" AND r."projectId"=a."projectId" AND r."factId"=a."factId" AND r."sourceId"=a."sourceId" AND r.subject=$4 ORDER BY d."factType",d."sourceId",d."versionId"',
       current.customerId, id, stringify(entries), current.subject,
     );
-    return result.length === entries.length &&
-      result.every((row) => row.versionId && row.evidenceId &&
-        row.state === "AVAILABLE" && row.subject === current.subject);
+    if (rows.length !== entries.length) return null;
+    const labels = new Map(policyFacts(requiredFactsValue).map((fact) => [
+      fact.factType,
+      fact.label,
+    ]));
+    return rows.map((row) => {
+      const label = labels.get(row.factType);
+      if (!label) throw new ProjectUpdateError("UNAVAILABLE");
+      return {
+        factType: row.factType,
+        label,
+        value: row.value,
+        versionId: row.versionId,
+        evidenceId: row.evidenceId,
+        sourceId: row.sourceId,
+        sourceAccessRevision: row.sourceAccessRevision,
+        authorityRevision: row.authorityRevision,
+        observedAt: iso(row.observedAt),
+        effectiveAt: iso(row.effectiveAt),
+        timestampBasis: row.timestampBasis,
+      };
+    });
   }
 
   private async assessmentView(tx: Tx, current: Actor, row: AssessmentRow, requireAccess: boolean) {
-    if (requireAccess &&
-        !(await this.sourceReferencesReadable(tx, current, row.projectId, row.dependencies)))
-      return null;
+    const knownPosition = requireAccess
+      ? await this.resolveKnownPosition(
+          tx, current, row.projectId, row.dependencies, row.requiredFacts,
+        )
+      : [];
+    if (knownPosition === null) return null;
     const result = safeObject.parse(jsonValue(row.result));
     let preview: ProjectUpdatePreview | null = null;
     if (row.preview) {
@@ -706,6 +753,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         ? { id: row.obligationId, state: row.obligationState, dueAt: iso(row.dueAt) }
         : null,
       preview,
+      knownPosition,
     } satisfies ProjectUpdateAssessmentView;
   }
 
