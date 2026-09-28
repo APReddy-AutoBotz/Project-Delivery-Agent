@@ -241,8 +241,17 @@ export function ProjectUpdates({
           <p>
             Update date: {latestQuery.data.preview.sourceDate} ({latestQuery.data.preview.timestampBasis}).
             Freshness threshold: {latestQuery.data.preview.freshnessThresholdAt}.
+            Freshness: {latestQuery.data.preview.freshnessState}; completeness: {latestQuery.data.preview.completenessState}.
           </p>
           <p>Assigned owner: {latestQuery.data.policy.responsibleSubject}. This preview has not been sent.</p>
+          <ul aria-label="Requested update information">
+            {latestQuery.data.preview.requiredFacts.map((fact) => (
+              <li key={fact.factType}>
+                {fact.label}: {fact.state}
+                {fact.reasonCodes.length ? ` · ${fact.reasonCodes.join(", ")}` : ""}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       {pmoAdmin && (
