@@ -132,6 +132,11 @@ try {
     "HealthAssessment",
     "HealthAssessmentCommandReceipt",
     "BlockerAgeThresholdPolicy",
+    "ProjectUpdatePolicy",
+    "ProjectUpdatePolicyRevision",
+    "ProjectUpdateAssessment",
+    "ProjectUpdateObligation",
+    "ProjectUpdatePreview",
   ];
   assert.deepEqual(
     tables.map((row) => row.tablename).sort(),
@@ -734,7 +739,14 @@ writeFileSync(
       prefixNineUpgrade,
       raidReopenTables: ["RaidReopenReceipt"],
       blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
-      businessTables: 68,
+      projectUpdateTables: [
+        "ProjectUpdatePolicy",
+        "ProjectUpdatePolicyRevision",
+        "ProjectUpdateAssessment",
+        "ProjectUpdateObligation",
+        "ProjectUpdatePreview",
+      ],
+      businessTables: 73,
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",

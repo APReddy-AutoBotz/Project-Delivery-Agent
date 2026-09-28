@@ -9,6 +9,7 @@ import {
   DatabaseConnectorRuntimeRepository,
   DatabaseIngestionRepository,
   DatabaseHealthAssessmentRepository,
+  DatabaseProjectUpdateRepository,
 } from "@pdaa/data";
 import {
   loadConfig,
@@ -26,6 +27,10 @@ try {
   const db = createDatabase(config.database);
   const ingestion = new DatabaseIngestionRepository(db, new CredentialVault(config.ENCRYPTION_KEY));
   const healthAssessment = new DatabaseHealthAssessmentRepository(db);
+  const projectUpdates = new DatabaseProjectUpdateRepository(
+    db,
+    config.projectUpdateServiceSubject,
+  );
   const connectorRuntime = new DatabaseConnectorRuntimeRepository(db, new CredentialKeyRingVault(config.credentialKeys));
   const { app } = await createApp(
     config,
@@ -36,9 +41,10 @@ try {
     new DatabaseAuthorityRepository(db),
     new DatabaseMilestoneReconciliationRepository(db),
     new DatabaseScalarReconciliationRepository(db),
-    (target) => installConnectorRoutes(target, config, connectorRuntime, new JiraRuntimeService(config, connectorRuntime, ingestion)),
+    (target) => installConnectorRoutes(target, config, connectorRuntime, new JiraRuntimeService(config, connectorRuntime, ingestion), projectUpdates),
     ingestion,
     healthAssessment,
+    projectUpdates,
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

@@ -53,6 +53,10 @@ import {
   blockerAgeThresholdPolicyChangeSchema,
   blockerAgeThresholdPolicyViewSchema,
   healthAssessmentViewSchema,
+  projectUpdatePolicyChangeSchema,
+  projectUpdatePolicyViewSchema,
+  projectUpdateAssessmentRequestSchema,
+  projectUpdateAssessmentViewSchema,
 } from "@pdaa/domain";
 import {
   catalogueQuerySchema,
@@ -184,6 +188,32 @@ export type RouteContract = {
   requestContent?: Record<string, { schema: SchemaObject }>;
 };
 export const contracts: Record<string, RouteContract> = {
+  "get /api/projects/{id}/project-update-policy": {
+    status: 200,
+    response: projectUpdatePolicyViewSchema.nullable(),
+    parameters: { id: z.uuid() },
+    errors: [404, 503],
+  },
+  "post /api/projects/{id}/project-update-policy": {
+    status: 200,
+    request: projectUpdatePolicyChangeSchema,
+    response: projectUpdatePolicyViewSchema,
+    parameters: { id: z.uuid() },
+    errors: [400, 403, 404, 409, 503],
+  },
+  "post /api/projects/{id}/project-update-assessments": {
+    status: 201,
+    request: projectUpdateAssessmentRequestSchema,
+    response: projectUpdateAssessmentViewSchema,
+    parameters: { id: z.uuid() },
+    errors: [400, 404, 409, 503],
+  },
+  "get /api/projects/{id}/project-update-assessments/latest": {
+    status: 200,
+    response: projectUpdateAssessmentViewSchema.nullable(),
+    parameters: { id: z.uuid() },
+    errors: [404, 503],
+  },
   "get /api/ingestion/sources": {
     status: 200,
     response: z.array(ingestionSourceSummaryWireSchema),

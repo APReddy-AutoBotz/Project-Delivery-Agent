@@ -1,6 +1,7 @@
 import type { WorkerHeartbeatRepository } from "@pdaa/domain";
 
 const connectorRunPath = "/internal/connectors/run";
+const projectUpdateScanPath = "/internal/project-updates/scan";
 
 type ConnectorTaskKeyRing = {
   currentKeyId: string;
@@ -9,6 +10,7 @@ type ConnectorTaskKeyRing = {
 type WorkerConnectorConfig = {
   INTERNAL_API_URL?: string;
   connectorTaskKeys?: ConnectorTaskKeyRing | null;
+  projectUpdateTaskKeys?: ConnectorTaskKeyRing | null;
 };
 type TaskSigner = (input: {
   method: string;
@@ -29,6 +31,31 @@ export function createTasks(
     health_assessment_retention: async () => {
       if (!purgeHealthAssessments) throw new Error("health_assessment_retention_unavailable");
       await purgeHealthAssessments();
+    },
+    project_update_scan_dispatch: async () => {
+      if (!config?.INTERNAL_API_URL || !config.projectUpdateTaskKeys) return;
+      if (!signTaskRequest) throw new Error("project_update_scan_unavailable");
+      const body = Buffer.from("{}", "utf8");
+      const headers = signTaskRequest({
+        method: "POST",
+        path: projectUpdateScanPath,
+        body,
+        keyRing: config.projectUpdateTaskKeys,
+      });
+      let response: Response;
+      try {
+        response = await fetchImpl(new URL(projectUpdateScanPath, config.INTERNAL_API_URL), {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body,
+          redirect: "error",
+          signal: AbortSignal.timeout(30_000),
+        });
+      } catch {
+        throw new Error("project_update_scan_unavailable");
+      }
+      if (!response.ok) throw new Error("project_update_scan_unavailable");
+      await response.body?.cancel();
     },
     connector_sync_dispatch: async () => {
       if (!config?.INTERNAL_API_URL || !config.connectorTaskKeys) return;

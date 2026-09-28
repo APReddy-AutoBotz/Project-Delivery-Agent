@@ -28,7 +28,7 @@ async function legacyProjection(owner, fixture) {
   ])
     rows[table] = (
       await owner.query(
-        `SELECT to_jsonb(t)-'bindingBirthId' AS row FROM "${table}" t WHERE ${table === "AuditEvent" ? '"correlationId"=$1' : table === "ProjectFact" || table.startsWith("Authority") ? '"projectId"=$1::uuid AND "factType"=ANY($2::varchar[])' : '"factId"=$1::uuid'} ORDER BY (to_jsonb(t)-'bindingBirthId')::text COLLATE "C"`,
+        `SELECT to_jsonb(t)-'bindingBirthId'-'sourceType'-'effectiveAtValidated' AS row FROM "${table}" t WHERE ${table === "AuditEvent" ? '"correlationId"=$1' : table === "ProjectFact" || table.startsWith("Authority") ? '"projectId"=$1::uuid AND "factType"=ANY($2::varchar[])' : '"factId"=$1::uuid'} ORDER BY (to_jsonb(t)-'bindingBirthId'-'sourceType'-'effectiveAtValidated')::text COLLATE "C"`,
         table === "AuditEvent"
           ? [fixture.context.correlationId]
           : table === "ProjectFact" || table.startsWith("Authority")

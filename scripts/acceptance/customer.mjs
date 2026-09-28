@@ -107,6 +107,13 @@ import {
 } from "./disclosure.mjs";
 
 const env = process.env;
+const projectUpdateTables = [
+  "ProjectUpdatePolicy",
+  "ProjectUpdatePolicyRevision",
+  "ProjectUpdateAssessment",
+  "ProjectUpdateObligation",
+  "ProjectUpdatePreview",
+];
 const profile = env.PDAA_CUSTOMER_PROFILE;
 assert(["bundled", "external"].includes(profile));
 assert.equal(env.PDAA_ACCEPTANCE, "customer-composition");
@@ -166,6 +173,7 @@ async function projection(pool) {
     "ConnectorCredential",
     "AuditEvent",
     "_prisma_migrations",
+    ...projectUpdateTables,
   ])
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
@@ -498,6 +506,7 @@ try {
       ...milestonePersistenceTables,
       ...milestoneReconciliationTables,
       ...scalarReconciliationTables,
+      ...projectUpdateTables,
     ])
       assert.equal(
         state[table].length,
@@ -507,7 +516,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 18);
+    assert.equal(migrations.length, 19);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -765,8 +774,8 @@ try {
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 68,
-      migrationCount: 18,
+      businessTableCount: 73,
+      migrationCount: 19,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({

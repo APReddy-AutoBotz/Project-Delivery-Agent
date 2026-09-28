@@ -14,11 +14,16 @@ import {
   loadConfig,
   IdentityService,
 } from "../packages/platform/dist/index.js";
+import {
+  projectUpdateAssessmentViewSchema,
+  projectUpdatePolicyViewSchema,
+} from "../packages/domain/src/index.js";
 import type {
   HealthAssessmentRepository,
   IngestionRepository,
   Project,
   ProjectRepository,
+  ProjectUpdateRepository,
 } from "../packages/domain/src/index.js";
 import {
   compileContract,
@@ -285,6 +290,81 @@ const healthAssessmentRepository: HealthAssessmentRepository = {
     changedAt: "2026-09-27T00:00:00.000Z",
   })),
 };
+const projectUpdatePolicyFixture = projectUpdatePolicyViewSchema.parse({
+  projectId: project.id,
+  key: "project-update",
+  revision: 1,
+  freshnessWindowSeconds: 3600,
+  timeZone: "UTC",
+  requiredFacts: [{ factType: "project.forecast", label: "Current forecast" }],
+  responsibleSubject: "contract-owner",
+  scheduledScanEnabled: false,
+  changedBy: "pmo-portfolio",
+  changedAt: "2026-09-27T00:00:00.000Z",
+});
+const projectUpdateAssessmentFixture = projectUpdateAssessmentViewSchema.parse({
+  project: {
+    id: project.id,
+    code: project.code,
+    name: project.name,
+    reportedStatus: project.reportedStatus,
+  },
+  assessedAt: "2026-09-27T00:00:00.000Z",
+  policy: projectUpdatePolicyFixture,
+  completeness: {
+    projectId: project.id,
+    assessedAt: "2026-09-27T00:00:00.000Z",
+    ruleKey: "project-update",
+    ruleRevision: "1",
+    state: "COMPLETE",
+    complete: true,
+    requiredCount: 1,
+    confirmedCount: 1,
+    confirmedFactTypes: ["project.forecast"],
+    missing: [],
+    unconfirmed: [],
+    factAssessments: [{
+      factType: "project.forecast",
+      label: "Current forecast",
+      state: "CONFIRMED",
+      canonicalVersionCount: 1,
+      sourceAuthorityStatus: "RESOLVED",
+      conflict: "NONE",
+      reasonCodes: [],
+    }],
+  },
+  freshness: {
+    state: "CURRENT",
+    sourceDateField: "project.createdAt",
+    sourceDate: "2026-09-27T00:00:00.000Z",
+    ageMilliseconds: 0,
+    freshnessWindowSeconds: 3600,
+    exceededByMilliseconds: 0,
+    policyKey: "project-update",
+    ruleRevision: "1",
+    assessedAt: "2026-09-27T00:00:00.000Z",
+    timeZone: "UTC",
+    timeZoneSource: "PROJECT",
+  },
+  obligation: null,
+  preview: null,
+  knownPosition: [],
+});
+const projectUpdateRepository: ProjectUpdateRepository = {
+  policy: vi.fn(async () => projectUpdatePolicyFixture),
+  setPolicy: vi.fn(async (_actor, _projectId, change) => ({
+    ...projectUpdatePolicyFixture,
+    revision: change.expectedRevision + 1,
+    freshnessWindowSeconds: change.freshnessWindowSeconds,
+    timeZone: change.timeZone,
+    requiredFacts: change.requiredFacts,
+    responsibleSubject: change.responsibleSubject,
+    scheduledScanEnabled: change.scheduledScanEnabled,
+  })),
+  assess: vi.fn(async () => projectUpdateAssessmentFixture),
+  latest: vi.fn(async () => projectUpdateAssessmentFixture),
+  scanScheduledProjects: vi.fn(async () => 0),
+};
 beforeAll(async () => {
   ({ app, spec } = await createApp(
     config,
@@ -298,6 +378,7 @@ beforeAll(async () => {
     undefined,
     ingestionRepository,
     healthAssessmentRepository,
+    projectUpdateRepository,
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -403,6 +484,33 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     manager,
     "POST",
     { commandKey: "contract-assessment" },
+  );
+  await request("/api/projects/" + project.id + "/project-update-policy", 200, manager);
+  await request(
+    "/api/projects/" + project.id + "/project-update-policy",
+    200,
+    pmoPortfolio,
+    "POST",
+    {
+      expectedRevision: 0,
+      freshnessWindowSeconds: 3600,
+      timeZone: "UTC",
+      requiredFacts: [{ factType: "project.forecast", label: "Current forecast" }],
+      responsibleSubject: "contract-owner",
+      scheduledScanEnabled: false,
+    },
+  );
+  await request(
+    "/api/projects/" + project.id + "/project-update-assessments",
+    201,
+    manager,
+    "POST",
+    {},
+  );
+  await request(
+    "/api/projects/" + project.id + "/project-update-assessments/latest",
+    200,
+    manager,
   );
   await request("/api/admin/health-assessment-retention", 200, pmoPortfolio);
   await request(
@@ -518,7 +626,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(48);
+  expect(covered.size).toBe(52);
   assertContractSnapshot(
     spec,
     JSON.parse(

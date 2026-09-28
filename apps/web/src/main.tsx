@@ -16,6 +16,7 @@ import {
 import "./style.css";
 import { ProjectEvidence } from "./project-evidence.js";
 import { HealthAssessmentPanel } from "./health-assessment.js";
+import { ProjectUpdates } from "./project-updates.js";
 import { CsvIngestion } from "./csv-ingestion.js";
 import { savedScalarReconciliationLink } from "./scalar-reconciliation.js";
 import {
@@ -599,6 +600,16 @@ function App() {
               {retainedProject ? (
                 <>
                   {project.data && <ProjectDetail project={project.data} />}
+                  {project.data && (
+                    <ProjectUpdates
+                      key={`project-updates:${project.data.id}`}
+                      projectId={project.data.id}
+                      reportedStatus={project.data.reportedStatus}
+                      request={request}
+                      pmoAdmin={pmoAdmin ?? false}
+                      visible={!project.isFetching && !project.isError}
+                    />
+                  )}
                   {project.data && (
                     <HealthAssessmentPanel
                       key={project.data.id}

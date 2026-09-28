@@ -68,7 +68,10 @@ export const sourceAuthoritySnapshotSchema = z
     complete: z.boolean(),
     policy: sourceAuthorityPolicySchema.nullable(),
     versions: z
-      .array(temporal.versions.element.extend({ approval: approvalSchema }))
+      .array(temporal.versions.element.extend({
+        approval: approvalSchema,
+        effectiveAtValidated: z.boolean().optional(),
+      }))
       .max(1000),
     conflicts: temporal.conflicts,
     sources: z
@@ -245,7 +248,7 @@ function resolveSnapshot(input: unknown) {
       validity: null,
     },
     versions: snapshot.versions.map(
-      ({ approval: _approval, ...version }) => version,
+      ({ approval: _approval, effectiveAtValidated: _effectiveAtValidated, ...version }) => version,
     ),
     conflicts: snapshot.conflicts,
   });

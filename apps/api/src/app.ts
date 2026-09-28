@@ -22,6 +22,11 @@ import {
   unavailableHealthAssessmentRepository,
 } from "./health-assessment-controller.js";
 import {
+  ProjectUpdateController,
+  PROJECT_UPDATE_REPOSITORY,
+  unavailableProjectUpdateRepository,
+} from "./project-update-controller.js";
+import {
   CanonicalController,
   CANONICAL_REPOSITORY,
   unavailableCanonicalRepository,
@@ -77,6 +82,7 @@ import {
   type ScalarReconciliationRepository,
   type IngestionRepository,
   type HealthAssessmentRepository,
+  type ProjectUpdateRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
@@ -216,6 +222,7 @@ export async function createApp(
   preJsonBodyParser?: (app: NestExpressApplication) => void,
   ingestion: IngestionRepository = unavailableIngestionRepository,
   healthAssessment: HealthAssessmentRepository = unavailableHealthAssessmentRepository,
+  projectUpdates: ProjectUpdateRepository = unavailableProjectUpdateRepository,
 ) {
   @Module({
     controllers: [
@@ -226,6 +233,7 @@ export async function createApp(
       ScalarReconciliationController,
       IngestionController,
       HealthAssessmentController,
+      ProjectUpdateController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -241,6 +249,7 @@ export async function createApp(
       { provide: IdentityService, useValue: identity },
       { provide: INGESTION_REPOSITORY, useValue: ingestion },
       { provide: HEALTH_ASSESSMENT_REPOSITORY, useValue: healthAssessment },
+      { provide: PROJECT_UPDATE_REPOSITORY, useValue: projectUpdates },
       IngestionIdentityGuard,
     ],
   })

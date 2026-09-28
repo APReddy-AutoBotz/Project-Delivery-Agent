@@ -15,6 +15,32 @@ const priorColumns = {
       createdAt: "timestamptz",
     },
   },
+  factSource: {
+    table: "FactSource",
+    columns: {
+      id: "uuid",
+      customerId: "uuid",
+      projectId: "uuid",
+      factId: "uuid",
+      providedBy: "varchar(256)",
+    },
+  },
+  projectFactVersion: {
+    table: "ProjectFactVersion",
+    columns: {
+      id: "uuid",
+      customerId: "uuid",
+      projectId: "uuid",
+      factId: "uuid",
+      sourceId: "uuid",
+      evidenceId: "uuid",
+      revision: "integer",
+      value: "jsonb",
+      provenance: "varchar(24)",
+      effectiveAt: "timestamptz",
+      validUntil: "timestamptz",
+    },
+  },
   factAssessment: {
     table: "FactAssessment",
     columns: {
@@ -103,7 +129,9 @@ function insertPriorRow(target, property, args, prefixCount) {
     ),
   );
   const values = supplied.map((column) =>
-    column === "result" ? JSON.stringify(args.data[column]) : args.data[column],
+    ["result", "value"].includes(column)
+      ? JSON.stringify(args.data[column])
+      : args.data[column],
   );
   const sql = `INSERT INTO "${table}" (${supplied
     .map((column) => `"${column}"`)
@@ -122,9 +150,15 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
     "A populated prior fixture must name its exact released migration prefix",
   );
   const preMilestone = prefixCount < 5;
-  const adaptedModels = preMilestone
-    ? ["projectFact", "factAssessment"]
-    : ["factAssessment", "milestoneConsistencyAssessment"];
+  const adaptedModels = [
+    ...(preMilestone
+      ? ["projectFact", "factAssessment"]
+      : ["factAssessment", "milestoneConsistencyAssessment"]),
+    // These current-client fields were added after every populated prefix used
+    // by this fixture and must be absent from its pre-upgrade operations.
+    "factSource",
+    "projectFactVersion",
+  ];
 
   // Current generated clients implicitly read all scalar fields, including in
   // relation includes. Keep absent ownership out of every prior projection.
@@ -181,6 +215,20 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                   `Unsupported prior fixture operation: ${String(property)}.${String(operation)}`,
                 );
                 const args = globalThis.structuredClone(input);
+                if (property === "factSource")
+                  omitAbsent(args, "sourceType");
+                let supplyLegacySourceType = false;
+                if (property === "projectFactVersion") {
+                  omitAbsent(args, "effectiveAtValidated");
+                  const sourceSelect =
+                    args.include?.evidence?.select?.source?.select;
+                  if (sourceSelect?.sourceType === true) {
+                    delete sourceSelect.sourceType;
+                    if (Object.keys(sourceSelect).length === 0)
+                      sourceSelect.id = true;
+                    supplyLegacySourceType = true;
+                  }
+                }
                 if (property === "factAssessment") scalarProjection(args);
                 if (property === "milestoneConsistencyAssessment") {
                   for (const projection of [args.include, args.select]) {
@@ -215,7 +263,10 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                   if (!args.select) {
                     args.omit = { ...args.omit, reconciliationCheckId: true };
                   }
-                } else if (preMilestone) {
+                } else if (
+                  preMilestone &&
+                  ["projectFact", "factAssessment"].includes(property)
+                ) {
                   // Preserve the existing genuine-prefix2-4 adaptations.
                   if (!args.select) {
                     args.omit = {
@@ -247,7 +298,16 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                 if (operation === "create") {
                   return insertPriorRow(target, property, args, prefixCount);
                 }
-                return delegate[operation](args);
+                const result = delegate[operation](args);
+                if (!supplyLegacySourceType) return result;
+                return result.then((rows) => {
+                  const records = Array.isArray(rows) ? rows : [rows];
+                  for (const row of records) {
+                    if (row?.evidence?.source)
+                      row.evidence.source.sourceType = "human_statement";
+                  }
+                  return rows;
+                });
               };
             },
           });

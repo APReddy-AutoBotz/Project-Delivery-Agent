@@ -101,10 +101,11 @@ export function assessUpdateFreshness(input: unknown) {
     request.project.latestValidUpdateAt === null
       ? null
       : Date.parse(request.project.latestValidUpdateAt);
+  // Canonical row creation is a storage timestamp, not project inception.
+  // A trusted source update may predate it; only future timestamps are invalid.
   if (
     createdTime > asOfTime ||
-    (updateTime !== null &&
-      (updateTime > asOfTime || updateTime < createdTime))
+    (updateTime !== null && updateTime > asOfTime)
   )
     return invalid();
   const required = [...request.policy.requiredFacts].sort((left, right) =>

@@ -7,6 +7,7 @@ import {
   assessmentReadSchema,
   factMutationContextSchema,
   projectFactValueSchema,
+  provenanceSchema,
   resolveSourceAuthority,
   ProjectFactError,
   type Actor,
@@ -35,7 +36,14 @@ import {
 type Tx = Prisma.TransactionClient;
 type Event = Prisma.AuthorityPolicyRevisionGetPayload<Record<string, never>>;
 type Version = Prisma.ProjectFactVersionGetPayload<{
-  include: { evidence: { select: { observedAt: true } } };
+  include: {
+    evidence: {
+      select: {
+        observedAt: true;
+        source: { select: { sourceType: true } };
+      };
+    };
+  };
 }>;
 type Conflict = Prisma.FactAuthorityConflictGetPayload<Record<string, never>>;
 type Access = Prisma.FactSourceAccessGetPayload<{ include: { readers: true } }>;
@@ -93,7 +101,7 @@ function resolverPolicy(row: Event | null): SourceAuthorityPolicy | null {
     effectiveAt: row.effectiveAt.toISOString(),
   };
 }
-function snapshot(
+export function buildSourceAuthoritySnapshot(
   scope: Scope,
   asOf: string,
   policy: SourceAuthorityPolicy | null,
@@ -114,8 +122,13 @@ function snapshot(
       evidence: [],
     };
   const bySource = new Map(access.map((row) => [row.sourceId, row]));
-  const sources = [...new Set(versions.map((row) => row.sourceId))].map(
-    (instanceId) => ({ instanceId, sourceType: "human_statement" }),
+  // Carry the source identity and per-version adapter validation receipt persisted with each
+  // canonical fact. Reviewed connector imports remain proposals until an authorized commit.
+  const sourceTypeBySource = new Map(
+    versions.map((row) => [row.sourceId, row.evidence.source.sourceType] as const),
+  );
+  const sources = [...sourceTypeBySource.entries()].map(
+    ([instanceId, sourceType]) => ({ instanceId, sourceType }),
   );
   return {
     scope,
@@ -128,12 +141,13 @@ function snapshot(
       scope,
       source: {
         instanceId: row.sourceId,
-        recordType: "human_statement",
+        recordType: row.evidence.source.sourceType,
         recordId: row.sourceId,
         revision: row.evidenceId,
       },
       value: projectFactValueSchema.parse(row.value),
-      provenance: "HUMAN_CONFIRMED",
+      provenance: provenanceSchema.parse(row.provenance),
+      effectiveAtValidated: row.effectiveAtValidated,
       effectiveAt: row.effectiveAt.toISOString(),
       observedAt: row.evidence.observedAt.toISOString(),
       validUntil: row.validUntil?.toISOString() ?? null,
@@ -482,7 +496,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         where: { ...scope, factId },
         orderBy: [{ factId: "asc" }, { revision: "asc" }],
         take: 1001,
-        include: { evidence: { select: { observedAt: true } } },
+        include: { evidence: { select: { observedAt: true, source: { select: { sourceType: true } } } } },
       }),
       tx.factAuthorityConflict.findMany({
         where: { ...scope, factId },
@@ -567,7 +581,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         },
         orderBy: { revision: "asc" },
         take: 1001,
-        include: { evidence: { select: { observedAt: true } } },
+        include: { evidence: { select: { observedAt: true, source: { select: { sourceType: true } } } } },
       }));
     const conflictWhere = {
       customerId: actor.customerId,
@@ -605,7 +619,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
           })
         : []);
     const policy = resolverPolicy(event);
-    let authoritySnapshot = snapshot(
+    let authoritySnapshot = buildSourceAuthoritySnapshot(
       scope,
       asOf.toISOString(),
       policy,
@@ -680,7 +694,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       );
       conflictThroughRevision += newConflicts.length;
       complete = conflicts.length <= 1000;
-      authoritySnapshot = snapshot(
+      authoritySnapshot = buildSourceAuthoritySnapshot(
         scope,
         asOf.toISOString(),
         policy,

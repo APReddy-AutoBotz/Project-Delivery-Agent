@@ -70,10 +70,11 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 18);
+  assert.equal(migrations.length, 19);
   assert.equal(migrations[15].name, "202609280001_atomic_raid_reopen");
   assert.equal(migrations[16].name, "202609280002_blocker_age_threshold");
   assert.equal(migrations[17].name, "202609280003_blocker_age_assessment");
+  assert.equal(migrations[18].name, "202609280004_project_update_workflow");
   assert.equal(migrations[14].name, "202609270001_health_assessment");
   assert.equal(
     migrations[9].name,
@@ -385,6 +386,23 @@ export async function verifyFoundationUpgrade(
     const applied = await migrateRelease(release, migrations);
     const upgradeElapsedMs = performance.now() - upgradeStarted;
     assert.equal(applied.length, migrations.length);
+    if (priorCount >= 2) {
+      // The final additive migration assigns these values to retained legacy
+      // human statements; validate them separately from the old-column projection.
+      const defaults = (
+        await owner.query(`
+          SELECT
+            (SELECT count(*)::int FROM "FactSource"
+              WHERE "sourceType" IS DISTINCT FROM 'human_statement') AS invalid_source_types,
+            (SELECT count(*)::int FROM "ProjectFactVersion"
+              WHERE "effectiveAtValidated" IS DISTINCT FROM false) AS invalid_validation_markers
+        `)
+      ).rows[0];
+      assert.deepEqual(defaults, {
+        invalid_source_types: 0,
+        invalid_validation_markers: 0,
+      });
+    }
     assert.deepEqual(await oldProjection(), before);
     if (priorCount < 5) {
       assert.equal(
@@ -462,6 +480,11 @@ export async function verifyFoundationUpgrade(
       "HealthAssessmentRetentionPolicy",
       "RaidReopenReceipt",
       "BlockerAgeThresholdPolicy",
+      "ProjectUpdatePolicy",
+      "ProjectUpdatePolicyRevision",
+      "ProjectUpdateAssessment",
+      "ProjectUpdateObligation",
+      "ProjectUpdatePreview",
     ];
     for (const table of addedTables)
       assert.equal(
