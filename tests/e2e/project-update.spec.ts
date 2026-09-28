@@ -5,8 +5,33 @@ import {
   type Page,
 } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
+import { signConnectorTaskRequest } from "../../packages/platform/dist/index.js";
 import { canonicalFixture } from "../../scripts/acceptance/canonical-projects.mjs";
 
+type ProjectUpdateTaskContext = {
+  internalApiUrl: string;
+  serviceSubject: string;
+  keyRing: { currentKeyId: string; keys: Record<string, string> };
+};
+
+function projectUpdateTaskContext(): ProjectUpdateTaskContext | null {
+  try {
+    const local = parseEnv(readFileSync(".env", "utf8"));
+    const taskKeysFile = local.PROJECT_UPDATE_TASK_KEYS_FILE;
+    const internalApiUrl = local.INTERNAL_API_URL;
+    const serviceSubject = local.PROJECT_UPDATE_SERVICE_SUBJECT;
+    if (!taskKeysFile || !internalApiUrl || !serviceSubject) return null;
+    const keyRing = JSON.parse(readFileSync(taskKeysFile, "utf8")) as
+      ProjectUpdateTaskContext["keyRing"];
+    return { internalApiUrl, serviceSubject, keyRing };
+  } catch {
+    return null;
+  }
+}
+
+const localTaskContext = projectUpdateTaskContext();
 const portfolioId = "20000000-0000-4000-8000-000000000001";
 test.setTimeout(90000);
 
@@ -14,7 +39,9 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   page,
   request,
 }) => {
-  const f = await fixture(request);
+  const f = await fixture(request, localTaskContext);
+  if (process.env.CI === "true" && !f.taskContext)
+    throw new Error("Foundation synthetic setup must configure the project-update scan task.");
   const statement = await f.append();
   await f.share(statement.entry.sourceId);
   const authority = await f.api("pmo-portfolio", f.prefix + "/authority-policies", "POST", {
@@ -83,6 +110,7 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
     dueAt: new Date(Date.parse(observedAt) + 1000).toISOString(),
   });
   expect(assessment.preview).toMatchObject({
+    project: { code: f.payload.code, name: f.payload.name },
     reportedStatus: "GREEN",
     sourceDate: observedAt,
     timestampBasis: "REQUIRED_FACTS",
@@ -101,6 +129,7 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   expect(JSON.stringify(assessment.preview)).not.toContain("First synthetic forecast");
 
   await expect(panel).toContainText("Saved request preview · Draft · revision 1");
+  await expect(panel).toContainText(`Project ${f.payload.code}: ${f.payload.name}.`);
   await expect(panel).toContainText("Authorized current known position");
   await expect(panel).toContainText("First synthetic forecast");
   await expect(panel).toContainText("This preview has not been sent.");
@@ -125,17 +154,51 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   await page.getByLabel(/^Required facts/).fill(
     f.factType + " | Current forecast\nproject.schedule | Next milestone",
   );
+  if (f.taskContext)
+    await page.getByLabel("Enable scheduled assessments for this project").check();
   await page.getByRole("button", { name: "Save policy revision", exact: true }).click();
   await expect(panel).toContainText("Reporting policy saved as an immutable revision.");
-  const incompleteResponse = page.waitForResponse(
-    (response) =>
-      response.url().endsWith(f.prefix + "/project-update-assessments") &&
-      response.request().method() === "POST",
-  );
-  await panel.getByRole("button", { name: "Assess project", exact: true }).click();
-  const incompleteResponseValue = await incompleteResponse;
-  expect(incompleteResponseValue.status()).toBe(201);
-  const incomplete = await incompleteResponseValue.json();
+  const incomplete = await (async () => {
+    if (f.taskContext) {
+      // The required set is incomplete, so freshness uses project creation.
+      // The fixture has already crossed the one-second policy boundary.
+      const scanResponse = await runScheduledProjectUpdateScan(request, f.taskContext);
+      expect(scanResponse.status()).toBe(200);
+      const scan = await scanResponse.json();
+      expect([0, 1]).toContain(scan.processed);
+
+      const policyResponse = await f.api(
+        "pmo-portfolio",
+        f.prefix + "/project-update-policy",
+      );
+      expect(policyResponse.status()).toBe(200);
+      const scheduledPolicy = await policyResponse.json();
+      expect(scheduledPolicy.scheduledScanEnabled).toBe(true);
+
+      const latestResponse = await f.api(
+        "pmo-portfolio",
+        f.prefix + "/project-update-assessments/latest",
+      );
+      expect(latestResponse.status()).toBe(200);
+      const latest = await latestResponse.json();
+      expect(Date.parse(latest.assessedAt)).toBeGreaterThan(Date.parse(repeated.assessedAt));
+      return latest;
+    }
+
+    const incompleteResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(f.prefix + "/project-update-assessments") &&
+        response.request().method() === "POST",
+    );
+    await panel.getByRole("button", { name: "Assess project", exact: true }).click();
+    const incompleteResponseValue = await incompleteResponse;
+    expect(incompleteResponseValue.status()).toBe(201);
+    return incompleteResponseValue.json();
+  })();
+  expect(incomplete.preview.project).toMatchObject({
+    code: f.payload.code,
+    name: f.payload.name,
+  });
   expect(incomplete.completeness).toMatchObject({
     state: "INCOMPLETE",
     confirmedCount: 1,
@@ -162,6 +225,7 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
     exact: true,
   });
   await expect(persisted).toContainText("Saved request preview · Draft");
+  await expect(persisted).toContainText(`Project ${f.payload.code}: ${f.payload.name}.`);
   await expect(persisted).toContainText(observedAt);
   await expect(persisted).toContainText("Next milestone: MISSING");
   await expect(persisted).toContainText("NO_CANONICAL_VALUE");
@@ -202,7 +266,10 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   expect(JSON.stringify(protectedView)).not.toContain("First synthetic forecast");
 });
 
-async function fixture(request: APIRequestContext) {
+async function fixture(
+  request: APIRequestContext,
+  taskContext: ProjectUpdateTaskContext | null,
+) {
   const tokens: Record<string, string> = {};
   for (const persona of ["pmo-portfolio", "operator"]) {
     const response = await request.post("/api/auth/development", {
@@ -265,11 +332,42 @@ async function fixture(request: APIRequestContext) {
       sourceId,
       expectedRevision: access.revision,
       state: "AVAILABLE",
-      readers: ["pmo-portfolio"],
+      readers: [
+        "pmo-portfolio",
+        ...(taskContext ? [taskContext.serviceSubject] : []),
+      ],
     });
     expect(response.status()).toBe(200);
   }
-  return { api, payload, projectId, prefix, factType, effectiveAt, append, share };
+  return {
+    api,
+    payload,
+    projectId,
+    prefix,
+    factType,
+    effectiveAt,
+    append,
+    share,
+    taskContext,
+  };
+}
+
+async function runScheduledProjectUpdateScan(
+  request: APIRequestContext,
+  context: ProjectUpdateTaskContext,
+) {
+  const path = "/internal/project-updates/scan";
+  const body = Buffer.from("{}", "utf8");
+  const headers = signConnectorTaskRequest({
+    method: "POST",
+    path,
+    body,
+    keyRing: context.keyRing,
+  });
+  return request.post(new URL(path, context.internalApiUrl).toString(), {
+    data: body,
+    headers: { "content-type": "application/json", ...headers },
+  });
 }
 
 async function open(page: Page, name: string) {
