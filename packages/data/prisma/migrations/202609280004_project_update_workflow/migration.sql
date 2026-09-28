@@ -234,19 +234,24 @@ REVOKE ALL ON FUNCTION public.project_update_json_has_values(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.prevent_project_update_immutable_rewrite() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.guard_project_update_preview() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.guard_project_update_obligation() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.valid_project_update_facts(jsonb) TO pdaa_api;
-GRANT EXECUTE ON FUNCTION public.project_update_json_has_values(jsonb) TO pdaa_api;
-
-GRANT SELECT,INSERT,UPDATE ON public."ProjectUpdatePolicy" TO pdaa_api;
-GRANT SELECT,INSERT ON public."ProjectUpdatePolicyRevision" TO pdaa_api;
-GRANT SELECT,INSERT ON public."ProjectUpdateAssessment" TO pdaa_api;
-GRANT SELECT,INSERT ON public."ProjectUpdateObligation" TO pdaa_api;
-GRANT UPDATE ("state","supersededAt") ON public."ProjectUpdateObligation" TO pdaa_api;
-GRANT SELECT,INSERT ON public."ProjectUpdatePreview" TO pdaa_api;
-GRANT UPDATE ("state") ON public."ProjectUpdatePreview" TO pdaa_api;
-
-GRANT SELECT ON public."ProjectUpdatePolicy" TO pdaa_backup;
-GRANT SELECT ON public."ProjectUpdatePolicyRevision" TO pdaa_backup;
-GRANT SELECT ON public."ProjectUpdateAssessment" TO pdaa_backup;
-GRANT SELECT ON public."ProjectUpdateObligation" TO pdaa_backup;
-GRANT SELECT ON public."ProjectUpdatePreview" TO pdaa_backup;
+DO $$
+BEGIN
+  IF to_regrole('pdaa_api') IS NOT NULL THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.valid_project_update_facts(jsonb) TO pdaa_api';
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.project_update_json_has_values(jsonb) TO pdaa_api';
+    EXECUTE 'GRANT SELECT,INSERT,UPDATE ON TABLE public."ProjectUpdatePolicy" TO pdaa_api';
+    EXECUTE 'GRANT SELECT,INSERT ON TABLE public."ProjectUpdatePolicyRevision" TO pdaa_api';
+    EXECUTE 'GRANT SELECT,INSERT ON TABLE public."ProjectUpdateAssessment" TO pdaa_api';
+    EXECUTE 'GRANT SELECT,INSERT ON TABLE public."ProjectUpdateObligation" TO pdaa_api';
+    EXECUTE 'GRANT UPDATE ("state","supersededAt") ON TABLE public."ProjectUpdateObligation" TO pdaa_api';
+    EXECUTE 'GRANT SELECT,INSERT ON TABLE public."ProjectUpdatePreview" TO pdaa_api';
+    EXECUTE 'GRANT UPDATE ("state") ON TABLE public."ProjectUpdatePreview" TO pdaa_api';
+  END IF;
+  IF to_regrole('pdaa_backup') IS NOT NULL THEN
+    EXECUTE 'GRANT SELECT ON TABLE public."ProjectUpdatePolicy" TO pdaa_backup';
+    EXECUTE 'GRANT SELECT ON TABLE public."ProjectUpdatePolicyRevision" TO pdaa_backup';
+    EXECUTE 'GRANT SELECT ON TABLE public."ProjectUpdateAssessment" TO pdaa_backup';
+    EXECUTE 'GRANT SELECT ON TABLE public."ProjectUpdateObligation" TO pdaa_backup';
+    EXECUTE 'GRANT SELECT ON TABLE public."ProjectUpdatePreview" TO pdaa_backup';
+  END IF;
+END $$;
