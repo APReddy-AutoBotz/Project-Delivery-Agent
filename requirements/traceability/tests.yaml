@@ -288,8 +288,8 @@ tests:
   - AC-HLT-004
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Reported GREEN and independently calculated RED are stored and displayed separately with reproducible
-    input facts, rule revision and rationale; the schedule-only acceptance flow does not claim unimplemented signal
-    families are clear.
+    schedule input facts, rule revision and rationale; blocker-age coverage remains separately labeled and cannot
+    be treated as clear when its source evidence is unassessable.
   evidence:
   - tests/e2e/project-evidence.spec.ts
   - tests/delivery-health.test.ts
