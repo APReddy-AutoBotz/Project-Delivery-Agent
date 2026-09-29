@@ -58,7 +58,7 @@ The preview is a pure calculation over a source-authorized assessment pinned to 
 - apps/web/src/project-updates.tsx and styles as needed
 - Pure, integration, and browser tests plus requirements/traceability/tests.yaml
 - Migration, prefix-upgrade and recovery inventories and relevant operator documentation
-- This ExecPlan and Issue #9 evidence after all required gates pass
+- The new ExecPlan, exec-plan index, implementation status, and Issue #9 evidence after all required gates pass
 
 ## Data model or migration impact
 
@@ -100,7 +100,9 @@ Forward-only migration; do not mutate prior migrations or immutable policy/asses
 ## Progress log
 
 - 2026-09-29: Read-only design review identified wall-clock, DST, PM scope, transient preview, revision-pinning, FR-ESC-002 scope, and legacy-default requirements.
-- 2026-09-29: Implementation not started; PR #101 HLT acceptance-ledger update is awaiting its independent review and exact-head checks.
+- 2026-09-29: PR #101 HLT acceptance ledger merged to main as 353979d99de3bb46bff16f1321afb5e6f2a4fa8a after exact-head Foundation #521 and Documentation #566 passed.
+- 2026-09-29: Implemented the cadence domain model, additive migration, PM responsibility/grant validation, revision-pinned transient preview endpoint, administrator UI, pure/integration/browser acceptance coverage, and upgrade/recovery documentation on exec/ac-adm-002-schedule. Exact-candidate hosted checks are pending.
+- 2026-09-29: Preserved disabled defaults for pre-cadence policy clients, aligned PM subject validation to the canonical subject schema, distinguished canonical creation time from fact timestamps, and made a preview fail closed when any saved source dependency is no longer readable. Added browser evidence for source-access revocation. Exact-candidate hosted checks remain pending.
 
 ## Decisions made
 

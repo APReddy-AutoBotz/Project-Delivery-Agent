@@ -2,7 +2,7 @@
 
 ## Active implementation
 
-- [EXEC-014: Configure update cadence and preview its schedule](EXEC-014-project-update-cadence.md) — in progress; AC-ADM-002 exact-candidate and post-merge validation are pending.
+- [EXEC-014: Configure update cadence and preview its schedule](EXEC-014-update-cadence-schedule.md) — in progress; AC-ADM-002 exact-candidate and post-merge validation are pending.
 
 
 Use the format in the root `PLANS.md`.
