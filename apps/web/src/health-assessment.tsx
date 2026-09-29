@@ -272,11 +272,11 @@ function ScheduleHealthPolicyEditor({
           onChange={(event) => setOverridesText(event.target.value)}
           spellCheck={false}
         />
-        <span id={overridesHelpId} className="muted md:col-span-2">
+        <span id={overridesHelpId} className="muted md:col-span-2 min-w-0 break-words">
           Each entry uses targetType, targetKey, and minimumOverdueDays. Example: {"[{\"targetType\":\"MILESTONE\",\"targetKey\":\"MS-1\",\"minimumOverdueDays\":2}]"}
         </span>
         <div className="flex items-center gap-3 md:col-span-2">
-          <Button className="primary" disabled={save.isPending}>
+          <Button type="submit" className="primary" disabled={save.isPending}>
             {save.isPending ? "Saving…" : "Save project schedule policy"}
           </Button>
           <span className="muted">Saved changes apply to new assessments. Existing evidence keeps its recorded revision.</span>

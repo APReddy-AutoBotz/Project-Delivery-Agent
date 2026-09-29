@@ -1082,7 +1082,9 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   });
   expect(overdueMilestone.rule.parameters).toEqual(
     expect.arrayContaining([
-      { name: "assessedUtcDate", value: input.assessedAt.slice(0, 10) },
+      { name: "assessedLocalDate", value: input.assessedAt.slice(0, 10) },
+      { name: "timeZone", value: "UTC" },
+      { name: "scheduleHealthPolicyRevision", value: 0 },
       { name: "minimumOverdueDays", value: 1 },
       { name: "selectedDateField", value: "forecastEnd" },
     ]),
