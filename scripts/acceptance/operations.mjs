@@ -95,6 +95,7 @@ const adminConfig = config(
 const admin = new Pool(adminConfig);
 const migrations = readMigrations("/workspace/packages/data/prisma/migrations");
 const output = process.env.PDAA_ARTIFACT_DIR;
+const scheduleHealthPolicyTables = ["ScheduleHealthPolicyRevision"];
 const projectUpdateTables = [
   "ProjectUpdatePolicy",
   "ProjectUpdatePolicyRevision",
@@ -132,7 +133,7 @@ const projection = async (pool) => {
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
     ).rows;
-  for (const table of projectUpdateTables)
+  for (const table of [...projectUpdateTables, ...scheduleHealthPolicyTables])
     result[table] = (
       await pool.query(
         `SELECT * FROM "${table}" ORDER BY to_jsonb("${table}")::text COLLATE "C"`,
@@ -438,10 +439,11 @@ try {
           raidReopenTables: ["RaidReopenReceipt"],
           blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
           projectUpdateTables,
+          scheduleHealthPolicyTables,
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 73,
+          businessTableCount: 74,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
             await verifyScalarReconciliationWorkerDenials(

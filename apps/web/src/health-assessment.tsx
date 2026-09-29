@@ -207,6 +207,8 @@ function ScheduleHealthPolicyEditor({
   );
   const [formError, setFormError] = useState<string | null>(null);
   const key = ["schedule-health-policy", projectId] as const;
+  const overridesId = "schedule-health-overrides-" + projectId;
+  const overridesHelpId = overridesId + "-help";
   const save = useMutation({
     mutationFn: (change: ScheduleHealthPolicyChange) =>
       request<ScheduleHealthPolicyView>(
@@ -259,18 +261,20 @@ function ScheduleHealthPolicyEditor({
           value={defaultDays}
           onChange={(event) => setDefaultDays(event.target.value)}
         />
-        <label className="grid gap-1 md:col-span-2">
+        <label className="grid gap-1 md:col-span-2" htmlFor={overridesId}>
           <span className="text-sm font-medium">Per-target threshold overrides (JSON)</span>
-          <textarea
-            className="min-h-28 rounded-md border border-slate-300 p-2 font-mono text-sm"
-            value={overridesText}
-            onChange={(event) => setOverridesText(event.target.value)}
-            spellCheck={false}
-          />
-          <span className="muted">
-            Each entry uses targetType, targetKey, and minimumOverdueDays. Example: {"[{\"targetType\":\"MILESTONE\",\"targetKey\":\"MS-1\",\"minimumOverdueDays\":2}]"}
-          </span>
         </label>
+        <textarea
+          id={overridesId}
+          aria-describedby={overridesHelpId}
+          className="min-h-28 rounded-md border border-slate-300 p-2 font-mono text-sm md:col-span-2"
+          value={overridesText}
+          onChange={(event) => setOverridesText(event.target.value)}
+          spellCheck={false}
+        />
+        <span id={overridesHelpId} className="muted md:col-span-2">
+          Each entry uses targetType, targetKey, and minimumOverdueDays. Example: {"[{\"targetType\":\"MILESTONE\",\"targetKey\":\"MS-1\",\"minimumOverdueDays\":2}]"}
+        </span>
         <div className="flex items-center gap-3 md:col-span-2">
           <Button className="primary" disabled={save.isPending}>
             {save.isPending ? "Saving…" : "Save project schedule policy"}
@@ -482,7 +486,7 @@ export function HealthAssessmentPanel({
                 </div>
                 {scheduleSignals.length ? (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left" aria-label="Schedule overdue evidence">
                       <thead>
                         <tr>
                           <th scope="col">Target</th>
@@ -563,7 +567,7 @@ export function HealthAssessmentPanel({
                 </dl>
                 {candidates.length ? (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left" aria-label="Blocker-age RAID candidates">
                       <thead>
                         <tr>
                           <th scope="col">RAID item</th>

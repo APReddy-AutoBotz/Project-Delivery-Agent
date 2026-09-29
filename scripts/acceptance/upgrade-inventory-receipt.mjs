@@ -93,13 +93,23 @@ const releases = [
     "ProjectUpdateObligation",
     "ProjectUpdatePreview",
   ],
+  ["ScheduleHealthPolicyRevision"],
 ];
 export function assertUpgradeInventory(receipt, prefix) {
   assert([1, 2, 3, 4, 5, 6, 7, 8].includes(prefix));
   assert.equal(receipt.priorMigrationCount, prefix);
   const oldTables = releases.slice(0, prefix).flat().sort();
   const addedTables = releases.slice(prefix).flat().sort();
-  assert.equal(receipt.businessTableCount, 73);
+  assert.equal(receipt.businessTableCount, 74);
+  assert.deepEqual(receipt.scheduleHealthPolicyTables, [
+    "ScheduleHealthPolicyRevision",
+  ]);
+  assert(receipt.scheduleHealthPolicyBackfill.project_count > 0);
+  assert.equal(
+    receipt.scheduleHealthPolicyBackfill.policy_count,
+    receipt.scheduleHealthPolicyBackfill.project_count,
+  );
+  assert.equal(receipt.scheduleHealthPolicyBackfill.invalid_defaults, 0);
   assert.deepEqual([...receipt.retainedPriorBusinessTables].sort(), oldTables);
   assert.deepEqual(
     Object.keys(receipt.retainedPriorRowCounts).sort(),
@@ -112,7 +122,7 @@ export function assertUpgradeInventory(receipt, prefix) {
   );
   assert.deepEqual(
     [...receipt.emptyAddedTablesAfterUpgrade].sort(),
-    addedTables,
+    addedTables.filter((table) => table !== "ScheduleHealthPolicyRevision"),
   );
   return true;
 }

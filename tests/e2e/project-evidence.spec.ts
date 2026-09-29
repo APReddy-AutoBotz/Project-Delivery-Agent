@@ -959,7 +959,7 @@ test("E2E-HLT-003 unresolved case: PMO reviews the threshold and incomplete inve
   await expect(panel).not.toContainText(
     "No open blockers were classified in the current, source-authorized complete inventory.",
   );
-  await expect(panel.locator("table tbody tr")).toHaveCount(6);
+  await expect(panel.getByRole("table", { name: "Blocker-age RAID candidates" }).locator("tbody tr")).toHaveCount(6);
 });
 test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule result with reproducible evidence and rationale", async ({
   page,
@@ -1048,7 +1048,7 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   });
   expect(input.calculationRule).toMatchObject({
     key: "schedule-health",
-    revision: "1",
+    revision: "2",
     severityBands: {
       red: ["CRITICAL", "HIGH"],
       amber: ["MEDIUM"],
@@ -1058,7 +1058,7 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   expect(result.reported.status).toBe("GREEN");
   expect(result.calculated.status).toBe("RED");
   expect(result.calculated.rationale.code).toBe("ACTIVE_RED_SIGNALS");
-  expect(result.calculated.rationale.text).toContain("schedule-health@1");
+  expect(result.calculated.rationale.text).toContain("schedule-health@2");
   expect(result.contradiction).toMatchObject({
     kind: "REPORTED_CALCULATED_MISMATCH",
     reportedStatus: "GREEN",
@@ -1078,7 +1078,7 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
     targetKey: expectedMilestone.key,
     state: "ACTIVE",
     severity: "HIGH",
-    rule: { key: "schedule-health", revision: "1" },
+    rule: { key: "schedule-health", revision: "2" },
   });
   expect(overdueMilestone.rule.parameters).toEqual(
     expect.arrayContaining([
