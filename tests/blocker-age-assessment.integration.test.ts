@@ -25,8 +25,8 @@ afterAll(async () => {
 });
 
 async function withoutAiProvider<T>(operation: () => Promise<T>): Promise<T> {
-  // The health repository has no AI adapter; reject any accidental provider
-  // network call while the stored result and its idempotent replay are captured.
+  // Reject fetch-based provider traffic while the source-authorized assessment
+  // and its separate idempotent replay are captured.
   const providerRequest = vi.spyOn(globalThis, "fetch").mockRejectedValue(
     new Error("AI provider is disabled for this test"),
   );
@@ -39,7 +39,7 @@ async function withoutAiProvider<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-it("UNIT-HLT-006: health assessment is reproducible without an AI provider; blocker evidence stays scoped", async () => {
+it("persists source-authorized schedule and blocker-age results with provider access disabled and preserves idempotent replay", async () => {
   const portfolioId = randomUUID();
   await db.portfolio.create({
     data: { id: portfolioId, customerId, name: "Blocker age composition fixture" },
