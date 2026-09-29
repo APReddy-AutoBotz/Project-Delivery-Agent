@@ -47,3 +47,4 @@ This is a critical scenario.
 | FAIL-026 | Restore backup predating a successful Jira comment | Start outbound-disabled; reconcile marker; suppress duplicate; require operator review |
 | FAIL-027 | Confirmed response while external write waits or fails | Satisfy confirmed facts and stop their reminders independently |
 | FAIL-028 | Source fact becomes both stale and conflicting | Retain provenance and expose both assessed states |
+| FAIL-029 | Cadence migration meets historical update-policy revisions or a failed migration | Apply disabled cadence defaults without rewriting historical rows; stop on a partial/failed migration, restore from backup, then retry the forward migration. Application rollback may ignore the additive columns; it must not enable or send reminders |

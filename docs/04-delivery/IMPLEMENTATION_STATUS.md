@@ -19,6 +19,15 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
+PR #101 merged the HLT acceptance-ledger update. Its reviewed candidate
+`45f9850797ac488b413e2a3548c1cef040eabb9e` is on main at
+`353979d99de3bb46bff16f1321afb5e6f2a4fa8a`. Exact-head Foundation #521
+([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36554613063))
+and Documentation #566
+([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36554613016))
+passed. EXEC-014 is now implementing AC-ADM-002; candidate checks and acceptance
+evidence are pending. Accepted-story totals remain unchanged.
+
 PR #100 merged exact candidate `6078da2ed075afff95a45fb951d5b9143c58b3df` as merge `4fc8c4a4ae4974d5ff5691acf643c82ea7bdb019`. The merge has ordered parents `e620e5b6e21c09a5bb639473856efb1c27ca4c0e` and `6078da2ed075afff95a45fb951d5b9143c58b3df`; merge tree `7931c1ec963441532ac109df93de068591be0fd5` matches the reviewed candidate tree, and `main` points to the merge. The separate non-author review approved with no blockers; one duplicate latest-revision index was recorded as non-blocking cleanup.
 
 Exact-head [Foundation #518](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36531184293) and [Documentation #560](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36531184311) passed. Post-merge [Documentation #561](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36547688711) passed. Post-merge Foundation #519 `[run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36547688703?attempt=2)` passed after attempt 1 hit the known packaged bundled-restore `sessions_before_commit` phase; only the failed production-boundary job was rerun.
