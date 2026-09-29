@@ -1258,6 +1258,11 @@ model ProjectUpdatePolicyRevision {
   responsibleSubject String @db.VarChar(256)
   scheduledScanEnabled Boolean
   scheduledServiceSubject String? @db.VarChar(256)
+  reminderBusinessDayOffsets Int[] @default([]) @db.SmallInt
+  escalationAfterBusinessDays Int @default(0) @db.SmallInt
+  escalationRecipientSubject String? @db.VarChar(256)
+  quietHoursStartLocal String? @db.VarChar(5)
+  quietHoursEndLocal String? @db.VarChar(5)
   changedBy String @db.VarChar(256)
   changedAt DateTime @db.Timestamptz(3)
   @@unique([customerId, projectId, revision], map: "ProjectUpdatePolicyRevision_counter_key")

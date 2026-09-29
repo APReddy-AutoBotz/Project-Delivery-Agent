@@ -81,3 +81,9 @@ Provide a redacted support bundle containing:
 - Sanitized logs
 - No secrets
 - No unrestricted project data by default
+
+## Project update cadence migration
+
+The cadence migration only adds defaults-backed columns to immutable project-update policy revisions. Historical revisions start with no reminders, no escalation recipient and no quiet-hours interval. Roll back an application by deploying code that ignores these columns; preserve the additive schema and revision data for a forward fix. Do not edit prior migration files or rewrite immutable policy revisions.
+
+Schedule previews are transient. They do not enqueue work or send messages. A denied or stale-revision preview requires the administrator to assess the current policy and confirm the PM responsibility and current project or portfolio read grant before retrying.

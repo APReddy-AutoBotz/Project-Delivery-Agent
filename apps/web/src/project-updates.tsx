@@ -12,6 +12,11 @@ type Policy = {
   requiredFacts: RequiredFact[];
   responsibleSubject: string;
   scheduledScanEnabled: boolean;
+  reminderBusinessDayOffsets: number[];
+  escalationAfterBusinessDays: number;
+  escalationRecipientSubject: string | null;
+  quietHoursStartLocal: string | null;
+  quietHoursEndLocal: string | null;
 };
 type FactState = RequiredFact & {
   state: "CONFIRMED" | "MISSING" | "UNCONFIRMED";
@@ -37,6 +42,26 @@ type Preview = {
     timestampBasis: string;
     observedAt: string;
     effectiveAt: string;
+  }>;
+};
+type SchedulePreview = {
+  assessmentId: string;
+  assessmentPolicyRevision: number;
+  policyRevision: number;
+  asOf: string;
+  timeZone: string;
+  sourceDate: string;
+  sourceDateField: string;
+  sourceTimeBasis: string;
+  logicalDueAt: string;
+  requestEligibleAt: string;
+  events: Array<{
+    kind: "REQUEST" | "REMINDER" | "ESCALATION";
+    offsetBusinessDays: number;
+    recipientSubject: string;
+    scheduledAt: string;
+    localAt: string;
+    utcOffset: string;
   }>;
 };
 type Assessment = {
@@ -104,13 +129,32 @@ export function ProjectUpdates({
   const [owner, setOwner] = useState("");
   const [requiredFactsText, setRequiredFactsText] = useState("");
   const [scheduledScanEnabled, setScheduledScanEnabled] = useState(false);
+  const [reminderOffsets, setReminderOffsets] = useState("");
+  const [escalationAfter, setEscalationAfter] = useState("0");
+  const [escalationRecipient, setEscalationRecipient] = useState("");
+  const [quietStart, setQuietStart] = useState("");
+  const [quietEnd, setQuietEnd] = useState("");
+  const [schedulePreview, setSchedulePreview] = useState<SchedulePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     const policy = policyQuery.data;
-    if (!policy) return;
+    if (!policy) {
+      setWindowSeconds("");
+      setTimeZone("");
+      setOwner("");
+      setRequiredFactsText("");
+      setScheduledScanEnabled(false);
+      setReminderOffsets("");
+      setEscalationAfter("0");
+      setEscalationRecipient("");
+      setQuietStart("");
+      setQuietEnd("");
+      setSchedulePreview(null);
+      return;
+    }
     setWindowSeconds(String(policy.freshnessWindowSeconds));
     setTimeZone(policy.timeZone);
     setOwner(policy.responsibleSubject);
@@ -118,6 +162,12 @@ export function ProjectUpdates({
       policy.requiredFacts.map((fact) => `${fact.factType} | ${fact.label}`).join("\n"),
     );
     setScheduledScanEnabled(policy.scheduledScanEnabled);
+    setReminderOffsets(policy.reminderBusinessDayOffsets.join(", "));
+    setEscalationAfter(String(policy.escalationAfterBusinessDays));
+    setEscalationRecipient(policy.escalationRecipientSubject ?? "");
+    setQuietStart(policy.quietHoursStartLocal ?? "");
+    setQuietEnd(policy.quietHoursEndLocal ?? "");
+    setSchedulePreview(null);
   }, [policyQuery.data]);
 
   const rows = requiredFactsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -141,12 +191,25 @@ export function ProjectUpdates({
         requiredFacts,
         responsibleSubject: owner.trim(),
         scheduledScanEnabled,
+        reminderBusinessDayOffsets: reminderOffsets.trim()
+          ? reminderOffsets.split(/[\s,]+/).map(Number)
+          : [],
+        escalationAfterBusinessDays: Number(escalationAfter),
+        escalationRecipientSubject: Number(escalationAfter) > 0
+          ? escalationRecipient.trim()
+          : null,
+        quietHoursStartLocal: quietStart.trim() || null,
+        quietHoursEndLocal: quietEnd.trim() || null,
       };
       const saved = await request<Policy>(
         `/projects/${projectId}/project-update-policy`,
         { method: "POST", body: JSON.stringify(payload) },
       );
       queryClient.setQueryData(["project-update-policy", projectId], saved);
+      setSchedulePreview(null);
+      await queryClient.invalidateQueries({
+        queryKey: ["project-update-latest", projectId],
+      });
       setMessage("Reporting policy saved as an immutable revision.");
     } catch (error) {
       setIsError(true);
@@ -165,6 +228,7 @@ export function ProjectUpdates({
         `/projects/${projectId}/project-update-assessments`,
         { method: "POST", body: "{}" },
       );
+      setSchedulePreview(null);
       await queryClient.invalidateQueries({
         queryKey: ["project-update-latest", projectId],
       });
@@ -176,6 +240,31 @@ export function ProjectUpdates({
       setBusy(false);
     }
   }
+
+  async function previewSchedule() {
+    setBusy(true);
+    setMessage("");
+    setIsError(false);
+    try {
+      const preview = await request<SchedulePreview>(
+        `/projects/${projectId}/project-update-schedule-preview`,
+      );
+      setSchedulePreview(preview);
+      setMessage("Schedule calculated from the current saved assessment. No messages were sent.");
+    } catch (error) {
+      setIsError(true);
+      setSchedulePreview(null);
+      setMessage((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const canPreviewSchedule = Boolean(
+    latestQuery.data?.freshness.state === "STALE" &&
+    latestQuery.data.obligation?.state === "OPEN" &&
+    latestQuery.data.policy.revision === policyQuery.data?.revision,
+  );
 
   return (
     <section className="panel project-updates" aria-label="Project update freshness and completeness">
@@ -212,6 +301,47 @@ export function ProjectUpdates({
             </li>
           ))}
         </ul>
+      )}
+      {latestQuery.data?.freshness.state === "STALE" && latestQuery.data.obligation && (
+        <section className="callout" aria-label="Project update schedule preview">
+          <h3>Reminder schedule · Preview only</h3>
+          <p>
+            Logical due time: {latestQuery.data.obligation.dueAt}.
+            Project time zone: {latestQuery.data.policy.timeZone}.
+            No messages are sent by this preview.
+          </p>
+          {canPreviewSchedule ? (
+            <Button onClick={previewSchedule} disabled={busy}>
+              Preview reminder schedule
+            </Button>
+          ) : (
+            <p>Assess the current reporting policy before previewing its schedule.</p>
+          )}
+          {schedulePreview && (
+            <div>
+              <p>
+                Assessment {schedulePreview.assessmentId} · policy revision {schedulePreview.policyRevision} ·
+                as of {schedulePreview.asOf}. Source time: {schedulePreview.sourceDate}
+                ({schedulePreview.sourceTimeBasis}).
+              </p>
+              <p>
+                Logical due: {schedulePreview.logicalDueAt}. First eligible request:
+                {schedulePreview.requestEligibleAt} ({schedulePreview.timeZone}).
+              </p>
+              <ol aria-label="Calculated reminder and escalation stages">
+                {schedulePreview.events.map((event, index) => (
+                  <li key={event.kind + "-" + index}>
+                    <strong>{event.kind}</strong>
+                    {event.offsetBusinessDays > 0 ? ` · +${event.offsetBusinessDays} business days` : ""}
+                    {" · "}{event.localAt} {schedulePreview.timeZone} (UTC{event.utcOffset})
+                    {" · "}{event.scheduledAt} · {event.recipientSubject}
+                  </li>
+                ))}
+              </ol>
+              <p>This is a schedule preview only; it has not been sent or queued.</p>
+            </div>
+          )}
+        </section>
       )}
       {latestQuery.data?.knownPosition.length ? (
         <section className="callout" aria-label="Authorized current known position">
@@ -298,6 +428,47 @@ export function ProjectUpdates({
                 placeholder={"project.status | Current status\nproject.forecast_end | Forecast finish"}
               />
             </label>
+            <div className="form-row">
+              <TextField
+                label="Reminder offsets (business days, comma separated)"
+                value={reminderOffsets}
+                onChange={(event) => setReminderOffsets(event.target.value)}
+                placeholder="1, 2"
+              />
+              <TextField
+                label="Escalation after (business days; 0 disables)"
+                type="number"
+                min={0}
+                max={90}
+                step={1}
+                value={escalationAfter}
+                onChange={(event) => setEscalationAfter(event.target.value)}
+              />
+            </div>
+            <TextField
+              label="Escalation recipient subject"
+              maxLength={200}
+              required={Number(escalationAfter) > 0}
+              value={escalationRecipient}
+              onChange={(event) => setEscalationRecipient(event.target.value)}
+              placeholder="Must be a current PROJECT_MANAGER with project access"
+            />
+            <div className="form-row">
+              <TextField
+                label="Quiet hours start (project local time)"
+                type="time"
+                required={Boolean(quietEnd)}
+                value={quietStart}
+                onChange={(event) => setQuietStart(event.target.value)}
+              />
+              <TextField
+                label="Quiet hours end (project local time)"
+                type="time"
+                required={Boolean(quietStart)}
+                value={quietEnd}
+                onChange={(event) => setQuietEnd(event.target.value)}
+              />
+            </div>
             <label className="checkbox-field">
               <input
                 type="checkbox"

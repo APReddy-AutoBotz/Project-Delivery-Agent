@@ -288,6 +288,12 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
     historyBefore.entries.map((entry: { id: string }) => entry.id),
   );
 
+  const authorizedSchedule = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/project-update-schedule-preview",
+  );
+  expect(authorizedSchedule.status()).toBe(200);
+
   const accessPath = f.prefix + "/fact-sources/" + statement.entry.sourceId + "/access";
   const currentAccess = await (await f.api("pmo-portfolio", accessPath)).json();
   const revoked = await f.api("pmo-portfolio", accessPath, "POST", {
@@ -307,6 +313,151 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   expect(protectedView.knownPosition).toEqual([]);
   expect(protectedView.preview.evidence).toEqual([]);
   expect(JSON.stringify(protectedView)).not.toContain("First synthetic forecast");
+  const deniedSchedule = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/project-update-schedule-preview",
+  );
+  expect(deniedSchedule.status()).toBe(404);
+});
+
+test("E2E-ADM-002: an administrator previews revision-pinned reminders without dispatch", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request, null);
+  const responsibleOwner = "synthetic-owner-4";
+  const projectManager = "synthetic-owner-1";
+  const nonManager = "synthetic-owner-2";
+  const policyPath = f.prefix + "/project-update-policy";
+  const change = {
+    expectedRevision: 0,
+    freshnessWindowSeconds: 1,
+    timeZone: "Asia/Kolkata",
+    requiredFacts: [{ factType: "project.status", label: "Current status" }],
+    responsibleSubject: responsibleOwner,
+    scheduledScanEnabled: false,
+    reminderBusinessDayOffsets: [1, 2],
+    escalationAfterBusinessDays: 3,
+    escalationRecipientSubject: projectManager,
+    quietHoursStartLocal: "22:00",
+    quietHoursEndLocal: "07:00",
+  };
+
+  const missingGrant = await f.api("pmo-portfolio", policyPath, "POST", change);
+  expect(missingGrant.status()).toBe(404);
+  const deniedPolicy = await f.api("pmo-portfolio", policyPath);
+  expect(await deniedPolicy.json()).toBeNull();
+
+  const nonManagerGrant = await f.api("pmo-portfolio", "/access-grants", "POST", {
+    subject: nonManager,
+    role: "project_manager",
+    scopeType: "project",
+    scopeId: f.projectId,
+  });
+  expect(nonManagerGrant.status()).toBe(204);
+  const nonManagerPolicy = await f.api("pmo-portfolio", policyPath, "POST", {
+    ...change,
+    escalationRecipientSubject: nonManager,
+  });
+  expect(nonManagerPolicy.status()).toBe(400);
+
+  const managerGrant = await f.api("pmo-portfolio", "/access-grants", "POST", {
+    subject: projectManager,
+    role: "project_manager",
+    scopeType: "project",
+    scopeId: f.projectId,
+  });
+  expect(managerGrant.status()).toBe(204);
+
+  await open(page, f.payload.name);
+  const panel = page.getByRole("region", {
+    name: "Project update freshness and completeness",
+    exact: true,
+  });
+  await panel.getByText("Reporting policy · PMO administration", { exact: true }).click();
+  await page.getByLabel("Freshness window (seconds)", { exact: true }).fill("1");
+  await page.getByLabel("Project time zone (IANA)", { exact: true }).fill("Asia/Kolkata");
+  await page.getByLabel("Responsible owner subject", { exact: true }).fill(responsibleOwner);
+  await panel.getByLabel(/^Required facts/).fill("project.status | Current status");
+  await page.getByLabel("Reminder offsets (business days, comma separated)", { exact: true }).fill("1, 2");
+  await page.getByLabel("Escalation after (business days; 0 disables)", { exact: true }).fill("3");
+  await page.getByLabel("Escalation recipient subject", { exact: true }).fill(projectManager);
+  await page.getByLabel("Quiet hours start (project local time)", { exact: true }).fill("22:00");
+  await page.getByLabel("Quiet hours end (project local time)", { exact: true }).fill("07:00");
+  await page.getByRole("button", { name: "Save policy revision", exact: true }).click();
+  await expect(panel).toContainText("Reporting policy saved as an immutable revision.");
+
+  await page.waitForTimeout(1200);
+  const assessmentResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(f.prefix + "/project-update-assessments") &&
+      response.request().method() === "POST",
+  );
+  await panel.getByRole("button", { name: "Assess project", exact: true }).click();
+  const assessmentResult = await assessmentResponse;
+  expect(assessmentResult.status()).toBe(201);
+  const assessment = await assessmentResult.json();
+  expect(assessment.freshness).toMatchObject({
+    state: "STALE",
+    sourceDateField: "project.createdAt",
+  });
+  expect(assessment.obligation.state).toBe("OPEN");
+
+  const scheduleResponse = page.waitForResponse((response) =>
+    response.url().endsWith(f.prefix + "/project-update-schedule-preview"),
+  );
+  await panel.getByRole("button", { name: "Preview reminder schedule", exact: true }).click();
+  const scheduleHttpResponse = await scheduleResponse;
+  expect(scheduleHttpResponse.status()).toBe(200);
+  const schedule = await scheduleHttpResponse.json();
+  expect(schedule).toMatchObject({
+    assessmentId: expect.any(String),
+    assessmentPolicyRevision: assessment.policy.revision,
+    policyRevision: assessment.policy.revision,
+    asOf: assessment.assessedAt,
+    timeZone: "Asia/Kolkata",
+    sourceDateField: "project.createdAt",
+    sourceTimeBasis: "PROJECT_CREATED_AT",
+    logicalDueAt: assessment.obligation.dueAt,
+  });
+  expect(Date.parse(schedule.requestEligibleAt)).toBeGreaterThanOrEqual(
+    Date.parse(schedule.logicalDueAt),
+  );
+  expect(schedule.events).toHaveLength(4);
+  expect(schedule.events.map((event: { kind: string }) => event.kind)).toEqual([
+    "REQUEST",
+    "REMINDER",
+    "REMINDER",
+    "ESCALATION",
+  ]);
+  expect(schedule.events.map((event: { offsetBusinessDays: number }) =>
+    event.offsetBusinessDays,
+  )).toEqual([0, 1, 2, 3]);
+  expect(schedule.events[3].recipientSubject).toBe(projectManager);
+  await expect(panel).toContainText("This is a schedule preview only; it has not been sent or queued.");
+  await expect(panel.getByRole("button", { name: /send/i })).toHaveCount(0);
+
+  const repeated = await f.api("pmo-portfolio", f.prefix + "/project-update-schedule-preview");
+  expect(repeated.status()).toBe(200);
+  expect(await repeated.json()).toEqual(schedule);
+  const latest = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/project-update-assessments/latest",
+  );
+  expect(latest.status()).toBe(200);
+  expect(await latest.json()).not.toHaveProperty("schedule");
+
+  const changed = await f.api("pmo-portfolio", policyPath, "POST", {
+    ...change,
+    expectedRevision: 1,
+    reminderBusinessDayOffsets: [],
+  });
+  expect(changed.status()).toBe(200);
+  const staleRevisionPreview = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/project-update-schedule-preview",
+  );
+  expect(staleRevisionPreview.status()).toBe(409);
 });
 
 async function fixture(

@@ -122,7 +122,13 @@ export function assertUpgradeInventory(receipt, prefix) {
   );
   assert.deepEqual(
     [...receipt.emptyAddedTablesAfterUpgrade].sort(),
-    addedTables.filter((table) => table !== "ScheduleHealthPolicyRevision"),
+    addedTables.filter((table) =>
+      ![
+        "ScheduleHealthPolicyRevision",
+        "ProjectUpdatePolicy",
+        "ProjectUpdatePolicyRevision",
+      ].includes(table),
+    ),
   );
   return true;
 }

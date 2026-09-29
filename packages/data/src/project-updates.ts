@@ -5,6 +5,9 @@ import {
   assessUpdateFreshness,
   projectUpdatePolicyChangeSchema,
   projectUpdateFactReferenceSchema,
+  projectUpdateCadenceFieldsSchema,
+  previewProjectUpdateSchedule,
+  type ProjectUpdateSchedulePreview,
   projectUpdateKnownPositionSchema,
   selectProjectUpdateTimestamp,
   canonicalSubjectSchema,
@@ -34,6 +37,11 @@ type PolicyRow = {
   responsibleSubject: string;
   scheduledScanEnabled: boolean;
   scheduledServiceSubject: string | null;
+  reminderBusinessDayOffsets: number[];
+  escalationAfterBusinessDays: number;
+  escalationRecipientSubject: string | null;
+  quietHoursStartLocal: string | null;
+  quietHoursEndLocal: string | null;
   changedBy: string;
   changedAt: Date;
 };
@@ -65,6 +73,11 @@ type AssessmentRow = {
   responsibleSubject: string;
   freshnessWindowSeconds: number;
   timeZone: string;
+  reminderBusinessDayOffsets: number[];
+  escalationAfterBusinessDays: number;
+  escalationRecipientSubject: string | null;
+  quietHoursStartLocal: string | null;
+  quietHoursEndLocal: string | null;
   requiredFacts: unknown;
   scheduledScanEnabled: boolean;
   changedBy: string;
@@ -140,6 +153,20 @@ function policyFacts(value: unknown) {
   try { return factsSchema.parse(jsonValue(value)); }
   catch { throw new ProjectUpdateError("UNAVAILABLE"); }
 }
+function policyCadence(row: Pick<PolicyRow,
+  "reminderBusinessDayOffsets" | "escalationAfterBusinessDays" |
+  "escalationRecipientSubject" | "quietHoursStartLocal" | "quietHoursEndLocal"
+>) {
+  try {
+    return projectUpdateCadenceFieldsSchema.parse({
+      reminderBusinessDayOffsets: row.reminderBusinessDayOffsets,
+      escalationAfterBusinessDays: row.escalationAfterBusinessDays,
+      escalationRecipientSubject: row.escalationRecipientSubject,
+      quietHoursStartLocal: row.quietHoursStartLocal,
+      quietHoursEndLocal: row.quietHoursEndLocal,
+    });
+  } catch { throw new ProjectUpdateError("UNAVAILABLE"); }
+}
 function policyView(row: PolicyRow): ProjectUpdatePolicyView {
   return {
     projectId: row.projectId,
@@ -149,6 +176,7 @@ function policyView(row: PolicyRow): ProjectUpdatePolicyView {
     timeZone: row.timeZone,
     requiredFacts: policyFacts(row.requiredFacts),
     responsibleSubject: row.responsibleSubject,
+    ...policyCadence(row),
     scheduledScanEnabled: row.scheduledScanEnabled,
     changedBy: row.changedBy,
     changedAt: iso(row.changedAt),
@@ -248,10 +276,33 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
 
   private async loadPolicy(tx: Tx, customerId: string, id: string, lock = false): Promise<PolicyRow | null> {
     const rows = await tx.$queryRawUnsafe<PolicyRow[]>(
-      'SELECT r.id AS "policyRevisionId",r."projectId",r.revision,r."freshnessWindowSeconds",r."timeZone",r."requiredFacts",r."responsibleSubject",r."scheduledScanEnabled",r."scheduledServiceSubject",r."changedBy",r."changedAt" FROM public."ProjectUpdatePolicy" p JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r.revision=p.revision WHERE p."customerId"=$1::uuid AND p."projectId"=$2::uuid AND p.key=\'project-update\'' + (lock ? " FOR UPDATE OF p" : ""),
+      'SELECT r.id AS "policyRevisionId",r."projectId",r.revision,r."freshnessWindowSeconds",r."timeZone",r."requiredFacts",r."responsibleSubject",r."scheduledScanEnabled",r."scheduledServiceSubject",r."reminderBusinessDayOffsets",r."escalationAfterBusinessDays",r."escalationRecipientSubject",r."quietHoursStartLocal",r."quietHoursEndLocal",r."changedBy",r."changedAt" FROM public."ProjectUpdatePolicy" p JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r.revision=p.revision WHERE p."customerId"=$1::uuid AND p."projectId"=$2::uuid AND p.key=\'project-update\'' + (lock ? " FOR UPDATE OF p" : ""),
       customerId, id,
     );
     return rows[0] ?? null;
+  }
+
+  private async validateEscalationRecipient(
+    tx: Tx,
+    customerId: string,
+    projectId: string,
+    subject: string | null,
+  ) {
+    if (subject === null) return;
+    const responsibilities = await tx.$queryRawUnsafe<{ subject: string }[]>(
+      'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'PROJECT_MANAGER\' AND subject=$3 FOR SHARE',
+      customerId, projectId, subject,
+    );
+    if (!responsibilities[0]) throw new ProjectUpdateError("INVALID_REQUEST");
+    try {
+      await authorizeFactProject(tx, {
+        customerId,
+        subject,
+        roles: ["project_manager"],
+      }, projectId, "read");
+    } catch {
+      throw new ProjectUpdateError("DENIED");
+    }
   }
 
   private async loadProject(tx: Tx, customerId: string, id: string): Promise<ProjectRow> {
@@ -293,6 +344,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         current.customerId, id, change.responsibleSubject,
       );
       if (!owner[0]) throw new ProjectUpdateError("INVALID_REQUEST");
+      await this.validateEscalationRecipient(
+        tx, current.customerId, id, change.escalationRecipientSubject,
+      );
       await tx.$queryRawUnsafe(
         'INSERT INTO public."ProjectUpdatePolicy" ("customerId","projectId",key,revision,"changedBy","changedAt") VALUES ($1::uuid,$2::uuid,\'project-update\',0,$3,$4) ON CONFLICT ("customerId","projectId") DO NOTHING',
         current.customerId, id, current.subject, await this.now(tx),
@@ -308,10 +362,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const revisionId = randomUUID();
       const scheduledSubject = change.scheduledScanEnabled ? this.serviceSubject : null;
       await tx.$executeRawUnsafe(
-        'INSERT INTO public."ProjectUpdatePolicyRevision" (id,"customerId","projectId",revision,"freshnessWindowSeconds","timeZone","requiredFacts","responsibleSubject","scheduledScanEnabled","scheduledServiceSubject","changedBy","changedAt") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12)',
+        'INSERT INTO public."ProjectUpdatePolicyRevision" (id,"customerId","projectId",revision,"freshnessWindowSeconds","timeZone","requiredFacts","responsibleSubject","scheduledScanEnabled","scheduledServiceSubject","changedBy","changedAt","reminderBusinessDayOffsets","escalationAfterBusinessDays","escalationRecipientSubject","quietHoursStartLocal","quietHoursEndLocal") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12,$13::smallint[],$14,$15,$16,$17)',
         revisionId, current.customerId, id, revision, change.freshnessWindowSeconds,
         change.timeZone, stringify(change.requiredFacts), change.responsibleSubject,
         change.scheduledScanEnabled, scheduledSubject, current.subject, changedAt,
+        change.reminderBusinessDayOffsets, change.escalationAfterBusinessDays,
+        change.escalationRecipientSubject, change.quietHoursStartLocal,
+        change.quietHoursEndLocal,
       );
       await tx.$executeRawUnsafe(
         'UPDATE public."ProjectUpdatePolicy" SET revision=$3,"changedBy"=$4,"changedAt"=$5 WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid',
@@ -328,6 +385,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           requiredFactTypes: change.requiredFacts.map((fact) => fact.factType),
           responsibleSubject: change.responsibleSubject,
           scheduledScanEnabled: change.scheduledScanEnabled,
+          reminderBusinessDayOffsets: change.reminderBusinessDayOffsets,
+          escalationAfterBusinessDays: change.escalationAfterBusinessDays,
+          escalationRecipientSubject: change.escalationRecipientSubject,
+          quietHoursStartLocal: change.quietHoursStartLocal,
+          quietHoursEndLocal: change.quietHoursEndLocal,
         }), changedAt,
       );
       return policyView({
@@ -340,6 +402,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         responsibleSubject: change.responsibleSubject,
         scheduledScanEnabled: change.scheduledScanEnabled,
         scheduledServiceSubject: scheduledSubject,
+        reminderBusinessDayOffsets: change.reminderBusinessDayOffsets,
+        escalationAfterBusinessDays: change.escalationAfterBusinessDays,
+        escalationRecipientSubject: change.escalationRecipientSubject,
+        quietHoursStartLocal: change.quietHoursStartLocal,
+        quietHoursEndLocal: change.quietHoursEndLocal,
         changedBy: current.subject,
         changedAt,
       });
@@ -572,6 +639,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         sourceDateField: freshnessAssessment.freshness.sourceDateField,
         sourceDate,
         freshnessThresholdAt: iso(freshnessThresholdAt),
+        sourceTimeBasis: freshnessAssessment.freshness.sourceDateField === "project.createdAt"
+          ? "PROJECT_CREATED_AT"
+          : allTrusted ? "REQUIRED_FACTS" : "UNCONFIRMED",
         timestampBasis: allTrusted ? "REQUIRED_FACTS" : "UNCONFIRMED",
       };
       const safeResult = {
@@ -780,6 +850,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         revision: row.policyRevision,
         freshnessWindowSeconds: row.freshnessWindowSeconds,
         timeZone: row.timeZone,
+        reminderBusinessDayOffsets: row.reminderBusinessDayOffsets,
+        escalationAfterBusinessDays: row.escalationAfterBusinessDays,
+        escalationRecipientSubject: row.escalationRecipientSubject,
+        quietHoursStartLocal: row.quietHoursStartLocal,
+        quietHoursEndLocal: row.quietHoursEndLocal,
         requiredFacts: row.requiredFacts,
         responsibleSubject: row.responsibleSubject,
         scheduledScanEnabled: row.scheduledScanEnabled,
@@ -797,16 +872,108 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     } satisfies ProjectUpdateAssessmentView;
   }
 
+  private async latestAssessmentRow(
+    tx: Tx,
+    current: Actor,
+    id: string,
+    policyRevisionId?: string,
+  ) {
+    const query = [
+      'SELECT a.id,a."customerId",a."projectId",a."policyRevisionId",a."policyRevision",a."assessedAt",a.input,a.result,a.dependencies,a."envelopeHash",a."auditEventId",p.code,p.name,p."reportedStatus",c."createdAt",r."responsibleSubject",r."freshnessWindowSeconds",r."timeZone",r."reminderBusinessDayOffsets",r."escalationAfterBusinessDays",r."escalationRecipientSubject",r."quietHoursStartLocal",r."quietHoursEndLocal",r."requiredFacts",r."scheduledScanEnabled",r."changedBy",r."changedAt",o.id AS "obligationId",o.state AS "obligationState",o."freshnessThresholdAt" AS "dueAt",v.id AS "previewId",v.revision AS "previewRevision",v.preview',
+      'FROM public."ProjectUpdateAssessment" a JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=a."customerId" AND r."projectId"=a."projectId" AND r.id=a."policyRevisionId" JOIN public."Project" p ON p."customerId"=a."customerId" AND p.id=a."projectId" JOIN public."CanonicalProject" c ON c."customerId"=p."customerId" AND c.id=p.id LEFT JOIN public."ProjectUpdateObligation" o ON o."customerId"=a."customerId" AND o."projectId"=a."projectId" AND o.state=\'OPEN\' LEFT JOIN public."ProjectUpdatePreview" v ON v."customerId"=o."customerId" AND v."projectId"=o."projectId" AND v."obligationId"=o.id AND v."assessmentId"=a.id AND v.state=\'CURRENT\'',
+      'WHERE a."customerId"=$1::uuid AND a."projectId"=$2::uuid',
+      ...(policyRevisionId ? ['AND a."policyRevisionId"=$3::uuid'] : []),
+      'ORDER BY a."assessedAt" DESC,a.id DESC LIMIT 1 FOR SHARE OF a,p,c',
+    ].join(" ");
+    const rows = await tx.$queryRawUnsafe<AssessmentRow[]>(
+      query,
+      current.customerId,
+      id,
+      ...(policyRevisionId ? [policyRevisionId] : []),
+    );
+    return rows[0] ?? null;
+  }
+
   async latest(actorValue: Actor, projectValue: string) {
     const current = parseActor(actorValue);
     const id = parseProjectId(projectValue);
     return this.transaction(async (tx) => {
       await this.authorize(tx, current, id, false);
-      const rows = await tx.$queryRawUnsafe<AssessmentRow[]>(
-        'SELECT a.id,a."customerId",a."projectId",a."policyRevisionId",a."policyRevision",a."assessedAt",a.input,a.result,a.dependencies,a."envelopeHash",a."auditEventId",p.code,p.name,p."reportedStatus",c."createdAt",r."responsibleSubject",r."freshnessWindowSeconds",r."timeZone",r."requiredFacts",r."scheduledScanEnabled",r."changedBy",r."changedAt",o.id AS "obligationId",o.state AS "obligationState",o."freshnessThresholdAt" AS "dueAt",v.id AS "previewId",v.revision AS "previewRevision",v.preview FROM public."ProjectUpdateAssessment" a JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=a."customerId" AND r."projectId"=a."projectId" AND r.id=a."policyRevisionId" JOIN public."Project" p ON p."customerId"=a."customerId" AND p.id=a."projectId" JOIN public."CanonicalProject" c ON c."customerId"=p."customerId" AND c.id=p.id LEFT JOIN public."ProjectUpdateObligation" o ON o."customerId"=a."customerId" AND o."projectId"=a."projectId" AND o.state=\'OPEN\' LEFT JOIN public."ProjectUpdatePreview" v ON v."customerId"=o."customerId" AND v."projectId"=o."projectId" AND v."obligationId"=o.id AND v."assessmentId"=a.id AND v.state=\'CURRENT\' WHERE a."customerId"=$1::uuid AND a."projectId"=$2::uuid ORDER BY a."assessedAt" DESC,a.id DESC LIMIT 1 FOR SHARE OF a,p,c',
-        current.customerId, id,
+      const row = await this.latestAssessmentRow(tx, current, id);
+      return row ? this.assessmentView(tx, current, row, true) : null;
+    });
+  }
+
+  async schedulePreview(actorValue: Actor, projectValue: string): Promise<ProjectUpdateSchedulePreview> {
+    const current = parseActor(actorValue);
+    const id = parseProjectId(projectValue);
+    return this.transaction(async (tx) => {
+      await this.authorize(tx, current, id, false);
+      const policy = await this.loadPolicy(tx, current.customerId, id, true);
+      if (!policy) throw new ProjectUpdateError("CONFLICT");
+      try {
+        await this.validateEscalationRecipient(
+          tx, current.customerId, id, policy.escalationRecipientSubject,
+        );
+      } catch (error) {
+        if (error instanceof ProjectUpdateError && error.code === "INVALID_REQUEST")
+          throw new ProjectUpdateError("CONFLICT");
+        throw error;
+      }
+      const row = await this.latestAssessmentRow(
+        tx, current, id, policy.policyRevisionId,
       );
-      return rows[0] ? this.assessmentView(tx, current, rows[0], true) : null;
+      if (!row || row.policyRevision !== policy.revision)
+        throw new ProjectUpdateError("CONFLICT");
+      const assessment = await this.assessmentView(tx, current, row, true);
+      let dependencies: ProjectUpdateFactReference[];
+      try {
+        dependencies = z.array(projectUpdateFactReferenceSchema)
+          .max(1000)
+          .parse(jsonValue(row.dependencies));
+      } catch { throw new ProjectUpdateError("UNAVAILABLE"); }
+      if (assessment.knownPosition.length !== dependencies.length)
+        throw new ProjectUpdateError("DENIED");
+      if (assessment.freshness.state !== "STALE" ||
+          assessment.obligation?.state !== "OPEN")
+        throw new ProjectUpdateError("CONFLICT");
+
+      let input: Record<string, unknown>;
+      try { input = safeObject.parse(jsonValue(row.input)); }
+      catch { throw new ProjectUpdateError("CONFLICT"); }
+      const sourceDate = datesFromJson(input.sourceDate);
+      const dueAt = datesFromJson(input.freshnessThresholdAt);
+      const sourceTimeBasis = input.sourceDateField === "project.createdAt"
+        ? "PROJECT_CREATED_AT"
+        : input.timestampBasis === "REQUIRED_FACTS" ? "REQUIRED_FACTS" : "UNCONFIRMED";
+      const savedSourceTimeBasis = input.sourceTimeBasis ?? sourceTimeBasis;
+      if (!sourceDate || !dueAt || !row.dueAt ||
+          input.policyRevision !== policy.revision ||
+          input.assessedAt !== iso(row.assessedAt) ||
+          input.sourceDate !== iso(sourceDate) ||
+          input.sourceDateField !== assessment.freshness.sourceDateField ||
+          iso(sourceDate) !== assessment.freshness.sourceDate ||
+          input.freshnessThresholdAt !== iso(dueAt) ||
+          dueAt.getTime() !== sourceDate.getTime() + policy.freshnessWindowSeconds * 1000 ||
+          dueAt.getTime() !== row.dueAt.getTime() ||
+          assessment.freshness.freshnessWindowSeconds !== policy.freshnessWindowSeconds ||
+          savedSourceTimeBasis !== sourceTimeBasis ||
+          row.assessedAt.getTime() <= dueAt.getTime())
+        throw new ProjectUpdateError("CONFLICT");
+
+      return previewProjectUpdateSchedule({
+        assessmentId: row.id,
+        assessmentPolicyRevision: row.policyRevision,
+        policyRevision: policy.revision,
+        asOf: iso(row.assessedAt),
+        sourceDate: iso(sourceDate),
+        sourceDateField: input.sourceDateField,
+        sourceTimeBasis,
+        logicalDueAt: iso(dueAt),
+        timeZone: policy.timeZone,
+        responsibleSubject: policy.responsibleSubject,
+        cadence: policyCadence(policy),
+      });
     });
   }
 

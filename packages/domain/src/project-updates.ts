@@ -6,6 +6,12 @@ import {
 } from "./canonical-project.js";
 import type { assessProjectCompleteness } from "./completeness-signals.js";
 import type { assessUpdateFreshness } from "./freshness-signals.js";
+import {
+  projectUpdateCadenceFieldsSchema,
+  projectUpdateTimeZoneSchema,
+  type ProjectUpdateCadenceFields,
+  type ProjectUpdateSchedulePreview,
+} from "./project-update-schedule.js";
 
 const factType = z.string().min(1).max(96).regex(/^[a-z][a-z0-9_.-]*$/);
 const label = z.string().min(1).max(160).refine(
@@ -24,20 +30,27 @@ export type ProjectUpdateRequiredFact = z.infer<
   typeof projectUpdateRequiredFactSchema
 >;
 
+const projectUpdateCadenceChangeShape = {
+  reminderBusinessDayOffsets:
+    projectUpdateCadenceFieldsSchema.shape.reminderBusinessDayOffsets.default([]),
+  escalationAfterBusinessDays:
+    projectUpdateCadenceFieldsSchema.shape.escalationAfterBusinessDays.default(0),
+  escalationRecipientSubject:
+    projectUpdateCadenceFieldsSchema.shape.escalationRecipientSubject.default(null),
+  quietHoursStartLocal:
+    projectUpdateCadenceFieldsSchema.shape.quietHoursStartLocal.default(null),
+  quietHoursEndLocal:
+    projectUpdateCadenceFieldsSchema.shape.quietHoursEndLocal.default(null),
+};
+
 export const projectUpdatePolicyChangeSchema = z.strictObject({
   expectedRevision: revision,
   freshnessWindowSeconds: z.number().int().min(1).max(315360000),
-  timeZone: z.string().min(1).max(64).refine((zone) => {
-    try {
-      new Intl.DateTimeFormat("en-US", { timeZone: zone }).format(0);
-      return true;
-    } catch {
-      return false;
-    }
-  }),
+  timeZone: projectUpdateTimeZoneSchema,
   requiredFacts: z.array(projectUpdateRequiredFactSchema).min(1).max(100),
   responsibleSubject: canonicalSubjectSchema,
   scheduledScanEnabled: z.boolean(),
+  ...projectUpdateCadenceChangeShape,
 }).superRefine((policy, context) => {
   const seen = new Set<string>();
   policy.requiredFacts.forEach((fact, index) => {
@@ -49,6 +62,18 @@ export const projectUpdatePolicyChangeSchema = z.strictObject({
       });
     seen.add(fact.factType);
   });
+  const cadence = projectUpdateCadenceFieldsSchema.safeParse({
+    reminderBusinessDayOffsets: policy.reminderBusinessDayOffsets,
+    escalationAfterBusinessDays: policy.escalationAfterBusinessDays,
+    escalationRecipientSubject: policy.escalationRecipientSubject,
+    quietHoursStartLocal: policy.quietHoursStartLocal,
+    quietHoursEndLocal: policy.quietHoursEndLocal,
+  });
+  if (!cadence.success) cadence.error.issues.forEach((issue) => context.addIssue({
+    code: "custom",
+    path: issue.path,
+    message: issue.message,
+  }));
 });
 export type ProjectUpdatePolicyChange = z.infer<
   typeof projectUpdatePolicyChangeSchema
@@ -66,19 +91,33 @@ export type ProjectUpdatePolicyView = {
   scheduledScanEnabled: boolean;
   changedBy: string;
   changedAt: string;
-};
+} & ProjectUpdateCadenceFields;
 
 export const projectUpdatePolicyViewSchema = z.strictObject({
   projectId: z.uuid(),
   key: canonicalKeySchema,
   revision: z.number().int().min(1).max(2147483647),
   freshnessWindowSeconds: z.number().int().min(1).max(315360000),
-  timeZone: z.string().min(1).max(64),
+  timeZone: projectUpdateTimeZoneSchema,
   requiredFacts: z.array(projectUpdateRequiredFactSchema).min(1).max(100),
   responsibleSubject: canonicalSubjectSchema,
   scheduledScanEnabled: z.boolean(),
   changedBy: canonicalSubjectSchema,
   changedAt: z.iso.datetime(),
+  ...projectUpdateCadenceFieldsSchema.shape,
+}).superRefine((view, context) => {
+  const cadence = projectUpdateCadenceFieldsSchema.safeParse({
+    reminderBusinessDayOffsets: view.reminderBusinessDayOffsets,
+    escalationAfterBusinessDays: view.escalationAfterBusinessDays,
+    escalationRecipientSubject: view.escalationRecipientSubject,
+    quietHoursStartLocal: view.quietHoursStartLocal,
+    quietHoursEndLocal: view.quietHoursEndLocal,
+  });
+  if (!cadence.success) cadence.error.issues.forEach((issue) => context.addIssue({
+    code: "custom",
+    path: issue.path,
+    message: issue.message,
+  }));
 });
 
 export const projectUpdateFactReferenceSchema = z.strictObject({
@@ -201,6 +240,8 @@ export const projectUpdatePreviewSchema = z.strictObject({
   evidence: z.array(projectUpdateFactReferenceSchema).max(1000),
 });
 export type ProjectUpdatePreview = z.infer<typeof projectUpdatePreviewSchema>;
+
+export type ProjectUpdateScheduleView = ProjectUpdateSchedulePreview;
 
 export type ProjectUpdateAssessmentView = {
   project: { id: string; code: string; name: string; reportedStatus: string };
@@ -332,5 +373,9 @@ export interface ProjectUpdateRepository {
     actor: Actor,
     projectId: string,
   ): Promise<ProjectUpdateAssessmentView | null>;
+  schedulePreview(
+    actor: Actor,
+    projectId: string,
+  ): Promise<ProjectUpdateSchedulePreview>;
   scanScheduledProjects(limit: number): Promise<number>;
 }

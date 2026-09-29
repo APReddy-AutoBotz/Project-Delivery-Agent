@@ -30,6 +30,7 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async setPolicy() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async assess() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async latest() { return null; },
+  async schedulePreview() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async scanScheduledProjects() { throw new ProjectUpdateError("UNAVAILABLE"); },
 };
 
@@ -114,5 +115,12 @@ export class ProjectUpdateController {
     const actor = await this.actor(req);
     const id = this.projectId(rawId);
     return this.run(() => this.repository.latest(actor, id));
+  }
+
+  @Get("project-update-schedule-preview")
+  async schedulePreview(@Req() req: Request, @Param("id") rawId: string) {
+    const actor = await this.actor(req);
+    const id = this.projectId(rawId);
+    return this.run(() => this.repository.schedulePreview(actor, id));
   }
 }

@@ -17,6 +17,7 @@ import {
 import {
   projectUpdateAssessmentViewSchema,
   projectUpdatePolicyViewSchema,
+  projectUpdateSchedulePreviewSchema,
 } from "../packages/domain/src/index.js";
 import type {
   HealthAssessmentRepository,
@@ -314,6 +315,11 @@ const projectUpdatePolicyFixture = projectUpdatePolicyViewSchema.parse({
   timeZone: "UTC",
   requiredFacts: [{ factType: "project.forecast", label: "Current forecast" }],
   responsibleSubject: "contract-owner",
+  reminderBusinessDayOffsets: [],
+  escalationAfterBusinessDays: 0,
+  escalationRecipientSubject: null,
+  quietHoursStartLocal: null,
+  quietHoursEndLocal: null,
   scheduledScanEnabled: false,
   changedBy: "pmo-portfolio",
   changedAt: "2026-09-27T00:00:00.000Z",
@@ -366,6 +372,26 @@ const projectUpdateAssessmentFixture = projectUpdateAssessmentViewSchema.parse({
   preview: null,
   knownPosition: [],
 });
+const projectUpdateScheduleFixture = projectUpdateSchedulePreviewSchema.parse({
+  assessmentId: "40000000-0000-4000-8000-000000000001",
+  assessmentPolicyRevision: 1,
+  policyRevision: 1,
+  asOf: "2026-09-27T00:00:00.000Z",
+  timeZone: "UTC",
+  sourceDate: "2026-09-27T00:00:00.000Z",
+  sourceDateField: "project.createdAt",
+  sourceTimeBasis: "PROJECT_CREATED_AT",
+  logicalDueAt: "2026-09-27T01:00:00.000Z",
+  requestEligibleAt: "2026-09-27T01:00:00.000Z",
+  events: [{
+    kind: "REQUEST",
+    offsetBusinessDays: 0,
+    recipientSubject: "contract-owner",
+    scheduledAt: "2026-09-27T01:00:00.000Z",
+    localAt: "2026-09-27T01:00:00.000",
+    utcOffset: "+00:00",
+  }],
+});
 const projectUpdateRepository: ProjectUpdateRepository = {
   policy: vi.fn(async () => projectUpdatePolicyFixture),
   setPolicy: vi.fn(async (_actor, _projectId, change) => ({
@@ -379,6 +405,7 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   })),
   assess: vi.fn(async () => projectUpdateAssessmentFixture),
   latest: vi.fn(async () => projectUpdateAssessmentFixture),
+  schedulePreview: vi.fn(async () => projectUpdateScheduleFixture),
   scanScheduledProjects: vi.fn(async () => 0),
 };
 beforeAll(async () => {
@@ -551,6 +578,11 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     200,
     manager,
   );
+  await request(
+    "/api/projects/" + project.id + "/project-update-schedule-preview",
+    200,
+    manager,
+  );
   await request("/api/admin/health-assessment-retention", 200, pmoPortfolio);
   await request(
     "/api/admin/health-assessment-retention",
@@ -665,7 +697,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(54);
+  expect(covered.size).toBe(55);
   assertContractSnapshot(
     spec,
     JSON.parse(

@@ -59,6 +59,7 @@ import {
   projectUpdatePolicyViewSchema,
   projectUpdateAssessmentRequestSchema,
   projectUpdateAssessmentViewSchema,
+  projectUpdateSchedulePreviewSchema,
 } from "@pdaa/domain";
 import {
   catalogueQuerySchema,
@@ -215,6 +216,12 @@ export const contracts: Record<string, RouteContract> = {
     response: projectUpdateAssessmentViewSchema.nullable(),
     parameters: { id: z.uuid() },
     errors: [404, 503],
+  },
+  "get /api/projects/{id}/project-update-schedule-preview": {
+    status: 200,
+    response: projectUpdateSchedulePreviewSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 409, 503],
   },
   "get /api/ingestion/sources": {
     status: 200,
