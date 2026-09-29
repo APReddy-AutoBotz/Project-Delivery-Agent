@@ -64,6 +64,8 @@ Each release must provide:
 - Retention periods
 - AI routing policy without secret values
 
+- Project schedule-health timezone and overdue thresholds stored as versioned per-project database policy; PMO administrators manage this policy from the project assessment view.
+
 ### Secret
 
 - Database password

@@ -129,6 +129,14 @@ function localDateAt(asOf: string, timeZone: string): string {
 const compare = (left: string, right: string) =>
   left < right ? -1 : left > right ? 1 : 0;
 
+/** Compare local date-only values without involving elapsed hours or DST. */
+export function calendarDayDifference(laterValue: unknown, earlierValue: unknown): number {
+  const later = canonicalDateSchema.safeParse(laterValue);
+  const earlier = canonicalDateSchema.safeParse(earlierValue);
+  if (!later.success || !earlier.success) return invalid();
+  return dayOrdinal(later.data) - dayOrdinal(earlier.data);
+}
+
 /**
  * Calculate configured open work-item and milestone overdue signals at one
  * explicit instant. Date-only due dates expire at the end of their local

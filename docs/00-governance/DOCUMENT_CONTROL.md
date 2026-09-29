@@ -1,5 +1,24 @@
 # Document Control
 
+## EXEC-013 persisted schedule overdue design approval, 2026-09-29
+
+Under the delegated routine implementation authority, approve the bounded
+AC-HLT-007 design in [EXEC-013](../04-delivery/exec-plans/EXEC-013-persisted-schedule-overdue.md)
+after independent non-author design review. The review found no source-authority
+or OD-013 conflict and approved implementation subject to persisted coverage
+compatibility, server-derived assessment time, canonical target provenance,
+policy-change replay, populated-prefix migration, ACL and race evidence, and an
+operational rollback stop. Preserve a separate schedule-health timezone policy,
+UTC/one-local-day defaults, and sealed canonical schedule inputs only. Spreadsheet
+imports remain reviewed proposals; they do not become canonical health inputs.
+Live OAuth/Jira onboarding remains disabled under OD-013.
+
+The implementation PR may merge only after separate exact-candidate code review,
+Foundation and Documentation checks, migration and recovery validation, and
+browser proof pass on the exact head. This is design approval only. It does not
+accept AC-HLT-007 or STORY-013..015, close Issue #8, change accepted-story totals
+(R0 3/5, R1 2/33, combined 5/38), or approve release or customer activation.
+
 ## EXEC-011 blocker-age design approval, 2026-09-27
 
 Under the delegated routine implementation authority, approve the source-authorized blocker-age assessment design in [EXEC-011](../04-delivery/exec-plans/EXEC-011-authority-backed-blocker-age.md) after independent non-author review of plan-only candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` against base `93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7`. The approved design defines explicit blocker classification and inventory completeness, current-period source-authorized opened dates, fail-closed coverage, customer-scoped threshold locking and administration, finite per-event threshold-audit retention, current source-access checks, and an atomic idempotent reopen/date update. The approved Proposed design section SHA256 is `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2`. Review found no blocking findings.

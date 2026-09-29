@@ -544,6 +544,114 @@ test("FR-EVD-009: a controlled second-page queue retains the exact assignment re
   ).toBeEnabled();
 });
 
+test("E2E-HLT-007: PMO saves a project-local overdue policy and sees its canonical assessment evidence", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request);
+  const initialResponse = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/schedule-health-policy",
+  );
+  expect(initialResponse.status()).toBe(200);
+  const initialPolicy = await initialResponse.json();
+  const milestoneKey = f.payload.milestones[0].key;
+  const milestoneDueDate = f.payload.milestones[0].dates.forecastEnd;
+
+  await open(page, f.payload.name);
+  const panel = page.getByRole("region", {
+    name: "Schedule and blocker age",
+    exact: true,
+  });
+  const policyPanel = panel.getByRole("region", {
+    name: "Project schedule overdue policy",
+    exact: true,
+  });
+  await expect(policyPanel).toBeVisible();
+  await policyPanel.getByLabel("Schedule health time zone (IANA)", { exact: true })
+    .fill("America/Los_Angeles");
+  await policyPanel
+    .getByLabel("Default overdue threshold (local calendar days)", { exact: true })
+    .fill("2");
+  const overrides = [{
+    targetType: "MILESTONE",
+    targetKey: milestoneKey,
+    minimumOverdueDays: 5,
+  }];
+  await policyPanel
+    .getByLabel("Per-target threshold overrides (JSON)", { exact: true })
+    .fill(JSON.stringify(overrides));
+
+  const savedWait = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(f.prefix + "/schedule-health-policy") &&
+      response.request().method() === "POST",
+  );
+  await policyPanel
+    .getByRole("button", { name: "Save project schedule policy", exact: true })
+    .click();
+  const savedResponse = await savedWait;
+  expect(savedResponse.status()).toBe(200);
+  const savedPolicy = await savedResponse.json();
+  expect(savedPolicy).toMatchObject({
+    revision: initialPolicy.revision + 1,
+    timeZone: "America/Los_Angeles",
+    defaultMinimumOverdueDays: 2,
+    targetOverrides: overrides,
+  });
+  await expect(policyPanel).toContainText(
+    "Schedule health policy revision " + savedPolicy.revision + ": America/Los_Angeles",
+  );
+
+  const assessmentWait = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(f.prefix + "/health-assessments") &&
+      response.request().method() === "POST",
+  );
+  await panel.getByRole("button", { name: "Run assessment", exact: true }).click();
+  const assessmentResponse = await assessmentWait;
+  expect(assessmentResponse.status()).toBe(201);
+  const assessment = await assessmentResponse.json();
+  expect(assessment.ruleRevision).toBe("schedule-health@2+blocker-age@1");
+  expect(assessment.input.scheduleHealthPolicy).toMatchObject({
+    revision: savedPolicy.revision,
+    timeZone: "America/Los_Angeles",
+    defaultMinimumOverdueDays: 2,
+    targetOverrides: overrides,
+  });
+  const milestoneSignal = assessment.result.objectiveSignals.find(
+    (signal: { targetKey: string; kind: string }) =>
+      signal.targetKey === milestoneKey && signal.kind === "OVERDUE_MILESTONE",
+  );
+  expect(milestoneSignal).toBeDefined();
+  expect(milestoneSignal.state).toBe("ACTIVE");
+  expect(milestoneSignal.rule.parameters).toEqual(expect.arrayContaining([
+    { name: "timeZone", value: "America/Los_Angeles" },
+    { name: "scheduleHealthPolicyRevision", value: savedPolicy.revision },
+    { name: "minimumOverdueDays", value: 5 },
+    { name: "selectedDateField", value: "forecastEnd" },
+  ]));
+  expect(milestoneSignal.rule.parameters.find(
+    (parameter: { name: string }) => parameter.name === "daysOverdue",
+  ).value).toBeGreaterThan(5);
+  expect(milestoneSignal.sourceFacts).toEqual(expect.arrayContaining([
+    expect.objectContaining({ field: "selectedDueDate", value: milestoneDueDate }),
+    expect.objectContaining({ field: "selectedDateField", value: "forecastEnd" }),
+  ]));
+
+  const milestoneRow = panel.locator("tbody tr").filter({
+    hasText: milestoneKey + " · Milestone",
+  });
+  await expect(milestoneRow).toContainText("ACTIVE · HIGH");
+  await expect(milestoneRow).toContainText(milestoneDueDate);
+  await expect(milestoneRow).toContainText("5 local day(s)");
+  await expect(milestoneRow).toContainText("America/Los_Angeles");
+  await page.screenshot({
+    path: "artifacts/schedule-overdue-policy.png",
+    fullPage: true,
+  });
+});
+
 test("E2E-HLT-003 source-authorized case: visible age uses current human facts and the configured threshold", async ({
   page,
   request,
@@ -888,7 +996,7 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   const assessment = await response.json();
   expect(assessment.coverage).toBe("SCHEDULE_AND_BLOCKER_AGE");
   expect(assessment.ruleRevision).toBe(
-    "schedule-health@1+blocker-age@1",
+    "schedule-health@2+blocker-age@1",
   );
   expect(assessment.blockerAgeCoverage).toBe("UNASSESSABLE");
   expect(assessment.result.blockerAge).toMatchObject({
@@ -1022,7 +1130,7 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
     "Blocker-age coverage: UNASSESSABLE",
   );
   await expect(panel).toContainText(
-    "Rule: schedule-health@1+blocker-age@1",
+    "Rule: schedule-health@2+blocker-age@1",
   );
   await expect(panel).toContainText(/Reported status: GREEN/);
   await expect(panel).toContainText("Calculated schedule status: RED");

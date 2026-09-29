@@ -273,6 +273,22 @@ const healthAssessmentRetentionView = {
 const healthAssessmentRepository: HealthAssessmentRepository = {
   create: vi.fn(async () => healthAssessmentView),
   latest: vi.fn(async () => null),
+  scheduleHealthPolicy: vi.fn(async () => ({
+    revision: 0,
+    timeZone: "UTC",
+    defaultMinimumOverdueDays: 1,
+    targetOverrides: [],
+    changedBy: null,
+    changedAt: null,
+  })),
+  setScheduleHealthPolicy: vi.fn(async (_actor, _projectId, policy) => ({
+    revision: policy.expectedRevision + 1,
+    timeZone: policy.timeZone,
+    defaultMinimumOverdueDays: policy.defaultMinimumOverdueDays,
+    targetOverrides: policy.targetOverrides,
+    changedBy: "pmo-portfolio",
+    changedAt: "2026-09-27T00:00:00.000Z",
+  })),
   retention: vi.fn(async () => healthAssessmentRetentionView),
   setRetention: vi.fn(async () => healthAssessmentRetentionView),
   blockerAgeThresholdPolicy: vi.fn(async () => ({
@@ -484,6 +500,29 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     manager,
     "POST",
     { commandKey: "contract-assessment" },
+  );
+  await request(
+    "/api/projects/" + project.id + "/schedule-health-policy",
+    200,
+    manager,
+  );
+  await request(
+    "/api/projects/" + project.id + "/schedule-health-policy",
+    200,
+    pmoPortfolio,
+    "POST",
+    {
+      expectedRevision: 0,
+      timeZone: "America/Los_Angeles",
+      defaultMinimumOverdueDays: 2,
+      targetOverrides: [
+        {
+          targetType: "MILESTONE",
+          targetKey: "MS-1",
+          minimumOverdueDays: 1,
+        },
+      ],
+    },
   );
   await request("/api/projects/" + project.id + "/project-update-policy", 200, manager);
   await request(

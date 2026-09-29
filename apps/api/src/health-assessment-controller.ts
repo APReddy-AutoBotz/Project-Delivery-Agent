@@ -16,6 +16,7 @@ import {
   healthAssessmentCommandSchema,
   healthAssessmentRetentionPolicySchema,
   blockerAgeThresholdPolicyChangeSchema,
+  scheduleHealthPolicyChangeSchema,
   projectFactIdSchema,
   type Actor,
   type HealthAssessmentRepository,
@@ -29,6 +30,8 @@ export const HEALTH_ASSESSMENT_REPOSITORY = "HEALTH_ASSESSMENT_REPOSITORY";
 export const unavailableHealthAssessmentRepository: HealthAssessmentRepository = {
   async create() { throw new HealthAssessmentError("UNAVAILABLE"); },
   async latest() { throw new HealthAssessmentError("UNAVAILABLE"); },
+  async scheduleHealthPolicy() { throw new HealthAssessmentError("UNAVAILABLE"); },
+  async setScheduleHealthPolicy() { throw new HealthAssessmentError("UNAVAILABLE"); },
   async retention() { throw new HealthAssessmentError("UNAVAILABLE"); },
   async setRetention() { throw new HealthAssessmentError("UNAVAILABLE"); },
   async blockerAgeThresholdPolicy() { throw new HealthAssessmentError("UNAVAILABLE"); },
@@ -89,6 +92,32 @@ export class HealthAssessmentController {
     const actor = await this.actor(req);
     if (!projectFactIdSchema.safeParse(id).success) throw new HttpException("", 404);
     return this.run(() => this.repository.latest(actor, id));
+  }
+  @Get("projects/:id/schedule-health-policy")
+  async scheduleHealthPolicy(@Req() req: Request, @Param("id") id: string) {
+    const actor = await this.actor(req);
+    if (!projectFactIdSchema.safeParse(id).success) throw new HttpException("", 404);
+    return this.run(() => this.repository.scheduleHealthPolicy(actor, id));
+  }
+  @Post("projects/:id/schedule-health-policy")
+  @HttpCode(200)
+  async setScheduleHealthPolicy(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const actor = await this.actor(req);
+    if (!projectFactIdSchema.safeParse(id).success) throw new HttpException("", 404);
+    const policy = scheduleHealthPolicyChangeSchema.safeParse(body);
+    if (!policy.success) throw new HttpException("", 400);
+    return this.run(() =>
+      this.repository.setScheduleHealthPolicy(
+        actor,
+        id,
+        policy.data,
+        req.correlationId,
+      ),
+    );
   }
   @Get("admin/health-assessment-retention")
   async retention(@Req() req: Request) {

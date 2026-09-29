@@ -1,5 +1,31 @@
 # Decision Log
 
+## EXEC-013 persisted schedule overdue design, 2026-09-29
+
+Approve the bounded design in [EXEC-013](../04-delivery/exec-plans/EXEC-013-persisted-schedule-overdue.md)
+after independent non-author design review. Keep schedule timezone and overdue
+thresholds in an append-only project policy separate from update freshness. New
+projects without a user revision resolve to SYSTEM_DEFAULT UTC/one local day;
+existing projects receive revision 1 with those values. A PMO administrator
+must also hold project scope to write policy. The transaction serializes writes
+and assessment snapshots, records an audit event, and keeps replays frozen.
+Evaluate only the sealed canonical graph, retain selected date/target/revision
+inputs including clear and unassessable targets, and do not load reviewed import
+proposals or provider output.
+
+The design review required persisted rule-coverage compatibility, fixed-clock
+boundary/replay evidence, existing-project migration evidence, least-privilege
+table grants, and a rollback pause that keeps the API offline whenever a
+non-default policy would be misread by old code. These are implementation gates,
+not validation results. The user-selected proposal-only import behavior and
+OD-013's disabled live OAuth/Jira onboarding remain unchanged.
+
+This decision approves design only. The implementation PR still requires
+independent exact-head code review and passing Foundation, Documentation,
+migration, recovery and browser gates. AC-HLT-007/STORY-013..015 acceptance and
+Issue #8 remain open; accepted totals stay R0 3/5 and R1 2/33 (5/38 combined).
+No release or customer activation is approved.
+
 ## EXEC-011 source-authorized blocker-age design, 2026-09-27
 
 Approve the plan-only design in [EXEC-011](../04-delivery/exec-plans/EXEC-011-authority-backed-blocker-age.md), independently reviewed at Proposed design section SHA256 `58ad9c83f9dd3b2cae3c3b74529c45aab73d02f09b3659f3fa7cc41d77e139a2` in candidate `83df679cd847f3ded110c1bb0ccc90bb63e02431` against base `93290cfa1fa209ce8db2f1c48c0d6082bb6c8be7`. The exact fact identities and source authority rules, blocker inventory attestation, current-open-period date semantics, coverage states, lock order, customer-scoped threshold capability, finite captured audit retention, source-access rechecks and atomic reopen/date update are part of the approved boundary. Withdrawal cannot reactivate an older date, and reopen retries cannot append duplicate date versions.

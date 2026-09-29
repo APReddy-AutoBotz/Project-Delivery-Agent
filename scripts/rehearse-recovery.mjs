@@ -179,6 +179,7 @@ try {
     "HealthAssessmentRetentionPolicy",
     "HealthAssessment",
     "HealthAssessmentCommandReceipt",
+    "ScheduleHealthPolicyRevision",
   ];
   for (const table of tables) {
     const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
