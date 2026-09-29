@@ -57,7 +57,7 @@ The web panel exposes the policy editor to PMO administrators and shows saved si
 - tests/schedule-health.test.ts, tests/blocker-age-assessment.integration.test.ts, tests/api-contract.test.ts, and tests/e2e/project-evidence.spec.ts: evaluator, persisted boundary/replay/authorization, contract, and browser behavior.
 - scripts/acceptance/ingestion-prefix-nine-upgrade.mjs and scripts/test-database.mjs: existing-project backfill and table-privilege assertions.
 - scripts/rehearse-recovery.mjs: immutable backup/restore comparison for the new policy table.
-- requirements/traceability/tests.yaml, docs/04-delivery/ACCEPTANCE_CRITERIA.md, this plan, and governance records.
+- requirements/traceability/acceptance-baseline-gates.yaml, requirements/traceability/tests.yaml, docs/04-delivery/ACCEPTANCE_CRITERIA.md, this plan, and governance records.
 
 ## Data model or migration impact
 
