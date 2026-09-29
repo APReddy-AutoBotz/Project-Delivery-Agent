@@ -155,6 +155,7 @@ acceptance_criteria:
   priority: P0
   tests:
   - UNIT-HLT-002
+  - E2E-UPD-001
 - id: AC-HLT-003
   title: Calculate blocker age
   criterion: Blocker age is calculated from source dates and the applied threshold is visible.

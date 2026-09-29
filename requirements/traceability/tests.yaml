@@ -324,14 +324,18 @@ tests:
   evidence: []
 - id: E2E-UPD-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-HLT-001
+  - AC-HLT-002
   - AC-UPD-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A project whose required update is older than policy is shown as stale and creates the configured obligation.
     When an update becomes due, the request names the project, current known position and specific missing information.
-  evidence: []
+  evidence:
+  - apps/api/src/app.ts
+  - scripts/setup-local.mjs
+  - tests/e2e/project-update.spec.ts
 - id: E2E-UPD-004
   release: R1
   status: planned
