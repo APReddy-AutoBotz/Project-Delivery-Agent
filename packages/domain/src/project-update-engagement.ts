@@ -66,7 +66,7 @@ export type ProjectUpdateStageDecision =
   | { action: "REPLAN"; reason: "POLICY_CHANGED" | "OWNER_CHANGED" | "RECIPIENT_ZONE_CHANGED" }
   | { action: "BLOCK"; reason: "RECIPIENT_REVOKED" | "SOURCE_REASSESSMENT_REQUIRED" |
       "SOURCE_UNKNOWN" | "CALENDAR_RECHECK_REQUIRED" | "ENGAGEMENT_PAUSED" |
-      "EMAIL_GATE_CLOSED" }
+      "EMAIL_GATE_CLOSED" | "CLAIM_REQUIRED" }
   | { action: "WAIT"; until: string }
   | { action: "DEFER"; until: string; reasons: Array<"WEEKEND" | "QUIET_HOURS" | "DST_GAP"> }
   | { action: "CAPTURE" }
@@ -79,11 +79,13 @@ export type ProjectUpdateStageDecision =
  */
 export function decideProjectUpdateStage(value: unknown): ProjectUpdateStageDecision {
   const input = projectUpdateStageGateInputSchema.parse(value);
+  if (input.stageState === "SENT" || input.stageState === "SUPPRESSED")
+    return { action: "SUPPRESS", reason: "ALREADY_HANDLED" };
   if (input.handoffPossible || input.stageState === "HANDED_OFF" ||
       input.stageState === "UNKNOWN")
     return { action: "QUARANTINE", reason: "HANDOFF_UNCERTAIN" };
-  if (input.stageState === "SENT" || input.stageState === "SUPPRESSED")
-    return { action: "SUPPRESS", reason: "ALREADY_HANDLED" };
+  if (input.stageState !== "CLAIMED")
+    return { action: "BLOCK", reason: "CLAIM_REQUIRED" };
   if (input.obligationState === "SUPERSEDED" || input.engagementState === "CLOSED")
     return { action: "SUPPRESS", reason: "OBLIGATION_ENDED" };
   if (input.plannedPolicyRevision !== input.currentPolicyRevision)
