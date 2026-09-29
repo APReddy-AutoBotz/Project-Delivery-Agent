@@ -779,7 +779,7 @@ try {
       milestoneReconciliationTables,
       scalarReconciliationTables,
       businessTableCount: 74,
-      migrationCount: 20,
+      migrationCount: 21,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
