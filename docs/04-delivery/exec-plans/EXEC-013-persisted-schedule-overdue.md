@@ -1,6 +1,6 @@
 # EXEC-013: Persisted schedule overdue policy
 
-Status: In Progress  
+Status: Complete  
 Owner: Implementation controller  
 Requirement IDs: FR-HLT-003, FR-HLT-009, FR-HLT-011, PR-005, BR-003, NFR-SEC-001, NFR-REL-003, AC-HLT-007  
 GitHub issue: #8  
@@ -100,6 +100,7 @@ The migration is additive and preserves existing records. If candidate code must
 
 - 2026-09-29: Confirmed the pure evaluator exists and the persisted health path bypasses it. Reused the independently reviewed recommendation for a separate project-scoped policy; implementation is in progress.
 - 2026-09-29: Added versioned policy/evaluator integration, scoped persistence/API contracts, additive migration, admin presentation, and unit/integration/API traceability. Browser proof and independent final review remain required.
+- 2026-09-29: Exact-candidate review and hosted Foundation/Documentation checks passed. PR #100 merged candidate `6078da2ed075afff95a45fb951d5b9143c58b3df` as `4fc8c4a4ae4974d5ff5691acf643c82ea7bdb019` with an identical reviewed tree; post-merge Documentation passed. Post-merge Foundation #519 passed after a targeted retry of the bundled restore check. AC-HLT-007 acceptance evidence and AC-HLT-006 provider-disabled evidence are recorded; Issue #8 remains open.
 
 ## Decisions made
 
@@ -118,8 +119,10 @@ The migration is additive and preserves existing records. If candidate code must
 
 ## Validation evidence
 
-Pending exact-candidate independent review and hosted Foundation/Documentation checks.
+Independent non-author review approved exact candidate `6078da2ed075afff95a45fb951d5b9143c58b3df` with no blockers. It recorded one non-blocking duplicate latest-revision index. Exact-head [Foundation #518](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36531184293) and [Documentation #560](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36531184311) passed. Verified merge `4fc8c4a4ae4974d5ff5691acf643c82ea7bdb019` preserves candidate tree `7931c1ec963441532ac109df93de068591be0fd5`; post-merge [Documentation #561](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36547688711) passed. Post-merge Foundation #519 passed on attempt 2 after the first production-boundary attempt stopped in bundled customer restore at `sessions_before_commit`; see [attempt 2](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36547688703?attempt=2). Verify passed on both attempts. Successful test evidence covers persisted policy backfill/revision 0, timezone/local-midnight thresholds, saved due-date and rule inputs, policy replay, browser presentation, migration, upgrade, restore and production boundary. CI artifacts are retained on the linked workflow run, including `schedule-overdue-policy-browser`, `production-boundary-evidence`, and distribution evidence.
+
+The HLT-specific behavior for AC-HLT-005 is also verified by the passing source-authorized HTTP integration and assigned-PM browser case; its traceability entry maps those results. The composite GOLDEN-003 remains planned because it additionally requires AC-QA-005 shared-answer behavior. AC-HLT-006's provider-disabled unit and persistence integration passed. Issue #8 records AC-HLT-006 and AC-HLT-007 after this evidence update, remains open, and accepted-story totals remain unchanged.
 
 ## Completion summary
 
-Pending validation and post-merge acceptance disposition. This plan does not accept AC-HLT-007, close Issue #8, accept STORY-013/014/015, alter accepted-story totals, enable live Jira/OAuth onboarding, or approve customer activation.
+AC-HLT-007 implementation and required execution/recovery evidence are complete. AC-HLT-006 provider-disabled reproducibility evidence is complete. This plan does not close Issue #8, accept STORY-013/014/015, alter accepted-story totals, enable live Jira/OAuth onboarding, or approve customer activation.
