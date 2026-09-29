@@ -70,12 +70,13 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 20);
+  assert.equal(migrations.length, 21);
   assert.equal(migrations[15].name, "202609280001_atomic_raid_reopen");
   assert.equal(migrations[16].name, "202609280002_blocker_age_threshold");
   assert.equal(migrations[17].name, "202609280003_blocker_age_assessment");
   assert.equal(migrations[18].name, "202609280004_project_update_workflow");
   assert.equal(migrations[19].name, "202609290001_schedule_health_policy");
+  assert.equal(migrations[20].name, "202609290002_project_update_cadence");
   assert.equal(migrations[14].name, "202609270001_health_assessment");
   assert.equal(
     migrations[9].name,
@@ -384,9 +385,50 @@ export async function verifyFoundationUpgrade(
       oldTables.length + 1,
     );
     const upgradeStarted = performance.now();
+    // Stop immediately before cadence migration #21 and retain a genuinely
+    // pre-cadence policy revision so the new SQL defaults are exercised.
+    await migrateRelease(release, migrations.slice(0, 20));
+    const cadenceProbeRevisionId = randomUUID();
+    const cadenceProbeChangedAt = "2026-09-28T00:00:00.000Z";
+    await owner.query(
+      'INSERT INTO "ProjectUpdatePolicy" ("customerId","projectId",key,revision,"changedBy","changedAt") VALUES ($1,$2,\'project-update\',1,$3,$4)',
+      [customerId, projectId, "foundation-human", cadenceProbeChangedAt],
+    );
+    await owner.query(
+      'INSERT INTO "ProjectUpdatePolicyRevision" (id,"customerId","projectId",revision,"freshnessWindowSeconds","timeZone","requiredFacts","responsibleSubject","scheduledScanEnabled","scheduledServiceSubject","changedBy","changedAt") VALUES ($1,$2,$3,1,3600,\'UTC\',$4::jsonb,$5,false,NULL,$5,$6)',
+      [
+        cadenceProbeRevisionId,
+        customerId,
+        projectId,
+        JSON.stringify([{ factType: "project.forecast", label: "Current forecast" }]),
+        "foundation-human",
+        cadenceProbeChangedAt,
+      ],
+    );
+    const readCadenceProbeLegacy = async () => (
+      await owner.query(
+        'SELECT id,"customerId","projectId",revision,"freshnessWindowSeconds","timeZone","requiredFacts","responsibleSubject","scheduledScanEnabled","scheduledServiceSubject","changedBy","changedAt" FROM "ProjectUpdatePolicyRevision" WHERE id=$1',
+        [cadenceProbeRevisionId],
+      )
+    ).rows[0];
+    const cadenceProbeLegacyBefore = await readCadenceProbeLegacy();
     const applied = await migrateRelease(release, migrations);
     const upgradeElapsedMs = performance.now() - upgradeStarted;
     assert.equal(applied.length, migrations.length);
+    const projectUpdateCadenceDefaults = (
+      await owner.query(
+        'SELECT "reminderBusinessDayOffsets","escalationAfterBusinessDays","escalationRecipientSubject","quietHoursStartLocal","quietHoursEndLocal" FROM "ProjectUpdatePolicyRevision" WHERE id=$1',
+        [cadenceProbeRevisionId],
+      )
+    ).rows[0];
+    assert.deepEqual(projectUpdateCadenceDefaults, {
+      reminderBusinessDayOffsets: [],
+      escalationAfterBusinessDays: 0,
+      escalationRecipientSubject: null,
+      quietHoursStartLocal: null,
+      quietHoursEndLocal: null,
+    });
+    assert.deepEqual(await readCadenceProbeLegacy(), cadenceProbeLegacyBefore);
     if (priorCount >= 2) {
       // The final additive migration assigns these values to retained legacy
       // human statements; validate them separately from the old-column projection.
@@ -489,7 +531,11 @@ export async function verifyFoundationUpgrade(
       "ScheduleHealthPolicyRevision",
     ];
     const emptyAddedTables = addedTables.filter(
-      (table) => table !== "ScheduleHealthPolicyRevision",
+      (table) => ![
+        "ScheduleHealthPolicyRevision",
+        "ProjectUpdatePolicy",
+        "ProjectUpdatePolicyRevision",
+      ].includes(table),
     );
     for (const table of emptyAddedTables)
       assert.equal(
@@ -746,6 +792,7 @@ export async function verifyFoundationUpgrade(
       retainedFoundationTables: oldTables,
       emptyAddedTablesAfterUpgrade: emptyAddedTables,
       scheduleHealthPolicyBackfill,
+      projectUpdateCadenceDefaults,
       scheduleHealthPolicyTables: ["ScheduleHealthPolicyRevision"],
       priorMigrationCount: priorCount,
       retainedPriorLedgerRows: initialHistory,

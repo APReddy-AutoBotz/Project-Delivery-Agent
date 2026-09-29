@@ -32026,20 +32026,26 @@
                           "maximum": 90
                         },
                         "escalationRecipientSubject": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 200,
-                          "allOf": [
+                          "anyOf": [
                             {
                               "type": "string",
-                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              "minLength": 1,
+                              "maxLength": 200,
+                              "allOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                                }
+                              ]
                             },
                             {
-                              "type": "string",
-                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              "type": "null"
                             }
-                          ],
-                          "nullable": true
+                          ]
                         },
                         "quietHoursStartLocal": {
                           "type": "string",
@@ -33276,20 +33282,26 @@
                           "maximum": 90
                         },
                         "escalationRecipientSubject": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 200,
-                          "allOf": [
+                          "anyOf": [
                             {
                               "type": "string",
-                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                              "minLength": 1,
+                              "maxLength": 200,
+                              "allOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                                }
+                              ]
                             },
                             {
-                              "type": "string",
-                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                              "type": "null"
                             }
-                          ],
-                          "nullable": true
+                          ]
                         },
                         "quietHoursStartLocal": {
                           "type": "string",
@@ -34444,20 +34456,26 @@
                       "maximum": 90
                     },
                     "escalationRecipientSubject": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200,
-                      "allOf": [
+                      "anyOf": [
                         {
                           "type": "string",
-                          "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
                         },
                         {
-                          "type": "string",
-                          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                          "type": "null"
                         }
-                      ],
-                      "nullable": true
+                      ]
                     },
                     "quietHoursStartLocal": {
                       "type": "string",
@@ -34861,20 +34879,26 @@
                       "maximum": 90
                     },
                     "escalationRecipientSubject": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200,
-                      "allOf": [
+                      "anyOf": [
                         {
                           "type": "string",
-                          "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                            }
+                          ]
                         },
                         {
-                          "type": "string",
-                          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                          "type": "null"
                         }
-                      ],
-                      "nullable": true
+                      ]
                     },
                     "quietHoursStartLocal": {
                       "type": "string",
@@ -35262,20 +35286,26 @@
                     "default": 0
                   },
                   "escalationRecipientSubject": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200,
-                    "allOf": [
+                    "anyOf": [
                       {
                         "type": "string",
-                        "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "allOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                          }
+                        ]
                       },
                       {
-                        "type": "string",
-                        "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                        "type": "null"
                       }
                     ],
-                    "nullable": true,
                     "default": null
                   },
                   "quietHoursStartLocal": {

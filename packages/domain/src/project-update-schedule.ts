@@ -35,7 +35,7 @@ export const projectUpdateTimeZoneSchema = z.string().min(1).max(64).refine((zon
 export const projectUpdateCadenceFieldsSchema = z.strictObject({
   reminderBusinessDayOffsets: z.array(z.number().int().min(1).max(90)).max(8),
   escalationAfterBusinessDays: z.number().int().min(0).max(90),
-  escalationRecipientSubject: canonicalSubjectSchema.nullable(),
+  escalationRecipientSubject: z.union([canonicalSubjectSchema, z.null()]),
   quietHoursStartLocal: projectUpdateLocalTimeSchema.nullable(),
   quietHoursEndLocal: projectUpdateLocalTimeSchema.nullable(),
 }).superRefine((value, context) => {
