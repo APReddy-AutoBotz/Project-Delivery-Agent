@@ -1007,13 +1007,20 @@ tests:
   evidence: []
 - id: INT-HLT-005
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-HLT-005
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A completed milestone with mandatory open linked issues creates a contradiction signal and a PM reconciliation
     action.
-  evidence: []
+  evidence:
+  - tests/milestone-consistency.test.ts
+  - tests/milestone-reconciliation.integration.test.ts
+  - tests/e2e/milestone-reconciliation.spec.ts
+  - scripts/acceptance/milestone-reconciliation-workflow.mjs
+  - docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md
+  - .github/workflows/foundation-validation.yml
+  - "Foundation exact candidate `6078da2ed075afff95a45fb951d5b9143c58b3df`: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36531184293; post-merge `4fc8c4a4ae4974d5ff5691acf643c82ea7bdb019` attempt 2: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36547688703?attempt=2"
 - id: INT-HLT-007
   release: R1
   status: implemented
@@ -1035,6 +1042,8 @@ tests:
   - scripts/test-database.mjs
   - tests/overdue-signals.test.ts
   - .github/workflows/foundation-validation.yml
+  - "Foundation candidate `6078da2ed075afff95a45fb951d5b9143c58b3df` passed: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36531184293"
+  - "Post-merge main `4fc8c4a4ae4974d5ff5691acf643c82ea7bdb019` passed on attempt 2: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36547688703?attempt=2"
 - id: INT-MNT-003
   release: R1
   status: implemented
@@ -1547,6 +1556,8 @@ tests:
   - tests/health-determinism.test.ts
   - tests/blocker-age-assessment.integration.test.ts
   - .github/workflows/foundation-validation.yml
+  - "Foundation candidate `6078da2ed075afff95a45fb951d5b9143c58b3df` passed: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36531184293"
+  - "Post-merge main `4fc8c4a4ae4974d5ff5691acf643c82ea7bdb019` passed on attempt 2: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36547688703?attempt=2"
 - id: UNIT-HLT-007
   release: R1
   status: implemented
@@ -1564,6 +1575,8 @@ tests:
   - tests/schedule-health.test.ts
   - tests/blocker-age-assessment.integration.test.ts
   - .github/workflows/foundation-validation.yml
+  - "Foundation candidate `6078da2ed075afff95a45fb951d5b9143c58b3df` passed: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36531184293"
+  - "Post-merge main `4fc8c4a4ae4974d5ff5691acf643c82ea7bdb019` passed on attempt 2: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36547688703?attempt=2"
 - id: UNIT-UPD-007
   release: R1
   status: planned

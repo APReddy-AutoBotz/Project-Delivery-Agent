@@ -1,5 +1,12 @@
 # Milestone reconciliation validation
 
+## AC-HLT-005 execution record (2026-09-29)
+
+On reviewed candidate `6078da2ed075afff95a45fb951d5b9143c58b3df`, merged as `4fc8c4a4ae4974d5ff5691acf643c82ea7bdb019`, the existing source-authorized milestone contradiction workflow passed exact-candidate Foundation #518 and post-merge Foundation #519 attempt 2. The verify logs include 60 tests in `tests/milestone-consistency.test.ts` and the real HTTP `INT-EVD-004 / INT-HLT-005` case in `tests/milestone-reconciliation.integration.test.ts`. The browser proof also displays the retained milestone and mandatory work-item values with provenance to the assigned PM and withholds them after source revocation. The test traceability entry now points to these implementation artifacts and hosted runs.
+
+This proves the HLT-specific contradiction and PM reconciliation behavior. Keep `GOLDEN-003` planned: its approved scope also requires the shared AC-QA-005 answer behavior. Therefore AC-HLT-005 remains unchecked in Issue #8 pending that composite golden evidence; no story acceptance is inferred.
+
+
 Current scalar-gate update, 2026-09-22: PR54 now implements the formerly missing
 generic reconciliation request and FAIL-009 recovery behavior. See the exact
 [scalar merge and criterion disposition](SCALAR_RECONCILIATION_VALIDATION.md).
