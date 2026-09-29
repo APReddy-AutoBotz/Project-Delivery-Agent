@@ -711,7 +711,7 @@ it("persists source-authorized schedule and blocker-age results with provider ac
     input: null,
     result: null,
   });
-
+});
 
 it("persists local-midnight and threshold-boundary schedule evidence and replays its old policy snapshot", async () => {
   const portfolioId = randomUUID();
