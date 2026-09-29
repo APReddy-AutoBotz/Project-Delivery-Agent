@@ -15,6 +15,7 @@ export const projectUpdateStageGateInputSchema = z.strictObject({
   currentPolicyRevision: positiveRevision,
   plannedOwnerSubject: canonicalSubjectSchema,
   currentOwnerSubject: canonicalSubjectSchema,
+  // Caller must recheck both current project responsibility and project/portfolio grant.
   recipientAuthorized: z.boolean(),
   recipientZoneCurrent: z.boolean(),
   sourceRechecked: z.boolean(),
@@ -44,17 +45,25 @@ export const projectUpdateStageGateInputSchema = z.strictObject({
       path: ["stageFactTypes"],
       message: "Fact types must be unique",
     });
-  if (value.sourceState === "SATISFIED" && value.remainingFactTypes.length > 0)
+  if ((value.sourceState === "SATISFIED" && value.remainingFactTypes.length > 0) ||
+      (value.sourceState === "UNSATISFIED" && value.remainingFactTypes.length === 0))
     context.addIssue({
       code: "custom",
       path: ["remainingFactTypes"],
-      message: "A satisfied source assessment cannot retain outstanding facts",
+      message: "Source state and outstanding facts disagree",
     });
   if (new Set(value.deferralReasons).size !== value.deferralReasons.length)
     context.addIssue({
       code: "custom",
       path: ["deferralReasons"],
       message: "Deferral reasons must be unique",
+    });
+  if (Date.parse(value.nextAllowedAt) === Date.parse(value.scheduledAt) &&
+      value.deferralReasons.length > 0)
+    context.addIssue({
+      code: "custom",
+      path: ["deferralReasons"],
+      message: "An undeferred stage cannot record deferral reasons",
     });
   if (Date.parse(value.nextAllowedAt) > Date.parse(value.scheduledAt) &&
       value.deferralReasons.length === 0)
