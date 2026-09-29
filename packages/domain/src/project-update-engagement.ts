@@ -44,6 +44,12 @@ export const projectUpdateStageGateInputSchema = z.strictObject({
       path: ["stageFactTypes"],
       message: "Fact types must be unique",
     });
+  if (value.sourceState === "SATISFIED" && value.remainingFactTypes.length > 0)
+    context.addIssue({
+      code: "custom",
+      path: ["remainingFactTypes"],
+      message: "A satisfied source assessment cannot retain outstanding facts",
+    });
   if (new Set(value.deferralReasons).size !== value.deferralReasons.length)
     context.addIssue({
       code: "custom",
