@@ -635,8 +635,6 @@ try {
         "HealthAssessmentRetentionPolicy",
         "RaidReopenReceipt",
         "BlockerAgeThresholdPolicy",
-        "ProjectUpdatePolicy",
-        "ProjectUpdatePolicyRevision",
         "ProjectUpdateAssessment",
         "ProjectUpdateObligation",
         "ProjectUpdatePreview",
