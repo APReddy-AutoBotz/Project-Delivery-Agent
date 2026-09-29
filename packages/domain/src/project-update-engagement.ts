@@ -45,13 +45,6 @@ export const projectUpdateStageGateInputSchema = z.strictObject({
       path: ["stageFactTypes"],
       message: "Fact types must be unique",
     });
-  if ((value.sourceState === "SATISFIED" && value.remainingFactTypes.length > 0) ||
-      (value.sourceState === "UNSATISFIED" && value.remainingFactTypes.length === 0))
-    context.addIssue({
-      code: "custom",
-      path: ["remainingFactTypes"],
-      message: "Source state and outstanding facts disagree",
-    });
   if (new Set(value.deferralReasons).size !== value.deferralReasons.length)
     context.addIssue({
       code: "custom",
@@ -59,7 +52,7 @@ export const projectUpdateStageGateInputSchema = z.strictObject({
       message: "Deferral reasons must be unique",
     });
   if (Date.parse(value.nextAllowedAt) === Date.parse(value.scheduledAt) &&
-      value.deferralReasons.length > 0)
+      value.deferralReasons.some((reason) => reason !== "DST_GAP"))
     context.addIssue({
       code: "custom",
       path: ["deferralReasons"],
@@ -77,7 +70,7 @@ export type ProjectUpdateStageGateInput = z.infer<typeof projectUpdateStageGateI
 
 export type ProjectUpdateStageDecision =
   | { action: "QUARANTINE"; reason: "HANDOFF_UNCERTAIN" }
-  | { action: "SUPPRESS"; reason: "ALREADY_HANDLED" | "OBLIGATION_ENDED" | "SOURCE_SATISFIED" | "SHADOW_MODE" }
+  | { action: "SUPPRESS"; reason: "ALREADY_HANDLED" | "OBLIGATION_ENDED" | "REQUIRED_FACTS_SATISFIED" | "SHADOW_MODE" }
   | { action: "REPLAN"; reason: "POLICY_CHANGED" | "OWNER_CHANGED" | "RECIPIENT_ZONE_CHANGED" }
   | { action: "BLOCK"; reason: "RECIPIENT_REVOKED" | "SOURCE_REASSESSMENT_REQUIRED" |
       "SOURCE_UNKNOWN" | "CALENDAR_RECHECK_REQUIRED" | "ENGAGEMENT_PAUSED" |
@@ -116,9 +109,10 @@ export function decideProjectUpdateStage(value: unknown): ProjectUpdateStageDeci
   if (input.sourceState === "UNKNOWN")
     return { action: "BLOCK", reason: "SOURCE_UNKNOWN" };
   const remaining = new Set(input.remainingFactTypes);
-  if (input.sourceState === "SATISFIED" ||
-      !input.stageFactTypes.some((fact) => remaining.has(fact)))
-    return { action: "SUPPRESS", reason: "SOURCE_SATISFIED" };
+  // The remaining-fact mask includes confirmed human replies as well as source
+  // updates. A fresh source alone cannot erase a still-missing fact.
+  if (!input.stageFactTypes.some((fact) => remaining.has(fact)))
+    return { action: "SUPPRESS", reason: "REQUIRED_FACTS_SATISFIED" };
   if (input.engagementState === "PAUSED")
     return { action: "BLOCK", reason: "ENGAGEMENT_PAUSED" };
   if (!input.calendarRechecked)
