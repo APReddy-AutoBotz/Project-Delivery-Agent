@@ -90,7 +90,12 @@ const receipt = () => ({
   retainedPriorBusinessTables: [...old],
   retainedPriorRowCounts: Object.fromEntries(old.map((table) => [table, 1])),
   emptyAddedTablesAfterUpgrade: added.filter(
-    (table) => table !== "ScheduleHealthPolicyRevision",
+    (table) =>
+      ![
+        "ScheduleHealthPolicyRevision",
+        "ProjectUpdatePolicy",
+        "ProjectUpdatePolicyRevision",
+      ].includes(table),
   ),
 });
 it("NFR-REL-001: accepts the exact independent prior and added table inventories", () => {
@@ -132,8 +137,11 @@ it("NFR-REL-001: keeps feature-added RAID receipts out of retained prefix-four h
   );
   value.emptyAddedTablesAfterUpgrade = added.filter(
     (table) =>
-      table !== "ScheduleHealthPolicyRevision" &&
-      !retainedPriorTables.includes(table),
+      ![
+        "ScheduleHealthPolicyRevision",
+        "ProjectUpdatePolicy",
+        "ProjectUpdatePolicyRevision",
+      ].includes(table) && !retainedPriorTables.includes(table),
   );
   expect(value.emptyAddedTablesAfterUpgrade).toContain("RaidReopenReceipt");
   expect(assertUpgradeInventory(value, 4)).toBe(true);
@@ -146,11 +154,13 @@ it("NFR-REL-001: accepts project update and seeded schedule policy release addit
   value.retainedPriorRowCounts = Object.fromEntries(prior.map((table) => [table, 1]));
   value.emptyAddedTablesAfterUpgrade = added.filter(
     (table) =>
-      table !== "ScheduleHealthPolicyRevision" && !prior.includes(table),
+      ![
+        "ScheduleHealthPolicyRevision",
+        "ProjectUpdatePolicy",
+        "ProjectUpdatePolicyRevision",
+      ].includes(table) && !prior.includes(table),
   );
   expect(value.emptyAddedTablesAfterUpgrade).toEqual([
-    "ProjectUpdatePolicy",
-    "ProjectUpdatePolicyRevision",
     "ProjectUpdateAssessment",
     "ProjectUpdateObligation",
     "ProjectUpdatePreview",
