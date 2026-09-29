@@ -549,6 +549,17 @@ test("E2E-HLT-007: PMO saves a project-local overdue policy and sees its canonic
   request,
 }) => {
   const f = await fixture(request);
+  const retention = await f.api(
+    "pmo-portfolio",
+    "/admin/health-assessment-retention",
+    "POST",
+    {
+      contentRetentionHours: 24,
+      auditRetentionHours: 48,
+      idempotencyRetentionHours: 72,
+    },
+  );
+  expect(retention.status()).toBe(200);
   const initialResponse = await f.api(
     "pmo-portfolio",
     f.prefix + "/schedule-health-policy",
@@ -1139,7 +1150,7 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
   await expect(panel).toContainText(result.calculated.rationale.text);
   await expect(panel).toContainText("OVERDUE_MILESTONE · ACTIVE · HIGH");
   await expect(panel).toContainText(
-    "assessedUtcDate=" + input.assessedAt.slice(0, 10),
+    "assessedLocalDate=" + input.assessedAt.slice(0, 10),
   );
   await expect(panel).toContainText(
     "minimumOverdueDays=1, selectedDateField=forecastEnd",
