@@ -1497,12 +1497,14 @@ tests:
   - tests/schedule-health.test.ts
 - id: UNIT-HLT-006
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-HLT-006
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: The health result is reproducible with the AI provider disabled.
-  evidence: []
+  behavior: The persisted schedule and blocker-age result is reproducible through an idempotent retry with no AI provider configured or network call.
+  evidence:
+  - tests/blocker-age-assessment.integration.test.ts
+  - .github/workflows/foundation-validation.yml
 - id: UNIT-HLT-007
   release: R1
   status: implemented

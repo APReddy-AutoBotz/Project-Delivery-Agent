@@ -1,4 +1,4 @@
-import { afterAll, expect, it } from "vitest";
+import { afterAll, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import {
   createDatabase,
@@ -24,7 +24,22 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-it("composes current RAID authority into partial and complete frozen assessments and hides revoked sources", async () => {
+async function withoutAiProvider<T>(operation: () => Promise<T>): Promise<T> {
+  // The health repository has no AI adapter; reject any accidental provider
+  // network call while the stored result and its idempotent replay are captured.
+  const providerRequest = vi.spyOn(globalThis, "fetch").mockRejectedValue(
+    new Error("AI provider is disabled for this test"),
+  );
+  try {
+    const result = await operation();
+    expect(providerRequest).not.toHaveBeenCalled();
+    return result;
+  } finally {
+    providerRequest.mockRestore();
+  }
+}
+
+it("UNIT-HLT-006: health assessment is reproducible without an AI provider; blocker evidence stays scoped", async () => {
   const portfolioId = randomUUID();
   await db.portfolio.create({
     data: { id: portfolioId, customerId, name: "Blocker age composition fixture" },
@@ -229,12 +244,21 @@ it("composes current RAID authority into partial and complete frozen assessments
   await configure(firstOpenedAt, openedAtDefinition);
   await append(firstOpenedAt, { type: "date", value: openedDate });
 
-  const partial = await health.create(
-    manager,
-    projectId,
-    "partial-classification",
-    randomUUID(),
-  );
+  const { partial, partialReplay } = await withoutAiProvider(async () => {
+    const partial = await health.create(
+      manager,
+      projectId,
+      "partial-classification",
+      randomUUID(),
+    );
+    const partialReplay = await health.create(
+      manager,
+      projectId,
+      "partial-classification",
+      randomUUID(),
+    );
+    return { partial, partialReplay };
+  });
   expect(partial.coverage).toBe("SCHEDULE_AND_BLOCKER_AGE");
   expect(partial.blockerAgeCoverage).toBe("PARTIAL");
   expect(partial.contentAvailable).toBe(true);
@@ -267,14 +291,10 @@ it("composes current RAID authority into partial and complete frozen assessments
     JSON.stringify(partial.input),
   ).not.toContain("Synthetic authority input for blocker assessment.");
 
-  const partialReplay = await health.create(
-    manager,
-    projectId,
-    "partial-classification",
-    randomUUID(),
-  );
   expect(partialReplay.assessmentId).toBe(partial.assessmentId);
   expect(partialReplay.envelopeHash).toBe(partial.envelopeHash);
+  expect(partialReplay.input).toEqual(partial.input);
+  expect(partialReplay.result).toEqual(partial.result);
   expect(partialReplay.replayed).toBe(true);
 
   await configure(secondClassification, currentDefinition);
