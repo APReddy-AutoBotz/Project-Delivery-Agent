@@ -1,6 +1,6 @@
 # EXEC-014: Configure update cadence and preview its schedule
 
-Status: In Progress  
+Status: Complete (AC-ADM-002 bounded slice)
 Owner: Implementation controller  
 Requirement IDs: FR-ADM-004, FR-ESC-002, FR-UPD-012, NFR-SEC-001, AC-ADM-002  
 GitHub issue: #9  
@@ -101,8 +101,10 @@ Forward-only migration; do not mutate prior migrations or immutable policy/asses
 
 - 2026-09-29: Read-only design review identified wall-clock, DST, PM scope, transient preview, revision-pinning, FR-ESC-002 scope, and legacy-default requirements.
 - 2026-09-29: PR #101 HLT acceptance ledger merged to main as 353979d99de3bb46bff16f1321afb5e6f2a4fa8a after exact-head Foundation #521 and Documentation #566 passed.
-- 2026-09-29: Implemented the cadence domain model, additive migration, PM responsibility/grant validation, revision-pinned transient preview endpoint, administrator UI, pure/integration/browser acceptance coverage, and upgrade/recovery documentation on exec/ac-adm-002-schedule. Exact-candidate hosted checks are pending.
-- 2026-09-29: Preserved disabled defaults for pre-cadence policy clients, aligned PM subject validation to the canonical subject schema, distinguished canonical creation time from fact timestamps, and made a preview fail closed when any saved source dependency is no longer readable. Added browser evidence for source-access revocation. Exact-candidate hosted checks remain pending.
+- 2026-09-29: Implemented the cadence domain model, additive migration, PM responsibility/grant validation, revision-pinned transient preview endpoint, administrator UI, pure/integration/browser acceptance coverage, and upgrade/recovery documentation on exec/ac-adm-002-schedule. Exact-candidate validation and post-merge evidence are recorded below.
+- 2026-09-29: Preserved disabled defaults for pre-cadence policy clients, aligned PM subject validation to the canonical subject schema, distinguished canonical creation time from fact timestamps, and made a preview fail closed when any saved source dependency is no longer readable. Added browser evidence for source-access revocation. Exact-candidate validation and post-merge evidence are recorded below.
+
+- 2026-09-29: PR #102 merged reviewed candidate `419b9dd5ef20f2b078e137706b6ac4b6f2dd8da7` as `e149f1af323545c3f4802e6da464e6587180ffc9`. Independent exact-head review approved without blockers. Foundation #539 and Documentation #584 passed on the candidate; post-merge Foundation #540 and Documentation validation passed. AC-ADM-002 evidence is recorded in Issue #9; the issue remains open and accepted-story totals are unchanged. OD-013 remains in force; this increment sends no messages and spreadsheet selections remain reviewed import proposals.
 
 ## Decisions made
 
@@ -121,8 +123,14 @@ Forward-only migration; do not mutate prior migrations or immutable policy/asses
 
 ## Validation evidence
 
-Pending implementation and exact-candidate/post-merge validation.
+- Candidate `419b9dd5ef20f2b078e137706b6ac4b6f2dd8da7` was reviewed independently and merged as `e149f1af323545c3f4802e6da464e6587180ffc9`.
+- Exact-head Foundation #539 passed: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36581209778
+- Exact-head Documentation #584 passed: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36581210219
+- Post-merge Foundation #540 passed: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36584639733
+- Post-merge Documentation validation passed: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36584639605
+- Issue #9 records AC-ADM-002 evidence and remains open; downstream acceptance criteria and accepted-story totals are unchanged.
+- Live Jira OAuth activation remains disabled under OD-013; the preview persists no schedule, sends no message, and spreadsheet rows remain reviewed proposals.
 
 ## Completion summary
 
-AC-ADM-002 implementation and scoped evidence are not yet complete. Issue #9 remains open and no EPIC-05 story acceptance or accepted-story total is inferred.
+The bounded AC-ADM-002 configuration and transient schedule-preview slice is complete and validated. Issue #9 remains open; no downstream EPIC-05 acceptance or accepted-story total is inferred. FR-ESC-002 remains partial, OD-013 keeps public Jira OAuth onboarding/live activation disabled, and this increment creates no send or canonical-fact write path.
