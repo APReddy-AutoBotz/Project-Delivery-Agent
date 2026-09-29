@@ -35,6 +35,8 @@ describe("Project update engagement stage gate", () => {
       .toEqual({ action: "BLOCK", reason: "CLAIM_REQUIRED" });
     expect(decideProjectUpdateStage({ ...base, handoffPossible: true }))
       .toEqual({ action: "QUARANTINE", reason: "HANDOFF_UNCERTAIN" });
+    expect(decideProjectUpdateStage({ ...base, handoffPossible: true, recipientAuthorized: false }))
+      .toEqual({ action: "QUARANTINE", reason: "HANDOFF_UNCERTAIN" });
     expect(decideProjectUpdateStage({ ...base, stageState: "UNKNOWN" }))
       .toEqual({ action: "QUARANTINE", reason: "HANDOFF_UNCERTAIN" });
     expect(decideProjectUpdateStage({ ...base, stageState: "SENT", handoffPossible: true }))
@@ -59,6 +61,9 @@ describe("Project update engagement stage gate", () => {
       .toEqual({ action: "BLOCK", reason: "SOURCE_REASSESSMENT_REQUIRED" });
     expect(decideProjectUpdateStage({ ...base, sourceState: "UNKNOWN" }))
       .toEqual({ action: "BLOCK", reason: "SOURCE_UNKNOWN" });
+    expect(decideProjectUpdateStage({
+      ...base, sourceState: "UNKNOWN", mode: "EMAIL", emailApproved: true, emailConfigured: true,
+    })).toEqual({ action: "BLOCK", reason: "SOURCE_UNKNOWN" });
     expect(decideProjectUpdateStage({ ...base, sourceState: "SATISFIED", remainingFactTypes: [] }))
       .toEqual({ action: "SUPPRESS", reason: "SOURCE_SATISFIED" });
     expect(decideProjectUpdateStage({
@@ -112,6 +117,14 @@ describe("Project update engagement stage gate", () => {
     expect(projectUpdateStageGateInputSchema.safeParse({
       ...base,
       sourceState: "SATISFIED",
+    }).success).toBe(false);
+    expect(projectUpdateStageGateInputSchema.safeParse({
+      ...base,
+      remainingFactTypes: [],
+    }).success).toBe(false);
+    expect(projectUpdateStageGateInputSchema.safeParse({
+      ...base,
+      deferralReasons: ["QUIET_HOURS"],
     }).success).toBe(false);
     expect(projectUpdateStageGateInputSchema.safeParse({
       ...base,
