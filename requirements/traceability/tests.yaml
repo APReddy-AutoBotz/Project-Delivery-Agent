@@ -327,6 +327,7 @@ tests:
   status: implemented
   acceptance_criteria:
   - AC-HLT-001
+  - AC-HLT-002
   - AC-UPD-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A project whose required update is older than policy is shown as stale and creates the configured obligation.
