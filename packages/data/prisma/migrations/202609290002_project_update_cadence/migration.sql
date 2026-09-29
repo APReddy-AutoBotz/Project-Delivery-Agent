@@ -5,7 +5,7 @@ DECLARE day_offset smallint; previous_offset smallint := 0;
 BEGIN
   IF schedule_days IS NULL OR cardinality(schedule_days) > 8 THEN RETURN false; END IF;
   IF cardinality(schedule_days) > 0 AND (
-    array_ndims(schedule_days) <> 1 OR array_lower(schedule_days,1) <> 1
+    array_ndims(schedule_days) <> 1 OR array_lower(schedule_days, 1) <> 1
   ) THEN
     RETURN false;
   END IF;
@@ -36,37 +36,7 @@ ALTER TABLE public."ProjectUpdatePolicyRevision"
         AND btrim("escalationRecipientSubject") <> ''
         AND char_length("escalationRecipientSubject") BETWEEN 1 AND 200
         AND "escalationRecipientSubject" !~ '[[:cntrl:]]'
-        AND "escalationRecipientSubject" !~ '^[[:space:]]|[[:space:]]
-          COALESCE("reminderBusinessDayOffsets"[cardinality("reminderBusinessDayOffsets")], 0)
-      )
-    ),
-  ADD CONSTRAINT "ProjectUpdatePolicyRevision_quiet_hours_check"
-    CHECK (
-      ("quietHoursStartLocal" IS NULL AND "quietHoursEndLocal" IS NULL)
-      OR (
-        "quietHoursStartLocal" IS NOT NULL
-        AND "quietHoursEndLocal" IS NOT NULL
-        AND "quietHoursStartLocal" <> "quietHoursEndLocal"
-        AND "quietHoursStartLocal" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
-        AND "quietHoursEndLocal" ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
-      )
-    );
-
-DO $$
-BEGIN
-  IF to_regrole('pdaa_migrate') IS NOT NULL THEN
-    EXECUTE 'ALTER FUNCTION public.valid_project_update_cadence_offsets(smallint[]) OWNER TO pdaa_migrate';
-  END IF;
-END $$;
-
-REVOKE ALL ON FUNCTION public.valid_project_update_cadence_offsets(smallint[]) FROM PUBLIC;
-DO $$
-BEGIN
-  IF to_regrole('pdaa_api') IS NOT NULL THEN
-    EXECUTE 'GRANT EXECUTE ON FUNCTION public.valid_project_update_cadence_offsets(smallint[]) TO pdaa_api';
-  END IF;
-END $$;
-
+        AND "escalationRecipientSubject" !~ '^[[:space:]]|[[:space:]]$'
         AND "escalationAfterBusinessDays" >
           COALESCE("reminderBusinessDayOffsets"[cardinality("reminderBusinessDayOffsets")], 0)
       )
