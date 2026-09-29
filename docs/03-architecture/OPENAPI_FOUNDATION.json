@@ -32045,7 +32045,8 @@
                             {
                               "enum": [
                                 null
-                              ]
+                              ],
+                              "nullable": true
                             }
                           ]
                         },
@@ -33303,7 +33304,8 @@
                             {
                               "enum": [
                                 null
-                              ]
+                              ],
+                              "nullable": true
                             }
                           ]
                         },
@@ -34479,7 +34481,8 @@
                         {
                           "enum": [
                             null
-                          ]
+                          ],
+                          "nullable": true
                         }
                       ]
                     },
@@ -34904,7 +34907,8 @@
                         {
                           "enum": [
                             null
-                          ]
+                          ],
+                          "nullable": true
                         }
                       ]
                     },
@@ -35313,7 +35317,8 @@
                       {
                         "enum": [
                           null
-                        ]
+                        ],
+                        "nullable": true
                       }
                     ],
                     "default": null
