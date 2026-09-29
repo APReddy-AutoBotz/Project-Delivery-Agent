@@ -65,11 +65,13 @@ describe("Project update engagement stage gate", () => {
       ...base, sourceState: "UNKNOWN", mode: "EMAIL", emailApproved: true, emailConfigured: true,
     })).toEqual({ action: "BLOCK", reason: "SOURCE_UNKNOWN" });
     expect(decideProjectUpdateStage({ ...base, sourceState: "SATISFIED", remainingFactTypes: [] }))
-      .toEqual({ action: "SUPPRESS", reason: "SOURCE_SATISFIED" });
+      .toEqual({ action: "SUPPRESS", reason: "REQUIRED_FACTS_SATISFIED" });
+    expect(decideProjectUpdateStage({ ...base, remainingFactTypes: [] }))
+      .toEqual({ action: "SUPPRESS", reason: "REQUIRED_FACTS_SATISFIED" });
     expect(decideProjectUpdateStage({
       ...base,
       remainingFactTypes: ["project.status"],
-    })).toEqual({ action: "SUPPRESS", reason: "SOURCE_SATISFIED" });
+    })).toEqual({ action: "SUPPRESS", reason: "REQUIRED_FACTS_SATISFIED" });
     expect(decideProjectUpdateStage(base)).toEqual({ action: "CAPTURE" });
   });
 
@@ -116,16 +118,12 @@ describe("Project update engagement stage gate", () => {
     }).success).toBe(false);
     expect(projectUpdateStageGateInputSchema.safeParse({
       ...base,
-      sourceState: "SATISFIED",
-    }).success).toBe(false);
-    expect(projectUpdateStageGateInputSchema.safeParse({
-      ...base,
-      remainingFactTypes: [],
-    }).success).toBe(false);
-    expect(projectUpdateStageGateInputSchema.safeParse({
-      ...base,
       deferralReasons: ["QUIET_HOURS"],
     }).success).toBe(false);
+    expect(projectUpdateStageGateInputSchema.safeParse({
+      ...base,
+      deferralReasons: ["DST_GAP"],
+    }).success).toBe(true);
     expect(projectUpdateStageGateInputSchema.safeParse({
       ...base,
       asOf: "not-a-time",
