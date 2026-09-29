@@ -2,6 +2,7 @@
 
 ## Active implementation
 
+- [EXEC-015: Durable update engagement and recipient response](EXEC-015-update-engagement-workflow.md) — draft design for Issue #9; independent review pending. Production sends remain gated; OD-013 remains in force.
 - [EXEC-014: Configure update cadence and preview its schedule](EXEC-014-update-cadence-schedule.md) — complete for bounded AC-ADM-002; candidate review and exact-head/post-merge Foundation and Documentation validation passed. FR-ESC-002 remains partial under the scope boundary in the plan.
 
 
