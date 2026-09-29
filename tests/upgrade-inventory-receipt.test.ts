@@ -76,13 +76,22 @@ const added = [
   "ProjectUpdateAssessment",
   "ProjectUpdateObligation",
   "ProjectUpdatePreview",
+  "ScheduleHealthPolicyRevision",
 ];
 const receipt = () => ({
   priorMigrationCount: 1,
-  businessTableCount: 73,
+  businessTableCount: 74,
+  scheduleHealthPolicyTables: ["ScheduleHealthPolicyRevision"],
+  scheduleHealthPolicyBackfill: {
+    project_count: 1,
+    policy_count: 1,
+    invalid_defaults: 0,
+  },
   retainedPriorBusinessTables: [...old],
   retainedPriorRowCounts: Object.fromEntries(old.map((table) => [table, 1])),
-  emptyAddedTablesAfterUpgrade: [...added],
+  emptyAddedTablesAfterUpgrade: added.filter(
+    (table) => table !== "ScheduleHealthPolicyRevision",
+  ),
 });
 it("NFR-REL-001: accepts the exact independent prior and added table inventories", () => {
   expect(assertUpgradeInventory(receipt(), 1)).toBe(true);
@@ -122,18 +131,23 @@ it("NFR-REL-001: keeps feature-added RAID receipts out of retained prefix-four h
     retainedPriorTables.map((table) => [table, 1]),
   );
   value.emptyAddedTablesAfterUpgrade = added.filter(
-    (table) => !retainedPriorTables.includes(table),
+    (table) =>
+      table !== "ScheduleHealthPolicyRevision" &&
+      !retainedPriorTables.includes(table),
   );
   expect(value.emptyAddedTablesAfterUpgrade).toContain("RaidReopenReceipt");
   expect(assertUpgradeInventory(value, 4)).toBe(true);
 });
-it("NFR-REL-001: accepts project update tables as the latest release additions", () => {
+it("NFR-REL-001: accepts project update and seeded schedule policy release additions", () => {
   const prior = [...old, ...added.slice(0, added.indexOf("ProjectUpdatePolicy"))];
   const value = receipt();
   value.priorMigrationCount = 8;
   value.retainedPriorBusinessTables = prior;
   value.retainedPriorRowCounts = Object.fromEntries(prior.map((table) => [table, 1]));
-  value.emptyAddedTablesAfterUpgrade = added.filter((table) => !prior.includes(table));
+  value.emptyAddedTablesAfterUpgrade = added.filter(
+    (table) =>
+      table !== "ScheduleHealthPolicyRevision" && !prior.includes(table),
+  );
   expect(value.emptyAddedTablesAfterUpgrade).toEqual([
     "ProjectUpdatePolicy",
     "ProjectUpdatePolicyRevision",

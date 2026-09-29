@@ -141,6 +141,8 @@
 - `docs/04-delivery/exec-plans/EXEC-010-health-assessment-persistence.md`: stored deterministic schedule-health assessment and current acceptance limits.
 - `docs/04-delivery/exec-plans/EXEC-011-authority-backed-blocker-age.md`: source-authorized blocker-age assessment and evidence gates.
 - `docs/04-delivery/exec-plans/EXEC-012-update-freshness-and-completeness.md`: proposed durable freshness, completeness and update-obligation workflow.
+- `docs/04-delivery/exec-plans/EXEC-013-persisted-schedule-overdue.md`: project-local, revisioned schedule policy and persisted overdue evidence for AC-HLT-007.
+- `docs/03-architecture/adr/ADR-015-PROJECT-SCHEDULE-OVERDUE-POLICY.md`: separate revisioned policy and persisted provenance for configured overdue assessment.
 - `docs/05-quality/SCALAR_RECONCILIATION_VALIDATION.md`: exact PR54 merge/review/artifact evidence, implemented FAIL-009 and unchanged shared GOLDEN-003/Issue6 acceptance remainder.
 - `docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md`: verified canonical PM request/COMMIT/race/upgrade/restore evidence and historical checkpoints, linked to the later scalar FAIL-009 implementation disposition; no new story acceptance.
 - `docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md`: candidate user/admin workflow, strict API, browser and packaged evidence gates and remaining acceptance.

@@ -294,6 +294,19 @@ tests:
   - tests/e2e/project-evidence.spec.ts
   - tests/delivery-health.test.ts
   - .github/workflows/foundation-validation.yml
+- id: E2E-HLT-007
+  release: R1
+  status: implemented
+  acceptance_criteria:
+  - AC-HLT-007
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: >-
+    A PMO administrator saves a project-local schedule policy; the persisted
+    assessment and browser view show the saved revision, canonical selected due
+    date, local timezone, and configured target threshold.
+  evidence:
+  - tests/e2e/project-evidence.spec.ts
+  - .github/workflows/foundation-validation.yml
 - id: E2E-MNT-001
   release: R1
   status: planned
@@ -1001,6 +1014,27 @@ tests:
   behavior: A completed milestone with mandatory open linked issues creates a contradiction signal and a PM reconciliation
     action.
   evidence: []
+- id: INT-HLT-007
+  release: R1
+  status: implemented
+  acceptance_criteria:
+  - AC-HLT-007
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: >-
+    A synthetic database project saves a versioned time-zone schedule policy
+    with per-target thresholds. A test-only fixed clock exercises persisted
+    local-midnight and threshold boundaries for active, clear, and unassessable
+    targets with canonical IDs/revisions and selected date provenance. A replay
+    after a policy change retains its original snapshot. The populated-prefix
+    upgrade seeds existing projects at UTC/one-day revision 1; new projects use
+    implicit UTC/one-day revision 0. Authorization and stale/concurrent writes
+    are checked.
+  evidence:
+  - tests/blocker-age-assessment.integration.test.ts
+  - scripts/acceptance/ingestion-prefix-nine-upgrade.mjs
+  - scripts/test-database.mjs
+  - tests/overdue-signals.test.ts
+  - .github/workflows/foundation-validation.yml
 - id: INT-MNT-003
   release: R1
   status: implemented
@@ -1489,9 +1523,10 @@ tests:
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: >-
     Server-owned schedule-only assessment inputs select saved forecastEnd then
-    plannedEnd values, use UTC day boundaries, and distinguish overdue,
-    complete/cancelled, missing-date, and empty-schedule cases. This bounded
-    unit contract does not cover source authority or complete AC-HLT-004 acceptance.
+    plannedEnd values, apply the saved project timezone and overdue thresholds
+    (UTC/one-day for an unconfigured or migrated default), and distinguish
+    overdue, complete/cancelled, missing-date, and empty-schedule cases. This
+    bounded unit contract does not cover source authority or full AC-HLT-004 acceptance.
   evidence:
   - packages/domain/src/health-assessment.ts
   - tests/schedule-health.test.ts
@@ -1521,10 +1556,13 @@ tests:
   behavior: >-
     Configured open work-item/milestone due dates and thresholds produce
     deterministic overdue signals at local calendar-day boundaries across IANA
-    time zones. Each signal retains the exact target, date field/value, source
-    identity, assessment time, local date, time zone, threshold and rule revision.
+    time zones. Schedule-health assessment composition applies the saved policy
+    revision and retains the exact target, date field/value, local date, time
+    zone, effective threshold, and calculable nonnegative days overdue.
   evidence:
   - tests/overdue-signals.test.ts
+  - tests/schedule-health.test.ts
+  - tests/blocker-age-assessment.integration.test.ts
   - .github/workflows/foundation-validation.yml
 - id: UNIT-UPD-007
   release: R1

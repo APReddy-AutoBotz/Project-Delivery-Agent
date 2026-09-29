@@ -29,6 +29,7 @@ model Portfolio {
 model Project {
   @@unique([customerId, portfolioId, id], map: "Project_canonical_parent_key")
   canonicalProject_project CanonicalProject?
+  scheduleHealthPolicyRevisions ScheduleHealthPolicyRevision[]
   id String @id @db.Uuid
   customerId String @db.Uuid
   portfolioId String @db.Uuid
@@ -1181,6 +1182,21 @@ model BlockerAgeThresholdPolicy {
   revision Int
   changedBy String @db.VarChar(256)
   changedAt DateTime @db.Timestamptz(3)
+}
+
+model ScheduleHealthPolicyRevision {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  revision Int
+  timeZone String @db.VarChar(64)
+  defaultMinimumOverdueDays Int
+  targetOverrides Json
+  changedBy String @db.VarChar(256)
+  changedAt DateTime @db.Timestamptz(3)
+  project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ScheduleHealthPolicyRevision_project_fk")
+  @@unique([customerId, projectId, revision], map: "ScheduleHealthPolicyRevision_scope_revision")
+  @@index([customerId, projectId, revision], map: "ScheduleHealthPolicyRevision_latest_idx")
 }
 
 model HealthAssessment {

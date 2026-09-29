@@ -88,6 +88,8 @@ acceptance_criteria:
   priority: P0
   tests:
   - UNIT-HLT-007
+  - INT-HLT-007
+  - E2E-HLT-007
 - id: AC-WRB-001
   title: Permitted human-approved comment
   criterion: A human-approved allowlisted Jira comment posts with receipt; removed app/connector authority, unapproved

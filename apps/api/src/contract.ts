@@ -52,6 +52,8 @@ import {
   healthAssessmentRetentionViewSchema,
   blockerAgeThresholdPolicyChangeSchema,
   blockerAgeThresholdPolicyViewSchema,
+  scheduleHealthPolicyChangeSchema,
+  scheduleHealthPolicyViewSchema,
   healthAssessmentViewSchema,
   projectUpdatePolicyChangeSchema,
   projectUpdatePolicyViewSchema,
@@ -434,6 +436,19 @@ export const contracts: Record<string, RouteContract> = {
     response: canonicalProjectDetailSchema,
     parameters: { id: z.uuid() },
     errors: [404, 503],
+  },
+  "get /api/projects/{id}/schedule-health-policy": {
+    status: 200,
+    response: scheduleHealthPolicyViewSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 503],
+  },
+  "post /api/projects/{id}/schedule-health-policy": {
+    status: 200,
+    request: scheduleHealthPolicyChangeSchema,
+    response: scheduleHealthPolicyViewSchema,
+    parameters: { id: z.uuid() },
+    errors: [400, 403, 404, 409, 503],
   },
   "post /api/projects/{id}/health-assessments": {
     status: 201,

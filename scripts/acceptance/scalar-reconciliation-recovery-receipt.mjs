@@ -51,8 +51,8 @@ export function assertScalarRecoveryReceipt(
 ) {
   // Caller pins the profile's restore login; never learn it from the receipt.
   assert(["fixture_admin", "postgres"].includes(expectedAdministrator));
-  assert.equal(persistence.businessTableCount, 73);
-  assert.equal(persistence.migrationCount, 19);
+  assert.equal(persistence.businessTableCount, 74);
+  assert.equal(persistence.migrationCount, 20);
   assert.deepEqual(persistence.scalarReconciliationTables, [
     "ScalarReconciliationRequest",
     "ScalarReconciliationCheck",

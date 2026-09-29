@@ -77,7 +77,8 @@ export function blockerAgeDependencies(inputValue: unknown): Dependency[] | null
   );
 }
 
-async function clock(tx: Tx): Promise<Date> {
+async function clock(tx: Tx, asOfForTests?: Date): Promise<Date> {
+  if (asOfForTests) return asOfForTests;
   const rows = await tx.$queryRawUnsafe<{ now: Date }[]>(
     "SELECT date_trunc('milliseconds',clock_timestamp()) AS now",
   );
@@ -140,6 +141,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
   projectId: string,
   canonicalSealed: boolean,
   threshold: Threshold,
+  asOfForTests?: Date,
 ) {
   const thresholdValid = threshold !== null &&
     blockerAgeThresholdPolicyViewSchema.safeParse({
@@ -151,7 +153,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
       }).success;
   if (!canonicalSealed || !thresholdValid) {
     return empty(
-      await clock(tx),
+      await clock(tx, asOfForTests),
       !canonicalSealed ? "CANONICAL_SNAPSHOT_UNAVAILABLE" : "THRESHOLD_NOT_CONFIGURED",
       {
         canonicalSealed,
@@ -171,7 +173,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
   );
   if (raids.length > 50) {
     return empty(
-      await clock(tx),
+      await clock(tx, asOfForTests),
       "RAID_SNAPSHOT_OVER_LIMIT",
       {
         canonicalSealed: true,
@@ -246,7 +248,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
     );
   }
 
-  const asOf = await clock(tx);
+  const asOf = await clock(tx, asOfForTests);
   const overBudget =
     versionLocks.length > 1000 ||
     conflictLocks.length > 1000 ||

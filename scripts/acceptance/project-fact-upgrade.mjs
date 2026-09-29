@@ -70,11 +70,12 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 19);
+  assert.equal(migrations.length, 20);
   assert.equal(migrations[15].name, "202609280001_atomic_raid_reopen");
   assert.equal(migrations[16].name, "202609280002_blocker_age_threshold");
   assert.equal(migrations[17].name, "202609280003_blocker_age_assessment");
   assert.equal(migrations[18].name, "202609280004_project_update_workflow");
+  assert.equal(migrations[19].name, "202609290001_schedule_health_policy");
   assert.equal(migrations[14].name, "202609270001_health_assessment");
   assert.equal(
     migrations[9].name,
@@ -485,13 +486,37 @@ export async function verifyFoundationUpgrade(
       "ProjectUpdateAssessment",
       "ProjectUpdateObligation",
       "ProjectUpdatePreview",
+      "ScheduleHealthPolicyRevision",
     ];
-    for (const table of addedTables)
+    const emptyAddedTables = addedTables.filter(
+      (table) => table !== "ScheduleHealthPolicyRevision",
+    );
+    for (const table of emptyAddedTables)
       assert.equal(
         (await owner.query(`SELECT count(*)::int AS n FROM "${table}"`)).rows[0]
           .n,
         0,
       );
+    const scheduleHealthPolicyBackfill = (
+      await owner.query(`
+        SELECT
+          (SELECT count(*)::int FROM "Project") AS project_count,
+          (SELECT count(*)::int FROM "ScheduleHealthPolicyRevision") AS policy_count,
+          (SELECT count(*)::int
+            FROM "Project" p
+            LEFT JOIN "ScheduleHealthPolicyRevision" r
+              ON r."customerId"=p."customerId" AND r."projectId"=p.id
+            WHERE r.id IS NULL
+              OR r.revision IS DISTINCT FROM 1
+              OR r."timeZone" IS DISTINCT FROM 'UTC'
+              OR r."defaultMinimumOverdueDays" IS DISTINCT FROM 1
+              OR r."targetOverrides" IS DISTINCT FROM '[]'::jsonb
+              OR r."changedBy" IS DISTINCT FROM 'SYSTEM_DEFAULT'
+          ) AS invalid_defaults
+      `)
+    ).rows[0];
+    assert.equal(scheduleHealthPolicyBackfill.policy_count, scheduleHealthPolicyBackfill.project_count);
+    assert.equal(scheduleHealthPolicyBackfill.invalid_defaults, 0);
     const legacyOccupiedBindingCollision = legacyBindingFixture
       ? await verifyLegacyBindingCollision(
           owner,
@@ -719,7 +744,9 @@ export async function verifyFoundationUpgrade(
         appliedLedgerRows: upgradedHistory.slice(priorCount),
       },
       retainedFoundationTables: oldTables,
-      emptyAddedTablesAfterUpgrade: addedTables,
+      emptyAddedTablesAfterUpgrade: emptyAddedTables,
+      scheduleHealthPolicyBackfill,
+      scheduleHealthPolicyTables: ["ScheduleHealthPolicyRevision"],
       priorMigrationCount: priorCount,
       retainedPriorLedgerRows: initialHistory,
       retainedPriorBusinessTables: oldTables,

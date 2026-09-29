@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   BlockerAgeThresholdPolicyView,
+  ScheduleHealthPolicyChange,
+  ScheduleHealthPolicySnapshot,
+  ScheduleHealthPolicyView,
   HealthAssessmentView,
 } from "@pdaa/domain";
 import { Button, Message, TextField } from "./components.js";
@@ -34,11 +37,21 @@ type AgeResult = {
   agedBlockerCount: number;
   assessments: AgeSignal[];
 };
+type ScheduleSignal = {
+  kind: string;
+  targetKey: string;
+  state: string;
+  severity: string;
+  rule?: { parameters?: Array<{ name: string; value: unknown }> };
+  sourceFacts?: Array<{ field: string; value: unknown }>;
+};
 type AssessmentResult = {
   calculated?: { status?: string };
+  objectiveSignals?: ScheduleSignal[];
   blockerAge?: AgeResult;
 };
 type AssessmentInput = {
+  scheduleHealthPolicy?: ScheduleHealthPolicySnapshot;
   blockerAge?: {
     asOf?: string;
     reason?: string;
@@ -172,6 +185,115 @@ function ThresholdEditor({
   );
 }
 
+
+function ScheduleHealthPolicyEditor({
+  request,
+  projectId,
+  policy,
+  refresh,
+}: {
+  request: RequestFn;
+  projectId: string;
+  policy: ScheduleHealthPolicyView;
+  refresh: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [timeZone, setTimeZone] = useState(policy.timeZone);
+  const [defaultDays, setDefaultDays] = useState(
+    String(policy.defaultMinimumOverdueDays),
+  );
+  const [overridesText, setOverridesText] = useState(
+    JSON.stringify(policy.targetOverrides, null, 2),
+  );
+  const [formError, setFormError] = useState<string | null>(null);
+  const key = ["schedule-health-policy", projectId] as const;
+  const overridesId = "schedule-health-overrides-" + projectId;
+  const overridesHelpId = overridesId + "-help";
+  const save = useMutation({
+    mutationFn: (change: ScheduleHealthPolicyChange) =>
+      request<ScheduleHealthPolicyView>(
+        "/projects/" + projectId + "/schedule-health-policy",
+        { method: "POST", body: JSON.stringify(change) },
+      ),
+    onSuccess: (value) => {
+      queryClient.setQueryData(key, value);
+      setFormError(null);
+    },
+  });
+  return (
+    <div className="space-y-3">
+      <p className="muted">
+        Schedule health policy revision {policy.revision}: {policy.timeZone}, overdue after{" "}
+        {policy.defaultMinimumOverdueDays} local calendar day(s).
+        {policy.changedBy ? " Last changed by " + policy.changedBy + "." : " Using the UTC one-day system default."}
+      </p>
+      <form
+        className="grid gap-3 md:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          let targetOverrides: ScheduleHealthPolicyChange["targetOverrides"];
+          try {
+            const parsed: unknown = JSON.parse(overridesText);
+            if (!Array.isArray(parsed)) throw new Error("Overrides must be a JSON array.");
+            targetOverrides = parsed as ScheduleHealthPolicyChange["targetOverrides"];
+          } catch {
+            setFormError("Enter target overrides as a valid JSON array.");
+            return;
+          }
+          save.mutate({
+            expectedRevision: policy.revision,
+            timeZone,
+            defaultMinimumOverdueDays: Number(defaultDays),
+            targetOverrides,
+          });
+        }}
+      >
+        <TextField
+          label="Schedule health time zone (IANA)"
+          value={timeZone}
+          onChange={(event) => setTimeZone(event.target.value)}
+        />
+        <TextField
+          label="Default overdue threshold (local calendar days)"
+          type="number"
+          min={1}
+          max={3650}
+          value={defaultDays}
+          onChange={(event) => setDefaultDays(event.target.value)}
+        />
+        <label className="grid gap-1 md:col-span-2" htmlFor={overridesId}>
+          <span className="text-sm font-medium">Per-target threshold overrides (JSON)</span>
+        </label>
+        <textarea
+          id={overridesId}
+          aria-describedby={overridesHelpId}
+          className="min-h-28 rounded-md border border-slate-300 p-2 font-mono text-sm md:col-span-2"
+          value={overridesText}
+          onChange={(event) => setOverridesText(event.target.value)}
+          spellCheck={false}
+        />
+        <span id={overridesHelpId} className="muted md:col-span-2 min-w-0 break-words">
+          Each entry uses targetType, targetKey, and minimumOverdueDays. Example: {"[{\"targetType\":\"MILESTONE\",\"targetKey\":\"MS-1\",\"minimumOverdueDays\":2}]"}
+        </span>
+        <div className="flex items-center gap-3 md:col-span-2">
+          <Button type="submit" className="primary" disabled={save.isPending}>
+            {save.isPending ? "Saving…" : "Save project schedule policy"}
+          </Button>
+          <span className="muted">Saved changes apply to new assessments. Existing evidence keeps its recorded revision.</span>
+        </div>
+      </form>
+      {(formError || save.isError) && (
+        <>
+          <Message error>{formError ?? errorText(save.error)}</Message>
+          <Button className="secondary" onClick={refresh}>
+            Reload current policy
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function HealthAssessmentPanel({
   projectId,
   reportedStatus,
@@ -188,6 +310,7 @@ export function HealthAssessmentPanel({
   const queryClient = useQueryClient();
   const assessmentKey = ["health-assessment-latest", projectId] as const;
   const thresholdKey = ["blocker-age-threshold-policy"] as const;
+  const schedulePolicyKey = ["schedule-health-policy", projectId] as const;
   const latest = useQuery({
     queryKey: assessmentKey,
     queryFn: () =>
@@ -202,6 +325,15 @@ export function HealthAssessmentPanel({
     queryFn: () =>
       request<BlockerAgeThresholdPolicyView | null>(
         "/admin/blocker-age-threshold-policy",
+      ),
+    enabled: visible && pmoAdmin,
+    refetchOnWindowFocus: false,
+  });
+  const schedulePolicy = useQuery({
+    queryKey: schedulePolicyKey,
+    queryFn: () =>
+      request<ScheduleHealthPolicyView>(
+        "/projects/" + projectId + "/schedule-health-policy",
       ),
     enabled: visible && pmoAdmin,
     refetchOnWindowFocus: false,
@@ -223,6 +355,10 @@ export function HealthAssessmentPanel({
   const assessment = latest.data;
   const result = assessment?.result as AssessmentResult | null | undefined;
   const input = assessment?.input as AssessmentInput | null | undefined;
+  const scheduleSignals =
+    result?.objectiveSignals?.filter((signal) =>
+      signal.kind === "OVERDUE_MILESTONE" || signal.kind === "OVERDUE_WORK_ITEM",
+    ) ?? [];
   const age = result?.blockerAge;
   const ageInput = input?.blockerAge;
   const candidates = ageInput?.candidates ?? [];
@@ -272,6 +408,30 @@ export function HealthAssessmentPanel({
         </section>
       )}
 
+          {pmoAdmin && (
+            <section className="rounded-lg border border-slate-200 p-4 space-y-3" aria-labelledby="schedule-policy-heading">
+              <h3 id="schedule-policy-heading">Project schedule overdue policy</h3>
+              {schedulePolicy.isPending ? (
+                <p role="status">Loading the project schedule policy…</p>
+              ) : schedulePolicy.isError ? (
+                <>
+                  <Message error>{errorText(schedulePolicy.error)}</Message>
+                  <Button className="secondary" onClick={() => void schedulePolicy.refetch()}>
+                    Retry policy access
+                  </Button>
+                </>
+              ) : schedulePolicy.data ? (
+                <ScheduleHealthPolicyEditor
+                  key={schedulePolicy.data.revision}
+                  request={request}
+                  projectId={projectId}
+                  policy={schedulePolicy.data}
+                  refresh={() => void schedulePolicy.refetch()}
+                />
+              ) : null}
+            </section>
+          )}
+
       {create.isError && <Message error>{errorText(create.error)}</Message>}
       {latest.isError && (
         <>
@@ -308,7 +468,61 @@ export function HealthAssessmentPanel({
             </div>
           </dl>
           {assessment.contentAvailable ? (
-            age ? (
+            <>
+              <section className="space-y-3" aria-labelledby="schedule-overdue-heading">
+                <div>
+                  <h3 id="schedule-overdue-heading">Schedule overdue evidence</h3>
+                  {input?.scheduleHealthPolicy ? (
+                    <p className="muted">
+                      Policy revision {input.scheduleHealthPolicy.revision} ·{" "}
+                      {input.scheduleHealthPolicy.timeZone} · default threshold{" "}
+                      {input.scheduleHealthPolicy.defaultMinimumOverdueDays} local day(s)
+                    </p>
+                  ) : (
+                    <p className="muted">
+                      This historical assessment predates saved project schedule policies and used UTC with a one-day threshold.
+                    </p>
+                  )}
+                </div>
+                {scheduleSignals.length ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left" aria-label="Schedule overdue evidence">
+                      <thead>
+                        <tr>
+                          <th scope="col">Target</th>
+                          <th scope="col">State</th>
+                          <th scope="col">Selected due date</th>
+                          <th scope="col">Assessed local date</th>
+                          <th scope="col">Threshold</th>
+                          <th scope="col">Days overdue</th>
+                          <th scope="col">Schedule health time zone</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scheduleSignals.map((signal) => {
+                          const facts = new Map(signal.sourceFacts?.map((fact) => [fact.field, fact.value]) ?? []);
+                          const parameters = new Map(signal.rule?.parameters?.map((parameter) => [parameter.name, parameter.value]) ?? []);
+                          const show = (value: unknown) => value === null || value === undefined ? "—" : String(value);
+                          return (
+                            <tr key={signal.kind + ":" + signal.targetKey}>
+                              <th scope="row">{signal.targetKey} · {signal.kind === "OVERDUE_MILESTONE" ? "Milestone" : "Work item"}</th>
+                              <td>{signal.state} · {signal.severity}</td>
+                              <td>{show(facts.get("selectedDueDate"))} · {show(facts.get("selectedDateField"))}</td>
+                              <td>{show(parameters.get("assessedLocalDate"))}</td>
+                              <td>{show(parameters.get("minimumOverdueDays"))} local day(s)</td>
+                              <td>{show(parameters.get("daysOverdue"))}</td>
+                              <td>{show(parameters.get("timeZone"))}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <Message>No milestone or work-item schedule targets were included.</Message>
+                )}
+              </section>
+              {age ? (
               <div className="space-y-4" aria-live="polite">
                 <div>
                   <h3>Blocker-age coverage: {age.coverage.toLowerCase()}</h3>
@@ -353,7 +567,7 @@ export function HealthAssessmentPanel({
                 </dl>
                 {candidates.length ? (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left" aria-label="Blocker-age RAID candidates">
                       <thead>
                         <tr>
                           <th scope="col">RAID item</th>
@@ -419,7 +633,8 @@ export function HealthAssessmentPanel({
               <Message>
                 No blocker-age result is available in this saved assessment.
               </Message>
-            )
+              )}
+            </>
           ) : (
             <Message>
               Assessment metadata is available, but its evidence content is hidden because current source access no longer permits delivery or its retention window has ended.

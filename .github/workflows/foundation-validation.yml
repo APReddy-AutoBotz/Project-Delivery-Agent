@@ -35,6 +35,12 @@ jobs:
           node scripts/local.mjs scripts/dev.mjs > artifacts/dev.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://localhost:5173 >/dev/null && break; sleep 1; done
           pnpm test:e2e
+      - name: Publish schedule overdue policy browser proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: schedule-overdue-policy-browser
+          path: artifacts/schedule-overdue-policy.png
+          if-no-files-found: error
       - name: Publish successful database contract evidence
         uses: actions/upload-artifact@v4
         with:

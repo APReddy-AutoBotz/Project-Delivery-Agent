@@ -56,6 +56,7 @@ const introducedTables = [
   ...projectUpdateTables,
   "RaidReopenReceipt",
   "BlockerAgeThresholdPolicy",
+  "ScheduleHealthPolicyRevision",
 ];
 
 async function assignSyntheticTableOwners(pool) {
@@ -103,7 +104,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 19);
+    assert.equal(migrations.length, 20);
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     assert.equal(migrations[10].name, "202609240001_jira_runtime");
@@ -114,6 +115,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
     assert.equal(migrations[16].name, "202609280002_blocker_age_threshold");
     assert.equal(migrations[17].name, "202609280003_blocker_age_assessment");
     assert.equal(migrations[18].name, "202609280004_project_update_workflow");
+    assert.equal(migrations[19].name, "202609290001_schedule_health_policy");
     assert.equal(migrations[11].name, "202609240002_jira_webhook_body_replay");
     await migrateDatabase(databaseConfig, migrations.slice(0, 9));
     pool = new Pool(databaseConfig);
@@ -213,16 +215,30 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         );
       }
       for (const table of introducedTables) {
-        assert.equal(
-          (
-            await after.$queryRawUnsafe(
-              `SELECT count(*)::int AS n FROM public."${table}"`,
-            )
-          )[0].n,
-          0,
-          `New ${table} must start empty after upgrade`,
-        );
+        const count = (
+          await after.$queryRawUnsafe(
+            `SELECT count(*)::int AS n FROM public."${table}"`,
+          )
+        )[0].n;
+        if (table === "ScheduleHealthPolicyRevision") {
+          assert.equal(count, 1, "Each existing project must receive a migration default");
+        } else {
+          assert.equal(count, 0, `New ${table} must start empty after upgrade`);
+        }
       }
+      const scheduleDefaults = await after.$queryRaw`
+        SELECT revision,"timeZone","defaultMinimumOverdueDays","targetOverrides","changedBy"
+        FROM public."ScheduleHealthPolicyRevision"
+        WHERE "customerId"=${customerId}::uuid AND "projectId"=${projectId}::uuid
+      `;
+      assert.equal(scheduleDefaults.length, 1);
+      assert.deepEqual(scheduleDefaults[0], {
+        revision: 1,
+        timeZone: "UTC",
+        defaultMinimumOverdueDays: 1,
+        targetOverrides: [],
+        changedBy: "SYSTEM_DEFAULT",
+      });
       const ledger = await after.$queryRaw`SELECT migration_name,checksum FROM "_prisma_migrations" ORDER BY migration_name`;
       assert.deepEqual(ledger.slice(0, 9), beforeLedger);
       assert.deepEqual(

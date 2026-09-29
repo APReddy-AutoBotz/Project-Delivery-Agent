@@ -140,6 +140,34 @@ There is no sent/read acknowledgement, email, external message, automatic
 follow-up, resolution, closure or approval action in this increment. A successful
 GET or queue entry does not attest that a person read or acted on a request.
 
+## Project-local schedule overdue policy
+
+A PMO administrator with access to the project can configure its schedule-health
+timezone, default overdue threshold, and optional milestone/work-item overrides
+from the project health assessment panel. Thresholds count local calendar days
+after the selected date-only due date. The evaluator uses forecast end when
+present and planned end otherwise; a missing date remains unassessable. It reads
+only the sealed canonical schedule and never treats spreadsheet/import proposals
+as schedule facts.
+
+Existing projects receive a versioned UTC/one-day default during migration.
+New projects without an explicit user policy use implicit SYSTEM_DEFAULT revision 0 with the same effective values. Policy edits append a
+new revision and audit event; they affect new assessments only. Saved assessments
+and idempotent replays retain their recorded policy revision and rule inputs.
+The policy is independent of the project-update freshness timezone. It does not
+activate Jira/OAuth onboarding, connector reads, or external writes.
+
+The schedule policy is introduced by the additive migration
+202609290001_schedule_health_policy. Follow the normal maintenance preflight and
+backup procedure before applying the release. If the application image must be
+rolled back, retain the additive table and widened assessment constraints. The
+prior evaluator ignores non-default revisions and resumes UTC/one-day behavior.
+If any non-default policy exists, keep the API service offline during rollback and
+do not restore assessment traffic to the prior evaluator. Resume only after
+compatible evaluator code is deployed or a forward fix is in place. Restore through
+the encrypted recovery process and validate database integrity before resuming
+services. Do not delete policy history or rewrite saved health assessments.
+
 ## Backup and upgrade
 
 The canonical project increment adds the explicit `portfolio_manager` role.

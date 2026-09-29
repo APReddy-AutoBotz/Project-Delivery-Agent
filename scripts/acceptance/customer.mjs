@@ -114,6 +114,7 @@ const projectUpdateTables = [
   "ProjectUpdateObligation",
   "ProjectUpdatePreview",
 ];
+const scheduleHealthPolicyTables = ["ScheduleHealthPolicyRevision"];
 const profile = env.PDAA_CUSTOMER_PROFILE;
 assert(["bundled", "external"].includes(profile));
 assert.equal(env.PDAA_ACCEPTANCE, "customer-composition");
@@ -174,6 +175,7 @@ async function projection(pool) {
     "AuditEvent",
     "_prisma_migrations",
     ...projectUpdateTables,
+    ...scheduleHealthPolicyTables,
   ])
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
@@ -507,6 +509,7 @@ try {
       ...milestoneReconciliationTables,
       ...scalarReconciliationTables,
       ...projectUpdateTables,
+      ...scheduleHealthPolicyTables,
     ])
       assert.equal(
         state[table].length,
@@ -516,7 +519,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 19);
+    assert.equal(migrations.length, 20);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -771,11 +774,12 @@ try {
       canonicalTables,
       raidReopenTables: ["RaidReopenReceipt"],
       blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
+      scheduleHealthPolicyTables,
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 73,
-      migrationCount: 19,
+      businessTableCount: 74,
+      migrationCount: 20,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({

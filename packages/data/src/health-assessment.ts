@@ -8,6 +8,9 @@ import {
   healthAssessmentRetentionViewSchema,
   blockerAgeThresholdPolicyChangeSchema,
   blockerAgeThresholdPolicyViewSchema,
+  defaultScheduleHealthPolicy,
+  scheduleHealthPolicyChangeSchema,
+  scheduleHealthPolicyViewSchema,
   healthAssessmentViewSchema,
   HealthAssessmentError,
   type Actor,
@@ -16,6 +19,8 @@ import {
   type HealthAssessmentRetentionView,
   type BlockerAgeThresholdPolicyChange,
   type BlockerAgeThresholdPolicyView,
+  type ScheduleHealthPolicyChange,
+  type ScheduleHealthPolicyView,
   type HealthAssessmentView,
 } from "@pdaa/domain";
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
@@ -39,6 +44,14 @@ type BlockerAgeThresholdPolicyRow = {
   minimumBlockerAgeDays: number;
   auditRetentionHours: number;
   revision: number;
+  changedBy: string;
+  changedAt: Date;
+};
+type ScheduleHealthPolicyRow = {
+  revision: number;
+  timeZone: string;
+  defaultMinimumOverdueDays: number;
+  targetOverrides: unknown;
   changedBy: string;
   changedAt: Date;
 };
@@ -119,7 +132,7 @@ function toView(row: AssessmentRow, replayed: boolean, available: boolean): Heal
     projectId: row.projectId,
     assessedAt: row.assessedAt.toISOString(),
     coverage:
-      row.ruleRevision === "schedule-health@1+blocker-age@1"
+      row.blockerAgeCoverage !== null
         ? "SCHEDULE_AND_BLOCKER_AGE"
         : "SCHEDULE_ONLY",
     ruleRevision: row.ruleRevision,
@@ -140,7 +153,12 @@ function mapError(error: unknown): never {
 }
 
 export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepository {
-  constructor(private readonly db: Database) {}
+  // Production assessments use the database clock. Tests may inject a fixed as-of
+  // value to exercise persisted date-boundary behavior without accepting client time.
+  constructor(
+    private readonly db: Database,
+    private readonly assessmentAsOfForTests?: () => Date,
+  ) {}
   private async transaction<T>(operation: (tx: Tx) => Promise<T>): Promise<T> {
     // READ COMMITTED lets a retry see the receipt after an advisory-lock wait.
     // Source rows are read under locks and only from a sealed canonical graph.
@@ -193,6 +211,36 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
     try {
       toBlockerAgeThresholdPolicyView(row);
       return row;
+    } catch {
+      throw new HealthAssessmentError("UNAVAILABLE");
+    }
+  }
+  private async readScheduleHealthPolicy(
+    tx: Tx,
+    customerId: string,
+    id: string,
+  ): Promise<ScheduleHealthPolicyView> {
+    const rows = await tx.$queryRawUnsafe<ScheduleHealthPolicyRow[]>(
+      'SELECT revision,"timeZone","defaultMinimumOverdueDays","targetOverrides","changedBy","changedAt" FROM public."ScheduleHealthPolicyRevision" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY revision DESC LIMIT 1',
+      customerId,
+      id,
+    );
+    const row = rows[0];
+    if (!row)
+      return scheduleHealthPolicyViewSchema.parse({
+        ...defaultScheduleHealthPolicy,
+        changedBy: null,
+        changedAt: null,
+      });
+    try {
+      return scheduleHealthPolicyViewSchema.parse({
+        revision: row.revision,
+        timeZone: row.timeZone,
+        defaultMinimumOverdueDays: row.defaultMinimumOverdueDays,
+        targetOverrides: row.targetOverrides,
+        changedBy: row.changedBy,
+        changedAt: row.changedAt.toISOString(),
+      });
     } catch {
       throw new HealthAssessmentError("UNAVAILABLE");
     }
@@ -331,6 +379,15 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         "blocker-age-threshold:" + current.customerId,
       );
       const threshold = await this.readBlockerAgeThresholdPolicy(tx, current.customerId);
+      await tx.$queryRawUnsafe(
+        "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0)) IS NULL AS locked",
+        "schedule-health-policy:" + current.customerId + ":" + id,
+      );
+      const scheduleHealthPolicy = await this.readScheduleHealthPolicy(
+        tx,
+        current.customerId,
+        id,
+      );
 
       const projects = await tx.$queryRawUnsafe<{ reportedStatus: string }[]>(
         'SELECT "reportedStatus" FROM public."Project" WHERE id=$1::uuid AND "customerId"=$2::uuid',
@@ -361,6 +418,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         id,
         canonical[0]?.sealed === true,
         threshold,
+        this.assessmentAsOfForTests?.(),
       );
       const asOf = blockerAge.asOf;
       const date = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null;
@@ -371,18 +429,25 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
           projectRevision: canonical[0]?.revision ?? null,
           reportedStatus: project.reportedStatus,
           assessedAt: asOf.toISOString(),
+          scheduleHealthPolicy: {
+            revision: scheduleHealthPolicy.revision,
+            timeZone: scheduleHealthPolicy.timeZone,
+            defaultMinimumOverdueDays: scheduleHealthPolicy.defaultMinimumOverdueDays,
+            targetOverrides: scheduleHealthPolicy.targetOverrides,
+          },
           milestones: milestones.map((item) => ({ ...item, forecastEnd: date(item.forecastEnd), plannedEnd: date(item.plannedEnd) })),
           workItems: workItems.map((item) => ({ ...item, forecastEnd: date(item.forecastEnd), plannedEnd: date(item.plannedEnd) })),
         });
       } catch { throw new HealthAssessmentError("UNAVAILABLE"); }
 
-      const ruleRevision = "schedule-health@1+blocker-age@1";
+      const ruleRevision = "schedule-health@2+blocker-age@1";
       let blockerAgeCoverage = blockerAge.coverage;
       let blockerAgeInput: Record<string, unknown> = blockerAge.input;
       let blockerAgeResult: Record<string, unknown> = blockerAge.result;
       let newConflicts = blockerAge.newConflicts;
       let input: Record<string, unknown> = {
         ...(built.input as unknown as Record<string, unknown>),
+        scheduleHealthPolicy: built.scheduleHealthPolicy,
         blockerAge: blockerAgeInput,
       };
       let result: Record<string, unknown> = {
@@ -390,7 +455,10 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         ...built.result,
         blockerAge: blockerAgeResult,
       };
-      const scheduleInputJson = json(built.input);
+      const scheduleInputJson = json({
+        ...(built.input as unknown as Record<string, unknown>),
+        scheduleHealthPolicy: built.scheduleHealthPolicy,
+      });
       const scheduleResultJson = json({ coverage: built.coverage, ...built.result });
       if (
         Buffer.byteLength(scheduleInputJson, "utf8") > 262144 ||
@@ -429,6 +497,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         newConflicts = [];
         input = {
           ...(built.input as unknown as Record<string, unknown>),
+          scheduleHealthPolicy: built.scheduleHealthPolicy,
           blockerAge: blockerAgeInput,
         };
         result = {
@@ -460,7 +529,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       if (newConflicts.length)
         await tx.factAuthorityConflict.createMany({ data: newConflicts });
       await tx.$executeRawUnsafe(
-        "INSERT INTO public.\"HealthAssessment\" (id,\"customerId\",\"projectId\",\"actorSubject\",\"assessedAt\",\"commandKeyHash\",\"ruleRevision\",\"blockerAgeCoverage\",input,result,\"envelopeHash\",\"contentExpiresAt\",\"auditExpiresAt\") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,'schedule-health@1+blocker-age@1',$7,$8::jsonb,$9::jsonb,$10,$11,$12)",
+        "INSERT INTO public.\"HealthAssessment\" (id,\"customerId\",\"projectId\",\"actorSubject\",\"assessedAt\",\"commandKeyHash\",\"ruleRevision\",\"blockerAgeCoverage\",input,result,\"envelopeHash\",\"contentExpiresAt\",\"auditExpiresAt\") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,'schedule-health@2+blocker-age@1',$7,$8::jsonb,$9::jsonb,$10,$11,$12)",
         assessmentId, current.customerId, id, current.subject, assessedAt, commandHash,
         blockerAgeCoverage, inputJson, resultJson, envelopeHash, contentExpiresAt, auditExpiresAt,
       );
@@ -555,6 +624,105 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       );
       return healthAssessmentRetentionViewSchema.parse({
         ...policy, revision, changedBy: current.subject, changedAt: changedAt.toISOString(),
+      });
+    });
+  }
+  async scheduleHealthPolicy(currentValue: Actor, idValue: string) {
+    const current = actor(currentValue);
+    const id = projectId(idValue);
+    return this.transaction(async (tx) => {
+      await this.authorizeProject(tx, current, id);
+      return this.readScheduleHealthPolicy(tx, current.customerId, id);
+    });
+  }
+  async setScheduleHealthPolicy(
+    currentValue: Actor,
+    idValue: string,
+    policyValue: ScheduleHealthPolicyChange,
+    correlationId: string,
+  ) {
+    const current = actor(currentValue);
+    const id = projectId(idValue);
+    admin(current);
+    let policy: ScheduleHealthPolicyChange;
+    try {
+      policy = scheduleHealthPolicyChangeSchema.parse(policyValue);
+      z.uuid().parse(correlationId);
+    } catch {
+      throw new HealthAssessmentError("INVALID_REQUEST");
+    }
+    return this.transaction(async (tx) => {
+      await this.authorizeProject(tx, current, id);
+      await tx.$queryRawUnsafe(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0)) IS NULL AS locked",
+        "schedule-health-policy:" + current.customerId + ":" + id,
+      );
+      const previous = await this.readScheduleHealthPolicy(tx, current.customerId, id);
+      if (previous.revision !== policy.expectedRevision)
+        throw new HealthAssessmentError("CONFLICT");
+
+      const milestoneKeys = policy.targetOverrides
+        .filter((item) => item.targetType === "MILESTONE")
+        .map((item) => item.targetKey);
+      const workItemKeys = policy.targetOverrides
+        .filter((item) => item.targetType === "WORK_ITEM")
+        .map((item) => item.targetKey);
+      const milestones = await tx.$queryRawUnsafe<{ key: string }[]>(
+        'SELECT key FROM public."Milestone" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND key=ANY($3::text[]) FOR SHARE',
+        current.customerId,
+        id,
+        milestoneKeys,
+      );
+      const workItems = await tx.$queryRawUnsafe<{ key: string }[]>(
+        'SELECT key FROM public."WorkItem" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND key=ANY($3::text[]) FOR SHARE',
+        current.customerId,
+        id,
+        workItemKeys,
+      );
+      const missingMilestones = new Set(milestoneKeys.filter((key) => !milestones.some((row) => row.key === key)));
+      const missingWorkItems = new Set(workItemKeys.filter((key) => !workItems.some((row) => row.key === key)));
+      if (missingMilestones.size || missingWorkItems.size)
+        throw new HealthAssessmentError("INVALID_REQUEST");
+
+      const revision = policy.expectedRevision + 1;
+      const changedAt = await this.now(tx);
+      const targetOverrides = policy.targetOverrides.map((item) => ({ ...item }));
+      const detail = json({
+        objectType: "ScheduleHealthPolicy",
+        projectId: id,
+        revision,
+        timeZone: policy.timeZone,
+        defaultMinimumOverdueDays: policy.defaultMinimumOverdueDays,
+        targetOverrides,
+      });
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."ScheduleHealthPolicyRevision" (id,"customerId","projectId",revision,"timeZone","defaultMinimumOverdueDays","targetOverrides","changedBy","changedAt") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7::jsonb,$8,$9)',
+        randomUUID(),
+        current.customerId,
+        id,
+        revision,
+        policy.timeZone,
+        policy.defaultMinimumOverdueDays,
+        json(targetOverrides),
+        current.subject,
+        changedAt,
+      );
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId",detail,"occurredAt") VALUES ($1::uuid,$2::uuid,$3,\'health.schedule.policy.changed\',$4,$5::jsonb,$6)',
+        randomUUID(),
+        current.customerId,
+        current.subject,
+        correlationId,
+        detail,
+        changedAt,
+      );
+      return scheduleHealthPolicyViewSchema.parse({
+        revision,
+        timeZone: policy.timeZone,
+        defaultMinimumOverdueDays: policy.defaultMinimumOverdueDays,
+        targetOverrides,
+        changedBy: current.subject,
+        changedAt: changedAt.toISOString(),
       });
     });
   }
