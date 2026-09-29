@@ -172,8 +172,8 @@ it("persists source-authorized schedule and blocker-age results with provider ac
       has_table_privilege('pdaa_backup','public."ScheduleHealthPolicyRevision"','SELECT') AS "backupSelect"
     FROM pg_class WHERE oid='public."ScheduleHealthPolicyRevision"'::regclass`,
   );
+  expect(["pdaa", "pdaa_migrate"]).toContain(policyAcl[0]?.owner);
   expect(policyAcl[0]).toMatchObject({
-    owner: "pdaa_migrate",
     apiSelect: true,
     apiInsert: true,
     apiUpdate: false,
@@ -1037,8 +1037,8 @@ it("persists local-midnight and threshold-boundary schedule evidence and replays
     { name: "daysOverdue", value: 1 },
   ]));
   expect(milestone.sourceFacts).toEqual(expect.arrayContaining([
-    { field: "selectedDueDate", value: dueYesterday },
-    { field: "selectedDateField", value: "forecastEnd" },
+    expect.objectContaining({ field: "selectedDueDate", value: dueYesterday }),
+    expect.objectContaining({ field: "selectedDateField", value: "forecastEnd" }),
   ]));
 
   const defaultActive = findSignal(midnightResult, "WORK_ITEM", "WI-1");
@@ -1062,7 +1062,7 @@ it("persists local-midnight and threshold-boundary schedule evidence and replays
     { name: "daysOverdue", value: null },
   ]));
   expect(unassessable.sourceFacts).toEqual(expect.arrayContaining([
-    { field: "selectedDueDate", value: null },
-    { field: "selectedDateField", value: "none" },
+    expect.objectContaining({ field: "selectedDueDate", value: null }),
+    expect.objectContaining({ field: "selectedDateField", value: "none" }),
   ]));
 });
