@@ -1497,12 +1497,21 @@ tests:
   - tests/schedule-health.test.ts
 - id: UNIT-HLT-006
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-HLT-006
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: The health result is reproducible with the AI provider disabled.
-  evidence: []
+  behavior: >-
+    Recomputes the schedule-health and blocker-age evaluators from the same
+    deeply frozen inputs with fetch-based provider access disabled and requires
+    identical results. A separate isolated database integration proves that a
+    source-authorized combined assessment persists without provider access and
+    that idempotent replay returns the stored envelope; replay is persistence
+    evidence, not recomputation.
+  evidence:
+  - tests/health-determinism.test.ts
+  - tests/blocker-age-assessment.integration.test.ts
+  - .github/workflows/foundation-validation.yml
 - id: UNIT-HLT-007
   release: R1
   status: implemented
