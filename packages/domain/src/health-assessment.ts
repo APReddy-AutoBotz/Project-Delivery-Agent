@@ -434,4 +434,4 @@ export function buildScheduleHealthAssessment(snapshotValue: unknown): ScheduleH
     result: assessDeliveryHealth(input),
     scheduleHealthPolicy: policy,
   };
-}}
+}
