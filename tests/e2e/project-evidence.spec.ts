@@ -1153,7 +1153,7 @@ test("E2E-HLT-004: reported GREEN stays separate from the stored RED schedule re
     "assessedLocalDate=" + input.assessedAt.slice(0, 10),
   );
   await expect(panel).toContainText(
-    "minimumOverdueDays=1, selectedDateField=forecastEnd",
+    "minimumOverdueDays=1, scheduleHealthPolicyRevision=0, selectedDateField=forecastEnd",
   );
   await expect(panel).toContainText(
     "forecastEnd: " + expectedMilestone.dates.forecastEnd,
