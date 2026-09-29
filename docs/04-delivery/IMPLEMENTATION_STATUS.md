@@ -19,14 +19,30 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
+PR #102 implemented the bounded AC-ADM-002 update-cadence configuration and transient schedule preview. Reviewed candidate
+`419b9dd5ef20f2b078e137706b6ac4b6f2dd8da7` was merged as
+`e149f1af323545c3f4802e6da464e6587180ffc9`. Independent exact-head review
+approved without blockers. Exact-head Foundation #539
+([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36581209778))
+and Documentation #584
+([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36581210219))
+passed. Post-merge Foundation #540
+([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36584639733))
+and Documentation validation
+([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36584639605))
+also passed. Issue #9 now records AC-ADM-002 evidence and remains open; accepted-story
+totals remain R0 3/5, R1 2/33. OD-013 still disables public OAuth onboarding and
+live Jira activation. This increment sends no messages, leaves canonical facts
+untouched, and keeps spreadsheet rows as reviewed proposals.
+
 PR #101 merged the HLT acceptance-ledger update. Its reviewed candidate
 `45f9850797ac488b413e2a3548c1cef040eabb9e` is on main at
 `353979d99de3bb46bff16f1321afb5e6f2a4fa8a`. Exact-head Foundation #521
 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36554613063))
 and Documentation #566
 ([run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36554613016))
-passed. EXEC-014 is now implementing AC-ADM-002; candidate checks and acceptance
-evidence are pending. Accepted-story totals remain unchanged.
+passed. This preceded the completed AC-ADM-002 increment recorded above; accepted-story
+totals remained unchanged.
 
 PR #100 merged exact candidate `6078da2ed075afff95a45fb951d5b9143c58b3df` as merge `4fc8c4a4ae4974d5ff5691acf643c82ea7bdb019`. The merge has ordered parents `e620e5b6e21c09a5bb639473856efb1c27ca4c0e` and `6078da2ed075afff95a45fb951d5b9143c58b3df`; merge tree `7931c1ec963441532ac109df93de068591be0fd5` matches the reviewed candidate tree, and `main` points to the merge. The separate non-author review approved with no blockers; one duplicate latest-revision index was recorded as non-blocking cleanup.
 
