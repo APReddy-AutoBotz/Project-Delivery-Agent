@@ -113,6 +113,23 @@ describe("Project update schedule calculation", () => {
     expect(end.requestEligibleAt).toBe("2026-02-02T07:00:00.000Z");
   });
 
+  it("defers a weekend event inside overnight quiet hours to the first weekday quiet end", () => {
+    const result = previewProjectUpdateSchedule({
+      ...defaults,
+      timeZone: "UTC",
+      logicalDueAt: "2026-02-07T23:00:00.000Z",
+      cadence: {
+        reminderBusinessDayOffsets: [],
+        escalationAfterBusinessDays: 0,
+        escalationRecipientSubject: null,
+        quietHoursStartLocal: "22:00",
+        quietHoursEndLocal: "08:00",
+      },
+    });
+    expect(result.requestEligibleAt).toBe("2026-02-09T08:00:00.000Z");
+    expect(result.events[0]!.localAt).toBe("2026-02-09T08:00:00.000");
+  });
+
   it("resolves daylight-saving gaps forward to the first valid local minute and overlaps to the earlier instant", () => {
     expect(resolveProjectScheduleWallTime(
       "2026-03-29T02:30:00.000",
@@ -122,6 +139,11 @@ describe("Project update schedule calculation", () => {
       "2026-10-25T02:30:00.000",
       "Europe/Paris",
     )).toBe(Date.parse("2026-10-25T00:30:00.000Z"));
+    expect(resolveProjectScheduleWallTime(
+      "2026-11-01T01:30:00.000",
+      "America/New_York",
+      Date.parse("2026-11-01T06:15:00.000Z"),
+    )).toBe(Date.parse("2026-11-01T06:30:00.000Z"));
   });
 
   it("rejects unordered or unbounded stages, invalid quiet hours, and incomplete escalation configuration", () => {

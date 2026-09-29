@@ -212,10 +212,16 @@ function wallFromEpoch(epoch: number): WallParts {
 }
 
 /** Resolve a project-local wall time; overlaps choose the earlier instant and gaps the first valid minute. */
-export function resolveProjectScheduleWallTime(value: unknown, zoneValue: unknown) {
+export function resolveProjectScheduleWallTime(
+  value: unknown,
+  zoneValue: unknown,
+  notBeforeEpoch?: number,
+) {
   const wall = localDateTime.safeParse(value);
   const zone = projectUpdateTimeZoneSchema.safeParse(zoneValue);
-  if (!wall.success || !zone.success) throw new Error("Invalid project update schedule wall time");
+  if (!wall.success || !zone.success ||
+      (notBeforeEpoch !== undefined && !Number.isFinite(notBeforeEpoch)))
+    throw new Error("Invalid project update schedule wall time");
   const [date, clock] = wall.data.split("T");
   const [hour, minute, secondAndMs] = clock!.split(":");
   const [second, millisecond] = secondAndMs!.split(".");
@@ -228,11 +234,13 @@ export function resolveProjectScheduleWallTime(value: unknown, zoneValue: unknow
   };
   const naive = wallEpoch(local);
   const offsets = offsetsNear(naive, zone.data);
-  const exact = exactInstants(local, zone.data, offsets);
+  const atOrAfter = (instants: number[]) =>
+    instants.filter((epoch) => notBeforeEpoch === undefined || epoch >= notBeforeEpoch);
+  const exact = atOrAfter(exactInstants(local, zone.data, offsets));
   if (exact.length) return exact[0]!;
   for (let minuteAfter = 1; minuteAfter <= 1440; minuteAfter += 1) {
     const next = wallFromEpoch(naive + minuteAfter * 60000);
-    const resolved = exactInstants(next, zone.data, offsets);
+    const resolved = atOrAfter(exactInstants(next, zone.data, offsets));
     if (resolved.length) return resolved[0]!;
   }
   throw new Error("Unresolvable project update schedule wall time");
@@ -289,6 +297,14 @@ function nextEligible(epoch: number, zone: string, start: string | null, end: st
   let result = epoch;
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const parts = fieldsAt(result, zone);
+    if (insideQuietHours(parts, start, end)) {
+      result = resolveProjectScheduleWallTime(
+        localValue(quietEnd(parts, start!, end!)),
+        zone,
+        result,
+      );
+      continue;
+    }
     const day = weekday(dateValue(parts));
     if (day === 0 || day === 6) {
       let date = dateValue(parts);
@@ -297,13 +313,7 @@ function nextEligible(epoch: number, zone: string, start: string | null, end: st
         date + "T" + pad(parts.hour) + ":" + pad(parts.minute) + ":" +
           pad(parts.second) + "." + pad(parts.millisecond, 3),
         zone,
-      );
-      continue;
-    }
-    if (insideQuietHours(parts, start, end)) {
-      result = resolveProjectScheduleWallTime(
-        localValue(quietEnd(parts, start!, end!)),
-        zone,
+        result,
       );
       continue;
     }
