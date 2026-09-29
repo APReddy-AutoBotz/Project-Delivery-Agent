@@ -32043,6 +32043,7 @@
                               ]
                             },
                             {
+                              "type": "string",
                               "enum": [
                                 null
                               ],
@@ -33302,6 +33303,7 @@
                               ]
                             },
                             {
+                              "type": "string",
                               "enum": [
                                 null
                               ],
@@ -34479,6 +34481,7 @@
                           ]
                         },
                         {
+                          "type": "string",
                           "enum": [
                             null
                           ],
@@ -34905,6 +34908,7 @@
                           ]
                         },
                         {
+                          "type": "string",
                           "enum": [
                             null
                           ],
@@ -35315,6 +35319,7 @@
                         ]
                       },
                       {
+                        "type": "string",
                         "enum": [
                           null
                         ],
