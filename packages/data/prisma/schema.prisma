@@ -106,7 +106,7 @@ model ProjectFact {
   bindingBirthId String? @unique @db.Uuid
   revision Int @default(0)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
-  project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ScheduleHealthPolicyRevision_project_fk")
+  project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
   sources FactSource[]
   versions ProjectFactVersion[]
   authorityConflicts FactAuthorityConflict[]
@@ -1194,7 +1194,7 @@ model ScheduleHealthPolicyRevision {
   targetOverrides Json
   changedBy String @db.VarChar(256)
   changedAt DateTime @db.Timestamptz(3)
-  project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
+  project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ScheduleHealthPolicyRevision_project_fk")
   @@unique([customerId, projectId, revision], map: "ScheduleHealthPolicyRevision_scope_revision")
   @@index([customerId, projectId, revision], map: "ScheduleHealthPolicyRevision_latest_idx")
 }
