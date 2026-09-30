@@ -409,3 +409,134 @@ export function previewProjectUpdateSchedule(value: unknown): ProjectUpdateSched
     events: schedule,
   });
 }
+
+
+// EXEC-015 Stage 2b, FR-UPD-006/007 and FR-ESC-004/006.
+// These server-selected inputs describe one recipient-stage. They do not grant
+// recipient access, activate an obligation or authorize an adapter call.
+export const projectUpdateRecipientStageInputSchema = z.strictObject({
+  kind: z.enum(["REQUEST", "REMINDER", "ESCALATION"]),
+  ordinal: z.number().int().min(0).max(90),
+  recipientSubject: canonicalSubjectSchema,
+  recipientRole: z.enum(["OWNER", "PROJECT_MANAGER"]),
+  logicalDueAt: instant,
+  // The authorized owner request anchors business-day progression. PM
+  // escalation receives the owner's escalation instant and applies its own
+  // calendar, so a distant zone cannot escalate before the unanswered stages.
+  anchorAt: instant,
+  recipientTimeZone: projectUpdateTimeZoneSchema.nullable(),
+  projectTimeZone: projectUpdateTimeZoneSchema.nullable(),
+  customerTimeZone: projectUpdateTimeZoneSchema,
+  quietHoursStartLocal: projectUpdateLocalTimeSchema.nullable(),
+  quietHoursEndLocal: projectUpdateLocalTimeSchema.nullable(),
+}).superRefine((input, context) => {
+  if ((input.kind === "REQUEST" && (input.ordinal !== 0 || input.recipientRole !== "OWNER")) ||
+      (input.kind === "REMINDER" && (input.ordinal === 0 || input.recipientRole !== "OWNER")) ||
+      (input.kind === "ESCALATION" && input.ordinal === 0))
+    context.addIssue({ code: "custom", message: "Invalid recipient-stage identity" });
+  if (input.kind === "REQUEST" && input.anchorAt !== input.logicalDueAt)
+    context.addIssue({ code: "custom", path: ["anchorAt"], message: "Request anchor must equal logical due time" });
+  if (Date.parse(input.anchorAt) < Date.parse(input.logicalDueAt))
+    context.addIssue({ code: "custom", path: ["anchorAt"], message: "Anchor cannot precede logical due time" });
+  const start = input.quietHoursStartLocal;
+  const end = input.quietHoursEndLocal;
+  if ((start === null) !== (end === null) || (start !== null && start === end))
+    context.addIssue({ code: "custom", message: "Quiet hours require two different local times" });
+});
+export type ProjectUpdateRecipientStageInput = z.infer<typeof projectUpdateRecipientStageInputSchema>;
+
+type ScheduleDeferralReason = "WEEKEND" | "QUIET_HOURS" | "DST_GAP";
+export type ProjectUpdateRecipientStageSnapshot = {
+  kind: "REQUEST" | "REMINDER" | "ESCALATION";
+  ordinal: number;
+  recipientSubject: string;
+  recipientRole: "OWNER" | "PROJECT_MANAGER";
+  logicalDueAt: string;
+  candidateAt: string;
+  scheduledAt: string;
+  localAt: string;
+  utcOffset: string;
+  timeZone: string;
+  zoneSource: "RECIPIENT" | "PROJECT" | "CUSTOMER";
+  deferralReasons: ScheduleDeferralReason[];
+  ruleRevision: "engagement-schedule@1";
+};
+
+function resolveEngagementWall(parts: WallParts, timeZone: string) {
+  const naive = wallEpoch(parts);
+  const exact = exactInstants(parts, timeZone, offsetsNear(naive, timeZone));
+  return {
+    epoch: exact.length ? exact[0]! : resolveProjectScheduleWallTime(localValue(parts), timeZone),
+    gap: exact.length === 0,
+  };
+}
+function eligibleEngagementInstant(
+  epoch: number, zone: string, start: string | null, end: string | null,
+  initialReasons: ScheduleDeferralReason[] = [],
+) {
+  let result = epoch;
+  const reasons = new Set<ScheduleDeferralReason>(initialReasons);
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const parts = fieldsAt(result, zone);
+    if (insideQuietHours(parts, start, end)) {
+      reasons.add("QUIET_HOURS");
+      const resolved = resolveEngagementWall(quietEnd(parts, start!, end!), zone);
+      if (resolved.gap) reasons.add("DST_GAP");
+      if (resolved.epoch < result) throw new Error("Engagement schedule moved backward");
+      result = resolved.epoch;
+      continue;
+    }
+    const day = weekday(dateValue(parts));
+    if (day === 0 || day === 6) {
+      reasons.add("WEEKEND");
+      let date = dateValue(parts);
+      do { date = addCalendarDays(date, 1); } while (weekday(date) === 0 || weekday(date) === 6);
+      const resolved = resolveEngagementWall({ ...parts, ...datePart(date) }, zone);
+      if (resolved.gap) reasons.add("DST_GAP");
+      if (resolved.epoch < result) throw new Error("Engagement schedule moved backward");
+      result = resolved.epoch;
+      continue;
+    }
+    return { epoch: result, reasons: [...reasons] };
+  }
+  throw new Error("Unable to find an eligible engagement schedule time");
+}
+
+/**
+ * Deterministic immutable snapshot for an authorized recipient-stage.
+ * Owner offsets use the owner's local request wall time. For PM escalation,
+ * anchorAt is the already calculated owner escalation instant; no additional
+ * ordinal days are added. The repository must check that policy binding.
+ */
+export function planProjectUpdateRecipientStage(value: unknown): ProjectUpdateRecipientStageSnapshot {
+  const input = projectUpdateRecipientStageInputSchema.parse(value);
+  const timeZone = input.recipientTimeZone ?? input.projectTimeZone ?? input.customerTimeZone;
+  const zoneSource = input.recipientTimeZone !== null ? "RECIPIENT" as const
+    : input.projectTimeZone !== null ? "PROJECT" as const : "CUSTOMER" as const;
+  const anchorEpoch = Date.parse(input.anchorAt);
+  let candidate = { epoch: anchorEpoch, gap: false };
+  if (input.recipientRole === "OWNER" && input.kind !== "REQUEST") {
+    const local = fieldsAt(anchorEpoch, timeZone);
+    const date = addBusinessDays(dateValue(local), input.ordinal);
+    candidate = resolveEngagementWall({ ...local, ...datePart(date) }, timeZone);
+  }
+  const eligible = eligibleEngagementInstant(
+    candidate.epoch, timeZone, input.quietHoursStartLocal, input.quietHoursEndLocal,
+    candidate.gap ? ["DST_GAP"] : [],
+  );
+  return {
+    kind: input.kind,
+    ordinal: input.ordinal,
+    recipientSubject: input.recipientSubject,
+    recipientRole: input.recipientRole,
+    logicalDueAt: input.logicalDueAt,
+    candidateAt: new Date(candidate.epoch).toISOString(),
+    scheduledAt: new Date(eligible.epoch).toISOString(),
+    localAt: localValue(fieldsAt(eligible.epoch, timeZone)).slice(0, 19),
+    utcOffset: offsetText(offsetMinutesAt(eligible.epoch, timeZone)),
+    timeZone,
+    zoneSource,
+    deferralReasons: eligible.reasons,
+    ruleRevision: "engagement-schedule@1",
+  };
+}
