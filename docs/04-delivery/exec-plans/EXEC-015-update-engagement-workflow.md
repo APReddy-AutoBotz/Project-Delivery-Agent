@@ -114,6 +114,8 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 - 2026-09-30: Production legacy-upgrade evidence exposed an intermediate-fixture misuse of current release ACL reconstruction: the deliberately pre-cadence 20-migration fixture has neither cadence nor engagement functions yet. Apply only the migration engine to this intermediate owner-only fixture, then retain the final full migrateRelease and ACL verification after all 22 migrations. Production release ACLs remain complete and strict.
 
+- 2026-09-30: Candidate 8dbac passed native verify and production migration/whole-database restore probes. The additional independent prefix-six host inventory still omitted the four new empty tables; extend that explicit assertion while retaining exact prior-history and row checks. Final Foundation remains failed until fresh complete validation passes.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.

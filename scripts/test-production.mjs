@@ -639,6 +639,10 @@ try {
         "ProjectUpdateAssessment",
         "ProjectUpdateObligation",
         "ProjectUpdatePreview",
+        "ProjectUpdateEngagement",
+        "ProjectUpdateStage",
+        "ProjectUpdateOutbox",
+        "ProjectUpdateDispatchAttempt",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [
