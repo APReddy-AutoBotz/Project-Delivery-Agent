@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import {
   createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectUpdateRepository,
+  DatabaseProjectFactRepository, DatabaseAuthorityRepository,
 } from "../../packages/data/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
@@ -62,13 +63,27 @@ export async function verifyEngagementStoragePrivileges(pool) {
   assert.equal(functions.length, engagementStorageFunctions.length);
   assert(functions.every((row) => !row.prosecdef && row.owner === "pdaa_migrate"));
 }
-export async function verifyUpdateEngagementStorage(databaseUrl) {
-  const target = new URL(databaseUrl);
-  if (process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "synthetic" ||
-      !["localhost","127.0.0.1"].includes(target.hostname) || !/^\/pdaa_test_[0-9]+$/.test(target.pathname))
-    throw new Error("Engagement storage checks require an isolated synthetic database");
-  const db = createDatabase(databaseUrl);
-  const pool = new Pool({ connectionString: databaseUrl });
+export async function verifyUpdateEngagementStorage(databaseConnection) {
+  if (typeof databaseConnection === "string") {
+    const target = new URL(databaseConnection);
+    if (process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "synthetic" ||
+        !["localhost","127.0.0.1"].includes(target.hostname) || !/^\/pdaa_test_[0-9]+$/.test(target.pathname))
+      throw new Error("Engagement storage checks require an isolated synthetic database");
+  } else {
+    // Only the disposable customer-composition acceptance fixture may exercise
+    // this seed through a production configuration.
+    assert.equal(process.env.PDAA_ACCEPTANCE, "customer-composition");
+    assert.match(process.env.PDAA_ACCEPTANCE_RUN_ID, /^pdaa-acceptance-\d+-[a-f0-9]{8}$/);
+    assert.equal(process.env.NODE_ENV, "production");
+    assert.equal(process.env.DATA_MODE, "customer");
+    assert.equal(process.env.DEPLOYMENT_MODE, "customer");
+    assert.equal(process.env.CUSTOMER_ID, "10000000-0000-4000-8000-000000000002");
+    assert(["database","external-database"].includes(databaseConnection?.host));
+    assert.equal(databaseConnection.database, "pdaa");
+  }
+  const db = createDatabase(databaseConnection);
+  const pool = new Pool(typeof databaseConnection === "string"
+    ? { connectionString: databaseConnection } : databaseConnection);
   try {
     const customerId = process.env.CUSTOMER_ID;
     assert(customerId);
@@ -78,7 +93,23 @@ export async function verifyUpdateEngagementStorage(databaseUrl) {
     await db.accessGrant.create({ data: {
       customerId, subject: actor.subject, scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin",
     } });
-    const project = await new DatabaseCanonicalProjectRepository(db).createProject(
+    const now = (await pool.query("SELECT date_trunc('milliseconds',clock_timestamp()) AS now")).rows[0].now;
+    const createdAt = new Date(now.getTime() - 8 * 86400000);
+    const birthDb = {
+      $transaction: (operation, options) => db.$transaction(async (tx) => operation(
+        new Proxy(tx, { get(target, key) {
+          if (key === "canonicalProject") return new Proxy(target.canonicalProject, { get(delegate, method) {
+            if (method === "create") return (args) => delegate.create({
+              ...args, data: { ...args.data, createdAt },
+            });
+            const value = Reflect.get(delegate, method);
+            return typeof value === "function" ? value.bind(delegate) : value;
+          } });
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        } })), options),
+    };
+    const project = await new DatabaseCanonicalProjectRepository(birthDb).createProject(
       actor, canonicalFixture(portfolioId), randomUUID());
     const projectId = project.id;
     await db.accessGrant.create({ data: {
@@ -86,13 +117,13 @@ export async function verifyUpdateEngagementStorage(databaseUrl) {
     } });
     const updates = new DatabaseProjectUpdateRepository(db);
     await updates.setPolicy(actor, projectId, {
-      expectedRevision: 0, freshnessWindowSeconds: 1, timeZone: "UTC",
-      requiredFacts: [{ factType: "project.status", label: "Current status" }],
+      expectedRevision: 0, freshnessWindowSeconds: 3600, timeZone: "UTC",
+      requiredFacts: [{ factType: "project.status", label: "Current status" },
+        { factType: "project.forecast", label: "Current forecast" }],
       responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false,
       reminderBusinessDayOffsets: [1,2,4], escalationAfterBusinessDays: 5,
       escalationRecipientSubject: "synthetic-owner-1", quietHoursStartLocal: "22:00", quietHoursEndLocal: "07:00",
     }, randomUUID());
-    await new Promise((resolve) => setTimeout(resolve, 1200));
     await updates.assess(actor, projectId, randomUUID());
     await updates.assess(actor, projectId, randomUUID());
     const obligation = (await pool.query(`SELECT * FROM "ProjectUpdateObligation"
@@ -213,6 +244,30 @@ export async function verifyUpdateEngagementStorage(databaseUrl) {
     const history = (await pool.query(`SELECT event,"claimGeneration" FROM "ProjectUpdateDispatchAttempt"
       WHERE "outboxId"=$1 ORDER BY "recordedAt",event`,[unknown])).rows;
     assert.deepEqual(history.map((row) => row.event).sort(),["ENQUEUED","CLAIMED","HANDED_OFF","UNKNOWN"].sort());
+    // Re-assess a genuine authorized human version. The forecast remains
+    // missing, so the original durable obligation stays open with a nonempty
+    // source-satisfaction mask pinned to an immutable same-policy assessment.
+    const facts = new DatabaseProjectFactRepository(db);
+    const authority = new DatabaseAuthorityRepository(db);
+    await facts.appendHumanStatement(actor, {
+      projectId, factType: "project.status", expectedRevision: 0,
+      idempotencyKey: randomUUID(), effectiveAt: new Date().toISOString(),
+      value: { type: "text", value: "Synthetic recovery status" },
+      originalStatement: "Synthetic recovery status",
+    }, { correlationId: randomUUID() });
+    await authority.appendPolicy(actor, {
+      projectId, factType: "project.status", expectedRevision: 0,
+      idempotencyKey: randomUUID(), effectiveAt: "2026-01-01T00:00:00.000Z",
+      definition: { tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null,
+        requiredApproval: "NOT_REQUIRED", validity: { basis: "observedAt", durationMs: 31536000000 } }] }],
+        conflictBehavior: "REQUEST_RECONCILIATION" },
+    }, { correlationId: randomUUID() });
+    await updates.assess(actor, projectId, randomUUID());
+    const source = (await pool.query(`SELECT "sourceSatisfiedFactTypes","sourceAssessmentId","sourceAssessedAt"
+      FROM "ProjectUpdateEngagement" WHERE id=$1`, [engagementId])).rows[0];
+    assert.deepEqual(source.sourceSatisfiedFactTypes, ["project.status"]);
+    assert(source.sourceAssessmentId);
+    assert(source.sourceAssessedAt instanceof Date);
     // Verify both initial migration ACL and reconstruction after --no-acl restore.
     await verifyEngagementStoragePrivileges(pool);
     for (const name of engagementStorageFunctions)
@@ -236,6 +291,8 @@ export async function verifyUpdateEngagementStorage(databaseUrl) {
     assert.equal((await pool.query(`SELECT has_column_privilege('pdaa_api','public."ProjectUpdateObligation"',
       'supersededAt','UPDATE') AS allowed`)).rows[0].allowed,true);
     return { projectId,engagementId,unknownOutboxId:unknown,quietOutboxId:quiet,
+      sourceSatisfiedFactTypes:source.sourceSatisfiedFactTypes,
+      sourceAssessmentId:source.sourceAssessmentId,sourceAssessedAt:source.sourceAssessedAt.toISOString(),
       stageCount:5,atomicIntent:true,concurrentClaim:true,preHandoffReclaim:true,
       postHandoffUnknown:true,immutableReceipts:true,quietReasonStored:true,finiteAcl:true };
   } finally { await db.$disconnect(); await pool.end(); }
@@ -246,6 +303,23 @@ export async function verifyRestoredEngagementStorage(database,evidence) {
   for (const table of engagementStorageTables)
     assert((await database.$queryRawUnsafe(`SELECT count(*)::int AS n FROM "${table}"`))[0].n>0,
       "Restore must include populated " + table);
+  const source = (await database.$queryRawUnsafe(`
+    SELECT e."sourceSatisfiedFactTypes",e."sourceAssessmentId",e."sourceAssessedAt",
+      a."policyRevisionId",a."policyRevision",a."assessedAt",a.result,
+      e."policyRevisionId" AS "engagementPolicyId",e."policyRevision" AS "engagementPolicyRevision"
+    FROM "ProjectUpdateEngagement" e JOIN "ProjectUpdateAssessment" a
+      ON a."customerId"=e."customerId" AND a."projectId"=e."projectId" AND a.id=e."sourceAssessmentId"
+    WHERE e.id=$1::uuid`, evidence.engagementId))[0];
+  assert(source, "Restore must preserve the source assessment reference");
+  assert.deepEqual(source.sourceSatisfiedFactTypes, ["project.status"]);
+  assert.deepEqual(source.sourceSatisfiedFactTypes, evidence.sourceSatisfiedFactTypes);
+  assert.equal(source.sourceAssessmentId, evidence.sourceAssessmentId);
+  assert.equal(source.sourceAssessedAt.toISOString(), evidence.sourceAssessedAt);
+  assert.equal(source.sourceAssessedAt.getTime(), source.assessedAt.getTime());
+  assert.equal(source.policyRevisionId, source.engagementPolicyId);
+  assert.equal(source.policyRevision, source.engagementPolicyRevision);
+  assert.deepEqual(source.result.engagementFacts.filter((fact) => fact.state === "SATISFIED")
+    .map((fact) => fact.factType).sort(), source.sourceSatisfiedFactTypes);
   const outcome = (await database.$queryRawUnsafe(
     'SELECT state,"handoffAt" FROM "ProjectUpdateOutbox" WHERE id=$1::uuid',evidence.unknownOutboxId))[0];
   assert.equal(outcome.state,"UNKNOWN");

@@ -1,7 +1,7 @@
 // NFR-SEC-001 / TR-API-001: identity, bounded inputs and denial responses.
-import "reflect-metadata";
+import "../apps/api/dist/app.js";
 import { describe, expect, it, vi } from "vitest";
-import { ProjectUpdateController, unavailableProjectUpdateRepository } from "../apps/api/src/project-update-controller.js";
+import { ProjectUpdateController, unavailableProjectUpdateRepository } from "../apps/api/dist/project-update-controller.js";
 import { ProjectUpdateError } from "../packages/domain/dist/index.js";
 const projectId = "30000000-0000-4000-8000-000000000001";
 const actor = { customerId: "10000000-0000-4000-8000-000000000001", subject: "operator", roles: ["pmo_admin"] };

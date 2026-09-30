@@ -106,7 +106,8 @@ import {
   scanBrowserAssets,
 } from "./disclosure.mjs";
 
-import { engagementStorageTables, verifyEngagementStoragePrivileges } from "./update-engagement-storage.mjs";
+import { engagementStorageTables, verifyEngagementStoragePrivileges,
+  verifyUpdateEngagementStorage, verifyRestoredEngagementStorage } from "./update-engagement-storage.mjs";
 const env = process.env;
 const projectUpdateTables = [
   "ProjectUpdatePolicy",
@@ -744,7 +745,9 @@ try {
     } finally {
       await scalarOwner.$disconnect();
     }
+    const engagementStorage = await verifyUpdateEngagementStorage(connection);
     save("project-fact-persistence", {
+      engagementStorage,
       status: "awaiting-restore",
       workerRuntimeDenied: await verifyWorkerFactDenials(
         loadDatabaseConfig({
@@ -910,7 +913,13 @@ try {
           receipt.milestoneReconciliationFixture.restoreProbes,
         );
       await verifyMilestoneReconciliationIntegrity(restored);
+      const restoredEngagementDb = createDatabase({ ...connection, database: "pdaa_restore" });
+      try {
+        await verifyRestoredEngagementStorage(restoredEngagementDb, receipt.engagementStorage);
+      } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
+        engagementStorageChecked: true,
+        engagementSourceSatisfactionChecked: true,
         scalarReconciliationOriginalProof: await (async () => {
           await verifyScalarReconciliationPrivileges(restored);
           await verifyScalarReconciliationIntegrity(restored);

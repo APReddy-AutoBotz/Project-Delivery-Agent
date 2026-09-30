@@ -1,5 +1,9 @@
 -- EXEC-015 Stage 2b; FR-UPD-007/010, FR-ESC-006, NFR-SEC-001, NFR-REL-002.
 -- Existing activation, stages and receipts retain their immutable lineage.
+-- Timer reservations rotate failures independently of the material outbox tx.
+ALTER TABLE public."ProjectUpdatePolicy"
+  ADD COLUMN "engagementProcessLastAttemptAt" timestamptz(3),
+  ADD COLUMN "engagementProcessNextEligibleAt" timestamptz(3);
 ALTER TABLE public."ProjectUpdateEngagement"
   ADD COLUMN "sourceSatisfiedFactTypes" text[] NOT NULL DEFAULT ARRAY[]::text[],
   ADD COLUMN "sourceAssessmentId" uuid,
@@ -69,7 +73,7 @@ BEGIN
     RAISE EXCEPTION 'Engagement outbox history cannot be deleted' USING ERRCODE='55000';
   END IF;
   SELECT * INTO stage FROM public."ProjectUpdateStage"
-    WHERE "customerId"=NEW."customerId" AND "projectId"=NEW."projectId" AND id=NEW."stageId" FOR SHARE;
+    WHERE "customerId"=NEW."customerId" AND "projectId"=NEW."projectId" AND id=NEW."stageId";
   IF stage.id IS NULL OR NEW."availableAt"<stage."scheduledAt" THEN
     RAISE EXCEPTION 'Invalid engagement outbox identity' USING ERRCODE='55000';
   END IF;

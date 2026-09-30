@@ -456,6 +456,8 @@ try {
   assert.equal(record.projectFactPersistence.status, "passed");
   assert.equal(record.projectFactPersistence.upgrade.status, "passed");
   assert.equal(record.projectFactPersistence.restore.status, "passed");
+  assert.equal(record.projectFactPersistence.restore.engagementStorageChecked, true);
+  assert.equal(record.projectFactPersistence.restore.engagementSourceSatisfactionChecked, true);
   const canonicalPersistence = record.projectFactPersistence;
   assertScalarConcurrencyAndLoad(
     canonicalPersistence,
@@ -884,6 +886,8 @@ try {
       "10000000-0000-4000-8000-000000000002",
       "postgres",
     );
+    assert.equal(persistence.restore.engagementStorageChecked, true);
+    assert.equal(persistence.restore.engagementSourceSatisfactionChecked, true);
     assert.equal(persistence.restore.canonicalIntegrityChecked, true);
     assert.equal(persistence.restore.canonicalImmutableChecked, true);
     assert.equal(persistence.restore.canonicalCommitGuards.actualCommit, true);

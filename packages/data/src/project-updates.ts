@@ -314,7 +314,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   ) {
     if (subject === null) return;
     const responsibilities = await tx.$queryRawUnsafe<{ subject: string }[]>(
-      'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'PROJECT_MANAGER\' AND subject=$3 FOR SHARE',
+      'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'PROJECT_MANAGER\' AND subject=$3',
       customerId, projectId, subject,
     );
     if (!responsibilities[0]) throw new ProjectUpdateError("INVALID_REQUEST");
@@ -364,7 +364,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       catch { throw new ProjectUpdateError("DENIED"); }
       await this.loadProject(tx, current.customerId, id);
       const owner = await tx.$queryRawUnsafe<{ subject: string }[]>(
-        'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'RESPONSIBLE_OWNER\' AND subject=$3 FOR SHARE',
+        'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'RESPONSIBLE_OWNER\' AND subject=$3',
         current.customerId, id, change.responsibleSubject,
       );
       if (!owner[0]) throw new ProjectUpdateError("INVALID_REQUEST");
@@ -666,11 +666,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       });
       const assessmentId = randomUUID();
       const open = await this.currentOpen(tx, current.customerId, id);
-      const stale = freshnessAssessment.freshness.state === "STALE";
       const activeCycle = open ? await tx.$queryRawUnsafe<{ id: string }[]>(
         'SELECT id FROM public."ProjectUpdateEngagement" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "obligationId"=$3::uuid AND state IN (\'ACTIVE\',\'PAUSED\') FOR UPDATE',
         current.customerId, id, open.id,
       ) : [];
+      const samePolicy = open !== null && open.policyRevisionId === policy.policyRevisionId &&
+        open.policyRevision === policy.revision;
+      const stale = freshnessAssessment.freshness.state === "STALE" ||
+        (activeCycle.length > 0 && samePolicy && source.remainingFactTypes.length > 0);
       // A durable cycle keeps its pending actions while any required facts remain
       // unresolved. New source timestamps do not discard an active request.
       const reuse = stale && open !== null &&
@@ -833,7 +836,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
 
   private async recipientAuthorized(tx: Tx, customerId: string, projectId: string, subject: string, role: "OWNER" | "PROJECT_MANAGER") {
     const rows = await tx.$queryRawUnsafe<{ subject: string }[]>(
-      "SELECT subject FROM public.\"ProjectResponsibility\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND subject=$3 AND role=$4 FOR SHARE",
+      "SELECT subject FROM public.\"ProjectResponsibility\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND subject=$3 AND role=$4",
       customerId, projectId, subject, role === "OWNER" ? "RESPONSIBLE_OWNER" : "PROJECT_MANAGER",
     );
     if (!rows[0]) return false;
@@ -893,7 +896,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
 
   private async pendingStages(tx: Tx, current: Actor, projectId: string, engagementId: string): Promise<PendingStage[]> {
     return tx.$queryRawUnsafe<PendingStage[]>(
-      "SELECT s.id,s.\"engagementId\",s.generation,s.kind,s.ordinal,s.\"recipientSubject\",s.\"recipientRole\",s.\"factTypes\",s.\"timeZone\",s.\"zoneSource\",to_char(s.\"logicalDueAt\" AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS \"logicalDueAt\",to_char(s.\"candidateAt\" AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS \"candidateAt\",to_char(s.\"scheduledAt\" AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS \"scheduledAt\",s.\"localAt\",s.\"utcOffset\",s.\"deferralReasons\",s.\"ruleRevision\",s.mode,o.id AS \"outboxId\",o.state AS \"outboxState\",o.\"claimGeneration\",o.\"availableAt\",o.\"leaseUntil\" FROM public.\"ProjectUpdateStage\" s JOIN public.\"ProjectUpdateOutbox\" o ON o.\"customerId\"=s.\"customerId\" AND o.\"projectId\"=s.\"projectId\" AND o.\"stageId\"=s.id WHERE s.\"customerId\"=$1::uuid AND s.\"projectId\"=$2::uuid AND s.\"engagementId\"=$3::uuid AND o.state IN ('READY','CLAIMED') ORDER BY s.id FOR UPDATE OF o FOR SHARE OF s",
+      "SELECT s.id,s.\"engagementId\",s.generation,s.kind,s.ordinal,s.\"recipientSubject\",s.\"recipientRole\",s.\"factTypes\",s.\"timeZone\",s.\"zoneSource\",to_char(s.\"logicalDueAt\" AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS \"logicalDueAt\",to_char(s.\"candidateAt\" AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS \"candidateAt\",to_char(s.\"scheduledAt\" AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS \"scheduledAt\",s.\"localAt\",s.\"utcOffset\",s.\"deferralReasons\",s.\"ruleRevision\",s.mode,o.id AS \"outboxId\",o.state AS \"outboxState\",o.\"claimGeneration\",o.\"availableAt\",o.\"leaseUntil\" FROM public.\"ProjectUpdateStage\" s JOIN public.\"ProjectUpdateOutbox\" o ON o.\"customerId\"=s.\"customerId\" AND o.\"projectId\"=s.\"projectId\" AND o.\"stageId\"=s.id WHERE s.\"customerId\"=$1::uuid AND s.\"projectId\"=$2::uuid AND s.\"engagementId\"=$3::uuid AND o.state IN ('READY','CLAIMED') ORDER BY s.id FOR UPDATE OF o",
       current.customerId, projectId, engagementId,
     );
   }
@@ -1094,15 +1097,23 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (!this.zones || !this.serviceSubject) return 0;
     const customerId = this.zones.customerId;
     const current: Actor = { customerId, subject: this.serviceSubject, roles: [] };
-    return this.transaction(async (tx) => {
+    const projectId = await this.transaction(async (tx) => {
       // Pick and lock the project first. Other workers skip this project and
       // source/configuration writers use the same project-first lock order.
       const projects = await tx.$queryRawUnsafe<{ projectId: string }[]>(
-        "SELECT p.id AS \"projectId\" FROM public.\"Project\" p JOIN public.\"ProjectUpdatePolicy\" h ON h.\"customerId\"=p.\"customerId\" AND h.\"projectId\"=p.id JOIN public.\"ProjectUpdatePolicyRevision\" r ON r.\"customerId\"=h.\"customerId\" AND r.\"projectId\"=h.\"projectId\" AND r.revision=h.revision WHERE p.\"customerId\"=$1::uuid AND r.\"scheduledScanEnabled\" AND r.\"scheduledServiceSubject\"=$2 AND EXISTS (SELECT 1 FROM public.\"ProjectUpdateEngagement\" e JOIN public.\"ProjectUpdateStage\" s ON s.\"customerId\"=e.\"customerId\" AND s.\"projectId\"=e.\"projectId\" AND s.\"engagementId\"=e.id JOIN public.\"ProjectUpdateOutbox\" o ON o.\"customerId\"=s.\"customerId\" AND o.\"projectId\"=s.\"projectId\" AND o.\"stageId\"=s.id WHERE e.\"customerId\"=p.\"customerId\" AND e.\"projectId\"=p.id AND e.state IN ('ACTIVE','PAUSED') AND s.mode='SHADOW' AND ((o.state='READY' AND o.\"availableAt\"<=clock_timestamp()) OR (o.state='CLAIMED' AND o.\"leaseUntil\"<=clock_timestamp()))) ORDER BY p.id LIMIT 1 FOR UPDATE OF p SKIP LOCKED",
+        "SELECT p.id AS \"projectId\" FROM public.\"Project\" p JOIN public.\"ProjectUpdatePolicy\" h ON h.\"customerId\"=p.\"customerId\" AND h.\"projectId\"=p.id JOIN public.\"ProjectUpdatePolicyRevision\" r ON r.\"customerId\"=h.\"customerId\" AND r.\"projectId\"=h.\"projectId\" AND r.revision=h.revision WHERE p.\"customerId\"=$1::uuid AND (h.\"engagementProcessNextEligibleAt\" IS NULL OR h.\"engagementProcessNextEligibleAt\"<=clock_timestamp()) AND r.\"scheduledScanEnabled\" AND r.\"scheduledServiceSubject\"=$2 AND EXISTS (SELECT 1 FROM public.\"ProjectUpdateEngagement\" e JOIN public.\"ProjectUpdateStage\" s ON s.\"customerId\"=e.\"customerId\" AND s.\"projectId\"=e.\"projectId\" AND s.\"engagementId\"=e.id JOIN public.\"ProjectUpdateOutbox\" o ON o.\"customerId\"=s.\"customerId\" AND o.\"projectId\"=s.\"projectId\" AND o.\"stageId\"=s.id WHERE e.\"customerId\"=p.\"customerId\" AND e.\"projectId\"=p.id AND e.state IN ('ACTIVE','PAUSED') AND s.mode='SHADOW' AND ((o.state='READY' AND o.\"availableAt\"<=clock_timestamp()) OR (o.state='CLAIMED' AND o.\"leaseUntil\"<=clock_timestamp()))) ORDER BY h.\"engagementProcessLastAttemptAt\" ASC NULLS FIRST,p.id LIMIT 1 FOR UPDATE OF p SKIP LOCKED",
         customerId, this.serviceSubject,
       );
-      if (!projects[0]) return 0;
-      const projectId = projects[0].projectId;
+      if (!projects[0]) return null;
+      const selected = projects[0].projectId;
+      await tx.$executeRawUnsafe(
+        "UPDATE public.\"ProjectUpdatePolicy\" SET \"engagementProcessLastAttemptAt\"=date_trunc('milliseconds',clock_timestamp()),\"engagementProcessNextEligibleAt\"=clock_timestamp()+interval '1 minute' WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid", customerId, selected,
+      );
+      return selected;
+    });
+    if (!projectId) return 0;
+    try {
+      return await this.transaction(async (tx) => {
       const correlationId = randomUUID();
       const prepared = await this.assessInTransaction(tx, current, projectId, correlationId, true);
       const engagements = await tx.$queryRawUnsafe<EngagementRow[]>(
@@ -1149,8 +1160,22 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         }
       }
       return processed;
-    });
+      });
+    } catch (error) {
+      // This timer survives rollback of source/stage work. A poisoned project
+      // cannot monopolize later invocations or discard any pending intent.
+      await this.transaction(async (tx) => {
+        await tx.$queryRawUnsafe(
+          "SELECT id FROM public.\"Project\" WHERE \"customerId\"=$1::uuid AND id=$2::uuid FOR UPDATE", customerId, projectId,
+        );
+        await tx.$executeRawUnsafe(
+          "UPDATE public.\"ProjectUpdatePolicy\" SET \"engagementProcessNextEligibleAt\"=clock_timestamp()+interval '5 minutes' WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid", customerId, projectId,
+        );
+      });
+      throw error;
+    }
   }
+
 
   async assess(actorValue: Actor, projectValue: string, correlationValue: string) {
     const current = parseActor(actorValue);
@@ -1275,7 +1300,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       'FROM public."ProjectUpdateAssessment" a JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=a."customerId" AND r."projectId"=a."projectId" AND r.id=a."policyRevisionId" JOIN public."Project" p ON p."customerId"=a."customerId" AND p.id=a."projectId" JOIN public."CanonicalProject" c ON c."customerId"=p."customerId" AND c.id=p.id LEFT JOIN public."ProjectUpdateObligation" o ON o."customerId"=a."customerId" AND o."projectId"=a."projectId" AND o.state=\'OPEN\' LEFT JOIN public."ProjectUpdatePreview" v ON v."customerId"=o."customerId" AND v."projectId"=o."projectId" AND v."obligationId"=o.id AND v."assessmentId"=a.id AND v.state=\'CURRENT\'',
       'WHERE a."customerId"=$1::uuid AND a."projectId"=$2::uuid',
       ...(policyRevisionId ? ['AND a."policyRevisionId"=$3::uuid'] : []),
-      'ORDER BY a."assessedAt" DESC,a.id DESC LIMIT 1 FOR SHARE OF a,p,c',
+      'ORDER BY a."assessedAt" DESC,a.id DESC LIMIT 1 FOR SHARE OF p,c',
     ].join(" ");
     const rows = await tx.$queryRawUnsafe<AssessmentRow[]>(
       query,
@@ -1326,7 +1351,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       } catch { throw new ProjectUpdateError("UNAVAILABLE"); }
       if (assessment.knownPosition.length !== dependencies.length)
         throw new ProjectUpdateError("DENIED");
-      if (assessment.freshness.state !== "STALE" ||
+      const durable = row.obligationId ? await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id FROM public."ProjectUpdateEngagement" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "obligationId"=$3::uuid AND "policyRevisionId"=$4::uuid AND state IN (\'ACTIVE\',\'PAUSED\')',
+        current.customerId, id, row.obligationId, row.policyRevisionId,
+      ) : [];
+      if ((assessment.freshness.state !== "STALE" && durable.length === 0) ||
           assessment.obligation?.state !== "OPEN")
         throw new ProjectUpdateError("CONFLICT");
 
@@ -1347,10 +1376,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           iso(sourceDate) !== assessment.freshness.sourceDate ||
           input.freshnessThresholdAt !== iso(dueAt) ||
           dueAt.getTime() !== sourceDate.getTime() + policy.freshnessWindowSeconds * 1000 ||
-          dueAt.getTime() !== row.dueAt.getTime() ||
+          (durable.length === 0 && dueAt.getTime() !== row.dueAt.getTime()) ||
           assessment.freshness.freshnessWindowSeconds !== policy.freshnessWindowSeconds ||
           savedSourceTimeBasis !== sourceTimeBasis ||
-          row.assessedAt.getTime() <= dueAt.getTime())
+          row.assessedAt.getTime() <= row.dueAt.getTime())
         throw new ProjectUpdateError("CONFLICT");
 
       return previewProjectUpdateSchedule({
@@ -1361,7 +1390,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         sourceDate: iso(sourceDate),
         sourceDateField: input.sourceDateField,
         sourceTimeBasis,
-        logicalDueAt: iso(dueAt),
+        logicalDueAt: iso(durable.length > 0 ? row.dueAt! : dueAt),
         timeZone: policy.timeZone,
         responsibleSubject: policy.responsibleSubject,
         cadence: policyCadence(policy),
