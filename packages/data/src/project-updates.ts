@@ -416,8 +416,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   private async currentOpen(tx: Tx, customerId: string, id: string) {
     const rows = await tx.$queryRawUnsafe<{
       id: string; cycleHash: string; dueAt: Date; state: "OPEN";
+      policyRevisionId: string; policyRevision: number;
     }[]>(
-      'SELECT id,"cycleHash","freshnessThresholdAt" AS "dueAt",state FROM public."ProjectUpdateObligation" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND state=\'OPEN\' FOR UPDATE',
+      'SELECT id,"cycleHash","freshnessThresholdAt" AS "dueAt",state,"policyRevisionId","policyRevision" FROM public."ProjectUpdateObligation" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND state=\'OPEN\' FOR UPDATE',
       customerId, id,
     );
     return rows[0] ?? null;
@@ -622,7 +623,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const assessmentId = randomUUID();
       const open = await this.currentOpen(tx, current.customerId, id);
       const stale = freshnessAssessment.freshness.state === "STALE";
-      const reuse = stale && open?.cycleHash === cycleHash;
+      const reuse = stale && open !== null && open.cycleHash === cycleHash &&
+        open.policyRevisionId === policy.policyRevisionId && open.policyRevision === policy.revision;
       const supersede = open !== null && !reuse;
       const obligationId = stale
         ? (reuse ? open!.id : randomUUID())
