@@ -110,6 +110,8 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 - 2026-09-30: Independent review also identified the customer composition rehearsal's old 21/74 inventory. Extend its exact installed/backup/restore projection and empty-table checks with all four engagement tables; require current finite ACLs on installed, upgraded and quarantined restored databases. Keep the populated synthetic fixture evidence distinct.
 
+- 2026-09-30: Independent inventory scan found the scalar recovery receipt's active host assertion also pinned 21 migrations / 74 tables. Extend it and its positive/negative fixtures to 22/78, retaining rejection of missing and future migration counts. Candidate fce64's native verify job passed 1,615 unit, 134 integration and 39 browser tests, populated 78-table restore and storage fixtures; production/final candidate gates remain pending.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.
