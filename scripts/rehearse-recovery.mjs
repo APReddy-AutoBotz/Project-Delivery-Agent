@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import { canonicalTables } from "./acceptance/canonical-projects.mjs";
 import { verifyImmutableHistoryMutation } from "./acceptance/immutable-history.mjs";
+import { engagementStorageTables, verifyRestoredEngagementStorage } from "./acceptance/update-engagement-storage.mjs";
 import { verifyRestoredProofIntegrity } from "./acceptance/restored-proof-integrity.mjs";
 import {
   assertSyntheticDatabaseUrl,
@@ -180,7 +181,19 @@ try {
     "HealthAssessment",
     "HealthAssessmentCommandReceipt",
     "ScheduleHealthPolicyRevision",
+    "RaidReopenReceipt",
+    "BlockerAgeThresholdPolicy",
+    "ProjectUpdatePolicy",
+    "ProjectUpdatePolicyRevision",
+    "ProjectUpdateAssessment",
+    "ProjectUpdateObligation",
+    "ProjectUpdatePreview",
+    ...engagementStorageTables,
   ];
+  const actualTables = (await restored.$queryRawUnsafe(
+    "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
+  )).map((row) => row.tablename);
+  assert.deepEqual([...tables].sort(),actualTables,"Recovery inventory must cover every public table");
   for (const table of tables) {
     const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
     assert.deepEqual(
@@ -189,6 +202,8 @@ try {
       "Restored " + table + " rows must match",
     );
   }
+  const engagementEvidence = JSON.parse(readFileSync("artifacts/database-validation.json","utf8")).engagementStorage;
+  await verifyRestoredEngagementStorage(restored,engagementEvidence);
   assert((await restored.projectFactVersion.count()) > 0);
   assert((await restored.factAssessment.count()) > 0);
   for (const table of [
@@ -278,7 +293,7 @@ try {
   if (visible.length !== 1 || visible[0].code !== "ATL")
     throw new Error("Restored permissions differ");
   console.log(
-    `Recovery passed: all 66 business tables and the migration ledger match exactly; ingestion receipt, reviewed import, outcome, cursor, revision, projection, configuration and canonical history mutations were rejected. Restored database: ${target}. No application was started against it.`,
+    `Recovery passed: all ${tables.length - 1} business tables and the migration ledger match exactly; ingestion receipt, reviewed import, outcome, cursor, revision, projection, configuration and canonical history mutations were rejected. Restored database: ${target}. No application was started against it.`,
   );
 } finally {
   await original.$disconnect();

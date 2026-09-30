@@ -6,6 +6,7 @@ settings:
   injectWorkspacePackages: true
 
 overrides:
+  brace-expansion: 5.0.11
   deepmerge-ts: 8.0.0
   multer: 2.3.0
   mysql2: 3.23.1
@@ -70,12 +71,12 @@ importers:
       '@nestjs/swagger':
         specifier: 11.4.7
         version: 11.4.7(@nestjs/common@11.2.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@11.2.3)(reflect-metadata@0.2.2)
-      '@pdaa/data':
-        specifier: workspace:*
-        version: link:../../packages/data
       '@pdaa/connectors-jira':
         specifier: workspace:*
         version: link:../../packages/connectors-jira
+      '@pdaa/data':
+        specifier: workspace:*
+        version: link:../../packages/data
       '@pdaa/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -1334,8 +1335,8 @@ packages:
     resolution: {integrity: sha512-2cGmJupaNgg+QUwVLAucDuWuoMZ6EX9iHDRswZ5lsNYEmwPaRknMPCLZz07yTzVq/83p4o/wzbDZbBrTvGGTIw==}
     engines: {node: '>=18'}
 
-  brace-expansion@5.0.9:
-    resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
+  brace-expansion@5.0.11:
+    resolution: {integrity: sha512-awigjhi6cLTh90bdw6+QJ9CtmJmyYhEIi70iCbc8Rozn04Fw9FeQIBjv/E22FFGuCGx1bLJyUfB64x/szUSXUg==}
     engines: {node: 20 || >=22}
 
   browserslist@4.28.9:
@@ -3816,7 +3817,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  brace-expansion@5.0.9:
+  brace-expansion@5.0.11:
     dependencies:
       balanced-match: 4.0.4
 
@@ -4554,7 +4555,7 @@ snapshots:
 
   minimatch@10.2.6:
     dependencies:
-      brace-expansion: 5.0.9
+      brace-expansion: 5.0.11
 
   ms@2.1.3: {}
 

@@ -1,11 +1,11 @@
 # EXEC-015: Durable update engagement and recipient response
 
-Status: Draft — independent design review pending  
+Status: Approved design — staged implementation in progress  
 Owner: Implementation controller  
 Requirement IDs: FR-UPD-001..012, FR-ESC-001..007, FR-ADM-004, NFR-REL-002, NFR-SEC-001, TR-DATA-001, TR-MSG-001, TR-STACK-006; AC-UPD-002/003/004/006/007/008/009/010, AC-WFL-001  
 GitHub issue: #9  
 Target release: R1  
-Last updated: 2026-09-29
+Last updated: 2026-09-30
 
 ## Objective
 
@@ -89,6 +89,13 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 ## Progress log
 
+- 2026-09-30: Corrected storage candidate passed independent review and 1615 unit tests, then the required high audit gate reported existing development brace-expansion 5.0.9. Prepared the publisher's MIT 5.0.11 patch using pinned pnpm 11.19.0 lockfile-only resolution with scripts disabled. Hosted preparation run 36720861453 read registry metadata and produced the exact lock diff; tarball integrity is `sha512-awigjhi6cLTh90bdw6+QJ9CtmJmyYhEIi70iCbc8Rozn04Fw9FeQIBjv/E22FFGuCGx1bLJyUfB64x/szUSXUg==`. Added finite override/registration and removed the temporary read-only preparation workflow. No audit gate is waived; fresh review and all checks are required.
+
+- 2026-09-30: First Stage 2a independent candidate review found malformed dollar delimiters in one trigger function; fixed them. Hosted validation also identified the centralized function-ACL contract's old inventory; extended its exact validator/guard allowlists without expanding execution privileges. Recovery accepts the new exact engagement TRUNCATE guard when canonical CASCADE reaches linked engagement history. Fresh candidate review/checks are required.
+
+- 2026-09-30: Stage 2a candidate adds engagement, immutable stage snapshots, transactional outbox and automatic append-only transition receipts. Composite lineage preserves the obligation's exact policy/assessment identity; fenced claims can be reclaimed only before handoff, and UNKNOWN is terminal in this slice. API and worker have no privileges on these new tables. Upgrade creates no engagement rows. This is a storage foundation, not capture dispatch, quiet-hour scheduling acceptance or a completed AC-WFL-001 crash rehearsal. Stage 2b must wire same-transaction current-source assessment, current recipient/zone checks, explicit activation, real schedule reason calculation, and signed shadow/capture processing before claiming Stage 2 complete.
+- 2026-09-30: Verified PR #104 design and PR #105 pure stage gate merges, identical reviewed/merged trees and successful post-merge Foundation/Documentation runs. Updated governance and status records; no acceptance totals changed.
+
 - 2026-09-29: Current schema inspection showed ProjectUpdateObligation is immutable except supersession. Clarified that delegation and fact satisfaction update a new linked engagement-state row, preserving the existing trigger and obligation history.
 - 2026-09-29: Final design-delta review clarified that a disabled PM stage cannot block otherwise authorized owner requests; PM recipient validity gates only an enabled PM stage.
 - 2026-09-29: Independent design review found an incomplete delegate transfer and unsafe lease reclaim after possible SMTP handoff. Added atomic old-owner cancel/delegate replan and a durable handoff boundary with UNKNOWN quarantine.
@@ -96,6 +103,18 @@ Keep migrations forward-only and old records readable. A rollback of application
 - 2026-09-29: Independent design review found that the PM escalation already belongs to the applicable revision and the accepted default includes the owner at day-3 escalation. Corrected recipient-stage identity, current-revision PM use, legacy defaults and new-policy send eligibility.
 - 2026-09-29: Independent design review identified the recipient-local scheduling omission. Revised stage snapshots to resolve recipient, project, then customer zones and to reschedule explicitly on zone changes; clarified that SMTP has no exactly-once guarantee.
 - 2026-09-29: Confirmed main `fa1f48e6987520d479ed3697b7472ed38cb29343`, Issue #9 remaining criteria, EXEC-014's no-send boundary, and the worker's scan-only task. Drafted the next engagement workflow design for independent review.
+
+- 2026-09-30: Candidate 60e9c7 passed audit, unit and migration gates, and reached native storage evidence. ACL reconstruction correctly refused older fixture tables owned by the local synthetic superuser. Align only current-user-owned tables in the guarded isolated pdaa_test database with pdaa_migrate, matching the existing prefix-upgrade rehearsal. Production ownership checks remain strict; fresh exact-candidate review and full hosted validation remain required.
+
+- 2026-09-30: Production validation reached TLS/OIDC/runtime authorization checks, then stopped at an old 21-migration inventory assertion. Extend both producer and independent host inventory to migration 22 and the four new business tables; require them empty after legacy upgrades and verify their least-privilege ACLs after upgrade/restore. Populated storage recovery remains covered by the native synthetic rehearsal. No production send or workflow acceptance is inferred.
+
+- 2026-09-30: Independent review also identified the customer composition rehearsal's old 21/74 inventory. Extend its exact installed/backup/restore projection and empty-table checks with all four engagement tables; require current finite ACLs on installed, upgraded and quarantined restored databases. Keep the populated synthetic fixture evidence distinct.
+
+- 2026-09-30: Independent inventory scan found the scalar recovery receipt's active host assertion also pinned 21 migrations / 74 tables. Extend it and its positive/negative fixtures to 22/78, retaining rejection of missing and future migration counts. Candidate fce64's native verify job passed 1,615 unit, 134 integration and 39 browser tests, populated 78-table restore and storage fixtures; production/final candidate gates remain pending.
+
+- 2026-09-30: Production legacy-upgrade evidence exposed an intermediate-fixture misuse of current release ACL reconstruction: the deliberately pre-cadence 20-migration fixture has neither cadence nor engagement functions yet. Apply only the migration engine to this intermediate owner-only fixture, then retain the final full migrateRelease and ACL verification after all 22 migrations. Production release ACLs remain complete and strict.
+
+- 2026-09-30: Candidate 8dbac passed native verify and production migration/whole-database restore probes. The additional independent prefix-six host inventory still omitted the four new empty tables; extend that explicit assertion while retaining exact prior-history and row checks. Final Foundation remains failed until fresh complete validation passes.
 
 ## Decisions made
 
@@ -114,7 +133,9 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 ## Validation evidence
 
-Design review, exact-head checks and merge evidence pending.
+- Design [PR #104](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/104): independently reviewed candidate `dfb37b894912b9b4b8d1582611d07a41abce4ae3`, merge `8fa204eb25ee7fe7f14b4f90a15f5048a0d0c9d5`, identical tree `db38a1bcff56dc4775d84eacc7ea9172a30b0269`. Candidate [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36598915585) and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36598915538), and post-merge [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36602482509) and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36602482117), passed.
+- Pure stage gate [PR #105](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/105): independently reviewed candidate `78d448c66d719ebd0522b4248f9e52360bde1af8`, merge `036b5bb5804b5cf3feab6853845b3cc49a086820`, identical tree `3fa9504ffb4245b88a8bbc3c3ff281dd6e4cfd48`. Candidate [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36600702589), and post-merge [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36603903345) and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36603903354), passed.
+- Stage 2a storage candidate: independent exact-SHA review and hosted checks pending. Local execution remains unavailable because the desktop process helper fails before launching PowerShell; required checks run in hosted CI. Native synthetic fixtures test atomic stage/intent commit, uniqueness, concurrent claims, pre-handoff lease expiry, terminal uncertain handoff, reason persistence, immutable receipts, finite ACL reconstruction, empty prefix upgrades and populated restore. They do not prove live email or a recipient response workflow.
 
 ## Completion summary
 

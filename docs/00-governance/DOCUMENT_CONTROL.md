@@ -1,5 +1,12 @@
 # Document Control
 
+## EXEC-015 engagement design approval, 2026-09-30
+
+Under the Product Owner's existing controller delegation, approve [EXEC-015](../04-delivery/exec-plans/EXEC-015-update-engagement-workflow.md) following independent exact-candidate review, required hosted checks and verified PR #104 merge. Its design resolves recipient-local scheduling, current-revision PM escalation, owner-plus-PM default, atomic delegate transfer, source-driven suppression, immutable obligation identity and uncertain handoff quarantine. PR #105 adds only the reviewed pure stage decision core. The plan contains immutable candidate, merge-tree and post-merge evidence.
+
+Continue Stage 2 through separately reviewed storage and processing candidates. Stage 2a stores durable intent and automatic transition receipts, grants API/worker no new business-table privileges, backfills no active work and preserves restore quarantine. Stage 2b must add current source/recipient/calendar checks and signed shadow/capture processing before workflow acceptance. Public OAuth onboarding and live Jira activation remain disabled under OD-013, reaffirmed by the Product Owner. No source publication, messaging activation, criterion/story acceptance or customer release approval is granted by this record.
+
+
 ## EXEC-013 persisted schedule overdue design approval, 2026-09-29
 
 Under the delegated routine implementation authority, approve the bounded

@@ -7,6 +7,7 @@ import {
   migrateDatabase,
   readMigrations,
 } from "../../packages/operations/dist/index.js";
+import { engagementStorageTables, verifyEngagementStoragePrivileges } from "./update-engagement-storage.mjs";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
 
 const { Pool } = createRequire(
@@ -54,6 +55,7 @@ const introducedTables = [
   ...jiraRuntimeTables,
   ...healthAssessmentTables,
   ...projectUpdateTables,
+  ...engagementStorageTables,
   "RaidReopenReceipt",
   "BlockerAgeThresholdPolicy",
   "ScheduleHealthPolicyRevision",
@@ -104,7 +106,8 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 21);
+    assert.equal(migrations.length, 22);
+    assert.equal(migrations[21].name, "202609300001_update_engagement_storage");
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
     assert.equal(migrations[9].name, "202609230001_durable_ingestion");
     assert.equal(migrations[10].name, "202609240001_jira_runtime");
@@ -246,6 +249,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         ledger.map((row) => [row.migration_name, row.checksum]),
         migrations.map(({ name, checksum }) => [name, checksum]),
       );
+      await verifyEngagementStoragePrivileges(pool);
       const acl = await pool.query(`SELECT
         has_table_privilege('pdaa_api','public."IngestionOperationReceipt"','SELECT') AS api_read,
         has_table_privilege('pdaa_api','public."IngestionOperationReceipt"','INSERT') AS api_insert,

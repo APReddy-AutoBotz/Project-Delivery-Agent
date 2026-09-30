@@ -293,3 +293,17 @@ source-build reproducibility or licence compatibility. All 24 residual identitie
 remain; ncrypto, native/tool/generated-source coverage and complete distribution
 review are unresolved. Owner: implementation controller for source-pin maintenance
 and replay. Recovery: reviewed preparation/evidence-policy revert and fresh checks.
+
+## Development brace-expansion security patch, 2026-09-30
+
+NFR-MNT-004: the required hosted audit gate identified existing development-only
+brace-expansion 5.0.9 through minimatch. Pin the publisher's MIT 5.0.11 security
+patch for [GHSA-qhr7-859c-m2p7](https://github.com/advisories/GHSA-qhr7-859c-m2p7)
+and [GHSA-6j4f-fj2g-mc7p](https://github.com/advisories/GHSA-6j4f-fj2g-mc7p).
+The [publisher package](https://github.com/juliangruber/brace-expansion/blob/v5.0.11/package.json)
+retains Node 20 or >=22 and balanced-match ^4.0.2. Review the registry tarball
+integrity and actual lock graph through frozen-install/full hosted checks before
+merge. Register this exact override in DEPENDENCIES.json and DEPENDENCY_OVERRIDES.json.
+No first-party source or runtime dependency is newly adopted; remove the override
+when reviewed upstream development tooling incorporates the patch. No release
+security disposition or commercial/customer gate is waived.

@@ -1,5 +1,12 @@
 # Decision Log
 
+## EXEC-015 durable engagement storage sequence, 2026-09-30
+
+The approved design in PR #104 and decision core in PR #105 are merged with required post-merge checks passed. Continue its implementation in reviewable stages. Storage Stage 2a keeps exact composite obligation/policy/assessment lineage, immutable stage snapshots, unique stage/outbox intents, fenced pre-handoff claims and terminal UNKNOWN handoff outcomes. PostgreSQL writes the append-only transition receipt atomically with the outbox transition; callers cannot supply a dispatch receipt directly. The new tables grant no API/worker access until the processing candidate passes review. EMAIL is a stored proposal mode only; no adapter, credential or network capability is introduced.
+
+Rebuild existing ProjectUpdate table/function ACLs centrally after upgrade and restore; migration-only grants are otherwise lost during privilege reconstruction. Include every public business table in exact-row recovery evidence and require populated new histories. This storage slice does not satisfy AC-UPD-007 or AC-WFL-001 by itself. Next add explicit activation, recipient-local reason calculation, current source and recipient authorization and signed shadow/capture dispatch. Preserve reviewed spreadsheet proposals, OD-013 and accepted-story totals.
+
+
 ## EXEC-013 persisted schedule overdue design, 2026-09-29
 
 Approve the bounded design in [EXEC-013](../04-delivery/exec-plans/EXEC-013-persisted-schedule-overdue.md)

@@ -15,6 +15,7 @@ import {
 } from "../packages/data/dist/index.js";
 import { assertSyntheticDatabaseUrl } from "../packages/platform/dist/index.js";
 import { verifyIngestionPrefixNineUpgrade } from "./acceptance/ingestion-prefix-nine-upgrade.mjs";
+import { verifyUpdateEngagementStorage } from "./acceptance/update-engagement-storage.mjs";
 const source = assertSyntheticDatabaseUrl(
   process.env.PDAA_DATABASE_URL ?? "",
   "pdaa",
@@ -137,6 +138,10 @@ try {
     "ProjectUpdateAssessment",
     "ProjectUpdateObligation",
     "ProjectUpdatePreview",
+    "ProjectUpdateEngagement",
+    "ProjectUpdateStage",
+    "ProjectUpdateOutbox",
+    "ProjectUpdateDispatchAttempt",
     "ScheduleHealthPolicyRevision",
   ];
   assert.deepEqual(
@@ -647,6 +652,7 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
   }
 }
 await verifyHealthAssessmentRetention(source.toString());
+const engagementStorage = await verifyUpdateEngagementStorage(source.toString());
 
 node([
   "node_modules/vitest/vitest.mjs",
@@ -761,7 +767,9 @@ writeFileSync(
         "ProjectUpdateObligation",
         "ProjectUpdatePreview",
       ],
-      businessTables: 73,
+      engagementStorage,
+      engagementStorageTables: ["ProjectUpdateEngagement","ProjectUpdateStage","ProjectUpdateOutbox","ProjectUpdateDispatchAttempt"],
+      businessTables: 78,
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
