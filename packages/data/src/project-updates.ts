@@ -605,6 +605,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             timestampBasis: reference.timestampBasis,
           });
         }
+        allTrusted = allTrusted && factTrusted;
         if (factTrusted) check.sourceState = "RESOLVED";
       }
       const source = deriveProjectUpdateSourceSatisfaction({
@@ -849,7 +850,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (!this.zones || this.zones.customerId !== customerId || !this.serviceSubject ||
         !policy.scheduledScanEnabled || policy.scheduledServiceSubject !== this.serviceSubject)
       throw new ProjectUpdateError("UNAVAILABLE");
-    const allZones = [...new Set([this.zones.customerTimeZone, policy.timeZone,
+    const projectZone = projectUpdateZoneConfigurationSchema.shape.customerTimeZone.parse(policy.timeZone);
+    const allZones = [...new Set([this.zones.customerTimeZone, projectZone,
       ...this.zones.recipientTimeZones.map((item) => item.timeZone)])];
     const catalog = await tx.$queryRawUnsafe<{ name: string }[]>(
       "SELECT name FROM pg_catalog.pg_timezone_names WHERE name=ANY($1::text[])", allZones,
@@ -857,7 +859,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (catalog.length !== allZones.length) throw new ProjectUpdateError("UNAVAILABLE");
     const zoneFor = (subject: string) =>
       this.zones!.recipientTimeZones.find((entry) => entry.subject === subject)?.timeZone ?? null;
-    const base = { logicalDueAt: dueAt, projectTimeZone: policy.timeZone,
+    const base = { logicalDueAt: dueAt, projectTimeZone: projectZone,
       customerTimeZone: this.zones.customerTimeZone,
       quietHoursStartLocal: policy.quietHoursStartLocal, quietHoursEndLocal: policy.quietHoursEndLocal };
     const request = planProjectUpdateRecipientStage({

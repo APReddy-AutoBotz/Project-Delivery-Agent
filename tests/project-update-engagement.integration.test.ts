@@ -223,3 +223,44 @@ it("rolls back a crash between stage and intent, then activates without duplicat
     outboxId: { in: (await outbox(result.engagementId)).map((row) => row.id) }, event: "SUPPRESSED",
   } })).toBe(1);
 });
+
+it("replaces changed recipient zones explicitly and preserves previous snapshots", async () => {
+  const f = await fixture();
+  const initial = (await f.activate())!;
+  const prior = await stages(initial.engagementId);
+  const changed = new DatabaseProjectUpdateRepository(db, f.service, { ...f.zones,
+    recipientTimeZones: [{ subject: "synthetic-owner-4", timeZone: "Asia/Kolkata" }] });
+  await changed.assess(f.admin, f.projectId, randomUUID());
+  const next = (await stages(initial.engagementId)).filter((stage) => stage.generation === 2);
+  expect(next).toHaveLength(4);
+  expect(next.every((stage) => stage.timeZone === "Asia/Calcutta" || stage.timeZone === "Asia/Kolkata")).toBe(true);
+  expect(next.every((stage) => stage.zoneSource === "RECIPIENT" && stage.replacesStageId !== null)).toBe(true);
+  for (const stage of prior) expect(await db.projectUpdateStage.findUnique({ where: { id: stage.id } })).toEqual(stage);
+  expect((await outbox(initial.engagementId)).filter((row) => row.reason === "RECIPIENT_ZONE_CHANGED")).toHaveLength(4);
+});
+
+it("rolls back a crash after claim without a durable handoff and safely retries", async () => {
+  const f = await fixture();
+  const initial = (await f.activate())!;
+  const before = await outbox(initial.engagementId);
+  const broken = {
+    $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      db.$transaction(async (tx) => operation(new Proxy(tx, { get(target, key) {
+        if (key === "$executeRawUnsafe") return async (sql: string, ...args: unknown[]) => {
+          if (sql.includes("SET state='SUPPRESSED'")) throw new Error("Synthetic precommit claim crash");
+          return target.$executeRawUnsafe(sql, ...args);
+        };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      } })), options as never),
+  };
+  await expect(new DatabaseProjectUpdateRepository(broken as never, f.service, f.zones)
+    .processShadowEngagements(1)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await outbox(initial.engagementId)).toEqual(before);
+  expect(await db.projectUpdateDispatchAttempt.count({ where: {
+    outboxId: { in: before.map((row) => row.id) }, event: "CLAIMED",
+  } })).toBe(0);
+  expect(await f.updates.processShadowEngagements(1)).toBe(1);
+  const request = (await outbox(initial.engagementId)).find((row) => row.reason === "SHADOW_MODE")!;
+  expect(request).toMatchObject({ claimGeneration: 1, handoffAt: null, state: "SUPPRESSED" });
+});
