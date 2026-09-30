@@ -2,6 +2,23 @@
   "reviewDate": "2026-09-06",
   "entries": [
     {
+      "name": "brace-expansion",
+      "version": "5.0.11",
+      "reason": "Development-only minimatch dependency: GHSA-qhr7-859c-m2p7 and GHSA-6j4f-fj2g-mc7p",
+      "runtime": false,
+      "consumers": [
+        "eslint and development glob tooling"
+      ],
+      "license": "MIT",
+      "repository": "git+https://github.com/juliangruber/brace-expansion.git",
+      "source": "https://registry.npmjs.org/brace-expansion/5.0.11",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated architecture review; permissive publisher security patch, exact-SHA checks required",
+      "reviewDate": "2026-09-30",
+      "replacementPath": "Remove override after reviewed upstream development tooling adopts a patched dependency"
+    },
+    {
       "name": "multer",
       "version": "2.3.0",
       "runtime": true,
