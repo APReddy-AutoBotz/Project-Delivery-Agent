@@ -1,0 +1,23 @@
+name: Prepare reviewed development lock update
+on:
+  push:
+    branches: [codex/exec-015-engagement-storage]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+      - name: Publisher metadata and lockfile-only resolution
+        run: |
+          node --input-type=module -e 'const response = await fetch("https://registry.npmjs.org/brace-expansion/5.0.11"); if (!response.ok) throw new Error("Registry metadata unavailable"); const p = await response.json(); console.log(JSON.stringify({name:p.name,version:p.version,license:p.license,repository:p.repository,engines:p.engines,dependencies:p.dependencies,dist:p.dist}));'
+          pnpm install --lockfile-only --ignore-scripts
+          git diff -- pnpm-lock.yaml
