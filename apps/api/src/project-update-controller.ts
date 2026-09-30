@@ -14,6 +14,7 @@ import { IdentityService } from "@pdaa/platform";
 import {
   projectFactIdSchema,
   projectUpdatePolicyChangeSchema,
+  projectUpdateEngagementActivationSchema,
   projectUpdateAssessmentRequestSchema,
   ProjectUpdateError,
   type Actor,
@@ -32,6 +33,8 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async latest() { return null; },
   async schedulePreview() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async scanScheduledProjects() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async activateEngagement() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async processShadowEngagements() { throw new ProjectUpdateError("UNAVAILABLE"); },
 };
 
 @ApiTags("Project updates")
@@ -115,6 +118,18 @@ export class ProjectUpdateController {
     const actor = await this.actor(req);
     const id = this.projectId(rawId);
     return this.run(() => this.repository.latest(actor, id));
+  }
+
+  @Post("project-update-engagements")
+  @HttpCode(200)
+  async activateEngagement(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    const id = this.projectId(rawId);
+    const parsed = projectUpdateEngagementActivationSchema.safeParse(body);
+    if (!parsed.success) throw new HttpException("", 400);
+    return this.run(() => this.repository.activateEngagement(
+      actor, id, parsed.data.expectedPolicyRevision, req.correlationId,
+    ));
   }
 
   @Get("project-update-schedule-preview")

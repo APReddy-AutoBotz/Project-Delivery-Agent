@@ -19,6 +19,9 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
+EXEC-015 storage PR #106 and scheduling/lineage PR #107 are merged with verified reviewed/candidate/merged tree equality and passing candidate and post-merge Foundation/Documentation workflows. PR #107 native verify passed 1,624 unit, 135 integration and 39 browser tests plus populated 78-table restore; packaged validation also passed. Transaction-bound explicit SHADOW activation and signed processing are now a candidate, with source-only satisfaction, future intent cancellation and native denial/race/rollback coverage. Independent exact-candidate review and required hosted validation are pending. This does not accept additional stories, response capture, SMTP delivery, or full AC-WFL-001. R0 3/5 and R1 2/33 remain unchanged; OD-013 keeps live onboarding disabled.
+
+
 PR #104 merged the independently reviewed EXEC-015 engagement design at
 `8fa204eb25ee7fe7f14b4f90a15f5048a0d0c9d5`. PR #105 merged its pure stage decision
 core at `036b5bb5804b5cf3feab6853845b3cc49a086820`. Both merges preserve the reviewed

@@ -36,9 +36,22 @@ export async function verifyEngagementStoragePrivileges(pool) {
       for (const privilege of ["SELECT","INSERT","UPDATE","DELETE","TRUNCATE","REFERENCES","TRIGGER","MAINTAIN"]) {
         const row = (await pool.query("SELECT has_table_privilege($1,$2,$3) AS allowed",
           [role, 'public."' + table + '"', privilege])).rows[0];
-        assert.equal(row.allowed, role === "pdaa_backup" && privilege === "SELECT",
+        assert.equal(row.allowed, (role === "pdaa_backup" && privilege === "SELECT") ||
+            (role === "pdaa_api" && ["SELECT","INSERT"].includes(privilege)),
           role + "/" + table + "/" + privilege);
       }
+  const mutable = {
+    ProjectUpdateEngagement: ["ownerSubject","generation","state","auditEventId","changedAt","sourceSatisfiedFactTypes","sourceAssessmentId","sourceAssessedAt"],
+    ProjectUpdateOutbox: ["state","claimGeneration","availableAt","leaseUntil","handoffAt","completedAt","reason","auditEventId"],
+  };
+  for (const table of engagementStorageTables) {
+    const columns = (await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [table])).rows;
+    for (const { column_name } of columns)
+      for (const role of ["pdaa_api","pdaa_worker","pdaa_backup"])
+        assert.equal((await pool.query("SELECT has_column_privilege($1,$2,$3,'UPDATE') AS allowed",
+          [role, 'public."' + table + '"', column_name])).rows[0].allowed,
+          role === "pdaa_api" && (mutable[table] ?? []).includes(column_name), role + "/" + table + "/" + column_name);
+  }
   for (const name of engagementStorageFunctions)
     for (const role of ["pdaa_api","pdaa_worker","pdaa_backup"])
       assert.equal((await pool.query("SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed",

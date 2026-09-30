@@ -30,6 +30,7 @@ try {
   const projectUpdates = new DatabaseProjectUpdateRepository(
     db,
     config.projectUpdateServiceSubject,
+    config.projectUpdateZones,
   );
   const connectorRuntime = new DatabaseConnectorRuntimeRepository(db, new CredentialKeyRingVault(config.credentialKeys));
   const { app } = await createApp(

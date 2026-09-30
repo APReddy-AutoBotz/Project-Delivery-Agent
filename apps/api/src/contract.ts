@@ -56,6 +56,8 @@ import {
   scheduleHealthPolicyViewSchema,
   healthAssessmentViewSchema,
   projectUpdatePolicyChangeSchema,
+  projectUpdateEngagementActivationSchema,
+  projectUpdateEngagementViewSchema,
   projectUpdatePolicyViewSchema,
   projectUpdateAssessmentRequestSchema,
   projectUpdateAssessmentViewSchema,
@@ -216,6 +218,13 @@ export const contracts: Record<string, RouteContract> = {
     response: projectUpdateAssessmentViewSchema.nullable(),
     parameters: { id: z.uuid() },
     errors: [404, 503],
+  },
+  "post /api/projects/{id}/project-update-engagements": {
+    status: 200,
+    request: projectUpdateEngagementActivationSchema,
+    response: projectUpdateEngagementViewSchema.nullable(),
+    parameters: { id: z.uuid() },
+    errors: [400, 403, 404, 409, 503],
   },
   "get /api/projects/{id}/project-update-schedule-preview": {
     status: 200,

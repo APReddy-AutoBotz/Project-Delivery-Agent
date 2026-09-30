@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ProjectUpdateEngagementView } from "./project-update-engagement.js";
 import type { Actor } from "./actor.js";
 import {
   canonicalKeySchema,
@@ -378,4 +379,6 @@ export interface ProjectUpdateRepository {
     projectId: string,
   ): Promise<ProjectUpdateSchedulePreview>;
   scanScheduledProjects(limit: number): Promise<number>;
+  activateEngagement(actor: Actor, projectId: string, expectedPolicyRevision: number, correlationId: string): Promise<ProjectUpdateEngagementView | null>;
+  processShadowEngagements(limit: number): Promise<number>;
 }

@@ -1323,6 +1323,9 @@ model ProjectUpdatePreview {
 }
 
 model ProjectUpdateEngagement {
+  sourceSatisfiedFactTypes String[] @default([]) @db.Text
+  sourceAssessmentId String? @db.Uuid
+  sourceAssessedAt DateTime? @db.Timestamptz(3)
   id String @id @db.Uuid
   customerId String @db.Uuid
   projectId String @db.Uuid

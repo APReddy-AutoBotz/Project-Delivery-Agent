@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { checkServerIdentity } from "node:tls";
 import { z } from "zod";
-import { roleSchema, type Role } from "@pdaa/domain";
+import { roleSchema, projectUpdateZoneConfigurationSchema, type ProjectUpdateZoneConfiguration, type Role } from "@pdaa/domain";
 import { assertSyntheticDatabaseUrl } from "./database-target.js";
 
 const schema = z.object({
@@ -35,6 +35,7 @@ const schema = z.object({
   CREDENTIAL_KEYRING_FILE: z.string().min(1).optional(),
   CONNECTOR_TASK_KEYS_FILE: z.string().min(1).optional(),
   PROJECT_UPDATE_TASK_KEYS_FILE: z.string().min(1).optional(),
+  PROJECT_UPDATE_ZONES_FILE: z.string().min(1).optional(),
   PROJECT_UPDATE_SERVICE_SUBJECT: z.string().min(1).max(256).optional(),
   INTERNAL_API_URL: z.url().optional(),
   JIRA_OAUTH_CLIENT_ID: z.string().min(1).optional(),
@@ -76,6 +77,7 @@ export type Config = z.infer<typeof schema> & {
   connectorTaskKeys: { currentKeyId: string; keys: Record<string, string> } | null;
   projectUpdateTaskKeys: { currentKeyId: string; keys: Record<string, string> } | null;
   projectUpdateServiceSubject: string | null;
+  projectUpdateZones: ProjectUpdateZoneConfiguration | null;
 };
 
 export function readSecretFile(path: string, key: string): string {
@@ -211,6 +213,15 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
       (c.NODE_ENV === "production" && internal.protocol !== "https:"))
       throw new Error("Internal API endpoint must be credential-free and production HTTPS");
   }
+  const projectUpdateZoneFile = c.PROJECT_UPDATE_ZONES_FILE
+    ? projectUpdateZoneConfigurationSchema.safeParse(secretJson(c.PROJECT_UPDATE_ZONES_FILE, "PROJECT_UPDATE_ZONES"))
+    : null;
+  if (projectUpdateZoneFile && (!projectUpdateZoneFile.success ||
+      projectUpdateZoneFile.data.customerId !== c.CUSTOMER_ID))
+    throw new Error("Invalid project update zone configuration");
+  const projectUpdateZones = projectUpdateZoneFile?.success ? projectUpdateZoneFile.data : null;
+  if (projectUpdateZones && (!projectUpdateTaskKeys || !c.PROJECT_UPDATE_SERVICE_SUBJECT))
+    throw new Error("Engagement processing requires project update task authentication");
   if (!!c.JIRA_OAUTH_CLIENT_SECRET !== !!c.JIRA_OAUTH_CLIENT_ID)
     throw new Error("Jira OAuth client id and secret must be configured together");
   if (c.JIRA_OAUTH_CLIENT_ID && (!connectorTaskKeys || !c.INTERNAL_API_URL || !c.CREDENTIAL_KEYRING_FILE))
@@ -259,6 +270,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     connectorTaskKeys,
     projectUpdateTaskKeys,
     projectUpdateServiceSubject: c.PROJECT_UPDATE_SERVICE_SUBJECT ?? null,
+    projectUpdateZones,
   };
 }
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { projectUpdateRecipientStageInputSchema } from "./project-update-schedule.js";
 import { canonicalSubjectSchema } from "./canonical-project.js";
 
 // FR-UPD-010, FR-ESC-006, NFR-REL-002: this is a pure decision. The repository
@@ -129,3 +130,70 @@ export function decideProjectUpdateStage(value: unknown): ProjectUpdateStageDeci
     return { action: "BLOCK", reason: "EMAIL_GATE_CLOSED" };
   return { action: "HANDOFF" };
 }
+
+
+// AC-UPD-007 / FR-UPD-010: this snapshot contains no fact values. Source access,
+// authority selection and adapter timestamp validation happen in the repository.
+export const projectUpdateSourceCheckSchema = z.strictObject({
+  factType,
+  sourceState: z.enum(["MISSING", "UNKNOWN", "RESOLVED"]),
+  trustedTimes: z.array(instant).max(1000),
+});
+export function deriveProjectUpdateSourceSatisfaction(input: {
+  asOf: string;
+  freshnessWindowSeconds: number;
+  checks: Array<z.infer<typeof projectUpdateSourceCheckSchema>>;
+}) {
+  const parsed = z.strictObject({
+    asOf: instant,
+    freshnessWindowSeconds: z.number().int().min(1).max(315360000),
+    checks: z.array(projectUpdateSourceCheckSchema).min(1).max(100),
+  }).parse(input);
+  if (new Set(parsed.checks.map((check) => check.factType)).size !== parsed.checks.length)
+    throw new Error("Duplicate source check");
+  const asOf = Date.parse(parsed.asOf);
+  const facts = parsed.checks.map((check) => ({
+    factType: check.factType,
+    state: check.sourceState === "RESOLVED" && check.trustedTimes.length > 0 &&
+      check.trustedTimes.every((time) => Date.parse(time) <= asOf &&
+        asOf - Date.parse(time) <= parsed.freshnessWindowSeconds * 1000)
+      ? "SATISFIED" as const : "UNRESOLVED" as const,
+    sourceState: check.sourceState,
+  }));
+  return {
+    facts,
+    satisfiedFactTypes: facts.filter((fact) => fact.state === "SATISFIED")
+      .map((fact) => fact.factType).sort(),
+    remainingFactTypes: facts.filter((fact) => fact.state === "UNRESOLVED")
+      .map((fact) => fact.factType).sort(),
+    sourceUnknown: facts.some((fact) => fact.sourceState === "UNKNOWN"),
+  };
+}
+
+export const projectUpdateEngagementActivationSchema = z.strictObject({
+  expectedPolicyRevision: positiveRevision,
+});
+export const projectUpdateEngagementViewSchema = z.strictObject({
+  projectId: z.uuid(),
+  engagementId: z.uuid(),
+  obligationId: z.uuid(),
+  policyRevision: positiveRevision,
+  mode: z.literal("SHADOW"),
+  stageCount: z.number().int().min(1).max(100),
+  remainingFactTypes: z.array(factType).min(1).max(100),
+  configurationActions: z.array(z.enum(["PM_RECIPIENT_REVOKED"])).max(1),
+});
+export type ProjectUpdateEngagementView = z.infer<typeof projectUpdateEngagementViewSchema>;
+
+export const projectUpdateZoneConfigurationSchema = z.strictObject({
+  customerId: z.uuid(),
+  customerTimeZone: projectUpdateRecipientStageInputSchema.shape.customerTimeZone,
+  recipientTimeZones: z.array(z.strictObject({
+    subject: canonicalSubjectSchema,
+    timeZone: projectUpdateRecipientStageInputSchema.shape.customerTimeZone,
+  })).max(500),
+}).superRefine((value, context) => {
+  if (new Set(value.recipientTimeZones.map((item) => item.subject)).size !== value.recipientTimeZones.length)
+    context.addIssue({ code: "custom", path: ["recipientTimeZones"], message: "Duplicate recipient zone" });
+});
+export type ProjectUpdateZoneConfiguration = z.infer<typeof projectUpdateZoneConfigurationSchema>;
