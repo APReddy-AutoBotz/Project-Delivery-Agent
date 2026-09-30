@@ -205,6 +205,18 @@ export async function verifyUpdateEngagementStorage(databaseUrl) {
     for (const name of engagementStorageFunctions)
       await pool.query(`GRANT EXECUTE ON FUNCTION public.${name}() TO PUBLIC`);
     const before = (await pool.query('SELECT * FROM "ProjectUpdateDispatchAttempt" ORDER BY id')).rows;
+    // Prisma's isolated synthetic deployment runs as the local superuser.
+    // Match the native migration-owner layout before reconstructing finite ACLs.
+    // The isolated pdaa_test URL guard above prevents this fixture setup elsewhere.
+    await pool.query(`DO $owners$ DECLARE item record; BEGIN
+      FOR item IN
+        SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname='public' AND c.relkind IN ('r','p')
+          AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
+      LOOP
+        EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname);
+      END LOOP;
+    END $owners$`);
     await applyBusinessTableGrants(pool);
     await verifyEngagementStoragePrivileges(pool);
     assert.deepEqual((await pool.query('SELECT * FROM "ProjectUpdateDispatchAttempt" ORDER BY id')).rows,before);

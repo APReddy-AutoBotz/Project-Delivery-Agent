@@ -104,6 +104,8 @@ Keep migrations forward-only and old records readable. A rollback of application
 - 2026-09-29: Independent design review identified the recipient-local scheduling omission. Revised stage snapshots to resolve recipient, project, then customer zones and to reschedule explicitly on zone changes; clarified that SMTP has no exactly-once guarantee.
 - 2026-09-29: Confirmed main `fa1f48e6987520d479ed3697b7472ed38cb29343`, Issue #9 remaining criteria, EXEC-014's no-send boundary, and the worker's scan-only task. Drafted the next engagement workflow design for independent review.
 
+- 2026-09-30: Candidate 60e9c7 passed audit, unit and migration gates, and reached native storage evidence. ACL reconstruction correctly refused older fixture tables owned by the local synthetic superuser. Align only current-user-owned tables in the guarded isolated pdaa_test database with pdaa_migrate, matching the existing prefix-upgrade rehearsal. Production ownership checks remain strict; fresh exact-candidate review and full hosted validation remain required.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.
