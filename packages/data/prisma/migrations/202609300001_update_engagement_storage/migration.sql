@@ -297,7 +297,7 @@ CREATE TRIGGER "ProjectUpdateOutbox_guard" BEFORE INSERT OR UPDATE OR DELETE ON 
   FOR EACH ROW EXECUTE FUNCTION public.guard_update_outbox();
 
 CREATE FUNCTION public.guard_update_attempt_insert()
-RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
 BEGIN
   IF pg_trigger_depth()<>2 OR NOT EXISTS (
     SELECT 1 FROM public."ProjectUpdateOutbox" o WHERE o.id=NEW."outboxId"
@@ -311,7 +311,7 @@ BEGIN
     RAISE EXCEPTION 'Engagement attempts require an outbox transition' USING ERRCODE='55000';
   END IF;
   RETURN NEW;
-END $;
+END $$;
 CREATE TRIGGER "ProjectUpdateDispatchAttempt_birth" BEFORE INSERT ON public."ProjectUpdateDispatchAttempt"
   FOR EACH ROW EXECUTE FUNCTION public.guard_update_attempt_insert();
 

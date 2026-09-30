@@ -89,6 +89,8 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 ## Progress log
 
+- 2026-09-30: First Stage 2a independent candidate review found malformed dollar delimiters in one trigger function; fixed them. Hosted validation also identified the centralized function-ACL contract's old inventory; extended its exact validator/guard allowlists without expanding execution privileges. Recovery accepts the new exact engagement TRUNCATE guard when canonical CASCADE reaches linked engagement history. Fresh candidate review/checks are required.
+
 - 2026-09-30: Stage 2a candidate adds engagement, immutable stage snapshots, transactional outbox and automatic append-only transition receipts. Composite lineage preserves the obligation's exact policy/assessment identity; fenced claims can be reclaimed only before handoff, and UNKNOWN is terminal in this slice. API and worker have no privileges on these new tables. Upgrade creates no engagement rows. This is a storage foundation, not capture dispatch, quiet-hour scheduling acceptance or a completed AC-WFL-001 crash rehearsal. Stage 2b must wire same-transaction current-source assessment, current recipient/zone checks, explicit activation, real schedule reason calculation, and signed shadow/capture processing before claiming Stage 2 complete.
 - 2026-09-30: Verified PR #104 design and PR #105 pure stage gate merges, identical reviewed/merged trees and successful post-merge Foundation/Documentation runs. Updated governance and status records; no acceptance totals changed.
 

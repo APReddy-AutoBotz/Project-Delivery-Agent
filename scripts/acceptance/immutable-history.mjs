@@ -120,9 +120,15 @@ export async function verifyImmutableHistoryMutation(
       return (
         error?.code === "P2010" &&
         cause?.kind === "postgres" &&
-        cause.originalCode === "P0001" &&
-        cause.code === "P0001" &&
-        expected.has(cause.originalMessage) &&
+        (
+          (cause.originalCode === "P0001" && cause.code === "P0001" &&
+            expected.has(cause.originalMessage)) ||
+          // New engagement FKs participate in CASCADE truncation. Accept only
+          // that exact statement guard; arbitrary SQL failures remain rejected.
+          (operation === "TRUNCATE" && cause.originalCode === "55000" &&
+            cause.code === "55000" &&
+            cause.originalMessage === "Engagement storage history is immutable")
+        ) &&
         cause.message === cause.originalMessage
       );
     },
