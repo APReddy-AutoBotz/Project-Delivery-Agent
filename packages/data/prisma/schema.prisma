@@ -1302,6 +1302,7 @@ model ProjectUpdateObligation {
   createdAt DateTime @db.Timestamptz(3)
   supersededAt DateTime? @db.Timestamptz(3)
   @@unique([customerId, projectId, id], map: "ProjectUpdateObligation_scope_key")
+  @@unique([customerId, projectId, id, policyRevisionId, policyRevision, assessmentId], map: "ProjectUpdateObligation_lineage_key")
   @@index([customerId, projectId, createdAt(sort: Desc), id(sort: Desc)], map: "ProjectUpdateObligation_project_idx")
 }
 
@@ -1319,4 +1320,89 @@ model ProjectUpdatePreview {
   @@unique([customerId, projectId, obligationId, revision], map: "ProjectUpdatePreview_revision_key")
   @@unique([customerId, projectId, id], map: "ProjectUpdatePreview_scope_key")
   @@index([customerId, projectId, createdAt(sort: Desc), id(sort: Desc)], map: "ProjectUpdatePreview_project_idx")
+}
+
+model ProjectUpdateEngagement {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  obligationId String @db.Uuid
+  policyRevisionId String @db.Uuid
+  policyRevision Int
+  assessmentId String @db.Uuid
+  ownerSubject String @db.VarChar(256)
+  generation Int @default(1)
+  state String @default("ACTIVE") @db.VarChar(16)
+  auditEventId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  changedAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, projectId, obligationId], map: "ProjectUpdateEngagement_obligation_key")
+  @@unique([customerId, projectId, id], map: "ProjectUpdateEngagement_scope_key")
+  @@unique([customerId, projectId, id, obligationId, policyRevisionId, policyRevision, assessmentId], map: "ProjectUpdateEngagement_lineage_key")
+}
+
+model ProjectUpdateStage {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  engagementId String @db.Uuid
+  obligationId String @db.Uuid
+  policyRevisionId String @db.Uuid
+  policyRevision Int
+  assessmentId String @db.Uuid
+  generation Int
+  kind String @db.VarChar(16)
+  ordinal Int @db.SmallInt
+  recipientSubject String @db.VarChar(256)
+  recipientRole String @db.VarChar(16)
+  factTypes String[] @db.Text
+  timeZone String @db.VarChar(64)
+  zoneSource String @db.VarChar(16)
+  logicalDueAt DateTime @db.Timestamptz(3)
+  candidateAt DateTime @db.Timestamptz(3)
+  scheduledAt DateTime @db.Timestamptz(3)
+  localAt String @db.VarChar(19)
+  utcOffset String @db.VarChar(6)
+  deferralReasons String[] @default([]) @db.Text
+  ruleRevision String @db.VarChar(64)
+  mode String @default("SHADOW") @db.VarChar(16)
+  replacesStageId String? @db.Uuid
+  auditEventId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, projectId, id], map: "ProjectUpdateStage_scope_key")
+  @@unique([customerId, projectId, engagementId, generation, kind, ordinal, recipientSubject], map: "ProjectUpdateStage_intent_key")
+}
+
+model ProjectUpdateOutbox {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  stageId String @db.Uuid
+  state String @default("READY") @db.VarChar(16)
+  claimGeneration Int @default(0)
+  availableAt DateTime @db.Timestamptz(3)
+  leaseUntil DateTime? @db.Timestamptz(3)
+  handoffAt DateTime? @db.Timestamptz(3)
+  completedAt DateTime? @db.Timestamptz(3)
+  reason String? @db.VarChar(64)
+  auditEventId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, projectId, id], map: "ProjectUpdateOutbox_scope_key")
+  @@unique([customerId, projectId, stageId], map: "ProjectUpdateOutbox_stage_key")
+}
+
+model ProjectUpdateDispatchAttempt {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  outboxId String @db.Uuid
+  claimGeneration Int
+  event String @db.VarChar(16)
+  reason String? @db.VarChar(64)
+  availableAt DateTime @db.Timestamptz(3)
+  leaseUntil DateTime? @db.Timestamptz(3)
+  handoffAt DateTime? @db.Timestamptz(3)
+  auditEventId String @db.Uuid
+  recordedAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([customerId, projectId, outboxId, claimGeneration, event], map: "ProjectUpdateDispatchAttempt_event_key")
 }

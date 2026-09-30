@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-29
+Updated: 2026-09-30
 
 ## Accepted implementation completion
 
@@ -18,6 +18,18 @@ accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://gith
 R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
+
+PR #104 merged the independently reviewed EXEC-015 engagement design at
+`8fa204eb25ee7fe7f14b4f90a15f5048a0d0c9d5`. PR #105 merged its pure stage decision
+core at `036b5bb5804b5cf3feab6853845b3cc49a086820`. Both merges preserve the reviewed
+candidate trees and passed their post-merge Foundation/Documentation workflows.
+[EXEC-015](exec-plans/EXEC-015-update-engagement-workflow.md) records exact evidence.
+Durable storage, current source/recipient dispatch gates and the recipient response
+workflow remain in progress. Stage 2a is a storage candidate under review, with no
+new API/worker table access or external delivery. Issue #9 remains open; no new
+criterion or accepted story is claimed. The Product Owner reaffirmed keeping live
+OAuth/Jira onboarding disabled under OD-013. Accepted totals remain R0 3/5, R1 2/33.
+
 
 PR #102 implemented the bounded AC-ADM-002 update-cadence configuration and transient schedule preview. Reviewed candidate
 `419b9dd5ef20f2b078e137706b6ac4b6f2dd8da7` was merged as

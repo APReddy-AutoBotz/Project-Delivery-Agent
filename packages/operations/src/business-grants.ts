@@ -71,6 +71,15 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     -- Rebuild migration 5's finite function boundary before its two API grants.
     REVOKE ALL ON FUNCTION public.guard_project_fact_revision(),public.guard_fact_version_append(),public.guard_authority_policy(),public.valid_canonical_state_binding(uuid),public.guard_canonical_state_binding(),public.guard_canonical_state_binding_receipt(),public.require_canonical_state_binding_sealed(),public.valid_milestone_consistency_assessment(uuid),public.guard_assessment_header(),public.guard_milestone_consistency_header(),public.guard_milestone_consistency_child(),public.require_milestone_consistency_sealed(),public.reject_direct_fact_revision(),public.guard_fact_source_birth() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT EXECUTE ON FUNCTION public.valid_canonical_state_binding(uuid),public.valid_milestone_consistency_assessment(uuid) TO pdaa_api;
+    -- EXEC-015: rebuild the existing update boundary after upgrade/restore.
+    GRANT SELECT,INSERT,UPDATE ON "ProjectUpdatePolicy" TO pdaa_api;
+    GRANT SELECT,INSERT ON "ProjectUpdatePolicyRevision","ProjectUpdateAssessment","ProjectUpdateObligation","ProjectUpdatePreview","ScheduleHealthPolicyRevision" TO pdaa_api;
+    GRANT UPDATE (state,"supersededAt") ON "ProjectUpdateObligation" TO pdaa_api;
+    GRANT UPDATE (state) ON "ProjectUpdatePreview" TO pdaa_api;
+    REVOKE ALL ON FUNCTION public.valid_project_update_facts(jsonb),public.project_update_json_has_values(jsonb),public.valid_project_update_cadence_offsets(smallint[]),public.prevent_project_update_immutable_rewrite(),public.guard_project_update_preview(),public.guard_project_update_obligation() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+    GRANT EXECUTE ON FUNCTION public.valid_project_update_facts(jsonb),public.project_update_json_has_values(jsonb),public.valid_project_update_cadence_offsets(smallint[]) TO pdaa_api;
+    -- Storage-only tables stay inaccessible to API/worker until processing review.
+    REVOKE ALL ON FUNCTION public.guard_update_engagement_storage(),public.reject_update_engagement_history(),public.guard_update_stage_snapshot(),public.guard_update_outbox(),public.guard_update_attempt_insert(),public.require_update_stage_outbox(),public.record_update_dispatch_attempt() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
   `);
 }

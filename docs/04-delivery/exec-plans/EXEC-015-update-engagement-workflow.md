@@ -1,11 +1,11 @@
 # EXEC-015: Durable update engagement and recipient response
 
-Status: Draft — independent design review pending  
+Status: Approved design — staged implementation in progress  
 Owner: Implementation controller  
 Requirement IDs: FR-UPD-001..012, FR-ESC-001..007, FR-ADM-004, NFR-REL-002, NFR-SEC-001, TR-DATA-001, TR-MSG-001, TR-STACK-006; AC-UPD-002/003/004/006/007/008/009/010, AC-WFL-001  
 GitHub issue: #9  
 Target release: R1  
-Last updated: 2026-09-29
+Last updated: 2026-09-30
 
 ## Objective
 
@@ -89,6 +89,9 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 ## Progress log
 
+- 2026-09-30: Stage 2a candidate adds engagement, immutable stage snapshots, transactional outbox and automatic append-only transition receipts. Composite lineage preserves the obligation's exact policy/assessment identity; fenced claims can be reclaimed only before handoff, and UNKNOWN is terminal in this slice. API and worker have no privileges on these new tables. Upgrade creates no engagement rows. This is a storage foundation, not capture dispatch, quiet-hour scheduling acceptance or a completed AC-WFL-001 crash rehearsal. Stage 2b must wire same-transaction current-source assessment, current recipient/zone checks, explicit activation, real schedule reason calculation, and signed shadow/capture processing before claiming Stage 2 complete.
+- 2026-09-30: Verified PR #104 design and PR #105 pure stage gate merges, identical reviewed/merged trees and successful post-merge Foundation/Documentation runs. Updated governance and status records; no acceptance totals changed.
+
 - 2026-09-29: Current schema inspection showed ProjectUpdateObligation is immutable except supersession. Clarified that delegation and fact satisfaction update a new linked engagement-state row, preserving the existing trigger and obligation history.
 - 2026-09-29: Final design-delta review clarified that a disabled PM stage cannot block otherwise authorized owner requests; PM recipient validity gates only an enabled PM stage.
 - 2026-09-29: Independent design review found an incomplete delegate transfer and unsafe lease reclaim after possible SMTP handoff. Added atomic old-owner cancel/delegate replan and a durable handoff boundary with UNKNOWN quarantine.
@@ -114,7 +117,9 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 ## Validation evidence
 
-Design review, exact-head checks and merge evidence pending.
+- Design [PR #104](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/104): independently reviewed candidate `dfb37b894912b9b4b8d1582611d07a41abce4ae3`, merge `8fa204eb25ee7fe7f14b4f90a15f5048a0d0c9d5`, identical tree `db38a1bcff56dc4775d84eacc7ea9172a30b0269`. Candidate [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36598915585) and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36598915538), and post-merge [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36602482509) and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36602482117), passed.
+- Pure stage gate [PR #105](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/105): independently reviewed candidate `78d448c66d719ebd0522b4248f9e52360bde1af8`, merge `036b5bb5804b5cf3feab6853845b3cc49a086820`, identical tree `3fa9504ffb4245b88a8bbc3c3ff281dd6e4cfd48`. Candidate [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36600702589), and post-merge [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36603903345) and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36603903354), passed.
+- Stage 2a storage candidate: independent exact-SHA review and hosted checks pending. Local execution remains unavailable because the desktop process helper fails before launching PowerShell; required checks run in hosted CI. Native synthetic fixtures test atomic stage/intent commit, uniqueness, concurrent claims, pre-handoff lease expiry, terminal uncertain handoff, reason persistence, immutable receipts, finite ACL reconstruction, empty prefix upgrades and populated restore. They do not prove live email or a recipient response workflow.
 
 ## Completion summary
 
