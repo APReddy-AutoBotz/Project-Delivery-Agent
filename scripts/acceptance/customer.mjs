@@ -106,6 +106,7 @@ import {
   scanBrowserAssets,
 } from "./disclosure.mjs";
 
+import { engagementStorageTables, verifyEngagementStoragePrivileges } from "./update-engagement-storage.mjs";
 const env = process.env;
 const projectUpdateTables = [
   "ProjectUpdatePolicy",
@@ -176,6 +177,7 @@ async function projection(pool) {
     "_prisma_migrations",
     ...projectUpdateTables,
     ...scheduleHealthPolicyTables,
+    ...engagementStorageTables,
   ])
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
@@ -510,6 +512,7 @@ try {
       ...scalarReconciliationTables,
       ...projectUpdateTables,
       ...scheduleHealthPolicyTables,
+    ...engagementStorageTables,
     ])
       assert.equal(
         state[table].length,
@@ -519,7 +522,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 21);
+    assert.equal(migrations.length, 22);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -527,6 +530,7 @@ try {
       ),
       migrations,
     );
+    await verifyEngagementStoragePrivileges(db);
     await verifyProjectFactPrivileges(db);
     await verifyCanonicalPrivileges(db);
     await verifyMilestonePersistencePrivileges(db);
@@ -778,8 +782,9 @@ try {
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 74,
-      migrationCount: 21,
+      businessTableCount: 78,
+      engagementStorageTables,
+      migrationCount: 22,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -838,6 +843,7 @@ try {
     await verifyScalarReconciliationPrivileges(db);
     await verifyScalarReconciliationIntegrity(db);
     await browserCheck(true);
+    await verifyEngagementStoragePrivileges(db);
     await verifyProjectFactPrivileges(db);
     const state = await projection(db);
     assert(state.AuditEvent.length > read("backup-state").AuditEvent.length);
@@ -852,6 +858,7 @@ try {
     });
     try {
       assert.deepEqual(await projection(restored), read("backup-state"));
+      await verifyEngagementStoragePrivileges(restored);
       await verifyProjectFactPrivileges(restored);
       await verifyImmutableProjectFacts(restored);
       await verifyAuthorityPrivileges(restored);

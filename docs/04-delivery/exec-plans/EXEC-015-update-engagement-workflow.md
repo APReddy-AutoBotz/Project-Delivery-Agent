@@ -108,6 +108,8 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 - 2026-09-30: Production validation reached TLS/OIDC/runtime authorization checks, then stopped at an old 21-migration inventory assertion. Extend both producer and independent host inventory to migration 22 and the four new business tables; require them empty after legacy upgrades and verify their least-privilege ACLs after upgrade/restore. Populated storage recovery remains covered by the native synthetic rehearsal. No production send or workflow acceptance is inferred.
 
+- 2026-09-30: Independent review also identified the customer composition rehearsal's old 21/74 inventory. Extend its exact installed/backup/restore projection and empty-table checks with all four engagement tables; require current finite ACLs on installed, upgraded and quarantined restored databases. Keep the populated synthetic fixture evidence distinct.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.
