@@ -538,8 +538,9 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 21);
+    assert.equal(upgrade.migrations.length, 22);
     assert.equal(upgrade.migrations[20].name, "202609290002_project_update_cadence");
+    assert.equal(upgrade.migrations[21].name, "202609300001_update_engagement_storage");
     assert(Number.isFinite(upgrade.upgradeMeasurement.elapsedMs));
     assert(upgrade.upgradeMeasurement.elapsedMs > 0);
     assert(
@@ -562,7 +563,7 @@ try {
       assert.equal(row.rolled_back_at, null);
       assert.equal(row.applied_steps_count, 1);
     }
-    assert.equal(upgrade.businessTableCount, 74);
+    assert.equal(upgrade.businessTableCount, 78);
     assert.deepEqual(
       Object.keys(upgrade.retainedPriorRowCounts).sort(),
       [...upgrade.retainedPriorBusinessTables].sort(),

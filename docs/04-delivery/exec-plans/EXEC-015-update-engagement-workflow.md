@@ -106,6 +106,8 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 - 2026-09-30: Candidate 60e9c7 passed audit, unit and migration gates, and reached native storage evidence. ACL reconstruction correctly refused older fixture tables owned by the local synthetic superuser. Align only current-user-owned tables in the guarded isolated pdaa_test database with pdaa_migrate, matching the existing prefix-upgrade rehearsal. Production ownership checks remain strict; fresh exact-candidate review and full hosted validation remain required.
 
+- 2026-09-30: Production validation reached TLS/OIDC/runtime authorization checks, then stopped at an old 21-migration inventory assertion. Extend both producer and independent host inventory to migration 22 and the four new business tables; require them empty after legacy upgrades and verify their least-privilege ACLs after upgrade/restore. Populated storage recovery remains covered by the native synthetic rehearsal. No production send or workflow acceptance is inferred.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.

@@ -86,6 +86,7 @@ import {
   CredentialVault,
   loadConfig,
 } from "../../packages/platform/dist/index.js";
+import { engagementStorageTables, verifyEngagementStoragePrivileges } from "./update-engagement-storage.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -133,7 +134,7 @@ const projection = async (pool) => {
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
     ).rows;
-  for (const table of [...projectUpdateTables, ...scheduleHealthPolicyTables])
+  for (const table of [...projectUpdateTables, ...scheduleHealthPolicyTables, ...engagementStorageTables])
     result[table] = (
       await pool.query(
         `SELECT * FROM "${table}" ORDER BY to_jsonb("${table}")::text COLLATE "C"`,
@@ -443,7 +444,8 @@ try {
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 74,
+          businessTableCount: 78,
+          engagementStorageTables,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
             await verifyScalarReconciliationWorkerDenials(
@@ -549,6 +551,7 @@ try {
         JSON.parse(JSON.stringify(await projection(pool))),
         expected,
       );
+      await verifyEngagementStoragePrivileges(pool);
       await verifyProjectFactPrivileges(pool);
       await verifyImmutableProjectFacts(pool);
       await verifyAuthorityPrivileges(pool);

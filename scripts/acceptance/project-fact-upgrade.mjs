@@ -12,6 +12,7 @@ import {
 } from "./legacy-binding-collision.mjs";
 import { migrateDatabase } from "../../packages/operations/dist/migrations.js";
 import { migrateRelease } from "../../packages/operations/dist/provision.js";
+import { engagementStorageTables, verifyEngagementStoragePrivileges } from "./update-engagement-storage.mjs";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
 import {
   CredentialVault,
@@ -70,7 +71,8 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 21);
+  assert.equal(migrations.length, 22);
+  assert.equal(migrations[21].name, "202609300001_update_engagement_storage");
   assert.equal(migrations[15].name, "202609280001_atomic_raid_reopen");
   assert.equal(migrations[16].name, "202609280002_blocker_age_threshold");
   assert.equal(migrations[17].name, "202609280003_blocker_age_assessment");
@@ -529,6 +531,7 @@ export async function verifyFoundationUpgrade(
       "ProjectUpdateObligation",
       "ProjectUpdatePreview",
       "ScheduleHealthPolicyRevision",
+      ...engagementStorageTables,
     ];
     const emptyAddedTables = addedTables.filter(
       (table) => ![
@@ -681,6 +684,7 @@ export async function verifyFoundationUpgrade(
       await milestonePersistenceProjection(owner),
       milestonePersistencePopulated,
     );
+    await verifyEngagementStoragePrivileges(owner);
     assert.deepEqual(
       await milestoneReconciliationProjection(owner),
       milestoneReconciliationPopulated,
