@@ -120,6 +120,8 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 - 2026-09-30: Stage 2b independent review caught the second autumn overlap occurrence: quiet-hour end resolution must honor the current instant as a lower bound. Preserve the earlier-overlap rule for unanchored candidates, select the later overlap when necessary during eligibility, and record DST_GAP only for an actually nonexistent wall time. Added the New York second-occurrence regression; fresh review and hosted checks remain required.
 
+- 2026-09-30: Resolve the independent review's zone-compatibility follow-up in the new engagement planner: reject numeric-offset strings and canonicalize named IANA zones through Intl; legacy preview semantics stay intact. Activation persistence must still verify the canonical zone against the database's named-zone catalog and bind current recipient preferences. Added case/offset regressions. No activation or dispatch is inferred.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.

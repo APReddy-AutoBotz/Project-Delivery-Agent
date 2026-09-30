@@ -414,6 +414,13 @@ export function previewProjectUpdateSchedule(value: unknown): ProjectUpdateSched
 // EXEC-015 Stage 2b, FR-UPD-006/007 and FR-ESC-004/006.
 // These server-selected inputs describe one recipient-stage. They do not grant
 // recipient access, activate an obligation or authorize an adapter call.
+// Keep legacy preview input semantics intact. Persistable engagement snapshots
+// use canonical named zones; numeric offsets are not IANA calendar policies.
+const engagementNamedTimeZoneSchema = projectUpdateTimeZoneSchema
+  .refine((zone) => !/^[+-]/.test(zone), "A named IANA time zone is required")
+  .transform((zone) => new Intl.DateTimeFormat("en-US", { timeZone: zone })
+    .resolvedOptions().timeZone);
+
 export const projectUpdateRecipientStageInputSchema = z.strictObject({
   kind: z.enum(["REQUEST", "REMINDER", "ESCALATION"]),
   ordinal: z.number().int().min(0).max(90),
@@ -424,9 +431,9 @@ export const projectUpdateRecipientStageInputSchema = z.strictObject({
   // escalation receives the owner's escalation instant and applies its own
   // calendar, so a distant zone cannot escalate before the unanswered stages.
   anchorAt: instant,
-  recipientTimeZone: projectUpdateTimeZoneSchema.nullable(),
-  projectTimeZone: projectUpdateTimeZoneSchema.nullable(),
-  customerTimeZone: projectUpdateTimeZoneSchema,
+  recipientTimeZone: engagementNamedTimeZoneSchema.nullable(),
+  projectTimeZone: engagementNamedTimeZoneSchema.nullable(),
+  customerTimeZone: engagementNamedTimeZoneSchema,
   quietHoursStartLocal: projectUpdateLocalTimeSchema.nullable(),
   quietHoursEndLocal: projectUpdateLocalTimeSchema.nullable(),
 }).superRefine((input, context) => {

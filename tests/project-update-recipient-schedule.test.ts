@@ -38,12 +38,21 @@ describe("EXEC-015 recipient-stage snapshots", () => {
       ...initial, recipientTimeZone: null,
     })).toMatchObject({ timeZone: "UTC", zoneSource: "PROJECT" });
     expect(planProjectUpdateRecipientStage({
-      ...initial, recipientTimeZone: null, projectTimeZone: null,
-    })).toMatchObject({ timeZone: "Asia/Kolkata", zoneSource: "CUSTOMER" });
+      ...initial, recipientTimeZone: null, projectTimeZone: null, customerTimeZone: "Asia/Tokyo",
+    })).toMatchObject({ timeZone: "Asia/Tokyo", zoneSource: "CUSTOMER" });
     for (const field of ["recipientTimeZone", "projectTimeZone", "customerTimeZone"])
       expect(() => planProjectUpdateRecipientStage({
         ...initial, [field]: "Mars/Olympus",
       })).toThrow();
+  });
+
+  it("normalizes named zone case and rejects numeric offsets before a persistable snapshot", () => {
+    expect(planProjectUpdateRecipientStage({
+      ...initial, recipientTimeZone: "america/new_york",
+    })).toMatchObject({ timeZone: "America/New_York", zoneSource: "RECIPIENT" });
+    for (const zone of ["+05:30", "-04:00"])
+      for (const field of ["recipientTimeZone", "projectTimeZone", "customerTimeZone"])
+        expect(() => planProjectUpdateRecipientStage({ ...initial, [field]: zone })).toThrow();
   });
 
   it("counts owner reminder offsets from the eligible owner request, preserving the anchor wall time", () => {
