@@ -462,11 +462,12 @@ export type ProjectUpdateRecipientStageSnapshot = {
   ruleRevision: "engagement-schedule@1";
 };
 
-function resolveEngagementWall(parts: WallParts, timeZone: string) {
+function resolveEngagementWall(parts: WallParts, timeZone: string, notBeforeEpoch?: number) {
   const naive = wallEpoch(parts);
   const exact = exactInstants(parts, timeZone, offsetsNear(naive, timeZone));
   return {
-    epoch: exact.length ? exact[0]! : resolveProjectScheduleWallTime(localValue(parts), timeZone),
+    epoch: exact.find((epoch) => notBeforeEpoch === undefined || epoch >= notBeforeEpoch) ??
+      resolveProjectScheduleWallTime(localValue(parts), timeZone, notBeforeEpoch),
     gap: exact.length === 0,
   };
 }
@@ -480,7 +481,7 @@ function eligibleEngagementInstant(
     const parts = fieldsAt(result, zone);
     if (insideQuietHours(parts, start, end)) {
       reasons.add("QUIET_HOURS");
-      const resolved = resolveEngagementWall(quietEnd(parts, start!, end!), zone);
+      const resolved = resolveEngagementWall(quietEnd(parts, start!, end!), zone, result);
       if (resolved.gap) reasons.add("DST_GAP");
       if (resolved.epoch < result) throw new Error("Engagement schedule moved backward");
       result = resolved.epoch;
@@ -491,7 +492,7 @@ function eligibleEngagementInstant(
       reasons.add("WEEKEND");
       let date = dateValue(parts);
       do { date = addCalendarDays(date, 1); } while (weekday(date) === 0 || weekday(date) === 6);
-      const resolved = resolveEngagementWall({ ...parts, ...datePart(date) }, zone);
+      const resolved = resolveEngagementWall({ ...parts, ...datePart(date) }, zone, result);
       if (resolved.gap) reasons.add("DST_GAP");
       if (resolved.epoch < result) throw new Error("Engagement schedule moved backward");
       result = resolved.epoch;

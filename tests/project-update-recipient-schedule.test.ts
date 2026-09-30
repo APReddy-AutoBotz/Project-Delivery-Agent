@@ -99,6 +99,21 @@ describe("EXEC-015 recipient-stage snapshots", () => {
     });
   });
 
+  it("preserves the lower bound during the second autumn overlap occurrence", () => {
+    const result = planProjectUpdateRecipientStage({
+      ...initial,
+      logicalDueAt: "2026-11-01T06:15:00.000Z",
+      anchorAt: "2026-11-01T06:15:00.000Z",
+      quietHoursStartLocal: "00:00", quietHoursEndLocal: "01:30",
+    });
+    expect(result).toMatchObject({
+      scheduledAt: "2026-11-02T06:30:00.000Z",
+      localAt: "2026-11-02T01:30:00",
+      utcOffset: "-05:00",
+      deferralReasons: ["QUIET_HOURS", "WEEKEND"],
+    });
+  });
+
   it("treats quiet start as inclusive and end as exclusive", () => {
     const base = {
       ...initial, recipientTimeZone: "UTC",

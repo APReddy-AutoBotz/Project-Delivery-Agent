@@ -118,6 +118,8 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 - 2026-09-30: Stage 2b preparation begins with deterministic recipient-stage snapshots and policy lineage. Owner business-day offsets remain anchored to the eligible owner request; PM fanout uses the owner escalation instant as a lower bound and then applies the PM-local weekday/quiet-hour rules. This prevents a distant PM zone from escalating before the configured unanswered owner stages. The repository must bind those server-selected anchors, subjects and revisions under its transaction; a pure planner is not authorization or dispatch evidence. Historical policy/obligation rows remain unchanged except established supersession after explicit re-assessment.
 
+- 2026-09-30: Stage 2b independent review caught the second autumn overlap occurrence: quiet-hour end resolution must honor the current instant as a lower bound. Preserve the earlier-overlap rule for unanchored candidates, select the later overlap when necessary during eligibility, and record DST_GAP only for an actually nonexistent wall time. Added the New York second-occurrence regression; fresh review and hosted checks remain required.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.
