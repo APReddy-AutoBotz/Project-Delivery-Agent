@@ -112,6 +112,8 @@ Keep migrations forward-only and old records readable. A rollback of application
 
 - 2026-09-30: Independent inventory scan found the scalar recovery receipt's active host assertion also pinned 21 migrations / 74 tables. Extend it and its positive/negative fixtures to 22/78, retaining rejection of missing and future migration counts. Candidate fce64's native verify job passed 1,615 unit, 134 integration and 39 browser tests, populated 78-table restore and storage fixtures; production/final candidate gates remain pending.
 
+- 2026-09-30: Production legacy-upgrade evidence exposed an intermediate-fixture misuse of current release ACL reconstruction: the deliberately pre-cadence 20-migration fixture has neither cadence nor engagement functions yet. Apply only the migration engine to this intermediate owner-only fixture, then retain the final full migrateRelease and ACL verification after all 22 migrations. Production release ACLs remain complete and strict.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.

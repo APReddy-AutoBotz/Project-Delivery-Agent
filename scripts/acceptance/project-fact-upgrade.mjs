@@ -389,7 +389,10 @@ export async function verifyFoundationUpgrade(
     const upgradeStarted = performance.now();
     // Stop immediately before cadence migration #21 and retain a genuinely
     // pre-cadence policy revision so the new SQL defaults are exercised.
-    await migrateRelease(release, migrations.slice(0, 20));
+    // This intermediate fixture is intentionally not the current release.
+    // Apply its migrations only; current-release ACLs reference later functions.
+    // The final migrateRelease below reconstructs and verifies the complete ACL.
+    await migrateDatabase(maintenance, migrations.slice(0, 20));
     const cadenceProbeRevisionId = randomUUID();
     const cadenceProbeChangedAt = "2026-09-28T00:00:00.000Z";
     await owner.query(
