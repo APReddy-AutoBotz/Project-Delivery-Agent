@@ -19,7 +19,11 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
-EXEC-015 storage PR #106 and scheduling/lineage PR #107 are merged with verified reviewed/candidate/merged tree equality and passing candidate and post-merge Foundation/Documentation workflows. PR #107 native verify passed 1,624 unit, 135 integration and 39 browser tests plus populated 78-table restore; packaged validation also passed. Transaction-bound explicit SHADOW activation and signed processing are now a candidate, with source-only satisfaction, future intent cancellation and native denial/race/rollback coverage. Independent review is correcting source-expiry classification and hosted fixture failures before fresh exact-candidate review and full validation. Populated source-linked encrypted restore is exercised in the isolated packaged and both customer-composition profiles. Required hosted validation remains pending. This does not accept additional stories, response capture, SMTP delivery, or full AC-WFL-001. R0 3/5 and R1 2/33 remain unchanged; OD-013 keeps live onboarding disabled.
+EXEC-015 Stage 2b [PR #108](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/108) is merged after both independent nonauthor reviewers approved exact head `f0d939c0012fcb8e8425c1373dcb7df71172d5ac`. Merge `67f0ca2e8420d29161e6d204a13e48be7080a7b7` preserves reviewed/tested tree `53257948155c7742792c7f27e513409aa1165fb2`. Candidate [Foundation 36878685246](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36878685246) / [Documentation 36878685590](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36878685590) and post-merge [Foundation 36881853283](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36881853283) / [Documentation 36881853470](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36881853470) passed. Native: 1,663 unit, 149 integration and 39 browser tests; exact 78-table dump/restore. Packaged production validated genuine source-linked populated recovery in isolated, bundled and external customer profiles.
+
+Merged functionality includes current-scope activation, signed SHADOW processing, complete current-source satisfaction checks, original unresolved due dates, audited replacements, fenced automatic receipts and failure fairness/backoff. Storage remains 23 migrations / 78 business tables. No adapter or network delivery was added. Issue #9 remains open; no additional full AC-WFL-001, response or email acceptance is claimed.
+
+The next coherent EXEC-015 Stage 2c/3 batch is in preparation on `codex/exec-015-capture-response`: explicit CAPTURE, authenticated expiring recipient access, append-only unconfirmed replies, conservative raw-body sharing, retention purge and restore issuance quarantine. Its partial commits are not a passing or reviewed full candidate. Root continues API/operations/UI/native/browser/recovery integration and the existing review/hosted-validation gates. Accepted totals remain R0 3/5, R1 2/33 and overall 5/38 (13.2%). The user reaffirmed OD-013: public OAuth/live Jira onboarding remains disabled; spreadsheet rows remain reviewed import proposals.
 
 
 PR #104 merged the independently reviewed EXEC-015 engagement design at
@@ -28,7 +32,7 @@ core at `036b5bb5804b5cf3feab6853845b3cc49a086820`. Both merges preserve the rev
 candidate trees and passed their post-merge Foundation/Documentation workflows.
 [EXEC-015](exec-plans/EXEC-015-update-engagement-workflow.md) records exact evidence.
 Durable storage, current source/recipient dispatch gates and the recipient response
-workflow remain in progress. Stage 2a is merged storage groundwork. Stage 2b adds a reviewed candidate for scoped API activation and SHADOW processing; worker business-table access and external delivery remain disabled. Issue #9 remains open; no new
+workflow remain in progress. Stage 2a is merged storage groundwork. Stage 2b is merged for scoped API activation and SHADOW processing; worker business-table access and external delivery remain disabled. Issue #9 remains open; no new
 criterion or accepted story is claimed. The Product Owner reaffirmed keeping live
 OAuth/Jira onboarding disabled under OD-013. Accepted totals remain R0 3/5, R1 2/33.
 

@@ -209,7 +209,7 @@ export const projectUpdateRecipientRequestViewSchema = z.strictObject({
   body: z.string().min(1).max(65536),
   requiredFacts: z.array(projectUpdateRequiredFactSchema).min(1).max(100),
   rawResponseReaders: z.array(canonicalSubjectSchema).max(33),
-  responses: z.array(projectUpdateResponseHistorySchema).max(100),
+  responses: z.array(projectUpdateResponseHistorySchema).max(20),
 });
 export type ProjectUpdateRecipientRequestView = z.infer<
   typeof projectUpdateRecipientRequestViewSchema
@@ -228,8 +228,9 @@ export const projectUpdateCaptureHistorySchema = z.strictObject({
     body: z.string().nullable(),
     // Locators are returned only for the current exact named recipient.
     recipientPath: z.string().nullable(),
-    responses: z.array(projectUpdateResponseHistorySchema).max(100),
-  })).max(100),
+    responses: z.array(projectUpdateResponseHistorySchema).max(20),
+  })).max(20),
+  nextCursor: z.uuid().nullable(),
 });
 export type ProjectUpdateCaptureHistory = z.infer<
   typeof projectUpdateCaptureHistorySchema

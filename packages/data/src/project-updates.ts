@@ -6,7 +6,7 @@ import {
   projectUpdateResponseSubmissionSchema, projectUpdateRecipientRequestViewSchema,
   mayAccessProjectUpdateInvitation, renderProjectUpdateCapture,
   type ProjectUpdateCaptureConfiguration, type ProjectUpdateRecipientRequestView,
-  type ProjectUpdateResponseReceipt,
+  type ProjectUpdateResponseReceipt, type ProjectUpdateCaptureHistory,
   projectUpdateZoneConfigurationSchema,
   planProjectUpdateRecipientStage,
   type ProjectUpdateZoneConfiguration,
@@ -1318,7 +1318,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       id: string; submittedBy: string; receivedAt: Date; correctsResponseId: string | null;
       body: string | null; contentState: "PRESENT" | "EXPIRED";
     }[]>(
-      'SELECT r.id,r."submittedBy",r."receivedAt",r."correctsResponseId",CASE WHEN c.state=\'PRESENT\' AND r."purgeAfter">clock_timestamp() THEN c.body ELSE NULL END AS body,CASE WHEN c.state=\'PRESENT\' AND r."purgeAfter">clock_timestamp() THEN \'PRESENT\' ELSE \'EXPIRED\' END AS "contentState" FROM public."ProjectUpdateResponse" r JOIN public."ProjectUpdateResponseContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."responseId"=r.id WHERE r."customerId"=$1::uuid AND r."projectId"=$2::uuid AND r."requestId"=$3::uuid ORDER BY r."receivedAt",r.id LIMIT 100',
+      'SELECT r.id,r."submittedBy",r."receivedAt",r."correctsResponseId",CASE WHEN c.state=\'PRESENT\' AND r."purgeAfter">clock_timestamp() THEN c.body ELSE NULL END AS body,CASE WHEN c.state=\'PRESENT\' AND r."purgeAfter">clock_timestamp() THEN \'PRESENT\' ELSE \'EXPIRED\' END AS "contentState" FROM public."ProjectUpdateResponse" r JOIN public."ProjectUpdateResponseContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."responseId"=r.id WHERE r."customerId"=$1::uuid AND r."projectId"=$2::uuid AND r."requestId"=$3::uuid ORDER BY r."receivedAt" DESC,r.id DESC LIMIT 20',
       current.customerId, projectId, requestId,
     );
     return rows.map((row) => ({ id: row.id, submittedBy: row.submittedBy,
@@ -1438,6 +1438,73 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       );
       return { responseId, requestId: row.requestId, receivedAt: iso(asOf),
         state: "UNCONFIRMED", message: "Response recorded; required facts remain unconfirmed." };
+    });
+  }
+
+
+  async captureHistory(actorValue: Actor, projectValue: string, cursorValue?: string | null): Promise<ProjectUpdateCaptureHistory> {
+    const current = parseActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    if (cursorValue && !projectUpdateInvitationLocatorSchema.safeParse(cursorValue).success)
+      throw new ProjectUpdateError("INVALID_REQUEST");
+    return this.transaction(async (tx) => {
+      const projects = await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR UPDATE',
+        current.customerId, projectId,
+      );
+      if (!projects[0]) throw new ProjectUpdateError("DENIED");
+      let administrator = false;
+      if (current.roles.includes("pmo_admin")) {
+        try { await authorizeFactProject(tx, current, projectId, "access"); administrator = true; }
+        catch { /* A named recipient may still read only their own requests. */ }
+      }
+      if (!administrator && !await this.actorRecipientAuthorized(tx, current, projectId, "OWNER") &&
+          !await this.actorRecipientAuthorized(tx, current, projectId, "PROJECT_MANAGER"))
+        throw new ProjectUpdateError("DENIED");
+      const rows = await tx.$queryRawUnsafe<{
+        requestId: string; stageId: string; stageKind: "REQUEST" | "REMINDER" | "ESCALATION";
+        recipientSubject: string; recipientRole: "OWNER" | "PROJECT_MANAGER"; capturedAt: Date;
+        expiresAt: Date; purgeAfter: Date; issuanceEpoch: string; reviewerSubjects: string[];
+        body: string | null; contentState: string; dependencies: unknown; requiredFacts: unknown;
+        locator: string; engagementState: string; obligationState: string;
+        stageGeneration: number; engagementGeneration: number; policyRevision: number; currentPolicyRevision: number;
+      }[]>(
+        'SELECT r.id AS "requestId",s.id AS "stageId",s.kind AS "stageKind",r."recipientSubject",s."recipientRole",r."capturedAt",i."expiresAt",r."purgeAfter",r."issuanceEpoch",r."reviewerSubjects",c.body,c.state AS "contentState",r.dependencies,p."requiredFacts",i.locator,e.state AS "engagementState",o.state AS "obligationState",s.generation AS "stageGeneration",e.generation AS "engagementGeneration",s."policyRevision",h.revision AS "currentPolicyRevision" FROM public."ProjectUpdateCapturedRequest" r JOIN public."ProjectUpdateStage" s ON s."customerId"=r."customerId" AND s."projectId"=r."projectId" AND s.id=r."stageId" JOIN public."ProjectUpdateEngagement" e ON e."customerId"=s."customerId" AND e."projectId"=s."projectId" AND e.id=s."engagementId" JOIN public."ProjectUpdateObligation" o ON o."customerId"=e."customerId" AND o."projectId"=e."projectId" AND o.id=e."obligationId" JOIN public."ProjectUpdatePolicyRevision" p ON p."customerId"=s."customerId" AND p."projectId"=s."projectId" AND p.id=s."policyRevisionId" JOIN public."ProjectUpdatePolicy" h ON h."customerId"=s."customerId" AND h."projectId"=s."projectId" JOIN public."ProjectUpdateInvitation" i ON i."customerId"=r."customerId" AND i."projectId"=r."projectId" AND i."requestId"=r.id JOIN public."ProjectUpdateRequestContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."requestId"=r.id WHERE r."customerId"=$1::uuid AND r."projectId"=$2::uuid AND ($3 OR r."recipientSubject"=$4) AND ($5::uuid IS NULL OR (r."capturedAt",r.id)<(SELECT before."capturedAt",before.id FROM public."ProjectUpdateCapturedRequest" before WHERE before."customerId"=$1::uuid AND before."projectId"=$2::uuid AND before.id=$5::uuid AND ($3 OR before."recipientSubject"=$4))) ORDER BY r."capturedAt" DESC,r.id DESC LIMIT 21',
+        current.customerId, projectId, administrator, current.subject, cursorValue ?? null,
+      );
+      const configuration = this.captureConfiguration(current.customerId);
+      const gateOpen = configuration ? await this.captureGate(tx, current.customerId, configuration) : false;
+      const asOf = await this.now(tx);
+      const entries: ProjectUpdateCaptureHistory["entries"] = [];
+      for (const row of rows.slice(0, 20)) {
+        const retained = row.contentState === "PRESENT" && row.purgeAfter > asOf && row.body !== null;
+        const namedRecipient = row.recipientSubject === current.subject &&
+          await this.actorRecipientAuthorized(tx, current, projectId, row.recipientRole);
+        const frozenReviewer = administrator && row.reviewerSubjects.includes(current.subject) &&
+          configuration?.responseReviewerSubjects.includes(current.subject) === true;
+        let disclose = retained && gateOpen && (namedRecipient || frozenReviewer) &&
+          await this.recipientAuthorized(tx, current.customerId, projectId, row.recipientSubject, row.recipientRole);
+        if (disclose) {
+          const dependencies = z.array(projectUpdateFactReferenceSchema).max(1000).parse(jsonValue(row.dependencies));
+          const recipient: Actor = { customerId: current.customerId, subject: row.recipientSubject, roles: [] };
+          const viewerValues = await this.resolveKnownPosition(tx, current, projectId, dependencies, row.requiredFacts);
+          const recipientValues = await this.resolveKnownPosition(tx, recipient, projectId, dependencies, row.requiredFacts);
+          disclose = viewerValues.length === dependencies.length && recipientValues.length === dependencies.length;
+        }
+        const currentCycle = row.engagementState === "ACTIVE" && row.obligationState === "OPEN" &&
+          row.stageGeneration === row.engagementGeneration && row.policyRevision === row.currentPolicyRevision;
+        const status = !gateOpen || row.issuanceEpoch !== configuration?.issuanceEpoch ? "QUARANTINED" as const
+          : row.expiresAt <= asOf ? "EXPIRED" as const : !currentCycle ? "ENDED" as const : "ACTIVE" as const;
+        entries.push({
+          requestId: row.requestId, stageId: row.stageId, stageKind: row.stageKind,
+          recipientSubject: row.recipientSubject, capturedAt: iso(row.capturedAt), expiresAt: iso(row.expiresAt),
+          status, contentState: !retained ? "EXPIRED" : disclose ? "PRESENT" : "RESTRICTED",
+          body: disclose ? row.body : null,
+          recipientPath: disclose && namedRecipient && status === "ACTIVE" ? "/update-requests/" + row.locator : null,
+          responses: disclose ? await this.responseHistory(tx, current, projectId, row.requestId) : [],
+        });
+      }
+      return { projectId, entries, nextCursor: rows.length > 20 ? rows[19]!.requestId : null };
     });
   }
 
