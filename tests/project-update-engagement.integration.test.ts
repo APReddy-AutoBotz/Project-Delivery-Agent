@@ -220,6 +220,111 @@ it("NFR-REL-002: disabling and rotating issuance denies old locators and replay 
   await expect(f.capture.invitation(f.owner, locator)).rejects.toMatchObject({ code: "DENIED" });
   expect((await f.capture.invitation(f.owner, fresh.recipientPath!.split("/").at(-1)!)).responses).toEqual([]);
 });
+it("NFR-SEC-005: raw history intersects frozen reviewers with current configuration and grants", async () => {
+  const f = await captureFixture();
+  await f.capture.activateEngagement(f.admin, f.projectId, 1, randomUUID());
+  await f.capture.processEngagements(1);
+  const initial = (await f.capture.captureHistory(f.owner, f.projectId)).entries;
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(initial).toEqual([]); return; }
+  const locator = initial[0]!.recipientPath!.split("/").at(-1)!;
+  await f.capture.submitResponse(f.owner, locator, { text: "Private unconfirmed reviewer fixture", idempotencyKey: randomUUID() }, randomUUID());
+  expect((await f.capture.captureHistory(f.admin, f.projectId)).entries[0]!.responses).toHaveLength(1);
+  f.configuration.responseReviewerSubjects = [];
+  expect((await f.capture.captureHistory(f.admin, f.projectId)).entries[0]).toMatchObject({
+    contentState: "RESTRICTED", body: null, responses: [], recipientPath: null,
+  });
+  expect((await f.capture.invitation(f.owner, locator)).responses).toHaveLength(1);
+  const added: Actor = { ...f.admin, subject: "new-reviewer-" + randomUUID() };
+  await db.accessGrant.create({ data: { customerId: added.customerId, subject: added.subject,
+    role: "pmo_admin", scopeType: "project", scopeId: f.projectId } });
+  f.configuration.responseReviewerSubjects = [f.admin.subject, added.subject];
+  expect((await f.capture.captureHistory(added, f.projectId)).entries[0]).toMatchObject({
+    contentState: "RESTRICTED", body: null, responses: [],
+  });
+  await db.accessGrant.deleteMany({ where: { customerId: f.admin.customerId, subject: f.admin.subject } });
+  await expect(f.capture.captureHistory(f.admin, f.projectId)).rejects.toMatchObject({ code: "DENIED" });
+  expect((await f.capture.invitation(f.owner, locator)).responses).toHaveLength(1);
+});
+
+it("NFR-SEC-001/005: revoking a captured source denies invitation and replay and withholds raw history", async () => {
+  const f = await captureFixture();
+  const source = await f.append("project.status", new Date(f.now.getTime() - 7200000));
+  const access = await f.facts.getSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId });
+  await f.facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId,
+    expectedRevision: access!.revision, state: "AVAILABLE", readers: [f.admin.subject, f.service, f.owner.subject] }, { correlationId: randomUUID() });
+  await f.capture.activateEngagement(f.admin, f.projectId, 1, randomUUID());
+  await f.capture.processEngagements(1);
+  const history = await f.capture.captureHistory(f.owner, f.projectId);
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(history.entries).toEqual([]); return; }
+  const locator = history.entries[0]!.recipientPath!.split("/").at(-1)!;
+  expect((await f.capture.invitation(f.owner, locator)).body).toContain("Private synthetic value");
+  const command = { text: "Private raw source-linked response", idempotencyKey: randomUUID() };
+  await f.capture.submitResponse(f.owner, locator, command, randomUUID());
+  const current = await f.facts.getSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId });
+  await f.facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId,
+    expectedRevision: current!.revision, state: "REVOKED", readers: [] }, { correlationId: randomUUID() });
+  await expect(f.capture.invitation(f.owner, locator)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(f.capture.submitResponse(f.owner, locator, command, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
+  for (const viewer of [f.owner, f.admin])
+    expect((await f.capture.captureHistory(viewer, f.projectId)).entries[0]).toMatchObject({
+      contentState: "RESTRICTED", body: null, responses: [], recipientPath: null,
+    });
+  expect(await db.projectUpdateResponse.count({ where: { requestId: history.entries[0]!.requestId } })).toBe(1);
+});
+
+function captureFault(fragment: string) {
+  return {
+    $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      apiDatabase.$transaction(async (value) => {
+        const tx = value as Parameters<Parameters<typeof db.$transaction>[0]>[0];
+        return operation(new Proxy(tx, { get(target, key) {
+          if (key === "$executeRawUnsafe") return async (sql: string, ...args: unknown[]) => {
+            if (sql.includes(fragment)) throw new Error("Synthetic capture precommit fault");
+            return target.$executeRawUnsafe(sql, ...args);
+          };
+          const selected = Reflect.get(target, key);
+          return typeof selected === "function" ? selected.bind(target) : selected;
+        } }));
+      }, options),
+  };
+}
+
+it.each(['INSERT INTO public."ProjectUpdateInvitation"', 'INSERT INTO public."ProjectUpdateRequestContent"'])(
+  "NFR-REL-002: a fault at %s rolls back capture metadata, content and receipts", async (fragment) => {
+    const f = await captureFixture();
+    const activation = (await f.capture.activateEngagement(f.admin, f.projectId, 1, randomUUID()))!;
+    if ([0, 6].includes(new Date().getUTCDay())) return;
+    const before = await outbox(activation.engagementId);
+    const broken = new DatabaseProjectUpdateRepository(captureFault(fragment) as never, f.service, f.zones,
+      () => ({ globalShadowMode: "false", configuration: f.configuration }));
+    await expect(broken.processEngagements(1)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    expect(await outbox(activation.engagementId)).toEqual(before);
+    for (const delegate of [db.projectUpdateCapturedRequest, db.projectUpdateInvitation,
+      db.projectUpdateRequestContent, db.projectUpdateResponse, db.projectUpdateResponseContent])
+      expect(await delegate.count({ where: { customerId: f.admin.customerId, projectId: f.projectId } })).toBe(0);
+    expect(await db.auditEvent.count({ where: { customerId: f.admin.customerId, actor: f.service } })).toBe(0);
+    await f.retryEligible();
+    await f.capture.processEngagements(1);
+    expect((await f.capture.captureHistory(f.owner, f.projectId)).entries).toHaveLength(1);
+  });
+
+it("NFR-REL-002: response-content failure rolls back metadata and audit before idempotent retry", async () => {
+  const f = await captureFixture();
+  await f.capture.activateEngagement(f.admin, f.projectId, 1, randomUUID());
+  await f.capture.processEngagements(1);
+  const history = await f.capture.captureHistory(f.owner, f.projectId);
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(history.entries).toEqual([]); return; }
+  const locator = history.entries[0]!.recipientPath!.split("/").at(-1)!;
+  const broken = new DatabaseProjectUpdateRepository(captureFault('INSERT INTO public."ProjectUpdateResponseContent"') as never,
+    f.service, f.zones, () => ({ globalShadowMode: "false", configuration: f.configuration }));
+  const correlationId = randomUUID(), command = { text: "Atomic unconfirmed retry", idempotencyKey: randomUUID() };
+  await expect(broken.submitResponse(f.owner, locator, command, correlationId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await db.projectUpdateResponse.count({ where: { requestId: history.entries[0]!.requestId } })).toBe(0);
+  expect(await db.auditEvent.count({ where: { correlationId } })).toBe(0);
+  const receipt = await f.capture.submitResponse(f.owner, locator, command, randomUUID());
+  expect(await f.capture.submitResponse(f.owner, locator, command, randomUUID())).toEqual(receipt);
+  expect((await f.capture.invitation(f.owner, locator)).responses).toHaveLength(1);
+});
 const stages = (engagementId: string) => db.projectUpdateStage.findMany({ where: { engagementId } });
 const outbox = async (engagementId: string) => {
   const ids = (await stages(engagementId)).map((stage) => stage.id);

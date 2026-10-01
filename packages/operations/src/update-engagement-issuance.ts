@@ -130,4 +130,3 @@ export async function quarantineUpdateIssuance(client: Pick<Client, "query">, cu
   await client.query("SELECT public.purge_update_capture_content($1::uuid)", [customerId]);
   return { issuanceDisabled: true, invitationsInvalidated: true };
 }
-

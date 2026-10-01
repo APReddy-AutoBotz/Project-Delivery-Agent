@@ -98,6 +98,9 @@ test("a delayed response cannot restore protected text after sign-out", async ({
 });
 
 test("OIDC callback preserves the invitation locator and SDK expiry clears its draft", async ({ page }) => {
+  // Install before the SDK creates timers; installing afterward can leave its
+  // native expiry timer outside Playwright's virtual clock on Linux.
+  await page.clock.install();
   const issuer = "https://synthetic-identity.example";
   const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type",
     "access-control-allow-methods": "GET,POST,OPTIONS" };
@@ -143,7 +146,6 @@ test("OIDC callback preserves the invitation locator and SDK expiry clears its d
   await expect(page).toHaveURL(`http://localhost:5173/update-requests/${locator}`);
   await expect(page.getByRole("region", { name: "Respond to update request" })).toBeVisible();
   await page.getByRole("textbox", { name: "Your update (unconfirmed)" }).fill("Private OIDC draft");
-  await page.clock.install();
   await page.clock.fastForward(65000);
   await expect(page.getByRole("textbox", { name: "Your update (unconfirmed)" })).toHaveCount(0);
   await expect(page.getByText("Private authenticated request", { exact: true })).toHaveCount(0);
