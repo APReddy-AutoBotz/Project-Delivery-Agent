@@ -74,7 +74,7 @@ async function fixture(options: { service?: string; recentProject?: boolean } = 
   const activate = () => updates.activateEngagement(admin, project.id, 1, randomUUID());
   const facts = new DatabaseProjectFactRepository(db);
   const authority = new DatabaseAuthorityRepository(db);
-  const append = async (factType: string, observedAt?: Date) => {
+  const append = async (factType: string, observedAt?: Date, validityDurationMs = 31536000000) => {
     const fact = await db.projectFact.findFirst({ where: { customerId, projectId: project.id, factType } });
     const writer = observedAt ? new DatabaseProjectFactRepository(birthDatabase(undefined, observedAt) as never) : facts;
     const result = await writer.appendHumanStatement(admin, {
@@ -88,7 +88,7 @@ async function fixture(options: { service?: string; recentProject?: boolean } = 
     if (!fact) await authority.appendPolicy(admin, { projectId: project.id, factType,
       expectedRevision: 0, idempotencyKey: randomUUID(), effectiveAt: "2026-01-01T00:00:00.000Z",
       definition: { tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null,
-        requiredApproval: "NOT_REQUIRED", validity: { basis: "observedAt", durationMs: 31536000000 } }] }],
+        requiredApproval: "NOT_REQUIRED", validity: { basis: "observedAt", durationMs: validityDurationMs } }] }],
         conflictBehavior: "REQUEST_RECONCILIATION" },
     }, { correlationId: randomUUID() });
     return result;
@@ -139,7 +139,7 @@ it("activates server-selected stages idempotently and denies stale revisions or 
 
 it("keeps owner stages when the configured PM loses current authorization", async () => {
   const f = await fixture();
-  await db.accessGrant.deleteMany({ where: { projectId: f.projectId, subject: "synthetic-owner-1" } });
+  await db.accessGrant.deleteMany({ where: { customerId: f.admin.customerId, scopeType: "project", scopeId: f.projectId, subject: "synthetic-owner-1" } });
   const result = (await f.activate())!;
   expect(result.configurationActions).toEqual(["PM_RECIPIENT_REVOKED"]);
   expect(result.stageCount).toBe(4);
@@ -207,7 +207,7 @@ it("processes SHADOW under the API role, records a fenced suppression, and perfo
 it("retains unresolved actions and creates a reasoned deferral after recipient or source revocation", async () => {
   const f = await fixture();
   const initial = (await f.activate())!;
-  await db.accessGrant.deleteMany({ where: { projectId: f.projectId, subject: "synthetic-owner-4" } });
+  await db.accessGrant.deleteMany({ where: { customerId: f.admin.customerId, scopeType: "project", scopeId: f.projectId, subject: "synthetic-owner-4" } });
   expect(await f.updates.processShadowEngagements(1)).toBe(1);
   expect((await outbox(initial.engagementId)).some((row) => row.state === "READY" && row.reason === "RECIPIENT_REVOKED")).toBe(true);
   await db.accessGrant.create({ data: { customerId: f.admin.customerId, subject: "synthetic-owner-4",
@@ -215,7 +215,9 @@ it("retains unresolved actions and creates a reasoned deferral after recipient o
   const source = await f.append("project.status");
   await f.updates.assess(f.admin, f.projectId, randomUUID());
   await f.facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId,
-    expectedRevision: source.entry.sourceAccessRevision + 1, state: "REVOKED",
+    expectedRevision: (await f.facts.getSourceAccess(f.admin, {
+      projectId: f.projectId, sourceId: source.entry.sourceId,
+    }))!.revision, state: "REVOKED",
     readers: [] }, { correlationId: randomUUID() });
   await f.updates.assess(f.admin, f.projectId, randomUUID());
   expect(await db.projectUpdateEngagement.findUnique({ where: { id: initial.engagementId } })).toMatchObject({
@@ -295,7 +297,7 @@ it("rolls back a crash after claim without a durable handoff and safely retries"
     $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
       db.$transaction(async (tx) => operation(new Proxy(tx, { get(target, key) {
         if (key === "$executeRawUnsafe") return async (sql: string, ...args: unknown[]) => {
-          if (sql.includes("SET state='SUPPRESSED'") || sql.includes("SET state='READY',\"leaseUntil\"=NULL,\"availableAt\""))
+          if (sql.includes("SET state='SUPPRESSED'") || sql.includes("SET state='READY',\"availableAt\"=$4"))
             throw new Error("Synthetic precommit claim crash");
           return target.$executeRawUnsafe(sql, ...args);
         };
@@ -325,7 +327,9 @@ it("keeps an unresolved cycle when source revocation falls back to a recent proj
   const initial = (await f.activate())!;
   const snapshots = await stages(initial.engagementId);
   await f.facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId,
-    expectedRevision: source.entry.sourceAccessRevision + 1, state: "REVOKED", readers: [] },
+    expectedRevision: (await f.facts.getSourceAccess(f.admin, {
+      projectId: f.projectId, sourceId: source.entry.sourceId,
+    }))!.revision, state: "REVOKED", readers: [] },
     { correlationId: randomUUID() });
   const assessment = await f.updates.assess(f.admin, f.projectId, randomUUID());
   expect(assessment.freshness.state).toBe("CURRENT");
@@ -338,7 +342,7 @@ it("keeps an unresolved cycle when source revocation falls back to a recent proj
   const saved = await db.projectUpdateAssessment.findFirstOrThrow({ where: { projectId: f.projectId },
     orderBy: [{ assessedAt: "desc" }, { id: "desc" }] });
   expect(saved.result).toMatchObject({ engagementFacts: expect.arrayContaining([
-    expect.objectContaining({ factType: "project.status", state: "UNKNOWN" }),
+    expect.objectContaining({ factType: "project.status", state: "UNRESOLVED", sourceState: "UNKNOWN" }),
   ]) });
 });
 
@@ -393,4 +397,25 @@ it("rotates a failed project without starving another due project under the same
   expect(await db.projectUpdateDispatchAttempt.count({ where: {
     outboxId: { in: prior.map((row) => row.id) }, event: "CLAIMED",
   } })).toBe(0);
+});
+
+it("keeps expired existing source versions UNKNOWN instead of treating them as absent facts", async () => {
+  const f = await fixture();
+  const initial = (await f.activate())!;
+  await f.append("project.status", new Date(f.now.getTime() - 7200000), 3600000);
+  await f.updates.assess(f.admin, f.projectId, randomUUID());
+  const engagement = await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: initial.engagementId } });
+  expect(engagement).toMatchObject({ state: "ACTIVE", obligationId: initial.obligationId, sourceSatisfiedFactTypes: [] });
+  const saved = await db.projectUpdateAssessment.findUniqueOrThrow({ where: { id: engagement.sourceAssessmentId! } });
+  expect(saved.result).toMatchObject({ engagementFacts: expect.arrayContaining([
+    expect.objectContaining({ factType: "project.status", state: "UNRESOLVED", sourceState: "UNKNOWN" }),
+    expect.objectContaining({ factType: "project.forecast", state: "UNRESOLVED", sourceState: "MISSING" }),
+  ]) });
+  expect(await f.updates.processShadowEngagements(1)).toBe(1);
+  expect((await outbox(initial.engagementId)).some((row) => row.state === "READY" && row.reason === "SOURCE_UNKNOWN")).toBe(true);
+  expect((await outbox(initial.engagementId)).every((row) => row.state !== "SUPPRESSED")).toBe(true);
+  const blocked = await fixture();
+  await blocked.append("project.status", new Date(blocked.now.getTime() - 7200000), 3600000);
+  await expect(blocked.activate()).rejects.toMatchObject({ code: "CONFLICT" });
+  expect(await db.projectUpdateEngagement.count({ where: { projectId: blocked.projectId } })).toBe(0);
 });

@@ -521,7 +521,6 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           resolved.candidateVersionIds.length,
           resolved.supportingVersionIds.length,
         );
-        if (versionsCount === 0 && status === "UNKNOWN") check.sourceState = "MISSING";
         factAssessments.push({
           factType: requirement.factType,
           canonicalVersionCount: versionsCount,

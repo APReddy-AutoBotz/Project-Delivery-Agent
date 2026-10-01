@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-09-30
+Updated: 2026-10-01
 
 ## Accepted implementation completion
 
@@ -19,7 +19,7 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
-EXEC-015 storage PR #106 and scheduling/lineage PR #107 are merged with verified reviewed/candidate/merged tree equality and passing candidate and post-merge Foundation/Documentation workflows. PR #107 native verify passed 1,624 unit, 135 integration and 39 browser tests plus populated 78-table restore; packaged validation also passed. Transaction-bound explicit SHADOW activation and signed processing are now a candidate, with source-only satisfaction, future intent cancellation and native denial/race/rollback coverage. Independent exact-candidate review and required hosted validation are pending. This does not accept additional stories, response capture, SMTP delivery, or full AC-WFL-001. R0 3/5 and R1 2/33 remain unchanged; OD-013 keeps live onboarding disabled.
+EXEC-015 storage PR #106 and scheduling/lineage PR #107 are merged with verified reviewed/candidate/merged tree equality and passing candidate and post-merge Foundation/Documentation workflows. PR #107 native verify passed 1,624 unit, 135 integration and 39 browser tests plus populated 78-table restore; packaged validation also passed. Transaction-bound explicit SHADOW activation and signed processing are now a candidate, with source-only satisfaction, future intent cancellation and native denial/race/rollback coverage. Independent review is correcting source-expiry classification and hosted fixture failures before fresh exact-candidate review and full validation. Populated source-linked encrypted restore is exercised in the isolated packaged and both customer-composition profiles. Required hosted validation remains pending. This does not accept additional stories, response capture, SMTP delivery, or full AC-WFL-001. R0 3/5 and R1 2/33 remain unchanged; OD-013 keeps live onboarding disabled.
 
 
 PR #104 merged the independently reviewed EXEC-015 engagement design at
@@ -28,8 +28,7 @@ core at `036b5bb5804b5cf3feab6853845b3cc49a086820`. Both merges preserve the rev
 candidate trees and passed their post-merge Foundation/Documentation workflows.
 [EXEC-015](exec-plans/EXEC-015-update-engagement-workflow.md) records exact evidence.
 Durable storage, current source/recipient dispatch gates and the recipient response
-workflow remain in progress. Stage 2a is a storage candidate under review, with no
-new API/worker table access or external delivery. Issue #9 remains open; no new
+workflow remain in progress. Stage 2a is merged storage groundwork. Stage 2b adds a reviewed candidate for scoped API activation and SHADOW processing; worker business-table access and external delivery remain disabled. Issue #9 remains open; no new
 criterion or accepted story is claimed. The Product Owner reaffirmed keeping live
 OAuth/Jira onboarding disabled under OD-013. Accepted totals remain R0 3/5, R1 2/33.
 

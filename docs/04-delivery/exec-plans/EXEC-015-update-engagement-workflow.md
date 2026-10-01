@@ -5,7 +5,7 @@ Owner: Implementation controller
 Requirement IDs: FR-UPD-001..012, FR-ESC-001..007, FR-ADM-004, NFR-REL-002, NFR-SEC-001, TR-DATA-001, TR-MSG-001, TR-STACK-006; AC-UPD-002/003/004/006/007/008/009/010, AC-WFL-001  
 GitHub issue: #9  
 Target release: R1  
-Last updated: 2026-09-30
+Last updated: 2026-10-01
 
 ## Objective
 
@@ -139,6 +139,9 @@ Candidate implementation (review and validation pending):
 - 2026-09-30: Reserve a separate per-project processing timer before material assessment/stage transactions. Last-attempt ordering and a five-minute failure backoff prevent a failing low-ID project from starving another customer's configured due work. Add nullable policy timer columns in migration 23; no extra worker grant or external dispatch is introduced.
 - 2026-09-30: Replace two-second freshness sleeps with scoped birth-only synthetic creation/observation timestamps and a one-hour window. Assertions follow the actual UTC weekday: due SHADOW processing suppresses on weekdays and records a future WEEKEND deferral on weekends. Precommit fault checks cover both outcomes; immutable persisted history is never rewritten.
 - 2026-09-30: Extend the guarded populated storage fixture with a genuine authorized human status, an unresolved forecast and a nonempty source-satisfaction mask bound to a same-policy assessment. Wire the fixture and restore validator into both disposable customer-composition profiles; encrypted restore must preserve mask, assessment ID, assessment time, policy identity, stage/intent/receipt integrity and terminal UNKNOWN. Fresh exact-SHA review and hosted gates remain pending.
+
+- 2026-10-01: Classify an existing unresolved ProjectFact as source UNKNOWN even when authority selection yields no eligible candidate IDs (expired, not-yet-effective or unapproved versions). MISSING is reserved for an absent ProjectFact. Native expiry checks require blocked activation and SOURCE_UNKNOWN deferral of an existing cycle. Hosted b150 validation found three fixture defects: AccessGrant uses scopeType/scopeId, source-access revision must be read after reader-trigger updates, and the isolated production host expected a recovery receipt only wired into customer profiles. Correct all three; populated source-linked recovery is now wired into the isolated packaged profile as well as both customer-composition profiles. Guarded object connections require exact acceptance mode, run ID, environment, synthetic customer, host/database and readiness-marker contents. Packaged fixtures preserve actual migration/restore ACLs; native fixtures alone reconstruct altered ACLs. No failing gate is waived.
+- 2026-10-01: Independent native fixture review corrected the recent-project result assertion to UNRESOLVED/sourceState UNKNOWN and the weekend precommit fault predicate to the actual deferral update. Both paths retain genuine rollback checks.
 
 ## Decisions made
 

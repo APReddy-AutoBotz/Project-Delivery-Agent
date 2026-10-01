@@ -2,6 +2,7 @@
 // FR-ESC-006, NFR-REL-002, TR-DATA-001, NFR-SEC-001.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import {
   createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectUpdateRepository,
@@ -70,16 +71,19 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
         !["localhost","127.0.0.1"].includes(target.hostname) || !/^\/pdaa_test_[0-9]+$/.test(target.pathname))
       throw new Error("Engagement storage checks require an isolated synthetic database");
   } else {
-    // Only the disposable customer-composition acceptance fixture may exercise
-    // this seed through a production configuration.
-    assert.equal(process.env.PDAA_ACCEPTANCE, "customer-composition");
+    // Explicitly generated, run-owned acceptance clusters only.
+    const customerComposition = process.env.PDAA_ACCEPTANCE === "customer-composition";
+    assert(["isolated","customer-composition"].includes(process.env.PDAA_ACCEPTANCE));
     assert.match(process.env.PDAA_ACCEPTANCE_RUN_ID, /^pdaa-acceptance-\d+-[a-f0-9]{8}$/);
     assert.equal(process.env.NODE_ENV, "production");
-    assert.equal(process.env.DATA_MODE, "customer");
+    assert.equal(process.env.DATA_MODE, customerComposition ? "customer" : "synthetic");
     assert.equal(process.env.DEPLOYMENT_MODE, "customer");
-    assert.equal(process.env.CUSTOMER_ID, "10000000-0000-4000-8000-000000000002");
-    assert(["database","external-database"].includes(databaseConnection?.host));
+    assert.equal(process.env.CUSTOMER_ID, customerComposition
+      ? "10000000-0000-4000-8000-000000000002" : "10000000-0000-4000-8000-000000000001");
+    assert((customerComposition ? ["database","external-database"] : ["database"]).includes(databaseConnection?.host));
     assert.equal(databaseConnection.database, "pdaa");
+    assert.equal(readFileSync(customerComposition ? "/run/secrets/customer-ready" : "/run/secrets/ready", "utf8"),
+      customerComposition ? "isolated customer composition\n" : "isolated synthetic acceptance\n");
   }
   const db = createDatabase(databaseConnection);
   const pool = new Pool(typeof databaseConnection === "string"
@@ -268,24 +272,27 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
     assert.deepEqual(source.sourceSatisfiedFactTypes, ["project.status"]);
     assert(source.sourceAssessmentId);
     assert(source.sourceAssessedAt instanceof Date);
-    // Verify both initial migration ACL and reconstruction after --no-acl restore.
+    // Native rehearsal tests ACL reconstruction. Packaged clusters use the
+    // real migration/restore engine and retain its ownership and ACL layout.
     await verifyEngagementStoragePrivileges(pool);
-    for (const name of engagementStorageFunctions)
-      await pool.query(`GRANT EXECUTE ON FUNCTION public.${name}() TO PUBLIC`);
     const before = (await pool.query('SELECT * FROM "ProjectUpdateDispatchAttempt" ORDER BY id')).rows;
-    // Prisma's isolated synthetic deployment runs as the local superuser.
-    // Match the native migration-owner layout before reconstructing finite ACLs.
-    // The isolated pdaa_test URL guard above prevents this fixture setup elsewhere.
-    await pool.query(`DO $owners$ DECLARE item record; BEGIN
-      FOR item IN
-        SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-        WHERE n.nspname='public' AND c.relkind IN ('r','p')
-          AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
-      LOOP
-        EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname);
-      END LOOP;
-    END $owners$`);
-    await applyBusinessTableGrants(pool);
+    if (typeof databaseConnection === "string") {
+      for (const name of engagementStorageFunctions)
+        await pool.query(`GRANT EXECUTE ON FUNCTION public.${name}() TO PUBLIC`);
+      // Prisma's isolated synthetic deployment runs as the local superuser.
+      // Match the native migration-owner layout before reconstructing finite ACLs.
+      // The isolated pdaa_test URL guard above prevents this fixture setup elsewhere.
+      await pool.query(`DO $owners$ DECLARE item record; BEGIN
+        FOR item IN
+          SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+          WHERE n.nspname='public' AND c.relkind IN ('r','p')
+            AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
+        LOOP
+          EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname);
+        END LOOP;
+      END $owners$`);
+      await applyBusinessTableGrants(pool);
+    }
     await verifyEngagementStoragePrivileges(pool);
     assert.deepEqual((await pool.query('SELECT * FROM "ProjectUpdateDispatchAttempt" ORDER BY id')).rows,before);
     assert.equal((await pool.query(`SELECT has_column_privilege('pdaa_api','public."ProjectUpdateObligation"',
