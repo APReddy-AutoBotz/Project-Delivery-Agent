@@ -9,6 +9,8 @@ import type { Actor, HumanStatement } from "../packages/domain/src/index.js";
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
   throw new Error("Fact tests require an isolated synthetic database");
+// Keep the private date distinct from real as-of/audit metadata on every run.
+const privateForecastDate = `${new Date().getUTCFullYear() + 10}-12-31`;
 const db = createDatabase(url);
 const otherConnection = createDatabase(url);
 const facts = new DatabaseProjectFactRepository(db);
@@ -70,7 +72,7 @@ async function fixture() {
     factType: "project.forecast",
     expectedRevision: 0,
     idempotencyKey: "initial",
-    value: { type: "date", value: "2026-10-01" },
+    value: { type: "date", value: privateForecastDate },
     effectiveAt: "2026-09-09T00:00:00.000Z",
     originalStatement: "Sensitive original forecast statement",
   };
@@ -217,7 +219,7 @@ describe("Project fact persistence and current permission boundaries", () => {
     );
     expect(audit.some((row) => row.event === "fact.append.denied")).toBe(true);
     expect(JSON.stringify(audit)).not.toContain(f.request.originalStatement);
-    expect(JSON.stringify(audit)).not.toContain("2026-10-01");
+    expect(JSON.stringify(audit)).not.toContain(privateForecastDate);
   });
   it("allows one optimistic winner and rolls back the losing append completely", async () => {
     const f = await fixture();
