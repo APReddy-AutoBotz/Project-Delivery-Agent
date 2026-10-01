@@ -1411,3 +1411,83 @@ model ProjectUpdateDispatchAttempt {
   recordedAt DateTime @default(now()) @db.Timestamptz(3)
   @@unique([customerId, projectId, outboxId, claimGeneration, event], map: "ProjectUpdateDispatchAttempt_event_key")
 }
+
+model ProjectUpdateIssuanceGate {
+  customerId String @id @db.Uuid
+  issuanceEnabled Boolean @default(false)
+  issuanceEpoch String @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  revision Int @default(0)
+  changedAt DateTime @default(now()) @db.Timestamptz(3)
+  auditEventId String? @db.Uuid
+}
+model ProjectUpdateCapturedRequest {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  stageId String @db.Uuid
+  sourceAssessmentId String @db.Uuid
+  issuanceEpoch String @db.Uuid
+  recipientSubject String @db.VarChar(256)
+  reviewerSubjects String[] @default([]) @db.Text
+  requiredFacts Json
+  dependencies Json
+  rendererRevision String @db.VarChar(64)
+  contentDigest String @db.Char(64)
+  capturedAt DateTime @db.Timestamptz(3)
+  invitationLifetimeSeconds Int
+  contentRetentionSeconds Int
+  purgeAfter DateTime @db.Timestamptz(3)
+  auditEventId String @db.Uuid
+  @@unique([customerId, projectId, id], map: "ProjectUpdateCapturedRequest_scope_key")
+  @@unique([customerId, projectId, stageId], map: "ProjectUpdateCapturedRequest_stage_key")
+}
+model ProjectUpdateInvitation {
+  id String @id @db.Uuid
+  locator String @unique @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  requestId String @db.Uuid
+  recipientSubject String @db.VarChar(256)
+  issuanceEpoch String @db.Uuid
+  issuedAt DateTime @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+  @@unique([customerId, projectId, id], map: "ProjectUpdateInvitation_scope_key")
+  @@unique([customerId, projectId, requestId], map: "ProjectUpdateInvitation_request_key")
+}
+model ProjectUpdateResponse {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  requestId String @db.Uuid
+  invitationId String @db.Uuid
+  submittedBy String @db.VarChar(256)
+  receivedAt DateTime @db.Timestamptz(3)
+  idempotencyKey String @db.VarChar(96)
+  payloadDigest String @db.Char(64)
+  contentDigest String @db.Char(64)
+  correctsResponseId String? @db.Uuid
+  contentRetentionSeconds Int
+  purgeAfter DateTime @db.Timestamptz(3)
+  auditEventId String @db.Uuid
+  @@unique([customerId, projectId, id], map: "ProjectUpdateResponse_scope_key")
+  @@unique([customerId, projectId, invitationId, submittedBy, idempotencyKey], map: "ProjectUpdateResponse_retry_key")
+  @@index([customerId, projectId, requestId, receivedAt, id], map: "ProjectUpdateResponse_history_idx")
+}
+model ProjectUpdateRequestContent {
+  requestId String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  body String?
+  state String @default("PRESENT") @db.VarChar(16)
+  purgedAt DateTime? @db.Timestamptz(3)
+  purgeAuditEventId String? @db.Uuid
+}
+model ProjectUpdateResponseContent {
+  responseId String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  body String?
+  state String @default("PRESENT") @db.VarChar(16)
+  purgedAt DateTime? @db.Timestamptz(3)
+  purgeAuditEventId String? @db.Uuid
+}
