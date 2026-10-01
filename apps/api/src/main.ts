@@ -31,6 +31,7 @@ try {
     db,
     config.projectUpdateServiceSubject,
     config.projectUpdateZones,
+    () => ({ globalShadowMode: config.SHADOW_MODE, configuration: config.projectUpdateCapture }),
   );
   const connectorRuntime = new DatabaseConnectorRuntimeRepository(db, new CredentialKeyRingVault(config.credentialKeys));
   const { app } = await createApp(

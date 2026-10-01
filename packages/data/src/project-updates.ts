@@ -2,6 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   deriveProjectUpdateSourceSatisfaction,
+  projectUpdateCaptureConfigurationSchema, projectUpdateInvitationLocatorSchema,
+  projectUpdateResponseSubmissionSchema, projectUpdateRecipientRequestViewSchema,
+  mayAccessProjectUpdateInvitation, renderProjectUpdateCapture,
+  type ProjectUpdateCaptureConfiguration, type ProjectUpdateRecipientRequestView,
+  type ProjectUpdateResponseReceipt,
   projectUpdateZoneConfigurationSchema,
   planProjectUpdateRecipientStage,
   type ProjectUpdateZoneConfiguration,
@@ -33,6 +38,18 @@ import { actorInput, authorizeFactProject } from "./fact-authorization.js";
 import { DatabaseAuthorityRepository } from "./authority-persistence.js";
 
 type Tx = Prisma.TransactionClient;
+
+type CaptureInvitationRow = {
+  invitationId: string; requestId: string; recipientSubject: string; issuanceEpoch: string;
+  issuedAt: Date; expiresAt: Date; capturedAt: Date; purgeAfter: Date;
+  contentRetentionSeconds: number; reviewerSubjects: string[]; requiredFacts: unknown; dependencies: unknown;
+  body: string | null; contentState: "PRESENT" | "PURGED"; stageId: string;
+  stageKind: "REQUEST" | "REMINDER" | "ESCALATION"; recipientRole: "OWNER" | "PROJECT_MANAGER";
+  logicalDueAt: Date; stageGeneration: number; policyRevision: number; ownerSubject: string;
+  engagementState: string; engagementGeneration: number; obligationState: string;
+  currentPolicyRevision: number; outboxState: string; code: string; name: string;
+};
+
 type EngagementRow = {
   id: string; customerId: string; projectId: string; obligationId: string;
   policyRevisionId: string; policyRevision: number; assessmentId: string;
@@ -257,6 +274,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     private readonly db: Database,
     configuredServiceSubject?: string | null,
     zones?: ProjectUpdateZoneConfiguration | null,
+    private readonly captureReader?: () => { globalShadowMode: string; configuration: unknown },
   ) {
     this.authority = new DatabaseAuthorityRepository(db);
     this.zones = zones ? projectUpdateZoneConfigurationSchema.parse(zones) : null;
@@ -924,15 +942,15 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (changed !== 1) throw new ProjectUpdateError("CONFLICT");
   }
 
-  private async insertStage(tx: Tx, current: Actor, projectId: string, engagement: EngagementRow, plan: ProjectUpdateRecipientStageSnapshot, remaining: string[], auditId: string, replacesStageId: string | null = null) {
+  private async insertStage(tx: Tx, current: Actor, projectId: string, engagement: EngagementRow, plan: ProjectUpdateRecipientStageSnapshot, remaining: string[], auditId: string, replacesStageId: string | null = null, mode: "SHADOW" | "CAPTURE" = "SHADOW") {
     const stageId = randomUUID();
     await tx.$executeRawUnsafe(
-      "INSERT INTO public.\"ProjectUpdateStage\" (id,\"customerId\",\"projectId\",\"engagementId\",\"obligationId\",\"policyRevisionId\",\"policyRevision\",\"assessmentId\",generation,kind,ordinal,\"recipientSubject\",\"recipientRole\",\"factTypes\",\"timeZone\",\"zoneSource\",\"logicalDueAt\",\"candidateAt\",\"scheduledAt\",\"localAt\",\"utcOffset\",\"deferralReasons\",\"ruleRevision\",mode,\"replacesStageId\",\"auditEventId\") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8::uuid,$9,$10,$11,$12,$13,$14::text[],$15,$16,$17::timestamptz,$18::timestamptz,$19::timestamptz,$20,$21,$22::text[],$23,'SHADOW',$24::uuid,$25::uuid)",
+      "INSERT INTO public.\"ProjectUpdateStage\" (id,\"customerId\",\"projectId\",\"engagementId\",\"obligationId\",\"policyRevisionId\",\"policyRevision\",\"assessmentId\",generation,kind,ordinal,\"recipientSubject\",\"recipientRole\",\"factTypes\",\"timeZone\",\"zoneSource\",\"logicalDueAt\",\"candidateAt\",\"scheduledAt\",\"localAt\",\"utcOffset\",\"deferralReasons\",\"ruleRevision\",mode,\"replacesStageId\",\"auditEventId\") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8::uuid,$9,$10,$11,$12,$13,$14::text[],$15,$16,$17::timestamptz,$18::timestamptz,$19::timestamptz,$20,$21,$22::text[],$23,$26,$24::uuid,$25::uuid)",
       stageId, current.customerId, projectId, engagement.id, engagement.obligationId,
       engagement.policyRevisionId, engagement.policyRevision, engagement.assessmentId, engagement.generation,
       plan.kind, plan.ordinal, plan.recipientSubject, plan.recipientRole, remaining,
       plan.timeZone, plan.zoneSource, plan.logicalDueAt, plan.candidateAt, plan.scheduledAt,
-      plan.localAt, plan.utcOffset, plan.deferralReasons, plan.ruleRevision, replacesStageId, auditId,
+      plan.localAt, plan.utcOffset, plan.deferralReasons, plan.ruleRevision, replacesStageId, auditId, mode,
     );
     await tx.$executeRawUnsafe(
       "INSERT INTO public.\"ProjectUpdateOutbox\" (id,\"customerId\",\"projectId\",\"stageId\",\"availableAt\",\"auditEventId\") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::timestamptz,$6::uuid)",
@@ -954,6 +972,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (existing[0] && existing[0].state !== "ACTIVE") throw new ProjectUpdateError("CONFLICT");
     let engagement = existing[0];
     if (!engagement) {
+      const configuration = this.captureConfiguration(current.customerId);
+      const mode = configuration ? "CAPTURE" as const : "SHADOW" as const;
+      if (configuration && !await this.captureGate(tx, current.customerId, configuration))
+        throw new ProjectUpdateError("UNAVAILABLE");
       const originals = await tx.$queryRawUnsafe<{ assessmentId: string }[]>(
         "SELECT \"assessmentId\" FROM public.\"ProjectUpdateObligation\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid FOR UPDATE",
         current.customerId, projectId, obligation.id,
@@ -962,7 +984,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
         "project_update.engagement.activated", {
           obligationId: obligation.id, policyRevision: prepared.policy.revision,
-          mode: "SHADOW", configurationFingerprint: hash(this.zones),
+          mode, configurationFingerprint: hash(this.zones),
           sourceAssessmentId: prepared.assessmentId, configurationActions: schedule.configurationActions,
         });
       engagement = {
@@ -978,14 +1000,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         prepared.source.satisfiedFactTypes, prepared.assessmentId, prepared.asOf, auditId,
       );
       for (const plan of schedule.plans)
-        await this.insertStage(tx, current, projectId, engagement, plan, prepared.source.remainingFactTypes, auditId);
+        await this.insertStage(tx, current, projectId, engagement, plan, prepared.source.remainingFactTypes, auditId, null, mode);
     }
-    const counts = await tx.$queryRawUnsafe<{ count: number }[]>(
-      "SELECT count(*)::int AS count FROM public.\"ProjectUpdateStage\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND \"engagementId\"=$3::uuid AND generation=$4",
+    const counts = await tx.$queryRawUnsafe<{ count: number; mode: "SHADOW" | "CAPTURE" }[]>(
+      "SELECT count(*)::int AS count,min(mode) AS mode FROM public.\"ProjectUpdateStage\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND \"engagementId\"=$3::uuid AND generation=$4",
       current.customerId, projectId, engagement.id, engagement.generation,
     );
     return { projectId, engagementId: engagement.id, obligationId: obligation.id,
-      policyRevision: prepared.policy.revision, mode: "SHADOW", stageCount: counts[0]!.count,
+      policyRevision: prepared.policy.revision, mode: counts[0]!.mode, stageCount: counts[0]!.count,
       remainingFactTypes: prepared.source.remainingFactTypes, configurationActions: schedule.configurationActions };
   }
 
@@ -1046,6 +1068,18 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         }
       }
       if (replacements.length) {
+        // A generation covers the whole unsent snapshot. Replace retained
+        // stages too, so no pending action is stranded behind a newer generation.
+        const replacedIds = new Set(replacements.map((entry) => entry.stage.id));
+        for (const stage of pending) {
+          if (replacedIds.has(stage.id)) continue;
+          const plan = schedule.plans.find((item) => item.kind === stage.kind &&
+            item.ordinal === stage.ordinal && item.recipientSubject === stage.recipientSubject &&
+            item.recipientRole === stage.recipientRole);
+          if (!plan) continue;
+          await this.suppressStage(tx, current, projectId, stage, "SOURCE_REASSESSMENT_REQUIRED", correlationId);
+          replacements.push({ stage, plan });
+        }
         const revisionAudit = await this.engagementAudit(tx, current, projectId, correlationId,
           "project_update.engagement.replanned", { engagementId: engagement.id, generation: engagement.generation + 1 });
         await tx.$executeRawUnsafe(
@@ -1054,7 +1088,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         );
         engagement.generation += 1;
         for (const { stage, plan } of replacements)
-          await this.insertStage(tx, current, projectId, engagement, plan, prepared.source.remainingFactTypes, revisionAudit, stage.id);
+          await this.insertStage(tx, current, projectId, engagement, plan, prepared.source.remainingFactTypes, revisionAudit, stage.id, stage.mode === "CAPTURE" ? "CAPTURE" : "SHADOW");
       }
     }
     if (carryForward && prepared.view.obligation && this.zones && !prepared.source.sourceUnknown &&
@@ -1091,7 +1125,75 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (changed !== 1) throw new ProjectUpdateError("CONFLICT");
   }
 
-  async processShadowEngagements(limit: number) {
+
+  private async captureStage(tx: Tx, current: Actor, projectId: string, stage: PendingStage, prepared: PreparedUpdate, correlationId: string) {
+    const configuration = this.captureConfiguration(current.customerId);
+    if (!configuration || !await this.captureGate(tx, current.customerId, configuration))
+      return "CAPTURE_GATE_CLOSED" as const;
+    const rows = await tx.$queryRawUnsafe<{ dependencies: unknown }[]>(
+      'SELECT dependencies FROM public."ProjectUpdateAssessment" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND id=$3::uuid',
+      current.customerId, projectId, prepared.assessmentId,
+    );
+    const exactDependencies = z.array(projectUpdateFactReferenceSchema).max(1000).parse(jsonValue(rows[0]?.dependencies));
+    // Every source copied to immutable prose must remain readable to the
+    // named recipient, independently of the scheduling service's access.
+    const recipient: Actor = { customerId: current.customerId, subject: stage.recipientSubject, roles: [] };
+    const readable = await this.resolveKnownPosition(tx, recipient, projectId, exactDependencies, prepared.policy.requiredFacts);
+    if (readable.length !== exactDependencies.length || prepared.view.knownPosition.length !== exactDependencies.length)
+      return "SOURCE_REASSESSMENT_REQUIRED" as const;
+    for (const reviewer of configuration.responseReviewerSubjects) {
+      const grants = await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT g.id FROM public."AccessGrant" g JOIN public."Project" p ON p."customerId"=g."customerId" AND p.id=$2::uuid WHERE g."customerId"=$1::uuid AND g.subject=$3 AND g.role=\'pmo_admin\' AND ((g."scopeType"=\'project\' AND g."scopeId"=p.id) OR (g."scopeType"=\'portfolio\' AND g."scopeId"=p."portfolioId")) ORDER BY g.id FOR SHARE OF g',
+        current.customerId, projectId, reviewer,
+      );
+      if (!grants.length) return "CAPTURE_GATE_CLOSED" as const;
+    }
+    const capturedAt = await this.now(tx);
+    const requiredFacts = policyFacts(prepared.policy.requiredFacts)
+      .filter((fact) => stage.factTypes.includes(fact.factType));
+    const rendered = renderProjectUpdateCapture({
+      project: { id: projectId, code: prepared.view.project.code, name: prepared.view.project.name },
+      kind: stage.kind, policyRevision: prepared.policy.revision, dueAt: stage.logicalDueAt,
+      capturedAt: iso(capturedAt), requiredFacts,
+      knownPosition: prepared.view.knownPosition, dependencies: exactDependencies,
+      responseReviewerSubjects: configuration.responseReviewerSubjects,
+    });
+    const requestId = randomUUID();
+    const invitationId = randomUUID();
+    const locator = randomUUID();
+    const expiresAt = new Date(capturedAt.getTime() + configuration.invitationLifetimeSeconds * 1000);
+    const purgeAfter = new Date(capturedAt.getTime() + configuration.contentRetentionSeconds * 1000);
+    const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
+      "project_update.stage.captured", { stageId: stage.id, requestId, mode: "CAPTURE" });
+    const contentDigest = createHash("sha256").update(rendered.text, "utf8").digest("hex");
+    await tx.$executeRawUnsafe(
+      'INSERT INTO public."ProjectUpdateCapturedRequest" (id,"customerId","projectId","stageId","sourceAssessmentId","issuanceEpoch","recipientSubject","reviewerSubjects","requiredFacts",dependencies,"rendererRevision","contentDigest","capturedAt","invitationLifetimeSeconds","contentRetentionSeconds","purgeAfter","auditEventId") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8::text[],$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15,$16,$17::uuid)',
+      requestId, current.customerId, projectId, stage.id, prepared.assessmentId, configuration.issuanceEpoch,
+      stage.recipientSubject, configuration.responseReviewerSubjects, stringify(requiredFacts),
+      stringify(rendered.dependencies), rendered.rendererRevision, contentDigest, capturedAt,
+      configuration.invitationLifetimeSeconds, configuration.contentRetentionSeconds, purgeAfter, auditId,
+    );
+    await tx.$executeRawUnsafe(
+      'INSERT INTO public."ProjectUpdateRequestContent" ("requestId","customerId","projectId",body) VALUES ($1::uuid,$2::uuid,$3::uuid,$4)',
+      requestId, current.customerId, projectId, rendered.text,
+    );
+    await tx.$executeRawUnsafe(
+      'INSERT INTO public."ProjectUpdateInvitation" (id,locator,"customerId","projectId","requestId","recipientSubject","issuanceEpoch","issuedAt","expiresAt") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7::uuid,$8,$9)',
+      invitationId, locator, current.customerId, projectId, requestId, stage.recipientSubject,
+      configuration.issuanceEpoch, capturedAt, expiresAt,
+    );
+    const changed = await tx.$executeRawUnsafe(
+      'UPDATE public."ProjectUpdateOutbox" SET state=\'CAPTURED\',"leaseUntil"=NULL,"completedAt"=date_trunc(\'milliseconds\',clock_timestamp()),reason=NULL,"auditEventId"=$4::uuid WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND id=$3::uuid AND state=\'CLAIMED\' AND "claimGeneration"=$5 AND "leaseUntil">clock_timestamp() AND "handoffAt" IS NULL',
+      current.customerId, projectId, stage.outboxId, auditId, stage.claimGeneration,
+    );
+    if (changed !== 1) throw new ProjectUpdateError("CONFLICT");
+    return "CAPTURED" as const;
+  }
+
+  async processEngagements(limit: number) { return this.processEngagementBatch(limit, true); }
+  async processShadowEngagements(limit: number) { return this.processEngagementBatch(limit, false); }
+
+  private async processEngagementBatch(limit: number, allowCapture: boolean) {
     if (limit !== 1) throw new ProjectUpdateError("INVALID_REQUEST");
     if (!this.zones || !this.serviceSubject) return 0;
     const customerId = this.zones.customerId;
@@ -1100,8 +1202,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       // Pick and lock the project first. Other workers skip this project and
       // source/configuration writers use the same project-first lock order.
       const projects = await tx.$queryRawUnsafe<{ projectId: string }[]>(
-        "SELECT p.id AS \"projectId\" FROM public.\"Project\" p JOIN public.\"ProjectUpdatePolicy\" h ON h.\"customerId\"=p.\"customerId\" AND h.\"projectId\"=p.id JOIN public.\"ProjectUpdatePolicyRevision\" r ON r.\"customerId\"=h.\"customerId\" AND r.\"projectId\"=h.\"projectId\" AND r.revision=h.revision WHERE p.\"customerId\"=$1::uuid AND (h.\"engagementProcessNextEligibleAt\" IS NULL OR h.\"engagementProcessNextEligibleAt\"<=clock_timestamp()) AND r.\"scheduledScanEnabled\" AND r.\"scheduledServiceSubject\"=$2 AND EXISTS (SELECT 1 FROM public.\"ProjectUpdateEngagement\" e JOIN public.\"ProjectUpdateStage\" s ON s.\"customerId\"=e.\"customerId\" AND s.\"projectId\"=e.\"projectId\" AND s.\"engagementId\"=e.id JOIN public.\"ProjectUpdateOutbox\" o ON o.\"customerId\"=s.\"customerId\" AND o.\"projectId\"=s.\"projectId\" AND o.\"stageId\"=s.id WHERE e.\"customerId\"=p.\"customerId\" AND e.\"projectId\"=p.id AND e.state IN ('ACTIVE','PAUSED') AND s.mode='SHADOW' AND ((o.state='READY' AND o.\"availableAt\"<=clock_timestamp()) OR (o.state='CLAIMED' AND o.\"leaseUntil\"<=clock_timestamp()))) ORDER BY h.\"engagementProcessLastAttemptAt\" ASC NULLS FIRST,p.id LIMIT 1 FOR UPDATE OF p SKIP LOCKED",
-        customerId, this.serviceSubject,
+        "SELECT p.id AS \"projectId\" FROM public.\"Project\" p JOIN public.\"ProjectUpdatePolicy\" h ON h.\"customerId\"=p.\"customerId\" AND h.\"projectId\"=p.id JOIN public.\"ProjectUpdatePolicyRevision\" r ON r.\"customerId\"=h.\"customerId\" AND r.\"projectId\"=h.\"projectId\" AND r.revision=h.revision WHERE p.\"customerId\"=$1::uuid AND (h.\"engagementProcessNextEligibleAt\" IS NULL OR h.\"engagementProcessNextEligibleAt\"<=clock_timestamp()) AND r.\"scheduledScanEnabled\" AND r.\"scheduledServiceSubject\"=$2 AND EXISTS (SELECT 1 FROM public.\"ProjectUpdateEngagement\" e JOIN public.\"ProjectUpdateStage\" s ON s.\"customerId\"=e.\"customerId\" AND s.\"projectId\"=e.\"projectId\" AND s.\"engagementId\"=e.id JOIN public.\"ProjectUpdateOutbox\" o ON o.\"customerId\"=s.\"customerId\" AND o.\"projectId\"=s.\"projectId\" AND o.\"stageId\"=s.id WHERE e.\"customerId\"=p.\"customerId\" AND e.\"projectId\"=p.id AND e.state IN ('ACTIVE','PAUSED') AND s.mode=ANY($3::text[]) AND ((o.state='READY' AND o.\"availableAt\"<=clock_timestamp()) OR (o.state='CLAIMED' AND o.\"leaseUntil\"<=clock_timestamp()))) ORDER BY h.\"engagementProcessLastAttemptAt\" ASC NULLS FIRST,p.id LIMIT 1 FOR UPDATE OF p SKIP LOCKED",
+        customerId, this.serviceSubject, allowCapture ? ["SHADOW", "CAPTURE"] : ["SHADOW"],
       );
       if (!projects[0]) return null;
       const selected = projects[0].projectId;
@@ -1122,11 +1224,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       for (const engagement of engagements) {
         for (const stage of await this.pendingStages(tx, current, projectId, engagement.id)) {
           if (processed >= 100) return processed;
-          if (stage.mode !== "SHADOW" || stage.availableAt > await this.now(tx)) continue;
+          if ((stage.mode !== "SHADOW" && (!allowCapture || stage.mode !== "CAPTURE")) || stage.availableAt > await this.now(tx)) continue;
           await this.releaseExpired(tx, current, projectId, stage, correlationId);
           if (stage.outboxState !== "READY") continue;
           const claimAudit = await this.engagementAudit(tx, current, projectId, correlationId,
-            "project_update.stage.claimed", { stageId: stage.id, mode: "SHADOW" });
+            "project_update.stage.claimed", { stageId: stage.id, mode: stage.mode });
           const claimed = await tx.$executeRawUnsafe(
             "UPDATE public.\"ProjectUpdateOutbox\" SET state='CLAIMED',\"claimGeneration\"=\"claimGeneration\"+1,\"leaseUntil\"=clock_timestamp()+interval '2 minutes',reason=NULL,\"auditEventId\"=$4::uuid WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid AND state='READY' AND \"claimGeneration\"=$5 AND \"availableAt\"<=clock_timestamp() AND \"handoffAt\" IS NULL",
             customerId, projectId, stage.outboxId, claimAudit, stage.claimGeneration,
@@ -1153,7 +1255,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             });
             if (Date.parse(check.scheduledAt) > Date.parse(check.candidateAt))
               await this.deferStage(tx, current, projectId, stage, check.scheduledAt, check.deferralReasons[0]!, correlationId);
-            else await this.suppressStage(tx, current, projectId, stage, "SHADOW_MODE", correlationId);
+            else if (stage.mode === "SHADOW" || this.captureReader?.().globalShadowMode !== "false")
+              await this.suppressStage(tx, current, projectId, stage, "SHADOW_MODE", correlationId);
+            else {
+              const outcome = await this.captureStage(tx, current, projectId, stage, prepared, correlationId);
+              if (outcome !== "CAPTURED")
+                await this.deferStage(tx, current, projectId, stage,
+                  iso(new Date((await this.now(tx)).getTime() + 300000)), outcome, correlationId);
+            }
           }
           processed += 1;
         }
@@ -1175,6 +1284,172 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     }
   }
 
+
+
+  private captureConfiguration(customerId: string): ProjectUpdateCaptureConfiguration | null {
+    const boundary = this.captureReader?.();
+    if (!boundary || boundary.globalShadowMode !== "false") return null;
+    const parsed = projectUpdateCaptureConfigurationSchema.safeParse(boundary.configuration);
+    return parsed.success && parsed.data.customerId === customerId ? parsed.data : null;
+  }
+
+  private async captureGate(tx: Tx, customerId: string, configuration: ProjectUpdateCaptureConfiguration) {
+    const rows = await tx.$queryRawUnsafe<{
+      issuance_enabled: boolean; issuance_epoch: string; gate_revision: number; not_quarantined: boolean;
+    }[]>("SELECT * FROM public.lock_update_issuance_gate($1::uuid)", customerId);
+    return rows[0]?.issuance_enabled === true && rows[0].not_quarantined === true &&
+      rows[0].issuance_epoch === configuration.issuanceEpoch;
+  }
+
+  private async actorRecipientAuthorized(tx: Tx, current: Actor, projectId: string, role: "OWNER" | "PROJECT_MANAGER") {
+    if (!await this.recipientAuthorized(tx, current.customerId, projectId, current.subject, role)) return false;
+    const grants = await tx.$queryRawUnsafe<{ role: string }[]>(
+      'SELECT g.role FROM public."AccessGrant" g JOIN public."Project" p ON p."customerId"=g."customerId" AND p.id=$2::uuid WHERE g."customerId"=$1::uuid AND g.subject=$3 AND ((g."scopeType"=\'project\' AND g."scopeId"=p.id) OR (g."scopeType"=\'portfolio\' AND g."scopeId"=p."portfolioId")) ORDER BY g.id FOR SHARE OF g',
+      current.customerId, projectId, current.subject,
+    );
+    const allowed = role === "PROJECT_MANAGER" ? ["project_manager"]
+      : ["project_manager", "portfolio_manager", "pmo_admin", "team_lead", "contributor"];
+    return grants.some((grant) => allowed.includes(grant.role) &&
+      current.roles.some((actorRole) => actorRole === grant.role));
+  }
+
+  private async responseHistory(tx: Tx, current: Actor, projectId: string, requestId: string) {
+    const rows = await tx.$queryRawUnsafe<{
+      id: string; submittedBy: string; receivedAt: Date; correctsResponseId: string | null;
+      body: string | null; contentState: "PRESENT" | "EXPIRED";
+    }[]>(
+      'SELECT r.id,r."submittedBy",r."receivedAt",r."correctsResponseId",CASE WHEN c.state=\'PRESENT\' AND r."purgeAfter">clock_timestamp() THEN c.body ELSE NULL END AS body,CASE WHEN c.state=\'PRESENT\' AND r."purgeAfter">clock_timestamp() THEN \'PRESENT\' ELSE \'EXPIRED\' END AS "contentState" FROM public."ProjectUpdateResponse" r JOIN public."ProjectUpdateResponseContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."responseId"=r.id WHERE r."customerId"=$1::uuid AND r."projectId"=$2::uuid AND r."requestId"=$3::uuid ORDER BY r."receivedAt",r.id LIMIT 100',
+      current.customerId, projectId, requestId,
+    );
+    return rows.map((row) => ({ id: row.id, submittedBy: row.submittedBy,
+      receivedAt: iso(row.receivedAt), correctsResponseId: row.correctsResponseId,
+      state: "UNCONFIRMED" as const, contentState: row.contentState, text: row.body }));
+  }
+
+  private async authorizedInvitation(tx: Tx, current: Actor, locatorValue: string) {
+    const locator = projectUpdateInvitationLocatorSchema.safeParse(locatorValue);
+    const configuration = this.captureConfiguration(current.customerId);
+    if (!locator.success || !configuration) throw new ProjectUpdateError("DENIED");
+    // Resolve only a scoped identifier; no project or message content is returned
+    // before current project-first authorization and gate locking.
+    const identities = await tx.$queryRawUnsafe<{ projectId: string }[]>(
+      'SELECT "projectId" FROM public."ProjectUpdateInvitation" WHERE "customerId"=$1::uuid AND locator=$2::uuid',
+      current.customerId, locator.data,
+    );
+    const projectId = identities[0]?.projectId;
+    if (!projectId) throw new ProjectUpdateError("DENIED");
+    const projects = await tx.$queryRawUnsafe<{ id: string }[]>(
+      'SELECT id FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR UPDATE',
+      current.customerId, projectId,
+    );
+    if (!projects[0] || !await this.captureGate(tx, current.customerId, configuration))
+      throw new ProjectUpdateError("DENIED");
+    const rows = await tx.$queryRawUnsafe<CaptureInvitationRow[]>(
+      'SELECT i.id AS "invitationId",i."requestId",i."recipientSubject",i."issuanceEpoch",i."issuedAt",i."expiresAt",r."capturedAt",r."purgeAfter",r."contentRetentionSeconds",r."reviewerSubjects",r."requiredFacts",r.dependencies,c.body,c.state AS "contentState",s.id AS "stageId",s.kind AS "stageKind",s."recipientRole",s."logicalDueAt",s.generation AS "stageGeneration",s."policyRevision",e."ownerSubject",e.state AS "engagementState",e.generation AS "engagementGeneration",o.state AS "obligationState",h.revision AS "currentPolicyRevision",b.state AS "outboxState",p.code,p.name FROM public."ProjectUpdateInvitation" i JOIN public."ProjectUpdateCapturedRequest" r ON r."customerId"=i."customerId" AND r."projectId"=i."projectId" AND r.id=i."requestId" JOIN public."ProjectUpdateRequestContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."requestId"=r.id JOIN public."ProjectUpdateStage" s ON s."customerId"=r."customerId" AND s."projectId"=r."projectId" AND s.id=r."stageId" JOIN public."ProjectUpdateEngagement" e ON e."customerId"=s."customerId" AND e."projectId"=s."projectId" AND e.id=s."engagementId" JOIN public."ProjectUpdateObligation" o ON o."customerId"=e."customerId" AND o."projectId"=e."projectId" AND o.id=e."obligationId" JOIN public."ProjectUpdatePolicy" h ON h."customerId"=e."customerId" AND h."projectId"=e."projectId" JOIN public."ProjectUpdateOutbox" b ON b."customerId"=s."customerId" AND b."projectId"=s."projectId" AND b."stageId"=s.id JOIN public."Project" p ON p."customerId"=s."customerId" AND p.id=s."projectId" WHERE i."customerId"=$1::uuid AND i."projectId"=$2::uuid AND i.locator=$3::uuid',
+      current.customerId, projectId, locator.data,
+    );
+    const row = rows[0];
+    if (!row || row.recipientSubject !== current.subject) throw new ProjectUpdateError("DENIED");
+    const policy = await this.loadPolicy(tx, current.customerId, projectId, true);
+    if (!policy) throw new ProjectUpdateError("DENIED");
+    const recipientAuthorized = await this.actorRecipientAuthorized(tx, current, projectId, row.recipientRole);
+    const ownerAuthorized = await this.recipientAuthorized(tx, current.customerId, projectId, row.ownerSubject, "OWNER");
+    const dependencies = z.array(projectUpdateFactReferenceSchema).max(1000).parse(jsonValue(row.dependencies));
+    const readable = await this.resolveKnownPosition(tx, current, projectId, dependencies, policy.requiredFacts);
+    const asOf = await this.now(tx);
+    if (!mayAccessProjectUpdateInvitation({
+      authenticatedSubject: current.subject, namedRecipientSubject: row.recipientSubject,
+      sameCustomer: true, currentRecipientRoleAndGrant: recipientAuthorized,
+      actorRoleMatchesGrant: recipientAuthorized, currentOwnerRoleAndGrant: ownerAuthorized,
+      obligationOpen: row.obligationState === "OPEN", engagementActive: row.engagementState === "ACTIVE",
+      policyCurrent: row.policyRevision === row.currentPolicyRevision,
+      generationCurrent: row.stageGeneration === row.engagementGeneration,
+      captureCommitted: row.outboxState === "CAPTURED", globalShadowOff: true,
+      captureConfigured: true, issuanceEpochCurrent: row.issuanceEpoch === configuration.issuanceEpoch,
+      restoreGateOpen: true, recipientReadsEveryDependency: readable.length === dependencies.length,
+      viewerReadsEveryDependency: readable.length === dependencies.length,
+      contentAvailable: row.contentState === "PRESENT" && row.body !== null,
+      issuedAt: iso(row.issuedAt), expiresAt: iso(row.expiresAt),
+      contentExpiresAt: iso(row.purgeAfter), asOf: iso(asOf),
+    })) throw new ProjectUpdateError("DENIED");
+    return { row, projectId, asOf, configuration };
+  }
+
+  async invitation(actorValue: Actor, locatorValue: string): Promise<ProjectUpdateRecipientRequestView> {
+    const current = parseActor(actorValue);
+    return this.transaction(async (tx) => {
+      const { row, projectId } = await this.authorizedInvitation(tx, current, locatorValue);
+      const reviewers = row.reviewerSubjects.filter((subject) =>
+        this.captureConfiguration(current.customerId)?.responseReviewerSubjects.includes(subject));
+      // Readership is an explicit frozen contract; retain names of frozen
+      // currently configured reviewers. Each actual reviewer read also checks
+      // current PMO identity, scoped administrative grant and source access.
+      return projectUpdateRecipientRequestViewSchema.parse({
+        requestId: row.requestId, project: { id: projectId, code: row.code, name: row.name },
+        stageKind: row.stageKind, dueAt: iso(row.logicalDueAt), capturedAt: iso(row.capturedAt),
+        expiresAt: iso(row.expiresAt), body: row.body,
+        requiredFacts: policyFacts(row.requiredFacts),
+        rawResponseReaders: [...new Set([row.recipientSubject, ...reviewers])],
+        responses: await this.responseHistory(tx, current, projectId, row.requestId),
+      });
+    });
+  }
+
+  async submitResponse(actorValue: Actor, locatorValue: string, submissionValue: unknown, correlationValue: string): Promise<ProjectUpdateResponseReceipt> {
+    const current = parseActor(actorValue);
+    const correlationId = parseCorrelation(correlationValue);
+    return this.transaction(async (tx) => {
+      // Validate text only after the same non-disclosing invitation authorization.
+      const { row, projectId, asOf } = await this.authorizedInvitation(tx, current, locatorValue);
+      const parsed = projectUpdateResponseSubmissionSchema.safeParse(submissionValue);
+      if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+      const submission = parsed.data;
+      const payloadDigest = hash(submission);
+      const existing = await tx.$queryRawUnsafe<{ id: string; payloadDigest: string; receivedAt: Date }[]>(
+        'SELECT id,"payloadDigest","receivedAt" FROM public."ProjectUpdateResponse" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "invitationId"=$3::uuid AND "submittedBy"=$4 AND "idempotencyKey"=$5',
+        current.customerId, projectId, row.invitationId, current.subject, submission.idempotencyKey,
+      );
+      const previous = existing[0];
+      if (previous && previous.payloadDigest !== payloadDigest) throw new ProjectUpdateError("CONFLICT");
+      if (previous) return { responseId: previous.id, requestId: row.requestId,
+        receivedAt: iso(previous.receivedAt), state: "UNCONFIRMED",
+        message: "Response recorded; required facts remain unconfirmed." };
+      if (submission.correctsResponseId) {
+        const correction = await tx.$queryRawUnsafe<{ id: string }[]>(
+          'SELECT id FROM public."ProjectUpdateResponse" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "requestId"=$3::uuid AND id=$4::uuid AND "submittedBy"=$5',
+          current.customerId, projectId, row.requestId, submission.correctsResponseId, current.subject,
+        );
+        if (!correction[0]) throw new ProjectUpdateError("INVALID_REQUEST");
+      }
+      const responseId = randomUUID();
+      const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
+        "project_update.response.recorded", { requestId: row.requestId, responseId, state: "UNCONFIRMED" });
+      const contentDigest = createHash("sha256").update(submission.text, "utf8").digest("hex");
+      const purgeAfter = new Date(asOf.getTime() + row.contentRetentionSeconds * 1000);
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."ProjectUpdateResponse" (id,"customerId","projectId","requestId","invitationId","submittedBy","receivedAt","idempotencyKey","payloadDigest","contentDigest","correctsResponseId","contentRetentionSeconds","purgeAfter","auditEventId") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8,$9,$10,$11::uuid,$12,$13,$14::uuid)',
+        responseId, current.customerId, projectId, row.requestId, row.invitationId, current.subject,
+        asOf, submission.idempotencyKey, payloadDigest, contentDigest, submission.correctsResponseId,
+        row.contentRetentionSeconds, purgeAfter, auditId,
+      );
+      await tx.$executeRawUnsafe(
+        'INSERT INTO public."ProjectUpdateResponseContent" ("responseId","customerId","projectId",body) VALUES ($1::uuid,$2::uuid,$3::uuid,$4)',
+        responseId, current.customerId, projectId, submission.text,
+      );
+      return { responseId, requestId: row.requestId, receivedAt: iso(asOf),
+        state: "UNCONFIRMED", message: "Response recorded; required facts remain unconfirmed." };
+    });
+  }
+
+  async purgeCaptureContent() {
+    if (!this.zones || !this.serviceSubject) return 0;
+    return this.transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<{ count: number }[]>(
+        "SELECT public.purge_update_capture_content($1::uuid) AS count", this.zones!.customerId,
+      );
+      return rows[0]?.count ?? 0;
+    });
+  }
 
   async assess(actorValue: Actor, projectValue: string, correlationValue: string) {
     const current = parseActor(actorValue);

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { checkServerIdentity } from "node:tls";
 import { z } from "zod";
-import { roleSchema, projectUpdateZoneConfigurationSchema, type ProjectUpdateZoneConfiguration, type Role } from "@pdaa/domain";
+import { roleSchema, projectUpdateZoneConfigurationSchema, projectUpdateCaptureConfigurationSchema, type ProjectUpdateCaptureConfiguration, type ProjectUpdateZoneConfiguration, type Role } from "@pdaa/domain";
 import { assertSyntheticDatabaseUrl } from "./database-target.js";
 
 const schema = z.object({
@@ -36,6 +36,7 @@ const schema = z.object({
   CONNECTOR_TASK_KEYS_FILE: z.string().min(1).optional(),
   PROJECT_UPDATE_TASK_KEYS_FILE: z.string().min(1).optional(),
   PROJECT_UPDATE_ZONES_FILE: z.string().min(1).optional(),
+  PROJECT_UPDATE_CAPTURE_FILE: z.string().min(1).optional(),
   PROJECT_UPDATE_SERVICE_SUBJECT: z.string().min(1).max(256).optional(),
   INTERNAL_API_URL: z.url().optional(),
   JIRA_OAUTH_CLIENT_ID: z.string().min(1).optional(),
@@ -78,6 +79,7 @@ export type Config = z.infer<typeof schema> & {
   projectUpdateTaskKeys: { currentKeyId: string; keys: Record<string, string> } | null;
   projectUpdateServiceSubject: string | null;
   projectUpdateZones: ProjectUpdateZoneConfiguration | null;
+  projectUpdateCapture: ProjectUpdateCaptureConfiguration | null;
 };
 
 export function readSecretFile(path: string, key: string): string {
@@ -222,6 +224,14 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const projectUpdateZones = projectUpdateZoneFile?.success ? projectUpdateZoneFile.data : null;
   if (projectUpdateZones && (!projectUpdateTaskKeys || !c.PROJECT_UPDATE_SERVICE_SUBJECT))
     throw new Error("Engagement processing requires project update task authentication");
+  const captureFile = c.PROJECT_UPDATE_CAPTURE_FILE
+    ? projectUpdateCaptureConfigurationSchema.safeParse(secretJson(c.PROJECT_UPDATE_CAPTURE_FILE, "PROJECT_UPDATE_CAPTURE"))
+    : null;
+  if (captureFile && (!captureFile.success || captureFile.data.customerId !== c.CUSTOMER_ID))
+    throw new Error("Invalid project update capture configuration");
+  const projectUpdateCapture = captureFile?.success ? captureFile.data : null;
+  if (projectUpdateCapture && (!projectUpdateZones || !projectUpdateTaskKeys || !c.PROJECT_UPDATE_SERVICE_SUBJECT))
+    throw new Error("Capture requires customer zones and signed project update processing");
   if (!!c.JIRA_OAUTH_CLIENT_SECRET !== !!c.JIRA_OAUTH_CLIENT_ID)
     throw new Error("Jira OAuth client id and secret must be configured together");
   if (c.JIRA_OAUTH_CLIENT_ID && (!connectorTaskKeys || !c.INTERNAL_API_URL || !c.CREDENTIAL_KEYRING_FILE))
@@ -271,6 +281,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     projectUpdateTaskKeys,
     projectUpdateServiceSubject: c.PROJECT_UPDATE_SERVICE_SUBJECT ?? null,
     projectUpdateZones,
+    projectUpdateCapture,
   };
 }
 

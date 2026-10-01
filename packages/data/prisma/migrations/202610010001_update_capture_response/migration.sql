@@ -154,15 +154,29 @@ END $$;
 CREATE TRIGGER "ProjectUpdateIssuanceGate_guard" BEFORE INSERT OR UPDATE OR DELETE
   ON public."ProjectUpdateIssuanceGate" FOR EACH ROW EXECUTE FUNCTION public.guard_update_issuance_gate();
 
+-- Row locking requires UPDATE privileges. Keep gate UPDATE exclusive to
+-- maintenance; this narrow definer locks and returns only the selected gate.
+CREATE FUNCTION public.lock_update_issuance_gate(selected_customer uuid)
+RETURNS TABLE(issuance_enabled boolean,issuance_epoch uuid,gate_revision integer,not_quarantined boolean)
+LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,public AS $
+  SELECT g."issuanceEnabled",g."issuanceEpoch",g.revision,
+    coalesce(shobj_description((SELECT oid FROM pg_database WHERE datname=current_database()),'pg_database'),'')
+      NOT LIKE 'pdaa.restore.quarantine.%'
+  FROM public."ProjectUpdateIssuanceGate" g WHERE g."customerId"=selected_customer FOR SHARE OF g
+$;
+
 CREATE FUNCTION public.guard_update_capture_birth()
 RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
 DECLARE stage public."ProjectUpdateStage"%ROWTYPE; assessment public."ProjectUpdateAssessment"%ROWTYPE;
 BEGIN
+  PERFORM * FROM public.lock_update_issuance_gate(NEW."customerId");
   SELECT * INTO stage FROM public."ProjectUpdateStage" WHERE "customerId"=NEW."customerId"
     AND "projectId"=NEW."projectId" AND id=NEW."stageId";
   SELECT * INTO assessment FROM public."ProjectUpdateAssessment" WHERE "customerId"=NEW."customerId"
     AND "projectId"=NEW."projectId" AND id=NEW."sourceAssessmentId";
-  IF stage.id IS NULL OR assessment.id IS NULL OR stage.mode<>'CAPTURE'
+  IF coalesce(shobj_description((SELECT oid FROM pg_database WHERE datname=current_database()),'pg_database'),'')
+      LIKE 'pdaa.restore.quarantine.%'
+    OR stage.id IS NULL OR assessment.id IS NULL OR stage.mode<>'CAPTURE'
     OR NEW."recipientSubject"<>stage."recipientSubject"
     OR assessment."policyRevisionId"<>stage."policyRevisionId"
     OR NEW.dependencies IS DISTINCT FROM assessment.dependencies
@@ -211,7 +225,10 @@ CREATE TRIGGER "ProjectUpdateInvitation_birth" BEFORE INSERT ON public."ProjectU
 CREATE FUNCTION public.guard_update_response_birth()
 RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
 BEGIN
-  IF NEW."receivedAt">clock_timestamp() OR NOT EXISTS (
+  PERFORM * FROM public.lock_update_issuance_gate(NEW."customerId");
+  IF coalesce(shobj_description((SELECT oid FROM pg_database WHERE datname=current_database()),'pg_database'),'')
+      LIKE 'pdaa.restore.quarantine.%'
+    OR NEW."receivedAt">clock_timestamp() OR NOT EXISTS (
     SELECT 1 FROM public."ProjectUpdateInvitation" i JOIN public."ProjectUpdateCapturedRequest" r
       ON r."customerId"=i."customerId" AND r."projectId"=i."projectId" AND r.id=i."requestId"
       JOIN public."ProjectUpdateIssuanceGate" g ON g."customerId"=i."customerId"
@@ -316,6 +333,15 @@ CREATE CONSTRAINT TRIGGER "ProjectUpdateResponse_complete" AFTER INSERT ON publi
 CREATE CONSTRAINT TRIGGER "ProjectUpdateOutbox_capture_complete" AFTER UPDATE ON public."ProjectUpdateOutbox"
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.require_update_capture_complete();
 
+-- New reason for an explicitly configured, disabled or mismatched capture gate.
+ALTER TABLE public."ProjectUpdateOutbox" DROP CONSTRAINT "ProjectUpdateOutbox_reason_check";
+ALTER TABLE public."ProjectUpdateOutbox" ADD CONSTRAINT "ProjectUpdateOutbox_reason_check"
+  CHECK (reason IN ('LEASE_EXPIRED','QUIET_HOURS','WEEKEND','DST_GAP',
+    'OBLIGATION_ENDED','REQUIRED_FACTS_SATISFIED','SHADOW_MODE','POLICY_CHANGED','OWNER_CHANGED',
+    'RECIPIENT_ZONE_CHANGED','RECIPIENT_REVOKED','SOURCE_REASSESSMENT_REQUIRED',
+    'SOURCE_UNKNOWN','CALENDAR_RECHECK_REQUIRED','ENGAGEMENT_PAUSED','EMAIL_GATE_CLOSED',
+    'HANDOFF_UNCERTAIN','CAPTURE_GATE_CLOSED'));
+
 -- Fixed server-time retention operation. EXECUTE does not grant callers UPDATE
 -- or DELETE on content; identifiers, ownership, predicates and audit actor are
 -- fixed in this function. No dynamic SQL or user-supplied purge time.
@@ -394,6 +420,13 @@ BEGIN
       EXECUTE format('ALTER FUNCTION public.%I() OWNER TO pdaa_migrate',function_name);
     END IF;
   END LOOP;
+  REVOKE ALL ON FUNCTION public.lock_update_issuance_gate(uuid) FROM PUBLIC;
+  IF to_regrole('pdaa_migrate') IS NOT NULL THEN
+    ALTER FUNCTION public.lock_update_issuance_gate(uuid) OWNER TO pdaa_migrate;
+  END IF;
+  IF to_regrole('pdaa_api') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.lock_update_issuance_gate(uuid) TO pdaa_api;
+  END IF;
   REVOKE ALL ON FUNCTION public.purge_update_capture_content(uuid) FROM PUBLIC;
   IF to_regrole('pdaa_migrate') IS NOT NULL THEN
     ALTER FUNCTION public.purge_update_capture_content(uuid) OWNER TO pdaa_migrate;
@@ -402,3 +435,67 @@ BEGIN
     GRANT EXECUTE ON FUNCTION public.purge_update_capture_content(uuid) TO pdaa_api;
   END IF;
 END $capture_functions$;
+
+CREATE OR REPLACE FUNCTION public.guard_update_outbox()
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
+DECLARE stage public."ProjectUpdateStage"%ROWTYPE; valid boolean := false; current_time_at timestamptz := clock_timestamp();
+BEGIN
+  IF TG_OP='DELETE' THEN
+    RAISE EXCEPTION 'Engagement outbox history cannot be deleted' USING ERRCODE='55000';
+  END IF;
+  SELECT * INTO stage FROM public."ProjectUpdateStage"
+    WHERE "customerId"=NEW."customerId" AND "projectId"=NEW."projectId" AND id=NEW."stageId";
+  IF stage.id IS NULL OR NEW."availableAt"<stage."scheduledAt" THEN
+    RAISE EXCEPTION 'Invalid engagement outbox identity' USING ERRCODE='55000';
+  END IF;
+  IF TG_OP='INSERT' THEN
+    IF NEW.state<>'READY' OR NEW."claimGeneration"<>0 OR NEW.reason IS NOT NULL THEN
+      RAISE EXCEPTION 'Engagement outbox must begin ready' USING ERRCODE='55000';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF (to_jsonb(NEW)-'state'-'claimGeneration'-'availableAt'-'leaseUntil'-'handoffAt'-'completedAt'-'reason'-'auditEventId')
+      IS DISTINCT FROM (to_jsonb(OLD)-'state'-'claimGeneration'-'availableAt'-'leaseUntil'-'handoffAt'-'completedAt'-'reason'-'auditEventId')
+    OR NEW."auditEventId"=OLD."auditEventId"
+    OR (OLD."handoffAt" IS NOT NULL AND NEW."handoffAt" IS DISTINCT FROM OLD."handoffAt") THEN
+    RAISE EXCEPTION 'Invalid engagement outbox rewrite' USING ERRCODE='55000';
+  END IF;
+  IF OLD.state='READY' AND NEW.state='CLAIMED' THEN
+    valid := NEW."claimGeneration"=OLD."claimGeneration"+1 AND NEW."availableAt"=OLD."availableAt"
+      AND NEW."availableAt"<=current_time_at AND NEW."leaseUntil">current_time_at
+      AND NEW."leaseUntil"<=current_time_at+interval '5 minutes' AND NEW.reason IS NULL;
+  ELSIF OLD.state='READY' AND NEW.state='SUPPRESSED' THEN
+    valid := NEW."claimGeneration"=OLD."claimGeneration" AND NEW."availableAt"=OLD."availableAt"
+      AND NEW."leaseUntil" IS NULL AND NEW."handoffAt" IS NULL AND NEW."completedAt" IS NOT NULL
+      AND NEW.reason IN ('OBLIGATION_ENDED','REQUIRED_FACTS_SATISFIED','POLICY_CHANGED',
+        'OWNER_CHANGED','RECIPIENT_ZONE_CHANGED','RECIPIENT_REVOKED','SOURCE_REASSESSMENT_REQUIRED');
+  ELSIF OLD.state='CLAIMED' AND NEW.state='READY' THEN
+    valid := NEW."claimGeneration"=OLD."claimGeneration" AND (
+      (NEW.reason='LEASE_EXPIRED' AND OLD."leaseUntil"<=current_time_at AND NEW."availableAt"=OLD."availableAt")
+      OR (NEW.reason IN ('QUIET_HOURS','WEEKEND','DST_GAP','SOURCE_REASSESSMENT_REQUIRED',
+        'SOURCE_UNKNOWN','RECIPIENT_REVOKED','ENGAGEMENT_PAUSED','EMAIL_GATE_CLOSED','CAPTURE_GATE_CLOSED','CALENDAR_RECHECK_REQUIRED')
+        AND NEW."availableAt">OLD."availableAt" AND NEW."availableAt">current_time_at)
+    );
+  ELSIF OLD.state='CLAIMED' AND NEW.state='HANDED_OFF' THEN
+    valid := stage.mode='EMAIL' AND NEW."claimGeneration"=OLD."claimGeneration"
+      AND NEW."availableAt"=OLD."availableAt" AND NEW."leaseUntil"=OLD."leaseUntil"
+      AND OLD."leaseUntil">current_time_at AND NEW."handoffAt" IS NOT NULL
+      AND NEW."handoffAt"<=current_time_at AND NEW."handoffAt">=NEW."createdAt" AND NEW.reason IS NULL;
+  ELSIF OLD.state='CLAIMED' AND NEW.state IN ('CAPTURED','SUPPRESSED') THEN
+    valid := NEW."claimGeneration"=OLD."claimGeneration" AND NEW."availableAt"=OLD."availableAt"
+      AND OLD."leaseUntil">current_time_at AND (
+        (NEW.state='CAPTURED' AND stage.mode='CAPTURE' AND NEW.reason IS NULL)
+        OR (NEW.state='SUPPRESSED' AND NEW.reason IS NOT NULL)
+      );
+  ELSIF OLD.state='HANDED_OFF' AND NEW.state IN ('SENT','UNKNOWN') THEN
+    valid := NEW."claimGeneration"=OLD."claimGeneration" AND NEW."availableAt"=OLD."availableAt"
+      AND ((NEW.state='UNKNOWN' AND NEW.reason='HANDOFF_UNCERTAIN') OR (NEW.state='SENT' AND NEW.reason IS NULL));
+  END IF;
+  IF valid IS NOT TRUE OR (NEW."completedAt" IS NOT NULL AND (
+    NEW."completedAt">current_time_at OR NEW."completedAt"<NEW."createdAt"
+    OR (NEW."handoffAt" IS NOT NULL AND NEW."completedAt"<NEW."handoffAt")
+  )) THEN
+    RAISE EXCEPTION 'Invalid engagement outbox transition' USING ERRCODE='55000';
+  END IF;
+  RETURN NEW;
+END $$;

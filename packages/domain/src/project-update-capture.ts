@@ -189,3 +189,51 @@ export function renderProjectUpdateCapture(value: unknown) {
     dependencies: input.dependencies,
   };
 }
+
+export const projectUpdateResponseHistorySchema = z.strictObject({
+  id: z.uuid(),
+  submittedBy: canonicalSubjectSchema,
+  receivedAt: instant,
+  correctsResponseId: z.uuid().nullable(),
+  state: z.literal("UNCONFIRMED"),
+  contentState: z.enum(["PRESENT", "EXPIRED"]),
+  text: z.string().nullable(),
+});
+export const projectUpdateRecipientRequestViewSchema = z.strictObject({
+  requestId: z.uuid(),
+  project: z.strictObject({ id: z.uuid(), code: boundedLabel, name: boundedLabel }),
+  stageKind: z.enum(["REQUEST", "REMINDER", "ESCALATION"]),
+  dueAt: instant,
+  capturedAt: instant,
+  expiresAt: instant,
+  body: z.string().min(1).max(65536),
+  requiredFacts: z.array(projectUpdateRequiredFactSchema).min(1).max(100),
+  rawResponseReaders: z.array(canonicalSubjectSchema).max(33),
+  responses: z.array(projectUpdateResponseHistorySchema).max(100),
+});
+export type ProjectUpdateRecipientRequestView = z.infer<
+  typeof projectUpdateRecipientRequestViewSchema
+>;
+export const projectUpdateCaptureHistorySchema = z.strictObject({
+  projectId: z.uuid(),
+  entries: z.array(z.strictObject({
+    requestId: z.uuid(),
+    stageId: z.uuid(),
+    stageKind: z.enum(["REQUEST", "REMINDER", "ESCALATION"]),
+    recipientSubject: canonicalSubjectSchema,
+    capturedAt: instant,
+    expiresAt: instant,
+    status: z.enum(["ACTIVE", "ENDED", "EXPIRED", "QUARANTINED"]),
+    contentState: z.enum(["PRESENT", "EXPIRED", "RESTRICTED"]),
+    body: z.string().nullable(),
+    // Locators are returned only for the current exact named recipient.
+    recipientPath: z.string().nullable(),
+    responses: z.array(projectUpdateResponseHistorySchema).max(100),
+  })).max(100),
+});
+export type ProjectUpdateCaptureHistory = z.infer<
+  typeof projectUpdateCaptureHistorySchema
+>;
+export const projectUpdateCaptureGenerationSchema = z.strictObject({
+  expectedEngagementGeneration: revision,
+});
