@@ -272,6 +272,46 @@ it("NFR-SEC-001/005: revoking a captured source denies invitation and replay and
   expect(await db.projectUpdateResponse.count({ where: { requestId: history.entries[0]!.requestId } })).toBe(1);
 });
 
+it.each(["partial-source", "pm-zone"] as const)(
+  "FR-ESC-006: %s replanning after capture retains a fresh owner request", async (cause) => {
+    const f = await captureFixture();
+    const initial = (await f.capture.activateEngagement(f.admin, f.projectId, 1, randomUUID()))!;
+    await f.capture.processEngagements(1);
+    const original = (await f.capture.captureHistory(f.owner, f.projectId)).entries;
+    if ([0, 6].includes(new Date().getUTCDay())) { expect(original).toEqual([]); return; }
+    const oldLocator = original[0]!.recipientPath!.split("/").at(-1)!;
+    let current = f.capture;
+    if (cause === "partial-source") {
+      const source = await f.append("project.status");
+      const access = await f.facts.getSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId });
+      await f.facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId,
+        expectedRevision: access!.revision, state: "AVAILABLE", readers: [f.admin.subject, f.service, f.owner.subject] }, { correlationId: randomUUID() });
+    } else {
+      current = new DatabaseProjectUpdateRepository(apiDatabase as never, f.service, {
+        ...f.zones, recipientTimeZones: [{ subject: "synthetic-owner-1", timeZone: "Asia/Kolkata" }],
+      }, () => ({ globalShadowMode: "false", configuration: f.configuration }));
+    }
+    await current.assess(f.admin, f.projectId, randomUUID());
+    const engagement = await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: initial.engagementId } });
+    expect(engagement.generation).toBe(2);
+    expect(engagement.sourceSatisfiedFactTypes).toEqual(cause === "partial-source" ? ["project.status"] : []);
+    const replacements = await db.projectUpdateStage.findMany({ where: { engagementId: initial.engagementId, generation: 2 } });
+    expect(replacements).toHaveLength(5);
+    expect(replacements.filter((entry) => entry.kind === "REQUEST")).toHaveLength(1);
+    expect(replacements.every((entry) => entry.factTypes.includes("project.forecast"))).toBe(true);
+    await expect(current.invitation(f.owner, oldLocator)).rejects.toMatchObject({ code: "DENIED" });
+    await f.retryEligible();
+    await current.processEngagements(1);
+    const next = (await current.captureHistory(f.owner, f.projectId)).entries.find((entry) => entry.status === "ACTIVE")!;
+    expect(next.stageKind).toBe("REQUEST");
+    expect(next.recipientPath).not.toBe(original[0]!.recipientPath);
+    const view = await current.invitation(f.owner, next.recipientPath!.split("/").at(-1)!);
+    expect(view.requiredFacts.map((entry) => entry.factType).sort()).toEqual(cause === "partial-source"
+      ? ["project.forecast"] : ["project.forecast", "project.status"]);
+    expect(view.responses).toEqual([]);
+    expect(await db.projectUpdateCapturedRequest.count({ where: { customerId: f.admin.customerId, projectId: f.projectId } })).toBe(2);
+  });
+
 function captureFault(fragment: string) {
   return {
     $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
