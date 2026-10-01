@@ -1412,8 +1412,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const previous = existing[0];
       if (previous && previous.payloadDigest !== payloadDigest) throw new ProjectUpdateError("CONFLICT");
       if (previous) return { responseId: previous.id, requestId: row.requestId,
-        receivedAt: iso(previous.receivedAt), state: "UNCONFIRMED",
-        message: "Response recorded; required facts remain unconfirmed." };
+        receivedAt: iso(previous.receivedAt), state: "UNCONFIRMED" as const,
+        message: "Response recorded; required facts remain unconfirmed." as const };
       if (submission.correctsResponseId) {
         const correction = await tx.$queryRawUnsafe<{ id: string }[]>(
           'SELECT id FROM public."ProjectUpdateResponse" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "requestId"=$3::uuid AND id=$4::uuid AND "submittedBy"=$5',
@@ -1437,7 +1437,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         responseId, current.customerId, projectId, submission.text,
       );
       return { responseId, requestId: row.requestId, receivedAt: iso(asOf),
-        state: "UNCONFIRMED", message: "Response recorded; required facts remain unconfirmed." };
+        state: "UNCONFIRMED" as const, message: "Response recorded; required facts remain unconfirmed." as const };
     });
   }
 
