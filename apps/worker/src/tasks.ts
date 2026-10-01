@@ -2,6 +2,7 @@ import type { WorkerHeartbeatRepository } from "@pdaa/domain";
 
 const connectorRunPath = "/internal/connectors/run";
 const projectUpdateScanPath = "/internal/project-updates/scan";
+const projectUpdateProcessPath = "/internal/project-updates/process";
 
 type ConnectorTaskKeyRing = {
   currentKeyId: string;
@@ -55,6 +56,31 @@ export function createTasks(
         throw new Error("project_update_scan_unavailable");
       }
       if (!response.ok) throw new Error("project_update_scan_unavailable");
+      await response.body?.cancel();
+    },
+    project_update_engagement_dispatch: async () => {
+      if (!config?.INTERNAL_API_URL || !config.projectUpdateTaskKeys) return;
+      if (!signTaskRequest) throw new Error("project_update_engagement_unavailable");
+      const body = Buffer.from("{}", "utf8");
+      const headers = signTaskRequest({
+        method: "POST",
+        path: projectUpdateProcessPath,
+        body,
+        keyRing: config.projectUpdateTaskKeys,
+      });
+      let response: Response;
+      try {
+        response = await fetchImpl(new URL(projectUpdateProcessPath, config.INTERNAL_API_URL), {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body,
+          redirect: "error",
+          signal: AbortSignal.timeout(30_000),
+        });
+      } catch {
+        throw new Error("project_update_engagement_unavailable");
+      }
+      if (!response.ok) throw new Error("project_update_engagement_unavailable");
       await response.body?.cancel();
     },
     connector_sync_dispatch: async () => {

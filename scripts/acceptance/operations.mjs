@@ -86,7 +86,8 @@ import {
   CredentialVault,
   loadConfig,
 } from "../../packages/platform/dist/index.js";
-import { engagementStorageTables, verifyEngagementStoragePrivileges } from "./update-engagement-storage.mjs";
+import { engagementStorageTables, verifyEngagementStoragePrivileges,
+  verifyUpdateEngagementStorage, verifyRestoredEngagementStorage } from "./update-engagement-storage.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -411,11 +412,13 @@ try {
     const workerRuntimeDenied = await verifyWorkerFactDenials(
       config("database", "pdaa_worker", "worker-password").database,
     );
+    const engagementStorage = await verifyUpdateEngagementStorage(adminConfig);
     writeFileSync(
       output + "/project-fact-persistence.json",
       JSON.stringify(
         {
           status: "awaiting-restore",
+          engagementStorage,
           upgrade,
           authorityUpgrade,
           canonicalUpgrade,
@@ -603,7 +606,13 @@ try {
           receipt.scalarReconciliationFixture,
           "fixture_admin",
         );
+      const restoredEngagementDb = createDatabase(target("restore_target"));
+      try {
+        await verifyRestoredEngagementStorage(restoredEngagementDb, receipt.engagementStorage);
+      } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
+        engagementStorageChecked: true,
+        engagementSourceSatisfactionChecked: true,
         status: "passed",
         exactRetainedRows: true,
         runtimeQuarantineChecked: true,

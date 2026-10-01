@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
+  deriveProjectUpdateSourceSatisfaction,
+  projectUpdateZoneConfigurationSchema,
+  planProjectUpdateRecipientStage,
+  type ProjectUpdateZoneConfiguration,
+  type ProjectUpdateEngagementView,
+  type ProjectUpdateRecipientStageSnapshot,
   assessProjectCompleteness,
   assessUpdateFreshness,
   projectUpdatePolicyChangeSchema,
@@ -27,6 +33,21 @@ import { actorInput, authorizeFactProject } from "./fact-authorization.js";
 import { DatabaseAuthorityRepository } from "./authority-persistence.js";
 
 type Tx = Prisma.TransactionClient;
+type EngagementRow = {
+  id: string; customerId: string; projectId: string; obligationId: string;
+  policyRevisionId: string; policyRevision: number; assessmentId: string;
+  ownerSubject: string; generation: number; state: "ACTIVE" | "PAUSED" | "CLOSED";
+  sourceSatisfiedFactTypes: string[];
+};
+type PendingStage = ProjectUpdateRecipientStageSnapshot & {
+  id: string; engagementId: string; generation: number; factTypes: string[];
+  outboxId: string; outboxState: "READY" | "CLAIMED"; claimGeneration: number;
+  availableAt: Date; leaseUntil: Date | null; mode: string;
+};
+type PreparedUpdate = {
+  view: ProjectUpdateAssessmentView; assessmentId: string; asOf: Date; policy: PolicyRow;
+  source: ReturnType<typeof deriveProjectUpdateSourceSatisfaction>;
+};
 type PolicyRow = {
   policyRevisionId: string;
   projectId: string;
@@ -230,12 +251,15 @@ export function selectCanonicalProjectUpdateTimestamp(input: {
 export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository {
   private readonly authority: DatabaseAuthorityRepository;
   private readonly serviceSubject: string | null;
+  private readonly zones: ProjectUpdateZoneConfiguration | null;
 
   constructor(
     private readonly db: Database,
     configuredServiceSubject?: string | null,
+    zones?: ProjectUpdateZoneConfiguration | null,
   ) {
     this.authority = new DatabaseAuthorityRepository(db);
+    this.zones = zones ? projectUpdateZoneConfigurationSchema.parse(zones) : null;
     this.serviceSubject = configuredServiceSubject
       ? canonicalSubjectSchema.parse(configuredServiceSubject)
       : null;
@@ -290,7 +314,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   ) {
     if (subject === null) return;
     const responsibilities = await tx.$queryRawUnsafe<{ subject: string }[]>(
-      'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'PROJECT_MANAGER\' AND subject=$3 FOR SHARE',
+      'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'PROJECT_MANAGER\' AND subject=$3',
       customerId, projectId, subject,
     );
     if (!responsibilities[0]) throw new ProjectUpdateError("INVALID_REQUEST");
@@ -340,7 +364,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       catch { throw new ProjectUpdateError("DENIED"); }
       await this.loadProject(tx, current.customerId, id);
       const owner = await tx.$queryRawUnsafe<{ subject: string }[]>(
-        'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'RESPONSIBLE_OWNER\' AND subject=$3 FOR SHARE',
+        'SELECT subject FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'RESPONSIBLE_OWNER\' AND subject=$3',
         current.customerId, id, change.responsibleSubject,
       );
       if (!owner[0]) throw new ProjectUpdateError("INVALID_REQUEST");
@@ -424,8 +448,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return rows[0] ?? null;
   }
 
-  private async assessCore(current: Actor, id: string, correlationId: string, scheduled: boolean): Promise<ProjectUpdateAssessmentView> {
-    return this.transaction(async (tx) => {
+  private async assessInTransaction(tx: Tx, current: Actor, id: string, correlationId: string, scheduled: boolean): Promise<PreparedUpdate> {
+      // Match source append/configuration lock order before taking shared fact locks.
+      const locked = await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR UPDATE',
+        current.customerId, id,
+      );
+      if (!locked[0]) throw new ProjectUpdateError("DENIED");
       await this.authorize(tx, current, id, scheduled);
       const project = await this.loadProject(tx, current.customerId, id);
       const policy = await this.loadPolicy(tx, current.customerId, id, true);
@@ -457,8 +486,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const evidence: ProjectUpdateFactReference[] = [];
       const knownPosition: ProjectUpdateKnownPosition[] = [];
       const trustedTimes: number[] = [];
+      const sourceChecks: Array<{ factType: string; sourceState: "MISSING" | "UNKNOWN" | "RESOLVED"; trustedTimes: string[] }> = [];
       let allTrusted = true;
       for (const requirement of requiredFacts) {
+        const check = { factType: requirement.factType, sourceState: "MISSING" as "MISSING" | "UNKNOWN" | "RESOLVED", trustedTimes: [] as string[] };
+        sourceChecks.push(check);
         const fact = factByType.get(requirement.factType);
         if (!fact) {
           allTrusted = false;
@@ -484,6 +516,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         const status = statuses.has(resolved.status)
           ? resolved.status as typeof factAssessments[number]["sourceAuthorityStatus"]
           : "INCOMPLETE";
+        check.sourceState = "UNKNOWN";
         const versionsCount = Math.max(
           resolved.candidateVersionIds.length,
           resolved.supportingVersionIds.length,
@@ -506,6 +539,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           allTrusted = false;
           continue;
         }
+        let factTrusted = selected.length === resolved.supportingVersionIds.length;
         for (const version of selected) {
           const authorityVersion = resolved.versions.find((item) => item.id === version.id);
           const effectiveAtValidated = prepared.snapshot.versions.some(
@@ -518,6 +552,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             !access.readers.some((reader) => reader.subject === current.subject)
           ) {
             allTrusted = false;
+            factTrusted = false;
             continue;
           }
           const sourceType = authorityVersion.sourceType ?? "";
@@ -535,10 +570,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             asOf,
           });
           const timestampBasis = selectedTime.timestampBasis;
-          if (selectedTime.timestamp)
+          if (selectedTime.timestamp) {
             trustedTimes.push(selectedTime.timestamp.getTime());
-          else
+            check.trustedTimes.push(iso(selectedTime.timestamp));
+          } else {
             allTrusted = false;
+            factTrusted = false;
+          }
           const reference: ProjectUpdateFactReference = {
             factId: fact.id,
             factType: requirement.factType,
@@ -566,7 +604,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             timestampBasis: reference.timestampBasis,
           });
         }
+        allTrusted = allTrusted && factTrusted;
+        if (factTrusted) check.sourceState = "RESOLVED";
       }
+      const source = deriveProjectUpdateSourceSatisfaction({
+        asOf: iso(asOf), freshnessWindowSeconds: policy.freshnessWindowSeconds, checks: sourceChecks,
+      });
       const completeness = assessProjectCompleteness({
         assessedAt: iso(asOf),
         projectId: id,
@@ -622,8 +665,18 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       });
       const assessmentId = randomUUID();
       const open = await this.currentOpen(tx, current.customerId, id);
-      const stale = freshnessAssessment.freshness.state === "STALE";
-      const reuse = stale && open !== null && open.cycleHash === cycleHash &&
+      const activeCycle = open ? await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id FROM public."ProjectUpdateEngagement" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "obligationId"=$3::uuid AND state IN (\'ACTIVE\',\'PAUSED\') FOR UPDATE',
+        current.customerId, id, open.id,
+      ) : [];
+      const samePolicy = open !== null && open.policyRevisionId === policy.policyRevisionId &&
+        open.policyRevision === policy.revision;
+      const stale = freshnessAssessment.freshness.state === "STALE" ||
+        (activeCycle.length > 0 && samePolicy && source.remainingFactTypes.length > 0);
+      // A durable cycle keeps its pending actions while any required facts remain
+      // unresolved. New source timestamps do not discard an active request.
+      const reuse = stale && open !== null &&
+        (open.cycleHash === cycleHash || activeCycle.length > 0) &&
         open.policyRevisionId === policy.policyRevisionId && open.policyRevision === policy.revision;
       const supersede = open !== null && !reuse;
       const obligationId = stale
@@ -649,6 +702,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const safeResult = {
         completeness,
         freshness: freshnessAssessment.freshness,
+        engagementFacts: source.facts,
       };
       const dependencyData: DependencyRow[] = evidence;
       const envelopeHash = hash({ input: safeInput, result: safeResult, dependencies: dependencyData });
@@ -740,7 +794,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           preview.revision, stringify(preview), previewHash, asOf,
         );
       }
-      return {
+      const view: ProjectUpdateAssessmentView = {
         project: {
           id, code: project.code, name: project.name,
           reportedStatus: project.reportedStatus,
@@ -750,7 +804,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         completeness,
         freshness: freshnessAssessment.freshness,
         obligation: obligationId
-          ? { id: obligationId, state: obligationState!, dueAt: iso(freshnessThresholdAt) }
+          ? { id: obligationId, state: obligationState!, dueAt: iso(reuse ? open!.dueAt : freshnessThresholdAt) }
           : null,
         preview,
         knownPosition: knownPosition.sort((left, right) =>
@@ -759,8 +813,368 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           left.versionId.localeCompare(right.versionId),
         ),
       };
+      const prepared = { view, assessmentId, asOf, policy, source };
+      await this.refreshEngagements(tx, current, id, correlationId, prepared);
+      return prepared;
+  }
+
+  private async assessCore(current: Actor, id: string, correlationId: string, scheduled: boolean): Promise<ProjectUpdateAssessmentView> {
+    return this.transaction(async (tx) =>
+      (await this.assessInTransaction(tx, current, id, correlationId, scheduled)).view,
+    );
+  }
+
+  private async engagementAudit(tx: Tx, current: Actor, projectId: string, correlationId: string, event: string, detail: unknown) {
+    const auditId = randomUUID();
+    await tx.$executeRawUnsafe(
+      "INSERT INTO public.\"AuditEvent\" (id,\"customerId\",actor,event,\"correlationId\",detail,\"occurredAt\") VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6::jsonb,$7)",
+      auditId, current.customerId, current.subject, event, correlationId, stringify(detail), await this.now(tx),
+    );
+    return auditId;
+  }
+
+  private async recipientAuthorized(tx: Tx, customerId: string, projectId: string, subject: string, role: "OWNER" | "PROJECT_MANAGER") {
+    const rows = await tx.$queryRawUnsafe<{ subject: string }[]>(
+      "SELECT subject FROM public.\"ProjectResponsibility\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND subject=$3 AND role=$4",
+      customerId, projectId, subject, role === "OWNER" ? "RESPONSIBLE_OWNER" : "PROJECT_MANAGER",
+    );
+    if (!rows[0]) return false;
+    const grants = await tx.$queryRawUnsafe<{ role: string }[]>(
+      "SELECT g.role FROM public.\"AccessGrant\" g JOIN public.\"Project\" p ON p.\"customerId\"=g.\"customerId\" AND p.id=$2::uuid WHERE g.\"customerId\"=$1::uuid AND g.subject=$3 AND ((g.\"scopeType\"='project' AND g.\"scopeId\"=p.id) OR (g.\"scopeType\"='portfolio' AND g.\"scopeId\"=p.\"portfolioId\")) ORDER BY g.id FOR SHARE OF g",
+      customerId, projectId, subject,
+    );
+    const allowed = role === "PROJECT_MANAGER" ? ["project_manager"]
+      : ["project_manager", "portfolio_manager", "pmo_admin", "team_lead", "contributor"];
+    return grants.some((grant) => allowed.includes(grant.role));
+  }
+
+  private async stagePlans(tx: Tx, customerId: string, projectId: string, policy: PolicyRow, dueAt: string) {
+    if (!this.zones || this.zones.customerId !== customerId || !this.serviceSubject ||
+        !policy.scheduledScanEnabled || policy.scheduledServiceSubject !== this.serviceSubject)
+      throw new ProjectUpdateError("UNAVAILABLE");
+    const projectZone = projectUpdateZoneConfigurationSchema.shape.customerTimeZone.parse(policy.timeZone);
+    const allZones = [...new Set([this.zones.customerTimeZone, projectZone,
+      ...this.zones.recipientTimeZones.map((item) => item.timeZone)])];
+    const catalog = await tx.$queryRawUnsafe<{ name: string }[]>(
+      "SELECT name FROM pg_catalog.pg_timezone_names WHERE name=ANY($1::text[])", allZones,
+    );
+    if (catalog.length !== allZones.length) throw new ProjectUpdateError("UNAVAILABLE");
+    const zoneFor = (subject: string) =>
+      this.zones!.recipientTimeZones.find((entry) => entry.subject === subject)?.timeZone ?? null;
+    const base = { logicalDueAt: dueAt, projectTimeZone: projectZone,
+      customerTimeZone: this.zones.customerTimeZone,
+      quietHoursStartLocal: policy.quietHoursStartLocal, quietHoursEndLocal: policy.quietHoursEndLocal };
+    const request = planProjectUpdateRecipientStage({
+      ...base, kind: "REQUEST", ordinal: 0, recipientRole: "OWNER",
+      recipientSubject: policy.responsibleSubject, recipientTimeZone: zoneFor(policy.responsibleSubject), anchorAt: dueAt,
+    });
+    const plans = [request];
+    for (const ordinal of policy.reminderBusinessDayOffsets)
+      plans.push(planProjectUpdateRecipientStage({
+        ...base, kind: "REMINDER", ordinal, recipientRole: "OWNER",
+        recipientSubject: policy.responsibleSubject, recipientTimeZone: zoneFor(policy.responsibleSubject), anchorAt: request.scheduledAt,
+      }));
+    const configurationActions: ProjectUpdateEngagementView["configurationActions"] = [];
+    if (policy.escalationAfterBusinessDays > 0) {
+      const ownerEscalation = planProjectUpdateRecipientStage({
+        ...base, kind: "ESCALATION", ordinal: policy.escalationAfterBusinessDays,
+        recipientRole: "OWNER", recipientSubject: policy.responsibleSubject,
+        recipientTimeZone: zoneFor(policy.responsibleSubject), anchorAt: request.scheduledAt,
+      });
+      plans.push(ownerEscalation);
+      const pm = policy.escalationRecipientSubject;
+      if (pm && await this.recipientAuthorized(tx, customerId, projectId, pm, "PROJECT_MANAGER"))
+        plans.push(planProjectUpdateRecipientStage({
+          ...base, kind: "ESCALATION", ordinal: policy.escalationAfterBusinessDays,
+          recipientRole: "PROJECT_MANAGER", recipientSubject: pm, recipientTimeZone: zoneFor(pm), anchorAt: ownerEscalation.scheduledAt,
+        }));
+      else configurationActions.push("PM_RECIPIENT_REVOKED");
+    }
+    return { plans, configurationActions };
+  }
+
+  private async pendingStages(tx: Tx, current: Actor, projectId: string, engagementId: string): Promise<PendingStage[]> {
+    return tx.$queryRawUnsafe<PendingStage[]>(
+      "SELECT s.id,s.\"engagementId\",s.generation,s.kind,s.ordinal,s.\"recipientSubject\",s.\"recipientRole\",s.\"factTypes\",s.\"timeZone\",s.\"zoneSource\",to_char(s.\"logicalDueAt\" AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS \"logicalDueAt\",to_char(s.\"candidateAt\" AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS \"candidateAt\",to_char(s.\"scheduledAt\" AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS \"scheduledAt\",s.\"localAt\",s.\"utcOffset\",s.\"deferralReasons\",s.\"ruleRevision\",s.mode,o.id AS \"outboxId\",o.state AS \"outboxState\",o.\"claimGeneration\",o.\"availableAt\",o.\"leaseUntil\" FROM public.\"ProjectUpdateStage\" s JOIN public.\"ProjectUpdateOutbox\" o ON o.\"customerId\"=s.\"customerId\" AND o.\"projectId\"=s.\"projectId\" AND o.\"stageId\"=s.id WHERE s.\"customerId\"=$1::uuid AND s.\"projectId\"=$2::uuid AND s.\"engagementId\"=$3::uuid AND o.state IN ('READY','CLAIMED') ORDER BY s.id FOR UPDATE OF o",
+      current.customerId, projectId, engagementId,
+    );
+  }
+
+  private async releaseExpired(tx: Tx, current: Actor, projectId: string, stage: PendingStage, correlationId: string) {
+    if (stage.outboxState !== "CLAIMED") return;
+    if (!stage.leaseUntil || stage.leaseUntil > await this.now(tx)) return;
+    const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
+      "project_update.stage.released", { stageId: stage.id, reason: "LEASE_EXPIRED" });
+    const changed = await tx.$executeRawUnsafe(
+      "UPDATE public.\"ProjectUpdateOutbox\" SET state='READY',\"leaseUntil\"=NULL,reason='LEASE_EXPIRED',\"auditEventId\"=$4::uuid WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid AND state='CLAIMED' AND \"claimGeneration\"=$5 AND \"leaseUntil\"<=clock_timestamp() AND \"handoffAt\" IS NULL",
+      current.customerId, projectId, stage.outboxId, auditId, stage.claimGeneration,
+    );
+    if (changed !== 1) throw new ProjectUpdateError("CONFLICT");
+    stage.outboxState = "READY";
+  }
+
+  private async suppressStage(tx: Tx, current: Actor, projectId: string, stage: PendingStage, reason: string, correlationId: string) {
+    await this.releaseExpired(tx, current, projectId, stage, correlationId);
+    const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
+      "project_update.stage.suppressed", { stageId: stage.id, reason });
+    const changed = await tx.$executeRawUnsafe(
+      "UPDATE public.\"ProjectUpdateOutbox\" SET state='SUPPRESSED',\"leaseUntil\"=NULL,\"completedAt\"=date_trunc('milliseconds',clock_timestamp()),reason=$4,\"auditEventId\"=$5::uuid WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid AND \"claimGeneration\"=$6 AND (state='READY' OR (state='CLAIMED' AND \"leaseUntil\">clock_timestamp())) AND \"handoffAt\" IS NULL",
+      current.customerId, projectId, stage.outboxId, reason, auditId, stage.claimGeneration,
+    );
+    if (changed !== 1) throw new ProjectUpdateError("CONFLICT");
+  }
+
+  private async insertStage(tx: Tx, current: Actor, projectId: string, engagement: EngagementRow, plan: ProjectUpdateRecipientStageSnapshot, remaining: string[], auditId: string, replacesStageId: string | null = null) {
+    const stageId = randomUUID();
+    await tx.$executeRawUnsafe(
+      "INSERT INTO public.\"ProjectUpdateStage\" (id,\"customerId\",\"projectId\",\"engagementId\",\"obligationId\",\"policyRevisionId\",\"policyRevision\",\"assessmentId\",generation,kind,ordinal,\"recipientSubject\",\"recipientRole\",\"factTypes\",\"timeZone\",\"zoneSource\",\"logicalDueAt\",\"candidateAt\",\"scheduledAt\",\"localAt\",\"utcOffset\",\"deferralReasons\",\"ruleRevision\",mode,\"replacesStageId\",\"auditEventId\") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8::uuid,$9,$10,$11,$12,$13,$14::text[],$15,$16,$17::timestamptz,$18::timestamptz,$19::timestamptz,$20,$21,$22::text[],$23,'SHADOW',$24::uuid,$25::uuid)",
+      stageId, current.customerId, projectId, engagement.id, engagement.obligationId,
+      engagement.policyRevisionId, engagement.policyRevision, engagement.assessmentId, engagement.generation,
+      plan.kind, plan.ordinal, plan.recipientSubject, plan.recipientRole, remaining,
+      plan.timeZone, plan.zoneSource, plan.logicalDueAt, plan.candidateAt, plan.scheduledAt,
+      plan.localAt, plan.utcOffset, plan.deferralReasons, plan.ruleRevision, replacesStageId, auditId,
+    );
+    await tx.$executeRawUnsafe(
+      "INSERT INTO public.\"ProjectUpdateOutbox\" (id,\"customerId\",\"projectId\",\"stageId\",\"availableAt\",\"auditEventId\") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::timestamptz,$6::uuid)",
+      randomUUID(), current.customerId, projectId, stageId, plan.scheduledAt, auditId,
+    );
+  }
+
+  private async createEngagement(tx: Tx, current: Actor, projectId: string, correlationId: string, prepared: PreparedUpdate): Promise<ProjectUpdateEngagementView | null> {
+    const obligation = prepared.view.obligation;
+    if (!obligation || prepared.source.remainingFactTypes.length === 0) return null;
+    if (prepared.source.sourceUnknown) throw new ProjectUpdateError("CONFLICT");
+    if (!await this.recipientAuthorized(tx, current.customerId, projectId, prepared.policy.responsibleSubject, "OWNER"))
+      throw new ProjectUpdateError("DENIED");
+    const schedule = await this.stagePlans(tx, current.customerId, projectId, prepared.policy, obligation.dueAt);
+    const existing = await tx.$queryRawUnsafe<EngagementRow[]>(
+      "SELECT * FROM public.\"ProjectUpdateEngagement\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND \"obligationId\"=$3::uuid FOR UPDATE",
+      current.customerId, projectId, obligation.id,
+    );
+    if (existing[0] && existing[0].state !== "ACTIVE") throw new ProjectUpdateError("CONFLICT");
+    let engagement = existing[0];
+    if (!engagement) {
+      const originals = await tx.$queryRawUnsafe<{ assessmentId: string }[]>(
+        "SELECT \"assessmentId\" FROM public.\"ProjectUpdateObligation\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid FOR UPDATE",
+        current.customerId, projectId, obligation.id,
+      );
+      if (!originals[0]) throw new ProjectUpdateError("CONFLICT");
+      const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
+        "project_update.engagement.activated", {
+          obligationId: obligation.id, policyRevision: prepared.policy.revision,
+          mode: "SHADOW", configurationFingerprint: hash(this.zones),
+          sourceAssessmentId: prepared.assessmentId, configurationActions: schedule.configurationActions,
+        });
+      engagement = {
+        id: randomUUID(), customerId: current.customerId, projectId, obligationId: obligation.id,
+        policyRevisionId: prepared.policy.policyRevisionId, policyRevision: prepared.policy.revision,
+        assessmentId: originals[0].assessmentId, ownerSubject: prepared.policy.responsibleSubject,
+        generation: 1, state: "ACTIVE", sourceSatisfiedFactTypes: prepared.source.satisfiedFactTypes,
+      };
+      await tx.$executeRawUnsafe(
+        "INSERT INTO public.\"ProjectUpdateEngagement\" (id,\"customerId\",\"projectId\",\"obligationId\",\"policyRevisionId\",\"policyRevision\",\"assessmentId\",\"ownerSubject\",\"sourceSatisfiedFactTypes\",\"sourceAssessmentId\",\"sourceAssessedAt\",\"auditEventId\") VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7::uuid,$8,$9::text[],$10::uuid,$11,$12::uuid)",
+        engagement.id, current.customerId, projectId, engagement.obligationId, engagement.policyRevisionId,
+        engagement.policyRevision, engagement.assessmentId, engagement.ownerSubject,
+        prepared.source.satisfiedFactTypes, prepared.assessmentId, prepared.asOf, auditId,
+      );
+      for (const plan of schedule.plans)
+        await this.insertStage(tx, current, projectId, engagement, plan, prepared.source.remainingFactTypes, auditId);
+    }
+    const counts = await tx.$queryRawUnsafe<{ count: number }[]>(
+      "SELECT count(*)::int AS count FROM public.\"ProjectUpdateStage\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND \"engagementId\"=$3::uuid AND generation=$4",
+      current.customerId, projectId, engagement.id, engagement.generation,
+    );
+    return { projectId, engagementId: engagement.id, obligationId: obligation.id,
+      policyRevision: prepared.policy.revision, mode: "SHADOW", stageCount: counts[0]!.count,
+      remainingFactTypes: prepared.source.remainingFactTypes, configurationActions: schedule.configurationActions };
+  }
+
+  private async refreshEngagements(tx: Tx, current: Actor, projectId: string, correlationId: string, prepared: PreparedUpdate) {
+    const engagements = await tx.$queryRawUnsafe<EngagementRow[]>(
+      "SELECT * FROM public.\"ProjectUpdateEngagement\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND state IN ('ACTIVE','PAUSED') ORDER BY id FOR UPDATE",
+      current.customerId, projectId,
+    );
+    let carryForward = false;
+    for (const engagement of engagements) {
+      const pending = await this.pendingStages(tx, current, projectId, engagement.id);
+      if (prepared.view.obligation?.id !== engagement.obligationId) {
+        const reason = prepared.policy.revision !== engagement.policyRevision ? "POLICY_CHANGED"
+          : prepared.source.remainingFactTypes.length === 0 ? "REQUIRED_FACTS_SATISFIED" : "OBLIGATION_ENDED";
+        for (const stage of pending) await this.suppressStage(tx, current, projectId, stage, reason, correlationId);
+        const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
+          "project_update.engagement.closed", { engagementId: engagement.id, reason });
+        await tx.$executeRawUnsafe(
+          "UPDATE public.\"ProjectUpdateEngagement\" SET state='CLOSED',\"auditEventId\"=$4::uuid,\"changedAt\"=$5,\"sourceSatisfiedFactTypes\"=CASE WHEN \"policyRevisionId\"=$6::uuid THEN $7::text[] ELSE \"sourceSatisfiedFactTypes\" END,\"sourceAssessmentId\"=CASE WHEN \"policyRevisionId\"=$6::uuid THEN $8::uuid ELSE \"sourceAssessmentId\" END,\"sourceAssessedAt\"=CASE WHEN \"policyRevisionId\"=$6::uuid THEN $9::timestamptz ELSE \"sourceAssessedAt\" END WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid",
+          current.customerId, projectId, engagement.id, auditId, await this.now(tx),
+          prepared.policy.policyRevisionId, prepared.source.satisfiedFactTypes, prepared.assessmentId, prepared.asOf,
+        );
+        carryForward = carryForward || engagement.state === "ACTIVE";
+        continue;
+      }
+      const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
+        "project_update.engagement.source_rechecked", { engagementId: engagement.id, sourceAssessmentId: prepared.assessmentId });
+      await tx.$executeRawUnsafe(
+        "UPDATE public.\"ProjectUpdateEngagement\" SET \"sourceSatisfiedFactTypes\"=$4::text[],\"sourceAssessmentId\"=$5::uuid,\"sourceAssessedAt\"=$6,\"auditEventId\"=$7::uuid,\"changedAt\"=$8 WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid",
+        current.customerId, projectId, engagement.id, prepared.source.satisfiedFactTypes,
+        prepared.assessmentId, prepared.asOf, auditId, await this.now(tx),
+      );
+      if (!pending.length || !this.zones || engagement.state === "PAUSED") continue;
+      const schedule = await this.stagePlans(tx, current.customerId, projectId, prepared.policy, prepared.view.obligation.dueAt);
+      const replacements: Array<{ stage: PendingStage; plan: ProjectUpdateRecipientStageSnapshot }> = [];
+      for (const stage of pending) {
+        if (!await this.recipientAuthorized(tx, current.customerId, projectId, stage.recipientSubject, stage.recipientRole)) {
+          // Retain the pending action; due processing records a bounded denial
+          // and retries current authorization after access is restored.
+          continue;
+        }
+        const plan = schedule.plans.find((item) => item.kind === stage.kind && item.ordinal === stage.ordinal &&
+          item.recipientSubject === stage.recipientSubject && item.recipientRole === stage.recipientRole);
+        if (!plan) {
+          await this.suppressStage(tx, current, projectId, stage, "POLICY_CHANGED", correlationId);
+          continue;
+        }
+        const maskChanged = stringify([...stage.factTypes].sort()) !== stringify(prepared.source.remainingFactTypes);
+        const zoneChanged = plan.timeZone !== stage.timeZone || plan.zoneSource !== stage.zoneSource;
+        if (!prepared.source.remainingFactTypes.length)
+          await this.suppressStage(tx, current, projectId, stage, "REQUIRED_FACTS_SATISFIED", correlationId);
+        else if (maskChanged || zoneChanged) {
+          await this.suppressStage(tx, current, projectId, stage,
+            zoneChanged ? "RECIPIENT_ZONE_CHANGED"
+              : prepared.source.remainingFactTypes.some((fact) => !stage.factTypes.includes(fact))
+                ? "SOURCE_REASSESSMENT_REQUIRED" : "REQUIRED_FACTS_SATISFIED", correlationId);
+          replacements.push({ stage, plan });
+        }
+      }
+      if (replacements.length) {
+        const revisionAudit = await this.engagementAudit(tx, current, projectId, correlationId,
+          "project_update.engagement.replanned", { engagementId: engagement.id, generation: engagement.generation + 1 });
+        await tx.$executeRawUnsafe(
+          "UPDATE public.\"ProjectUpdateEngagement\" SET generation=generation+1,\"auditEventId\"=$4::uuid,\"changedAt\"=$5 WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid AND generation=$6",
+          current.customerId, projectId, engagement.id, revisionAudit, await this.now(tx), engagement.generation,
+        );
+        engagement.generation += 1;
+        for (const { stage, plan } of replacements)
+          await this.insertStage(tx, current, projectId, engagement, plan, prepared.source.remainingFactTypes, revisionAudit, stage.id);
+      }
+    }
+    if (carryForward && prepared.view.obligation && this.zones && !prepared.source.sourceUnknown &&
+        prepared.policy.scheduledScanEnabled && prepared.policy.scheduledServiceSubject === this.serviceSubject &&
+        await this.recipientAuthorized(tx, current.customerId, projectId, prepared.policy.responsibleSubject, "OWNER"))
+      await this.createEngagement(tx, current, projectId, correlationId, prepared);
+  }
+
+  async activateEngagement(actorValue: Actor, projectValue: string, expectedPolicyRevision: number, correlationValue: string) {
+    const current = parseActor(actorValue);
+    const id = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    if (!Number.isInteger(expectedPolicyRevision) || expectedPolicyRevision < 1 || expectedPolicyRevision > 2147483647)
+      throw new ProjectUpdateError("INVALID_REQUEST");
+    if (!current.roles.includes("pmo_admin")) throw new ProjectUpdateError("FORBIDDEN");
+    return this.transaction(async (tx) => {
+      try { await authorizeFactProject(tx, current, id, "access"); }
+      catch { throw new ProjectUpdateError("DENIED"); }
+      const policy = await this.loadPolicy(tx, current.customerId, id, true);
+      if (!policy || policy.revision !== expectedPolicyRevision) throw new ProjectUpdateError("CONFLICT");
+      if (!this.zones || this.zones.customerId !== current.customerId) throw new ProjectUpdateError("UNAVAILABLE");
+      const prepared = await this.assessInTransaction(tx, current, id, correlationId, false);
+      return this.createEngagement(tx, current, id, correlationId, prepared);
     });
   }
+
+  private async deferStage(tx: Tx, current: Actor, projectId: string, stage: PendingStage, until: string, reason: string, correlationId: string) {
+    const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
+      "project_update.stage.deferred", { stageId: stage.id, reason });
+    const changed = await tx.$executeRawUnsafe(
+      "UPDATE public.\"ProjectUpdateOutbox\" SET state='READY',\"availableAt\"=$4::timestamptz,\"leaseUntil\"=NULL,reason=$5,\"auditEventId\"=$6::uuid WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid AND state='CLAIMED' AND \"claimGeneration\"=$7 AND \"leaseUntil\">clock_timestamp() AND \"handoffAt\" IS NULL",
+      current.customerId, projectId, stage.outboxId, until, reason, auditId, stage.claimGeneration,
+    );
+    if (changed !== 1) throw new ProjectUpdateError("CONFLICT");
+  }
+
+  async processShadowEngagements(limit: number) {
+    if (limit !== 1) throw new ProjectUpdateError("INVALID_REQUEST");
+    if (!this.zones || !this.serviceSubject) return 0;
+    const customerId = this.zones.customerId;
+    const current: Actor = { customerId, subject: this.serviceSubject, roles: [] };
+    const projectId = await this.transaction(async (tx) => {
+      // Pick and lock the project first. Other workers skip this project and
+      // source/configuration writers use the same project-first lock order.
+      const projects = await tx.$queryRawUnsafe<{ projectId: string }[]>(
+        "SELECT p.id AS \"projectId\" FROM public.\"Project\" p JOIN public.\"ProjectUpdatePolicy\" h ON h.\"customerId\"=p.\"customerId\" AND h.\"projectId\"=p.id JOIN public.\"ProjectUpdatePolicyRevision\" r ON r.\"customerId\"=h.\"customerId\" AND r.\"projectId\"=h.\"projectId\" AND r.revision=h.revision WHERE p.\"customerId\"=$1::uuid AND (h.\"engagementProcessNextEligibleAt\" IS NULL OR h.\"engagementProcessNextEligibleAt\"<=clock_timestamp()) AND r.\"scheduledScanEnabled\" AND r.\"scheduledServiceSubject\"=$2 AND EXISTS (SELECT 1 FROM public.\"ProjectUpdateEngagement\" e JOIN public.\"ProjectUpdateStage\" s ON s.\"customerId\"=e.\"customerId\" AND s.\"projectId\"=e.\"projectId\" AND s.\"engagementId\"=e.id JOIN public.\"ProjectUpdateOutbox\" o ON o.\"customerId\"=s.\"customerId\" AND o.\"projectId\"=s.\"projectId\" AND o.\"stageId\"=s.id WHERE e.\"customerId\"=p.\"customerId\" AND e.\"projectId\"=p.id AND e.state IN ('ACTIVE','PAUSED') AND s.mode='SHADOW' AND ((o.state='READY' AND o.\"availableAt\"<=clock_timestamp()) OR (o.state='CLAIMED' AND o.\"leaseUntil\"<=clock_timestamp()))) ORDER BY h.\"engagementProcessLastAttemptAt\" ASC NULLS FIRST,p.id LIMIT 1 FOR UPDATE OF p SKIP LOCKED",
+        customerId, this.serviceSubject,
+      );
+      if (!projects[0]) return null;
+      const selected = projects[0].projectId;
+      await tx.$executeRawUnsafe(
+        "UPDATE public.\"ProjectUpdatePolicy\" SET \"engagementProcessLastAttemptAt\"=date_trunc('milliseconds',clock_timestamp()),\"engagementProcessNextEligibleAt\"=clock_timestamp()+interval '1 minute' WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid", customerId, selected,
+      );
+      return selected;
+    });
+    if (!projectId) return 0;
+    try {
+      return await this.transaction(async (tx) => {
+      const correlationId = randomUUID();
+      const prepared = await this.assessInTransaction(tx, current, projectId, correlationId, true);
+      const engagements = await tx.$queryRawUnsafe<EngagementRow[]>(
+        "SELECT * FROM public.\"ProjectUpdateEngagement\" WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND state IN ('ACTIVE','PAUSED') ORDER BY id FOR UPDATE", customerId, projectId,
+      );
+      let processed = 0;
+      for (const engagement of engagements) {
+        for (const stage of await this.pendingStages(tx, current, projectId, engagement.id)) {
+          if (processed >= 100) return processed;
+          if (stage.mode !== "SHADOW" || stage.availableAt > await this.now(tx)) continue;
+          await this.releaseExpired(tx, current, projectId, stage, correlationId);
+          if (stage.outboxState !== "READY") continue;
+          const claimAudit = await this.engagementAudit(tx, current, projectId, correlationId,
+            "project_update.stage.claimed", { stageId: stage.id, mode: "SHADOW" });
+          const claimed = await tx.$executeRawUnsafe(
+            "UPDATE public.\"ProjectUpdateOutbox\" SET state='CLAIMED',\"claimGeneration\"=\"claimGeneration\"+1,\"leaseUntil\"=clock_timestamp()+interval '2 minutes',reason=NULL,\"auditEventId\"=$4::uuid WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid AND id=$3::uuid AND state='READY' AND \"claimGeneration\"=$5 AND \"availableAt\"<=clock_timestamp() AND \"handoffAt\" IS NULL",
+            customerId, projectId, stage.outboxId, claimAudit, stage.claimGeneration,
+          );
+          if (claimed !== 1) throw new ProjectUpdateError("CONFLICT");
+          stage.outboxState = "CLAIMED";
+          stage.claimGeneration += 1;
+          stage.leaseUntil = new Date((await this.now(tx)).getTime() + 120000);
+          const authorized = await this.recipientAuthorized(tx, customerId, projectId, stage.recipientSubject, stage.recipientRole) &&
+            await this.recipientAuthorized(tx, customerId, projectId, engagement.ownerSubject, "OWNER");
+          const reason = !authorized ? "RECIPIENT_REVOKED"
+            : prepared.source.sourceUnknown ? "SOURCE_UNKNOWN"
+            : engagement.state === "PAUSED" ? "ENGAGEMENT_PAUSED" : null;
+          if (reason) {
+            await this.deferStage(tx, current, projectId, stage,
+              iso(new Date((await this.now(tx)).getTime() + 300000)), reason, correlationId);
+          } else {
+            const calendarAsOf = iso(await this.now(tx));
+            const check = planProjectUpdateRecipientStage({
+              kind: "REQUEST", ordinal: 0, recipientRole: "OWNER", recipientSubject: stage.recipientSubject,
+              logicalDueAt: calendarAsOf, anchorAt: calendarAsOf, recipientTimeZone: stage.timeZone,
+              projectTimeZone: prepared.policy.timeZone, customerTimeZone: this.zones!.customerTimeZone,
+              quietHoursStartLocal: prepared.policy.quietHoursStartLocal, quietHoursEndLocal: prepared.policy.quietHoursEndLocal,
+            });
+            if (Date.parse(check.scheduledAt) > Date.parse(check.candidateAt))
+              await this.deferStage(tx, current, projectId, stage, check.scheduledAt, check.deferralReasons[0]!, correlationId);
+            else await this.suppressStage(tx, current, projectId, stage, "SHADOW_MODE", correlationId);
+          }
+          processed += 1;
+        }
+      }
+      return processed;
+      });
+    } catch (error) {
+      // This timer survives rollback of source/stage work. A poisoned project
+      // cannot monopolize later invocations or discard any pending intent.
+      await this.transaction(async (tx) => {
+        await tx.$queryRawUnsafe(
+          "SELECT id FROM public.\"Project\" WHERE \"customerId\"=$1::uuid AND id=$2::uuid FOR UPDATE", customerId, projectId,
+        );
+        await tx.$executeRawUnsafe(
+          "UPDATE public.\"ProjectUpdatePolicy\" SET \"engagementProcessNextEligibleAt\"=clock_timestamp()+interval '5 minutes' WHERE \"customerId\"=$1::uuid AND \"projectId\"=$2::uuid", customerId, projectId,
+        );
+      });
+      throw error;
+    }
+  }
+
 
   async assess(actorValue: Actor, projectValue: string, correlationValue: string) {
     const current = parseActor(actorValue);
@@ -885,7 +1299,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       'FROM public."ProjectUpdateAssessment" a JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=a."customerId" AND r."projectId"=a."projectId" AND r.id=a."policyRevisionId" JOIN public."Project" p ON p."customerId"=a."customerId" AND p.id=a."projectId" JOIN public."CanonicalProject" c ON c."customerId"=p."customerId" AND c.id=p.id LEFT JOIN public."ProjectUpdateObligation" o ON o."customerId"=a."customerId" AND o."projectId"=a."projectId" AND o.state=\'OPEN\' LEFT JOIN public."ProjectUpdatePreview" v ON v."customerId"=o."customerId" AND v."projectId"=o."projectId" AND v."obligationId"=o.id AND v."assessmentId"=a.id AND v.state=\'CURRENT\'',
       'WHERE a."customerId"=$1::uuid AND a."projectId"=$2::uuid',
       ...(policyRevisionId ? ['AND a."policyRevisionId"=$3::uuid'] : []),
-      'ORDER BY a."assessedAt" DESC,a.id DESC LIMIT 1 FOR SHARE OF a,p,c',
+      'ORDER BY a."assessedAt" DESC,a.id DESC LIMIT 1 FOR SHARE OF p,c',
     ].join(" ");
     const rows = await tx.$queryRawUnsafe<AssessmentRow[]>(
       query,
@@ -936,7 +1350,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       } catch { throw new ProjectUpdateError("UNAVAILABLE"); }
       if (assessment.knownPosition.length !== dependencies.length)
         throw new ProjectUpdateError("DENIED");
-      if (assessment.freshness.state !== "STALE" ||
+      const durable = row.obligationId ? await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id FROM public."ProjectUpdateEngagement" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "obligationId"=$3::uuid AND "policyRevisionId"=$4::uuid AND state IN (\'ACTIVE\',\'PAUSED\')',
+        current.customerId, id, row.obligationId, row.policyRevisionId,
+      ) : [];
+      if ((assessment.freshness.state !== "STALE" && durable.length === 0) ||
           assessment.obligation?.state !== "OPEN")
         throw new ProjectUpdateError("CONFLICT");
 
@@ -957,10 +1375,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           iso(sourceDate) !== assessment.freshness.sourceDate ||
           input.freshnessThresholdAt !== iso(dueAt) ||
           dueAt.getTime() !== sourceDate.getTime() + policy.freshnessWindowSeconds * 1000 ||
-          dueAt.getTime() !== row.dueAt.getTime() ||
+          (durable.length === 0 && dueAt.getTime() !== row.dueAt.getTime()) ||
           assessment.freshness.freshnessWindowSeconds !== policy.freshnessWindowSeconds ||
           savedSourceTimeBasis !== sourceTimeBasis ||
-          row.assessedAt.getTime() <= dueAt.getTime())
+          row.assessedAt.getTime() <= row.dueAt.getTime())
         throw new ProjectUpdateError("CONFLICT");
 
       return previewProjectUpdateSchedule({
@@ -971,7 +1389,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         sourceDate: iso(sourceDate),
         sourceDateField: input.sourceDateField,
         sourceTimeBasis,
-        logicalDueAt: iso(dueAt),
+        logicalDueAt: iso(durable.length > 0 ? row.dueAt! : dueAt),
         timeZone: policy.timeZone,
         responsibleSubject: policy.responsibleSubject,
         cadence: policyCadence(policy),

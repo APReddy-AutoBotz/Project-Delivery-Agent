@@ -62,7 +62,7 @@ export function installConnectorRoutes(
       next();
       return;
     }
-    if (pathname !== "/internal/connectors/run" && pathname !== "/internal/project-updates/scan" && !/^\/webhooks\/jira\/[0-9a-f-]{36}$/i.test(pathname)) {
+    if (pathname !== "/internal/connectors/run" && pathname !== "/internal/project-updates/scan" && pathname !== "/internal/project-updates/process" && !/^\/webhooks\/jira\/[0-9a-f-]{36}$/i.test(pathname)) {
       fixedError(response, 404, "Resource unavailable");
       return;
     }
@@ -111,7 +111,7 @@ export function installConnectorRoutes(
       }
       return;
     }
-    if (pathname === "/internal/project-updates/scan") {
+    if (pathname === "/internal/project-updates/scan" || pathname === "/internal/project-updates/process") {
       const headers = req.headers as Record<string, string | string[] | undefined>;
       if (!config.projectUpdateTaskKeys || !projectUpdates || !verifyConnectorTaskRequest({
         method: req.method,
@@ -142,7 +142,9 @@ export function installConnectorRoutes(
           fixedError(response, 409, "Task request already used");
           return;
         }
-        response.status(200).json({ processed: await projectUpdates.scanScheduledProjects(1) });
+        response.status(200).json({ processed: pathname === "/internal/project-updates/process"
+          ? await projectUpdates.processShadowEngagements(1)
+          : await projectUpdates.scanScheduledProjects(1) });
       } catch {
         fixedError(response, 503, "Service unavailable");
       }

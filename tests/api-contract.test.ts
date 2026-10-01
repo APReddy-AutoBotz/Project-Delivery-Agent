@@ -407,6 +407,12 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   latest: vi.fn(async () => projectUpdateAssessmentFixture),
   schedulePreview: vi.fn(async () => projectUpdateScheduleFixture),
   scanScheduledProjects: vi.fn(async () => 0),
+  activateEngagement: vi.fn(async () => ({ projectId: project.id,
+    engagementId: "40000000-0000-4000-8000-000000000110",
+    obligationId: "40000000-0000-4000-8000-000000000111", policyRevision: 1,
+    mode: "SHADOW" as const, stageCount: 1, remainingFactTypes: ["project.forecast"], configurationActions: [],
+  })),
+  processShadowEngagements: vi.fn(async () => 0),
 };
 beforeAll(async () => {
   ({ app, spec } = await createApp(
@@ -583,6 +589,8 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     200,
     manager,
   );
+  await request("/api/projects/" + project.id + "/project-update-engagements", 200, pmoPortfolio,
+    "POST", { expectedPolicyRevision: 1 });
   await request("/api/admin/health-assessment-retention", 200, pmoPortfolio);
   await request(
     "/api/admin/health-assessment-retention",
@@ -697,7 +705,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(55);
+  expect(covered.size).toBe(56);
   assertContractSnapshot(
     spec,
     JSON.parse(

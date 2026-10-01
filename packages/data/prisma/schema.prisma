@@ -1235,6 +1235,8 @@ model HealthAssessmentCommandReceipt {
 }
 
 model ProjectUpdatePolicy {
+  engagementProcessLastAttemptAt DateTime? @db.Timestamptz(3)
+  engagementProcessNextEligibleAt DateTime? @db.Timestamptz(3)
   customerId String @db.Uuid
   projectId String @db.Uuid
   key String @db.VarChar(64)
@@ -1323,6 +1325,9 @@ model ProjectUpdatePreview {
 }
 
 model ProjectUpdateEngagement {
+  sourceSatisfiedFactTypes String[] @default([]) @db.Text
+  sourceAssessmentId String? @db.Uuid
+  sourceAssessedAt DateTime? @db.Timestamptz(3)
   id String @id @db.Uuid
   customerId String @db.Uuid
   projectId String @db.Uuid

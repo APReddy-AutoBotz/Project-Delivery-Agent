@@ -106,7 +106,8 @@ import {
   scanBrowserAssets,
 } from "./disclosure.mjs";
 
-import { engagementStorageTables, verifyEngagementStoragePrivileges } from "./update-engagement-storage.mjs";
+import { engagementStorageTables, verifyEngagementStoragePrivileges,
+  verifyUpdateEngagementStorage, verifyRestoredEngagementStorage } from "./update-engagement-storage.mjs";
 const env = process.env;
 const projectUpdateTables = [
   "ProjectUpdatePolicy",
@@ -522,7 +523,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 22);
+    assert.equal(migrations.length, 23);
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -744,7 +745,9 @@ try {
     } finally {
       await scalarOwner.$disconnect();
     }
+    const engagementStorage = await verifyUpdateEngagementStorage(connection);
     save("project-fact-persistence", {
+      engagementStorage,
       status: "awaiting-restore",
       workerRuntimeDenied: await verifyWorkerFactDenials(
         loadDatabaseConfig({
@@ -784,7 +787,7 @@ try {
       scalarReconciliationTables,
       businessTableCount: 78,
       engagementStorageTables,
-      migrationCount: 22,
+      migrationCount: 23,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -910,7 +913,13 @@ try {
           receipt.milestoneReconciliationFixture.restoreProbes,
         );
       await verifyMilestoneReconciliationIntegrity(restored);
+      const restoredEngagementDb = createDatabase({ ...connection, database: "pdaa_restore" });
+      try {
+        await verifyRestoredEngagementStorage(restoredEngagementDb, receipt.engagementStorage);
+      } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
+        engagementStorageChecked: true,
+        engagementSourceSatisfactionChecked: true,
         scalarReconciliationOriginalProof: await (async () => {
           await verifyScalarReconciliationPrivileges(restored);
           await verifyScalarReconciliationIntegrity(restored);

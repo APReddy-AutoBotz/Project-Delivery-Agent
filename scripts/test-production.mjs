@@ -456,6 +456,8 @@ try {
   assert.equal(record.projectFactPersistence.status, "passed");
   assert.equal(record.projectFactPersistence.upgrade.status, "passed");
   assert.equal(record.projectFactPersistence.restore.status, "passed");
+  assert.equal(record.projectFactPersistence.restore.engagementStorageChecked, true);
+  assert.equal(record.projectFactPersistence.restore.engagementSourceSatisfactionChecked, true);
   const canonicalPersistence = record.projectFactPersistence;
   assertScalarConcurrencyAndLoad(
     canonicalPersistence,
@@ -538,9 +540,10 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 22);
+    assert.equal(upgrade.migrations.length, 23);
     assert.equal(upgrade.migrations[20].name, "202609290002_project_update_cadence");
     assert.equal(upgrade.migrations[21].name, "202609300001_update_engagement_storage");
+    assert.equal(upgrade.migrations[22].name, "202609300002_update_engagement_processing");
     assert(Number.isFinite(upgrade.upgradeMeasurement.elapsedMs));
     assert(upgrade.upgradeMeasurement.elapsedMs > 0);
     assert(
@@ -883,6 +886,8 @@ try {
       "10000000-0000-4000-8000-000000000002",
       "postgres",
     );
+    assert.equal(persistence.restore.engagementStorageChecked, true);
+    assert.equal(persistence.restore.engagementSourceSatisfactionChecked, true);
     assert.equal(persistence.restore.canonicalIntegrityChecked, true);
     assert.equal(persistence.restore.canonicalImmutableChecked, true);
     assert.equal(persistence.restore.canonicalCommitGuards.actualCommit, true);

@@ -44,8 +44,9 @@ it("requires the complete pinned release ledger after a prior-prefix upgrade", (
     "scripts/acceptance/project-fact-upgrade.mjs",
     "utf8",
   );
-  expect(helper).toContain("assert.equal(migrations.length, 22)");
+  expect(helper).toContain("assert.equal(migrations.length, 23)");
   expect(helper).toContain('"202609300001_update_engagement_storage"');
+  expect(helper).toContain('"202609300002_update_engagement_processing"');
   expect(helper).toContain('"202609280004_project_update_workflow"');
   expect(helper).toContain('"202609290001_schedule_health_policy"');
   expect(helper).toContain('"202609290002_project_update_cadence"');

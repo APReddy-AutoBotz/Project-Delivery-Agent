@@ -15,6 +15,8 @@ import type {
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
   throw new Error("Authority tests require an isolated synthetic database");
+// Keep the private date distinct from real as-of/audit metadata on every run.
+const privateForecastDate = `${new Date().getUTCFullYear() + 10}-12-31`;
 const db = createDatabase(url),
   secondDb = createDatabase(url);
 const authority = new DatabaseAuthorityRepository(db),
@@ -36,7 +38,7 @@ async function appendFixtureVersions(
       FOR item IN SELECT e.* FROM public."FactEvidence" e WHERE e."factId"=fid AND NOT EXISTS (SELECT 1 FROM public."ProjectFactVersion" v WHERE v."evidenceId"=e.id) ORDER BY e.id LOOP
         INSERT INTO public."ProjectFactVersion" (id,"customerId","projectId","factId","sourceId","evidenceId",revision,value,"effectiveAt")
           VALUES (gen_random_uuid(),item."customerId",item."projectId",item."factId",item."sourceId",item.id,next_revision,
-            CASE WHEN numeric_values THEN jsonb_build_object('type','number','value',next_revision) ELSE '{"type":"date","value":"2026-10-01"}'::jsonb END,'2026-09-01'::timestamptz);
+            CASE WHEN numeric_values THEN jsonb_build_object('type','number','value',next_revision) ELSE '{"type":"date","value":"${privateForecastDate}"}'::jsonb END,'2026-09-01'::timestamptz);
         next_revision := next_revision+1;
       END LOOP;
     END;
@@ -118,7 +120,7 @@ type Fixture = Awaited<ReturnType<typeof fixture>>;
 async function append(
   f: Fixture,
   actor = f.pm,
-  value = "2026-10-01",
+  value = privateForecastDate,
   expectedRevision = 0,
   validity: string | null = null,
 ) {
@@ -185,7 +187,7 @@ async function temporalFixture() {
       factType,
       expectedRevision: 0,
       idempotencyKey: randomUUID(),
-      value: { type: "date", value: "2026-10-01" },
+      value: { type: "date", value: privateForecastDate },
       effectiveAt: temporalAt(base, -14400).toISOString(),
       validUntil: temporalAt(base, 14400).toISOString(),
       originalStatement: "Synthetic temporal prefix baseline",
@@ -269,7 +271,7 @@ async function appendTemporalRows(
             id,
             evidenceId,
             revision: ++revision,
-            value: { type: "date", value: "2026-10-01" },
+            value: { type: "date", value: privateForecastDate },
             effectiveAt: temporalAt(f.base, row.effective),
             validUntil: temporalAt(f.base, row.validUntil ?? 14400),
           },
@@ -372,7 +374,7 @@ describe("FR-EVD-004/006/010: batched temporal validation equivalence", () => {
     expect(result.conflicts).toEqual([]);
     expect(result.resolvedValue).toEqual(
       vector.status === "RESOLVED"
-        ? { type: "date", value: "2026-10-01" }
+        ? { type: "date", value: privateForecastDate }
         : null,
     );
     for (const [index, [applicability, freshness]] of vector.states.entries())
@@ -452,7 +454,7 @@ describe("FR-EVD-004/006/010: batched temporal validation equivalence", () => {
 describe("Durable authority policy and server assessment", () => {
   it("rejects an out-of-range policy deadline before an earlier explicit expiry can hide it", async () => {
     const f = await fixture();
-    await append(f, f.pm, "2026-10-01", 0, "2026-12-01T00:00:00.000Z");
+    await append(f, f.pm, privateForecastDate, 0, "2026-12-01T00:00:00.000Z");
     await authority.appendPolicy(
       f.pmo,
       {
@@ -683,7 +685,7 @@ describe("Durable authority policy and server assessment", () => {
     const saved = await capture(f, "frozen");
     expect(available(saved)).toMatchObject({
       status: "RESOLVED",
-      resolvedValue: { type: "date", value: "2026-10-01" },
+      resolvedValue: { type: "date", value: privateForecastDate },
       mode: "HISTORICAL",
       complete: true,
     });
@@ -868,7 +870,7 @@ describe("Durable authority policy and server assessment", () => {
           revalidationRequired: true,
           result: null,
         });
-        expect(JSON.stringify(result)).not.toContain("2026-10-01");
+        expect(JSON.stringify(result)).not.toContain(privateForecastDate);
       }
     },
   );
@@ -941,7 +943,7 @@ describe("Durable authority policy and server assessment", () => {
       where: { actor: f.pmo.subject },
     });
     expect(JSON.stringify(audit)).not.toContain("Private forecast");
-    expect(JSON.stringify(audit)).not.toContain("2026-10-01");
+    expect(JSON.stringify(audit)).not.toContain(privateForecastDate);
   });
   it("SQL forbids sealed history edits, dependency additions and unsealed COMMIT", async () => {
     const f = await fixture();

@@ -78,7 +78,10 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT UPDATE (state) ON "ProjectUpdatePreview" TO pdaa_api;
     REVOKE ALL ON FUNCTION public.valid_project_update_facts(jsonb),public.project_update_json_has_values(jsonb),public.valid_project_update_cadence_offsets(smallint[]),public.prevent_project_update_immutable_rewrite(),public.guard_project_update_preview(),public.guard_project_update_obligation() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT EXECUTE ON FUNCTION public.valid_project_update_facts(jsonb),public.project_update_json_has_values(jsonb),public.valid_project_update_cadence_offsets(smallint[]) TO pdaa_api;
-    -- Storage-only tables stay inaccessible to API/worker until processing review.
+    GRANT SELECT,INSERT ON "ProjectUpdateEngagement","ProjectUpdateStage","ProjectUpdateOutbox","ProjectUpdateDispatchAttempt" TO pdaa_api;
+    GRANT UPDATE ("ownerSubject",generation,state,"auditEventId","changedAt","sourceSatisfiedFactTypes","sourceAssessmentId","sourceAssessedAt") ON "ProjectUpdateEngagement" TO pdaa_api;
+    GRANT UPDATE (state,"claimGeneration","availableAt","leaseUntil","handoffAt","completedAt",reason,"auditEventId") ON "ProjectUpdateOutbox" TO pdaa_api;
+    -- Trigger guards remain private; the worker has no business-table access.
     REVOKE ALL ON FUNCTION public.guard_update_engagement_storage(),public.reject_update_engagement_history(),public.guard_update_stage_snapshot(),public.guard_update_outbox(),public.guard_update_attempt_insert(),public.require_update_stage_outbox(),public.record_update_dispatch_attempt() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
   `);
