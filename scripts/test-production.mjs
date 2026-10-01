@@ -540,7 +540,7 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 23);
+    assert.equal(upgrade.migrations.length, 24);
     assert.equal(upgrade.migrations[20].name, "202609290002_project_update_cadence");
     assert.equal(upgrade.migrations[21].name, "202609300001_update_engagement_storage");
     assert.equal(upgrade.migrations[22].name, "202609300002_update_engagement_processing");
@@ -566,7 +566,7 @@ try {
       assert.equal(row.rolled_back_at, null);
       assert.equal(row.applied_steps_count, 1);
     }
-    assert.equal(upgrade.businessTableCount, 78);
+    assert.equal(upgrade.businessTableCount, 84);
     assert.deepEqual(
       Object.keys(upgrade.retainedPriorRowCounts).sort(),
       [...upgrade.retainedPriorBusinessTables].sort(),
@@ -646,6 +646,8 @@ try {
         "ProjectUpdateStage",
         "ProjectUpdateOutbox",
         "ProjectUpdateDispatchAttempt",
+        "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation", "ProjectUpdateResponse",
+        "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [

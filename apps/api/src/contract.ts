@@ -62,6 +62,11 @@ import {
   projectUpdateAssessmentRequestSchema,
   projectUpdateAssessmentViewSchema,
   projectUpdateSchedulePreviewSchema,
+  projectUpdateRecipientRequestViewSchema,
+  projectUpdateResponseSubmissionSchema,
+  projectUpdateResponseReceiptSchema,
+  projectUpdateCaptureHistorySchema,
+  projectUpdateCaptureGenerationSchema,
 } from "@pdaa/domain";
 import {
   catalogueQuerySchema,
@@ -193,6 +198,25 @@ export type RouteContract = {
   requestContent?: Record<string, { schema: SchemaObject }>;
 };
 export const contracts: Record<string, RouteContract> = {
+  "post /api/projects/{id}/project-update-capture-generations": {
+    status: 201, request: projectUpdateCaptureGenerationSchema,
+    response: projectUpdateEngagementViewSchema, parameters: { id: z.uuid() },
+    errors: [400, 403, 404, 409, 503],
+  },
+  "get /api/project-update-invitations/{locator}": {
+    status: 200, response: projectUpdateRecipientRequestViewSchema,
+    parameters: { locator: z.uuid() }, errors: [400, 403, 404, 429, 503],
+  },
+  "post /api/project-update-invitations/{locator}/responses": {
+    status: 201, request: projectUpdateResponseSubmissionSchema,
+    response: projectUpdateResponseReceiptSchema, parameters: { locator: z.uuid() },
+    errors: [400, 403, 404, 409, 413, 415, 429, 503],
+  },
+  "get /api/projects/{id}/project-update-capture-history": {
+    status: 200, response: projectUpdateCaptureHistorySchema,
+    parameters: { id: z.uuid() }, query: { cursor: z.uuid().optional() },
+    errors: [400, 403, 404, 503],
+  },
   "get /api/projects/{id}/project-update-policy": {
     status: 200,
     response: projectUpdatePolicyViewSchema.nullable(),
@@ -614,6 +638,7 @@ export const errorMessages = {
   409: "Creation conflicts with an existing request or record",
   413: "Request body too large",
   415: "Unsupported media type",
+  429: "Too many requests",
   500: "Internal server error",
   503: "Service unavailable",
 } as const;

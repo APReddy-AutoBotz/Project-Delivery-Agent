@@ -197,6 +197,9 @@ importers:
 
   packages/operations:
     dependencies:
+      '@pdaa/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@pdaa/platform':
         specifier: workspace:*
         version: link:../platform

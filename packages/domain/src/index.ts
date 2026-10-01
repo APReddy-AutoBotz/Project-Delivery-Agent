@@ -104,3 +104,4 @@ export * from "./project-updates.js";
 export * from "./project-update-engagement.js";
 
 export * from "./project-update-capture.js";
+export type { ProjectUpdateRepository } from "./project-update-repository.js";

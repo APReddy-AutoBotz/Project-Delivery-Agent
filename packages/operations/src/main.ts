@@ -6,6 +6,7 @@ import { provision, migrateRelease } from "./provision.js";
 import { backup } from "./backup.js";
 import { restore } from "./restore.js";
 import { backupKey } from "./archive.js";
+import { updateIssuanceStatus, changeUpdateIssuance, readUpdateIssuanceChange } from "./update-engagement-issuance.js";
 installFatalHandlers("operations");
 
 try {
@@ -33,6 +34,11 @@ try {
       process.argv[3] ?? "",
       backupKey(process.env.PDAA_BACKUP_KEY_FILE ?? ""),
     );
+  else if (command === "update-issuance-status") result = await updateIssuanceStatus(config);
+  else if (command === "enable-update-issuance" || command === "disable-update-issuance")
+    result = await changeUpdateIssuance(config,
+      readUpdateIssuanceChange(process.env, command === "enable-update-issuance"),
+      process.env.PROJECT_UPDATE_CAPTURE_FILE);
   else throw new Error("Unknown operation");
   console.log(JSON.stringify({ operation: command, status: "passed", result }));
 } catch {

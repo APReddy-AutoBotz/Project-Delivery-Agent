@@ -99,11 +99,14 @@ async function runOAuthRestartProbe(input: {
 
 describe("durable Jira connector runtime", () => {
   it("rotates credentials, prevents task replay and reconciles verified webhooks", async () => {
+    const customerId = randomUUID();
     const portfolioId = randomUUID();
     const projectId = randomUUID();
     const sourceId = randomUUID();
-    const pmo = actor("pmo_admin", "runtime-pmo");
-    const manager = actor("project_manager", "runtime-pm");
+    const pmo = { ...actor("pmo_admin", "runtime-pmo"), customerId };
+    const manager = { ...actor("project_manager", "runtime-pm"), customerId };
+    const systemAdmin = { ...actor("system_admin", "runtime-admin"), customerId };
+    await db.customer.create({ data: { id: customerId, name: "Synthetic Jira rotation fixture" } });
     await db.portfolio.create({
       data: { id: portfolioId, customerId, name: "Connector runtime fixture" },
     });
@@ -121,6 +124,7 @@ describe("durable Jira connector runtime", () => {
     for (const grant of [
       { subject: pmo.subject, role: "pmo_admin" },
       { subject: manager.subject, role: "project_manager" },
+      { subject: systemAdmin.subject, role: "system_admin" },
     ] as const)
       await db.accessGrant.create({
         data: {
@@ -132,6 +136,11 @@ describe("durable Jira connector runtime", () => {
         },
       });
 
+    await ingestion.setRetention(
+      systemAdmin,
+      { retentionHours: 24 },
+      `connector-runtime-retention-${sourceId}`,
+    );
     const binding = {
       customerId,
       sourceId,

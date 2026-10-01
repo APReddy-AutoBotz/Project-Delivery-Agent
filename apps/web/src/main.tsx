@@ -17,6 +17,7 @@ import "./style.css";
 import { ProjectEvidence } from "./project-evidence.js";
 import { HealthAssessmentPanel } from "./health-assessment.js";
 import { ProjectUpdates } from "./project-updates.js";
+import { ProjectUpdateResponse } from "./project-update-response.js";
 import { CsvIngestion } from "./csv-ingestion.js";
 import { savedScalarReconciliationLink } from "./scalar-reconciliation.js";
 import {
@@ -39,6 +40,11 @@ function evidenceLocation() {
     )
     ? { projectId, assessmentId, requestId, scalarRequestId }
     : null;
+}
+
+function updateRequestLocation() {
+  const match = /^\/update-requests\/([0-9a-f-]{36})$/i.exec(window.location.pathname);
+  return match && uuid.test(match[1]!) ? match[1]! : null;
 }
 
 type AuthConfig = {
@@ -139,7 +145,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 function manager(config: AuthConfig) {
-  return (oidc ??= new UserManager({
+  if (oidc) return oidc;
+  oidc = new UserManager({
     authority: config.issuer!,
     client_id: config.clientId!,
     redirect_uri: window.location.origin + "/auth/callback",
@@ -165,7 +172,11 @@ function manager(config: AuthConfig) {
       },
     }),
     stateStore: new WebStorageStateStore({ store: sessionStorage }),
-  }));
+  });
+  // NFR-SEC-005: expiry clears protected views/drafts without waiting for the
+  // next API request. Identity validation remains exclusively server enforced.
+  oidc.events.addAccessTokenExpired(() => expireSession?.());
+  return oidc;
 }
 function App() {
   const [signedIn, setSignedIn] = useState(false);
@@ -174,6 +185,7 @@ function App() {
   const [view, setView] = useState<"projects" | "platform" | "ingestion">("projects");
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [updateLocator, setUpdateLocator] = useState<string | null>(updateRequestLocation);
   const [linkedAssessment, setLinkedAssessment] = useState<string | null>(null);
   const [linkedRequest, setLinkedRequest] = useState<string | null>(null);
   const [linkedScalarRequest, setLinkedScalarRequest] = useState<string | null>(
@@ -238,6 +250,7 @@ function App() {
         });
         accessToken = result.token;
         setSignedIn(true);
+        setUpdateLocator(updateRequestLocation());
         const link = evidenceLocation();
         if (link) {
           setSelected(link.projectId);
@@ -246,7 +259,7 @@ function App() {
           setLinkedScalarRequest(link.scalarRequestId);
         }
       } else if (auth.data)
-        await manager(auth.data).signinRedirect({ state: evidenceLocation() });
+        await manager(auth.data).signinRedirect({ state: { ...evidenceLocation(), updateLocator: updateRequestLocation() } });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -264,6 +277,7 @@ function App() {
     manager(auth.data)
       .signinRedirectCallback()
       .then((user) => {
+        if (user.expired) throw new Error("Expired sign-in");
         if (active) {
           accessToken = user.access_token;
           idToken = user.id_token;
@@ -272,6 +286,7 @@ function App() {
             assessmentId?: unknown;
             requestId?: unknown;
             scalarRequestId?: unknown;
+            updateLocator?: unknown;
           } | null;
           const linked =
             typeof state?.projectId === "string" &&
@@ -288,10 +303,13 @@ function App() {
                 !state.scalarRequestId &&
                 !state.assessmentId &&
                 uuid.test(state.requestId)));
+          const recipientLocator = typeof state?.updateLocator === "string" && uuid.test(state.updateLocator)
+            ? state.updateLocator : null;
+          setUpdateLocator(recipientLocator);
           window.history.replaceState(
             {},
             "",
-            linked
+            recipientLocator ? "/update-requests/" + recipientLocator : linked
               ? typeof state?.scalarRequestId === "string"
                 ? savedScalarReconciliationLink(
                     state.projectId as string,
@@ -359,6 +377,7 @@ function App() {
     }
   }
   function navigateProject(id: string | null = null) {
+    setUpdateLocator(null);
     setView("projects");
     setCreating(false);
     setSelected(id);
@@ -567,7 +586,9 @@ function App() {
               {me.error.message}
             </p>
           )}
-          {view === "platform" && admin ? (
+          {updateLocator && me.data ? (
+            <ProjectUpdateResponse key={`${me.data.customerId}:${me.data.subject}:${updateLocator}`} locator={updateLocator} request={request} />
+          ) : view === "platform" && admin ? (
             <PlatformView />
           ) : view === "ingestion" && pmoAdmin && me.data ? (
             <CsvIngestion request={request} projects={projects.data ?? []} actor={me.data} />

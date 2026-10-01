@@ -3,6 +3,7 @@ import type { WorkerHeartbeatRepository } from "@pdaa/domain";
 const connectorRunPath = "/internal/connectors/run";
 const projectUpdateScanPath = "/internal/project-updates/scan";
 const projectUpdateProcessPath = "/internal/project-updates/process";
+const projectUpdatePurgePath = "/internal/project-updates/purge";
 
 type ConnectorTaskKeyRing = {
   currentKeyId: string;
@@ -27,7 +28,23 @@ export function createTasks(
   signTaskRequest?: TaskSigner,
   purgeHealthAssessments?: () => Promise<void>,
 ) {
+  async function dispatchUpdateRetention() {
+    if (!config?.INTERNAL_API_URL || !config.projectUpdateTaskKeys) return;
+    if (!signTaskRequest) throw new Error("project_update_retention_unavailable");
+    try {
+      const body = Buffer.from("{}");
+      const headers = signTaskRequest({ method: "POST", path: projectUpdatePurgePath, body,
+        keyRing: config.projectUpdateTaskKeys });
+      const response = await fetchImpl(new URL(projectUpdatePurgePath, config.INTERNAL_API_URL), {
+        method: "POST", headers: { ...headers, "content-type": "application/json" }, body,
+        redirect: "error", signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) throw new Error();
+      await response.body?.cancel();
+    } catch { throw new Error("project_update_retention_unavailable"); }
+  }
   return {
+    project_update_content_retention: dispatchUpdateRetention,
     foundation_heartbeat: async () => heartbeat.recordHeartbeat(new Date()),
     health_assessment_retention: async () => {
       if (!purgeHealthAssessments) throw new Error("health_assessment_retention_unavailable");

@@ -88,6 +88,7 @@ import {
 } from "../../packages/platform/dist/index.js";
 import { engagementStorageTables, verifyEngagementStoragePrivileges,
   verifyUpdateEngagementStorage, verifyRestoredEngagementStorage } from "./update-engagement-storage.mjs";
+import { updateCaptureTables, verifyUpdateCapturePrivileges, assertUpdateCaptureRestoreProjection } from "./update-capture-storage.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -135,7 +136,7 @@ const projection = async (pool) => {
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
     ).rows;
-  for (const table of [...projectUpdateTables, ...scheduleHealthPolicyTables, ...engagementStorageTables])
+  for (const table of [...projectUpdateTables, ...scheduleHealthPolicyTables, ...engagementStorageTables, ...updateCaptureTables])
     result[table] = (
       await pool.query(
         `SELECT * FROM "${table}" ORDER BY to_jsonb("${table}")::text COLLATE "C"`,
@@ -447,7 +448,7 @@ try {
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 78,
+          businessTableCount: 84,
           engagementStorageTables,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
@@ -550,10 +551,11 @@ try {
       "Backup and restore must preserve source rows",
     );
     await inDatabase("restore_target", async (pool) => {
-      assert.deepEqual(
+      assertUpdateCaptureRestoreProjection(
         JSON.parse(JSON.stringify(await projection(pool))),
         expected,
       );
+      await verifyUpdateCapturePrivileges(pool);
       await verifyEngagementStoragePrivileges(pool);
       await verifyProjectFactPrivileges(pool);
       await verifyImmutableProjectFacts(pool);

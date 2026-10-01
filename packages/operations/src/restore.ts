@@ -14,6 +14,7 @@ import { history, validateHistory, type Migration } from "./migrations.js";
 import { archivePath, openArchive, requireRestoreTmpfs } from "./archive.js";
 import { postgresTool } from "./backup.js";
 import { createRestoreDiagnostic } from "./restore-diagnostic.js";
+import { quarantineUpdateIssuance } from "./update-engagement-issuance.js";
 
 async function restoreOwners(client: Awaited<ReturnType<typeof connect>>) {
   // Extension objects retain extension ownership. All first-party objects receive
@@ -187,6 +188,7 @@ async function restoreArchive(
           throw new Error("Restored migration set incomplete");
         diagnostic.enter("integrity");
         await purgeExpiredIngestionContent(client, config.customerId);
+        await quarantineUpdateIssuance(client, config.customerId);
         const authorityIntegrity = (
           await client.query(`SELECT
           (SELECT count(*)::int FROM "AuthorityPolicy" WHERE NOT public.valid_authority_history(id)) +
@@ -246,6 +248,8 @@ async function restoreArchive(
         customerId: config.customerId,
         quarantine: true,
         applicationStarted: false,
+        updateIssuanceDisabled: true,
+        updateInvitationsInvalidated: true,
       };
     } catch (error) {
       diagnostic.failed();

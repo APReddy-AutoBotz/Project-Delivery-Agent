@@ -111,7 +111,7 @@ export function installConnectorRoutes(
       }
       return;
     }
-    if (pathname === "/internal/project-updates/scan" || pathname === "/internal/project-updates/process") {
+    if (pathname === "/internal/project-updates/scan" || pathname === "/internal/project-updates/process" || pathname === "/internal/project-updates/purge") {
       const headers = req.headers as Record<string, string | string[] | undefined>;
       if (!config.projectUpdateTaskKeys || !projectUpdates || !verifyConnectorTaskRequest({
         method: req.method,
@@ -143,8 +143,10 @@ export function installConnectorRoutes(
           return;
         }
         response.status(200).json({ processed: pathname === "/internal/project-updates/process"
-          ? await projectUpdates.processShadowEngagements(1)
-          : await projectUpdates.scanScheduledProjects(1) });
+          ? await projectUpdates.processEngagements(1)
+          : pathname === "/internal/project-updates/purge"
+            ? await projectUpdates.purgeCaptureContent()
+            : await projectUpdates.scanScheduledProjects(1) });
       } catch {
         fixedError(response, 503, "Service unavailable");
       }

@@ -10,6 +10,7 @@ import {
 } from "../../packages/data/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
+import { completeCapturedFixture, verifyUpdateCapturePrivileges, verifyRestoredCaptureRows, verifyCaptureOperatorControls } from "./update-capture-storage.mjs";
 
 const { Pool } = createRequire(new URL("../../packages/data/package.json", import.meta.url))("pg");
 export const engagementStorageTables = [
@@ -197,14 +198,15 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
     const unknown = await createIntent(await stageParameters("ESCALATION",5,"EMAIL"));
     const quiet = await createIntent(await stageParameters("REMINDER",4,"CAPTURE",true));
     const claimSql = `UPDATE "ProjectUpdateOutbox" SET state='CLAIMED',
-      "claimGeneration"="claimGeneration"+1,"leaseUntil"=clock_timestamp()+interval '2 seconds',
+      "claimGeneration"="claimGeneration"+1,"leaseUntil"=clock_timestamp()+CASE WHEN id=$3::uuid THEN interval '2 seconds' ELSE interval '4 minutes' END,
       reason=NULL,"auditEventId"=$2 WHERE id=$1 AND state='READY' RETURNING id`;
-    const claim = async (id) => (await pool.query(claimSql,[id,await audit()])).rowCount;
+    const claim = async (id) => (await pool.query(claimSql,[id,await audit(),lease])).rowCount;
     const outcomes = await Promise.all([claim(capture),claim(capture)]);
     assert.equal(outcomes.reduce((sum,count) => sum+count,0),1,"Only one concurrent claim may win");
-    await pool.query(`UPDATE "ProjectUpdateOutbox" SET state='CAPTURED',"leaseUntil"=NULL,
+    await rejected(pool,`UPDATE "ProjectUpdateOutbox" SET state='CAPTURED',"leaseUntil"=NULL,
       "completedAt"=date_trunc('milliseconds',clock_timestamp()),"auditEventId"=$2 WHERE id=$1`,
-      [capture,await audit()]);
+      [capture,await audit()],"55000");
+    const captureStorage = await completeCapturedFixture(pool, { customerId, projectId, outboxId: capture, audit });
     await claim(shadow);
     await pool.query(`UPDATE "ProjectUpdateOutbox" SET state='SUPPRESSED',"leaseUntil"=NULL,
       "completedAt"=date_trunc('milliseconds',clock_timestamp()),reason='SHADOW_MODE',"auditEventId"=$2 WHERE id=$1`,
@@ -293,11 +295,13 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
       END $owners$`);
       await applyBusinessTableGrants(pool);
     }
+    const captureOperatorControls = await verifyCaptureOperatorControls(pool, databaseConnection, customerId);
     await verifyEngagementStoragePrivileges(pool);
     assert.deepEqual((await pool.query('SELECT * FROM "ProjectUpdateDispatchAttempt" ORDER BY id')).rows,before);
+    await verifyUpdateCapturePrivileges(pool);
     assert.equal((await pool.query(`SELECT has_column_privilege('pdaa_api','public."ProjectUpdateObligation"',
       'supersededAt','UPDATE') AS allowed`)).rows[0].allowed,true);
-    return { projectId,engagementId,unknownOutboxId:unknown,quietOutboxId:quiet,
+    return { projectId,engagementId,unknownOutboxId:unknown,quietOutboxId:quiet,captureStorage,captureOperatorControls,
       sourceSatisfiedFactTypes:source.sourceSatisfiedFactTypes,
       sourceAssessmentId:source.sourceAssessmentId,sourceAssessedAt:source.sourceAssessedAt.toISOString(),
       stageCount:5,atomicIntent:true,concurrentClaim:true,preHandoffReclaim:true,
@@ -307,6 +311,7 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
 
 export async function verifyRestoredEngagementStorage(database,evidence) {
   assert(evidence?.unknownOutboxId && evidence?.engagementId,"Populated engagement evidence required");
+  await verifyRestoredCaptureRows(database, evidence.captureStorage);
   for (const table of engagementStorageTables)
     assert((await database.$queryRawUnsafe(`SELECT count(*)::int AS n FROM "${table}"`))[0].n>0,
       "Restore must include populated " + table);

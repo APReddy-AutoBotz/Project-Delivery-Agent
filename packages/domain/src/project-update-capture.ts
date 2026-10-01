@@ -32,7 +32,7 @@ export type ProjectUpdateCaptureConfiguration = z.infer<
 
 const responseText = z.string().min(1).max(8000).refine(
   (value) => value.trim().length > 0 &&
-    !/[\u0000\p{Surrogate}]/u.test(value) &&
+    !value.includes(String.fromCharCode(0)) && !/\p{Surrogate}/u.test(value) &&
     new TextEncoder().encode(value).length <= 16384,
   "Response text must be nonempty and bounded",
 );
@@ -216,6 +216,8 @@ export type ProjectUpdateRecipientRequestView = z.infer<
 >;
 export const projectUpdateCaptureHistorySchema = z.strictObject({
   projectId: z.uuid(),
+  engagement: z.strictObject({ id: z.uuid(), generation: revision, policyRevision: revision,
+    mode: z.enum(["SHADOW", "CAPTURE"]) }).nullable(),
   entries: z.array(z.strictObject({
     requestId: z.uuid(),
     stageId: z.uuid(),
@@ -237,4 +239,14 @@ export type ProjectUpdateCaptureHistory = z.infer<
 >;
 export const projectUpdateCaptureGenerationSchema = z.strictObject({
   expectedEngagementGeneration: revision,
+  expectedPolicyRevision: revision,
 });
+
+export const projectUpdateIssuanceChangeSchema = z.strictObject({
+  expectedRevision: z.number().int().min(0).max(2147483646),
+  expectedEpoch: z.uuid(),
+  enable: z.boolean(),
+});
+export type ProjectUpdateIssuanceChange = z.infer<
+  typeof projectUpdateIssuanceChangeSchema
+>;

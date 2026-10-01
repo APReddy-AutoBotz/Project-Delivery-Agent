@@ -83,6 +83,10 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT UPDATE (state,"claimGeneration","availableAt","leaseUntil","handoffAt","completedAt",reason,"auditEventId") ON "ProjectUpdateOutbox" TO pdaa_api;
     -- Trigger guards remain private; the worker has no business-table access.
     REVOKE ALL ON FUNCTION public.guard_update_engagement_storage(),public.reject_update_engagement_history(),public.guard_update_stage_snapshot(),public.guard_update_outbox(),public.guard_update_attempt_insert(),public.require_update_stage_outbox(),public.record_update_dispatch_attempt() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+    GRANT SELECT ON "ProjectUpdateIssuanceGate" TO pdaa_api;
+    GRANT SELECT,INSERT ON "ProjectUpdateCapturedRequest","ProjectUpdateInvitation","ProjectUpdateResponse","ProjectUpdateRequestContent","ProjectUpdateResponseContent" TO pdaa_api;
+    REVOKE ALL ON FUNCTION public.guard_update_issuance_gate(),public.guard_update_capture_birth(),public.guard_update_invitation_birth(),public.guard_update_response_birth(),public.guard_update_capture_content(),public.require_update_capture_complete(),public.lock_update_issuance_gate(uuid),public.purge_update_capture_content(uuid) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+    GRANT EXECUTE ON FUNCTION public.lock_update_issuance_gate(uuid),public.purge_update_capture_content(uuid) TO pdaa_api;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
   `);
 }

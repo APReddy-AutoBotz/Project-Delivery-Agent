@@ -97,6 +97,129 @@ async function fixture(options: { service?: string; recentProject?: boolean } = 
     data: { engagementProcessNextEligibleAt: null } });
   return { admin, service, zones, projectId: project.id, updates, activate, append, facts, change, now, retryEligible };
 }
+
+async function captureFixture() {
+  const f = await fixture();
+  await db.$executeRawUnsafe('INSERT INTO public."ProjectUpdateIssuanceGate"("customerId") VALUES($1::uuid) ON CONFLICT DO NOTHING', f.admin.customerId);
+  const gate = await db.projectUpdateIssuanceGate.findUniqueOrThrow({ where: { customerId: f.admin.customerId } });
+  if (!gate.issuanceEnabled) {
+  const audit = await db.auditEvent.create({ data: { customerId: f.admin.customerId, actor: f.admin.subject,
+    event: "project_update.issuance.changed", correlationId: randomUUID(), detail: { fixture: "capture integration" } } });
+  await db.projectUpdateIssuanceGate.update({ where: { customerId: f.admin.customerId },
+    data: { issuanceEnabled: true, issuanceEpoch: gate.issuanceEpoch, revision: gate.revision + 1,
+      changedAt: new Date(), auditEventId: audit.id } });
+  }
+  const configuration = { customerId: f.admin.customerId, mode: "CAPTURE", invitationLifetimeSeconds: 3600,
+    contentRetentionSeconds: 86400, issuanceEpoch: gate.issuanceEpoch, responseReviewerSubjects: [f.admin.subject] };
+  const owner: Actor = { customerId: f.admin.customerId, subject: "synthetic-owner-4", roles: ["contributor"] };
+  const capture = new DatabaseProjectUpdateRepository(apiDatabase as never, f.service, f.zones,
+    () => ({ globalShadowMode: "false", configuration }));
+  return { ...f, capture, owner, configuration };
+}
+
+it("AC-UPD-003 / FR-UPD-006: capture commits a complete request, raw retry/correction stay unconfirmed, revocation denies replay", async () => {
+  const f = await captureFixture();
+  const activation = await f.capture.activateEngagement(f.admin, f.projectId, 1, randomUUID());
+  expect(activation?.mode).toBe("CAPTURE");
+  expect(await f.capture.processEngagements(1)).toBe(1);
+  const history = await f.capture.captureHistory(f.owner, f.projectId);
+  const weekend = [0, 6].includes(new Date().getUTCDay());
+  if (weekend) {
+    expect(history.entries).toEqual([]);
+    expect(await db.projectUpdateOutbox.count({ where: { customerId: f.admin.customerId, projectId: f.projectId, state: "READY" } })).toBeGreaterThan(0);
+    return;
+  }
+  expect(history.entries).toHaveLength(1);
+  expect(history.entries[0]?.recipientPath).toMatch(/^\/update-requests\//);
+  const locator = history.entries[0]!.recipientPath!.split("/").at(-1)!;
+  const view = await f.capture.invitation(f.owner, locator);
+  expect(view.body).toContain("No Jira change");
+  const before = await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: activation!.engagementId } });
+  const command = { text: "<script>untrusted reply</script> Forecast remains unconfirmed.", idempotencyKey: randomUUID() };
+  const receipt = await f.capture.submitResponse(f.owner, locator, command, randomUUID());
+  expect(receipt.state).toBe("UNCONFIRMED");
+  expect(await f.capture.submitResponse(f.owner, locator, command, randomUUID())).toEqual(receipt);
+  await expect(f.capture.submitResponse(f.owner, locator, { ...command, text: "Changed payload" }, randomUUID())).rejects.toMatchObject({ code: "CONFLICT" });
+  const correction = await f.capture.submitResponse(f.owner, locator,
+    { text: "Corrected unconfirmed reply", idempotencyKey: randomUUID(), correctsResponseId: receipt.responseId }, randomUUID());
+  expect(correction.responseId).not.toBe(receipt.responseId);
+  expect((await f.capture.invitation(f.owner, locator)).responses).toHaveLength(2);
+  const after = await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: activation!.engagementId } });
+  expect(after.sourceSatisfiedFactTypes).toEqual(before.sourceSatisfiedFactTypes);
+  expect(after.generation).toBe(before.generation);
+  expect(await db.projectUpdateOutbox.count({ where: { customerId: f.admin.customerId, projectId: f.projectId, state: "READY" } })).toBe(4);
+  await expect(f.capture.invitation({ ...f.owner, subject: "other" }, locator)).rejects.toMatchObject({ code: "DENIED" });
+  await db.accessGrant.deleteMany({ where: { customerId: f.admin.customerId, subject: f.owner.subject, scopeId: f.projectId } });
+  await expect(f.capture.submitResponse(f.owner, locator, command, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
+});
+
+it("FR-ESC-006: overdue reminders wait for actual capture and cannot reuse an earlier generation's initial request", async () => {
+  const f = await captureFixture();
+  await f.capture.setPolicy(f.admin, f.projectId, { ...f.change, expectedRevision: 1,
+    reminderBusinessDayOffsets: [1, 2], escalationAfterBusinessDays: 3 }, randomUUID());
+  await f.capture.activateEngagement(f.admin, f.projectId, 2, randomUUID());
+  await f.capture.processEngagements(1);
+  await f.retryEligible();
+  await f.capture.processEngagements(1);
+  const rows = await db.projectUpdateCapturedRequest.findMany({ where: { customerId: f.admin.customerId, projectId: f.projectId } });
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(rows).toEqual([]); return; }
+  expect(rows).toHaveLength(1);
+  const pending = await db.projectUpdateOutbox.findMany({ where: { customerId: f.admin.customerId, projectId: f.projectId, state: "READY" } });
+  expect(pending).toHaveLength(4);
+  expect(pending.every((row) => row.reason === "UNANSWERED_STAGE_WAIT")).toBe(true);
+  expect(pending.every((row) => row.availableAt > f.now)).toBe(true);
+});
+it("NFR-REL-002: disabling and rotating issuance denies old locators and replay after explicit re-enable", async () => {
+  const f = await captureFixture();
+  await f.capture.activateEngagement(f.admin, f.projectId, 1, randomUUID());
+  await f.capture.processEngagements(1);
+  const history = await f.capture.captureHistory(f.owner, f.projectId);
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(history.entries).toEqual([]); return; }
+  const locator = history.entries[0]!.recipientPath!.split("/").at(-1)!;
+  const command = { text: "Retained raw response", idempotencyKey: randomUUID() };
+  const receipt = await f.capture.submitResponse(f.owner, locator, command, randomUUID());
+  const previous = await db.projectUpdateIssuanceGate.findUniqueOrThrow({ where: { customerId: f.admin.customerId } });
+  const nextEpoch = randomUUID();
+  const audit = await db.auditEvent.create({ data: { customerId: f.admin.customerId, actor: "synthetic-operator",
+    event: "project_update.issuance.changed", correlationId: randomUUID(), detail: { enabled: false } } });
+  await db.projectUpdateIssuanceGate.update({ where: { customerId: f.admin.customerId }, data: {
+    issuanceEnabled: false, issuanceEpoch: nextEpoch, revision: previous.revision + 1,
+    changedAt: new Date(), auditEventId: audit.id,
+  } });
+  await expect(f.capture.invitation(f.owner, locator)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(f.capture.submitResponse(f.owner, locator, command, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
+  expect((await f.capture.captureHistory(f.owner, f.projectId)).entries[0]).toMatchObject({
+    status: "QUARANTINED", contentState: "RESTRICTED", body: null, recipientPath: null,
+  });
+  const enableAudit = await db.auditEvent.create({ data: { customerId: f.admin.customerId, actor: "synthetic-operator",
+    event: "project_update.issuance.changed", correlationId: randomUUID(), detail: { enabled: true } } });
+  await db.projectUpdateIssuanceGate.update({ where: { customerId: f.admin.customerId }, data: {
+    issuanceEnabled: true, revision: previous.revision + 2, changedAt: new Date(), auditEventId: enableAudit.id,
+  } });
+  f.configuration.issuanceEpoch = nextEpoch;
+  await expect(f.capture.invitation(f.owner, locator)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(f.capture.submitResponse(f.owner, locator, command, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
+  const retained = (await f.capture.captureHistory(f.owner, f.projectId)).entries[0]!;
+  expect(retained).toMatchObject({ status: "QUARANTINED", contentState: "PRESENT", recipientPath: null });
+  expect(retained.body).toContain("No Jira change");
+  expect(retained.responses).toEqual([expect.objectContaining({ id: receipt.responseId, text: command.text, state: "UNCONFIRMED" })]);
+  expect(await db.projectUpdateResponse.count({ where: { requestId: retained.requestId } })).toBe(1);
+  const active = (await f.capture.captureHistory(f.admin, f.projectId)).engagement!;
+  const change = { expectedEngagementGeneration: active.generation, expectedPolicyRevision: active.policyRevision };
+  const replacement = await f.capture.beginCaptureGeneration(f.admin, f.projectId, change, randomUUID());
+  expect(replacement.mode).toBe("CAPTURE");
+  await expect(f.capture.beginCaptureGeneration(f.admin, f.projectId, change, randomUUID())).rejects.toMatchObject({ code: "CONFLICT" });
+  await expect(f.capture.beginCaptureGeneration(f.admin, f.projectId, { ...change,
+    expectedEngagementGeneration: active.generation + 1 }, randomUUID())).rejects.toMatchObject({ code: "CONFLICT" });
+  await f.retryEligible();
+  await f.capture.processEngagements(1);
+  const recovered = await f.capture.captureHistory(f.owner, f.projectId);
+  const fresh = recovered.entries.find((entry) => entry.status === "ACTIVE")!;
+  expect(fresh.stageKind).toBe("REQUEST");
+  expect(fresh.recipientPath).not.toBe(history.entries[0]!.recipientPath);
+  await expect(f.capture.invitation(f.owner, locator)).rejects.toMatchObject({ code: "DENIED" });
+  expect((await f.capture.invitation(f.owner, fresh.recipientPath!.split("/").at(-1)!)).responses).toEqual([]);
+});
 const stages = (engagementId: string) => db.projectUpdateStage.findMany({ where: { engagementId } });
 const outbox = async (engagementId: string) => {
   const ids = (await stages(engagementId)).map((stage) => stage.id);
@@ -282,11 +405,19 @@ it("replaces changed recipient zones explicitly and preserves previous snapshots
     recipientTimeZones: [{ subject: "synthetic-owner-4", timeZone: "Asia/Kolkata" }] });
   await changed.assess(f.admin, f.projectId, randomUUID());
   const next = (await stages(initial.engagementId)).filter((stage) => stage.generation === 2);
-  expect(next).toHaveLength(4);
-  expect(next.every((stage) => stage.timeZone === "Asia/Calcutta" || stage.timeZone === "Asia/Kolkata")).toBe(true);
-  expect(next.every((stage) => stage.zoneSource === "RECIPIENT" && stage.replacesStageId !== null)).toBe(true);
+  expect(next).toHaveLength(5);
+  const ownerStages = next.filter((stage) => stage.recipientRole === "OWNER");
+  expect(ownerStages).toHaveLength(4);
+  expect(ownerStages.every((stage) => stage.timeZone === "Asia/Calcutta" || stage.timeZone === "Asia/Kolkata")).toBe(true);
+  expect(ownerStages.every((stage) => stage.zoneSource === "RECIPIENT" && stage.replacesStageId !== null)).toBe(true);
+  const pmPrior = prior.find((stage) => stage.recipientRole === "PROJECT_MANAGER")!;
+  expect(next.find((stage) => stage.recipientRole === "PROJECT_MANAGER")).toMatchObject({
+    replacesStageId: pmPrior.id, timeZone: pmPrior.timeZone, zoneSource: pmPrior.zoneSource,
+    candidateAt: pmPrior.candidateAt, scheduledAt: pmPrior.scheduledAt,
+  });
   for (const stage of prior) expect(await db.projectUpdateStage.findUnique({ where: { id: stage.id } })).toEqual(stage);
   expect((await outbox(initial.engagementId)).filter((row) => row.reason === "RECIPIENT_ZONE_CHANGED")).toHaveLength(4);
+  expect((await outbox(initial.engagementId)).filter((row) => row.reason === "SOURCE_REASSESSMENT_REQUIRED")).toHaveLength(1);
 });
 
 it("rolls back a crash after claim without a durable handoff and safely retries", async () => {

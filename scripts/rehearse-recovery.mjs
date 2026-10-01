@@ -189,6 +189,8 @@ try {
     "ProjectUpdateObligation",
     "ProjectUpdatePreview",
     ...engagementStorageTables,
+    "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
+    "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
   ];
   const actualTables = (await restored.$queryRawUnsafe(
     "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"

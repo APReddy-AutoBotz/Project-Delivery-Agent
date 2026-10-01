@@ -7,6 +7,7 @@ import {
   Inject,
   Param,
   Post,
+  Query,
   Req,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
@@ -15,6 +16,7 @@ import {
   projectFactIdSchema,
   projectUpdatePolicyChangeSchema,
   projectUpdateEngagementActivationSchema,
+  projectUpdateCaptureGenerationSchema,
   projectUpdateAssessmentRequestSchema,
   ProjectUpdateError,
   type Actor,
@@ -35,6 +37,12 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async scanScheduledProjects() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async activateEngagement() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async processShadowEngagements() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async processEngagements() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async invitation() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async submitResponse() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async captureHistory() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async purgeCaptureContent() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async beginCaptureGeneration() { throw new ProjectUpdateError("UNAVAILABLE"); },
 };
 
 @ApiTags("Project updates")
@@ -137,5 +145,24 @@ export class ProjectUpdateController {
     const actor = await this.actor(req);
     const id = this.projectId(rawId);
     return this.run(() => this.repository.schedulePreview(actor, id));
+  }
+
+  @Get("project-update-capture-history")
+  async captureHistory(@Req() req: Request, @Param("id") rawId: string, @Query() query: Record<string, unknown>) {
+    const actor = await this.actor(req);
+    const id = this.projectId(rawId);
+    if (Object.keys(query).some((key) => key !== "cursor") ||
+        (query.cursor !== undefined && !projectFactIdSchema.safeParse(query.cursor).success))
+      throw new HttpException("", 400);
+    return this.run(() => this.repository.captureHistory(actor, id, query.cursor as string | undefined));
+  }
+
+  @Post("project-update-capture-generations")
+  @HttpCode(201)
+  async beginCaptureGeneration(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req), id = this.projectId(rawId);
+    const parsed = projectUpdateCaptureGenerationSchema.safeParse(body);
+    if (!parsed.success) throw new HttpException("", 400);
+    return this.run(() => this.repository.beginCaptureGeneration(actor, id, parsed.data, req.correlationId));
   }
 }

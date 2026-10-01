@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   deriveProjectUpdateSourceSatisfaction,
   projectUpdateCaptureConfigurationSchema, projectUpdateInvitationLocatorSchema,
+  projectUpdateCaptureGenerationSchema,
   projectUpdateResponseSubmissionSchema, projectUpdateRecipientRequestViewSchema,
   mayAccessProjectUpdateInvitation, renderProjectUpdateCapture,
   type ProjectUpdateCaptureConfiguration, type ProjectUpdateRecipientRequestView,
@@ -844,9 +845,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
 
   private async engagementAudit(tx: Tx, current: Actor, projectId: string, correlationId: string, event: string, detail: unknown) {
     const auditId = randomUUID();
+    const capture = this.captureConfiguration(current.customerId);
+    const recordedDetail = capture && typeof detail === "object" && detail !== null
+      ? { ...detail, captureIssuanceEpoch: capture.issuanceEpoch } : detail;
     await tx.$executeRawUnsafe(
       "INSERT INTO public.\"AuditEvent\" (id,\"customerId\",actor,event,\"correlationId\",detail,\"occurredAt\") VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6::jsonb,$7)",
-      auditId, current.customerId, current.subject, event, correlationId, stringify(detail), await this.now(tx),
+      auditId, current.customerId, current.subject, event, correlationId, stringify(recordedDetail), await this.now(tx),
     );
     return auditId;
   }
@@ -1089,6 +1093,16 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         engagement.generation += 1;
         for (const { stage, plan } of replacements)
           await this.insertStage(tx, current, projectId, engagement, plan, prepared.source.remainingFactTypes, revisionAudit, stage.id, stage.mode === "CAPTURE" ? "CAPTURE" : "SHADOW");
+        // A new generation invalidates captured locators. Prepare a fresh
+        // owner request too, so unresolved facts retain a response path after
+        // a partial source or recipient-zone replan. It must pass capture's
+        // current source/recipient checks before any new invitation exists.
+        if (replacements.some(({ stage }) => stage.mode === "CAPTURE") &&
+            !replacements.some(({ stage }) => stage.kind === "REQUEST")) {
+          const requestPlan = schedule.plans.find((plan) => plan.kind === "REQUEST");
+          if (requestPlan) await this.insertStage(tx, current, projectId, engagement, requestPlan,
+            prepared.source.remainingFactTypes, revisionAudit, null, "CAPTURE");
+        }
       }
     }
     if (carryForward && prepared.view.obligation && this.zones && !prepared.source.sourceUnknown &&
@@ -1190,6 +1204,30 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return "CAPTURED" as const;
   }
 
+  private async captureSequenceWait(tx: Tx, current: Actor, projectId: string, stage: PendingStage, policy: PolicyRow) {
+    if (stage.kind === "REQUEST") return null;
+    const beforeOffsets = policy.reminderBusinessDayOffsets.filter((offset) => offset < stage.ordinal);
+    const previousOffset = beforeOffsets.length ? Math.max(...beforeOffsets) : 0;
+    const pm = stage.recipientRole === "PROJECT_MANAGER";
+    const previousKind = pm ? "ESCALATION" : previousOffset ? "REMINDER" : "REQUEST";
+    const previousOrdinal = pm ? stage.ordinal : previousOffset;
+    const rows = await tx.$queryRawUnsafe<{ capturedAt: Date }[]>(
+      'SELECT r."capturedAt" FROM public."ProjectUpdateCapturedRequest" r JOIN public."ProjectUpdateStage" s ON s."customerId"=r."customerId" AND s."projectId"=r."projectId" AND s.id=r."stageId" JOIN public."ProjectUpdateOutbox" o ON o."customerId"=s."customerId" AND o."projectId"=s."projectId" AND o."stageId"=s.id JOIN public."ProjectUpdateIssuanceGate" g ON g."customerId"=r."customerId" AND g."issuanceEpoch"=r."issuanceEpoch" WHERE r."customerId"=$1::uuid AND r."projectId"=$2::uuid AND s."engagementId"=$3::uuid AND s.kind=$4 AND s.ordinal=$5 AND s."recipientRole"=\'OWNER\' AND s."recipientSubject"=$6 AND o.state=\'CAPTURED\' AND s.generation<=$7 AND s.generation>=(SELECT max(initial.generation) FROM public."ProjectUpdateStage" initial WHERE initial."customerId"=$1::uuid AND initial."projectId"=$2::uuid AND initial."engagementId"=$3::uuid AND initial.kind=\'REQUEST\' AND initial.generation<=$7) ORDER BY s.generation DESC,r."capturedAt" DESC LIMIT 1',
+      current.customerId, projectId, stage.engagementId, previousKind, previousOrdinal, policy.responsibleSubject, stage.generation,
+    );
+    const asOf = await this.now(tx);
+    if (!rows[0]) return iso(new Date(asOf.getTime() + 300000));
+    const plan = planProjectUpdateRecipientStage({
+      kind: stage.kind, ordinal: pm ? stage.ordinal : stage.ordinal - previousOrdinal,
+      recipientRole: stage.recipientRole, recipientSubject: stage.recipientSubject,
+      logicalDueAt: stage.logicalDueAt, anchorAt: iso(rows[0].capturedAt),
+      recipientTimeZone: stage.timeZone, projectTimeZone: policy.timeZone,
+      customerTimeZone: this.zones!.customerTimeZone,
+      quietHoursStartLocal: policy.quietHoursStartLocal, quietHoursEndLocal: policy.quietHoursEndLocal,
+    });
+    return Date.parse(plan.scheduledAt) > asOf.getTime() ? plan.scheduledAt : null;
+  }
+
   async processEngagements(limit: number) { return this.processEngagementBatch(limit, true); }
   async processShadowEngagements(limit: number) { return this.processEngagementBatch(limit, false); }
 
@@ -1258,10 +1296,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             else if (stage.mode === "SHADOW" || this.captureReader?.().globalShadowMode !== "false")
               await this.suppressStage(tx, current, projectId, stage, "SHADOW_MODE", correlationId);
             else {
-              const outcome = await this.captureStage(tx, current, projectId, stage, prepared, correlationId);
+              const sequenceWait = await this.captureSequenceWait(tx, current, projectId, stage, prepared.policy);
+              const outcome = sequenceWait ? "UNANSWERED_STAGE_WAIT" :
+                await this.captureStage(tx, current, projectId, stage, prepared, correlationId);
               if (outcome !== "CAPTURED")
                 await this.deferStage(tx, current, projectId, stage,
-                  iso(new Date((await this.now(tx)).getTime() + 300000)), outcome, correlationId);
+                  sequenceWait ?? iso(new Date((await this.now(tx)).getTime() + 300000)), outcome, correlationId);
             }
           }
           processed += 1;
@@ -1504,7 +1544,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           responses: disclose ? await this.responseHistory(tx, current, projectId, row.requestId) : [],
         });
       }
-      return { projectId, entries, nextCursor: rows.length > 20 ? rows[19]!.requestId : null };
+      const engagements = await tx.$queryRawUnsafe<{ id: string; generation: number; policyRevision: number; mode: "SHADOW" | "CAPTURE" }[]>(
+        'SELECT e.id,e.generation,e."policyRevision",min(s.mode) AS mode FROM public."ProjectUpdateEngagement" e JOIN public."ProjectUpdateStage" s ON s."customerId"=e."customerId" AND s."projectId"=e."projectId" AND s."engagementId"=e.id AND s.generation=e.generation WHERE e."customerId"=$1::uuid AND e."projectId"=$2::uuid AND e.state=\'ACTIVE\' GROUP BY e.id,e.generation,e."policyRevision" ORDER BY e.id LIMIT 1',
+        current.customerId, projectId,
+      );
+      return { projectId, engagement: engagements[0] ?? null, entries, nextCursor: rows.length > 20 ? rows[19]!.requestId : null };
     });
   }
 
@@ -1515,6 +1559,70 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         "SELECT public.purge_update_capture_content($1::uuid) AS count", this.zones!.customerId,
       );
       return rows[0]?.count ?? 0;
+    });
+  }
+
+  // Explicit PMO approval creates a new generation; terminal receipts and old
+  // invitation epochs retain their history. No implicit SHADOW reinterpretation.
+  async beginCaptureGeneration(actorValue: Actor, projectValue: string, changeValue: unknown, correlationValue: string): Promise<ProjectUpdateEngagementView> {
+    const current = parseActor(actorValue), projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    if (!current.roles.includes("pmo_admin")) throw new ProjectUpdateError("FORBIDDEN");
+    const parsed = projectUpdateCaptureGenerationSchema.safeParse(changeValue);
+    if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+    const change = parsed.data;
+    return this.transaction(async (tx) => {
+      try { await authorizeFactProject(tx, current, projectId, "access"); }
+      catch { throw new ProjectUpdateError("DENIED"); }
+      const configuration = this.captureConfiguration(current.customerId);
+      if (!configuration || !this.zones || !await this.captureGate(tx, current.customerId, configuration))
+        throw new ProjectUpdateError("UNAVAILABLE");
+      const policy = await this.loadPolicy(tx, current.customerId, projectId, true);
+      if (!policy || policy.revision !== change.expectedPolicyRevision) throw new ProjectUpdateError("CONFLICT");
+      const prepared = await this.assessInTransaction(tx, current, projectId, correlationId, false);
+      if (!prepared.view.obligation || prepared.source.sourceUnknown || !prepared.source.remainingFactTypes.length)
+        throw new ProjectUpdateError("CONFLICT");
+      const engagements = await tx.$queryRawUnsafe<EngagementRow[]>(
+        'SELECT * FROM public."ProjectUpdateEngagement" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "obligationId"=$3::uuid FOR UPDATE',
+        current.customerId, projectId, prepared.view.obligation.id,
+      );
+      const engagement = engagements[0];
+      if (!engagement || engagement.state !== "ACTIVE" || engagement.generation !== change.expectedEngagementGeneration ||
+          engagement.generation >= 2147483647 || !await this.recipientAuthorized(tx, current.customerId, projectId, policy.responsibleSubject, "OWNER"))
+        throw new ProjectUpdateError("CONFLICT");
+      const hazards = await tx.$queryRawUnsafe<{ id: string }[]>(
+        `SELECT s.id FROM public."ProjectUpdateStage" s
+          JOIN public."ProjectUpdateOutbox" o ON o."customerId"=s."customerId" AND o."projectId"=s."projectId" AND o."stageId"=s.id
+          LEFT JOIN public."ProjectUpdateCapturedRequest" r ON r."customerId"=s."customerId" AND r."projectId"=s."projectId" AND r."stageId"=s.id
+          WHERE s."customerId"=$1::uuid AND s."projectId"=$2::uuid AND s."engagementId"=$3::uuid
+            AND (s.mode='EMAIL' OR o.state IN ('UNKNOWN','HANDED_OFF','SENT')
+              OR (s.generation=$4 AND s.mode='CAPTURE' AND (
+                o.state='CLAIMED' OR r."issuanceEpoch"=$5::uuid
+                OR (o.state='READY' AND NOT EXISTS (
+                  SELECT 1 FROM public."AuditEvent" birth WHERE birth.id=s."auditEventId"
+                    AND birth."customerId"=s."customerId"
+                    AND birth.detail->>'captureIssuanceEpoch' IS NOT NULL
+                    AND birth.detail->>'captureIssuanceEpoch'<>$5::text))))) LIMIT 1`,
+        current.customerId, projectId, engagement.id, engagement.generation, configuration.issuanceEpoch,
+      );
+      if (hazards.length) throw new ProjectUpdateError("CONFLICT");
+      const pending = await this.pendingStages(tx, current, projectId, engagement.id);
+      for (const stage of pending) await this.suppressStage(tx, current, projectId, stage, "SOURCE_REASSESSMENT_REQUIRED", correlationId);
+      const schedule = await this.stagePlans(tx, current.customerId, projectId, policy, prepared.view.obligation.dueAt);
+      const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
+        "project_update.engagement.capture_approved", { engagementId: engagement.id, generation: engagement.generation + 1,
+          policyRevision: policy.revision, mode: "CAPTURE" });
+      const changed = await tx.$executeRawUnsafe(
+        'UPDATE public."ProjectUpdateEngagement" SET generation=generation+1,"auditEventId"=$4::uuid,"changedAt"=$5 WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND id=$3::uuid AND generation=$6',
+        current.customerId, projectId, engagement.id, auditId, await this.now(tx), engagement.generation,
+      );
+      if (changed !== 1) throw new ProjectUpdateError("CONFLICT");
+      engagement.generation += 1;
+      for (const plan of schedule.plans)
+        await this.insertStage(tx, current, projectId, engagement, plan, prepared.source.remainingFactTypes, auditId, null, "CAPTURE");
+      return { projectId, engagementId: engagement.id, obligationId: engagement.obligationId,
+        policyRevision: policy.revision, mode: "CAPTURE", stageCount: schedule.plans.length,
+        remainingFactTypes: prepared.source.remainingFactTypes, configurationActions: schedule.configurationActions };
     });
   }
 

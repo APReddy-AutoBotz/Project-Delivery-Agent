@@ -42,7 +42,7 @@ try {
     concurrency: 1,
     noHandleSignals: true,
     logger: new Logger(() => () => operationalLog("worker.event")),
-    crontab: "* * * * * foundation_heartbeat\n* * * * * connector_sync_dispatch\n* * * * * project_update_scan_dispatch\n* * * * * project_update_engagement_dispatch\n0 * * * * health_assessment_retention",
+    crontab: "* * * * * foundation_heartbeat\n* * * * * connector_sync_dispatch\n* * * * * project_update_scan_dispatch\n* * * * * project_update_engagement_dispatch\n* * * * * project_update_content_retention\n0 * * * * health_assessment_retention",
     taskList: createTasks(
       {
         recordHeartbeat: async (at) => {

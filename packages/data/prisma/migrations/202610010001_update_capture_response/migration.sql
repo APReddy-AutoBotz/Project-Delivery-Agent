@@ -158,12 +158,12 @@ CREATE TRIGGER "ProjectUpdateIssuanceGate_guard" BEFORE INSERT OR UPDATE OR DELE
 -- maintenance; this narrow definer locks and returns only the selected gate.
 CREATE FUNCTION public.lock_update_issuance_gate(selected_customer uuid)
 RETURNS TABLE(issuance_enabled boolean,issuance_epoch uuid,gate_revision integer,not_quarantined boolean)
-LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,public AS $
+LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
   SELECT g."issuanceEnabled",g."issuanceEpoch",g.revision,
     coalesce(shobj_description((SELECT oid FROM pg_database WHERE datname=current_database()),'pg_database'),'')
       NOT LIKE 'pdaa.restore.quarantine.%'
   FROM public."ProjectUpdateIssuanceGate" g WHERE g."customerId"=selected_customer FOR SHARE OF g
-$;
+$$;
 
 CREATE FUNCTION public.guard_update_capture_birth()
 RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
@@ -340,7 +340,7 @@ ALTER TABLE public."ProjectUpdateOutbox" ADD CONSTRAINT "ProjectUpdateOutbox_rea
     'OBLIGATION_ENDED','REQUIRED_FACTS_SATISFIED','SHADOW_MODE','POLICY_CHANGED','OWNER_CHANGED',
     'RECIPIENT_ZONE_CHANGED','RECIPIENT_REVOKED','SOURCE_REASSESSMENT_REQUIRED',
     'SOURCE_UNKNOWN','CALENDAR_RECHECK_REQUIRED','ENGAGEMENT_PAUSED','EMAIL_GATE_CLOSED',
-    'HANDOFF_UNCERTAIN','CAPTURE_GATE_CLOSED'));
+    'HANDOFF_UNCERTAIN','CAPTURE_GATE_CLOSED','UNANSWERED_STAGE_WAIT'));
 
 -- Fixed server-time retention operation. EXECUTE does not grant callers UPDATE
 -- or DELETE on content; identifiers, ownership, predicates and audit actor are
@@ -473,7 +473,7 @@ BEGIN
     valid := NEW."claimGeneration"=OLD."claimGeneration" AND (
       (NEW.reason='LEASE_EXPIRED' AND OLD."leaseUntil"<=current_time_at AND NEW."availableAt"=OLD."availableAt")
       OR (NEW.reason IN ('QUIET_HOURS','WEEKEND','DST_GAP','SOURCE_REASSESSMENT_REQUIRED',
-        'SOURCE_UNKNOWN','RECIPIENT_REVOKED','ENGAGEMENT_PAUSED','EMAIL_GATE_CLOSED','CAPTURE_GATE_CLOSED','CALENDAR_RECHECK_REQUIRED')
+        'SOURCE_UNKNOWN','RECIPIENT_REVOKED','ENGAGEMENT_PAUSED','EMAIL_GATE_CLOSED','CAPTURE_GATE_CLOSED','UNANSWERED_STAGE_WAIT','CALENDAR_RECHECK_REQUIRED')
         AND NEW."availableAt">OLD."availableAt" AND NEW."availableAt">current_time_at)
     );
   ELSIF OLD.state='CLAIMED' AND NEW.state='HANDED_OFF' THEN
