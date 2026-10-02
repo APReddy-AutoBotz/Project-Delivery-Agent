@@ -7,17 +7,28 @@ import type { Config } from "../packages/platform/src/index.js";
 const path = "/internal/project-updates/process";
 const keyRing = { currentKeyId: "engagement", keys: { engagement: Buffer.alloc(32, 19).toString("base64url") } };
 describe("engagement task", () => {
-  it("sends only an empty signed command to the exact internal path", async () => {
+  it.each([
+    ["project_update_engagement_dispatch", path],
+    ["project_update_content_retention", "/internal/project-updates/purge"],
+  ] as const)("%s sends only an empty signed command to %s", async (task, taskPath) => {
     const network = vi.fn(async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
     const signer = vi.fn(signConnectorTaskRequest);
     const tasks = createTasks({ recordHeartbeat: async () => undefined }, {
       INTERNAL_API_URL: "https://customer-api.invalid", projectUpdateTaskKeys: keyRing,
     }, network, signer);
-    await tasks.project_update_engagement_dispatch();
-    expect(signer.mock.calls[0]![0]).toMatchObject({ method: "POST", path, body: Buffer.from("{}"), keyRing });
-    expect(network).toHaveBeenCalledWith(new URL(path, "https://customer-api.invalid"), expect.objectContaining({
+    await tasks[task]();
+    expect(signer.mock.calls[0]![0]).toMatchObject({ method: "POST", path: taskPath, body: Buffer.from("{}"), keyRing });
+    expect(network).toHaveBeenCalledWith(new URL(taskPath, "https://customer-api.invalid"), expect.objectContaining({
       body: Buffer.from("{}"), method: "POST", redirect: "error",
     }));
+  });
+  it("retention remains inactive without authentication and uses a fixed error", async () => {
+    const network = vi.fn().mockRejectedValue(new Error("private response text")) as unknown as typeof fetch;
+    await createTasks({ recordHeartbeat: async () => undefined }, {}, network).project_update_content_retention();
+    expect(network).not.toHaveBeenCalled();
+    await expect(createTasks({ recordHeartbeat: async () => undefined }, {
+      INTERNAL_API_URL: "https://customer-api.invalid", projectUpdateTaskKeys: keyRing,
+    }, network, signConnectorTaskRequest).project_update_content_retention()).rejects.toThrow(/^project_update_retention_unavailable$/);
   });
   it("stays inactive without task authentication and reports bounded failures", async () => {
     const network = vi.fn().mockRejectedValue(new Error("private request data")) as unknown as typeof fetch;
@@ -32,7 +43,7 @@ describe("signed engagement endpoint", () => {
   function fixture() {
     let handler: (request: unknown, response: unknown, next: () => void) => Promise<void>;
     const runtime = { acceptTaskNonce: vi.fn().mockResolvedValue(true), acceptWebhook: vi.fn() };
-    const updates = { processShadowEngagements: vi.fn().mockResolvedValue(1), scanScheduledProjects: vi.fn() };
+    const updates = { processEngagements: vi.fn().mockResolvedValue(1), scanScheduledProjects: vi.fn() };
     installConnectorRoutes({ use: (fn: typeof handler) => { handler = fn; } } as never,
       { projectUpdateTaskKeys: keyRing } as Config, runtime, {} as never, updates as never);
     return { runtime, updates, invoke: async (body = "{}", signaturePath = path, url = path) => {
@@ -52,11 +63,11 @@ describe("signed engagement endpoint", () => {
     const f = fixture();
     expect((await f.invoke()).status).toBe(200);
     expect(f.runtime.acceptTaskNonce).toHaveBeenCalledTimes(1);
-    expect(f.updates.processShadowEngagements).toHaveBeenCalledWith(1);
+    expect(f.updates.processEngagements).toHaveBeenCalledWith(1);
     expect(f.updates.scanScheduledProjects).not.toHaveBeenCalled();
     f.runtime.acceptTaskNonce.mockResolvedValue(false);
     expect((await f.invoke()).status).toBe(409);
-    expect(f.updates.processShadowEngagements).toHaveBeenCalledTimes(1);
+    expect(f.updates.processEngagements).toHaveBeenCalledTimes(1);
   });
   it.each([
     ['{"limit":1000}', path, path, 400],
@@ -66,6 +77,6 @@ describe("signed engagement endpoint", () => {
     const f = fixture();
     expect((await f.invoke(body as string, signedPath as string, url as string)).status).toBe(status);
     expect(f.runtime.acceptTaskNonce).not.toHaveBeenCalled();
-    expect(f.updates.processShadowEngagements).not.toHaveBeenCalled();
+    expect(f.updates.processEngagements).not.toHaveBeenCalled();
   });
 });

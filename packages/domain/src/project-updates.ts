@@ -1,6 +1,4 @@
 import { z } from "zod";
-import type { ProjectUpdateEngagementView } from "./project-update-engagement.js";
-import type { Actor } from "./actor.js";
 import {
   canonicalKeySchema,
   canonicalSubjectSchema,
@@ -355,30 +353,4 @@ export class ProjectUpdateError extends Error {
     super(code);
     this.name = "ProjectUpdateError";
   }
-}
-
-export interface ProjectUpdateRepository {
-  policy(actor: Actor, projectId: string): Promise<ProjectUpdatePolicyView | null>;
-  setPolicy(
-    actor: Actor,
-    projectId: string,
-    change: ProjectUpdatePolicyChange,
-    correlationId: string,
-  ): Promise<ProjectUpdatePolicyView>;
-  assess(
-    actor: Actor,
-    projectId: string,
-    correlationId: string,
-  ): Promise<ProjectUpdateAssessmentView>;
-  latest(
-    actor: Actor,
-    projectId: string,
-  ): Promise<ProjectUpdateAssessmentView | null>;
-  schedulePreview(
-    actor: Actor,
-    projectId: string,
-  ): Promise<ProjectUpdateSchedulePreview>;
-  scanScheduledProjects(limit: number): Promise<number>;
-  activateEngagement(actor: Actor, projectId: string, expectedPolicyRevision: number, correlationId: string): Promise<ProjectUpdateEngagementView | null>;
-  processShadowEngagements(limit: number): Promise<number>;
 }

@@ -142,6 +142,8 @@ try {
     "ProjectUpdateStage",
     "ProjectUpdateOutbox",
     "ProjectUpdateDispatchAttempt",
+    "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
+    "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
     "ScheduleHealthPolicyRevision",
   ];
   assert.deepEqual(
@@ -651,8 +653,8 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
     await db.$disconnect();
   }
 }
-await verifyHealthAssessmentRetention(source.toString());
 const engagementStorage = await verifyUpdateEngagementStorage(source.toString());
+await verifyHealthAssessmentRetention(source.toString());
 
 node([
   "node_modules/vitest/vitest.mjs",
@@ -771,7 +773,7 @@ writeFileSync(
       ],
       engagementStorage,
       engagementStorageTables: ["ProjectUpdateEngagement","ProjectUpdateStage","ProjectUpdateOutbox","ProjectUpdateDispatchAttempt"],
-      businessTables: 78,
+      businessTables: 84,
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",

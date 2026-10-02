@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Message, TextField } from "./components.js";
 import type { RequestFn } from "./canonical-project.js";
+import { ProjectUpdateCaptureHistory } from "./project-update-response.js";
 
 type RequiredFact = { factType: string; label: string };
 type Policy = {
@@ -487,6 +488,7 @@ export function ProjectUpdates({
         </details>
       )}
       {!pmoAdmin && message && <Message error={isError}>{message}</Message>}
+      {visible && <ProjectUpdateCaptureHistory key={projectId} projectId={projectId} request={request} pmoAdmin={pmoAdmin} />}
     </section>
   );
 }

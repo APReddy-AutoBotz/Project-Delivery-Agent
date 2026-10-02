@@ -50,6 +50,11 @@ vi.mock("../packages/operations/src/migrations.js", () => ({
   history: async () => [],
   validateHistory: () => {},
 }));
+vi.mock("../packages/operations/src/update-engagement-issuance.js", () => ({
+  // These tests isolate phase/error cleanup; native recovery separately proves
+  // the real gate's disable/rotation and retained invitation epochs.
+  quarantineUpdateIssuance: vi.fn(async () => ({ issuanceDisabled: true, invitationsInvalidated: true })),
+}));
 vi.mock("../packages/operations/src/archive.js", () => ({
   archivePath: () => "synthetic-no-file",
   requireRestoreTmpfs: () => {},

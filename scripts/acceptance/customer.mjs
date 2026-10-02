@@ -109,6 +109,7 @@ import {
 import { engagementStorageTables, verifyEngagementStoragePrivileges,
   verifyUpdateEngagementStorage, verifyRestoredEngagementStorage } from "./update-engagement-storage.mjs";
 const env = process.env;
+import { updateCaptureTables, verifyUpdateCapturePrivileges, assertUpdateCaptureRestoreProjection } from "./update-capture-storage.mjs";
 const projectUpdateTables = [
   "ProjectUpdatePolicy",
   "ProjectUpdatePolicyRevision",
@@ -179,6 +180,7 @@ async function projection(pool) {
     ...projectUpdateTables,
     ...scheduleHealthPolicyTables,
     ...engagementStorageTables,
+    ...updateCaptureTables,
   ])
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
@@ -499,6 +501,10 @@ try {
     assert.equal(state.Customer.length, 1);
     assert.equal(state.Customer[0].id, env.CUSTOMER_ID);
     assert.equal(state.Customer[0].name, env.CUSTOMER_NAME);
+    assert.equal(state.ProjectUpdateIssuanceGate.length, 1);
+    assert.equal(state.ProjectUpdateIssuanceGate[0].customerId, env.CUSTOMER_ID);
+    assert.equal(state.ProjectUpdateIssuanceGate[0].issuanceEnabled, false);
+    assert.equal(state.ProjectUpdateIssuanceGate[0].revision, 0);
     for (const table of [
       "Portfolio",
       "Project",
@@ -514,6 +520,7 @@ try {
       ...projectUpdateTables,
       ...scheduleHealthPolicyTables,
     ...engagementStorageTables,
+    ...updateCaptureTables.filter((table) => table !== "ProjectUpdateIssuanceGate"),
     ])
       assert.equal(
         state[table].length,
@@ -523,7 +530,8 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 23);
+    assert.equal(migrations.length, 24);
+    assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
       [...state._prisma_migrations].sort((a, b) =>
@@ -785,9 +793,9 @@ try {
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 78,
+      businessTableCount: 84,
       engagementStorageTables,
-      migrationCount: 23,
+      migrationCount: 24,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -860,7 +868,8 @@ try {
       connectionTimeoutMillis: 5000,
     });
     try {
-      assert.deepEqual(await projection(restored), read("backup-state"));
+      assertUpdateCaptureRestoreProjection(await projection(restored), read("backup-state"));
+      await verifyUpdateCapturePrivileges(restored);
       await verifyEngagementStoragePrivileges(restored);
       await verifyProjectFactPrivileges(restored);
       await verifyImmutableProjectFacts(restored);

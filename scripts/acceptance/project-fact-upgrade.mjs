@@ -71,7 +71,8 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 23);
+  assert.equal(migrations.length, 24);
+  assert.equal(migrations[23].name, "202610010001_update_capture_response");
   assert.equal(migrations[21].name, "202609300001_update_engagement_storage");
     assert.equal(migrations[22].name, "202609300002_update_engagement_processing");
   assert.equal(migrations[15].name, "202609280001_atomic_raid_reopen");
@@ -536,12 +537,15 @@ export async function verifyFoundationUpgrade(
       "ProjectUpdatePreview",
       "ScheduleHealthPolicyRevision",
       ...engagementStorageTables,
+      "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
+      "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
     ];
     const emptyAddedTables = addedTables.filter(
       (table) => ![
         "ScheduleHealthPolicyRevision",
         "ProjectUpdatePolicy",
         "ProjectUpdatePolicyRevision",
+        "ProjectUpdateIssuanceGate",
       ].includes(table),
     );
     for (const table of emptyAddedTables)

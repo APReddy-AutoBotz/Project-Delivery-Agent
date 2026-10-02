@@ -14,6 +14,8 @@ import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { customerProfiles } from "./acceptance/customer-host.mjs";
+import { prepareHistoricalCaptureRecovery, verifyHistoricalCaptureRecovery } from "./acceptance/update-capture-archive-host.mjs";
+import { captureDisclosureVerifierCommand, verifyCaptureOperatorOverlay } from "./acceptance/update-capture-operator-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./acceptance/evidence-workflow-receipt.mjs";
 import { assertMilestoneReconciliationWorkflowReceipt } from "./acceptance/milestone-reconciliation-workflow-receipt.mjs";
 import { assertScalarWorkflowReceipt } from "./acceptance/scalar-reconciliation-workflow-receipt.mjs";
@@ -366,6 +368,7 @@ try {
     operation("migrate", { PDAA_DB_CA_FILE: "/run/secrets/wrong-ca.crt" }),
     "operations-wrong-ca",
   );
+  prepareHistoricalCaptureRecovery({docker,compose});
   fixtureStep("prepare");
   const backupResult = docker(
     operation("backup", {
@@ -450,6 +453,9 @@ try {
     "quarantine-migrate-denied",
   );
   fixtureStep("verify");
+  record.historicalCaptureRecovery = verifyHistoricalCaptureRecovery({docker,compose,operation,denied,output});
+  record.captureOperatorOverlay = verifyCaptureOperatorOverlay({docker,compose,denied,output,fixture,env});
+  checks.passed.push("NFR-REL-002: encrypted historical capture restore bounds expired-body purge and rolls back failed maintenance while runtime CONNECT stays quarantined");
   record.projectFactPersistence = JSON.parse(
     readFileSync(join(output, "project-fact-persistence.json"), "utf8"),
   );
@@ -540,7 +546,7 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 23);
+    assert.equal(upgrade.migrations.length, 24);
     assert.equal(upgrade.migrations[20].name, "202609290002_project_update_cadence");
     assert.equal(upgrade.migrations[21].name, "202609300001_update_engagement_storage");
     assert.equal(upgrade.migrations[22].name, "202609300002_update_engagement_processing");
@@ -566,7 +572,7 @@ try {
       assert.equal(row.rolled_back_at, null);
       assert.equal(row.applied_steps_count, 1);
     }
-    assert.equal(upgrade.businessTableCount, 78);
+    assert.equal(upgrade.businessTableCount, 84);
     assert.deepEqual(
       Object.keys(upgrade.retainedPriorRowCounts).sort(),
       [...upgrade.retainedPriorBusinessTables].sort(),
@@ -646,6 +652,8 @@ try {
         "ProjectUpdateStage",
         "ProjectUpdateOutbox",
         "ProjectUpdateDispatchAttempt",
+        "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation", "ProjectUpdateResponse",
+        "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
       ]);
       const retained = upgrade.priorReconciliationRetention;
       for (const field of [
@@ -799,16 +807,7 @@ try {
     output,
     runId: project,
     run: docker,
-    command: (name) =>
-      compose(
-        "run",
-        "--rm",
-        "--no-deps",
-        "verify",
-        "node",
-        "scripts/acceptance/check-disclosure.mjs",
-        name,
-      ),
+    command: (name) => captureDisclosureVerifierCommand(compose, fixture, name),
   });
   for (const service of [
     "api",

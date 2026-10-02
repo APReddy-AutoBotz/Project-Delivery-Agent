@@ -183,6 +183,10 @@ export async function provision(
       [config.customerId, config.customerName],
     );
     await assertCustomer(admin, config);
+    // Prefix fixtures before migration 24 have no issuance gate yet. Current
+    // provisioning seeds disabled only; ON CONFLICT never changes restored state.
+    if ((await admin.query("SELECT to_regclass($1) AS name", ['public."ProjectUpdateIssuanceGate"'])).rows[0]?.name)
+      await admin.query('INSERT INTO public."ProjectUpdateIssuanceGate" ("customerId") VALUES ($1::uuid) ON CONFLICT DO NOTHING', [config.customerId]);
     await grants(admin, config);
     for (const role of roles) {
       const connection = await connect(roleDatabase(config, role));

@@ -1,4 +1,6 @@
 import "reflect-metadata";
+import { ProjectUpdateInvitationController } from "./project-update-invitation-controller.js";
+import { installProjectUpdateInvitationBoundary, isProjectUpdateInvitationPath } from "./project-update-invitation-boundary.js";
 import {
   ScalarReconciliationController,
   SCALAR_RECONCILIATION_REPOSITORY,
@@ -234,6 +236,7 @@ export async function createApp(
       IngestionController,
       HealthAssessmentController,
       ProjectUpdateController,
+      ProjectUpdateInvitationController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -277,6 +280,7 @@ export async function createApp(
       res.setHeader("X-Request-Id", req.correlationId);
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Referrer-Policy", "no-referrer");
       res.on("finish", () =>
         operationalLog("http.request", {
           correlationId: req.correlationId,
@@ -299,6 +303,9 @@ export async function createApp(
     },
   });
   preJsonBodyParser?.(app);
+  installProjectUpdateInvitationBoundary(app, identity, config.APP_ORIGIN);
+  app.useBodyParser("json", { limit: "64kb", inflate: false,
+    type: (request) => request.method === "POST" && isProjectUpdateInvitationPath(request.url) });
   app.useBodyParser("json", { limit: "100kb" });
   const spec = SwaggerModule.createDocument(
     app,

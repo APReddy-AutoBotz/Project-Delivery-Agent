@@ -108,7 +108,13 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     "public.require_update_stage_outbox()",
     "public.record_update_dispatch_attempt()",
   ];
-  expect(revoked).toHaveLength(6);
+  const captureGuards = [
+    "public.guard_update_issuance_gate()", "public.guard_update_capture_birth()",
+    "public.guard_update_invitation_birth()", "public.guard_update_response_birth()",
+    "public.guard_update_capture_content()", "public.require_update_capture_complete()",
+    "public.lock_update_issuance_gate(uuid)", "public.purge_update_capture_content(uuid)",
+  ];
+  expect(revoked).toHaveLength(7);
   expect(
     revoked
       .flatMap((match) => splitFunctionSignatures(match[1]!))
@@ -122,12 +128,13 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...ingestionSignatures,
       ...updateValidators,
       ...updateGuards,
+      ...captureGuards,
     ].sort(),
   );
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
   ];
-  expect(granted).toHaveLength(5);
+  expect(granted).toHaveLength(6);
   expect(granted.flatMap((match) => splitFunctionSignatures(match[1]!)).sort()).toEqual(
     [
       "public.valid_canonical_state_binding(uuid)",
@@ -141,6 +148,8 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       "public.valid_scalar_reconciliation_request(uuid)",
       ...ingestionSignatures,
       ...updateValidators,
+      "public.lock_update_issuance_gate(uuid)",
+      "public.purge_update_capture_content(uuid)",
     ].sort(),
   );
   for (const grant of granted)
@@ -153,7 +162,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(11);
+  ]).toHaveLength(13);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {

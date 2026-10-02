@@ -178,7 +178,7 @@ export const projectUpdateEngagementViewSchema = z.strictObject({
   engagementId: z.uuid(),
   obligationId: z.uuid(),
   policyRevision: positiveRevision,
-  mode: z.literal("SHADOW"),
+  mode: z.enum(["SHADOW", "CAPTURE"]),
   stageCount: z.number().int().min(1).max(100),
   remainingFactTypes: z.array(factType).min(1).max(100),
   configurationActions: z.array(z.enum(["PM_RECIPIENT_REVOKED"])).max(1),

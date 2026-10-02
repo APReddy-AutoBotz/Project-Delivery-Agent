@@ -81,10 +81,12 @@ const added = [
   "ProjectUpdateStage",
   "ProjectUpdateOutbox",
   "ProjectUpdateDispatchAttempt",
+  "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
+  "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
 ];
 const receipt = () => ({
   priorMigrationCount: 1,
-  businessTableCount: 78,
+  businessTableCount: 84,
   scheduleHealthPolicyTables: ["ScheduleHealthPolicyRevision"],
   scheduleHealthPolicyBackfill: {
     project_count: 1,
@@ -99,6 +101,7 @@ const receipt = () => ({
         "ScheduleHealthPolicyRevision",
         "ProjectUpdatePolicy",
         "ProjectUpdatePolicyRevision",
+        "ProjectUpdateIssuanceGate",
       ].includes(table),
   ),
 });
@@ -145,6 +148,7 @@ it("NFR-REL-001: keeps feature-added RAID receipts out of retained prefix-four h
         "ScheduleHealthPolicyRevision",
         "ProjectUpdatePolicy",
         "ProjectUpdatePolicyRevision",
+        "ProjectUpdateIssuanceGate",
       ].includes(table) && !retainedPriorTables.includes(table),
   );
   expect(value.emptyAddedTablesAfterUpgrade).toContain("RaidReopenReceipt");
@@ -162,6 +166,7 @@ it("NFR-REL-001: accepts project update and seeded schedule policy release addit
         "ScheduleHealthPolicyRevision",
         "ProjectUpdatePolicy",
         "ProjectUpdatePolicyRevision",
+        "ProjectUpdateIssuanceGate",
       ].includes(table) && !prior.includes(table),
   );
   expect(value.emptyAddedTablesAfterUpgrade).toEqual([
@@ -172,6 +177,8 @@ it("NFR-REL-001: accepts project update and seeded schedule policy release addit
     "ProjectUpdateStage",
     "ProjectUpdateOutbox",
     "ProjectUpdateDispatchAttempt",
+    "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation", "ProjectUpdateResponse",
+    "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
   ]);
   expect(assertUpgradeInventory(value, 8)).toBe(true);
 });

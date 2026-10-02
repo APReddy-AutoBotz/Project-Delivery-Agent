@@ -95,13 +95,15 @@ const releases = [
   ],
   ["ScheduleHealthPolicyRevision"],
   ["ProjectUpdateEngagement", "ProjectUpdateStage", "ProjectUpdateOutbox", "ProjectUpdateDispatchAttempt"],
+  ["ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
+    "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent"],
 ];
 export function assertUpgradeInventory(receipt, prefix) {
   assert([1, 2, 3, 4, 5, 6, 7, 8].includes(prefix));
   assert.equal(receipt.priorMigrationCount, prefix);
   const oldTables = releases.slice(0, prefix).flat().sort();
   const addedTables = releases.slice(prefix).flat().sort();
-  assert.equal(receipt.businessTableCount, 78);
+  assert.equal(receipt.businessTableCount, 84);
   assert.deepEqual(receipt.scheduleHealthPolicyTables, [
     "ScheduleHealthPolicyRevision",
   ]);
@@ -128,6 +130,7 @@ export function assertUpgradeInventory(receipt, prefix) {
         "ScheduleHealthPolicyRevision",
         "ProjectUpdatePolicy",
         "ProjectUpdatePolicyRevision",
+        "ProjectUpdateIssuanceGate",
       ].includes(table),
     ),
   );

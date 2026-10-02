@@ -1,0 +1,17 @@
+# EXEC-015 / FR-UPD-006 / NFR-SEC-005. Explicit opt-in; issuance still starts disabled.
+# Add to the customer composition only with a reviewed operator-controlled file.
+services:
+  api:
+    environment:
+      PROJECT_UPDATE_CAPTURE_FILE: /run/secrets/project-update-capture
+      SHADOW_MODE: ${SHADOW_MODE:-true}
+    secrets: [project-update-capture]
+  operations:
+    environment:
+      PROJECT_UPDATE_CAPTURE_FILE: /run/secrets/project-update-capture
+      PDAA_UPDATE_ISSUANCE_EXPECTED_REVISION: ${PDAA_UPDATE_ISSUANCE_EXPECTED_REVISION:-}
+      PDAA_UPDATE_ISSUANCE_EXPECTED_EPOCH: ${PDAA_UPDATE_ISSUANCE_EXPECTED_EPOCH:-}
+    secrets: [project-update-capture]
+secrets:
+  project-update-capture:
+    file: ${PDAA_UPDATE_CAPTURE_FILE:?}

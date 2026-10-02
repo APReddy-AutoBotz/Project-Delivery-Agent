@@ -19,6 +19,7 @@ import {
   projectUpdatePolicyViewSchema,
   projectUpdateSchedulePreviewSchema,
 } from "../packages/domain/src/index.js";
+import { ProjectUpdateError } from "../packages/domain/dist/index.js";
 import type {
   HealthAssessmentRepository,
   IngestionRepository,
@@ -413,6 +414,20 @@ const projectUpdateRepository: ProjectUpdateRepository = {
     mode: "SHADOW" as const, stageCount: 1, remainingFactTypes: ["project.forecast"], configurationActions: [],
   })),
   processShadowEngagements: vi.fn(async () => 0),
+  processEngagements: vi.fn(async () => 0),
+  purgeCaptureContent: vi.fn(async () => 0),
+  invitation: vi.fn(async () => ({ requestId: project.id, project: { id: project.id, code: "ATLAS", name: "Atlas" },
+    stageKind: "REQUEST" as const, dueAt: "2026-10-01T12:00:00.000Z", capturedAt: "2026-10-01T12:00:00.000Z",
+    expiresAt: "2026-10-02T12:00:00.000Z", body: "Synthetic update requested.",
+    requiredFacts: [{ factType: "project.forecast", label: "Forecast" }], rawResponseReaders: ["pm-atlas"], responses: [] })),
+  submitResponse: vi.fn(async () => ({ responseId: project.id, requestId: project.id,
+    receivedAt: "2026-10-01T12:01:00.000Z", state: "UNCONFIRMED" as const,
+    message: "Response recorded; required facts remain unconfirmed." as const })),
+  captureHistory: vi.fn(async () => ({ projectId: project.id, engagement: null, entries: [], nextCursor: null })),
+  beginCaptureGeneration: vi.fn(async () => ({ projectId: project.id,
+    engagementId: "40000000-0000-4000-8000-000000000110",
+    obligationId: "40000000-0000-4000-8000-000000000111", policyRevision: 1,
+    mode: "CAPTURE" as const, stageCount: 1, remainingFactTypes: ["project.forecast"], configurationActions: [] })),
 };
 beforeAll(async () => {
   ({ app, spec } = await createApp(
@@ -439,6 +454,37 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app?.close();
+});
+
+it("FR-UPD-006 / NFR-SEC-001: invitation identity precedes JSON parsing and rejects transport/origin misuse", async () => {
+  const path = `/api/project-update-invitations/${project.id}/responses`;
+  const calls = vi.mocked(projectUpdateRepository.submitResponse).mock.calls.length;
+  for (const variant of [path, path.toUpperCase()]) {
+    for (const body of ["{", "x".repeat(80000)]) {
+      const response = await fetch(base + variant, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ statusCode: 401, message: "Sign-in required" });
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    }
+  }
+  for (const [headers, body, status] of [
+    [{ "Content-Type": "application/json" }, "{", 400],
+    [{ "Content-Type": "application/json" }, "x".repeat(80000), 413],
+    [{ "Content-Type": "application/json", "Content-Encoding": "gzip" }, "{}", 415],
+    [{ "Content-Type": "text/plain" }, "{}", 415],
+    [{ "Content-Type": "application/json", Origin: "https://other.invalid" }, "{}", 403],
+  ] as const) {
+    const response = await fetch(base + path, { method: "POST", headers: { ...headers, Authorization: "Bearer " + manager }, body });
+    expect(response.status).toBe(status);
+    await response.arrayBuffer();
+  }
+  expect(vi.mocked(projectUpdateRepository.submitResponse).mock.calls).toHaveLength(calls);
+  vi.mocked(projectUpdateRepository.submitResponse).mockRejectedValueOnce(new ProjectUpdateError("DENIED"));
+  const deniedResponse = await fetch(base + path, { method: "POST",
+    headers: { Authorization: "Bearer " + manager, "Content-Type": "application/json" }, body: '{"text":""}' });
+  expect(deniedResponse.status).toBe(404);
+  expect(await deniedResponse.json()).toEqual({ statusCode: 404, message: "Resource unavailable" });
 });
 async function request(
   path: string,
@@ -476,6 +522,14 @@ async function request(
   return parsed;
 }
 it("CI-FND-001: every actual serialized success matches its published schema and status", async () => {
+  await request(`/api/project-update-invitations/${project.id}`, 200, manager);
+  await request(`/api/project-update-invitations/${project.id}/responses`, 201, manager, "POST", {
+    text: "Synthetic unconfirmed response", idempotencyKey: "capture-contract", correctsResponseId: null,
+  });
+  await request(`/api/projects/${project.id}/project-update-capture-history`, 200, manager);
+  await request(`/api/projects/${project.id}/project-update-capture-generations`, 201, pmoPortfolio, "POST", {
+    expectedPolicyRevision: 1, expectedEngagementGeneration: 1,
+  });
   for (const route of [
     "/api/health/live",
     "/api/health/ready",
@@ -705,7 +759,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(56);
+  expect(covered.size).toBe(60);
   assertContractSnapshot(
     spec,
     JSON.parse(

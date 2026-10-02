@@ -61,6 +61,56 @@ state alone does not restart a container. Monitor readiness and worker progress,
 and alert on repeated restarts. The local development supervisor restarts a failed
 worker independently so its failure no longer takes down API/web.
 
+## Captured update requests and issuance control
+
+FR-UPD-006, NFR-SEC-005 and NFR-REL-002: CAPTURE records authenticated requests
+and unconfirmed replies inside the customer installation. It sends no email and
+makes no Jira changes. New provisioning seeds issuance disabled. Public Jira
+OAuth onboarding remains disabled under OD-013.
+
+Use the maintenance operations image with the same explicit customer target and
+mounted credentials as provisioning. Run `update-issuance-status` to obtain the
+current revision and epoch. Prepare an operator-controlled JSON file outside Git,
+mounted read-only at `PROJECT_UPDATE_CAPTURE_FILE` in both API and operations.
+Add `-f deploy/customer/update-capture.yaml` to the composition, and set
+`PDAA_UPDATE_CAPTURE_FILE` to the absolute host path of this file:
+
+```json
+{
+  "customerId": "10000000-0000-4000-8000-000000000001",
+  "mode": "CAPTURE",
+  "invitationLifetimeSeconds": 3600,
+  "contentRetentionSeconds": 86400,
+  "issuanceEpoch": "20000000-0000-4000-8000-000000000001",
+  "responseReviewerSubjects": ["configured-pmo-subject"]
+}
+```
+
+Replace the illustrative IDs and reviewer with the actual customer, returned
+epoch and explicitly approved OIDC subjects. Reviewers need current scoped PMO
+authorization and source access. Set `PDAA_UPDATE_ISSUANCE_EXPECTED_REVISION` and
+`PDAA_UPDATE_ISSUANCE_EXPECTED_EPOCH` to the status values, then run
+`enable-update-issuance`. Enable requires a disabled gate, matching configuration,
+expected revision/epoch and a nonquarantined owned database. Recreate the API with
+the reviewed file and explicit `SHADOW_MODE=false`; configuration reload
+alone cannot enable issuance. PMO approval of a new capture generation remains a
+separate application action.
+
+For emergency disable, read status, set the expected revision/epoch and run
+`disable-update-issuance`. This atomically disables issuance, rotates the epoch
+and records an immutable audit. Existing invitation links and response retries
+become invalid. After any rotation, obtain status again and update the mounted
+configuration before explicit enable. A PMO must explicitly replace pending
+stages from the prior epoch to create a fresh request; prior receipts remain.
+
+Restore disables issuance and rotates its epoch before runtime connections can
+resume. Enabling issuance does not promote a quarantined restore target; follow
+the separate recovery procedure first. Old invitation epochs are retained and
+never rewritten. Authorized retained history can remain readable after explicit
+enable, subject to current recipient, reader and source access and retention.
+The signed retention task purges at most 50 request and 50 response bodies per
+batch. Expired bodies are withheld even while a backlog remains.
+
 ## OIDC configuration and role mapping
 
 FR-ADM-001/002: set `OIDC_ISSUER`, `OIDC_JWKS_URI`, `OIDC_CLIENT_ID`,

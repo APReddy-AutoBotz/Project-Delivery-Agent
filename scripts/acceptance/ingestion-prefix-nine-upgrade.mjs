@@ -56,6 +56,8 @@ const introducedTables = [
   ...healthAssessmentTables,
   ...projectUpdateTables,
   ...engagementStorageTables,
+  "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
+  "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
   "RaidReopenReceipt",
   "BlockerAgeThresholdPolicy",
   "ScheduleHealthPolicyRevision",
@@ -106,7 +108,8 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 23);
+    assert.equal(migrations.length, 24);
+    assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(migrations[21].name, "202609300001_update_engagement_storage");
     assert.equal(migrations[22].name, "202609300002_update_engagement_processing");
     assert.equal(migrations[8].name, "202609220001_milestone_validation_projection");
@@ -225,7 +228,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
             `SELECT count(*)::int AS n FROM public."${table}"`,
           )
         )[0].n;
-        if (table === "ScheduleHealthPolicyRevision") {
+        if (table === "ScheduleHealthPolicyRevision" || table === "ProjectUpdateIssuanceGate") {
           assert.equal(count, 1, "Each existing project must receive a migration default");
         } else {
           assert.equal(count, 0, `New ${table} must start empty after upgrade`);

@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 
 const policies = {
   "@pdaa/operations": {
-    workspace: ["@pdaa/platform"],
+    workspace: ["@pdaa/platform", "@pdaa/domain"],
     external: ["pg", "graphile-worker"],
     node: true,
   },
