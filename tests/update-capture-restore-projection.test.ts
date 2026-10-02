@@ -39,6 +39,16 @@ describe("exact retained projection with explicit issuance quarantine", () => {
     expect(assertUpdateCaptureRestoreProjection(actual, expected)).toBe(true);
     expect(actual.ProjectUpdateInvitation[0].issuanceEpoch).toBe("old-epoch");
   });
+  it("matches immutable content identities when a purge changes the database row ordering", () => {
+    const { actual, expected } = expiredArchive();
+    const live = { ...expected.ProjectUpdateResponseContent[0], responseId: "live-response", body: "Live body" };
+    expected.ProjectUpdateResponseContent.push(live);
+    actual.ProjectUpdateResponseContent.unshift(structuredClone(live));
+    expect(assertUpdateCaptureRestoreProjection(actual, expected)).toBe(true);
+    const duplicate = structuredClone(actual);
+    duplicate.ProjectUpdateResponseContent = [duplicate.ProjectUpdateResponseContent[0], duplicate.ProjectUpdateResponseContent[0]];
+    expect(() => assertUpdateCaptureRestoreProjection(duplicate, expected)).toThrow();
+  });
   it("rejects early purge, mismatched retained digest and forged purge audits", () => {
     const early = expiredArchive();
     early.expected.ProjectUpdateResponse[0]!.purgeAfter = "2026-10-01T13:00:00.000Z";

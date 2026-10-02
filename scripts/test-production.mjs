@@ -14,6 +14,7 @@ import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { customerProfiles } from "./acceptance/customer-host.mjs";
+import { verifyHistoricalCaptureRecovery } from "./acceptance/update-capture-archive-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./acceptance/evidence-workflow-receipt.mjs";
 import { assertMilestoneReconciliationWorkflowReceipt } from "./acceptance/milestone-reconciliation-workflow-receipt.mjs";
 import { assertScalarWorkflowReceipt } from "./acceptance/scalar-reconciliation-workflow-receipt.mjs";
@@ -450,6 +451,8 @@ try {
     "quarantine-migrate-denied",
   );
   fixtureStep("verify");
+  record.historicalCaptureRecovery = verifyHistoricalCaptureRecovery({docker,compose,operation,denied,output});
+  checks.passed.push("NFR-REL-002: encrypted historical capture restore bounds expired-body purge and rolls back failed maintenance while runtime CONNECT stays quarantined");
   record.projectFactPersistence = JSON.parse(
     readFileSync(join(output, "project-fact-persistence.json"), "utf8"),
   );

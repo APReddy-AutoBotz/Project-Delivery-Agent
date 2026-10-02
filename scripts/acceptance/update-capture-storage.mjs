@@ -103,10 +103,12 @@ export function assertUpdateCaptureRestoreProjection(actual, expected) {
     if (!expected[table]) continue;
     assert(Array.isArray(actual[table]) && actual[table].length === expected[table].length);
     const perCustomer = new Map();
+    assert.equal(new Set(actual[table].map((row) => row.customerId + ":" + row[idField])).size, actual[table].length,
+      "Restore content identities must remain unique");
     result[table] = actual[table].map((row) => {
       const prior = expected[table].find((entry) => entry[idField] === row[idField] && entry.customerId === row.customerId);
       assert(prior, "Restore cannot invent capture content");
-      if (JSON.stringify(row) === JSON.stringify(prior)) return row;
+      if (JSON.stringify(row) === JSON.stringify(prior)) return prior;
       const metadata = expected[metadataTable]?.find((entry) => entry.id === row[idField] &&
         entry.customerId === row.customerId && entry.projectId === row.projectId);
       const gate = gates.find((entry) => entry.customerId === row.customerId);
@@ -128,7 +130,7 @@ export function assertUpdateCaptureRestoreProjection(actual, expected) {
       assert(count <= 50, "Restore purge must retain its fixed per-kind bound");
       perCustomer.set(row.customerId, count);
       return prior;
-    });
+    }).sort((left, right) => expected[table].indexOf(left) - expected[table].indexOf(right));
   }
   result.AuditEvent = result.AuditEvent.filter((row) => !auditIds.has(row.id));
   assert.deepEqual(result, expected, "Restore preserves all rows except verified issuance quarantine and its audit");
