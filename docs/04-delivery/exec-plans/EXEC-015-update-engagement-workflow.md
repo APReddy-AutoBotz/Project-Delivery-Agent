@@ -206,6 +206,8 @@ Checkpoint `125e1cf672906a398030aadfa0973fa7a87b4bd1` passed hosted Documentatio
 
 - 2026-10-02: Exact candidate f20d4ab received three independent nonauthor approvals and passed hosted native validation (1,744 unit, 161 integration, 43 browser tests and exact 84-table recovery). Packaged production failed at host capture-file creation because the base fixture directory is deliberately container-owned. Place the host-generated optional-overlay files in a separate private host-owned sibling directory; retain base fixture ownership, secret disclosure scanning and every production assertion. Eighteen targeted harness tests and lint passed after the correction. Fresh exact-SHA review and complete hosted validation remain required.
 
+- 2026-10-02: e8e1d04 passed exact-candidate native hosted validation again (1,744 unit, 161 integration, 43 browser and 84-table recovery); design/recovery reviewers approved that SHA. Production progressed past the host-owned file fix, then found the Compose configuration inspection excluded the profiled operations service. Explicitly include the existing operations profile for configuration inspection. Actual local Docker Compose config now verifies API and operations capture paths/mounts and default SHADOW without starting containers; all 18 targeted tests and lint passed. Packaged operator commands and complete production acceptance still require a fresh hosted run.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.

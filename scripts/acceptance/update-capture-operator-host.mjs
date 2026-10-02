@@ -24,7 +24,7 @@ export function verifyCaptureOperatorOverlay({docker,compose,denied,output,fixtu
   env.PDAA_UPDATE_CAPTURE_FILE=capturePath;delete env.SHADOW_MODE;
   env.PDAA_UPDATE_ISSUANCE_EXPECTED_REVISION=String(operator.gate.revision);env.PDAA_UPDATE_ISSUANCE_EXPECTED_EPOCH=operator.gate.epoch;
   const overlay=(...args)=>{const base=compose(...args);return [...base.slice(0,3),"-f","deploy/customer/update-capture.yaml","-f",fixtureOverlay,...base.slice(3)];};
-  const configured=JSON.parse(docker(overlay("config","--format","json"),"capture-overlay-composition","capture"));
+  const configured=JSON.parse(docker(overlay("--profile","operations","config","--format","json"),"capture-overlay-composition","capture"));
   assert.equal(configured.services.api.environment.SHADOW_MODE,"true");
   for(const service of ["api","operations"]) {
    assert.equal(configured.services[service].environment.PROJECT_UPDATE_CAPTURE_FILE,"/run/secrets/project-update-capture");

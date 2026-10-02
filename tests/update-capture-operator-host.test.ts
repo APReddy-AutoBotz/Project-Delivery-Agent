@@ -18,7 +18,7 @@ function fixture(shadow="true") {
  const enabled={enabled:true,epoch,revision:3},disabled={enabled:false,epoch:"30000000-0000-4000-8000-000000000001",revision:4};
  const docker=(args:string[])=>{
   const command=args.at(-1)!;calls.push(command);
-  if(args.includes("--format"))return JSON.stringify({services:Object.fromEntries(["api","operations"].map(service=>[service,{environment:{SHADOW_MODE:shadow,PROJECT_UPDATE_CAPTURE_FILE:"/run/secrets/project-update-capture"},secrets:[{source:"project-update-capture"}]}]))});
+  if(args.includes("--format")){expect(args).toContain("--profile");expect(args[args.indexOf("--profile")+1]).toBe("operations");return JSON.stringify({services:Object.fromEntries(["api","operations"].map(service=>[service,{environment:{SHADOW_MODE:shadow,PROJECT_UPDATE_CAPTURE_FILE:"/run/secrets/project-update-capture"},secrets:[{source:"project-update-capture"}]}]))});}
   if(command==="update-issuance-status")return JSON.stringify({operation:command,result:++statusCount===1?gate:statusCount===2?enabled:disabled});
   if(command==="enable-update-issuance")return JSON.stringify({operation:command,result:enabled});
   if(command==="disable-update-issuance")return JSON.stringify({operation:command,result:disabled});
