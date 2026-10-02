@@ -19,6 +19,12 @@ export function verifyCaptureOperatorOverlay({docker,compose,denied,output,fixtu
  writeFileSync(fixtureOverlay,JSON.stringify({services:{api:{environment:{PROJECT_UPDATE_ZONES_FILE:"/run/secrets/capture-history-zones",
   PROJECT_UPDATE_TASK_KEYS_FILE:"/run/secrets/capture-history-task-keys",CONNECTOR_TASK_KEYS_FILE:"/run/secrets/capture-history-task-keys",PROJECT_UPDATE_SERVICE_SUBJECT:"archive-service",INTERNAL_API_URL:"https://gateway:8443"},
   secrets:["capture-history-zones","capture-history-task-keys"]}},secrets:{"capture-history-zones":{file:zonePath},"capture-history-task-keys":{file:keysPath}}}));
+ // Operations mounts the base fixture directory read-only. Docker requires an
+ // existing destination for the extra nested secret mount. Create only this
+ // empty mount point through the fixture owner; the real file stays host-owned.
+ docker(["run","--rm","--network","none","--user","1000:1000","--read-only","--cap-drop","ALL","--security-opt","no-new-privileges",
+  "--mount","type=bind,source="+fixture+",target=/fixture","--entrypoint","node",env.PDAA_OPERATIONS_IMAGE,"--input-type=module","-e",
+  'import {writeFileSync} from "node:fs";writeFileSync("/fixture/project-update-capture","",{flag:"wx",mode:0o600});'],"capture-overlay-mount-target");
  const previous=Object.fromEntries(["PDAA_UPDATE_CAPTURE_FILE","SHADOW_MODE","PDAA_UPDATE_ISSUANCE_EXPECTED_REVISION","PDAA_UPDATE_ISSUANCE_EXPECTED_EPOCH"].map(key=>[key,env[key]]));
  try {
   env.PDAA_UPDATE_CAPTURE_FILE=capturePath;delete env.SHADOW_MODE;
