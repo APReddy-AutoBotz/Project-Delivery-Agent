@@ -1,18 +1,21 @@
 // EXEC-015 / NFR-SEC-005 / NFR-REL-002: unchanged optional customer overlay.
 import assert from "node:assert/strict";
-import {readFileSync,writeFileSync} from "node:fs";
+import {mkdirSync,readFileSync,writeFileSync} from "node:fs";
 import {randomBytes} from "node:crypto";
 import {join} from "node:path";
 export function verifyCaptureOperatorOverlay({docker,compose,denied,output,fixture,env}) {
  const step=(mode)=>docker(compose("run","--rm","--no-deps","verify","node","scripts/acceptance/update-capture-archive-runner.mjs",mode),"capture-overlay-"+mode);
  step("operator-prepare");
  const operator=JSON.parse(readFileSync(join(output,"capture-history-operator.json"),"utf8"));
- const capturePath=join(fixture,"project-update-capture"),zonePath=join(fixture,"capture-history-zones"),keysPath=join(fixture,"capture-history-task-keys");
- // Match generated fixture secret permissions inside its private run directory.
+ const operatorFixture=fixture+"-capture-overlay";
+ mkdirSync(operatorFixture,{mode:0o700});
+ const capturePath=join(operatorFixture,"project-update-capture"),zonePath=join(operatorFixture,"capture-history-zones"),keysPath=join(operatorFixture,"capture-history-task-keys");
+ // The base fixture is container-owned. Keep these host-generated secrets in
+ // a separate private directory owned by the host, without changing its ACLs.
  writeFileSync(capturePath,JSON.stringify(operator.configuration),{mode:0o644});
  writeFileSync(zonePath,JSON.stringify({customerId:operator.customerId,customerTimeZone:"UTC",recipientTimeZones:[]}),{mode:0o644});
  writeFileSync(keysPath,JSON.stringify({currentKeyId:"capture-fixture",keys:{"capture-fixture":randomBytes(32).toString("base64url")}}),{mode:0o644});
- const fixtureOverlay=join(fixture,"capture-overlay.yaml");
+ const fixtureOverlay=join(operatorFixture,"capture-overlay.yaml");
  writeFileSync(fixtureOverlay,JSON.stringify({services:{api:{environment:{PROJECT_UPDATE_ZONES_FILE:"/run/secrets/capture-history-zones",
   PROJECT_UPDATE_TASK_KEYS_FILE:"/run/secrets/capture-history-task-keys",CONNECTOR_TASK_KEYS_FILE:"/run/secrets/capture-history-task-keys",PROJECT_UPDATE_SERVICE_SUBJECT:"archive-service",INTERNAL_API_URL:"https://gateway:8443"},
   secrets:["capture-history-zones","capture-history-task-keys"]}},secrets:{"capture-history-zones":{file:zonePath},"capture-history-task-keys":{file:keysPath}}}));

@@ -818,7 +818,7 @@ try {
         name,
       ),
   });
-  disclosure.addSecrets(Object.values(JSON.parse(readFileSync(join(fixture, "capture-history-task-keys"), "utf8")).keys));
+  disclosure.addSecrets(Object.values(JSON.parse(readFileSync(join(fixture + "-capture-overlay", "capture-history-task-keys"), "utf8")).keys));
   for (const service of [
     "api",
     "worker",

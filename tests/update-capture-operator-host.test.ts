@@ -1,13 +1,13 @@
 // EXEC-015 / NFR-SEC-005: host proof ordering and output contracts, not Docker evidence.
 import {afterEach,expect,it} from "vitest";
-import {mkdtempSync,writeFileSync,rmSync} from "node:fs";
+import {existsSync,mkdtempSync,writeFileSync,rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join,resolve} from "node:path";
 import {verifyCaptureOperatorOverlay} from "../scripts/acceptance/update-capture-operator-host.mjs";
 const directories:string[]=[];
 afterEach(()=>{for(const directory of directories.splice(0)){if(!resolve(directory).startsWith(resolve(tmpdir())+"\\") && !resolve(directory).startsWith(resolve(tmpdir())+"/"))throw new Error("Unsafe fixture cleanup");rmSync(directory,{recursive:true});}});
 function fixture(shadow="true") {
- const directory=mkdtempSync(join(tmpdir(),"pdaa-capture-overlay-test-"));directories.push(directory);
+ const directory=mkdtempSync(join(tmpdir(),"pdaa-capture-overlay-test-"));directories.push(directory,directory+"-capture-overlay");
  const epoch="10000000-0000-4000-8000-000000000001",customerId="20000000-0000-4000-8000-000000000001";
  const gate={enabled:false,epoch,revision:2};
  writeFileSync(join(directory,"capture-history-operator.json"),JSON.stringify({customerId,gate,configuration:{customerId,mode:"CAPTURE",issuanceEpoch:epoch,
@@ -27,11 +27,13 @@ function fixture(shadow="true") {
  };
  const compose=(...args:string[])=>["compose","-f","deploy/acceptance/compose.yaml","-p","owned-run",...args];
  const denied=(args:string[],name:string)=>{calls.push(name);expect(args).toContain("deploy/customer/update-capture.yaml");};
- return {run:()=>verifyCaptureOperatorOverlay({docker,compose,denied,output:directory,fixture:directory,env}),calls,env};
+ return {directory,run:()=>verifyCaptureOperatorOverlay({docker,compose,denied,output:directory,fixture:directory,env}),calls,env};
 }
 it("requires quarantine denial before fixture promotion and ends with packaged disable",()=>{
  const f=fixture();const receipt=f.run();expect(receipt.explicitPackagedEnable).toBe(true);expect(receipt.explicitPackagedDisable).toBe(true);
- expect(receipt.apiNetworkStarted).toBe(false);expect(f.calls.indexOf("capture-overlay-quarantine-denied")).toBeLessThan(f.calls.indexOf("operator-promote"));
+ expect(receipt.apiNetworkStarted).toBe(false);
+ expect(existsSync(join(f.directory,"project-update-capture"))).toBe(false);
+ expect(existsSync(join(f.directory+"-capture-overlay","project-update-capture"))).toBe(true);expect(f.calls.indexOf("capture-overlay-quarantine-denied")).toBeLessThan(f.calls.indexOf("operator-promote"));
  expect(f.calls.indexOf("disable-update-issuance")).toBeLessThan(f.calls.indexOf("capture-overlay-stale-disable-denied"));
  expect(f.env).toEqual({SHADOW_MODE:"false",PDAA_UPDATE_CAPTURE_FILE:"previous-file"});
 });

@@ -204,6 +204,8 @@ Checkpoint `125e1cf672906a398030aadfa0973fa7a87b4bd1` passed hosted Documentatio
 - Epoch rotation invalidates invitation use. After explicit maintenance enable with the new epoch, retained historical bodies may be read only by frozen and currently authorized readers with current recipient/source access and unexpired retention. `QUARANTINED` history means the invitation is invalid; the UI explains this distinction and returns no response path. Restore does not rewrite old invitations or silently enable issuance.
 - Operations uses the domain's public capture and issuance validation schemas through an acyclic workspace dependency, registered in the architecture checker. No external runtime dependency was introduced. Response styles live in a separate scoped stylesheet; the approved global stylesheet remains byte-equivalent.
 
+- 2026-10-02: Exact candidate f20d4ab received three independent nonauthor approvals and passed hosted native validation (1,744 unit, 161 integration, 43 browser tests and exact 84-table recovery). Packaged production failed at host capture-file creation because the base fixture directory is deliberately container-owned. Place the host-generated optional-overlay files in a separate private host-owned sibling directory; retain base fixture ownership, secret disclosure scanning and every production assertion. Eighteen targeted harness tests and lint passed after the correction. Fresh exact-SHA review and complete hosted validation remain required.
+
 ## Decisions made
 
 - Begin with durable capture/shadow and authenticated response access; production sends require the existing foundation security gate and approved customer email configuration.
