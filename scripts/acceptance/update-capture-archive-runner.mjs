@@ -72,6 +72,31 @@ try {
    return {requestResponsePairs:53,expiredPresentPairs:51,priorPurgedPairs:1,livePresentPairs:1,restorePurgedRequests:50,restorePurgedResponses:50,
     subsequentApiPurge:2,repeatApiPurge:0,metadataAndLocatorsExact:true,unchangedGuardsAndFinitePrivileges:true,runtimeConnectQuarantined:true,...read("source-disclosure")};
   });save("receipt",receipt);
+ } else if(mode==="operator-prepare" || mode==="operator-promote") {
+  const evidence=read("evidence");
+  await withTarget("capture_history_restore",async(pool)=>{
+   const gate=(await pool.query('SELECT "issuanceEnabled" AS enabled,"issuanceEpoch" AS epoch,revision FROM public."ProjectUpdateIssuanceGate" WHERE "customerId"=$1::uuid',[evidence.customerId])).rows[0];
+   assert.equal(gate.enabled,false);
+   assert.equal((await pool.query("SELECT shobj_description(oid,'pg_database') AS marker FROM pg_database WHERE datname=current_database()")).rows[0].marker,"pdaa.restore.quarantine.v1:"+evidence.customerId);
+   if(mode==="operator-promote") await pool.query('COMMENT ON DATABASE capture_history_restore IS '+"'pdaa.foundation.v1:"+evidence.customerId+"'");
+   save("operator",{customerId:evidence.customerId,gate,configuration:{customerId:evidence.customerId,mode:"CAPTURE",issuanceEpoch:gate.epoch,
+    invitationLifetimeSeconds:900,contentRetentionSeconds:86400,responseReviewerSubjects:[evidence.subject]}});
+  });
+ } else if(mode==="operator-verify") {
+  const evidence=read("evidence"), before=read("operator");
+  await withTarget("capture_history_restore",async(pool)=>{
+   const gate=(await pool.query('SELECT "issuanceEnabled" AS enabled,"issuanceEpoch" AS epoch,revision FROM public."ProjectUpdateIssuanceGate" WHERE "customerId"=$1::uuid',[evidence.customerId])).rows[0];
+   assert.deepEqual(gate,{enabled:true,epoch:before.gate.epoch,revision:before.gate.revision+1});
+   assert.equal((await pool.query("SELECT has_database_privilege('pdaa_api',current_database(),'CONNECT') AS api,has_database_privilege('pdaa_worker',current_database(),'CONNECT') AS worker")).rows[0].api,false);
+   assert.equal((await pool.query("SELECT has_database_privilege('pdaa_worker',current_database(),'CONNECT') AS worker")).rows[0].worker,false);
+   // The fixture promotion is explicit and never grants runtime CONNECT.
+   // Old invitation epochs remain denied even after operator enable.
+   const disclosure=await verifyExpiredArchiveDisclosure({...sourceConfig,database:"capture_history_restore"},evidence);
+   assert.equal(disclosure.oldEpochInvitationDenied,true);
+   const after=await captureArchiveProjection(pool), original=read("before");
+   for(const table of ["ProjectUpdateCapturedRequest","ProjectUpdateInvitation","ProjectUpdateResponse"])assert.deepEqual(after[table],original[table]);
+   save("operator-receipt",{explicitPackagedEnable:true,runtimeConnectStillQuarantined:true,invitationMetadataUnchanged:true,oldEpochInvitationDenied:true});
+  });
  } else if(mode==="verify-failed") {
   const evidence=read("evidence");
   await withTarget("capture_history_failed",async(pool)=>{

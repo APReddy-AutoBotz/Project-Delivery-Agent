@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {join} from "node:path";
+export function prepareHistoricalCaptureRecovery({docker,compose}) {
+ docker(compose("run","--rm","--no-deps","verify","node","scripts/acceptance/update-capture-archive-runner.mjs","prepare"),"capture-history-prepare");
+}
 export function verifyHistoricalCaptureRecovery({docker,compose,operation,denied,output}) {
  const fixture=(mode)=>docker(compose("run","--rm","--no-deps","verify","node","scripts/acceptance/update-capture-archive-runner.mjs",mode),"capture-history-"+mode);
  const database=(command,...args)=>docker(compose("exec","-T","database",command,"-U","fixture_admin",...args),"capture-history-postgres-"+command+"-"+args.join("-").replace(/[^a-zA-Z0-9_-]/g,"_").slice(-80));
@@ -11,7 +14,6 @@ export function verifyHistoricalCaptureRecovery({docker,compose,operation,denied
   const archive=JSON.parse(result.split("\n").find(line=>line.startsWith('{"operation"'))).result.file;
   assert.match(archive,/^backup-[a-zA-Z0-9-]+\.pdaa$/);return archive;
  };
- fixture("prepare");
  const schema="/tmp/pdaa-capture-history-schema.dump", full="/tmp/pdaa-capture-history-full.dump";
  database("pg_dump","-d","pdaa","--format=custom","--schema-only","--file",schema);
  database("pg_restore","-d","capture_history","--exit-on-error","--section=pre-data",schema);

@@ -14,7 +14,8 @@ import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { customerProfiles } from "./acceptance/customer-host.mjs";
-import { verifyHistoricalCaptureRecovery } from "./acceptance/update-capture-archive-host.mjs";
+import { prepareHistoricalCaptureRecovery, verifyHistoricalCaptureRecovery } from "./acceptance/update-capture-archive-host.mjs";
+import { verifyCaptureOperatorOverlay } from "./acceptance/update-capture-operator-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./acceptance/evidence-workflow-receipt.mjs";
 import { assertMilestoneReconciliationWorkflowReceipt } from "./acceptance/milestone-reconciliation-workflow-receipt.mjs";
 import { assertScalarWorkflowReceipt } from "./acceptance/scalar-reconciliation-workflow-receipt.mjs";
@@ -367,6 +368,7 @@ try {
     operation("migrate", { PDAA_DB_CA_FILE: "/run/secrets/wrong-ca.crt" }),
     "operations-wrong-ca",
   );
+  prepareHistoricalCaptureRecovery({docker,compose});
   fixtureStep("prepare");
   const backupResult = docker(
     operation("backup", {
@@ -452,6 +454,7 @@ try {
   );
   fixtureStep("verify");
   record.historicalCaptureRecovery = verifyHistoricalCaptureRecovery({docker,compose,operation,denied,output});
+  record.captureOperatorOverlay = verifyCaptureOperatorOverlay({docker,compose,denied,output,fixture,env});
   checks.passed.push("NFR-REL-002: encrypted historical capture restore bounds expired-body purge and rolls back failed maintenance while runtime CONNECT stays quarantined");
   record.projectFactPersistence = JSON.parse(
     readFileSync(join(output, "project-fact-persistence.json"), "utf8"),
@@ -815,6 +818,7 @@ try {
         name,
       ),
   });
+  disclosure.addSecrets(Object.values(JSON.parse(readFileSync(join(fixture, "capture-history-task-keys"), "utf8")).keys));
   for (const service of [
     "api",
     "worker",

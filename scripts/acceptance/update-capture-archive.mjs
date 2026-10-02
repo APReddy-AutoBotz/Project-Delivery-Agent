@@ -31,7 +31,7 @@ export function guardCaptureArchiveConnection(connection, archive = false) {
     assert.match(process.env.PDAA_ACCEPTANCE_RUN_ID, /^pdaa-acceptance-\d+-[a-f0-9]{8}$/);
     assert.equal(readFileSync("/run/secrets/ready", "utf8"), "isolated synthetic acceptance\n");
     assert.equal(connection.host, "database");
-    assert.equal(connection.database, archive ? "capture_history" : "pdaa");
+    assert.equal(connection.database, archive === "restored" ? "capture_history_restore" : archive ? "capture_history" : "pdaa");
   }
 }
 
@@ -269,7 +269,7 @@ export async function verifyCaptureArchiveIntegrity(pool, evidence) {
 // Tests the repository's clock-based body withholding before a purge batch.
 // Issuance is explicitly enabled in this constructed maintenance fixture only.
 export async function verifyExpiredArchiveDisclosure(connection, evidence) {
-  guardCaptureArchiveConnection(connection, true);
+  guardCaptureArchiveConnection(connection, typeof connection === "object" && connection.database === "capture_history_restore" ? "restored" : true);
   const db = createDatabase(connection);
   try {
     const gate = await db.projectUpdateIssuanceGate.findUniqueOrThrow({ where: { customerId: evidence.customerId } });
@@ -303,6 +303,8 @@ export async function verifyExpiredArchiveDisclosure(connection, evidence) {
       assert.equal(row.recipientPath,null);
       for (const response of row.responses) { assert.equal(response.text,null); assert.equal(response.contentState,"EXPIRED"); }
     }
-    return { expiredBodiesWithheld:true, liveBodyRetained:true, historyEntries:entries.length };
+    const oldEpoch = gate.issuanceEpoch !== evidence.issuanceEpoch;
+    if (oldEpoch) await assert.rejects(()=>updates.invitation({customerId:evidence.customerId,subject:"synthetic-owner-4",roles:["contributor"]},evidence.pairs[52].locator),error=>error.code==="DENIED");
+    return { expiredBodiesWithheld:true, liveBodyRetained:true, historyEntries:entries.length, oldEpochInvitationDenied:oldEpoch };
   } finally { await db.$disconnect(); }
 }
