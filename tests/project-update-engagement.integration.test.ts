@@ -168,6 +168,37 @@ it("FR-ESC-006: overdue reminders wait for actual capture and cannot reuse an ea
   expect(pending).toHaveLength(4);
   expect(pending.every((row) => row.reason === "UNANSWERED_STAGE_WAIT")).toBe(true);
   expect(pending.every((row) => row.availableAt > f.now)).toBe(true);
+  // Replan while the old capture still exists; a suppressed new REQUEST must
+  // leave reminders waiting for their current generation's actual capture.
+  const current = new DatabaseProjectUpdateRepository(apiDatabase as never, f.service, {
+    ...f.zones, recipientTimeZones: [{ subject: "synthetic-owner-1", timeZone: "Asia/Kolkata" }],
+  }, () => ({ globalShadowMode: "false", configuration: f.configuration }));
+  await current.assess(f.admin, f.projectId, randomUUID());
+  const engagement = await db.projectUpdateEngagement.findFirstOrThrow({ where: { projectId: f.projectId, state: "ACTIVE" } });
+  expect(engagement.generation).toBe(2);
+  const request = await db.projectUpdateStage.findFirstOrThrow({ where: { engagementId: engagement.id, generation: 2, kind: "REQUEST" } });
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    const audit = await tx.auditEvent.create({ data: { customerId: f.admin.customerId, actor: f.service,
+      event: "project_update.stage.suppressed", correlationId: randomUUID(), detail: { stageId: request.id, reason: "SOURCE_REASSESSMENT_REQUIRED" } } });
+    expect(await tx.$executeRawUnsafe(`UPDATE public."ProjectUpdateOutbox" SET state='SUPPRESSED',
+      reason='SOURCE_REASSESSMENT_REQUIRED',"completedAt"=date_trunc('milliseconds',clock_timestamp()),
+      "auditEventId"=$2::uuid WHERE "stageId"=$1::uuid AND state='READY'`, request.id, audit.id)).toBe(1);
+  });
+  const beforeProcess = (await db.$queryRawUnsafe<{ now: Date }[]>("SELECT clock_timestamp() AS now"))[0].now;
+  await f.retryEligible();
+  expect(await current.processEngagements(1)).toBe(4);
+  expect(await db.projectUpdateCapturedRequest.count({ where: { projectId: f.projectId } })).toBe(1);
+  expect(await db.projectUpdateInvitation.count({ where: { projectId: f.projectId } })).toBe(1);
+  const reminder = await db.projectUpdateStage.findFirstOrThrow({ where: { engagementId: engagement.id,
+    generation: 2, kind: "REMINDER", ordinal: 1, recipientRole: "OWNER" } });
+  const deferred = await db.projectUpdateOutbox.findFirstOrThrow({ where: { stageId: reminder.id } });
+  expect(deferred).toMatchObject({ state: "READY", reason: "UNANSWERED_STAGE_WAIT" });
+  // Missing predecessor uses five minutes; using the old capture instead would
+  // schedule a business day later. Neither path is allowed to capture now.
+  expect(deferred.availableAt.getTime() - beforeProcess.getTime()).toBeGreaterThanOrEqual(300000);
+  expect(deferred.availableAt.getTime() - beforeProcess.getTime()).toBeLessThan(360000);
+
 });
 it("NFR-REL-002: disabling and rotating issuance denies old locators and replay after explicit re-enable", async () => {
   const f = await captureFixture();
@@ -311,6 +342,98 @@ it.each(["partial-source", "pm-zone"] as const)(
     expect(view.responses).toEqual([]);
     expect(await db.projectUpdateCapturedRequest.count({ where: { customerId: f.admin.customerId, projectId: f.projectId } })).toBe(2);
   });
+
+it("FR-UPD-010 / FR-ESC-006: same-mask source recovery preserves the request prepared during an UNKNOWN replan", async () => {
+  const f = await captureFixture();
+  const initial = (await f.capture.activateEngagement(f.admin, f.projectId, 1, randomUUID()))!;
+  await f.capture.processEngagements(1);
+  const original = (await f.capture.captureHistory(f.owner, f.projectId)).entries;
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(original).toEqual([]); return; }
+  // A stale authorized fact remains unresolved, so revocation and restoration
+  // change source availability without changing the unresolved fact mask.
+  const source = await f.append("project.status", new Date(f.now.getTime() - 7200000));
+  let access = await f.facts.getSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId });
+  await f.facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId,
+    expectedRevision: access!.revision, state: "REVOKED", readers: [] }, { correlationId: randomUUID() });
+  const current = new DatabaseProjectUpdateRepository(apiDatabase as never, f.service, {
+    ...f.zones, recipientTimeZones: [{ subject: "synthetic-owner-1", timeZone: "Asia/Kolkata" }],
+  }, () => ({ globalShadowMode: "false", configuration: f.configuration }));
+  await current.assess(f.admin, f.projectId, randomUUID());
+  const blocked = await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: initial.engagementId } });
+  expect(blocked).toMatchObject({ generation: 2, sourceSatisfiedFactTypes: [] });
+  const assessment = await db.projectUpdateAssessment.findUniqueOrThrow({ where: { id: blocked.sourceAssessmentId! } });
+  expect(assessment.result).toMatchObject({ engagementFacts: expect.arrayContaining([
+    expect.objectContaining({ factType: "project.status", state: "UNRESOLVED", sourceState: "UNKNOWN" }),
+  ]) });
+  const prepared = await db.projectUpdateStage.findMany({ where: { engagementId: initial.engagementId, generation: 2 } });
+  expect(prepared).toHaveLength(5);
+  const request = prepared.filter((stage) => stage.kind === "REQUEST");
+  expect(request).toHaveLength(1);
+  expect([...request[0]!.factTypes].sort()).toEqual(["project.forecast", "project.status"]);
+  expect(await db.projectUpdateCapturedRequest.count({ where: { stageId: request[0]!.id } })).toBe(0);
+  await expect(current.invitation(f.owner, original[0]!.recipientPath!.split("/").at(-1)!))
+    .rejects.toMatchObject({ code: "DENIED" });
+  access = await f.facts.getSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId });
+  await f.facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: source.entry.sourceId,
+    expectedRevision: access!.revision, state: "AVAILABLE", readers: [f.admin.subject, f.service, f.owner.subject] },
+    { correlationId: randomUUID() });
+  await current.assess(f.admin, f.projectId, randomUUID());
+  expect(await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: initial.engagementId } }))
+    .toMatchObject({ generation: 2, sourceSatisfiedFactTypes: [] });
+  expect(await db.projectUpdateStage.findMany({ where: { engagementId: initial.engagementId, generation: 2 } })).toEqual(prepared);
+  await f.retryEligible();
+  expect(await current.processEngagements(1)).toBe(1);
+  const captured = await db.projectUpdateCapturedRequest.findMany({ where: { stageId: request[0]!.id } });
+  expect(captured).toHaveLength(1);
+  const active = (await current.captureHistory(f.owner, f.projectId)).entries.find((entry) => entry.status === "ACTIVE")!;
+  expect(active.stageKind).toBe("REQUEST");
+  const view = await current.invitation(f.owner, active.recipientPath!.split("/").at(-1)!);
+  expect(view.requiredFacts.map((entry) => entry.factType).sort()).toEqual(["project.forecast", "project.status"]);
+  expect(view.responses).toEqual([]);
+  expect(await db.projectUpdateCapturedRequest.count({ where: { projectId: f.projectId } })).toBe(2);
+});
+
+it("NFR-REL-002 / FR-ESC-006: epoch rotation cannot replace a still-claimed capture generation", async () => {
+  const f = await captureFixture();
+  const initial = (await f.capture.activateEngagement(f.admin, f.projectId, 1, randomUUID()))!;
+  const stage = await db.projectUpdateStage.findFirstOrThrow({ where: { engagementId: initial.engagementId, kind: "REQUEST" } });
+  const pending = await db.projectUpdateOutbox.findFirstOrThrow({ where: { stageId: stage.id } });
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    const audit = await tx.auditEvent.create({ data: { customerId: f.admin.customerId, actor: f.service,
+      event: "project_update.stage.claimed", correlationId: randomUUID(), detail: { stageId: stage.id, mode: "CAPTURE" } } });
+    expect(await tx.$executeRawUnsafe(`UPDATE public."ProjectUpdateOutbox" SET state='CLAIMED',
+      "claimGeneration"="claimGeneration"+1,"leaseUntil"=clock_timestamp()+interval '2 minutes',
+      "auditEventId"=$2::uuid WHERE id=$1::uuid AND state='READY' AND "availableAt"<=clock_timestamp()`,
+      pending.id, audit.id)).toBe(1);
+  });
+  const previous = await db.projectUpdateIssuanceGate.findUniqueOrThrow({ where: { customerId: f.admin.customerId } });
+  const epoch = randomUUID();
+  const audit = await db.auditEvent.create({ data: { customerId: f.admin.customerId, actor: "synthetic-operator",
+    event: "project_update.issuance.changed", correlationId: randomUUID(), detail: { enabled: false } } });
+  await db.projectUpdateIssuanceGate.update({ where: { customerId: f.admin.customerId }, data: {
+    issuanceEpoch: epoch, issuanceEnabled: false, revision: previous.revision + 1, changedAt: new Date(), auditEventId: audit.id,
+  } });
+  const enableAudit = await db.auditEvent.create({ data: { customerId: f.admin.customerId, actor: "synthetic-operator",
+    event: "project_update.issuance.changed", correlationId: randomUUID(), detail: { enabled: true } } });
+  await db.projectUpdateIssuanceGate.update({ where: { customerId: f.admin.customerId }, data: {
+    issuanceEnabled: true, revision: previous.revision + 2, changedAt: new Date(), auditEventId: enableAudit.id,
+  } });
+  const current = new DatabaseProjectUpdateRepository(apiDatabase as never, f.service, f.zones,
+    () => ({ globalShadowMode: "false", configuration: { ...f.configuration, issuanceEpoch: epoch } }));
+  const beforeStages = await stages(initial.engagementId), beforeOutbox = await outbox(initial.engagementId);
+  const beforeEngagement = await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: initial.engagementId } });
+  const auditCount = await db.auditEvent.count({ where: { customerId: f.admin.customerId } });
+  await expect(current.beginCaptureGeneration(f.admin, f.projectId,
+    { expectedEngagementGeneration: 1, expectedPolicyRevision: 1 }, randomUUID()))
+    .rejects.toMatchObject({ code: "CONFLICT" });
+  expect(await stages(initial.engagementId)).toEqual(beforeStages);
+  expect(await outbox(initial.engagementId)).toEqual(beforeOutbox);
+  expect(await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: initial.engagementId } })).toEqual(beforeEngagement);
+  expect(await db.auditEvent.count({ where: { customerId: f.admin.customerId } })).toBe(auditCount);
+  expect(await db.projectUpdateCapturedRequest.count({ where: { projectId: f.projectId } })).toBe(0);
+  expect(await db.projectUpdateDispatchAttempt.count({ where: { outboxId: pending.id, event: "CLAIMED" } })).toBe(1);
+});
 
 function captureFault(fragment: string) {
   return {
