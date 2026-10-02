@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import {mkdirSync,readFileSync,writeFileSync} from "node:fs";
 import {randomBytes} from "node:crypto";
 import {join} from "node:path";
+export function captureDisclosureVerifierCommand(compose,fixture,name) {
+ return compose("run","--rm","--no-deps","--volume",join(fixture+"-capture-overlay","capture-history-task-keys")+":/run/capture-task-keys:ro",
+  "-e","PDAA_CAPTURE_TASK_KEYS_FILE=/run/capture-task-keys","verify","node","scripts/acceptance/check-disclosure.mjs",name);
+}
 export function verifyCaptureOperatorOverlay({docker,compose,denied,output,fixture,env}) {
  const step=(mode)=>docker(compose("run","--rm","--no-deps","verify","node","scripts/acceptance/update-capture-archive-runner.mjs",mode),"capture-overlay-"+mode);
  step("operator-prepare");

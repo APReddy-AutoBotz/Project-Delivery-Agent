@@ -20,6 +20,22 @@ export const readFixtureSecrets = (directory) =>
     readFileSync(join(directory, name), "utf8").trim(),
   );
 
+// SEC-SECRET-001 / EXEC-015: the late-created capture task key is mounted only
+// into the private verifier. Return no parser/secret details on malformed input.
+export function readCaptureTaskSecrets(file) {
+  try {
+    const bytes = readFileSync(file);
+    if (bytes.length === 0 || bytes.length > 16384 || bytes.includes(0)) throw new Error();
+    const value = JSON.parse(bytes.toString("utf8"));
+    if (Object.keys(value).sort().join() !== "currentKeyId,keys" || value.currentKeyId !== "capture-fixture" ||
+        Object.keys(value.keys).join() !== "capture-fixture") throw new Error();
+    const key = value.keys["capture-fixture"];
+    if (typeof key !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(key) || Buffer.from(key,"base64url").length !== 32 ||
+        Buffer.from(key,"base64url").toString("base64url") !== key) throw new Error();
+    return [key];
+  } catch { throw new Error("Capture disclosure key unavailable"); }
+}
+
 // SEC-SECRET-001: captures stay in memory. Errors and receipts contain no payload,
 // credential value, token, URL or hash of a secret, including in a failed check.
 export function createDisclosureCheck(initialSecrets) {

@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createDisclosureCheck, readFixtureSecrets } from "./disclosure.mjs";
+import { createDisclosureCheck, readFixtureSecrets, readCaptureTaskSecrets } from "./disclosure.mjs";
 
 // Only an already-generated, isolated acceptance fixture may invoke this checker.
 const runId = process.env.PDAA_ACCEPTANCE_RUN_ID;
@@ -29,6 +29,10 @@ try {
     readFileSync(join(directory, name + ".input.json"), "utf8"),
   );
   const disclosure = createDisclosureCheck(readFixtureSecrets("/run/secrets"));
+  if (process.env.PDAA_CAPTURE_TASK_KEYS_FILE) {
+    if (customer || process.env.PDAA_CAPTURE_TASK_KEYS_FILE !== "/run/capture-task-keys") throw new Error();
+    disclosure.addSecrets(readCaptureTaskSecrets(process.env.PDAA_CAPTURE_TASK_KEYS_FILE));
+  }
   if (
     !Array.isArray(input.captures) ||
     !Array.isArray(input.required) ||

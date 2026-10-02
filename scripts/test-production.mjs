@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { customerProfiles } from "./acceptance/customer-host.mjs";
 import { prepareHistoricalCaptureRecovery, verifyHistoricalCaptureRecovery } from "./acceptance/update-capture-archive-host.mjs";
-import { verifyCaptureOperatorOverlay } from "./acceptance/update-capture-operator-host.mjs";
+import { captureDisclosureVerifierCommand, verifyCaptureOperatorOverlay } from "./acceptance/update-capture-operator-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./acceptance/evidence-workflow-receipt.mjs";
 import { assertMilestoneReconciliationWorkflowReceipt } from "./acceptance/milestone-reconciliation-workflow-receipt.mjs";
 import { assertScalarWorkflowReceipt } from "./acceptance/scalar-reconciliation-workflow-receipt.mjs";
@@ -807,18 +807,8 @@ try {
     output,
     runId: project,
     run: docker,
-    command: (name) =>
-      compose(
-        "run",
-        "--rm",
-        "--no-deps",
-        "verify",
-        "node",
-        "scripts/acceptance/check-disclosure.mjs",
-        name,
-      ),
+    command: (name) => captureDisclosureVerifierCommand(compose, fixture, name),
   });
-  disclosure.addSecrets(Object.values(JSON.parse(readFileSync(join(fixture + "-capture-overlay", "capture-history-task-keys"), "utf8")).keys));
   for (const service of [
     "api",
     "worker",
