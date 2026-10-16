@@ -1,0 +1,40 @@
+name: Native tool-input inventory research V1
+on:
+  push:
+    branches: [codex/native-inventory-research-v1]
+    paths:
+      - research/native-inventory-v1/**
+      - .github/workflows/native-inventory-research-v1.yml
+permissions:
+  contents: read
+concurrency:
+  group: native-inventory-research-v1-once
+  cancel-in-progress: false
+jobs:
+  modeled:
+    if: github.repository == 'APReddy-AutoBotz/Project-Delivery-Agent' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Exact reviewed source checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: research/native-inventory-v1
+      - name: One bounded inventory-only attempt
+        env:
+          PDAA_PACKET_SHA256: 237f9dcc240264fd26cada916b757917032bfbab5bb1f0353e4df05ed76cf49f
+        run: |
+          env -i PATH=/usr/bin:/bin RUNNER_TEMP="$RUNNER_TEMP" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_REF="$GITHUB_REF" GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" GITHUB_SHA="$GITHUB_SHA" PDAA_PACKET_SHA256="$PDAA_PACKET_SHA256" /usr/bin/python3 -I -S -B "$GITHUB_WORKSPACE/research/native-inventory-v1/inventory_driver.py" "$GITHUB_WORKSPACE/research/native-inventory-v1"
+      - name: Retain bounded text evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-inventory-research-v1-evidence
+          path: ${{ runner.temp }}/pdaa-native-inventory-v1/receipts/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          include-hidden-files: false

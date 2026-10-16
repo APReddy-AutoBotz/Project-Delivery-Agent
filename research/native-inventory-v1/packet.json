@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "path": "inventory_driver.py",
+      "bytes": 19514,
+      "sha256": "651863d2fe9ba0f6a33c603377902c31230a25f01abc84b3c84605595298912d"
+    },
+    {
+      "path": "inventory_controls.py",
+      "bytes": 27079,
+      "sha256": "5dbe55ac6589193c07da3a6d80f5a1e92d63c2880148f8ea69846131595bc407"
+    },
+    {
+      "path": "host_driver.py",
+      "bytes": 57571,
+      "sha256": "1e762d24376b1ced6e3f5e23215e274e48f03051726eb5037d73d67d8f1802ad"
+    },
+    {
+      "path": "driver_controls.py",
+      "bytes": 51236,
+      "sha256": "704e57f653cd4e6ddc9f2d29858f819638470447ed8b78c62479623d287a9413"
+    },
+    {
+      "path": "license-scope.json",
+      "bytes": 7869,
+      "sha256": "a8938f4c638a869a19b9579df2eebaff1f9861a08a81f908b03cde2e15f03f45"
+    },
+    {
+      "path": "LLVM-LICENSE.txt",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "README.md",
+      "bytes": 11088,
+      "sha256": "2c9f5d557dd54545efa0ab2f8c80d23d127a95cad07766449791c066def0e1fc"
+    }
+  ]
+}
