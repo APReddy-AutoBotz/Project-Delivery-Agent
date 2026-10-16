@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "path": "LLVM-LICENSE.txt",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "README.md",
+      "bytes": 8806,
+      "sha256": "2428d5ca83b594186b202ff337e94f7494531136220f5125b0baa61e6a2b8b39"
+    },
+    {
+      "path": "cache_controls.py",
+      "bytes": 8984,
+      "sha256": "0e58b6739aecc6c929c0f83d4cbd8c9cf51ec50a4080bed5764d77e56c59a7d0"
+    },
+    {
+      "path": "cache_provenance.py",
+      "bytes": 9902,
+      "sha256": "2ca9eda9c4e306b834c9dff39a75a32d7b6f207dd9fb3e8f3ea1c337ae841f8a"
+    },
+    {
+      "path": "driver_controls.py",
+      "bytes": 51236,
+      "sha256": "704e57f653cd4e6ddc9f2d29858f819638470447ed8b78c62479623d287a9413"
+    },
+    {
+      "path": "elf_controls_v2.py",
+      "bytes": 9779,
+      "sha256": "d3eb0fc75800d7481bc763f5a7a49e9fe5dd7930345d1cc5be7e9b12cbcea1c0"
+    },
+    {
+      "path": "elf_inspect.py",
+      "bytes": 22355,
+      "sha256": "4c6c0d66ec0b614bdec381ac8f2982dd362369bdecdd9f3b5a2e0d1eb1d456dc"
+    },
+    {
+      "path": "filtered_controls.py",
+      "bytes": 32371,
+      "sha256": "20543542e74f12bac6f91d60662083e5f3e8bbd5f699f1b2767ff9bc71a0932b"
+    },
+    {
+      "path": "filtered_driver.py",
+      "bytes": 18186,
+      "sha256": "6ffa2cc25feb25f98cfd4eb33c87b0d476cbbe2581493c5e81a34298fb0ab4ed"
+    },
+    {
+      "path": "host_driver.py",
+      "bytes": 57571,
+      "sha256": "1e762d24376b1ced6e3f5e23215e274e48f03051726eb5037d73d67d8f1802ad"
+    },
+    {
+      "path": "license-scope.json",
+      "bytes": 7869,
+      "sha256": "a8938f4c638a869a19b9579df2eebaff1f9861a08a81f908b03cde2e15f03f45"
+    },
+    {
+      "path": "native/recognition-lifecycle-observer.c",
+      "bytes": 31043,
+      "sha256": "edcc36c27907264dad85ba4e17850eb5dc2413fb8a084e6a0da75beb42e804a1"
+    },
+    {
+      "path": "native/recognition-lifecycle-observer.h",
+      "bytes": 3209,
+      "sha256": "6e4cd7bcf980dc67f3b73365c55a87507d09726db52d593ba87ec513b88568d4"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy-controls.c",
+      "bytes": 7226,
+      "sha256": "f4748f1f0b9593cd4c121d199eaf5c8dadb4e7a51c91c705e216430c91914274"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy-install-controls.c",
+      "bytes": 12796,
+      "sha256": "7f9d1a8f9134a5d8ab8bc857f842256328b33e0ce9d7a80acce4d9469043753c"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy.c",
+      "bytes": 8416,
+      "sha256": "914a84fa8aed130266fe8a1212cd83231896a6bdb7a216c5a3ce38ff58762b9d"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy.h",
+      "bytes": 1614,
+      "sha256": "67fd0d0e12d0994cc3a41613fa001f33e141232f5d5a73294636b95d58b804f3"
+    },
+    {
+      "path": "native/recognition-lifecycle-state-controls.c",
+      "bytes": 22284,
+      "sha256": "d2e1b8d320964b5b778f0d2e8eb3b07ca0aec734d29cb0ae64fdd2ded848f761"
+    },
+    {
+      "path": "native/recognition-lifecycle-state.c",
+      "bytes": 26789,
+      "sha256": "9ec318029063b51923aada5ab227f63cde11b3f39fddeb1a840f21c0e5a54bb3"
+    },
+    {
+      "path": "native/recognition-lifecycle-state.h",
+      "bytes": 6978,
+      "sha256": "46a02103fe7f4de6b211d4bf0bb77a094a65d6b70c0d63a23a1b7d0d1e1ada82"
+    },
+    {
+      "path": "tool-view-identities.json",
+      "bytes": 583462,
+      "sha256": "b19afad668740338215c525741339674d58b0204a9195eefc6f29a1596ae7aca"
+    },
+    {
+      "path": "tool_view.py",
+      "bytes": 22711,
+      "sha256": "ea790cd2d46172f3590b8598bfb3d6f5387d2e44b2fd8b03507c66bc01f4323e"
+    },
+    {
+      "path": "view_controls.py",
+      "bytes": 22553,
+      "sha256": "25f4816543cca9bc2ae422526ffd433db2b4ca7057fb44d36fa8f76529aaf163"
+    }
+  ]
+}
