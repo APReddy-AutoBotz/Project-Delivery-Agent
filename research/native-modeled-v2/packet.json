@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "path": "host_driver.py",
+      "bytes": 43990,
+      "sha256": "dd48165030114442d024267024231fc98678659799df9897dd99afbfe3840fde"
+    },
+    {
+      "path": "elf_inspect.py",
+      "bytes": 22355,
+      "sha256": "4c6c0d66ec0b614bdec381ac8f2982dd362369bdecdd9f3b5a2e0d1eb1d456dc"
+    },
+    {
+      "path": "elf_controls_v2.py",
+      "bytes": 9779,
+      "sha256": "d3eb0fc75800d7481bc763f5a7a49e9fe5dd7930345d1cc5be7e9b12cbcea1c0"
+    },
+    {
+      "path": "driver_controls.py",
+      "bytes": 24667,
+      "sha256": "d82581da416679b3da1d558a3877518d788f89731ce1e4c07d7363da3d18c0e9"
+    },
+    {
+      "path": "license-scope.json",
+      "bytes": 5004,
+      "sha256": "87ffc41d3195a0e357d62afd9f4e62389bf37c717455190fc9a483fd50c67618"
+    },
+    {
+      "path": "LLVM-LICENSE.txt",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "README.md",
+      "bytes": 15263,
+      "sha256": "fcd65e979a0b754aa754a9256f336a5d1c8ce0cf1de95670c8cee0b8e0fd599f"
+    },
+    {
+      "path": "native/recognition-lifecycle-observer.c",
+      "bytes": 31043,
+      "sha256": "edcc36c27907264dad85ba4e17850eb5dc2413fb8a084e6a0da75beb42e804a1"
+    },
+    {
+      "path": "native/recognition-lifecycle-observer.h",
+      "bytes": 3209,
+      "sha256": "6e4cd7bcf980dc67f3b73365c55a87507d09726db52d593ba87ec513b88568d4"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy-controls.c",
+      "bytes": 7226,
+      "sha256": "f4748f1f0b9593cd4c121d199eaf5c8dadb4e7a51c91c705e216430c91914274"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy-install-controls.c",
+      "bytes": 12796,
+      "sha256": "7f9d1a8f9134a5d8ab8bc857f842256328b33e0ce9d7a80acce4d9469043753c"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy.c",
+      "bytes": 8416,
+      "sha256": "914a84fa8aed130266fe8a1212cd83231896a6bdb7a216c5a3ce38ff58762b9d"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy.h",
+      "bytes": 1614,
+      "sha256": "67fd0d0e12d0994cc3a41613fa001f33e141232f5d5a73294636b95d58b804f3"
+    },
+    {
+      "path": "native/recognition-lifecycle-state-controls.c",
+      "bytes": 22284,
+      "sha256": "d2e1b8d320964b5b778f0d2e8eb3b07ca0aec734d29cb0ae64fdd2ded848f761"
+    },
+    {
+      "path": "native/recognition-lifecycle-state.c",
+      "bytes": 26789,
+      "sha256": "9ec318029063b51923aada5ab227f63cde11b3f39fddeb1a840f21c0e5a54bb3"
+    },
+    {
+      "path": "native/recognition-lifecycle-state.h",
+      "bytes": 6978,
+      "sha256": "46a02103fe7f4de6b211d4bf0bb77a094a65d6b70c0d63a23a1b7d0d1e1ada82"
+    }
+  ]
+}
