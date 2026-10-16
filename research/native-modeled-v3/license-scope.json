@@ -1,0 +1,45 @@
+{
+  "purpose": "Temporary internal EXEC-016 compiler and model research; no tool, header, object or model binary is redistributed",
+  "llvmNotice": {"file": "LLVM-LICENSE.txt", "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee", "version": "llvmorg-20.1.8", "appliesToCompilerMajor": 20, "upstream": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-20.1.8/llvm/LICENSE.TXT"},
+  "uapiApplicabilityDisposition": "Identified unchanged Linux UAPI headers are used solely through their documented userspace exception for temporary first-party research compilation. This does not approve unexcepted GPL code, kernel implementation code, general GPL dependencies or customer redistribution.",
+  "components": [
+    {"name": "Zig", "expression": "MIT", "upstream": "https://raw.githubusercontent.com/ziglang/zig/0.15.2/LICENSE", "notice": "LICENSE"},
+    {"name": "LLVM-Clang-LLD", "expression": "Apache-2.0 WITH LLVM-exception AND applicable legacy NCSA/third-party terms", "upstream": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-20.1.8/llvm/LICENSE.TXT", "notice": "LLVM-LICENSE.txt exact publisher bytes pinned by llvmNotice; applicability to publisher LLVM20 toolchain established by Zig0.15.2 CMakeLists.txt find_package llvm/clang/lld20 and authenticated bundled stddef.h; actual compiler version must be LLVM20.1.x. Legacy/third-party notices retained unmodified, no tool redistribution"},
+    {"name": "musl", "expression": "MIT AND BSD-2-Clause AND file-specific permissive notices", "upstream": "https://raw.githubusercontent.com/ziglang/zig/0.15.2/lib/libc/musl/COPYRIGHT", "notice": "lib/libc/musl/COPYRIGHT and source-file notices; includes startup/CRT and third-party portions"},
+    {"name": "Linux-UAPI", "expression": "GPL-2.0 WITH Linux-syscall-note", "upstream": "https://docs.kernel.org/process/license-rules.html", "exception": "https://raw.githubusercontent.com/torvalds/linux/master/LICENSES/exceptions/Linux-syscall-note", "notice": "Exact per-file SPDX retained when supplied; legacy unannotated UAPI covered only by the upstream syscall-interface userspace exception, never kernel implementation code"}
+  ],
+  "allowedSpdx": [
+    "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "(Apache-2.0 WITH LLVM-exception)",
+    "BSD-2-Clause", "BSD-3-Clause", "ISC", "GPL-2.0 WITH Linux-syscall-note",
+    "GPL-2.0+ WITH Linux-syscall-note", "GPL-2.0-only WITH Linux-syscall-note",
+    "GPL-2.0-or-later WITH Linux-syscall-note", "(GPL-2.0 WITH Linux-syscall-note) OR MIT",
+    "((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)",
+    "((GPL-2.0 WITH Linux-syscall-note) OR BSD-2-Clause)",
+    "GPL-2.0 WITH Linux-syscall-note OR BSD-2-Clause"
+  ],
+  "roots": [
+    {"path": "zig", "component": "Zig-LLVM-Clang-LLD", "defaultExpression": "MIT AND Apache-2.0 WITH LLVM-exception; authenticated published compiler provenance"},
+    {"path": "lib/std", "component": "Zig", "defaultExpression": "MIT"},
+    {"path": "lib/compiler", "component": "Zig", "defaultExpression": "MIT"},
+    {"path": "lib/compiler_rt", "component": "Zig-compiler-runtime", "defaultExpression": "MIT"},
+    {"path": "lib/compiler_rt.zig", "component": "Zig-compiler-runtime", "defaultExpression": "MIT"},
+    {"path": "lib/include", "component": "Clang-headers", "defaultExpression": "Apache-2.0 WITH LLVM-exception"},
+    {"path": "lib/libc/musl", "component": "musl", "defaultExpression": "musl COPYRIGHT and retained file-specific permissive terms"},
+    {"path": "lib/libc/include/generic-musl", "component": "musl", "defaultExpression": "musl COPYRIGHT; public header exception"},
+    {"path": "lib/libc/include/x86_64-linux-musl", "component": "musl", "defaultExpression": "musl COPYRIGHT; public header exception"},
+    {"path": "lib/libc/include/any-linux-any", "component": "Linux-UAPI", "defaultExpression": "GPL-2.0 WITH Linux-syscall-note; upstream userspace exception"},
+    {"path": "lib/libc/include/x86_64-linux-any", "component": "Linux-UAPI", "defaultExpression": "GPL-2.0 WITH Linux-syscall-note; upstream userspace exception"}
+  ],
+  "requiredHeaders": [
+    "lib/libc/include/any-linux-any/linux/filter.h",
+    "lib/libc/include/any-linux-any/linux/seccomp.h",
+    "lib/libc/include/any-linux-any/linux/audit.h",
+    "lib/libc/include/any-linux-any/linux/close_range.h",
+    "lib/libc/include/any-linux-any/linux/magic.h",
+    "lib/libc/include/any-linux-any/linux/ptrace.h",
+    "lib/libc/include/any-linux-any/linux/sched.h",
+    "lib/libc/include/any-linux-any/linux/types.h"
+  ],
+  "excluded": ["host headers/libraries", "glibc", "libgcc", "other target libc/platform implementations", "kernel implementation source", "package managers", "customer runtime adoption", "binary artifact publication"],
+  "runtimeEvidence": "Actual -MD include dependencies must match recorded root/hash; link maps must identify first-party objects or fresh bundled musl/compiler-runtime cache members; no system or foreign runtime library is admitted"
+}
