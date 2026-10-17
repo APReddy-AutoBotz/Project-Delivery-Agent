@@ -1,0 +1,175 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "path": "artifact_reader.js",
+      "bytes": 4831,
+      "sha256": "29c2b4969a0a8fe18aaab89629bf1f46822698a18cc70b7d79438d280052710e"
+    },
+    {
+      "path": "artifact_reader_controls.js",
+      "bytes": 10829,
+      "sha256": "c3e63da9f4370e7d57bd04063dbc0e44a90d7a68b7b5696826c4456eb4fd945e"
+    },
+    {
+      "path": "artifact_transfer.py",
+      "bytes": 25526,
+      "sha256": "90be5f380783340e7fc531700915ca1b32343d63dcaecbeb0006c02a8edd9551"
+    },
+    {
+      "path": "cache_controls.py",
+      "bytes": 8984,
+      "sha256": "0e58b6739aecc6c929c0f83d4cbd8c9cf51ec50a4080bed5764d77e56c59a7d0"
+    },
+    {
+      "path": "cache_provenance.py",
+      "bytes": 9902,
+      "sha256": "2ca9eda9c4e306b834c9dff39a75a32d7b6f207dd9fb3e8f3ea1c337ae841f8a"
+    },
+    {
+      "path": "driver_controls.py",
+      "bytes": 52052,
+      "sha256": "332f9a52ce85c5ab24c8033f6711f1d616afca5f2dc3fad723422b9e1cc68640"
+    },
+    {
+      "path": "elf_bss_controls.py",
+      "bytes": 11749,
+      "sha256": "126af5dc49bfe8b9cc356f46b19da8efd95338116762e814eb2a492c62a09c75"
+    },
+    {
+      "path": "elf_controls_v2.py",
+      "bytes": 9779,
+      "sha256": "d3eb0fc75800d7481bc763f5a7a49e9fe5dd7930345d1cc5be7e9b12cbcea1c0"
+    },
+    {
+      "path": "elf_inspect.py",
+      "bytes": 25653,
+      "sha256": "80241eaf5b4277a0aadccdd2513650fa08ad4425384187c7fe47eee671f4e1ff"
+    },
+    {
+      "path": "filtered_controls.py",
+      "bytes": 83890,
+      "sha256": "3108e78066634c58689955afaf502f7589bccf4d3226da836d0ec9e3cc0b32ce"
+    },
+    {
+      "path": "filtered_driver.py",
+      "bytes": 63654,
+      "sha256": "cf15fba8d4432428e129c79db4ea945189089c63258dba28b25e397f123f7c49"
+    },
+    {
+      "path": "HOST-FILES-DESIGN.md",
+      "bytes": 15854,
+      "sha256": "4166758cb9c1cfdb18ec080c5a8e5e6b144d91542c7d56245600bb31028e4290"
+    },
+    {
+      "path": "host_driver.py",
+      "bytes": 58765,
+      "sha256": "b11734ab005b66538caf7746f14832208c09bb4bee36708e9549c3ea73214ec4"
+    },
+    {
+      "path": "host_files.py",
+      "bytes": 21347,
+      "sha256": "f3ac5400bcf51809a11e11b27e4e7e861605adcd952ca4c0923e2ec9bc71246d"
+    },
+    {
+      "path": "host_files_controls.py",
+      "bytes": 43169,
+      "sha256": "a6fd360ed65dcdb2535ff22fc74debee115aa5dc8e77430362927a8dad67a841"
+    },
+    {
+      "path": "license-scope.json",
+      "bytes": 8002,
+      "sha256": "ce00d2f5ce21f86454bb4c86b1cae9553ab1614fccf6daab08fcd4f6688503c0"
+    },
+    {
+      "path": "link_controls.py",
+      "bytes": 10270,
+      "sha256": "8439216adaf23a52b0f4c44445e018d6dcbbc2b9a02bfaa7e310ffc6bb16a9ec"
+    },
+    {
+      "path": "link_inputs.py",
+      "bytes": 6287,
+      "sha256": "bf7f8856739f9b5a76bf34222e4eae3c8caff106cf599b3658ae64986b458417"
+    },
+    {
+      "path": "LLVM-LICENSE.txt",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "native/recognition-lifecycle-observer.c",
+      "bytes": 31043,
+      "sha256": "edcc36c27907264dad85ba4e17850eb5dc2413fb8a084e6a0da75beb42e804a1"
+    },
+    {
+      "path": "native/recognition-lifecycle-observer.h",
+      "bytes": 3209,
+      "sha256": "6e4cd7bcf980dc67f3b73365c55a87507d09726db52d593ba87ec513b88568d4"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy-controls.c",
+      "bytes": 7226,
+      "sha256": "f4748f1f0b9593cd4c121d199eaf5c8dadb4e7a51c91c705e216430c91914274"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy-install-controls.c",
+      "bytes": 12796,
+      "sha256": "7f9d1a8f9134a5d8ab8bc857f842256328b33e0ce9d7a80acce4d9469043753c"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy.c",
+      "bytes": 8416,
+      "sha256": "914a84fa8aed130266fe8a1212cd83231896a6bdb7a216c5a3ce38ff58762b9d"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy.h",
+      "bytes": 1614,
+      "sha256": "67fd0d0e12d0994cc3a41613fa001f33e141232f5d5a73294636b95d58b804f3"
+    },
+    {
+      "path": "native/recognition-lifecycle-state-controls.c",
+      "bytes": 22284,
+      "sha256": "d2e1b8d320964b5b778f0d2e8eb3b07ca0aec734d29cb0ae64fdd2ded848f761"
+    },
+    {
+      "path": "native/recognition-lifecycle-state.c",
+      "bytes": 26789,
+      "sha256": "9ec318029063b51923aada5ab227f63cde11b3f39fddeb1a840f21c0e5a54bb3"
+    },
+    {
+      "path": "native/recognition-lifecycle-state.h",
+      "bytes": 6978,
+      "sha256": "46a02103fe7f4de6b211d4bf0bb77a094a65d6b70c0d63a23a1b7d0d1e1ada82"
+    },
+    {
+      "path": "README.md",
+      "bytes": 27002,
+      "sha256": "8b53865f6b07a6e58bb445febbf28754d084f9087ddf4970ce71a2d9b2cf7b3e"
+    },
+    {
+      "path": "tool-view-identities.json",
+      "bytes": 583926,
+      "sha256": "deccb9d19801447c219ff30666eeabcb9ec4ae5ba30cd15919b5c13dd37bdcd5"
+    },
+    {
+      "path": "tool_view.py",
+      "bytes": 22711,
+      "sha256": "ea790cd2d46172f3590b8598bfb3d6f5387d2e44b2fd8b03507c66bc01f4323e"
+    },
+    {
+      "path": "TRANSFER-DESIGN.md",
+      "bytes": 15525,
+      "sha256": "d74e601cad5af5360e726b3558ee6db0e4eeea40ffbf6cdd05079de50ca63271"
+    },
+    {
+      "path": "transfer_controls.py",
+      "bytes": 60441,
+      "sha256": "4a48dacc8a176a4177676550feaa9f3198743f81af9740b8f625ce5b6d1165ea"
+    },
+    {
+      "path": "view_controls.py",
+      "bytes": 28383,
+      "sha256": "f912979e01f25d52588b7b1aec58fc3a7dc1ffe7f32e8970798c901864e891a6"
+    }
+  ]
+}
