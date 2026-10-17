@@ -1,0 +1,40 @@
+name: Native modeled research V11
+on:
+  push:
+    branches: [codex/native-modeled-research-v11]
+    paths:
+      - research/native-modeled-v11/**
+      - .github/workflows/native-modeled-research-v11.yml
+permissions:
+  contents: read
+concurrency:
+  group: native-modeled-research-v11-once
+  cancel-in-progress: false
+jobs:
+  modeled:
+    if: github.repository == 'APReddy-AutoBotz/Project-Delivery-Agent' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Exact reviewed source checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: research/native-modeled-v11
+      - name: One bounded compiler and models attempt
+        env:
+          PDAA_PACKET_SHA256: f327cc4f371edb08a51dd3f7b6d59515c2e6746bd92f44b732ea3bb10065756a
+        run: |
+          env -i PATH=/usr/bin:/bin RUNNER_TEMP="$RUNNER_TEMP" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_REF="$GITHUB_REF" GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" GITHUB_SHA="$GITHUB_SHA" PDAA_PACKET_SHA256="$PDAA_PACKET_SHA256" /usr/bin/python3 -I -S -B "$GITHUB_WORKSPACE/research/native-modeled-v11/filtered_driver.py" "$GITHUB_WORKSPACE/research/native-modeled-v11"
+      - name: Retain bounded text evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-modeled-research-v11-evidence
+          path: ${{ runner.temp }}/pdaa-native-modeled-v11/receipts/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          include-hidden-files: false
