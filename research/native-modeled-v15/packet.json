@@ -1,0 +1,190 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "path": "HOST-FILES-DESIGN.md",
+      "bytes": 15854,
+      "sha256": "4166758cb9c1cfdb18ec080c5a8e5e6b144d91542c7d56245600bb31028e4290"
+    },
+    {
+      "path": "LLVM-LICENSE.txt",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "README.md",
+      "bytes": 40076,
+      "sha256": "0c3b6d1f0775416a24b5202cc90dd7d8b2ab499cb27cabb0a5aa883652d365f7"
+    },
+    {
+      "path": "TRANSFER-DESIGN.md",
+      "bytes": 15525,
+      "sha256": "d74e601cad5af5360e726b3558ee6db0e4eeea40ffbf6cdd05079de50ca63271"
+    },
+    {
+      "path": "artifact_reader.js",
+      "bytes": 4831,
+      "sha256": "29c2b4969a0a8fe18aaab89629bf1f46822698a18cc70b7d79438d280052710e"
+    },
+    {
+      "path": "artifact_reader_controls.js",
+      "bytes": 10829,
+      "sha256": "c3e63da9f4370e7d57bd04063dbc0e44a90d7a68b7b5696826c4456eb4fd945e"
+    },
+    {
+      "path": "artifact_transfer.py",
+      "bytes": 25526,
+      "sha256": "90be5f380783340e7fc531700915ca1b32343d63dcaecbeb0006c02a8edd9551"
+    },
+    {
+      "path": "cache_controls.py",
+      "bytes": 12691,
+      "sha256": "df6303bee1f1b0bea7b7471a73132f0f1151915de466fd78366ae111d7634163"
+    },
+    {
+      "path": "cache_provenance.py",
+      "bytes": 9942,
+      "sha256": "6aa9813d57a09ebcab643662654294b0e3cfe52f43c8073166f238cf85136980"
+    },
+    {
+      "path": "cache_walker_controls.js",
+      "bytes": 14978,
+      "sha256": "737d9def7e164acae807d8d8ddf247bd84dcefb3aae5bb5c711b07728c00720e"
+    },
+    {
+      "path": "cold_diagnostic_fixture.py",
+      "bytes": 4311,
+      "sha256": "57b1e73a4a6674c4938ea5a87e4528564a99e7e19ff2095cb313d1d7d65a5532"
+    },
+    {
+      "path": "driver_controls.py",
+      "bytes": 58916,
+      "sha256": "93ff19ff3dcb945030b852a496642be71597c1fc2d589dcffbfa5c8336337e78"
+    },
+    {
+      "path": "elf_bss_controls.py",
+      "bytes": 11749,
+      "sha256": "126af5dc49bfe8b9cc356f46b19da8efd95338116762e814eb2a492c62a09c75"
+    },
+    {
+      "path": "elf_controls_v2.py",
+      "bytes": 9779,
+      "sha256": "d3eb0fc75800d7481bc763f5a7a49e9fe5dd7930345d1cc5be7e9b12cbcea1c0"
+    },
+    {
+      "path": "elf_inspect.py",
+      "bytes": 25653,
+      "sha256": "80241eaf5b4277a0aadccdd2513650fa08ad4425384187c7fe47eee671f4e1ff"
+    },
+    {
+      "path": "filtered_controls.py",
+      "bytes": 115753,
+      "sha256": "46700edee92763ab05bff7a1296d26f266c526f5a7df800a68a3915e32c4b9f7"
+    },
+    {
+      "path": "filtered_driver.py",
+      "bytes": 78652,
+      "sha256": "58411683fa956238434131a7e50d8ed72a531c14b7a10934908a865d3dd96786"
+    },
+    {
+      "path": "host_driver.py",
+      "bytes": 58800,
+      "sha256": "6249f29f1ca1eba91bf4ee372ecfbb032217e67808e7ab84c292b17cbe6ec91d"
+    },
+    {
+      "path": "host_files.py",
+      "bytes": 21382,
+      "sha256": "2bacecea7a7c40e6a2370cb55fc7a81b35fd3b198ef0cb1a03da3e490db3bf52"
+    },
+    {
+      "path": "host_files_controls.py",
+      "bytes": 46541,
+      "sha256": "146d37b85e56097677e5a13556f4884c5adaa69917d41174d9add87c5812ad4f"
+    },
+    {
+      "path": "license-scope.json",
+      "bytes": 8236,
+      "sha256": "d0f8479af55d22da1f52af77f17b1fb55f7772b96d2fd3c54e223bd5e8d7cc70"
+    },
+    {
+      "path": "link_controls.py",
+      "bytes": 18667,
+      "sha256": "a3e8544d85be385c851b21a2a4d977554b4b9f3852befe7e2038c569be0d7d9f"
+    },
+    {
+      "path": "link_inputs.py",
+      "bytes": 35764,
+      "sha256": "856651d1e72bd4d002354fc52271b234298f9380c5582c68332f74121f58ff0d"
+    },
+    {
+      "path": "musl-control-fixture.json",
+      "bytes": 104885,
+      "sha256": "ebc58bfc9ea13fbefe8cd67fb13cdfcc5e41c5656361b826fd3e9e3c94dfd74e"
+    },
+    {
+      "path": "native/recognition-lifecycle-observer.c",
+      "bytes": 31043,
+      "sha256": "edcc36c27907264dad85ba4e17850eb5dc2413fb8a084e6a0da75beb42e804a1"
+    },
+    {
+      "path": "native/recognition-lifecycle-observer.h",
+      "bytes": 3209,
+      "sha256": "6e4cd7bcf980dc67f3b73365c55a87507d09726db52d593ba87ec513b88568d4"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy-controls.c",
+      "bytes": 7226,
+      "sha256": "f4748f1f0b9593cd4c121d199eaf5c8dadb4e7a51c91c705e216430c91914274"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy-install-controls.c",
+      "bytes": 12796,
+      "sha256": "7f9d1a8f9134a5d8ab8bc857f842256328b33e0ce9d7a80acce4d9469043753c"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy.c",
+      "bytes": 8416,
+      "sha256": "914a84fa8aed130266fe8a1212cd83231896a6bdb7a216c5a3ce38ff58762b9d"
+    },
+    {
+      "path": "native/recognition-lifecycle-policy.h",
+      "bytes": 1614,
+      "sha256": "67fd0d0e12d0994cc3a41613fa001f33e141232f5d5a73294636b95d58b804f3"
+    },
+    {
+      "path": "native/recognition-lifecycle-state-controls.c",
+      "bytes": 22284,
+      "sha256": "d2e1b8d320964b5b778f0d2e8eb3b07ca0aec734d29cb0ae64fdd2ded848f761"
+    },
+    {
+      "path": "native/recognition-lifecycle-state.c",
+      "bytes": 26789,
+      "sha256": "9ec318029063b51923aada5ab227f63cde11b3f39fddeb1a840f21c0e5a54bb3"
+    },
+    {
+      "path": "native/recognition-lifecycle-state.h",
+      "bytes": 6978,
+      "sha256": "46a02103fe7f4de6b211d4bf0bb77a094a65d6b70c0d63a23a1b7d0d1e1ada82"
+    },
+    {
+      "path": "tool-view-identities.json",
+      "bytes": 586186,
+      "sha256": "7405c8422639d5cb562819f890bef2afb4539b5496b08e353a5583e28609665a"
+    },
+    {
+      "path": "tool_view.py",
+      "bytes": 22711,
+      "sha256": "ea790cd2d46172f3590b8598bfb3d6f5387d2e44b2fd8b03507c66bc01f4323e"
+    },
+    {
+      "path": "transfer_controls.py",
+      "bytes": 60441,
+      "sha256": "4a48dacc8a176a4177676550feaa9f3198743f81af9740b8f625ce5b6d1165ea"
+    },
+    {
+      "path": "view_controls.py",
+      "bytes": 40518,
+      "sha256": "e580f0b10f1796ad4dea21fe545668979009317ce3608de62f92842f9eb87c4e"
+    }
+  ]
+}
