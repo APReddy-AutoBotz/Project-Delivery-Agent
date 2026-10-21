@@ -124,3 +124,9 @@ server revocation/denial tests and full Issue #11 acceptance evidence.
   corrected a P2 omission of clear-signal evidence in reconciliation. Coverage
   review's three guard-isolation improvements are implemented. Full final
   regression, immutable candidate re-review and remote merge gates remain open.
+- 2026-10-21: Corrected source candidate `652bb30b197b3159858d583d174e2592d04f9574`
+  passed full lint, new-test lint, domain rebuild, architecture/docs checks and
+  all 1,804 unit tests/105 files (two workers, unchanged deadlines). Both independent
+  source/coverage reviewers approve it without remaining findings. Earlier failed
+  and interrupted validation attempts are retained and supply no passing credit.
+  Final record-only review, exact-head remote checks and verified merge remain gates.

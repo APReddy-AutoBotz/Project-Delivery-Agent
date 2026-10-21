@@ -18,17 +18,22 @@ execute an action, approve a proposal or publish a fact.
 
 - New advice suite: 56 tests passed.
 - Advice plus existing health suite: 63 tests passed across two files.
-- Full lint and new-test lint passed; final review-fix rerun pending.
+- Full lint and new-test lint passed on the corrected candidate.
 - Architecture check passed: eight packages and 97 first-party source files.
 - Documentation validation passed: 245 requirements, 91 acceptance criteria,
-  38 stories and 141 specifications; final documentation rerun pending.
+  38 stories and 141 specifications; the corrected-candidate check passed.
 - Build and typecheck passed for all eight packages, including Prisma generation
   only and the production web bundle. No database operation was invoked.
-- Full unit regression: 1,802 passed and one existing startup-disclosure check
+- Final full unit regression: **1,804 passed across 105 files** in 121.58 seconds
+  with two workers and unchanged test/hook/child deadlines. This includes the
+  existing startup-disclosure check and all 56 new advice tests. The domain build
+  was repeated after the review correction. Underlying pinned tools were invoked
+  directly for equivalent package scripts, avoiding shared dependency synchronization.
+- Earlier full unit regression: 1,802 passed and one existing startup-disclosure check
   failed after its child reached the unchanged 15-second deadline with empty
   output while the workspace build was in progress. This is not a passing run.
   A subsequent serial run was stopped to incorporate source-review corrections;
-  it supplies no completed pass. Final corrected-candidate regression is pending.
+  it supplies no completed pass. Both earlier logs remain retained locally.
 
 The first focused run had 49 passes and one faulty fixture expectation: a critical
 reported/calculated mismatch correctly ranked ahead of a HIGH approval. The test
@@ -48,7 +53,12 @@ the regression verifies its exact source facts, permutation and detached immutab
 state. Separate coverage review approved the limited groundwork and identified
 three nonblocking fixture improvements. The future assessment/approval fixtures
 now remain inside valid expiry intervals, and the 26-project fixture uses distinct
-identities, isolating the intended guards. Final exact-head re-review is pending.
+identities, isolating the intended guards. Both independent reviewers approved
+corrected source candidate `652bb30b197b3159858d583d174e2592d04f9574`
+(tree `3af3eb8304a05b1daa93d6bd66910e355d1419b7`) without remaining findings.
+Root bound all seven working-file review hashes to those Git blobs, accounting
+explicitly for the checkout's existing line-ending filters. Final documentation
+record updates require exact-head review before publication.
 
 ## Coverage and remaining gates
 
@@ -66,9 +76,9 @@ enforcement. Database, browser, model evaluation and full GOLDEN-012 remain open
 In particular, Scrum Master behavior and a named current escalation recipient need
 later role/reader integration. Planned acceptance specifications remain planned.
 
-EPIC-06 remains the dependency for complete EPIC-07 integration. Exact candidate
-nonauthor source/coverage review, exact-head required CI, publication and verified
-merge remain pending. Issue #11 remains open and accepted totals remain R0 3/5,
+EPIC-06 remains the dependency for complete EPIC-07 integration. Exact-head
+required CI, publication and verified merge remain pending at this local checkpoint.
+Issue #11 remains open and accepted totals remain R0 3/5,
 R1 2/33, overall 5/38. Stopped research capture stays stopped; no artifact reference,
 download, HTTP utility, observer, sealer or new research attempt was invoked.
 
