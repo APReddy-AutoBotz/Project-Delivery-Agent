@@ -647,6 +647,18 @@ async function runScheduledProjectUpdateScan(
 async function open(page: Page, name: string) {
   await page.goto("/");
   await page.getByRole("button", { name: /^PMO administrator / }).click();
+  // The policy query hydrates controlled form fields. Finish that initial load
+  // before a journey edits them, rather than racing its state initialization.
+  const policyLoaded = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      /^\/api\/projects\/[0-9a-f-]+\/project-update-policy$/.test(
+        new URL(response.url()).pathname,
+      ),
+  );
   await page.getByRole("button", { name: new RegExp(name) }).click();
   await expect(page.getByRole("heading", { name: "Project evidence", exact: true })).toBeVisible();
+  const policyResponse = await policyLoaded;
+  expect(policyResponse.status()).toBe(200);
+  await policyResponse.finished();
 }

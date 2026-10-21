@@ -174,14 +174,26 @@ assert no known-position/freshness/satisfaction credit in unresolved cases.
 Both independent reviewers approve the design hash above without blockers.
 Build, required lint, explicit native/browser test lint and eight-package typecheck
 pass. Full unit regression passes 1,824 tests/105 files in 111.10 seconds with two
-workers and unchanged deadlines. Native/API/browser and hosted validation remain
-pending. The new native file is registered explicitly in the existing harness.
+workers and unchanged deadlines. Corrected native validation passes 169 tests/14
+files in 255.53 seconds, including all eight new cases, populated prefix-nine
+upgrade, 24-migration repeat/clean deployment and storage/retention checks.
+Private work is reconciled onto verified merged main 8de60639586bd572d5e34257d07b25e683605b96.
+All three project-update API/browser journeys pass in 22.1 seconds on a separate
+clean synthetic target. The new classification screenshot is visually checked.
+The shared browser helper awaits policy loading before edits; no deadline,
+assertion, product form code or Antigravity style changed.
+Final standard gates pass: eight-package build/typecheck, required/test lint,
+1,824 unit tests/105 files in 82.32 seconds, architecture (eight packages/97 source
+files), 42 exact dependency records, documentation (142 specifications) and unchanged
+audit (zero high/critical, four moderate). Exact-candidate review and complete fresh
+hosted validation remain pending.
+The new native file is registered explicitly in the existing harness.
 See [validation](../../05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md) for
 executed checks, retained failed environment attempts and privacy coverage.
 Planned cases and early review are not passing execution evidence.
 
 ## Completion summary
 
-Implementation is prepared privately; final validation, exact-candidate reviews,
-main reconciliation, fresh hosted CI and merge remain pending.
+Implementation and local validation are complete; exact-candidate reviews, fresh
+hosted CI and merge remain pending. Main reconciliation is verified.
 Accepted totals remain R0 3/5, R1 2/33, overall 5/38 (13.2%).

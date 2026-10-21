@@ -50,6 +50,13 @@ Planned or prechecked cases are not passing execution evidence.
 - Required lint and explicit native/browser test lint pass.
 - Full unit regression: 1,824 tests across 105 files pass in 111.10 seconds with
   two workers and unchanged assertions/deadlines.
+- Final standard regression after main reconciliation and browser-helper correction:
+  **1,824 units/105 files pass in 82.32 seconds**. All eight packages build and
+  typecheck; required and explicit test lint pass. Architecture verifies eight
+  packages/97 source files; all 42 exact direct/override records pass registration.
+  The unchanged audit threshold passes with zero high/critical and four moderate
+  findings. Documentation validates 245 requirements, 91 criteria, 38 stories and
+  142 test specifications. No assertion, deadline or threshold was weakened.
 - Independent early coverage review found no implementation/API/fixture blocker;
   its privacy assertion requests were addressed and prechecked. Both design reviews
   approved SHA256 `43da45afb741369195c9eab3cbd1cb8d24fcfe5b09e13ce23d140ec2d8ec164a`.
@@ -63,8 +70,26 @@ to that dedicated server permits the unchanged harness; it fails if occupied and
 does not stop or replace a service. Default local pdaa and unrelated resources are
 untouched. Failed attempts/logs and isolated databases remain retained.
 
-Native integration, browser, documentation, final exact-candidate reviews,
-reconciliation against verified main and complete fresh hosted CI are pending.
+The corrected full native run passes **169 tests across 14 files** in 255.53
+seconds, including all eight new completeness cases. The unchanged harness also
+passes populated prefix-nine upgrade, 24-migration clean/repeat deployment, exact
+84-business-table inventory, real synthetic seed and privilege/retention checks.
+Its target is `pdaa_test_1792612255248` on the dedicated server. No default local
+database was migrated, seeded, reset or restored.
+
+Private work was preserved in a local checkpoint and reconciled onto verified
+main `8de60639586bd572d5e34257d07b25e683605b96`; that main tree equals reviewed
+PR #110 tree b2c1023b71fc10cbc7da954275b7e8d67cd35649. All three project-update
+Playwright journeys pass in **22.1 seconds** on a separate clean synthetic target,
+`pdaa_test_1792612870268`. The new no-policy saved API/browser case, existing
+scheduled stale-preview case and cadence preview case pass without increasing
+timeouts. Root visually inspected `artifacts/evidence-workflow-authorized-completeness.png`:
+UNCONFIRMED/reason, zero confirmed facts, stale fallback and unsent value-free
+preview are visible within unchanged Antigravity styling. Existing CI uploads its
+evidence-workflow screenshot glob without a workflow change.
+
+Final local gates pass. Exact-candidate reviews and complete fresh hosted CI
+remain pending.
 No passing credit is assigned to pending steps. Prior PR #110 results belong to
 their own candidate and do not validate this correction.
 
@@ -73,10 +98,20 @@ fixture failed because project-update preparation calculates a conflict but does
 not persist the separate authority-conflict ledger. The corrected fixture calls
 the real authority capture API, checks its CONFLICTING delivery and positive ledger
 count, then expires the policy. Assertions and production code are unchanged.
-A fresh complete run is required; the failed log remains retained.
+The corrected complete run above supplies the passing evidence; the failed log
+remains retained without passing credit.
 An initial documentation run rejected missing reverse test ownership; adding
 INT-HLT-002 to both owning criteria produced a passing 245-requirement,
 91-criterion, 38-story, 142-specification validation.
+
+The first browser run reused the populated native fixture database: the new case
+passed, while both existing policy-editor journeys failed. A separate clean target
+passed the new and stale-preview cases but the cadence editor still timed out on
+its disabled Save button, with incomplete trace diagnostics. These failed logs,
+screenshots and available traces are retained separately. The shared browser helper
+now waits for the real initial policy GET to finish before editing controlled fields,
+avoiding a race with form hydration. The final clean run above passes all three
+journeys with the original assertions and deadlines. Product form code is unchanged.
 
 ## Recovery and acceptance
 
