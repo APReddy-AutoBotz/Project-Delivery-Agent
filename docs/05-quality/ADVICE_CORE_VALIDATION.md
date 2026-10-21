@@ -145,6 +145,39 @@ No lint rule, assertion or deadline is relaxed.
 The required `pnpm lint` passes. The failed probe is retained and supplies no
 passing credit.
 
+### Exact envelope-pin follow-up
+
+Candidate fcfd4cd's normal [Foundation 39655156471](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39655156471)
+passes 1,816 units, 161 integration and 43 browser tests, exact 84-business-table
+and migration-ledger recovery, and packaged production/customer acceptance.
+Documentation 39655156480 passes. The later distribution collector accepts the
+new fix object but rejects its independent match-envelope hash. This failed gate
+receives no passing credit and prevents merge.
+
+The selected vulnerability object is excluded from that envelope. Retained ordinary
+PR #49 scanner records reproduce all 20 original pins. Exactly two match-detail
+fields change with the newly available Debian fix: `found.versionConstraint`
+becomes `< 5.36.0-7+deb12u4 (deb)` and `fix.suggestedVersion` becomes
+`5.36.0-7+deb12u4`. The derived indirect hash
+`ccff737b906311180c94021c466c81a276d0235b4ce94e526d515cd6f40359f0`
+matches the failed CI observation exactly. The derived direct hash
+`22159dfe26671c56ed61b52810f3a3179bd5b001bb984a642ca3b0a332471d6e`
+still requires live CI comparison. A derivation is not credited as a new scan.
+
+Independent design review approves changing those 20 exact pins and adding the
+two original public-metadata profiles with eight strict regressions. All other
+proof pins, matcher/normalizer behavior, raw match retention, vulnerable u3 identity
+and narrow applicability/release conclusions remain unchanged. The regressions
+reproduce old/new hashes, verify the two-field-only diff and all 20 mappings, and
+reject obsolete/altered constraints, missing/altered suggestions and unknown fields
+without regenerating the expected envelope. Both independent reviewers approve
+the amendment design. Focused validation passes 182 tests; full regression passes
+1,824 tests/105 files in 104.17 seconds with unchanged deadlines. Required lint,
+advice-test lint, architecture, 42-record registration, documentation and the
+unchanged audit pass (zero high/critical, four moderate). Application/dependency
+blobs remain unchanged from the passing hosted build/typecheck input. Final
+immutable source/coverage reviews and fresh complete CI remain pending.
+
 No database/migration, connector scope, credential, external SDK or UI changes.
 OD-013 public OAuth/live Jira activation stays
 disabled and spreadsheet commits remain reviewed proposals. Roll back by reverting

@@ -221,3 +221,48 @@ lint, advice-test lint, architecture, 42-record dependency registration,
 documentation and unchanged audit pass (zero high/critical, four moderate).
 No application/dependency blob changes from the validated build/typecheck input.
 Both exact-head independent reviews and fresh complete CI remain merge gates.
+
+## Exact match-envelope metadata amendment, 2026-10-22
+
+The reviewed fcfd4cd candidate's normal run 39655156471 passes native validation
+(1,816 unit, 161 integration, 43 browser tests and exact 84-table recovery) and
+packaged production/customer acceptance. Its later distribution collector accepts
+the refreshed fix object, then rejects the independent match-envelope hash:
+expected a5208dd3..., observed ccff737b.... No distribution passing credit or merge.
+
+The envelope excludes the selected vulnerability object. Root initially inferred
+otherwise, inspected the implementation and corrected that explanation. Retained
+ordinary PR #49 scanner records reproduce all 20 existing envelope pins across
+eight image/scope inputs. Applying exactly two Grype match-detail changes produces
+ccff737b906311180c94021c466c81a276d0235b4ce94e526d515cd6f40359f0,
+identical to the failed run's observed hash: `found.versionConstraint` changes
+from `none (unknown)` to `< 5.36.0-7+deb12u4 (deb)`, and `fix.suggestedVersion`
+becomes `5.36.0-7+deb12u4`. The direct-match profile's corresponding derived hash
+is 22159dfe26671c56ed61b52810f3a3179bd5b001bb984a642ca3b0a332471d6e.
+The latter still needs fresh live CI comparison; derivation is not a new scan.
+Original NVD metadata confirms unchanged CVSS/CWE/reference semantics and is
+retained with its original bytes. No stopped research evidence was accessed.
+
+After independent design review, update only the 20 exact envelope pins to these
+two derived hashes. This explicitly supersedes the earlier unchanged-envelope-pin
+design boundary for these two reviewed fields only. Do not modify the matcher,
+normalization, package/material/analysis/CNA/facts pins, disposition, source/image
+versions, audit threshold or release holds. Preserve original scanner records,
+raw match hashes and historic policies. No broad match or ignored-field rule.
+
+Add small committed public-metadata fixtures for both original profiles and
+regressions that reproduce old/new exact hashes, demonstrate the two-field-only
+diff, require every target/scope/package pin to match the correct profile, and
+reject unexpected match-detail changes. Keep all existing fix-object and physical
+proof negatives. Run focused/full unit, lint/docs and unchanged audit, then both
+exact-candidate reviews and fresh complete normal CI. Capture stays stopped.
+Both independent reviewers approved design SHA256
+`6a81e5fb69a9cee9eac46020fed53fcee36a8ff8aa4fd21fc63d35aeb15b5b88`
+before implementation. The exact 20 pins and two original public metadata profiles
+are now implemented with eight additional regressions. Focused Perl/gosu validation
+passes 182 tests. Full final regression passes 1,824 tests/105 files in 104.17
+seconds, with two workers and unchanged deadlines. Required lint, separate advice
+test lint, architecture, 42-record dependency registration, documentation and
+unchanged audit pass (zero high/critical, four moderate). Final immutable
+source/coverage reviews and fresh complete CI remain merge gates. No application
+or dependency blob changed from the hosted build/typecheck input.
