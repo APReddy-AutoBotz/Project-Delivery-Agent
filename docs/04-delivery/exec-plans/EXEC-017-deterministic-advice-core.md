@@ -130,3 +130,40 @@ server revocation/denial tests and full Issue #11 acceptance evidence.
   source/coverage reviewers approve it without remaining findings. Earlier failed
   and interrupted validation attempts are retained and supply no passing credit.
   Final record-only review, exact-head remote checks and verified merge remain gates.
+
+## Required CI dependency repair design, 2026-10-21
+
+NFR-MNT-004 / CI-MNT-004: the first normal PR #110 Foundation run
+39647616494 passes build/contracts/lint/types/all 1,804 unit tests and registration,
+then fails the unchanged high-severity audit gate. Its original log is retained.
+Primary publisher advisories identify existing proxy-addr <2.0.8
+(GHSA-jqcg-44mw-7w3h), source-map-js <1.2.2 (GHSA-68fv-2mgg-jv7q), and
+Vite 7.3.6 (GHSA-587h-7wmj-h5pm). Upgrade to the minimal same-line publisher
+patches 2.0.8, 1.2.2 and 7.3.7. Verify registry identity, permissive license,
+tarball integrity and actual lock graph before adoption. Pin exact overrides
+for all three paths and update the direct web Vite pin and existing machine-readable
+adoption/override/notices records. Do not regenerate unrelated adoption decisions.
+
+proxy-addr is runtime through Express; source-map-js and Vite are development/build
+tooling. No first-party network/auth setting changes. Keep all audit thresholds and
+tests; do not suppress findings. Moderate findings and the five release holds remain
+separate. Preserve the reviewed advice implementation and stopped research capture.
+
+Before installation, move only this checkout's created dependency links/directories
+to ignored local backup paths, verifying absolute paths remain inside this checkout.
+Create its own fresh dependency tree so installation cannot alter the unfinished
+EXEC-016 checkout's modules. Retain the prior links/evidence. Refresh the lockfile
+through the pinned package manager, inspect its complete diff, perform a frozen
+install and publisher license inspection, audit, full build/types/unit/docs checks,
+then independent exact-head source/coverage review and fresh required CI. The
+runtime patch also requires the packaged/customer CI gates. Revert the exact
+manifest/lock/register patch and rebuild through review for recovery; do not deploy
+or mutate any customer/default database. Independent design review approved this
+bounded repair with no blockers. The original shared dependency entries have been
+preserved under ignored local backups; their targets remain unchanged.
+Fresh frozen installation, physical license inspection, exact registry/lock SRI
+comparison and 42-record registration pass. The unchanged audit reports zero high,
+zero critical and four moderate findings. Only the three intended package identities
+and associated references/peer pins change in the lock. All 39 unrelated adoption
+records remain unchanged. Full patched-graph validation and exact-head reviews/CI
+are in progress; no release hold or acceptance count changes.

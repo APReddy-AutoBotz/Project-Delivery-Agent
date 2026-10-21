@@ -84,8 +84,23 @@ download, HTTP utility, observer, sealer or new research attempt was invoked.
 
 ## Impact and recovery
 
-No database/migration, connector scope, credential, external SDK or runtime
-dependency changes. No UI changes. OD-013 public OAuth/live Jira activation stays
+The original advice-only candidate has no dependency change. Its normal hosted
+audit subsequently blocked merge on three existing dependency versions. The
+independently reviewed repair pins proxy-addr 2.0.8 (API runtime), source-map-js
+1.2.2 and Vite 7.3.7 (development/build tooling), with exact override/adoption/notices
+records. Registry identity, engines, declared permissive licenses and integrity
+were verified. A fresh pnpm 11.19.0 frozen install passed in a separate dependency
+tree, reusing 490 published packages and downloading only the three patches. All
+39 unrelated adoption records retain their exact values and original formatting;
+the complete lock diff contains only these patches and their references/peer pins.
+Original installed licenses were read and retained; identities and SRI values match
+registry metadata and the lock. Registration verifies 42 exact dependency records.
+The unchanged high-severity audit passed: zero high/critical, four moderate.
+Full validation and new exact-head reviews/CI remain required for this dependency
+candidate; earlier core-only results do not validate the new package graph.
+
+No database/migration, connector scope, credential, external SDK or UI changes.
+OD-013 public OAuth/live Jira activation stays
 disabled and spreadsheet commits remain reviewed proposals. Roll back by reverting
-the additive domain/export/docs/tests change through review; no data restoration
-or customer operation is necessary.
+the additive domain/export/docs/tests and manifest/lock/register change through
+review and rebuilding; no data restoration or customer operation is necessary.

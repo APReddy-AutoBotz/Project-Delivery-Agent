@@ -6,6 +6,9 @@ overrides:
   deepmerge-ts: 8.0.0
   multer: 2.3.0
   mysql2: 3.23.1
+  proxy-addr: 2.0.8
+  source-map-js: 1.2.2
+  vite: 7.3.7
 allowBuilds:
   '@prisma/engines@7.10.0': true
   '@scarf/scarf': false

@@ -42,7 +42,7 @@ Published packages are used without modification. Their original license and cop
 - **tailwindcss 4.3.3** — MIT; [publisher metadata](https://registry.npmjs.org/tailwindcss/4.3.3); source: https://github.com/tailwindlabs/tailwindcss.git.
 - **typescript 5.9.3** — Apache-2.0; [publisher metadata](https://registry.npmjs.org/typescript/5.9.3); source: git+https://github.com/microsoft/TypeScript.git.
 - **typescript-eslint 8.69.0** — MIT; [publisher metadata](https://registry.npmjs.org/typescript-eslint/8.69.0); source: https://github.com/typescript-eslint/typescript-eslint.git.
-- **vite 7.3.6** — MIT; [publisher metadata](https://registry.npmjs.org/vite/7.3.6); source: git+https://github.com/vitejs/vite.git.
+- **vite 7.3.7** — MIT; [publisher metadata](https://registry.npmjs.org/vite/7.3.7); source: git+https://github.com/vitejs/vite.git.
 - **vitest 4.1.11** — MIT; [publisher metadata](https://registry.npmjs.org/vitest/4.1.11); source: git+https://github.com/vitest-dev/vitest.git.
 - **zod 4.5.4** — MIT; [publisher metadata](https://registry.npmjs.org/zod/4.5.4); source: git+https://github.com/colinhacks/zod.git.
 
@@ -121,3 +121,10 @@ source execution. This adds selected-file correspondence to six existing notice
 sections without replacing their text or deciding licence applicability. Complete
 component coverage, ncrypto attribution and commercial distribution review remain
 open.
+
+## Dated CI security patch inventory, 2026-10-21
+
+- **proxy-addr 2.0.8** — MIT; [publisher metadata](https://registry.npmjs.org/proxy-addr/2.0.8); source: https://github.com/jshttp/proxy-addr.
+- **source-map-js 1.2.2** — BSD-3-Clause; [publisher metadata](https://registry.npmjs.org/source-map-js/1.2.2); source: https://github.com/7rulnik/source-map-js.
+
+Original package license/copyright files must remain intact. This inventory is not complete distribution approval. Vite 7.3.7 is the dated patch replacement for the original baseline version in the table above.

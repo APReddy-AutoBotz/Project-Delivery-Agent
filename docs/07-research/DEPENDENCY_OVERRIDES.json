@@ -34,5 +34,33 @@
     "consumers": [
       "eslint and development glob tooling"
     ]
+  },
+  {
+    "name": "proxy-addr",
+    "version": "2.0.8",
+    "runtime": true,
+    "consumers": [
+      "@pdaa/api via Express"
+    ],
+    "reason": "Express trust-subnet security patch: GHSA-jqcg-44mw-7w3h"
+  },
+  {
+    "name": "source-map-js",
+    "version": "1.2.2",
+    "runtime": false,
+    "consumers": [
+      "Vite/PostCSS/Tailwind development tooling"
+    ],
+    "reason": "Source-map offset validation security patch: GHSA-68fv-2mgg-jv7q"
+  },
+  {
+    "name": "vite",
+    "version": "7.3.7",
+    "runtime": false,
+    "consumers": [
+      "@pdaa/web",
+      "Vitest and Tailwind development tooling"
+    ],
+    "reason": "Windows editor path validation security patch: GHSA-587h-7wmj-h5pm"
   }
 ]

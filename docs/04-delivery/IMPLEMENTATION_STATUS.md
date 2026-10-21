@@ -31,6 +31,10 @@ acceptance is claimed; EPIC-06 integration remains required. Existing EXEC-016
 work is preserved and its research-artifact capture remains explicitly stopped.
 See [EXEC-017](exec-plans/EXEC-017-deterministic-advice-core.md) and
 [validation](../05-quality/ADVICE_CORE_VALIDATION.md). Accepted totals remain 5/38.
+PR #110's first normal hosted run passed its build/contracts/lint/type/unit checks
+but failed the unchanged dependency audit. The independently reviewed minimal
+publisher-patch repair is in progress; merge remains blocked until fresh exact-head
+checks and packaged/customer evidence pass. The research capture remains stopped.
 
 EXEC-015 Stage 2b [PR #108](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/108) is merged after both independent nonauthor reviewers approved exact head `f0d939c0012fcb8e8425c1373dcb7df71172d5ac`. Merge `67f0ca2e8420d29161e6d204a13e48be7080a7b7` preserves reviewed/tested tree `53257948155c7742792c7f27e513409aa1165fb2`. Candidate [Foundation 36878685246](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36878685246) / [Documentation 36878685590](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36878685590) and post-merge [Foundation 36881853283](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36881853283) / [Documentation 36881853470](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36881853470) passed. Native: 1,663 unit, 149 integration and 39 browser tests; exact 78-table dump/restore. Packaged production validated genuine source-linked populated recovery in isolated, bundled and external customer profiles.
 
