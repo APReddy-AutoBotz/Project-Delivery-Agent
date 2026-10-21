@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-10-02
+Updated: 2026-10-22
 
 ## Accepted implementation completion
 
@@ -18,6 +18,44 @@ accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://gith
 R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
+
+EXEC-017 prepares independent internal recommendation/queue groundwork for
+[Issue #11](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11)
+on the verified PR #109 main tree. Its bounded pure domain builder, fixed
+PM/leadership wording, immutable evidence and deterministic ranking passed
+1,804 unit tests across 105 files, eight-package build/typecheck and lint,
+architecture/documentation checks. Independent source and coverage reviews
+approve the corrected core. Publication, exact-head CI and merge remain pending
+at this candidate checkpoint. No API/browser/server-authorization or full story
+acceptance is claimed; EPIC-06 integration remains required. Existing EXEC-016
+work is preserved and its research-artifact capture remains explicitly stopped.
+See [EXEC-017](exec-plans/EXEC-017-deterministic-advice-core.md) and
+[validation](../05-quality/ADVICE_CORE_VALIDATION.md). Accepted totals remain 5/38.
+PR #110's first normal hosted run passed its build/contracts/lint/type/unit checks
+but failed the unchanged dependency audit. The independently reviewed minimal
+publisher-patch repair is in progress; merge remains blocked until fresh exact-head
+checks and packaged/customer evidence pass. The research capture remains stopped.
+The repaired graph now passes the unchanged audit with zero high/critical (four
+moderate), all standard local build/lint/typecheck scripts and all 1,804 unit tests.
+Both independent reviews approve the dependency candidate. Fresh exact-head
+hosted/customer checks and verified merge remain pending; no story is accepted.
+The initial production/customer acceptance passed before distribution collection
+stopped on changed Debian Perl fix metadata. The independently reviewed exact
+metadata refresh preserves the pinned u3 material and narrow architecture proof;
+it claims neither patch installation nor release acceptance. Focused regression
+passes 174 tests and the full final local suite passes 1,816/105 files. Required
+lint, architecture, registration, documentation and unchanged audit pass. Final
+exact-head reviews and hosted gates remain pending. No stopped research capture
+action is included.
+The fresh fcfd4cd hosted run passes native 1,816/161/43 tests, exact 84-table
+recovery and packaged production/customer acceptance. Its collector then rejects
+the changed Perl match-detail envelope. Independent review verifies the retained
+original records and the exact two-field derivation; only 20 envelope pins and
+strict metadata regressions are being amended. No matcher or release gate changes.
+Focused tests pass 182 and full final regression passes 1,824/105 files. Required
+lint, architecture, registration, documentation and unchanged audit pass. Both
+independent design reviews approve; exact-source/coverage review and fresh full
+hosted CI remain gates. No application/dependency blob changes in this amendment.
 
 EXEC-015 Stage 2b [PR #108](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/108) is merged after both independent nonauthor reviewers approved exact head `f0d939c0012fcb8e8425c1373dcb7df71172d5ac`. Merge `67f0ca2e8420d29161e6d204a13e48be7080a7b7` preserves reviewed/tested tree `53257948155c7742792c7f27e513409aa1165fb2`. Candidate [Foundation 36878685246](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36878685246) / [Documentation 36878685590](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36878685590) and post-merge [Foundation 36881853283](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36881853283) / [Documentation 36881853470](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36881853470) passed. Native: 1,663 unit, 149 integration and 39 browser tests; exact 78-table dump/restore. Packaged production validated genuine source-linked populated recovery in isolated, bundled and external customer profiles.
 

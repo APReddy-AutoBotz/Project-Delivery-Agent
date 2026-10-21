@@ -72,6 +72,9 @@ Review date:
 
 ## Foundation package adoption
 
+The version table includes the dated security-patch decisions recorded below;
+those entries do not inherit the original baseline review date.
+
 Multer 2.3.0 (MIT) replaces the existing 2.2.0 NestJS transitive runtime dependency
 through an exact reviewed override on 2026-09-09. The [publisher release](https://github.com/expressjs/multer/releases/tag/v2.3.0)
 addresses the three High advisories newly reported by CI. Original published
@@ -139,7 +142,7 @@ Exact direct dependencies verified against publisher metadata on 2026-09-06. Run
 | [tailwindcss](https://registry.npmjs.org/tailwindcss/4.3.3)                                | 4.3.3   | MIT          | Development |
 | [typescript](https://registry.npmjs.org/typescript/5.9.3)                                  | 5.9.3   | Apache-2.0   | Development |
 | [typescript-eslint](https://registry.npmjs.org/typescript-eslint/8.69.0)                   | 8.69.0  | MIT          | Development |
-| [vite](https://registry.npmjs.org/vite/7.3.6)                                              | 7.3.6   | MIT          | Development |
+| [vite](https://registry.npmjs.org/vite/7.3.7)                                              | 7.3.7   | MIT          | Development |
 | [vitest](https://registry.npmjs.org/vitest/4.1.11)                                         | 4.1.11  | MIT          | Development |
 | [zod](https://registry.npmjs.org/zod/4.5.4)                                                | 4.5.4   | MIT          | Runtime     |
 
@@ -307,3 +310,36 @@ merge. Register this exact override in DEPENDENCIES.json and DEPENDENCY_OVERRIDE
 No first-party source or runtime dependency is newly adopted; remove the override
 when reviewed upstream development tooling incorporates the patch. No release
 security disposition or commercial/customer gate is waived.
+
+## Required CI dependency patches, 2026-10-21
+
+NFR-MNT-004 / CI-MNT-004: normal PR #110 CI found three existing blocking package
+versions. Independent design review approved these minimal published patches:
+
+| Package | Exact patch | Declared license | Use | Primary advisory |
+|---|---|---|---|---|
+| proxy-addr | 2.0.8 | MIT | API runtime through Express | [GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h) |
+| source-map-js | 1.2.2 | BSD-3-Clause | Development/build tooling | [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q) |
+| Vite | 7.3.7 | MIT | Development/build tooling | [GHSA-587h-7wmj-h5pm](https://github.com/advisories/GHSA-587h-7wmj-h5pm) |
+
+Registry identity, Node engine compatibility, declared license and tarball integrity
+were checked from original publisher metadata. Exact SRI values are recorded in
+DEPENDENCIES.json and must match the fresh lock/install. Original installed license
+files were inspected and retained locally: proxy-addr MIT original 1,094 bytes
+(`a7996721249a136fbcfc1c201bcb5f414f38a701d4a24f28abe65e16cfcce813`),
+source-map-js BSD original 1,526 bytes
+(`6cb0631f71c7749763fd3dd1d5bee52dd1070ec17f2edc1710079ad070bd2fbd`),
+and Vite license/notices original 101,176 bytes
+(`a77a1c089806b39ad339535bdf3677f636c91d96693e8ad7b11fe733f650ea64`).
+Fresh pnpm 11.19.0 frozen installation passed and registry/lock SRI identities match.
+The unchanged high-severity audit passed with zero high/critical and four moderate
+findings. Fresh actual build/lint/typecheck and 1,804-unit-test validation passed;
+both independent reviewers approve dependency candidate `97c341c`. Final immutable
+record review and hosted/customer CI remain gates. The Vite
+direct pin and all three transitive overrides are explicit. Other adoption decisions
+and all release/security/distribution holds are preserved. The runtime patch adds
+no new trust-proxy configuration or authorization rule; first-party scope checks
+remain required. Initial CI recorded six moderate findings; the refreshed graph
+reports four. No commercial/security release disposition is inferred from either
+count. Owner: implementation controller. Recovery is a
+reviewed manifest/lock/register revert and rebuild, with no database rollback.

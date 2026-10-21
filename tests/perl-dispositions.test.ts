@@ -33,6 +33,19 @@ const analysisBytes = readFileSync(
 );
 const realPolicy = JSON.parse(policyBytes.toString());
 const realAnalysis = JSON.parse(analysisBytes.toString());
+const nativeEnvelopeProfiles = JSON.parse(
+  readFileSync("tests/fixtures/perl-match-envelopes.json", "utf8"),
+).profiles as Array<{
+  oldHash: string;
+  newHash: string;
+  originalEnvelope: {
+    matchDetails: Array<{
+      type: string;
+      found: { versionConstraint: string };
+      fix?: { suggestedVersion: string };
+    }>;
+  };
+}>;
 const encode = (v: any) => Buffer.from(JSON.stringify(v));
 function fixture(target = "api", scope = "squashed"): any {
   const layerID = "sha256:" + hash("base");
@@ -81,7 +94,22 @@ function fixture(target = "api", scope = "squashed"): any {
   const match = {
     vulnerability: structuredClone(realPolicy.rule.advisory),
     artifact: structuredClone(pkg),
-    matchDetails: [{ matcher: "dpkg-matcher" }],
+    matchDetails: [
+      {
+        type: "exact-indirect-match",
+        matcher: "dpkg-matcher",
+        searchedBy: {
+          distro: { type: "debian", version: "12.15" },
+          package: { name: "perl", version: "5.36.0-7+deb12u3" },
+          namespace: "debian:distro:debian:12",
+        },
+        found: {
+          vulnerabilityID: "CVE-2026-8376",
+          versionConstraint: "< 5.36.0-7+deb12u4 (deb)",
+        },
+        fix: { suggestedVersion: "5.36.0-7+deb12u4" },
+      },
+    ],
     relatedVulnerabilities: [
       {
         id: realPolicy.rule.relatedAdvisory.id,
@@ -144,6 +172,132 @@ function fixture(target = "api", scope = "squashed"): any {
   return { target, inspection, sbom, scan, analysis, policy };
 }
 describe("Perl architecture evidence (NFR-SEC-010 / AC-MNT-004)", () => {
+  for (const profile of nativeEnvelopeProfiles)
+    it(`binds the original and exact two-field refresh for ${profile.originalEnvelope.matchDetails[0]!.type}`, () => {
+      const original = structuredClone(profile.originalEnvelope);
+      const originalMatch = {
+        ...original,
+        vulnerability: realPolicy.rule.advisory,
+      };
+      expect(
+        hash(
+          canonical(capturePerlMatchEnvelope(originalMatch, realPolicy.rule)),
+        ),
+      ).toBe(profile.oldHash);
+      const amended = structuredClone(original);
+      for (const detail of amended.matchDetails) {
+        expect(detail.found.versionConstraint).toBe("none (unknown)");
+        expect(detail.fix).toBeUndefined();
+        detail.found.versionConstraint = "< 5.36.0-7+deb12u4 (deb)";
+        detail.fix = { suggestedVersion: "5.36.0-7+deb12u4" };
+      }
+      expect(
+        hash(
+          canonical(
+            capturePerlMatchEnvelope(
+              { ...amended, vulnerability: realPolicy.rule.advisory },
+              realPolicy.rule,
+            ),
+          ),
+        ),
+      ).toBe(profile.newHash);
+      const restored = structuredClone(amended);
+      for (const detail of restored.matchDetails) {
+        detail.found.versionConstraint = "none (unknown)";
+        delete detail.fix;
+      }
+      expect(restored).toEqual(original);
+      expect(profile.originalEnvelope).toEqual(original);
+    });
+  it("maps every exact target/scope/package to the reviewed direct or indirect profile", () => {
+    expect(
+      nativeEnvelopeProfiles.map((profile) => [
+        profile.oldHash,
+        profile.newHash,
+      ]),
+    ).toEqual([
+      [
+        "a5208dd378cae9fb9d7af6d263a917e9c1d9c25378454d2079a84fdc1e357bb8",
+        "ccff737b906311180c94021c466c81a276d0235b4ce94e526d515cd6f40359f0",
+      ],
+      [
+        "e974e7df16bbfca050b3d12aeb9e28462da13a68abe3076b56078f346a080b53",
+        "22159dfe26671c56ed61b52810f3a3179bd5b001bb984a642ca3b0a332471d6e",
+      ],
+    ]);
+    let pins = 0;
+    for (const input of realPolicy.inputs)
+      for (const name of input.packageNames) {
+        const type =
+          name === "perl" ? "exact-direct-match" : "exact-indirect-match";
+        const profile = nativeEnvelopeProfiles.find(
+          (entry) => entry.originalEnvelope.matchDetails[0]!.type === type,
+        );
+        expect(profile).toBeDefined();
+        expect(input.matchEnvelopes[name]).toBe(profile!.newHash);
+        pins++;
+      }
+    expect(pins).toBe(20);
+  });
+  for (const [name, mutate] of [
+    [
+      "obsolete constraint",
+      (
+        detail: ReturnType<
+          typeof fixture
+        >["scan"]["matches"][number]["matchDetails"][number],
+      ) => {
+        detail.found.versionConstraint = "none (unknown)";
+      },
+    ],
+    [
+      "different constraint",
+      (
+        detail: ReturnType<
+          typeof fixture
+        >["scan"]["matches"][number]["matchDetails"][number],
+      ) => {
+        detail.found.versionConstraint = "< 5.36.0-7+deb12u5 (deb)";
+      },
+    ],
+    [
+      "missing suggestion",
+      (
+        detail: ReturnType<
+          typeof fixture
+        >["scan"]["matches"][number]["matchDetails"][number],
+      ) => {
+        delete detail.fix;
+      },
+    ],
+    [
+      "different suggestion",
+      (
+        detail: ReturnType<
+          typeof fixture
+        >["scan"]["matches"][number]["matchDetails"][number],
+      ) => {
+        detail.fix.suggestedVersion = "5.36.0-7+deb12u5";
+      },
+    ],
+    [
+      "unknown detail field",
+      (
+        detail: ReturnType<
+          typeof fixture
+        >["scan"]["matches"][number]["matchDetails"][number],
+      ) => {
+        detail.extra = true;
+      },
+    ],
+  ] as const)
+    it(`rejects ${name} without regenerating the expected envelope`, () => {
+      const f = fixture();
+      const expected = structuredClone(f.policy.inputs[0].matchEnvelopes);
+      mutate(f.scan.matches[0].matchDetails[0]);
+      expect(() => deriveReviewedPerlRows(f)).toThrow(/envelope changed/);
+      expect(f.policy.inputs[0].matchEnvelopes).toEqual(expected);
+    });
   it("collects the real bounded anchors and rejects a replaced authority", () => {
     expect(readPerlAnchor("perl-disposition-policy.json")).toEqual(policyBytes);
     expect(readDispositionAnchor("perl-static-analysis.json")).toEqual(
@@ -244,9 +398,81 @@ describe("Perl architecture evidence (NFR-SEC-010 / AC-MNT-004)", () => {
         expect(after[0].scopeFactsSha256).toBe(before[0].scopeFactsSha256);
         expect(after[1]).toEqual(before[1]);
         expect(encode(f.scan)).toEqual(raw);
-        f.scan.matches[0].vulnerability.fix.state = "fixed";
+        f.scan.matches[0].vulnerability.fix.state = "wont-fix";
         expect(() => deriveReviewedPerlRows(f)).toThrow(/semantics changed/);
       });
+  it("pins source fix availability without claiming the installed u3 build was patched", () => {
+    expect(realPolicy.rule.advisory.fix).toEqual({
+      versions: ["5.36.0-7+deb12u4"],
+      state: "fixed",
+      available: [
+        {
+          version: "5.36.0-7+deb12u4",
+          date: "2026-10-06",
+          kind: "first-observed",
+        },
+      ],
+    });
+    const f = fixture();
+    expect(f.sbom.artifacts[0].version).toBe("5.36.0-7+deb12u3");
+    expect(f.analysis.packages[0].version).toBe("5.36.0-7+deb12u3");
+    expect(
+      deriveReviewedPerlRows(f).map(
+        (r: { disposition: string }) => r.disposition,
+      ),
+    ).toEqual(["not_applicable", "not_applicable"]);
+  });
+  type AdvisoryFix = {
+    state: string;
+    versions: string[];
+    available: {
+      version: string;
+      date: string;
+      kind: string;
+      [key: string]: unknown;
+    }[];
+    [key: string]: unknown;
+  };
+  const fixMutations: [string, (fix: AdvisoryFix) => void][] = [
+    ["old state", (fix) => (fix.state = "wont-fix")],
+    ["different fix version", (fix) => (fix.versions[0] = "5.36.0-7+deb12u3")],
+    ["no fix versions", (fix) => (fix.versions = [])],
+    [
+      "missing availability",
+      (fix) => {
+        Reflect.deleteProperty(fix, "available");
+      },
+    ],
+    [
+      "different availability version",
+      (fix) => (fix.available[0].version = "5.36.0-7+deb12u3"),
+    ],
+    [
+      "different observed date",
+      (fix) => (fix.available[0].date = "2026-10-07"),
+    ],
+    [
+      "different availability kind",
+      (fix) => (fix.available[0].kind = "release"),
+    ],
+    ["unknown fix field", (fix) => (fix.extra = true)],
+    ["unknown availability field", (fix) => (fix.available[0].extra = true)],
+    [
+      "duplicate availability",
+      (fix) => fix.available.push({ ...fix.available[0] }),
+    ],
+  ];
+  for (const [name, mutate] of fixMutations)
+    it(`rejects ${name} in selected advisory fix metadata`, () => {
+      const f = fixture();
+      mutate(f.scan.matches[0].vulnerability.fix);
+      expect(() => deriveReviewedPerlRows(f)).toThrow(/semantics changed/);
+    });
+  it("rejects the obsolete complete fix object", () => {
+    const f = fixture();
+    f.scan.matches[0].vulnerability.fix = { versions: [], state: "wont-fix" };
+    expect(() => deriveReviewedPerlRows(f)).toThrow(/semantics changed/);
+  });
   for (const description of [
     null,
     32,
