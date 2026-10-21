@@ -256,6 +256,33 @@ describe("UNIT-ADV-001: internal deterministic recommendation groundwork", () =>
     expect(item.suggestedAction).toContain("retain both");
   });
 
+  it("retains all clear-signal evidence behind calculated GREEN in reconciliation", () => {
+    const snapshot = health([
+      signal({ state: "CLEAR" }),
+      signal({
+        signalId: "DEPENDENCY-2",
+        targetKey: "DEPENDENCY-2",
+        state: "CLEAR",
+      }),
+    ]);
+    const result = queueFor(snapshot);
+    expect(result.items).toHaveLength(1);
+    const trigger = result.items[0]!.trigger;
+    expect(trigger.kind).toBe("REPORTED_CALCULATED_MISMATCH");
+    if (trigger.kind !== "REPORTED_CALCULATED_MISMATCH")
+      throw new Error("Expected reconciliation");
+    expect(trigger.calculated.status).toBe("GREEN");
+    expect(trigger.calculated.rationale.signalIds).toEqual([]);
+    expect(trigger.objectiveSignals).toEqual(snapshot.signals);
+    expect(Object.isFrozen(trigger.objectiveSignals[0]!.sourceFacts)).toBe(
+      true,
+    );
+    snapshot.signals.reverse();
+    expect(queueFor(snapshot)).toEqual(result);
+    snapshot.signals[0]!.sourceFacts[0]!.value = "later caller mutation";
+    expect(JSON.stringify(result)).not.toContain("later caller mutation");
+  });
+
   it("preserves exact proposal revision, attributed dimensions and evidence separately", () => {
     const request = input();
     request.projects[0]!.pendingApprovals = [approval()];
@@ -606,7 +633,7 @@ describe("bounded input validation with fixed errors", () => {
   });
   it("rejects future health assessment", () => {
     const snapshot = health();
-    snapshot.assessedAt = validUntil;
+    snapshot.assessedAt = "2026-10-21T11:30:00.000Z";
     const request = input();
     request.projects[0]!.healthAssessmentInput = snapshot;
     rejects(request);
@@ -649,7 +676,7 @@ describe("bounded input validation with fixed errors", () => {
     (field) => {
       const request = input();
       const proposal = approval();
-      if (field === "raisedAt") proposal.raisedAt = validUntil;
+      if (field === "raisedAt") proposal.raisedAt = "2026-10-21T11:30:00.000Z";
       if (field === "expiresAt") proposal.expiresAt = proposal.raisedAt;
       if (field === "factTime")
         proposal.factReferences[0]!.assessedAt = validUntil;
@@ -659,7 +686,15 @@ describe("bounded input validation with fixed errors", () => {
   );
   it("rejects over 25 project snapshots", () => {
     const request = input();
-    request.projects = Array.from({ length: 26 }, () => request.projects[0]!);
+    request.projects = Array.from({ length: 26 }, (_, index) => {
+      const pid = `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
+      return {
+        projectId: pid,
+        validUntil,
+        healthAssessmentInput: health([], pid),
+        pendingApprovals: [],
+      };
+    });
     rejects(request);
   });
   it("rejects more than 500 admitted signals across snapshots without truncation", () => {

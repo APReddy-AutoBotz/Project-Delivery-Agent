@@ -16,22 +16,39 @@ execute an action, approve a proposal or publish a fact.
 
 ## Executed checks
 
-- New advice suite: 55 tests passed.
-- Advice plus existing health suite: 62 tests passed across two files.
-- Full lint passed before the final wording/format-only changes; final rerun pending.
+- New advice suite: 56 tests passed.
+- Advice plus existing health suite: 63 tests passed across two files.
+- Full lint and new-test lint passed; final review-fix rerun pending.
 - Architecture check passed: eight packages and 97 first-party source files.
 - Documentation validation passed: 245 requirements, 91 acceptance criteria,
   38 stories and 141 specifications; final documentation rerun pending.
-- Full workspace build/typecheck and full unit regression are in progress.
+- Build and typecheck passed for all eight packages, including Prisma generation
+  only and the production web bundle. No database operation was invoked.
+- Full unit regression: 1,802 passed and one existing startup-disclosure check
+  failed after its child reached the unchanged 15-second deadline with empty
+  output while the workspace build was in progress. This is not a passing run.
+  A subsequent serial run was stopped to incorporate source-review corrections;
+  it supplies no completed pass. Final corrected-candidate regression is pending.
 
 The first focused run had 49 passes and one faulty fixture expectation: a critical
 reported/calculated mismatch correctly ranked ahead of a HIGH approval. The test
 now asserts HIGH approval precedes LOW intervention while preserving the critical
 mismatch. An expanded mixed-category fixture initially reused a signal ID; the
 existing validator correctly rejected it. Giving each concern a distinct ID
-produced the passing 62-test result. No existing guard or timeout was weakened.
+produced the passing 62-test result. The final review correction adds a passing
+63rd regression check. No existing guard or timeout was weakened.
 An initial sandbox run failed its temporary-file rename before running tests;
 the authorized normal-runtime run is the execution evidence above.
+
+Independent source review of `1ebb373653543cc5ab4934ee241415be199fe99c`
+found no P0/P1/security blocker, but identified a P2 evidence omission: calculated
+GREEN can depend on CLEAR signals that generate no individual advice item. The
+reconciliation trigger now retains the complete bounded objective-signal snapshot;
+the regression verifies its exact source facts, permutation and detached immutable
+state. Separate coverage review approved the limited groundwork and identified
+three nonblocking fixture improvements. The future assessment/approval fixtures
+now remain inside valid expiry intervals, and the 26-project fixture uses distinct
+identities, isolating the intended guards. Final exact-head re-review is pending.
 
 ## Coverage and remaining gates
 

@@ -119,3 +119,8 @@ server revocation/denial tests and full Issue #11 acceptance evidence.
   pinned dependencies through local junctions, with no installation. Independent
   nonauthor design review found no blockers. Recorded both review clarifications:
   exhaustive SCHEDULE_COVERAGE handling and non-authorizing approval metadata.
+- 2026-10-21: Implemented the bounded pure core and 56 advice tests. All eight
+  packages build/typecheck; 63 advice/health tests pass. Source review found and
+  corrected a P2 omission of clear-signal evidence in reconciliation. Coverage
+  review's three guard-isolation improvements are implemented. Full final
+  regression, immutable candidate re-review and remote merge gates remain open.

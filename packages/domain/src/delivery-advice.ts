@@ -92,6 +92,7 @@ type Trigger =
       sourceAssessedAt: string;
       reported: Health["reported"];
       calculated: Health["calculated"];
+      objectiveSignals: Health["objectiveSignals"];
       contradiction: NonNullable<Health["contradiction"]>;
     }
   | { kind: "PENDING_APPROVAL"; proposal: Approval };
@@ -334,6 +335,7 @@ export function buildDeliveryAdviceQueue(input: unknown) {
           sourceAssessedAt: health.assessedAt,
           reported: health.reported,
           calculated: health.calculated,
+          objectiveSignals: health.objectiveSignals,
           contradiction: health.contradiction,
         },
       });
