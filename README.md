@@ -105,7 +105,9 @@ See [Release 1 Vertical Slice](docs/04-delivery/RELEASE-1-VERTICAL-SLICE.md) and
 
 ## Current status
 
-This repository contains an approved implementation contract and a runnable **synthetic development foundation**: web/API/worker, database, identity validation, scoped access, encrypted credentials and audit protection. Shipped customer composition, durable fact/authority history and canonical project creation/detail are merged through PR #45. STORY-001/002/003/010 are accepted: R0 is 3/5 (60%) and R1 is 1/33 (3.0%). Canonical project creation/detail passed its candidate and merge gates; see the [workflow and evidence](docs/05-quality/CANONICAL_PROJECT_VALIDATION.md). Foundation release and customer deployment acceptance remain open.
+This repository contains an approved implementation contract and a runnable **synthetic development foundation**: web/API/worker, database, identity validation, scoped access, encrypted credentials and audit protection. Accepted-story totals remain R0 3/5 (60%) and R1 2/33 (6.1%), overall 5/38 (13.2%). See the [implementation ledger](docs/04-delivery/IMPLEMENTATION_STATUS.md) for merged increments and their remaining acceptance gates. Foundation release and customer deployment acceptance remain open.
+
+[EXEC-018](docs/04-delivery/exec-plans/EXEC-018-authorized-completeness-inputs.md) corrects how persisted completeness counts authorized existing evidence, with native privacy and API/browser regressions. Its [validation record](docs/05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md) distinguishes executed checks from pending review/CI. Research capture stays stopped; live Jira/OAuth and source publication remain gated.
 
 | Area | Status |
 |---|---|
@@ -118,7 +120,7 @@ This repository contains an approved implementation contract and a runnable **sy
 | Machine-readable requirements and traceability | Available |
 | Documentation validation | 245 requirements, 91 criteria, no Must coverage gap |
 | Independent baseline review | Exact candidate approved; PR #2 merged with passing checks |
-| Application implementation | STORY-001/002/003/010 accepted; two R0 stories and 32 R1 stories remain pending |
+| Application implementation | Five accepted stories; two R0 stories and 31 R1 stories remain pending |
 
 See [local setup](docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md), [implementation status](docs/04-delivery/IMPLEMENTATION_STATUS.md), and [foundation evidence](docs/05-quality/FOUNDATION_VALIDATION.md). Customer deployment and real-data integrations remain gated by the approved baseline and required review evidence.
 

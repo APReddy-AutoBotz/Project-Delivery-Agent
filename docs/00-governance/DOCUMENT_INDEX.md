@@ -128,6 +128,8 @@
 
 ## Implementation-control additions
 
+- `docs/04-delivery/exec-plans/EXEC-018-authorized-completeness-inputs.md`: correct available canonical evidence counts without changing source selection or historical disclosure.
+- `docs/05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md`: repository, API/browser and privacy regression evidence for the completeness input correction; remaining review and hosted gates.
 - `docs/04-delivery/exec-plans/EXEC-017-deterministic-advice-core.md`: independent, pure recommendation and queue groundwork for Issue #11; product integration and acceptance remain gated.
 - `docs/05-quality/ADVICE_CORE_VALIDATION.md`: executed internal advice-core checks and remaining server, browser, model and acceptance gates.
 - `docs/04-delivery/IMPLEMENTATION_MASTER_PLAN.md`: approved and merged implementation sequence.

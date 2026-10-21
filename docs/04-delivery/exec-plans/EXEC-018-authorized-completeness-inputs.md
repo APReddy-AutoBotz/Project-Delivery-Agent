@@ -172,9 +172,16 @@ assert no known-position/freshness/satisfaction credit in unresolved cases.
 ## Validation evidence
 
 Both independent reviewers approve the design hash above without blockers.
-Implementation validation is pending. Planned cases are not passing evidence.
+Build, required lint, explicit native/browser test lint and eight-package typecheck
+pass. Full unit regression passes 1,824 tests/105 files in 111.10 seconds with two
+workers and unchanged deadlines. Native/API/browser and hosted validation remain
+pending. The new native file is registered explicitly in the existing harness.
+See [validation](../../05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md) for
+executed checks, retained failed environment attempts and privacy coverage.
+Planned cases and early review are not passing execution evidence.
 
 ## Completion summary
 
-Pending design review, implementation, exact-candidate reviews, CI and merge.
+Implementation is prepared privately; final validation, exact-candidate reviews,
+main reconciliation, fresh hosted CI and merge remain pending.
 Accepted totals remain R0 3/5, R1 2/33, overall 5/38 (13.2%).

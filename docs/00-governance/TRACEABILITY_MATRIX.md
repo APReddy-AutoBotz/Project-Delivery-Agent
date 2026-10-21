@@ -5,7 +5,7 @@ The machine-readable source is `requirements/traceability.yaml`. This document p
 | Business need | Product or functional requirement | Acceptance criteria | Planned verification |
 |---|---|---|---|
 | BR-001 Reduce manual update chasing | FR-UPD-001, FR-UPD-002, FR-ESC-001 | AC-UPD-001 to AC-UPD-006 | Unit, integration and E2E cadence tests |
-| BR-002 Improve information freshness | FR-EVD-006, FR-HLT-001, FR-HLT-002 | AC-EVD-001 to AC-EVD-004 | Freshness and completeness tests |
+| BR-002 Improve information freshness | FR-EVD-006, FR-HLT-001, FR-HLT-002 | AC-EVD-001 to AC-EVD-004, AC-HLT-001/002 | Freshness and completeness tests, INT-HLT-002, E2E-UPD-001 |
 | BR-003 Detect risks earlier | FR-HLT-004, FR-HLT-006, FR-HLT-008 | AC-HLT-001 to AC-HLT-006 | Golden risk scenarios |
 | BR-004 Answer leadership with evidence | FR-QA-001 to FR-QA-008 | AC-QA-001 to AC-QA-008 | Grounding and access-control evals |
 | BR-005 Preserve current tools | FR-CON-001, FR-CON-004, FR-WRB-001 | AC-CON-001 to AC-CON-005 | Jira and spreadsheet integration tests |

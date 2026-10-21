@@ -19,6 +19,18 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
+EXEC-018 corrects the persisted completeness reader's evidence count. Only
+currently available authority-result versions count; policyless/stale existing
+evidence stays UNCONFIRMED, protected versions do not count, and empty facts stay
+MISSING. Its private implementation adds real native authority/privacy cases and
+an API/browser regression, with no schema, connector, visual or source-publication
+change. Build, lint, typecheck and 1,824 unit tests pass; final native/browser,
+exact-candidate reviews and fresh hosted gates remain pending. PR #110 is still
+awaiting its complete exact-head CI; EXEC-018 publication requires verified main
+reconciliation. See [EXEC-018](exec-plans/EXEC-018-authorized-completeness-inputs.md)
+and [validation](../05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md).
+No new criterion/story is accepted; original19/20 capture remains stopped.
+
 EXEC-017 prepares independent internal recommendation/queue groundwork for
 [Issue #11](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11)
 on the verified PR #109 main tree. Its bounded pure domain builder, fixed
