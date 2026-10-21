@@ -333,7 +333,9 @@ and Vite license/notices original 101,176 bytes
 (`a77a1c089806b39ad339535bdf3677f636c91d96693e8ad7b11fe733f650ea64`).
 Fresh pnpm 11.19.0 frozen installation passed and registry/lock SRI identities match.
 The unchanged high-severity audit passed with zero high/critical and four moderate
-findings. Full checks and final immutable review remain adoption gates. The Vite
+findings. Fresh actual build/lint/typecheck and 1,804-unit-test validation passed;
+both independent reviewers approve dependency candidate `97c341c`. Final immutable
+record review and hosted/customer CI remain gates. The Vite
 direct pin and all three transitive overrides are explicit. Other adoption decisions
 and all release/security/distribution holds are preserved. The runtime patch adds
 no new trust-proxy configuration or authorization rule; first-party scope checks

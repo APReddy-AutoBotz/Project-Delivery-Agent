@@ -96,8 +96,15 @@ the complete lock diff contains only these patches and their references/peer pin
 Original installed licenses were read and retained; identities and SRI values match
 registry metadata and the lock. Registration verifies 42 exact dependency records.
 The unchanged high-severity audit passed: zero high/critical, four moderate.
-Full validation and new exact-head reviews/CI remain required for this dependency
-candidate; earlier core-only results do not validate the new package graph.
+Fresh actual `pnpm build`, `pnpm lint`, `pnpm typecheck`, and
+`pnpm test --maxWorkers=2` all passed on this graph. The final regression passes
+1,804 tests/105 files in 172.06 seconds, with unchanged deadlines. New-test lint,
+eight-package/97-source architecture and 245-requirement documentation checks pass.
+Both independent reviewers approve dependency candidate
+`97c341c59b53bb8e637970b43130e7b762dbc904`
+(tree `1cf110c91453a102cb0587073cd816545bfd26b5`) with no remaining findings.
+Final record-only exact-head reviews and fresh hosted/customer CI remain required;
+earlier core-only results do not supply evidence for the new graph.
 
 No database/migration, connector scope, credential, external SDK or UI changes.
 OD-013 public OAuth/live Jira activation stays

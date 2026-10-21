@@ -19,7 +19,8 @@ Keep that capture stopped. Preserve existing work and retained evidence.
 
 EPIC-06 remains a dependency for the complete EPIC-07 product journey. This batch
 adds no repository reader, API, browser page, provider adapter, network call,
-approval execution, scheduler, database migration or dependency. It cannot accept
+approval execution, scheduler or database migration. The CI repair below patches
+existing dependencies. This increment cannot accept
 Issue #11 or claim SEC-RPT-003/E2E-ADV-002 coverage. Preserve the Antigravity UI.
 OD-013 continues to disable public OAuth/live Jira activation; spreadsheet commits
 remain reviewed proposals. Accepted totals remain 5/38 stories.
@@ -167,3 +168,11 @@ zero critical and four moderate findings. Only the three intended package identi
 and associated references/peer pins change in the lock. All 39 unrelated adoption
 records remain unchanged. Full patched-graph validation and exact-head reviews/CI
 are in progress; no release hold or acceptance count changes.
+
+Patched-graph final local checkpoint: actual `pnpm build`, `pnpm lint`,
+`pnpm typecheck`, `pnpm test --maxWorkers=2` pass; the latter verifies all 1,804
+tests/105 files in 172.06 seconds without changing deadlines. New-test lint,
+architecture and documentation checks also pass. Both independent reviewers
+approve exact dependency candidate `97c341c59b53bb8e637970b43130e7b762dbc904`
+without findings. Final record-only review and fresh exact-head hosted/customer CI,
+expected-head merge and actual merged-tree verification remain open.
