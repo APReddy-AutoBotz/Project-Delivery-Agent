@@ -128,6 +128,8 @@
 
 ## Implementation-control additions
 
+- `docs/04-delivery/exec-plans/EXEC-017-deterministic-advice-core.md`: independent, pure recommendation and queue groundwork for Issue #11; product integration and acceptance remain gated.
+- `docs/05-quality/ADVICE_CORE_VALIDATION.md`: executed internal advice-core checks and remaining server, browser, model and acceptance gates.
 - `docs/04-delivery/IMPLEMENTATION_MASTER_PLAN.md`: approved and merged implementation sequence.
 - `docs/04-delivery/IMPLEMENTATION_STATUS.md`: merged partial progress versus accepted stories.
 - `docs/04-delivery/exec-plans/EXEC-002-platform-foundation.md`: foundation scope and evidence.
