@@ -176,3 +176,48 @@ architecture and documentation checks also pass. Both independent reviewers
 approve exact dependency candidate `97c341c59b53bb8e637970b43130e7b762dbc904`
 without findings. Final record-only review and fresh exact-head hosted/customer CI,
 expected-head merge and actual merged-tree verification remain open.
+
+## Distribution advisory metadata refresh design
+
+NFR-SEC-010 / AC-MNT-004: the initial normal Foundation run's packaged production
+and customer acceptance passed and uploaded its production record. The later
+distribution collector failed the intentional exact-advisory check for
+CVE-2026-8376. Its original complete job log is retained locally. The scanner
+reports Debian fix metadata `state: fixed`, version `5.36.0-7+deb12u4`, with
+availability `{version: 5.36.0-7+deb12u4, date: 2026-10-06, kind: first-observed}`;
+the policy still expects `wont-fix` and no versions.
+
+Primary [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-8376)
+and [DLA-4821-1](https://security-tracker.debian.org/tracker/DLA-4821-1) confirm
+bookworm u3 remains vulnerable at the source-package level and security u4 is
+fixed. The primary CNA record still identifies a 32-bit-build precondition.
+This is source fix availability, not evidence that the pinned u3 image was patched.
+The scanner's first-observed date is not treated as a publisher release date.
+
+Refresh only the exact expected fix object in perl-disposition-policy.json after
+independent review. Retain every exact package/material/layer/relationship,
+source/advisory description, primary CNA, analysis hash, ELF64/8-byte build proof,
+match-envelope, target/scope and not-applicable-precondition constraint. No matcher
+relaxation, wildcard, base image change, new not-applicable rule or new subject
+execution is allowed. The existing narrow architecture disposition is unchanged;
+whole-image/embedded-runtime absence and release approval remain false. Other
+CVEs remain open. Retain original scans and historical policies unchanged in Git.
+
+Add regression checks for the exact new source fix metadata and rejection of old
+wont-fix state, altered version/availability/date/kind and extra metadata. Re-run
+the Perl/disposition tests, full unit suite, lint/docs and unchanged dependency
+audit. Application source/dependency blobs are unchanged from fully validated
+3ac3bea, but the new candidate still requires both exact-head independent reviews,
+fresh complete normal CI including packaged/customer/distribution replay, and
+verified expected-head merge. Do not treat the failed collector as a passing scan
+or waive distribution/signing/security holds. Recovery is the reviewed policy/test
+revert; no database or capture action is involved. Independent design review
+approved this bounded refresh without blockers. The selected-description negative
+now changes the new `fixed` state to `wont-fix`, preserving a genuine rejection.
+
+Final refresh local checkpoint: focused Perl/gosu 174 tests and full unit 1,816
+tests/105 files pass (86.60 seconds, two workers, unchanged deadlines). Required
+lint, advice-test lint, architecture, 42-record dependency registration,
+documentation and unchanged audit pass (zero high/critical, four moderate).
+No application/dependency blob changes from the validated build/typecheck input.
+Both exact-head independent reviews and fresh complete CI remain merge gates.

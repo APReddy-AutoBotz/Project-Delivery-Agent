@@ -244,9 +244,81 @@ describe("Perl architecture evidence (NFR-SEC-010 / AC-MNT-004)", () => {
         expect(after[0].scopeFactsSha256).toBe(before[0].scopeFactsSha256);
         expect(after[1]).toEqual(before[1]);
         expect(encode(f.scan)).toEqual(raw);
-        f.scan.matches[0].vulnerability.fix.state = "fixed";
+        f.scan.matches[0].vulnerability.fix.state = "wont-fix";
         expect(() => deriveReviewedPerlRows(f)).toThrow(/semantics changed/);
       });
+  it("pins source fix availability without claiming the installed u3 build was patched", () => {
+    expect(realPolicy.rule.advisory.fix).toEqual({
+      versions: ["5.36.0-7+deb12u4"],
+      state: "fixed",
+      available: [
+        {
+          version: "5.36.0-7+deb12u4",
+          date: "2026-10-06",
+          kind: "first-observed",
+        },
+      ],
+    });
+    const f = fixture();
+    expect(f.sbom.artifacts[0].version).toBe("5.36.0-7+deb12u3");
+    expect(f.analysis.packages[0].version).toBe("5.36.0-7+deb12u3");
+    expect(
+      deriveReviewedPerlRows(f).map(
+        (r: { disposition: string }) => r.disposition,
+      ),
+    ).toEqual(["not_applicable", "not_applicable"]);
+  });
+  type AdvisoryFix = {
+    state: string;
+    versions: string[];
+    available: {
+      version: string;
+      date: string;
+      kind: string;
+      [key: string]: unknown;
+    }[];
+    [key: string]: unknown;
+  };
+  const fixMutations: [string, (fix: AdvisoryFix) => void][] = [
+    ["old state", (fix) => (fix.state = "wont-fix")],
+    ["different fix version", (fix) => (fix.versions[0] = "5.36.0-7+deb12u3")],
+    ["no fix versions", (fix) => (fix.versions = [])],
+    [
+      "missing availability",
+      (fix) => {
+        Reflect.deleteProperty(fix, "available");
+      },
+    ],
+    [
+      "different availability version",
+      (fix) => (fix.available[0].version = "5.36.0-7+deb12u3"),
+    ],
+    [
+      "different observed date",
+      (fix) => (fix.available[0].date = "2026-10-07"),
+    ],
+    [
+      "different availability kind",
+      (fix) => (fix.available[0].kind = "release"),
+    ],
+    ["unknown fix field", (fix) => (fix.extra = true)],
+    ["unknown availability field", (fix) => (fix.available[0].extra = true)],
+    [
+      "duplicate availability",
+      (fix) => fix.available.push({ ...fix.available[0] }),
+    ],
+  ];
+  for (const [name, mutate] of fixMutations)
+    it(`rejects ${name} in selected advisory fix metadata`, () => {
+      const f = fixture();
+      mutate(f.scan.matches[0].vulnerability.fix);
+      expect(() => deriveReviewedPerlRows(f)).toThrow(/semantics changed/);
+    });
+  it("rejects the obsolete complete fix object", () => {
+    const f = fixture();
+    f.scan.matches[0].vulnerability.fix = { versions: [], state: "wont-fix" };
+    expect(() => deriveReviewedPerlRows(f)).toThrow(/semantics changed/);
+  });
   for (const description of [
     null,
     32,

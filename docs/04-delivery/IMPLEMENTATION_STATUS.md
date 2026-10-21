@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-10-21
+Updated: 2026-10-22
 
 ## Accepted implementation completion
 
@@ -39,6 +39,14 @@ The repaired graph now passes the unchanged audit with zero high/critical (four
 moderate), all standard local build/lint/typecheck scripts and all 1,804 unit tests.
 Both independent reviews approve the dependency candidate. Fresh exact-head
 hosted/customer checks and verified merge remain pending; no story is accepted.
+The initial production/customer acceptance passed before distribution collection
+stopped on changed Debian Perl fix metadata. The independently reviewed exact
+metadata refresh preserves the pinned u3 material and narrow architecture proof;
+it claims neither patch installation nor release acceptance. Focused regression
+passes 174 tests and the full final local suite passes 1,816/105 files. Required
+lint, architecture, registration, documentation and unchanged audit pass. Final
+exact-head reviews and hosted gates remain pending. No stopped research capture
+action is included.
 
 EXEC-015 Stage 2b [PR #108](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/108) is merged after both independent nonauthor reviewers approved exact head `f0d939c0012fcb8e8425c1373dcb7df71172d5ac`. Merge `67f0ca2e8420d29161e6d204a13e48be7080a7b7` preserves reviewed/tested tree `53257948155c7742792c7f27e513409aa1165fb2`. Candidate [Foundation 36878685246](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36878685246) / [Documentation 36878685590](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36878685590) and post-merge [Foundation 36881853283](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36881853283) / [Documentation 36881853470](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36881853470) passed. Native: 1,663 unit, 149 integration and 39 browser tests; exact 78-table dump/restore. Packaged production validated genuine source-linked populated recovery in isolated, bundled and external customer profiles.
 

@@ -106,6 +106,45 @@ Both independent reviewers approve dependency candidate
 Final record-only exact-head reviews and fresh hosted/customer CI remain required;
 earlier core-only results do not supply evidence for the new graph.
 
+## Distribution advisory metadata repair (NFR-SEC-010 / AC-MNT-004)
+
+The initial normal Foundation run 39647616494's production/customer acceptance
+passed before its distribution collector rejected changed CVE-2026-8376 fix
+metadata. This failure receives no distribution passing credit. Debian's tracker
+and DLA-4821-1 now identify security version 5.36.0-7+deb12u4 as fixed, while the
+pinned u3 source package remains vulnerable. The unchanged primary CNA bytes
+still describe the 32-bit-build precondition. Original publisher responses and the
+complete CI log are retained privately; the primary CNA hash remains
+`a083a4770e008b866e381ef59b7cb132fe889f3ed593e13a1405c55a424f2cbe`.
+
+The independently reviewed repair changes only the policy's exact expected fix
+object to `fixed`/u4 and its scanner-reported first-observed availability. It does
+not claim the u3 image is patched or treat first-observed as a publisher release
+date. The physical x86-64/ELF64/build-width proof, analysis/CNA/material/layer/
+relationship/match-envelope hashes, target/scope/description constraints, matcher
+and narrow architecture disposition remain unchanged. Whole-image/embedded
+absence and release approval remain false. Other CVEs and all five release holds
+remain open.
+
+Twelve new regressions pin the complete fix object, preserve u3 installed-material
+identity and the narrow disposition, and reject the obsolete object/state,
+changed/missing versions, availability/date/kind and unknown or duplicated fields.
+The preexisting selected-description regression now mutates `fixed` to `wont-fix`
+so it still tests a genuine rejection. Focused Perl/gosu validation passes all
+174 tests. The full final local regression passes 1,816 tests/105 files in 86.60
+seconds with two workers and unchanged deadlines. Required lint, separate advice
+test lint, architecture, 42-record dependency registration, documentation validation
+and the unchanged audit all pass (zero high/critical, four moderate). Application
+and dependency blobs remain identical to the earlier full build/typecheck input.
+Exact-head reviews and fresh complete normal CI remain pending at this checkpoint.
+
+An additional ad hoc lint probe of the legacy Perl test file reported 20 uses of
+explicit-any fixture style, outside the repository's required lint paths. The two
+new uses were replaced with explicit types; 18 preexisting uses remain unchanged.
+No lint rule, assertion or deadline is relaxed.
+The required `pnpm lint` passes. The failed probe is retained and supplies no
+passing credit.
+
 No database/migration, connector scope, credential, external SDK or UI changes.
 OD-013 public OAuth/live Jira activation stays
 disabled and spreadsheet commits remain reviewed proposals. Roll back by reverting
