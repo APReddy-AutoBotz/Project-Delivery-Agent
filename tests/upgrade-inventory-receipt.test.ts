@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { assertUpgradeInventory } from "../scripts/acceptance/upgrade-inventory-receipt.mjs";
+import { assertUpgradeInventory, assertBusinessTableInventory } from "../scripts/acceptance/upgrade-inventory-receipt.mjs";
 const old = [
   "Customer",
   "Portfolio",
@@ -83,10 +83,11 @@ const added = [
   "ProjectUpdateDispatchAttempt",
   "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
   "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
+  "IngestionProjectReassessment",
 ];
 const receipt = () => ({
   priorMigrationCount: 1,
-  businessTableCount: 84,
+  businessTableCount: 85,
   scheduleHealthPolicyTables: ["ScheduleHealthPolicyRevision"],
   scheduleHealthPolicyBackfill: {
     project_count: 1,
@@ -104,6 +105,14 @@ const receipt = () => ({
         "ProjectUpdateIssuanceGate",
       ].includes(table),
   ),
+});
+it("NFR-REL-001: validates all 85 bootstrap tables independently and rejects omissions, duplicates and substitutions", () => {
+  const tables = [...old, ...added];
+  expect(tables).toHaveLength(85);
+  expect(assertBusinessTableInventory(tables)).toBe(true);
+  expect(() => assertBusinessTableInventory(tables.slice(1))).toThrow();
+  expect(() => assertBusinessTableInventory([...tables, tables[0]!])).toThrow();
+  expect(() => assertBusinessTableInventory(["UnexpectedTable", ...tables.slice(1)])).toThrow();
 });
 it("NFR-REL-001: accepts the exact independent prior and added table inventories", () => {
   expect(assertUpgradeInventory(receipt(), 1)).toBe(true);
@@ -179,6 +188,7 @@ it("NFR-REL-001: accepts project update and seeded schedule policy release addit
     "ProjectUpdateDispatchAttempt",
     "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation", "ProjectUpdateResponse",
     "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
+    "IngestionProjectReassessment",
   ]);
   expect(assertUpgradeInventory(value, 8)).toBe(true);
 });

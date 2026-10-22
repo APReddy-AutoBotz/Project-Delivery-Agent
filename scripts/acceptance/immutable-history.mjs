@@ -5,6 +5,7 @@ import { canonicalTables } from "./canonical-projects.mjs";
 // Match the installed Prisma PG adapter's structured server error, not its
 // formatted top-level message (which can include SQL and source information).
 const immutableMessages = {
+  IngestionProjectReassessment: "Reassessment history is immutable",
   AuditEvent: "Audit records are immutable",
   FactSource: "Fact history is immutable",
   FactEvidence: "Fact history is immutable",
@@ -52,6 +53,7 @@ const immutableMessages = {
   ),
 };
 const sealMessages = {
+  IngestionProjectReassessment: "Immutable reassessment identity",
   FactAssessment: "Invalid assessment seal",
   CanonicalStateBinding: "Invalid state binding seal",
   MilestoneConsistencyAssessment: "Invalid milestone consistency seal",
@@ -63,6 +65,7 @@ const sealMessages = {
 // CASCADE can visit a dependent table's statement trigger first. Only the
 // exact history guards used by these tables are eligible, never arbitrary P0001.
 const truncateMessages = new Set([
+  "Reassessment history is immutable",
   "Audit records are immutable",
   "Fact history is immutable",
   "Canonical creation history is immutable",

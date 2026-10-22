@@ -1,5 +1,6 @@
 // TR-API-001: application port depends on contracts without schema cycles.
 import type { Actor } from "./actor.js";
+import type { IngestionReassessmentRetry, IngestionReassessmentItem, IngestionReassessmentPage } from "./ingestion-reassessment.js";
 import type { ProjectUpdateEngagementView } from "./project-update-engagement.js";
 import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "./project-update-capture.js";
 import type { ProjectUpdatePolicyView, ProjectUpdatePolicyChange, ProjectUpdateAssessmentView } from "./project-updates.js";
@@ -12,6 +13,8 @@ export interface ProjectUpdateRepository {
   latest(actor: Actor, projectId: string): Promise<ProjectUpdateAssessmentView | null>;
   schedulePreview(actor: Actor, projectId: string): Promise<ProjectUpdateSchedulePreview>;
   scanScheduledProjects(limit: number): Promise<number>;
+  reassessments(actor: Actor, projectId: string, cursor?: string | null): Promise<IngestionReassessmentPage>;
+  retryReassessment(actor: Actor, projectId: string, change: IngestionReassessmentRetry, correlationId: string): Promise<IngestionReassessmentItem>;
   activateEngagement(actor: Actor, projectId: string, expectedPolicyRevision: number, correlationId: string): Promise<ProjectUpdateEngagementView | null>;
   processShadowEngagements(limit: number): Promise<number>;
   processEngagements(limit: number): Promise<number>;

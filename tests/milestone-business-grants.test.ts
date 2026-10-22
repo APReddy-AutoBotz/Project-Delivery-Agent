@@ -87,6 +87,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     "public.guard_ingestion_sync_receipt_scope()",
   ];
   const ingestionSignatures = [
+    "public.valid_ingestion_mapping(jsonb)",
     "public.valid_ingestion_proposals(jsonb)",
     "public.valid_ingestion_projection_content(uuid,jsonb)",
     "public.valid_ingestion_receipt(uuid)",
@@ -114,7 +115,13 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     "public.guard_update_capture_content()", "public.require_update_capture_complete()",
     "public.lock_update_issuance_gate(uuid)", "public.purge_update_capture_content(uuid)",
   ];
-  expect(revoked).toHaveLength(7);
+  const reassessmentValidators = [
+    'public.valid_ingestion_reassessment_row(public."IngestionProjectReassessment")',
+    "public.valid_ingestion_project_reassessment(uuid)",
+  ];
+  const reassessmentGuards = ["public.guard_ingestion_project_reassessment()", "public.require_ingestion_reassessment_complete()",
+    "public.lock_ingestion_reassessment_preview()", "public.reject_ingestion_reassessment_history()"];
+  expect(revoked).toHaveLength(8);
   expect(
     revoked
       .flatMap((match) => splitFunctionSignatures(match[1]!))
@@ -129,12 +136,13 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...updateValidators,
       ...updateGuards,
       ...captureGuards,
+      ...reassessmentValidators, ...reassessmentGuards,
     ].sort(),
   );
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
   ];
-  expect(granted).toHaveLength(6);
+  expect(granted).toHaveLength(7);
   expect(granted.flatMap((match) => splitFunctionSignatures(match[1]!)).sort()).toEqual(
     [
       "public.valid_canonical_state_binding(uuid)",
@@ -148,6 +156,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       "public.valid_scalar_reconciliation_request(uuid)",
       ...ingestionSignatures,
       ...updateValidators,
+      ...reassessmentValidators,
       "public.lock_update_issuance_gate(uuid)",
       "public.purge_update_capture_content(uuid)",
     ].sort(),
@@ -162,7 +171,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(13);
+  ]).toHaveLength(15);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {

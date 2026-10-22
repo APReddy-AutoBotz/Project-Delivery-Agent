@@ -18,6 +18,7 @@ import {
   projectUpdateEngagementActivationSchema,
   projectUpdateCaptureGenerationSchema,
   projectUpdateAssessmentRequestSchema,
+  ingestionReassessmentRetrySchema,
   ProjectUpdateError,
   type Actor,
   type ProjectUpdateRepository,
@@ -35,6 +36,8 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async latest() { return null; },
   async schedulePreview() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async scanScheduledProjects() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async reassessments() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async retryReassessment() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async activateEngagement() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async processShadowEngagements() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async processEngagements() { throw new ProjectUpdateError("UNAVAILABLE"); },
@@ -145,6 +148,24 @@ export class ProjectUpdateController {
     const actor = await this.actor(req);
     const id = this.projectId(rawId);
     return this.run(() => this.repository.schedulePreview(actor, id));
+  }
+
+  @Get("ingestion-reassessments")
+  async reassessments(@Req() req: Request, @Param("id") rawId: string, @Query() query: Record<string, unknown>) {
+    const actor = await this.actor(req), id = this.projectId(rawId);
+    if (Object.keys(query).some((key) => key !== "cursor") ||
+        (query.cursor !== undefined && !projectFactIdSchema.safeParse(query.cursor).success))
+      throw new HttpException("", 400);
+    return this.run(() => this.repository.reassessments(actor, id, query.cursor as string | undefined));
+  }
+
+  @Post("ingestion-reassessment-retries")
+  @HttpCode(200)
+  async retryReassessment(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req), id = this.projectId(rawId);
+    const parsed = ingestionReassessmentRetrySchema.safeParse(body);
+    if (!parsed.success) throw new HttpException("", 400);
+    return this.run(() => this.repository.retryReassessment(actor, id, parsed.data, req.correlationId));
   }
 
   @Get("project-update-capture-history")

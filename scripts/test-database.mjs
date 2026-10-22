@@ -15,6 +15,7 @@ import {
 } from "../packages/data/dist/index.js";
 import { assertSyntheticDatabaseUrl } from "../packages/platform/dist/index.js";
 import { verifyIngestionPrefixNineUpgrade } from "./acceptance/ingestion-prefix-nine-upgrade.mjs";
+import { verifyIngestionAssuranceUpgrade } from "./acceptance/ingestion-assurance-upgrade.mjs";
 import { verifyUpdateEngagementStorage } from "./acceptance/update-engagement-storage.mjs";
 const source = assertSyntheticDatabaseUrl(
   process.env.PDAA_DATABASE_URL ?? "",
@@ -32,6 +33,7 @@ if (
 const prefixNineUpgrade = await verifyIngestionPrefixNineUpgrade(
   process.env.PDAA_DATABASE_URL,
 );
+const ingestionAssuranceUpgrade = await verifyIngestionAssuranceUpgrade(process.env.PDAA_DATABASE_URL);
 const evidencePath = "artifacts/database-validation.json";
 if (existsSync(evidencePath))
   renameSync(
@@ -144,6 +146,7 @@ try {
     "ProjectUpdateDispatchAttempt",
     "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
     "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
+    "IngestionProjectReassessment",
     "ScheduleHealthPolicyRevision",
   ];
   assert.deepEqual(
@@ -672,6 +675,7 @@ node([
   "tests/scalar-reconciliation.integration.test.ts",
   "tests/ingestion-persistence.integration.test.ts",
   "tests/connector-runtime.integration.test.ts",
+  "tests/ingestion-reassessment.integration.test.ts",
   "tests/project-evidence.integration.test.ts",
   "--no-file-parallelism",
 ]);
@@ -763,6 +767,7 @@ writeFileSync(
       ],
       ingestionPersistenceChecks: "passed",
       prefixNineUpgrade,
+      ingestionAssuranceUpgrade,
       raidReopenTables: ["RaidReopenReceipt"],
       blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
       projectUpdateTables: [
@@ -774,7 +779,8 @@ writeFileSync(
       ],
       engagementStorage,
       engagementStorageTables: ["ProjectUpdateEngagement","ProjectUpdateStage","ProjectUpdateOutbox","ProjectUpdateDispatchAttempt"],
-      businessTables: 84,
+      businessTables: 85,
+      ingestionReassessmentTables: ["IngestionProjectReassessment"],
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",
       projectFactRepositoryChecks: "passed",
