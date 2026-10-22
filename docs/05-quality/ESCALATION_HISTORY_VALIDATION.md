@@ -41,9 +41,9 @@ capture remain in force. The accepted-story total stays 7/38.
 | Full unit suite | 1,904 tests / 109 files pass in 240.55s |
 | Focused history units | 41 schema, digest and display-projection cases pass |
 | Cache cleanup units | Eight cases use the real QueryClient and pass in the full suite |
-| Focused native history | 12 cases pass in 15.36s under `SET LOCAL ROLE pdaa_api` |
+| Focused native history | Current 13 cases pass in 21.71s under `SET LOCAL ROLE pdaa_api`, including real same-engagement generation selection |
 | Related browsers | Five UI contracts plus three existing real update journeys pass in 38.4s |
-| Real saved PM browser | Final build passes one journey in 9.7s; journey assertions take 6.1s |
+| Real saved PM browser | Current dedicated-customer journey passes in 11.6s (assertions 7.3s); screenshot and exact-fixture receipt inspected |
 | OpenAPI | Regenerated additive response snapshot and exact check pass |
 | Architecture | Eight packages / 102 sources pass |
 | Dependencies | 42 exact direct/override records pass; no graph change |
@@ -74,21 +74,41 @@ read-only as-of seam challenges retention without changing stored timestamps or
 scheduler rules. Exact 20/21 uses a bounded projection seam; immutable guards stay
 enabled. Existing engagement regressions separately cover older-generation
 predecessor isolation and rotated/old invitation denial in the full native cohort.
+The history-specific native fixture also retains five real captured records in
+generation 1, rotates/re-enables its isolated customer's issuance gate with valid
+audits, and calls the real PMO capture-generation command. The same engagement
+and policy then have five generation-2 records. The native test checks both DB
+generations, the actual old capture IDs and AVAILABLE exact latest-anchor/current
+history IDs; all old IDs are absent. Owner escalation is captured after the PM
+message, and its actual later timestamp is included at read-as-of.
+
+A later generation cannot coexist with an authorized old PM invitation: whole-
+view generation fencing runs before context selection. The old PM locator is
+tested DENIED before any context query after renewal. That denial is jointly
+epoch and generation fenced; it does not isolate either gate independently.
 
 `scripts/acceptance/escalation-history.mjs` creates five actual protected capture
-records with all birth/outbox/content guards enabled. A reminder has the original
+records per cycle with all birth/outbox/content guards enabled. The native-only
+older-cycle option requires a newly isolated customer; it retains two cycles in
+the main project before the unrelated project is created. A reminder has the original
 request's capture time and a lower UUID. This is a projection fixture, not proof
 of scheduler processing or external delivery. The native harness prepares it
 before the timed view cases, retaining private fixture JSON outside public
 artifacts.
 
-The real saved journey uses a fresh `pdaa_test_1792656590693`, real API and built
+The earlier pre-isolation saved journey used a fresh `pdaa_test_1792656590693`, real API and built
 web preview without route interception or a worker. It asserts exact IDs before
 rendering, source-A revocation with three restricted origins while B remains
 visible, no private owner reply, UNKNOWN impact and sign-out cleanup. Its sanitized
 receipt is written only after every assertion passes. Root inspected the final
 saved Antigravity screenshot and receipt. CI publishes only
 `pm-escalation-history-browser` PNG/JSON, not private fixture files or full logs.
+This proves the prior runtime/browser behavior only. The current dedicated-
+customer/API-binding run separately passes on `pdaa_test_1792683902011` in 11.6s
+(journey assertions 7.3s). Root inspected its saved screenshot and verified that
+the post-assertion receipt's project, current request and original request match
+that exact private fixture. The history hides origin reviewer details and private
+owner replies; the PM's own existing reviewer/response contract remains intact.
 
 The separate intercepted response UI contract proves an origin body expires
 before its PM invitation, a later reminder remains visible and a denied refetch
@@ -140,8 +160,11 @@ yields divide only reviewed boundaries; each phase runs inside a default 20s
 test with failure/abort/prerequisite latches. The real six-second expiry lock and
 its 15s transaction remain. No database work moves into untimed setup. This also
 changes the aggregate scenario allowance and earns no latency-compliance claim.
-The corrected full native cohort contains 224 cases across the same 16 files;
-its execution and ordinary hosted Linux validation are pending.
+The 224-case third run lost its tool handle without a final result. Inspection
+found no test-database client sessions, its exclusive bridge closed and no success
+receipt. It is retained without passing credit. The new lineage regression brings
+the current full native cohort to 225 cases across the same 16 files. Its fresh
+fourth execution is running; ordinary hosted Linux validation remains pending.
 
 The first full unit run passed 1,902 cases and failed two: its OpenAPI snapshot was
 stale, and the unchanged startup-disclosure child exceeded its fixed 15s limit.
@@ -155,7 +178,20 @@ The third run failed cold development transforms; subsequent runs use actual
 built web output. The fourth/fifth exposed fixture PM identity/responsibility
 mismatch, corrected at project birth. The sixth incorrectly expected the existing
 memory-only development session to survive reload. The seventh passed with an
-authenticated visibility refetch; the final eighth passes on the final build.
+authenticated visibility refetch; the eighth passes on that pre-isolation build.
+The dedicated-customer fixture/runner correction requires a fresh browser pass.
+The ninth run creates that isolated fixture but stops before the journey: the
+actual API child does not become ready inside 120s and its log is empty. It earns
+no browser credit. A direct compiled-app import then measures 9,169ms; the full
+static-entry imports measure 13,693ms. A private fixed-marker startup diagnostic
+against the ninth run's isolated fixture reaches readiness in 8,586ms, including
+successful app creation. It does not reproduce or establish the earlier stall's
+cause. The tenth reaches the browser launch prerequisite, then fails because the
+sandbox default cache lacks the pinned Chromium executable. The already-installed
+matching revision is verified in the user cache; setting PLAYWRIGHT_BROWSERS_PATH
+selects it without a download or source/deadline change. The eleventh fresh run
+passes the complete current isolated-customer journey. All unsuccessful logs and
+diagnostic files remain private; no failed run receives passing credit.
 
 All failed logs, traces and fixtures are retained privately without full-suite
 credit. Default local `pdaa`, unrelated resources and the unfinished

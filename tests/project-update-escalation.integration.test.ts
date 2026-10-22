@@ -11,12 +11,13 @@ if (!url || process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "
     !["localhost", "127.0.0.1"].includes(new URL(url).hostname) || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
   throw new Error("Escalation history requires an isolated synthetic database");
 const db = createDatabase(url);
-type Capture = { requestId: string; stageId: string; locator: string; capturedAt: string; body: string };
+type Capture = { requestId: string; stageId: string; generation: number; recipientRole: "OWNER" | "PROJECT_MANAGER";
+  locator: string; capturedAt: string; body: string };
 type Fixture = { customerId: string; projectId: string; admin: Actor; owner: Actor; pm: Actor;
   service: string; zones: unknown; configuration: unknown; readers: string[];
   sourceA: { sourceId: string }; sourceB: { sourceId: string }; sourceMarkerA: string; sourceMarkerB: string;
   privateResponse: string; request: Capture; reminder: Capture; secondReminder: Capture;
-  ownerEscalation: Capture; escalation: Capture };
+  ownerEscalation: Capture; escalation: Capture; olderCycle: Capture[]; engagementId: string };
 let f: Fixture;
 beforeAll(() => {
   const path = resolve(process.env.PDAA_ESCALATION_FIXTURE_PATH ?? "missing-escalation-fixture");
@@ -99,6 +100,38 @@ it("returns the exact real request/reminder cycle including equal-clock lower UU
   expect(JSON.stringify(context)).not.toContain(f.admin.subject);
   expect(JSON.stringify(view)).not.toContain(f.privateResponse);
   expect(view.responses.map((entry) => entry.text)).toEqual(["PM own unconfirmed reply"]);
+});
+
+it("selects the latest real same-engagement anchor and excludes the older captured generation", async () => {
+  expect(f.olderCycle).toHaveLength(5);
+  const rows = await db.projectUpdateStage.findMany({ where: {
+    customerId: f.customerId, projectId: f.projectId, engagementId: f.engagementId,
+  }, select: { id: true, generation: true, policyRevision: true } });
+  expect(rows.filter((row) => row.generation === 1)).toHaveLength(5);
+  expect(rows.filter((row) => row.generation === 2)).toHaveLength(5);
+  expect(rows.every((row) => row.policyRevision === 1)).toBe(true);
+  expect((await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: f.engagementId } })).generation).toBe(2);
+  const olderCaptured = await db.projectUpdateCapturedRequest.findMany({ where: {
+    customerId: f.customerId, projectId: f.projectId,
+    stageId: { in: rows.filter((row) => row.generation === 1).map((row) => row.id) },
+  }, select: { id: true } });
+  expect(olderCaptured.map((row) => row.id).sort()).toEqual(f.olderCycle.map((entry) => entry.requestId).sort());
+  const view = await repository().invitation(f.pm, f.escalation.locator);
+  expect(view.escalationContext?.state).toBe("AVAILABLE");
+  expect(view.escalationContext?.originalRequestId).toBe(f.request.requestId);
+  expect(view.escalationContext?.entries.map((entry) => [entry.requestId, entry.generation])).toEqual([
+    [f.request.requestId, 2], [f.reminder.requestId, 2], [f.secondReminder.requestId, 2], [f.ownerEscalation.requestId, 2],
+  ]);
+  const visible = new Set(view.escalationContext?.entries.map((entry) => entry.requestId));
+  expect(f.olderCycle.every((entry) => !visible.has(entry.requestId))).toBe(true);
+  expect(Date.parse(f.ownerEscalation.capturedAt)).toBeGreaterThan(Date.parse(f.escalation.capturedAt));
+  expect(view.escalationContext?.entries.at(-1)?.capturedAt).toBe(f.ownerEscalation.capturedAt);
+  const oldPm = f.olderCycle.find((entry) => entry.recipientRole === "PROJECT_MANAGER");
+  expect(oldPm).toBeDefined();
+  const seam: Seam = { contextCalls: 0 };
+  // Both epoch and generation fencing deny an old locator before context work.
+  await expect(repository(seam).invitation(f.pm, oldPm!.locator)).rejects.toMatchObject({ code: "DENIED" });
+  expect(seam.contextCalls).toBe(0);
 });
 
 it("retains owner response access with null context on requests and non-PM escalations", async () => {

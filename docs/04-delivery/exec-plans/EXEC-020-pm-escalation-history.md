@@ -193,15 +193,19 @@ query now admits the complete generation and explicitly orders its request first
 A native fixture gives a reminder the same capture time and a lower UUID.
 
 The additive domain/data/browser projection is implemented. Focused validation
-passes 41 history units and 12 native cases, including positive query-seam
+passes 41 history units and 13 native cases, including positive query-seam
 controls. The final full suite passes 1,904 units / 109 files; eight additional
 cleanup cases use the real QueryClient. Build, lint, typecheck, architecture,
 OpenAPI, 42 dependency records and documentation pass. The unchanged high audit
 threshold passes with zero high/critical and six moderate advisories. All 25
 released SQL migrations are byte-identical to verified main.
 
-The final built-web/API journey passes one test in 9.7s on a fresh synthetic
-database. Five response UI contracts and three existing update journeys pass
+The earlier pre-isolation built-web/API journey passes one test in 9.7s on a fresh
+synthetic database. It proves that prior runtime/browser behavior only; the
+current dedicated-customer fixture and API binding separately pass a fresh
+11.6s journey (assertions 7.3s) on `pdaa_test_1792683902011`. Root inspected the
+saved screenshot and verified the success receipt against that exact fixture.
+Five response UI contracts and three existing update journeys pass
 together in 38.4s. Root inspected the saved Antigravity screenshot and sanitized
 success receipt. Independent coverage review identified retained query data after
 a denied GET refetch; the view now removes that exact protected query and disables
@@ -240,6 +244,22 @@ phases, preserving the original lexical state, exact statement/assertion order
 and real six-second expiry lock through an async generator. Each phase runs
 inside its default 20s test; failure/abort/prerequisite latches stop later work.
 No database work moves into setup. This changes that aggregate test allowance.
-The new full cohort has 224 cases across the same 16 files and is running.
-No app grant was expanded. Full native/recovery and final isolated-customer browser results
+The 224-case third run lost its tool handle without a final result. The database
+has no test client sessions, the bridge closed and no success receipt exists;
+that run is retained without passing credit.
+
+Independent coverage review found that earlier generation regressions did not
+exercise the new history SQL. The native-only fixture now retains five old
+captures, rotates/re-enables its newly isolated customer's gate through audited
+transitions, and calls the real capture-generation command. The same engagement
+and policy have generation 1 and 2. A new test checks genuine old capture IDs,
+AVAILABLE exact latest request/current-cycle IDs, exclusion of old IDs and actual
+owner-escalation capture time after the PM message. An old PM invitation cannot
+remain authorized when a later generation exists; its joint epoch/generation
+denial is asserted before context work. No immutable guard is bypassed.
+The current focused 13-case native suite passes in 21.71s. The full current cohort
+now contains 225 cases across the same 16 files; its fresh fourth run is underway.
+The current isolated-customer browser passes. Earlier readiness/cache prerequisite
+failures remain retained without credit; no further startup/test deadline changed.
+No app grant was expanded. Full native/recovery and required hosted results
 remain required before immutable review and publication.

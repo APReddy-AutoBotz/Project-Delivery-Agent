@@ -667,7 +667,7 @@ mkdirSync("tmp", { recursive: true });
 const escalationFixturePath = resolve("tmp/escalation-history-" + randomUUID() + ".json");
 // Existing foundation tests assert exact pm-atlas scope and engagement tests rotate
 // the default customer's gate. Keep this fixture's tenant and gate independent.
-const escalationFixture = await seedEscalationHistory(source.toString(), { isolatedCustomer: true });
+const escalationFixture = await seedEscalationHistory(source.toString(), { isolatedCustomer: true, includeOlderCycle: true });
 await seedEscalationHistory(source.toString(), { customerId: escalationFixture.customerId });
 writeFileSync(escalationFixturePath, JSON.stringify(escalationFixture),
   { flag: "wx", mode: 0o600 });

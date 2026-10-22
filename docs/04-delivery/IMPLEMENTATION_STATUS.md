@@ -33,8 +33,10 @@ holds. Original19/20 research capture remains stopped.
 
 EXEC-020 adds current authorized request history to the named PM's existing
 escalation invitation. Independent design review approved the bounded projection;
-focused 41 unit and 12 native tests pass, and the real saved API/browser history
-journey passes (one test in 9.7s); eight related browsers pass in 38.4s. Build,
+focused 41 unit and current 13 native tests pass, including real same-engagement
+generation selection. The current dedicated-customer API/browser history journey
+passes one test in 11.6s, with screenshot and exact-fixture receipt inspected.
+Eight related browsers pass in 38.4s. Build,
 lint, typecheck, 1,904 units / 109 files, architecture, contract, dependency and docs gates
 pass. Fresh full native/recovery and exact candidate gates remain in progress. Historical text is source/retention checked per origin;
 raw owner responses/reviewer lists stay private and impact is explicitly UNKNOWN.
