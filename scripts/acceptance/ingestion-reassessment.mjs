@@ -15,19 +15,48 @@ const validators = ['valid_ingestion_reassessment_row(public."IngestionProjectRe
 export async function verifyReassessmentPrivileges(pool) {
   assert.equal((await pool.query(`SELECT pg_get_userbyid(relowner) AS owner FROM pg_class WHERE oid='public."IngestionProjectReassessment"'::regclass`)).rows[0].owner, "pdaa_migrate");
   const columns = (await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='IngestionProjectReassessment'")).rows;
-  for (const role of ["pdaa_api", "pdaa_worker", "pdaa_backup"]) {
-    for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN"]) {
+  const roles = ["pdaa_api", "pdaa_worker", "pdaa_backup"];
+  const tablePrivileges = ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN"];
+  const columnPrivileges = ["SELECT", "INSERT", "UPDATE", "REFERENCES"];
+  const functions = [...privateFunctions, ...validators];
+  assert(columns.length > 0);
+  assert.equal(new Set(columns.map((row) => row.column_name)).size, columns.length);
+  const matrix = (rows, fields, size) => {
+    assert.equal(rows.length, size);
+    const values = new Map(rows.map((row) => [fields.map((field) => row[field]).join("/"), row]));
+    assert.equal(values.size, size);
+    return (key) => { const row = values.get(key); assert(row, "Missing privilege matrix entry: " + key); return row; };
+  };
+  // NFR-REL-001 / NFR-SEC-001: preserve the full privilege matrix while
+  // avoiding hundreds of network round trips in populated recovery probes.
+  const table = matrix((await pool.query(`SELECT r.role_name,p.privilege,
+    has_table_privilege(r.role_name,'public."IngestionProjectReassessment"',p.privilege) AS allowed,
+    has_table_privilege(r.role_name,'public."IngestionProjectReassessment"',p.privilege||' WITH GRANT OPTION') AS grantable
+    FROM unnest($1::text[]) r(role_name) CROSS JOIN unnest($2::text[]) p(privilege)`, [roles, tablePrivileges])).rows,
+  ["role_name", "privilege"], roles.length * tablePrivileges.length);
+  const column = matrix((await pool.query(`SELECT r.role_name,c.column_name,p.privilege,
+    has_column_privilege(r.role_name,'public."IngestionProjectReassessment"',c.column_name,p.privilege) AS allowed
+    FROM unnest($1::text[]) r(role_name) CROSS JOIN unnest($2::text[]) c(column_name)
+    CROSS JOIN unnest($3::text[]) p(privilege)`, [roles, columns.map((row) => row.column_name), columnPrivileges])).rows,
+  ["role_name", "column_name", "privilege"], roles.length * columns.length * columnPrivileges.length);
+  const callable = matrix((await pool.query(`SELECT r.role_name,f.function_name,
+    has_function_privilege(r.role_name,'public.'||f.function_name,'EXECUTE') AS allowed
+    FROM unnest($1::text[]) r(role_name) CROSS JOIN unnest($2::text[]) f(function_name)`, [roles, functions])).rows,
+  ["role_name", "function_name"], roles.length * functions.length);
+  for (const role of roles) {
+    for (const privilege of tablePrivileges) {
       const allowed = role === "pdaa_backup" ? privilege === "SELECT" : role === "pdaa_api" && ["SELECT", "INSERT"].includes(privilege);
-      assert.equal((await pool.query("SELECT has_table_privilege($1,'public.\"IngestionProjectReassessment\"',$2) AS allowed", [role, privilege])).rows[0].allowed, allowed, role + "/" + privilege);
-      assert.equal((await pool.query("SELECT has_table_privilege($1,'public.\"IngestionProjectReassessment\"',$2) AS allowed", [role, privilege + " WITH GRANT OPTION"])).rows[0].allowed, false);
+      const entry = table(role + "/" + privilege);
+      assert.equal(entry.allowed, allowed, role + "/" + privilege);
+      assert.equal(entry.grantable, false);
     }
-    for (const { column_name } of columns) for (const privilege of ["SELECT", "INSERT", "UPDATE", "REFERENCES"]) {
+    for (const { column_name } of columns) for (const privilege of columnPrivileges) {
       const allowed = role === "pdaa_backup" ? privilege === "SELECT" : role === "pdaa_api" &&
         (["SELECT", "INSERT"].includes(privilege) || privilege === "UPDATE" && controlColumns.includes(column_name));
-      assert.equal((await pool.query("SELECT has_column_privilege($1,'public.\"IngestionProjectReassessment\"',$2,$3) AS allowed", [role, column_name, privilege])).rows[0].allowed, allowed, role + "/" + column_name + "/" + privilege);
+      assert.equal(column(role + "/" + column_name + "/" + privilege).allowed, allowed, role + "/" + column_name + "/" + privilege);
     }
-    for (const name of [...privateFunctions, ...validators])
-      assert.equal((await pool.query("SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed", [role, "public." + name])).rows[0].allowed,
+    for (const name of functions)
+      assert.equal(callable(role + "/" + name).allowed,
         role === "pdaa_api" && validators.includes(name), role + "/" + name);
   }
   return true;
@@ -128,10 +157,14 @@ export async function verifyRestoredReassessments(pool, fixture) {
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM public."IngestionProjectReassessment" WHERE public.valid_ingestion_project_reassessment(id) IS NOT TRUE')).rows[0].n, 0);
   await verifyReassessmentPrivileges(pool);
   const completed = fixture.causes.find((row) => row.state === "COMPLETED"); assert(completed);
-  await pool.query("BEGIN");
+  const client = await pool.connect();
   try {
-    await pool.query("SET LOCAL ROLE pdaa_api");
-    await assert.rejects(() => pool.query('UPDATE public."IngestionProjectReassessment" SET state=\'READY\' WHERE id=$1::uuid', [completed.id]));
-  } finally { await pool.query("ROLLBACK"); }
+    await client.query("BEGIN");
+    try {
+      await client.query("SET LOCAL ROLE pdaa_api");
+      assert.equal((await client.query("SELECT current_user AS role")).rows[0].role, "pdaa_api");
+      await assert.rejects(() => client.query('UPDATE public."IngestionProjectReassessment" SET state=\'READY\' WHERE id=$1::uuid', [completed.id]));
+    } finally { await client.query("ROLLBACK"); }
+  } finally { client.release(); }
   return { populatedStates: ["READY", "BLOCKED", "COMPLETED"], claimedAndUnclaimedReadyRetained: true, exactSchedulerAndLineage: true, immutableCompletionDenied: true, runtimeNotStarted: true };
 }

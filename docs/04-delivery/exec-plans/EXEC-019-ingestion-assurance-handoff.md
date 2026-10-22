@@ -347,3 +347,14 @@ The correction's fresh 1,828 units and standard local gates pass; fresh native
 has existing-case timeouts still being investigated. Preserve all failures and
 require fresh native/recovery, immutable candidate reviews and all hosted gates
 before merge. No test deadline or assertion is relaxed; capture remains stopped.
+
+Native11 and Native12 were stopped after four 20-second failures each, retaining
+logs and targets without full-suite credit. Independent review approved batching
+the recovery privilege matrix from 320 sequential queries per call into five
+queries while preserving every expectation and rejecting incomplete/duplicate/
+substituted/NULL matrices. Measured single calls on the same retained database
+take 7,196 ms before and 563 ms after; other timeout causes remain unproved.
+The mutation denial uses one checked-out client and verifies its API role before
+the unchanged rejected write, with rollback/release guaranteed. All 27 new probe
+regressions pass. Repeat full gates on a new owned synthetic server and obtain
+exact candidate reviews; capture, deadlines and production privileges stay unchanged.

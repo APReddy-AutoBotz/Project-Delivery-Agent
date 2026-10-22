@@ -158,7 +158,25 @@ quarantined recovery, exact-candidate review and complete hosted packaged/custom
 distribution validation remain required. The prior 200-test run does not prove
 this corrected migration. The new native run has timed out in several existing
 cases; the full outcome and cause remain under investigation, with no passing
-credit or changed test deadlines. Research capture remains stopped.
+credit or changed test deadlines. Native11 was stopped after four existing-case
+timeouts; Native12 was also stopped after four timeouts, including the populated
+reassessment recovery probe. Their targets and logs are retained.
+
+Independent review found that the recovery privilege probe made 320 sequential
+queries per call and runs twice inside that test. One measured call on the same
+retained synthetic database took 7,196 ms; its corrected complete matrix takes
+five queries and 563 ms. This is evidence of avoidable fixture cost, not proof of
+the cause of every earlier timeout. The correction preserves every owner, table,
+grant-option, column and function expectation, requires exact cardinality/unique
+keys and explicitly looks up each expected tuple. Both pre/post checks and the
+original test deadlines remain. Mutation denial now acquires one client for
+BEGIN/SET LOCAL ROLE/current-user verification/UPDATE rejection/ROLLBACK and
+always releases it. All 27 new probe regression tests pass, including missing,
+duplicate, substituted, extra, NULL and wrong permissions, grant-option denial,
+metadata failures and client release on denial/role/rollback failures. Fresh full
+units/native/recovery and hosted gates remain required; a new task-owned server
+will isolate the next native run from the retained earlier test cluster.
+Research capture remains stopped.
 
 FR-CON-004/010 -> AC-CON-004 -> INT-CON-004 -> signed native suite and production
 receipt/recovery fixtures -> Issue #7 -> draft PR #112. Supporting health,
