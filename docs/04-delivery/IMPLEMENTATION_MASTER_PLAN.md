@@ -156,11 +156,15 @@ Report separately what is implemented locally and what is accepted/merged.
 Fixed denominators: R0 has 5 stories; R1 has 33. Completion is merged accepted
 stories divided by that denominator, not a count of files or planned tests. A
 scope change updates the approved denominator explicitly. Current accepted
-completion is R0 3/5 (60%) and R1 2/33 (6.1%). STORY-001/002/003 are accepted
+completion is R0 3/5 (60%) and R1 4/33 (12.1%), or 7/38 combined (18.4%). STORY-001/002/003 are accepted
 with exact review, CI and merged evidence in FOUNDATION_CONTRACT_VALIDATION.md
 and CUSTOMER_COMPOSITION_VALIDATION.md. STORY-010 and STORY-011 are accepted in
 the current requirements/traceability/stories.yaml registry, with implementation
 evidence in CANONICAL_PROJECT_VALIDATION.md and PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md.
+STORY-008 and STORY-013 are accepted in JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md
+and FRESHNESS_COMPLETENESS_ACCEPTANCE.md after whole-story audits and PR #112
+implementation/merge/post-merge checks. The acceptance increment becomes effective
+after its own independent review, required checks and verified merge.
 The conditional security/CI criterion record in FOUNDATION_SECURITY_ACCEPTANCE.md
 does not accept STORY-004/005:
 unresolved distribution evidence and the Definition of Done security assessment

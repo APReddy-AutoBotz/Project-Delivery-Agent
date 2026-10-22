@@ -1,5 +1,28 @@
 # Decision Log
 
+## STORY-008 and STORY-013 software acceptance, 2026-10-22
+
+Under the Product Owner's existing controller delegation, accept only STORY-008
+(FR-CON-004/005/010, NFR-REL-001, NFR-SEC-006; AC-CON-004/007) and STORY-013
+(FR-HLT-001/002, FR-UPD-001; AC-HLT-001/002). Separate non-author complete-story
+audits find all canonical requirements satisfied on verified PR #112 merge
+58da66bcb4d2db78b5d7f3e1e6adf8ffdaced758/tree1a6115c. Exact reviewed candidate
+fbad59b and actual merge pass required Foundation and Documentation checks,
+including packaged/customer and exact 85-table recovery evidence.
+
+This decision becomes effective only after the acceptance/traceability increment
+itself passes independent exact-candidate review, required CI and verified merge.
+Complete evidence, limitations and recovery are in
+[webhook acceptance](../05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md) and
+[freshness acceptance](../05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md).
+Then R0 remains 3/5, R1 is 4/33 (12.1%) and combined acceptance is 7/38 (18.4%).
+No denominator or requirement/test ownership changes. Other stories and Issues
+#7/#8/#9 remain open; shared GOLDEN-003, delivery, interpretation and approval work
+retain their existing scope. OD-013/014, reviewed-proposal imports, all five
+release/security/customer holds and stopped Original19/20 capture remain in force.
+
+
+
 ## EXEC-015 durable engagement storage sequence, 2026-09-30
 
 The approved design in PR #104 and decision core in PR #105 are merged with required post-merge checks passed. Continue its implementation in reviewable stages. Storage Stage 2a keeps exact composite obligation/policy/assessment lineage, immutable stage snapshots, unique stage/outbox intents, fenced pre-handoff claims and terminal UNKNOWN handoff outcomes. PostgreSQL writes the append-only transition receipt atomically with the outbox transition; callers cannot supply a dispatch receipt directly. The new tables grant no API/worker access until the processing candidate passes review. EMAIL is a stored proposal mode only; no adapter, credential or network capability is introduced.

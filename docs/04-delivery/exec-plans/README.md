@@ -2,7 +2,7 @@
 
 ## Active implementation
 
-- [EXEC-019: Durable ingestion assurance handoff](EXEC-019-ingestion-assurance-handoff.md) — reviewed runtime receipt-to-assessment design for Issue #7; bounded claims, lineage, authorization and recovery are being validated. Research capture remains stopped.
+- [EXEC-019: Durable ingestion assurance handoff](EXEC-019-ingestion-assurance-handoff.md) — bounded implementation merged in PR #112 with exact-head and post-merge checks passed. Complete STORY-008/013 acceptance is recorded separately; Issue #7 and release holds remain open. Research capture remains stopped.
 - [EXEC-018: Authorized completeness inputs](EXEC-018-authorized-completeness-inputs.md) — merged PR #111 with verified reviewed tree and passing exact-head/post-merge checks. Full Issue #8 acceptance remains open.
 - [EXEC-017: Deterministic advice and queue core](EXEC-017-deterministic-advice-core.md) — internal groundwork for Issue #11 independent of the stopped EXEC-016 research capture. No API, browser, approval execution or story acceptance is included.
 - [EXEC-015: Durable update engagement and recipient response](EXEC-015-update-engagement-workflow.md) — approved design for Issue #9; PR #104 and the pure stage decision core in PR #105 merged with post-merge checks passed. Durable storage and processing are in progress. Production sends remain gated; OD-013 remains in force.

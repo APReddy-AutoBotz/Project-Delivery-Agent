@@ -7,7 +7,7 @@ Updated: 2026-10-22
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
-| R1      |                       2 |                     33 |       6.1% |
+| R1      |                       4 |                     33 |      12.1% |
 
 STORY-001 (TypeScript workspace and runtime/API contracts) and STORY-002
 (PostgreSQL foundation and repository interfaces) are accepted under delegated
@@ -16,6 +16,17 @@ evidence, independent exact-SHA review, passing remote checks and a verified mer
 STORY-003 (shipped customer composition, TLS and external database support) is
 accepted after PR #22; STORY-004/005 remain in progress. [Issue #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5),
 R0 release acceptance and commercial/customer deployment remain open.
+
+STORY-008 (Jira webhook/reconciliation) and STORY-013 (freshness/completeness)
+are accepted by the delegated controller after complete requirement audits and
+verified PR #112 implementation/merge/post-merge gates. This acceptance increment
+becomes effective after its own independent exact-candidate review, required
+checks and verified merge. See the [webhook acceptance](../05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md)
+and [freshness acceptance](../05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md) records.
+The resulting accepted total is **7/38 (18.4%)**: R0 3/5 and R1 4/33. Story and
+release denominators are unchanged. Issues #7/#8/#9 and the other unfinished
+stories remain open; technical collection does not accept any of the five release
+holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
@@ -51,30 +62,24 @@ connector, visual or source-publication change. See
 [validation](../05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md).
 No new criterion/story is accepted; original19/20 capture remains stopped.
 
-EXEC-019 implements the reviewed durable handoff from real CONNECTOR_SYNC changed
-receipts to bounded project reassessment and its actual optional update obligation.
-Draft PR #112 includes migration25/business table85, fenced claims, finite failure
-recovery, current PMO/source status and retry, REST contracts and exact recovery
-inventories. Independent review approved the necessary lock, historical receipt,
-first-observation and RepeatableRead version-fence corrections. The released-24
-upgrade fence probe passes with a genuine available cause and positive control;
-all 24 released migration bytes match verified main. Final local build/lint/types,
-1,827 units, 200 native tests/15 files, exact 85-table quarantined recovery with all 14
-proof families, three browser journeys, OpenAPI, architecture, registration and
-documentation pass. Audit passes the unchanged high-severity threshold with zero
-high/critical and six moderate findings. Both independent reviews approve the
-corrected candidate. Its first hosted run failed fresh role-absent migration and
-packaged recovery's arbitrary credential selection. Independently reviewed fixes
-and a permanent fresh-role/partial-role CI gate are in progress; the new dedicated
-bootstrap proof and 1,855 units pass locally. Earlier native timeout runs are
-retained; the recovery probe now preserves every assertion using five queries per
-call, with 27 new regression tests. Native validation runs on a new isolated server.
-Both correction reviews approve the implementation; fresh native/recovery and
-complete hosted gates remain before merge. No EXEC-019 criterion/story acceptance
-is claimed. See
-[plan](exec-plans/EXEC-019-ingestion-assurance-handoff.md) and
-[validation](../05-quality/INGESTION_ASSURANCE_VALIDATION.md). Original19/20 capture
-stays stopped; accepted stories remain R0 3/5, R1 2/33 and overall 5/38 (13.2%).
+EXEC-019 merged in [PR #112](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/112).
+Exact reviewed candidate fbad59b97f444ba6b8a69bf8767d8a4e14b950d4 merged as
+58da66bcb4d2db78b5d7f3e1e6adf8ffdaced758; its ordered parents and actual tree
+1a6115c0f6100723cd0f31507bd6d0e37e6dbdbc match the reviewed candidate. Exact-head
+Foundation39725089999/Documentation39725089928 and post-merge
+Foundation39727701669/Documentation39727701670 all pass. Hosted validation passes
+1,855 units, 200 native tests, 44 browser tests, fresh role-absent/API-only
+bootstrap, migration25, exact 85-table recovery, packaged production, both customer
+profiles and complete distribution evidence/manifest checks. Local corrected
+native13, fresh quarantined recovery3 and three browser journeys also pass.
+Earlier failed and interrupted runs remain retained without full-suite credit.
+The durable handoff preserves proposal-only input and exact assessment/obligation/
+new-preview lineage; current scope, finite claim/backoff and stale-version fences
+are enforced. Worker business-table access stays zero. All 24 released migration
+bytes remain unchanged. See [plan](exec-plans/EXEC-019-ingestion-assurance-handoff.md)
+and [validation](../05-quality/INGESTION_ASSURANCE_VALIDATION.md).
+The full-story decisions above supersede the earlier partial status of only
+STORY-008 and STORY-013. OD-013/014 and all other holds remain in force.
 
 ### Earlier checkpoints (historical)
 

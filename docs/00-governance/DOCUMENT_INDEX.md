@@ -195,3 +195,5 @@ DOCUMENT_CONTROL.md; future-release and commercial planning remains draft.
 
 - `docs/05-quality/FOUNDATION_SECURITY_ACCEPTANCE.md`: conditional five-criterion decision and unresolved story-level security assessment.
 - `docs/05-quality/CANONICAL_PROJECT_VALIDATION.md`: accepted canonical creation/detail workflow, current scope, additive migration and verified PR45 evidence.
+- `docs/05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md`: complete STORY-008 software-contract evidence and acceptance gates, preserving live-activation and publication holds.
+- `docs/05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md`: complete STORY-013 software-contract evidence and acceptance gates, preserving the other stories' delivery and shared golden-scenario scope.

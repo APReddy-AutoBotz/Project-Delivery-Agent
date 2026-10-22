@@ -354,6 +354,7 @@ tests:
   - apps/api/src/app.ts
   - scripts/setup-local.mjs
   - tests/e2e/project-update.spec.ts
+  - docs/05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md
 - id: E2E-UPD-004
   release: R1
   status: planned
@@ -917,7 +918,7 @@ tests:
   acceptance_criteria:
   - AC-CON-004
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: Submitting the same verified webhook twice returns the original receipt/job and retains one observation, proposal and durable runtime cause; the project scan binds its exact assessment and counts total downstream obligations without promoting proposal values. EXEC-019 passes local native/upgrade/recovery/browser gates; exact hosted gates and criterion acceptance remain pending.
+  behavior: Submitting the same verified webhook twice returns the original receipt/job and retains one observation, proposal and durable runtime cause; the project scan binds its exact assessment and counts total downstream obligations without promoting proposal values. Later assessments may reuse the existing obligation while binding a new preview. Complete original execution and acceptance are recorded in JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md.
   evidence:
   - "tests/connector-runtime.integration.test.ts"
   - "tests/ingestion-reassessment.integration.test.ts"
@@ -925,7 +926,8 @@ tests:
   - "scripts/acceptance/ingestion-reassessment.mjs"
   - "docs/05-quality/INGESTION_ASSURANCE_VALIDATION.md"
   - ".github/workflows/foundation-validation.yml"
-  - "Foundation validation passed; candidate SHA b6dcace33542b1976af896b74d8d22decb45417c; https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36238478248"
+  - "docs/05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md"
+  - "Exact candidate fbad59b97f444ba6b8a69bf8767d8a4e14b950d4 passed Foundation https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39725089999; actual merge 58da66bcb4d2db78b5d7f3e1e6adf8ffdaced758 passed post-merge Foundation https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39727701669"
 - id: INT-CON-006
   release: R1
   status: planned
