@@ -178,6 +178,17 @@ units/native/recovery and hosted gates remain required; a new task-owned server
 will isolate the next native run from the retained earlier test cluster.
 Research capture remains stopped.
 
+The complete corrected unit suite passes **1,855 tests/107 files in 151.01 seconds**.
+Independent source and bounded coverage reviews approve `114b3ea511c2b2748c7a58a6b667f8760d9a81d2`,
+tree `5a41f7b303f18284b885b1a61dfa44c906a08db7`. The review's additional independent
+axis pins pass all 27 focused regressions (11.18 seconds) and lint. The exact
+fresh-role orchestrator passes again with the batched probe and disposes its own
+cluster. Native13 runs on a separately created task-owned PostgreSQL 17.11 server,
+using fresh `pdaa_test_1792644271669`; it supplies no passing evidence until its
+complete result is available. Fresh native recovery/browser and complete normal
+hosted validation remain merge gates. Public PR #112 remains a draft while those
+gates run; publication does not accept a criterion or waive any failure.
+
 FR-CON-004/010 -> AC-CON-004 -> INT-CON-004 -> signed native suite and production
 receipt/recovery fixtures -> Issue #7 -> draft PR #112. Supporting health,
 update, permission and reliability contracts are listed above. Planned or local

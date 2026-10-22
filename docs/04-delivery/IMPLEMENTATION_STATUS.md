@@ -66,8 +66,10 @@ high/critical and six moderate findings. Both independent reviews approve the
 corrected candidate. Its first hosted run failed fresh role-absent migration and
 packaged recovery's arbitrary credential selection. Independently reviewed fixes
 and a permanent fresh-role/partial-role CI gate are in progress; the new dedicated
-bootstrap proof and 1,828 units pass locally. A fresh native run has existing-case
-timeouts under investigation. Fresh native/recovery, exact correction reviews and
+bootstrap proof and 1,855 units pass locally. Earlier native timeout runs are
+retained; the recovery probe now preserves every assertion using five queries per
+call, with 27 new regression tests. Native validation runs on a new isolated server.
+Both correction reviews approve the implementation; fresh native/recovery and
 complete hosted gates remain before merge. No EXEC-019 criterion/story acceptance
 is claimed. See
 [plan](exec-plans/EXEC-019-ingestion-assurance-handoff.md) and

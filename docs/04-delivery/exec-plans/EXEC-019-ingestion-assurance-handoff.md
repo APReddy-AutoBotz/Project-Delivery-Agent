@@ -358,3 +358,11 @@ The mutation denial uses one checked-out client and verifies its API role before
 the unchanged rejected write, with rollback/release guaranteed. All 27 new probe
 regressions pass. Repeat full gates on a new owned synthetic server and obtain
 exact candidate reviews; capture, deadlines and production privileges stay unchanged.
+
+The corrected complete unit run passes 1,855 tests/107 files in 151.01 seconds;
+the separately pinned-axis probe suite passes all 27 cases and lint. Both immutable
+reviews approve `114b3ea511c2b2748c7a58a6b667f8760d9a81d2`. The exact fresh-role
+orchestrator passes with the batched probe. Native13 runs separately on a new
+task-owned server and fresh database; its complete result, fresh recovery/browser
+and exact-head hosted gates remain required. Continue through draft PR #112 without
+acceptance credit until the independent final-candidate and merge gates pass.

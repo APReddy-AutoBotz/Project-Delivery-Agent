@@ -12,21 +12,28 @@ function fixture(mutate?: (kind: Kind, rows: Row[]) => void) {
     if (sql.includes("pg_get_userbyid")) return { rows: [{ owner: "pdaa_migrate" }] };
     if (sql.includes("information_schema.columns")) return { rows: columns.map((column_name) => ({ column_name })) };
     const [roles, names, privileges] = params!;
+    expect(roles).toEqual(["pdaa_api", "pdaa_worker", "pdaa_backup"]);
     let kind: Kind;
     let rows: Row[];
     if (sql.includes("has_table_privilege")) {
       kind = "table";
+      expect(names).toEqual(["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN"]);
       rows = roles!.flatMap((role_name) => names!.map((privilege) => ({ role_name, privilege,
         allowed: role_name === "pdaa_api" && ["SELECT", "INSERT"].includes(privilege)
           || role_name === "pdaa_backup" && privilege === "SELECT", grantable: false })));
     } else if (sql.includes("has_column_privilege")) {
       kind = "column";
+      expect(names).toEqual(["id", "state", "customerId"]);
+      expect(privileges).toEqual(["SELECT", "INSERT", "UPDATE", "REFERENCES"]);
       rows = roles!.flatMap((role_name) => names!.flatMap((column_name) => privileges!.map((privilege) => ({ role_name, column_name, privilege,
         allowed: role_name === "pdaa_api" && (["SELECT", "INSERT"].includes(privilege) || privilege === "UPDATE" && column_name === "state")
           || role_name === "pdaa_backup" && privilege === "SELECT" }))));
     } else {
       expect(sql).toContain("has_function_privilege");
       kind = "function";
+      expect(names).toEqual(["guard_ingestion_project_reassessment()", "require_ingestion_reassessment_complete()",
+        "lock_ingestion_reassessment_preview()", "reject_ingestion_reassessment_history()",
+        'valid_ingestion_reassessment_row(public."IngestionProjectReassessment")', "valid_ingestion_project_reassessment(uuid)"]);
       rows = roles!.flatMap((role_name) => names!.map((function_name) => ({ role_name, function_name,
         allowed: role_name === "pdaa_api" && [
           'valid_ingestion_reassessment_row(public."IngestionProjectReassessment")',
