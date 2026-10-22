@@ -3,7 +3,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createRequire } from "node:module";
-import { afterAll, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   createDatabase, DatabaseCanonicalProjectRepository, DatabaseIngestionRepository,
   DatabaseConnectorRuntimeRepository, DatabaseProjectUpdateRepository,
@@ -474,24 +474,58 @@ it("retains a durable claim across actual process death", async () => {
   expect(await db.ingestionProjectReassessment.findFirst({ where: { projectId: f.projectId } })).toMatchObject({ state: "COMPLETED", totalAttempts: 2, attemptCount: 2 });
 });
 
-it("five actual child process deaths retain all charges and cannot obtain a sixth automatic attempt", async () => {
-  const f = await fixture(); await f.ingest();
+// Each real child already has a 15s limit. Bound each ordered death separately
+// at the default 20s instead of sharing one 20s allowance across all five.
+describe.sequential("five actual child process deaths retain all charges and cannot obtain a sixth automatic attempt", () => {
+  let shared: Fixture | undefined;
+  let completed = 0;
+  let healthy = true;
+  let failed = false;
   for (let attempt = 1; attempt <= 5; attempt++) {
-    await crashAfterCommittedClaim(f);
+    it(`retains actual death ${attempt} and its exact durable charge`, async ({ signal, onTestFailed }) => {
+      onTestFailed(() => { failed = true; });
+      expect(failed, "The scenario cannot resume after a failed step").toBe(false);
+      expect(healthy, "A previous step failed or is incomplete").toBe(true);
+      expect(completed, "Every earlier death must complete in order").toBe(attempt - 1);
+      healthy = false;
+      const started = performance.now();
+      if (attempt === 1) {
+        expect(shared, "A filtered or retried step must not reuse this fixture").toBeUndefined();
+        shared = await fixture();
+        await shared.ingest();
+      }
+      expect(shared).toBeDefined();
+      const f = shared!;
+      await crashAfterCommittedClaim(f);
+      expect(await db.ingestionProjectReassessment.findFirst({ where: { projectId: f.projectId } })).toMatchObject({
+        state: "READY", lastReason: "CLAIMED", attemptCount: attempt, totalAttempts: attempt, claimedGeneration: attempt,
+      });
+      expect(await db.projectUpdateAssessment.count({ where: { projectId: f.projectId } })).toBe(0);
+      expect(await db.projectUpdateObligation.count({ where: { projectId: f.projectId } })).toBe(0);
+      expect(await f.updates.scanScheduledProjects(1)).toBe(0);
+      await expireLease(f);
+      // A timed-out promise may finish later. It cannot re-enable later steps.
+      expect(signal.aborted || failed).toBe(false);
+      expect(performance.now() - started).toBeLessThan(20000);
+      completed = attempt;
+      healthy = true;
+    });
+  }
+  it("blocks a sixth automatic claim after all five actual deaths", async ({ onTestFailed }) => {
+    onTestFailed(() => { failed = true; });
+    expect(failed, "The scenario cannot resume after a failed step").toBe(false);
+    expect(healthy, "A previous step failed or is incomplete").toBe(true);
+    expect(completed, "All five real deaths are prerequisites").toBe(5);
+    healthy = false;
+    expect(shared).toBeDefined();
+    const f = shared!;
+    expect(await new DatabaseProjectUpdateRepository(db, f.service).scanScheduledProjects(1)).toBe(1);
     expect(await db.ingestionProjectReassessment.findFirst({ where: { projectId: f.projectId } })).toMatchObject({
-      state: "READY", lastReason: "CLAIMED", attemptCount: attempt, totalAttempts: attempt, claimedGeneration: attempt,
+      state: "BLOCKED", lastReason: "RETRY_EXHAUSTED", attemptCount: 5, totalAttempts: 5,
     });
     expect(await db.projectUpdateAssessment.count({ where: { projectId: f.projectId } })).toBe(0);
-    expect(await db.projectUpdateObligation.count({ where: { projectId: f.projectId } })).toBe(0);
     expect(await f.updates.scanScheduledProjects(1)).toBe(0);
-    await expireLease(f);
-  }
-  expect(await new DatabaseProjectUpdateRepository(db, f.service).scanScheduledProjects(1)).toBe(1);
-  expect(await db.ingestionProjectReassessment.findFirst({ where: { projectId: f.projectId } })).toMatchObject({
-    state: "BLOCKED", lastReason: "RETRY_EXHAUSTED", attemptCount: 5, totalAttempts: 5,
   });
-  expect(await db.projectUpdateAssessment.count({ where: { projectId: f.projectId } })).toBe(0);
-  expect(await f.updates.scanScheduledProjects(1)).toBe(0);
 });
 
 it("refunds repeated real source-lock contention without exhausting attempts and retains monotonic totals", async () => {

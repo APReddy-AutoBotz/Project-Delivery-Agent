@@ -2,6 +2,7 @@
 
 ## Active implementation
 
+- [EXEC-020: PM escalation request history](EXEC-020-pm-escalation-history.md) — independently approved bounded projection under validation. Real native/browser privacy and expiry evidence precedes exact candidate review; full AC-UPD-008 and Issue #9 stay open. Capture remains stopped.
 - [EXEC-019: Durable ingestion assurance handoff](EXEC-019-ingestion-assurance-handoff.md) — bounded implementation merged in PR #112 with exact-head and post-merge checks passed. Complete STORY-008/013 acceptance is recorded separately; Issue #7 and release holds remain open. Research capture remains stopped.
 - [EXEC-018: Authorized completeness inputs](EXEC-018-authorized-completeness-inputs.md) — merged PR #111 with verified reviewed tree and passing exact-head/post-merge checks. Full Issue #8 acceptance remains open.
 - [EXEC-017: Deterministic advice and queue core](EXEC-017-deterministic-advice-core.md) — internal groundwork for Issue #11 independent of the stopped EXEC-016 research capture. No API, browser, approval execution or story acceptance is included.

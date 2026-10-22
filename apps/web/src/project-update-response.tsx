@@ -2,13 +2,51 @@ import React, { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Message } from "./components.js";
 import type { RequestFn } from "./canonical-project.js";
+import { clearDeniedProjectUpdateInvitation } from "./project-update-response-state.js";
 import "./project-update-response.css";
 
 type ResponseEntry = { id: string; submittedBy: string; receivedAt: string;
   correctsResponseId: string | null; state: "UNCONFIRMED"; contentState: "PRESENT" | "EXPIRED"; text: string | null };
 type RecipientRequest = { requestId: string; project: { id: string; code: string; name: string };
   stageKind: string; dueAt: string; capturedAt: string; expiresAt: string; body: string;
-  rawResponseReaders: string[]; responses: ResponseEntry[] };
+  rawResponseReaders: string[]; responses: ResponseEntry[]; escalationContext?: EscalationContext | null };
+
+type EscalationContext = { asOf: string; state: "AVAILABLE" | "UNAVAILABLE"; impact: "UNKNOWN";
+  originalRequestId: string | null; entries: Array<{ requestId: string; stageId: string;
+    stageKind: "REQUEST" | "REMINDER" | "ESCALATION"; generation: number; ordinal: number;
+    capturedAt: string; contentExpiresAt: string; contentState: "PRESENT" | "EXPIRED" | "RESTRICTED";
+    bodyProjection: "REVIEWER_NAMES_WITHHELD"; body: string | null }> };
+
+function EscalationHistory({ context }: { context: EscalationContext }) {
+  const [expiryVersion, setExpiryVersion] = useState(0);
+  useEffect(() => {
+    const now = Date.now();
+    const deadlines = context.entries.filter((entry) => entry.contentState === "PRESENT")
+      .map((entry) => Date.parse(entry.contentExpiresAt)).filter((deadline) => deadline > now);
+    if (!deadlines.length) return;
+    const timer = window.setTimeout(() => setExpiryVersion((version) => version + 1),
+      Math.min(2147483647, Math.max(1, Math.min(...deadlines) - now)));
+    return () => window.clearTimeout(timer);
+  }, [context, expiryVersion]);
+  return <section aria-label="Escalation request history">
+    <h3>Current-cycle request history</h3>
+    <p>Read as of {context.asOf}. Historical request text is not a current confirmed fact.
+      Reviewer names are withheld in this history view.</p>
+    <p>Delivery impact: unknown. Confirmation belongs to the existing update workflow.</p>
+    {context.state === "UNAVAILABLE" ? <p>Request history is currently unavailable.</p> :
+      <ol>{context.entries.map((entry) => {
+        const expired = entry.contentState === "EXPIRED" || Date.parse(entry.contentExpiresAt) <= Date.now();
+        return <li key={entry.requestId}>
+          <strong>{entry.stageKind === "REQUEST" ? "Original recorded request"
+            : entry.stageKind === "REMINDER" ? "Recorded reminder" : "Recorded owner escalation"}</strong>
+          <p>{entry.capturedAt}</p>
+          {entry.contentState === "PRESENT" && !expired && entry.body !== null
+            ? <p className="update-plain-text">{entry.body}</p>
+            : <p>{expired ? "Request content has expired." : "Request content is restricted."}</p>}
+        </li>;
+      })}</ol>}
+  </section>;
+}
 type History = { projectId: string; engagement: { id: string; generation: number; policyRevision: number; mode: string } | null;
   nextCursor: string | null; entries: Array<{ requestId: string; stageKind: string; recipientSubject: string;
     capturedAt: string; expiresAt: string; status: string; contentState: string;
@@ -24,13 +62,13 @@ function Responses({ entries }: { entries: ResponseEntry[] }) {
 
 export function ProjectUpdateResponse({ locator, request }: { locator: string; request: RequestFn }) {
   const queryClient = useQueryClient();
+  const [expired, setExpired] = useState(false);
   const key = ["project-update-invitation", locator];
   const query = useQuery({ queryKey: key, queryFn: ({ signal }) =>
     request<RecipientRequest>(`/project-update-invitations/${locator}`, { signal }),
-    retry: false, staleTime: 0, refetchOnWindowFocus: true });
+    enabled: !expired, retry: false, staleTime: 0, refetchOnWindowFocus: true });
   const [text, setText] = useState("");
   const [correction, setCorrection] = useState<string | null>(null);
-  const [expired, setExpired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
@@ -38,8 +76,14 @@ export function ProjectUpdateResponse({ locator, request }: { locator: string; r
   const submission = useRef<{ key: string; text: string; correction: string | null } | null>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; submission.current = null; }; }, []);
   useEffect(() => {
-    if (query.isError) { setText(""); setCorrection(null); submission.current = null; }
-  }, [query.isError]);
+    if (query.isError) {
+      setText(""); setCorrection(null); submission.current = null;
+      if (clearDeniedProjectUpdateInvitation(queryClient, locator, query.error)) {
+        active.current = false;
+        setExpired(true);
+      }
+    }
+  }, [query.isError, query.error, queryClient, locator]);
   useEffect(() => {
     if (!query.data) return;
     const expire = () => { active.current = false; setExpired(true); setText(""); setCorrection(null); submission.current = null;
@@ -82,6 +126,7 @@ export function ProjectUpdateResponse({ locator, request }: { locator: string; r
   return <section className="panel" aria-label="Respond to update request">
     <h2>{query.data.project.name}: update requested</h2>
     <p className="update-plain-text">{query.data.body}</p>
+    {query.data.escalationContext && <EscalationHistory context={query.data.escalationContext} />}
     <p>Available until {query.data.expiresAt}. Raw responses are shared with: {query.data.rawResponseReaders.join(", ")}.</p>
     <Responses entries={query.data.responses} />
     <form onSubmit={submit}>

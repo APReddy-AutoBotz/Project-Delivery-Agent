@@ -37,6 +37,16 @@ jobs:
           node scripts/local.mjs scripts/dev.mjs > artifacts/dev.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://localhost:5173 >/dev/null && break; sleep 1; done
           pnpm test:e2e
+      - name: Real saved PM escalation history browser proof
+        run: node scripts/local.mjs scripts/test-escalation-browser.mjs --hosted-foundation
+      - name: Publish PM escalation history browser proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-escalation-history-browser
+          path: |
+            artifacts/pm-escalation-history.png
+            artifacts/pm-escalation-history.json
+          if-no-files-found: error
       - name: Publish schedule overdue policy browser proof
         uses: actions/upload-artifact@v4
         with:

@@ -3,12 +3,13 @@ import { test, expect, type Page } from "@playwright/test";
 const locator = "20000000-0000-4000-8000-000000000001";
 const customerId = "10000000-0000-4000-8000-000000000001";
 const responseId = "30000000-0000-4000-8000-000000000001";
-async function fixture(page: Page, expireSoon = false) {
+async function fixture(page: Page, expireSoon = false, history = false) {
   const submissions: Array<{ text: string; idempotencyKey: string; correctsResponseId: string | null }> = [];
   let failNext = false;
   let pendingReply: Promise<void> | undefined;
   let releaseReply: (() => void) | undefined;
   let invitationReads = 0;
+  let denied = false;
   const body = "<script>window.sourceExecuted=true</script>\nSynthetic forecast update needed.";
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
@@ -21,9 +22,22 @@ async function fixture(page: Page, expireSoon = false) {
     if (pathname === `/api/project-update-invitations/${locator}`) {
       invitationReads += 1;
       expect(route.request().headers().authorization).toBe("Bearer synthetic-browser-token");
+      if (denied) return response({ statusCode: 403, message: "Resource unavailable" }, 403);
+      const now = Date.now();
       return response({ requestId: locator, project: { id: locator, code: "SYN", name: "Synthetic delivery" },
-        stageKind: "REQUEST", dueAt: new Date().toISOString(), capturedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + (expireSoon ? 10000 : 3600000)).toISOString(), body,
+        stageKind: history ? "ESCALATION" : "REQUEST", dueAt: new Date(now).toISOString(), capturedAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + (expireSoon ? 10000 : 3600000)).toISOString(), body,
+        ...(history ? { escalationContext: { asOf: new Date(now).toISOString(), state: "AVAILABLE", impact: "UNKNOWN",
+          originalRequestId: responseId, entries: [
+            { requestId: responseId, stageId: "40000000-0000-4000-8000-000000000001", stageKind: "REQUEST",
+              generation: 1, ordinal: 0, capturedAt: new Date(now - 1000).toISOString(),
+              contentExpiresAt: new Date(now + 10000).toISOString(), contentState: "PRESENT",
+              bodyProjection: "REVIEWER_NAMES_WITHHELD", body: "<script>window.historyExecuted=true</script> Historical request near its retention deadline." },
+            { requestId: "30000000-0000-4000-8000-000000000002", stageId: "40000000-0000-4000-8000-000000000002",
+              stageKind: "REMINDER", generation: 1, ordinal: 1, capturedAt: new Date(now).toISOString(),
+              contentExpiresAt: new Date(now + 3600000).toISOString(), contentState: "PRESENT",
+              bodyProjection: "REVIEWER_NAMES_WITHHELD", body: "Retained historical reminder." },
+          ] } } : {}),
         requiredFacts: [{ factType: "project.forecast", label: "Forecast" }], rawResponseReaders: ["recipient", "reviewer"],
         responses: [...new Map(submissions.map((entry) => [entry.idempotencyKey, entry])).values()].map((entry) => ({ id: responseId, submittedBy: "recipient", receivedAt: new Date().toISOString(),
           correctsResponseId: null, state: "UNCONFIRMED", contentState: "PRESENT", text: entry.text })) });
@@ -41,10 +55,37 @@ async function fixture(page: Page, expireSoon = false) {
   await page.goto(`/update-requests/${locator}`);
   await page.getByRole("button", { name: "Project manager", exact: false }).click();
   await expect(page.getByRole("region", { name: "Respond to update request" })).toBeVisible();
-  return { submissions, body, fail: () => { failNext = true; }, reads: () => invitationReads,
+  return { submissions, body, fail: () => { failNext = true; }, reads: () => invitationReads, deny: () => { denied = true; },
     delay: () => { pendingReply = new Promise<void>((resolve) => { releaseReply = resolve; }); },
     release: () => releaseReply?.() };
 }
+
+test("historical body expiry is independent of invitation expiry and refetch denial clears context", async ({ page }) => {
+  // UI contract only: a historical body can be close to expiry while its PM invitation remains valid.
+  await page.clock.install();
+  const f = await fixture(page, false, true);
+  const context = page.getByRole("region", { name: "Escalation request history" });
+  await expect(context).toContainText("Historical request near its retention deadline.");
+  await expect(context).toContainText("Delivery impact: unknown");
+  expect(await page.evaluate(() => (window as unknown as { historyExecuted?: unknown }).historyExecuted)).toBeUndefined();
+  await page.clock.fastForward(11000);
+  await expect(context).not.toContainText("Historical request near its retention deadline.");
+  await expect(context).toContainText("Request content has expired.");
+  await expect(context).toContainText("Retained historical reminder.");
+  await expect(page.getByText(f.body, { exact: true })).toBeVisible();
+  const reads = f.reads();
+  f.deny();
+  await page.evaluate(() => window.dispatchEvent(new window.Event("visibilitychange")));
+  await expect.poll(f.reads).toBeGreaterThan(reads);
+  await expect(page.getByRole("alert")).toContainText("unavailable or has expired");
+  await expect(context).toHaveCount(0);
+  await expect(page.getByText(f.body, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Your update (unconfirmed)" })).toHaveCount(0);
+  const deniedReads = f.reads();
+  await page.evaluate(() => window.dispatchEvent(new window.Event("visibilitychange")));
+  await page.clock.fastForward(1000);
+  expect(f.reads()).toBe(deniedReads);
+});
 
 test("escaped source/reply text, explicit unconfirmed receipt, retry key and sign-out cleanup", async ({ page }) => {
   const f = await fixture(page);

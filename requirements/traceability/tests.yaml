@@ -245,6 +245,31 @@ tests:
   behavior: After the configured unanswered stages, the PM receives the original request, reminder history, missing
     facts and project impact.
   evidence: []
+- id: INT-ESC-001
+  release: R1
+  status: implemented
+  acceptance_criteria:
+  - AC-UPD-008
+  specification: docs/04-delivery/exec-plans/EXEC-020-pm-escalation-history.md
+  behavior: >-
+    The exact named PM's current authorized escalation invitation projects only
+    its bounded current-cycle original request and owner reminders/escalation.
+    Each origin independently rechecks current source/recipient access and
+    retention. Digest-verified display projections withhold origin reviewer names,
+    locators and raw responses; PM-own responses remain compatible and impact is
+    UNKNOWN. Native checks retain immutable state and the real saved API/browser
+    journey checks source A revocation independently of current source B.
+    This history increment does not accept delivery, project impact or full AC-UPD-008.
+  evidence:
+  - tests/project-update-escalation.test.ts
+  - tests/project-update-response-state.test.ts
+  - tests/project-update-escalation.integration.test.ts
+  - tests/escalation-browser/escalation-history.spec.ts
+  - tests/e2e/project-update-response.spec.ts
+  - scripts/test-escalation-browser.mjs
+  - scripts/test-database.mjs
+  - .github/workflows/foundation-validation.yml
+  - docs/05-quality/ESCALATION_HISTORY_VALIDATION.md
 - id: E2E-EVD-003
   release: R1
   status: implemented

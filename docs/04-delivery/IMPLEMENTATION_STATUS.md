@@ -20,8 +20,9 @@ R0 release acceptance and commercial/customer deployment remain open.
 STORY-008 (Jira webhook/reconciliation) and STORY-013 (freshness/completeness)
 are accepted by the delegated controller after complete requirement audits and
 verified PR #112 implementation/merge/post-merge gates. This acceptance increment
-becomes effective after its own independent exact-candidate review, required
-checks and verified merge. See the [webhook acceptance](../05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md)
+became effective with PR #113 merge 9e1d84323c280b74f4f17bf62de80ec664e600fc.
+Its reviewed tree/ordered parents, exact-head checks and actual post-merge
+Foundation39734257139/Documentation39734257119 all pass. See the [webhook acceptance](../05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md)
 and [freshness acceptance](../05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md) records.
 The resulting accepted total is **7/38 (18.4%)**: R0 3/5 and R1 4/33. Story and
 release denominators are unchanged. Issues #7/#8/#9 and the other unfinished
@@ -29,6 +30,20 @@ stories remain open; technical collection does not accept any of the five releas
 holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
+
+EXEC-020 adds current authorized request history to the named PM's existing
+escalation invitation. Independent design review approved the bounded projection;
+focused 41 unit and current 13 native tests pass, including real same-engagement
+generation selection. The current dedicated-customer API/browser history journey
+passes one test in 11.6s, with screenshot and exact-fixture receipt inspected.
+Eight related browsers pass in 38.4s. Build,
+lint, typecheck, 1,904 units / 109 files, architecture, contract, dependency and docs gates
+pass. Fresh full native/recovery and exact candidate gates remain in progress. Historical text is source/retention checked per origin;
+raw owner responses/reviewer lists stay private and impact is explicitly UNKNOWN.
+No schema, privilege, connector or story acceptance change is included. See
+[plan](exec-plans/EXEC-020-pm-escalation-history.md) and
+[validation](../05-quality/ESCALATION_HISTORY_VALIDATION.md).
+Original19/20 research capture remains stopped.
 
 [PR #110](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/110)
 merged exact independently approved candidate a01cef3 as
