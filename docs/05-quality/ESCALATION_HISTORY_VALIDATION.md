@@ -6,7 +6,44 @@ Issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9
 Requirements: FR-ESC-005/006, FR-UPD-004, NFR-SEC-001/005
 Criterion: AC-UPD-008 history portion only; supporting AC-UPD-003
 
-## Implemented boundary under validation
+## Verified merge and validation
+
+The bounded history increment merged in [PR #114](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/114).
+Independent source and coverage reviews approved exact candidate
+`452d455dd269920e73dadaff1919ec33022e9a20`. Actual merge
+`fe353437f45ce37b835255f63bfb12837068fa8a` preserves reviewed tree
+`c45a9c91c58dde05c8079b54dc8c5843ca90d5a8` and ordered parents base
+`9e1d84323c280b74f4f17bf62de80ec664e600fc` then that candidate.
+
+Exact-candidate [Foundation 39809095541](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39809095541)
+and [Documentation 39809095548](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39809095548)
+pass. Separate actual post-merge [Foundation 39814060478](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39814060478)
+and [Documentation 39814060230](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39814060230)
+also pass at the actual merge SHA. Foundation passes on one unchanged failed-job
+rerun. Its first production job failed at bundled restore's
+`sessions_before_commit`; the original failure remains retained and its session
+cause is not established. The verification job already passed on the first
+attempt; no guard, assertion, source or deadline was relaxed for the rerun.
+Exact-candidate hosted evidence confirms
+1,904 units, 225 native tests, 45 ordinary browser cases and the separate saved
+history browser, exact 85-business-table recovery plus the migration ledger,
+and packaged TLS/OIDC/customer/distribution-manifest gates. Technical distribution
+evidence does not accept any of the five release holds.
+
+The fresh local fourth native run separately passes 225 cases / 16 files in
+642.20s. Its genuine success receipt supports guarded recovery into a new,
+quarantined database: exact 85 business tables plus the ledger, 14 populated
+proof families including 116 reassessment causes, immutable-history denials and
+no running application. API/worker CONNECT remains false on the restored target.
+Earlier failed and interrupted runs remain historical without passing credit.
+
+This completes the bounded implementation's review and merge gates. Full
+AC-UPD-008, E2E-ESC-008 and Issue #9 remain open; delivery and supported project
+impact are still required. Accepted stories remain 7/38 (R0 3/5, R1 4/33).
+No schema, privilege, dependency or connector scope changes. Original19/20
+research capture remains stopped.
+
+## Verified merged boundary
 
 The currently named PM can read a bounded, current-cycle projection through an
 existing authorized escalation invitation. The original request, owner reminders
@@ -33,7 +70,7 @@ changed by a read. No delivery, model call, interpretation or approval is added.
 OD-013/014, proposal-only imports, all five release holds and stopped research
 capture remain in force. The accepted-story total stays 7/38.
 
-## Observed local results
+## Observed validation results
 
 | Gate | Result |
 | --- | --- |
@@ -50,8 +87,8 @@ capture remain in force. The accepted-story total stays 7/38.
 | Audit | Existing high threshold passes: zero high/critical, six moderate advisories |
 | Documentation | 245 requirements / 91 criteria / 38 stories / 143 test specs pass |
 | Released migrations | All 25 SQL files match verified main byte for byte |
-| Fresh full native and recovery | Pending; no passing credit yet |
-| Immutable review and hosted gates | Pending |
+| Fresh full native and recovery | Local fourth run: 225/16 pass; quarantined exact 85-table recovery and 14 populated proof families pass. Exact-head hosted native/recovery also pass |
+| Immutable review and hosted gates | Exact-candidate independent source/coverage reviews approve; exact-head and actual post-merge Foundation/Documentation all pass |
 
 The migration-lock logical content is unchanged; its existing checkout CRLF
 format differs from Git LF. No migration file was rewritten.
@@ -164,7 +201,7 @@ The 224-case third run lost its tool handle without a final result. Inspection
 found no test-database client sessions, its exclusive bridge closed and no success
 receipt. It is retained without passing credit. The new lineage regression brings
 the current full native cohort to 225 cases across the same 16 files. Its fresh
-fourth execution is running; ordinary hosted Linux validation remains pending.
+fourth execution was running at that local checkpoint; ordinary hosted Linux validation was then pending.
 
 The first full unit run passed 1,902 cases and failed two: its OpenAPI snapshot was
 stale, and the unchanged startup-disclosure child exceeded its fixed 15s limit.
