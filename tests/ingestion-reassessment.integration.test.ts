@@ -16,7 +16,7 @@ import type { Actor } from "../packages/domain/src/index.js";
 import { JiraRuntimeService } from "../apps/api/src/jira-runtime.js";
 import { installConnectorRoutes } from "../apps/api/src/connector-routes.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
-import { seedReassessmentRecovery, verifyRestoredReassessments } from "../scripts/acceptance/ingestion-reassessment.mjs";
+import { seedReassessmentRecovery, verifyRestoredReassessments, claimReassessmentFixtureJob } from "../scripts/acceptance/ingestion-reassessment.mjs";
 
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "synthetic" ||
@@ -247,11 +247,11 @@ async function manualPage(f: Fixture, configuration: Fixture["configuration"], s
   const rawBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated", timestamp: Date.now() + sequence }));
   const accepted = await f.runtime.acceptWebhook({ sourceId, eventId: randomUUID(), rawBody,
     signature: "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex") });
-  let job = await f.runtime.claimNextJob(f.customerId); expect(job?.jobId).toBe(accepted.jobId);
+  let job = await claimReassessmentFixtureJob(f.runtime, f.customerId, accepted.jobId);
   let state = await f.ingestion.readConnectorSyncSnapshot(f.customerId, job!.jobId, job!.claimGeneration);
   if (state.resetRequired) {
     await f.ingestion.resetConnectorCursorForJob(f.customerId, job!.jobId, job!.claimGeneration);
-    job = await f.runtime.claimNextJob(f.customerId);
+    job = await claimReassessmentFixtureJob(f.runtime, f.customerId, accepted.jobId);
     state = await f.ingestion.readConnectorSyncSnapshot(f.customerId, job!.jobId, job!.claimGeneration);
   }
   const at = new Date().toISOString();
@@ -650,12 +650,14 @@ it("keeps runtime revision hash, effective date and mapped payload immutable whi
   });
   await f.ingest(); spy.mockRestore();
   const revision = await db.ingestionSourceRevision.findFirstOrThrow({ where: { sourceId: f.sourceId } });
-  await f.webhook(false);
-  let job = await f.runtime.claimNextJob(f.customerId); expect(job).not.toBeNull();
+  const delivery = await f.webhook(false);
+  const receipt = await db.connectorWebhookReceipt.findFirstOrThrow({ where: { sourceId: f.sourceId,
+    eventId: delivery.headers["x-atlassian-webhook-identifier"] } });
+  let job = await claimReassessmentFixtureJob(f.runtime, f.customerId, receipt.jobId);
   let snapshot = await f.ingestion.readConnectorSyncSnapshot(f.customerId, job!.jobId, job!.claimGeneration);
   if (snapshot.resetRequired) {
     await f.ingestion.resetConnectorCursorForJob(f.customerId, job!.jobId, job!.claimGeneration);
-    job = await f.runtime.claimNextJob(f.customerId);
+    job = await claimReassessmentFixtureJob(f.runtime, f.customerId, receipt.jobId);
     snapshot = await f.ingestion.readConnectorSyncSnapshot(f.customerId, job!.jobId, job!.claimGeneration);
   }
   const request = { ...original, jobId: job!.jobId, expectedClaimGeneration: job!.claimGeneration,

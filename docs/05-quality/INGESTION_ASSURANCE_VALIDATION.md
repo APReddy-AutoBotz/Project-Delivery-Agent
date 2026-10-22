@@ -74,6 +74,17 @@ runtime is started automatically.
   fixture grants, runtime unchanged-read handling and real API-role permission
   failures. They receive no passing full-suite credit. No threshold/deadline or
   production assertion was weakened.
+- The subsequent 30-case focused suite passed, followed by native run nine with
+  198/200 passing. Its two failures were immediate connector-job claims returning
+  null before availability; the focused rerun passed both, without full-suite
+  credit. Acceptance helpers now wait at most five actual claim ticks, failing
+  unexpected job IDs and retaining the original exact-job assertion, production
+  availability/backoff, attempts and test deadlines. Null ticks charge no attempt.
+- Final build, required/changed-test lint, typecheck and all 1,827 units/106 files
+  pass (118.09 seconds). Architecture verifies eight packages/100 source files;
+  all 42 direct/override records and documentation checks pass. The unchanged
+  high-severity audit threshold passes with zero high/critical and six moderate
+  findings at this execution checkpoint; no dependency graph change is included.
 - Fresh expanded native, exact 85-table recovery, relevant browser journeys,
   packaged/customer profiles, final full gates, immutable candidate reviews and
   exact-head hosted CI/merge remain pending at this checkpoint.
@@ -83,6 +94,13 @@ An exclusive loopback 55432 bridge satisfies the unchanged synthetic guard and
 fails if occupied. Test/upgrade/restore databases have unique synthetic names;
 the server has no default pdaa database. No existing default database, unrelated
 container, volume, worktree or stopped research capture resource is modified.
+
+The historical pure validator proves receipt scope and exact completed assessment/
+claim/preview lineage. READY/BLOCKED control fields additionally rely on guarded
+birth/transitions and authenticated backup with exact row correspondence; it does
+not reconstruct every prior control counter from the whole audit history. Stronger
+historical control-event reconstruction is a nonblocking review follow-up, not a
+claim about sanitizing arbitrary imported database rows.
 
 ## Traceability and recovery
 

@@ -6,6 +6,7 @@ import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseIngestionRe
 import { assertSyntheticDatabaseUrl, CredentialVault, CredentialKeyRingVault } from "../../packages/platform/dist/index.js";
 import { readMigrations, migrateDatabase } from "../../packages/operations/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
+import { claimReassessmentFixtureJob } from "./ingestion-reassessment.mjs";
 export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   const locator = assertSyntheticDatabaseUrl(sourceUrl, "pdaa");
   assert.equal(process.env.DATA_MODE, "synthetic"); assert.notEqual(process.env.NODE_ENV, "production");
@@ -54,11 +55,11 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     const rawBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated", timestamp: Date.now() }));
     const delivery = await runtime.acceptWebhook({ sourceId, eventId: randomUUID(), rawBody,
       signature: "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex") });
-    let job = await runtime.claimNextJob(customerId); assert.equal(job?.jobId, delivery.jobId);
+    let job = await claimReassessmentFixtureJob(runtime, customerId, delivery.jobId);
     let state = await ingestion.readConnectorSyncSnapshot(customerId, job.jobId, job.claimGeneration);
     if (state.resetRequired) {
       await ingestion.resetConnectorCursorForJob(customerId, job.jobId, job.claimGeneration);
-      job = await runtime.claimNextJob(customerId);
+      job = await claimReassessmentFixtureJob(runtime, customerId, delivery.jobId);
       state = await ingestion.readConnectorSyncSnapshot(customerId, job.jobId, job.claimGeneration);
     }
     const observedAt = new Date().toISOString();

@@ -33,6 +33,17 @@ export async function verifyReassessmentPrivileges(pool) {
   return true;
 }
 const normalized = (value) => JSON.parse(JSON.stringify(value));
+export async function claimReassessmentFixtureJob(runtime, customerId, expectedJobId) {
+  // Real worker ticks may briefly return idle at the application/DB clock
+  // boundary. Wait only for availability; never rewrite clocks or accept a
+  // different job. A null tick consumes no connector or reassessment attempt.
+  for (let tick = 0; tick < 5; tick++) {
+    const job = await runtime.claimNextJob(customerId);
+    if (job !== null) { assert.equal(job.jobId, expectedJobId); return job; }
+    if (tick < 4) await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail("Expected synthetic connector job did not become claimable: " + expectedJobId);
+}
 async function snapshot(pool, projectId) {
   return normalized({
     causes: (await pool.query('SELECT * FROM public."IngestionProjectReassessment" WHERE "projectId"=$1::uuid ORDER BY id', [projectId])).rows,
@@ -72,11 +83,11 @@ export async function seedReassessmentRecovery(pool, apiConnection, customerId, 
       const now = new Date(), rawBody = Buffer.from(JSON.stringify({ webhookEvent: "jira:issue_updated", timestamp: now.getTime() + sequence }));
       const receipt = await runtime.acceptWebhook({ sourceId, eventId: randomUUID(), rawBody,
         signature: "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex") });
-      let job = await runtime.claimNextJob(customerId); assert.equal(job?.jobId, receipt.jobId);
+      let job = await claimReassessmentFixtureJob(runtime, customerId, receipt.jobId);
       let state = await ingestion.readConnectorSyncSnapshot(customerId, job.jobId, job.claimGeneration);
       if (state.resetRequired) {
         await ingestion.resetConnectorCursorForJob(customerId, job.jobId, job.claimGeneration);
-        job = await runtime.claimNextJob(customerId); assert.equal(job?.jobId, receipt.jobId);
+        job = await claimReassessmentFixtureJob(runtime, customerId, receipt.jobId);
         state = await ingestion.readConnectorSyncSnapshot(customerId, job.jobId, job.claimGeneration);
       }
       await ingestion.persistConnectorPageForJob({ customerId, jobId: job.jobId, expectedClaimGeneration: job.claimGeneration,

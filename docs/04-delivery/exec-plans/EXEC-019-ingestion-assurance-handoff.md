@@ -307,3 +307,15 @@ webhook authentication query. Focused correction then exposed the immutable-chil
 lock permission failure described above. Logs/targets are retained; these runs
 are not passing full-suite evidence. A fresh expanded run is in progress. See
 [validation](../../05-quality/INGESTION_ASSURANCE_VALIDATION.md).
+
+The complete 30-case focused suite passed before adding five actual child-process
+deaths. Native run nine then passed 198/200, including all five deaths and both
+RC/RR race orderings; its two immediate connector claim assertions returned null.
+Independent coverage review confirmed bounded real-runtime availability ticks for
+the exact expected job, without changing production clocks/backoff, attempt
+accounting or test deadlines. The focused rerun passed both but receives no full
+suite credit. Fresh complete native and recovery gates remain required. Final
+build/lint/types/1,827 units/architecture/registration/docs pass. Audit passes its
+unchanged high-severity threshold with six moderate and zero high/critical findings.
+Source review approved 4f039823; corrected exact-candidate coverage approval awaits
+fresh native and remaining gates. Research capture stays stopped.
