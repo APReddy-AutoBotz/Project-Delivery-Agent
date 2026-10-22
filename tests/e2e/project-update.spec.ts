@@ -74,6 +74,86 @@ const localTaskContext = projectUpdateTaskContext();
 const portfolioId = "20000000-0000-4000-8000-000000000001";
 test.setTimeout(90000);
 
+test("AC-HLT-002: existing evidence without authority stays unconfirmed in saved API and browser views", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request, null);
+  const statement = await f.append();
+  await f.share(statement.entry.sourceId);
+  const policy = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/project-update-policy",
+    "POST",
+    {
+      expectedRevision: 0,
+      freshnessWindowSeconds: 1,
+      timeZone: "UTC",
+      requiredFacts: [{ factType: f.factType, label: "Current forecast" }],
+      responsibleSubject: "synthetic-owner-4",
+      scheduledScanEnabled: false,
+      reminderBusinessDayOffsets: [],
+      escalationAfterBusinessDays: 0,
+      escalationRecipientSubject: null,
+      quietHoursStartLocal: null,
+      quietHoursEndLocal: null,
+    },
+  );
+  expect(policy.status()).toBe(200);
+  // Cross only the reporting freshness boundary; no authority policy is installed.
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  const assessed = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/project-update-assessments",
+    "POST",
+    {},
+  );
+  expect(assessed.status()).toBe(201);
+  const view = await assessed.json();
+  expect(view.completeness.factAssessments).toEqual([
+    expect.objectContaining({
+      factType: f.factType,
+      state: "UNCONFIRMED",
+      canonicalVersionCount: 1,
+      sourceAuthorityStatus: "NO_POLICY",
+      reasonCodes: ["NO_APPLICABLE_AUTHORITY_POLICY"],
+    }),
+  ]);
+  expect(view.freshness).toMatchObject({
+    state: "STALE",
+    sourceDateField: "project.createdAt",
+  });
+  expect(view.knownPosition).toEqual([]);
+  expect(view.preview.requiredFacts).toEqual([
+    expect.objectContaining({ state: "UNCONFIRMED" }),
+  ]);
+  expect(view.preview.evidence).toEqual([]);
+  expect(JSON.stringify(view)).not.toContain("First synthetic forecast");
+  expect(JSON.stringify(view)).not.toContain(statement.entry.sourceId);
+  expect(JSON.stringify(view)).not.toContain(statement.entry.id);
+  expect(JSON.stringify(view)).not.toContain(statement.entry.evidenceId);
+  const latestResponse = await f.api(
+    "pmo-portfolio",
+    f.prefix + "/project-update-assessments/latest",
+  );
+  expect(latestResponse.status()).toBe(200);
+  expect((await latestResponse.json()).completeness).toEqual(view.completeness);
+  await open(page, f.payload.name);
+  const panel = page.getByRole("region", {
+    name: "Project update freshness and completeness",
+    exact: true,
+  });
+  await expect(panel).toContainText("Current forecast: UNCONFIRMED");
+  await expect(panel).toContainText("NO_APPLICABLE_AUTHORITY_POLICY");
+  await expect(panel).not.toContainText("Current forecast: MISSING");
+  await expect(panel).not.toContainText("First synthetic forecast");
+  await expect(panel).toContainText("This preview has not been sent.");
+  await page.screenshot({
+    path: "artifacts/evidence-workflow-authorized-completeness.png",
+    fullPage: true,
+  });
+});
+
 test("E2E-UPD-001: source-authorized stale assessment persists a value-free request preview", async ({
   page,
   request,
@@ -567,6 +647,18 @@ async function runScheduledProjectUpdateScan(
 async function open(page: Page, name: string) {
   await page.goto("/");
   await page.getByRole("button", { name: /^PMO administrator / }).click();
+  // The policy query hydrates controlled form fields. Finish that initial load
+  // before a journey edits them, rather than racing its state initialization.
+  const policyLoaded = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      /^\/api\/projects\/[0-9a-f-]+\/project-update-policy$/.test(
+        new URL(response.url()).pathname,
+      ),
+  );
   await page.getByRole("button", { name: new RegExp(name) }).click();
   await expect(page.getByRole("heading", { name: "Project evidence", exact: true })).toBeVisible();
+  const policyResponse = await policyLoaded;
+  expect(policyResponse.status()).toBe(200);
+  await policyResponse.finished();
 }

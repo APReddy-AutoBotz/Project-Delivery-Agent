@@ -1,8 +1,30 @@
 # Deterministic advice core validation
 
-Date: 2026-10-21
+Date: 2026-10-22
 Plan: [EXEC-017](../04-delivery/exec-plans/EXEC-017-deterministic-advice-core.md)
 Issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11
+
+## Verified merge checkpoint
+
+[PR #110](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/110)
+merged candidate `a01cef3f75e9b7626cba98da9ed2c92b7e58b0a1` as
+`8de60639586bd572d5e34257d07b25e683605b96`. Actual ordered parents are
+`c52ab15c29f5f5a00049e395f38e06a9d364a93a` and that candidate; actual tree
+`b2c1023b71fc10cbc7da954275b7e8d67cd35649` equals the reviewed/tested tree.
+Both independent exact-head reviews approve without findings.
+[Foundation 39661543066](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39661543066)
+and [Documentation 39661543122](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39661543122)
+pass on that exact candidate. Logs confirm 1,824 units/105 files, 161 integration
+tests/13 files, 43 browser journeys and exact recovery of 84 business tables plus
+the migration ledger. Packaged production/customer acceptance, unchanged dependency
+audit and complete distribution evidence/manifest validation pass. The collector
+accepts both exact derived Perl envelope profiles under the unchanged strict matcher.
+
+Post-merge [Documentation 39665355872](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39665355872)
+passes; [Foundation 39665355968](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39665355968)
+is running at this checkpoint. Earlier failed/cancelled runs below remain history.
+No Issue #11 story or customer release is accepted. All five release holds stay
+open. EXEC-016 and stopped original19/20 capture remain untouched.
 
 ## Implemented boundary
 

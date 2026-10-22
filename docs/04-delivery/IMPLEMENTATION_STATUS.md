@@ -19,6 +19,33 @@ R0 release acceptance and commercial/customer deployment remain open.
 
 ## Latest merged result and current work
 
+[PR #110](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/110)
+merged exact independently approved candidate a01cef3 as
+`8de60639586bd572d5e34257d07b25e683605b96`. Actual ordered parents and tree
+`b2c1023b71fc10cbc7da954275b7e8d67cd35649` match the reviewed candidate.
+Exact-head Foundation 39661543066 and Documentation 39661543122 pass: 1,824 units,
+161 integrations, 43 browsers, exact 84-table recovery, packaged/customer and
+complete distribution-evidence validation. Post-merge Documentation 39665355872
+passes; Foundation 39665355968 is running at this checkpoint. Internal advice
+groundwork is merged, while full Issue #11 integration/acceptance remains open.
+See [validation](../05-quality/ADVICE_CORE_VALIDATION.md).
+
+EXEC-018 corrects the persisted completeness reader's evidence count. Available
+authority-result versions count independently of selection; policyless/stale
+evidence stays UNCONFIRMED, protected versions do not count, and empty facts stay
+MISSING. The private branch is reconciled onto verified main. Native validation
+passes 169 tests/14 files and all three project-update browser journeys pass,
+including the new saved API/UNCONFIRMED view and privacy screenshot. Final build,
+lint, typecheck, 1,824 units/105 files (82.32 seconds), architecture, 42-record
+registration, documentation and unchanged audit pass. Exact-candidate reviews and
+fresh hosted gates remain pending. There is no schema,
+connector, visual or source-publication change. See
+[EXEC-018](exec-plans/EXEC-018-authorized-completeness-inputs.md) and
+[validation](../05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md).
+No new criterion/story is accepted; original19/20 capture remains stopped.
+
+### Earlier checkpoints (historical)
+
 EXEC-017 prepares independent internal recommendation/queue groundwork for
 [Issue #11](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11)
 on the verified PR #109 main tree. Its bounded pure domain builder, fixed

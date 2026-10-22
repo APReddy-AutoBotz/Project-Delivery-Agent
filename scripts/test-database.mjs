@@ -662,6 +662,7 @@ node([
   "tests/database.integration.test.ts",
   "tests/project-facts.integration.test.ts",
   "tests/project-update-policy-binding.integration.test.ts",
+  "tests/project-update-completeness.integration.test.ts",
   "tests/project-update-engagement.integration.test.ts",
   "tests/authority-persistence.integration.test.ts",
   "tests/blocker-age-assessment.integration.test.ts",

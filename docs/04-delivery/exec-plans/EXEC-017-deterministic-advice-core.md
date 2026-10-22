@@ -1,6 +1,6 @@
 # EXEC-017: Deterministic advice and queue core
 
-Status: In Progress; independent design review approved the limited groundwork.
+Status: Limited groundwork merged in PR #110; post-merge Foundation CI pending.
 Owner: Implementation controller
 Target release: R1
 Date: 2026-10-21
@@ -8,6 +8,22 @@ Issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11
 Requirements: FR-ADV-001, FR-ADV-002, FR-ADV-006, FR-ADV-007, FR-ADV-008,
 FR-RPT-002, BR-013, NFR-REL-003, NFR-SEC-001.
 Criteria: AC-ADV-001..005 and AC-RPT-003 (partial internal groundwork only).
+
+## Verified completion of the limited increment
+
+Both independent reviewers approve final candidate
+`a01cef3f75e9b7626cba98da9ed2c92b7e58b0a1`. Exact-head Foundation 39661543066
+and Documentation 39661543122 pass, including 1,824 unit, 161 integration and
+43 browser tests, 84-table recovery, packaged customer acceptance and complete
+distribution evidence validation with the strict two-profile envelope pins.
+Expected-head merge in PR #110 produced `8de60639586bd572d5e34257d07b25e683605b96`;
+its ordered parents are verified base c52ab15c and candidate a01cef3. Its actual
+tree `b2c1023b71fc10cbc7da954275b7e8d67cd35649` equals the reviewed candidate.
+Post-merge Documentation 39665355872 passes; Foundation 39665355968 is running.
+See [validation](../../05-quality/ADVICE_CORE_VALIDATION.md) for links and historical
+failed gates. Earlier pending statements below describe those historical checkpoints.
+Full product integration/Issue #11 acceptance and all five release holds remain
+open. No stopped research capture action was performed.
 
 ## Objective and dependency boundary
 

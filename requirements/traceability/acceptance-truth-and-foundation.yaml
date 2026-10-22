@@ -147,6 +147,7 @@ acceptance_criteria:
   tests:
   - UNIT-HLT-001
   - E2E-UPD-001
+  - INT-HLT-002
 - id: AC-HLT-002
   title: Detect missing required facts
   criterion: The completeness check lists the exact required facts that are missing or unconfirmed.
@@ -156,6 +157,7 @@ acceptance_criteria:
   tests:
   - UNIT-HLT-002
   - E2E-UPD-001
+  - INT-HLT-002
 - id: AC-HLT-003
   title: Calculate blocker age
   criterion: Blocker age is calculated from source dates and the applied threshold is visible.

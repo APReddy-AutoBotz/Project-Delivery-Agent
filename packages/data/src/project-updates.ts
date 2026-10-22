@@ -536,10 +536,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           ? resolved.status as typeof factAssessments[number]["sourceAuthorityStatus"]
           : "INCOMPLETE";
         check.sourceState = "UNKNOWN";
-        const versionsCount = Math.max(
-          resolved.candidateVersionIds.length,
-          resolved.supportingVersionIds.length,
-        );
+        // Evidence may exist without an eligible authority selection. Count only
+        // currently readable assessed versions, never restricted database history.
+        const versionsCount = resolved.versions.filter(
+          (version) => version.visibility === "available",
+        ).length;
         factAssessments.push({
           factType: requirement.factType,
           canonicalVersionCount: versionsCount,

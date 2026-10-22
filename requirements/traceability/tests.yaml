@@ -1600,3 +1600,24 @@ tests:
     uses valid IANA time zones. A response after escalation suppresses future satisfied-fact reminders; invalid
     time zones are rejected.
   evidence: []
+- id: INT-HLT-002
+  release: R1
+  status: implemented
+  acceptance_criteria:
+  - AC-HLT-001
+  - AC-HLT-002
+  specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
+  behavior: >-
+    Real repository authority resolution counts only available canonical versions
+    independently of eligibility. Policyless, expired, conflicting and restricted
+    evidence remains unconfirmed without trusted timestamps or satisfaction;
+    absent values remain missing. Persisted previews/dependencies withhold values
+    and references. Current revocation suppresses evidence while history stays
+    immutable; project/service denial writes nothing and reassessment reuses one
+    open obligation. Executed results and pending gates are recorded separately.
+  evidence:
+  - packages/data/src/project-updates.ts
+  - tests/project-update-completeness.integration.test.ts
+  - tests/e2e/project-update.spec.ts
+  - scripts/test-database.mjs
+  - docs/05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md
