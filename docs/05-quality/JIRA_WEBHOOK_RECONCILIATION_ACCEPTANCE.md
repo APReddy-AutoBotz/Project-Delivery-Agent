@@ -25,7 +25,7 @@ this story does not authorize canonical publication or outbound material writes.
 
 | Requirement | Executed original behavior |
 | --- | --- |
-| FR-CON-004 | Jira events pass real raw-body authenticity middleware and durable runtime repositories. Invalid signatures and malformed bodies produce no domain effect. |
+| FR-CON-004 | Jira events pass real raw-body authenticity middleware and durable runtime repositories. Invalid signatures are rejected before payload parsing or transactional row locks. |
 | FR-CON-005 | Scheduled reconciliation recovers a deliberately missed update with the persisted cursor/configuration and reports safe connector health. |
 | FR-CON-010 | Identical webhook delivery reuses the original receipt/job and produces one observation, assessment and total downstream obligation. An unchanged provider revision preserves its first observation; a later changed input reuses the applicable obligation while each new assessment binds its own new preview. Canonical version counts do not change. |
 | NFR-REL-001 | Native tests exercise rollback, lost response, retry, concurrent scans, fixed cohorts, stale fencing, five actual child exits, exhaustion, current-source revocation and quarantined populated restore. Singular durable effects survive replay/restart. |
