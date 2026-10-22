@@ -34,7 +34,7 @@ evidence does not accept any of the five release holds.
 The fresh local fourth native run separately passes 225 cases / 16 files in
 642.20s. Its genuine success receipt supports guarded recovery into a new,
 quarantined database: exact 85 business tables plus the ledger, 14 populated
-proof families including 116 reassessment causes, immutable-history denials and
+proof families, immutable-history denials and
 no running application. API/worker CONNECT remains false on the restored target.
 Earlier failed and interrupted runs remain historical without passing credit.
 
