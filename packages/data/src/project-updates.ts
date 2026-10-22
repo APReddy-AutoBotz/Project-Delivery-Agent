@@ -5,6 +5,7 @@ import {
   projectUpdateCaptureConfigurationSchema, projectUpdateInvitationLocatorSchema,
   projectUpdateCaptureGenerationSchema,
   projectUpdateResponseSubmissionSchema, projectUpdateRecipientRequestViewSchema,
+  projectUpdateEscalationContextSchema, type ProjectUpdateEscalationContext,
   mayAccessProjectUpdateInvitation, renderProjectUpdateCapture,
   type ProjectUpdateCaptureConfiguration, type ProjectUpdateRecipientRequestView,
   type ProjectUpdateResponseReceipt, type ProjectUpdateCaptureHistory,
@@ -46,6 +47,7 @@ import {
   reassessmentAudit, reassessmentNow, type ReassessmentCause,
 } from "./ingestion-reassessments.js";
 import { ProjectUpdateScanCoordinator } from "./project-update-scan.js";
+import { projectEscalationHistoryBody } from "./project-update-history.js";
 
 type Tx = Prisma.TransactionClient;
 
@@ -1497,10 +1499,97 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return { row, projectId, asOf, configuration };
   }
 
+  private async escalationContext(tx: Tx, current: Actor, projectId: string,
+    invitation: CaptureInvitationRow, asOf: Date): Promise<ProjectUpdateEscalationContext | null> {
+    if (invitation.stageKind !== "ESCALATION" || invitation.recipientRole !== "PROJECT_MANAGER")
+      return null;
+    const unavailable: ProjectUpdateEscalationContext = {
+      asOf: iso(asOf), state: "UNAVAILABLE", impact: "UNKNOWN", originalRequestId: null, entries: [],
+    };
+    const rows = await tx.$queryRawUnsafe<Array<{
+      requestId: string; stageId: string; stageKind: "REQUEST" | "REMINDER" | "ESCALATION";
+      generation: number; ordinal: number; capturedAt: Date; purgeAfter: Date;
+      recipientSubject: string; dependencies: unknown; policyRequiredFacts: unknown;
+      contentState: string; rendererRevision: string; contentDigest: string;
+      reviewerSubjects: string[]; originalRequestId: string;
+    }>>(`WITH pm AS (
+        SELECT "engagementId","policyRevision",generation FROM public."ProjectUpdateStage"
+        WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND id=$3::uuid
+          AND kind='ESCALATION' AND "recipientRole"='PROJECT_MANAGER'
+      ), anchor AS (
+        SELECT r.id,r."capturedAt",s.generation FROM pm
+        JOIN public."ProjectUpdateStage" s ON s."customerId"=$1::uuid AND s."projectId"=$2::uuid
+          AND s."engagementId"=pm."engagementId" AND s."policyRevision"=pm."policyRevision"
+          AND s.generation<=pm.generation AND s.kind='REQUEST' AND s."recipientRole"='OWNER'
+        JOIN public."ProjectUpdateCapturedRequest" r ON r."customerId"=s."customerId"
+          AND r."projectId"=s."projectId" AND r."stageId"=s.id
+        JOIN public."ProjectUpdateOutbox" o ON o."customerId"=s."customerId"
+          AND o."projectId"=s."projectId" AND o."stageId"=s.id AND o.state='CAPTURED'
+        ORDER BY s.generation DESC,r."capturedAt" DESC,r.id DESC LIMIT 1
+      )
+      SELECT r.id AS "requestId",s.id AS "stageId",s.kind AS "stageKind",s.generation,s.ordinal,
+        r."capturedAt",r."purgeAfter",r."recipientSubject",r.dependencies,
+        p."requiredFacts" AS "policyRequiredFacts",c.state AS "contentState",r."rendererRevision",
+        r."contentDigest",r."reviewerSubjects",anchor.id AS "originalRequestId"
+      FROM pm CROSS JOIN anchor
+      JOIN public."ProjectUpdateStage" s ON s."customerId"=$1::uuid AND s."projectId"=$2::uuid
+        AND s."engagementId"=pm."engagementId" AND s."policyRevision"=pm."policyRevision"
+        AND s."recipientRole"='OWNER' AND s.generation BETWEEN anchor.generation AND pm.generation
+      JOIN public."ProjectUpdateCapturedRequest" r ON r."customerId"=s."customerId"
+        AND r."projectId"=s."projectId" AND r."stageId"=s.id
+      JOIN public."ProjectUpdateOutbox" o ON o."customerId"=s."customerId"
+        AND o."projectId"=s."projectId" AND o."stageId"=s.id AND o.state='CAPTURED'
+      JOIN public."ProjectUpdateRequestContent" c ON c."customerId"=r."customerId"
+        AND c."projectId"=r."projectId" AND c."requestId"=r.id
+      JOIN public."ProjectUpdatePolicyRevision" p ON p."customerId"=s."customerId"
+        AND p."projectId"=s."projectId" AND p.id=s."policyRevisionId"
+      WHERE r.id=anchor.id OR s.kind IN ('REMINDER','ESCALATION')
+      ORDER BY s.generation,CASE WHEN r.id=anchor.id THEN 0 ELSE 1 END,r."capturedAt",r.id LIMIT 21`,
+    current.customerId, projectId, invitation.stageId);
+    // Bound before reading any origin body or querying its source dependencies.
+    if (rows.length === 0 || rows.length > 20) return unavailable;
+    const entries: ProjectUpdateEscalationContext["entries"] = [];
+    for (const row of rows) {
+      const retained = row.contentState === "PRESENT" && row.purgeAfter > asOf;
+      let body: string | null = null;
+      if (retained && row.recipientSubject === invitation.ownerSubject &&
+          await this.recipientAuthorized(tx, current.customerId, projectId, row.recipientSubject, "OWNER")) {
+        const dependencies = z.array(projectUpdateFactReferenceSchema).max(1000).parse(jsonValue(row.dependencies));
+        const recipient: Actor = { customerId: current.customerId, subject: row.recipientSubject, roles: [] };
+        const viewerValues = await this.resolveKnownPosition(tx, current, projectId, dependencies, row.policyRequiredFacts);
+        const recipientValues = await this.resolveKnownPosition(tx, recipient, projectId, dependencies, row.policyRequiredFacts);
+        if (viewerValues.length === dependencies.length && recipientValues.length === dependencies.length) {
+          const contents = await tx.$queryRawUnsafe<{ body: string }[]>(
+            `SELECT c.body FROM public."ProjectUpdateRequestContent" c
+              JOIN public."ProjectUpdateCapturedRequest" r ON r."customerId"=c."customerId"
+                AND r."projectId"=c."projectId" AND r.id=c."requestId"
+              WHERE r."customerId"=$1::uuid AND r."projectId"=$2::uuid AND r.id=$3::uuid
+                AND c.state='PRESENT' AND r."purgeAfter">clock_timestamp()`,
+            current.customerId, projectId, row.requestId,
+          );
+          if (contents[0]) body = projectEscalationHistoryBody({
+            body: contents[0].body, rendererRevision: row.rendererRevision,
+            contentDigest: row.contentDigest, reviewerSubjects: row.reviewerSubjects,
+          });
+        }
+      }
+      entries.push({ requestId: row.requestId, stageId: row.stageId, stageKind: row.stageKind,
+        generation: row.generation, ordinal: row.ordinal, capturedAt: iso(row.capturedAt),
+        contentExpiresAt: iso(row.purgeAfter),
+        contentState: !retained ? "EXPIRED" : body === null ? "RESTRICTED" : "PRESENT",
+        bodyProjection: "REVIEWER_NAMES_WITHHELD", body });
+    }
+    const context = projectUpdateEscalationContextSchema.safeParse({
+      asOf: iso(asOf), state: "AVAILABLE", impact: "UNKNOWN",
+      originalRequestId: rows[0]!.originalRequestId, entries,
+    });
+    return context.success ? context.data : unavailable;
+  }
+
   async invitation(actorValue: Actor, locatorValue: string): Promise<ProjectUpdateRecipientRequestView> {
     const current = parseActor(actorValue);
     return this.transaction(async (tx) => {
-      const { row, projectId } = await this.authorizedInvitation(tx, current, locatorValue);
+      const { row, projectId, asOf } = await this.authorizedInvitation(tx, current, locatorValue);
       const reviewers = row.reviewerSubjects.filter((subject) =>
         this.captureConfiguration(current.customerId)?.responseReviewerSubjects.includes(subject));
       // Readership is an explicit frozen contract; retain names of frozen
@@ -1513,6 +1602,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         requiredFacts: policyFacts(row.requiredFacts),
         rawResponseReaders: [...new Set([row.recipientSubject, ...reviewers])],
         responses: await this.responseHistory(tx, current, projectId, row.requestId),
+        escalationContext: await this.escalationContext(tx, current, projectId, row, asOf),
       });
     });
   }

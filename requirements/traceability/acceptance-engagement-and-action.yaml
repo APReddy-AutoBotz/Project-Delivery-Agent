@@ -84,6 +84,7 @@ acceptance_criteria:
   priority: P0
   tests:
   - E2E-ESC-008
+  - INT-ESC-001
 - id: AC-ADV-001
   title: Recommendation has rationale
   criterion: A recommendation contains the triggering facts, rule, urgency, suggested action and expected outcome.

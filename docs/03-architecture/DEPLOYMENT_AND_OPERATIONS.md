@@ -190,3 +190,18 @@ remote targets and stable markers before enabling execution. Suppress completed
 actions and route unprovable outcomes to manual recovery. A restore drill must
 include a comment completed after backup and prove it is not replayed. Resume
 requires an authorized operator's recorded review of reconciliation results.
+
+## Authorized PM request history
+
+An existing named PM escalation invitation can show its current request cycle.
+This is a read-time projection of historical request text, with reviewer names
+withheld and delivery impact explicitly unknown. Current invitation, project,
+owner and source permissions remain required; each origin has its own retention
+deadline. A restricted or expired body stays hidden, and whole-view gate/grant
+loss makes the invitation unavailable. No owner raw-response access is added.
+
+No new configuration, database migration or privilege is needed. Restore
+quarantine continues to deny invitations until the existing issuance gate is
+explicitly enabled. Revert the additive projection/API/browser change through
+review if necessary; retained messages and schema require no rollback.
+See [EXEC-020](../04-delivery/exec-plans/EXEC-020-pm-escalation-history.md).

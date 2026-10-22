@@ -129,6 +129,8 @@
 ## Implementation-control additions
 
 - `docs/04-delivery/exec-plans/EXEC-019-ingestion-assurance-handoff.md`: durable runtime receipt-to-assessment causes, bounded claims, authorized recovery and exact lineage.
+- `docs/04-delivery/exec-plans/EXEC-020-pm-escalation-history.md`: approved current-cycle request projection, current origin permissions, privacy and retention boundary.
+- `docs/05-quality/ESCALATION_HISTORY_VALIDATION.md`: bounded PM history schema, native and real browser evidence; full escalation acceptance remains open.
 - `docs/05-quality/INGESTION_ASSURANCE_VALIDATION.md`: causal handoff, failure, permission, upgrade and recovery evidence; exact-candidate gates remain explicit.
 - `docs/04-delivery/exec-plans/EXEC-018-authorized-completeness-inputs.md`: correct available canonical evidence counts without changing source selection or historical disclosure.
 - `docs/05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md`: repository, API/browser and privacy regression evidence for the completeness input correction; remaining review and hosted gates.

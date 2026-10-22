@@ -1,5 +1,25 @@
 # Document Control
 
+## EXEC-020 bounded PM history design approval, 2026-10-22
+
+Under the Product Owner's existing controller delegation, approve the bounded
+[EXEC-020 design](../04-delivery/exec-plans/EXEC-020-pm-escalation-history.md).
+Separate non-author design and coverage reviews approved the complete pre-edit
+file SHA256 `74ca1bd478b0f20e370efe08e317404c41e6e4af3c280fcb8c51fd3acfbe10be`.
+Implementation must retain every existing PM invitation gate, independently
+check each origin's current permissions/retention and withhold original reviewer
+names, digests, locators and raw replies. Historical text is not a current fact;
+project impact remains UNKNOWN. Preserve schema, immutable messages and privileges.
+Exact-candidate implementation reviews, all validation and verified merge remain
+required. No full AC-UPD-008, E2E-ESC-008 or Issue #9 acceptance is delegated by
+this bounded design record. Original19/20 capture remains stopped.
+
+PR #113 separately completed its exact-candidate, actual merge-tree/ordered-parent
+and post-merge gates at 9e1d84323c280b74f4f17bf62de80ec664e600fc. Its STORY-008/013
+acceptance is effective: R0 3/5, R1 4/33, total 7/38. Issues #7/#8 remain open.
+OD-013/014, proposal-only imports and all five release holds remain in force.
+
+
 ## STORY-008 and STORY-013 software acceptance, 2026-10-22
 
 Under the Product Owner's existing controller delegation, accept only STORY-008

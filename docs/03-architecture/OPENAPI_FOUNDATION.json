@@ -38891,6 +38891,125 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "escalationContext": {
+                      "default": null,
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "asOf": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "AVAILABLE",
+                            "UNAVAILABLE"
+                          ]
+                        },
+                        "impact": {
+                          "type": "string",
+                          "enum": [
+                            "UNKNOWN"
+                          ]
+                        },
+                        "originalRequestId": {
+                          "nullable": true,
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "entries": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "requestId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "stageId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "stageKind": {
+                                "type": "string",
+                                "enum": [
+                                  "REQUEST",
+                                  "REMINDER",
+                                  "ESCALATION"
+                                ]
+                              },
+                              "generation": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 2147483647
+                              },
+                              "ordinal": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 2147483647
+                              },
+                              "capturedAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              "contentExpiresAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              "contentState": {
+                                "type": "string",
+                                "enum": [
+                                  "PRESENT",
+                                  "EXPIRED",
+                                  "RESTRICTED"
+                                ]
+                              },
+                              "bodyProjection": {
+                                "type": "string",
+                                "enum": [
+                                  "REVIEWER_NAMES_WITHHELD"
+                                ]
+                              },
+                              "body": {
+                                "nullable": true,
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 65536
+                              }
+                            },
+                            "required": [
+                              "requestId",
+                              "stageId",
+                              "stageKind",
+                              "generation",
+                              "ordinal",
+                              "capturedAt",
+                              "contentExpiresAt",
+                              "contentState",
+                              "bodyProjection",
+                              "body"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "asOf",
+                        "state",
+                        "impact",
+                        "originalRequestId",
+                        "entries"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [

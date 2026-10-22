@@ -23,8 +23,10 @@ function actor(role: Actor["roles"][number], label: string): Actor {
   return { customerId, subject: `${label}-${randomUUID()}`, roles: [role] };
 }
 
-describe("durable ingestion persistence", () => {
-  it("persists bounded proposals with fenced cursors and current permission checks", async () => {
+// Keep this stateful scenario in its original order and lexical scope. Each
+// generator phase runs inside a bounded test; no database work runs in setup.
+describe.sequential("durable ingestion persistence", () => {
+  async function* scenario() {
     const portfolioId = randomUUID();
     const projectId = randomUUID();
     const sourceId = randomUUID();
@@ -212,6 +214,8 @@ describe("durable ingestion persistence", () => {
       SELECT count(*)::int AS n FROM public."IngestionOperationReceipt" WHERE "sourceId"=${sourceId}::uuid`;
     expect(receiptCount[0]!.n).toBe(2); // reset and page; replay added no receipt
 
+    yield;
+
     const racePage = { ...page, inputCursor: "opaque-next-cursor", nextCursor: "opaque-race-cursor" };
     const raceBase = {
       ...pageCommand,
@@ -314,6 +318,8 @@ describe("durable ingestion persistence", () => {
       ),
     ).rejects.toMatchObject({ code: "DENIED" });
 
+    yield;
+
     const changed = await repository.configure(
       pmo,
       {
@@ -411,6 +417,8 @@ describe("durable ingestion persistence", () => {
         "ingestion-test-stale-event-replay",
       ),
     ).rejects.toMatchObject({ code: "STALE_CONFIGURATION" });
+
+    yield;
 
     const csvConfig = await repository.configure(
       pmo,
@@ -613,6 +621,8 @@ describe("durable ingestion persistence", () => {
       },
     });
 
+    yield;
+
     const expiringPreview = await repository.persistCsvPreview(
       manager,
       {
@@ -680,6 +690,8 @@ describe("durable ingestion persistence", () => {
       },
       "ingestion-test-csv-review-stale-config",
     )).rejects.toMatchObject({ code: "INVALID_PREVIEW" });
+
+    yield;
 
     await expect(
       db.$transaction(async (tx) => {
@@ -848,6 +860,8 @@ describe("durable ingestion persistence", () => {
       }),
     ).rejects.toThrow(); // accepted receipt identities must match their referenced external record
 
+    yield;
+
     const currentCsvConfiguration = {
       ...configuration,
       mapping: {
@@ -945,6 +959,8 @@ describe("durable ingestion persistence", () => {
       WHERE r.id=${sourceRevision[0]!.id}::uuid`;
     expect(expiredRemapState).toEqual(beforeExpiredRemap);
 
+    yield;
+
     await setSyntheticReceivedAt(new Date(Date.now() - 24 * 60 * 60 * 1000 + 5000));
     const availableBeforeExpiry = (await repository.readReceipt(manager, {
       sourceId,
@@ -966,5 +982,35 @@ describe("durable ingestion persistence", () => {
     await expect(
       repository.readReceipt(manager, { sourceId, receiptId: persisted.receiptId }),
     ).rejects.toMatchObject({ code: "DENIED" });
-  });
+  }
+
+  const phases = [
+    "captures bounded pages and encrypted cursors with replay safety",
+    "fences racing pages and rejects conflicting or unauthorized events",
+    "fences cursor revisions and deduplicates event observations",
+    "saves reviewed CSV proposals without canonical publication",
+    "rejects expired and stale CSV review commitments",
+    "enforces direct COMMIT completeness, identity and project scope",
+    "redacts revoked readers and rejects expired revision remapping",
+    "rechecks expiry after the real six-second lock and denies revoked grants",
+  ];
+  const steps = scenario();
+  let completed = 0;
+  let healthy = true;
+  let failed = false;
+  for (const [index, name] of phases.entries()) {
+    it(name, async ({ signal, onTestFailed }) => {
+      onTestFailed(() => { failed = true; });
+      expect(failed, "The scenario cannot resume after a failed phase").toBe(false);
+      expect(healthy, "An earlier phase failed or is incomplete").toBe(true);
+      expect(completed, "Every earlier phase must complete in order").toBe(index);
+      healthy = false;
+      const result = await steps.next();
+      expect(result.done).toBe(index === phases.length - 1);
+      // Vitest aborts this signal on timeout. Late work cannot unlock later phases.
+      expect(signal.aborted || failed).toBe(false);
+      completed = index + 1;
+      healthy = true;
+    });
+  }
 });

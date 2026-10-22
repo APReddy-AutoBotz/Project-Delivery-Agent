@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import {
   mkdirSync,
   writeFileSync,
@@ -17,6 +18,7 @@ import { assertSyntheticDatabaseUrl } from "../packages/platform/dist/index.js";
 import { verifyIngestionPrefixNineUpgrade } from "./acceptance/ingestion-prefix-nine-upgrade.mjs";
 import { verifyIngestionAssuranceUpgrade } from "./acceptance/ingestion-assurance-upgrade.mjs";
 import { verifyUpdateEngagementStorage } from "./acceptance/update-engagement-storage.mjs";
+import { seedEscalationHistory } from "./acceptance/escalation-history.mjs";
 const source = assertSyntheticDatabaseUrl(
   process.env.PDAA_DATABASE_URL ?? "",
   "pdaa",
@@ -659,6 +661,19 @@ async function verifyHealthAssessmentRetention(databaseUrl) {
 const engagementStorage = await verifyUpdateEngagementStorage(source.toString());
 await verifyHealthAssessmentRetention(source.toString());
 
+// Guard-valid stored request/reminder/PM history is prepared outside timed view
+// tests. The private fixture is not part of the published database receipt.
+mkdirSync("tmp", { recursive: true });
+const escalationFixturePath = resolve("tmp/escalation-history-" + randomUUID() + ".json");
+// Existing foundation tests assert exact pm-atlas scope and engagement tests rotate
+// the default customer's gate. Keep this fixture's tenant and gate independent.
+const escalationFixture = await seedEscalationHistory(source.toString(), { isolatedCustomer: true });
+await seedEscalationHistory(source.toString(), { customerId: escalationFixture.customerId });
+writeFileSync(escalationFixturePath, JSON.stringify(escalationFixture),
+  { flag: "wx", mode: 0o600 });
+env.PDAA_ESCALATION_FIXTURE_PATH = escalationFixturePath;
+env.PDAA_ESCALATION_CUSTOMER_ID = escalationFixture.customerId;
+
 node([
   "node_modules/vitest/vitest.mjs",
   "run",
@@ -667,6 +682,7 @@ node([
   "tests/project-update-policy-binding.integration.test.ts",
   "tests/project-update-completeness.integration.test.ts",
   "tests/project-update-engagement.integration.test.ts",
+  "tests/project-update-escalation.integration.test.ts",
   "tests/authority-persistence.integration.test.ts",
   "tests/blocker-age-assessment.integration.test.ts",
   "tests/canonical-project.integration.test.ts",

@@ -199,6 +199,48 @@ export const projectUpdateResponseHistorySchema = z.strictObject({
   contentState: z.enum(["PRESENT", "EXPIRED"]),
   text: z.string().nullable(),
 });
+// FR-ESC-005: current-cycle workflow history, not a new fact assessment.
+export const projectUpdateEscalationContextSchema = z.strictObject({
+  asOf: instant,
+  state: z.enum(["AVAILABLE", "UNAVAILABLE"]),
+  impact: z.literal("UNKNOWN"),
+  originalRequestId: z.uuid().nullable(),
+  entries: z.array(z.strictObject({
+    requestId: z.uuid(), stageId: z.uuid(),
+    stageKind: z.enum(["REQUEST", "REMINDER", "ESCALATION"]),
+    generation: revision,
+    ordinal: z.number().int().min(0).max(2147483647),
+    capturedAt: instant, contentExpiresAt: instant,
+    contentState: z.enum(["PRESENT", "EXPIRED", "RESTRICTED"]),
+    bodyProjection: z.literal("REVIEWER_NAMES_WITHHELD"),
+    body: z.string().min(1).max(65536).nullable(),
+  })).max(20),
+}).superRefine((value, context) => {
+  const invalid = () => context.addIssue({ code: "custom", message: "Invalid escalation history" });
+  if (value.state === "UNAVAILABLE") {
+    if (value.originalRequestId !== null || value.entries.length !== 0) invalid();
+    return;
+  }
+  const first = value.entries[0];
+  if (!first || first.requestId !== value.originalRequestId || first.stageKind !== "REQUEST" ||
+      value.entries.filter((entry) => entry.stageKind === "REQUEST").length !== 1 ||
+      new Set(value.entries.map((entry) => entry.requestId)).size !== value.entries.length ||
+      new Set(value.entries.map((entry) => entry.stageId)).size !== value.entries.length) invalid();
+  for (const [index, entry] of value.entries.entries()) {
+    if (Date.parse(entry.capturedAt) > Date.parse(value.asOf) ||
+        Date.parse(entry.contentExpiresAt) <= Date.parse(entry.capturedAt) ||
+        (entry.stageKind === "REQUEST" ? entry.ordinal !== 0 : entry.ordinal < 1) ||
+        (entry.contentState === "PRESENT" && (entry.body === null || Date.parse(entry.contentExpiresAt) <= Date.parse(value.asOf))) ||
+        (entry.contentState !== "PRESENT" && entry.body !== null)) invalid();
+    const previous = value.entries[index - 1];
+    if (previous && (entry.generation < previous.generation ||
+        (entry.generation === previous.generation && (Date.parse(entry.capturedAt) < Date.parse(previous.capturedAt) ||
+          (Date.parse(entry.capturedAt) === Date.parse(previous.capturedAt) && previous.stageKind !== "REQUEST" &&
+            entry.requestId <= previous.requestId))))) invalid();
+  }
+});
+export type ProjectUpdateEscalationContext = z.infer<typeof projectUpdateEscalationContextSchema>;
+
 export const projectUpdateRecipientRequestViewSchema = z.strictObject({
   requestId: z.uuid(),
   project: z.strictObject({ id: z.uuid(), code: boundedLabel, name: boundedLabel }),
@@ -210,6 +252,12 @@ export const projectUpdateRecipientRequestViewSchema = z.strictObject({
   requiredFacts: z.array(projectUpdateRequiredFactSchema).min(1).max(100),
   rawResponseReaders: z.array(canonicalSubjectSchema).max(33),
   responses: z.array(projectUpdateResponseHistorySchema).max(20),
+  // Legacy payloads and non-PM invitations retain their existing contract.
+  escalationContext: projectUpdateEscalationContextSchema.nullable().default(null),
+}).superRefine((value, context) => {
+  if (value.escalationContext && (value.stageKind !== "ESCALATION" ||
+      Date.parse(value.escalationContext.asOf) < Date.parse(value.capturedAt)))
+    context.addIssue({ code: "custom", message: "Invalid escalation context" });
 });
 export type ProjectUpdateRecipientRequestView = z.infer<
   typeof projectUpdateRecipientRequestViewSchema
