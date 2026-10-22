@@ -1,6 +1,6 @@
 # EXEC-019: Durable connector receipt to project assurance handoff
 
-Status: Design review pending; implementation not started
+Status: Reviewed design; implementation and validation in progress
 Owner: Implementation controller
 Date: 2026-10-22
 Requirement IDs: FR-CON-004, FR-CON-010, FR-HLT-001, FR-HLT-002, FR-UPD-001,
@@ -247,3 +247,63 @@ reviewed lock/timing risks. Root chooses the runtime CONNECTOR_SYNC path for thi
 bounded criterion increment; standalone HUMAN/import integration remains explicit
 future scope. Independent review of this concrete design is pending. No queue,
 migration, new endpoint, hosted diagnostic or acceptance claim has been implemented.
+
+2026-10-22 continuation: Both independent design reviewers approved immutable
+SHA256 556833dbd7f6369284ea4e0570c771ceaea36f786f4dce28fe6f531132e8fb17;
+the approved design is retained at ec52603. Implementation is now private WIP.
+Early source review identified duplicate charging within a generation, incomplete
+audit payload binding and a late-preview completion gap. The new migration adds
+new-generation charging, exact audit payload checks and deferred final-state
+validation. Native regression evidence and final review remain pending.
+
+PR #111 passed all exact-head checks and merged as
+7f70063d8a689d66042de93b2537402538eb8423. Verified ordered parents are
+8de60639586bd572d5e34257d07b25e683605b96 then
+0eba485789373f8d54cf4768d114cfe8e3db8e19; actual tree
+fb28771f4eb4b43f9d19741bad213a7e25615f54 matches the reviewed candidate.
+Post-merge Documentation39708349560 and Foundation39708349577 passed.
+PR #110's ONE unchanged failed-job retry39665355968 passed. Its earlier
+sessions_before_commit failure remains retained; its session cause is unknown.
+Research capture remains stopped; acceptance remains 5/38 and release holds open.
+
+2026-10-22 implementation review corrections, all independently approved before
+implementation:
+
+- Runtime reads of the same immutable provider revision retain the first observedAt.
+  Hash, effectiveAt and mapped payload must still match exactly. HUMAN helpers and
+  reviewed imports retain their strict observation-clock checks.
+- API execution exposed unnecessary UPDATE locks on immutable configuration/project,
+  record, revision and projection children. Configuration sealing locks Project and
+  current PMO grants; prepareRecords retains its callers' Source UPDATE lock and
+  exact immutable identity comparisons. No immutable-child UPDATE grant or definer
+  function is added. The pure mapping validator receives API EXECUTE only.
+- Historical receipt proofs bind grant identity, without requiring a mutable grant
+  to remain active at its original configuration revision forever. Birth and each
+  use still lock and recheck current Source/configuration and exact active grant.
+  Only migration 25 replaces the historical validator; all 24 released migration
+  byte sequences remain unchanged.
+- setPolicy alone uses ReadCommitted after Project locking, so disablement sees
+  causes committed while it waited. Cause birth holds an enabled policy-head SHARE
+  lock. Both ordering races must pass.
+- A crashed fifth attempt can be outside an older deferred 25-cause cohort which
+  advances the head. Exhaustion therefore accepts an already fenced lower claim
+  generation, and rejects NULL/future generations or the same still-live lease.
+- A Project SELECT lock does not refresh a RepeatableRead snapshot. Preview birth
+  and completion now also write the same scoped policy-head tuple without changing
+  any semantic field. Completion reads its generation/lease from that post-lock
+  UPDATE RETURNING; absence of the head fails closed. Both orderings under RC and
+  RR must reject the conflicting null-completion/preview combination, with 40001
+  permitted for stale RR snapshots. Existing assessor isolation remains unchanged.
+
+The released-24 upgrade probe was corrected after independent coverage review:
+it now creates a real available CONNECTOR_SYNC cause, proves the copied legacy
+failure fence leaves that cause uncharged, then clears only that synthetic fence
+while keeping periodic timing in the future and proves completion. The corrected
+probe passed locally. Earlier scans with no pending cause were vacuous evidence.
+
+Native run eight passed 189 tests and failed two of 191. Its scheduled fixture
+attempted an unaudited raw health-clock update; its API wrapper omitted the real
+webhook authentication query. Focused correction then exposed the immutable-child
+lock permission failure described above. Logs/targets are retained; these runs
+are not passing full-suite evidence. A fresh expanded run is in progress. See
+[validation](../../05-quality/INGESTION_ASSURANCE_VALIDATION.md).

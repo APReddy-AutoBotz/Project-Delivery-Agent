@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 
 const checks = [
+  ["IngestionProjectReassessment", "public.valid_ingestion_project_reassessment(a.id)"],
   ["AuthorityPolicy", "public.valid_authority_history(a.id)"],
   ["FactAuthorityConflict", "public.valid_authority_conflict(a.id)"],
   [

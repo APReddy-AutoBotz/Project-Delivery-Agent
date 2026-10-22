@@ -40,6 +40,7 @@ import type {
   PrismaClient as Database,
 } from "./generated/prisma/client.js";
 import { actorInput } from "./fact-authorization.js";
+import { enqueueConnectorReassessments } from "./ingestion-reassessments.js";
 
 type Tx = Prisma.TransactionClient;
 type MappingRow = { id: string; customerId: string; sourceId: string; sourceType: string; origin: string; currentConfigRevision: number | null; mappingRevision: number; cursorRevision: bigint; syncGeneration: bigint; cursorEnvelope: string | null; cursorState: string; healthState: string; healthCode: string; healthCheckedAt: Date | null; lastSuccessReceiptId: string | null };
@@ -519,8 +520,11 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     source: MappingRow,
     mappingRevision: number,
     pending: readonly PendingRecord[],
+    preserveFirstObservation = false,
   ): Promise<PreparedRecord[]> {
     if (!pending.length) return [];
+    // Every caller holds the current Source UPDATE lock. These children are
+    // immutable; read their exact identities without requiring UPDATE grants.
     const recordRows = pending.map((item) => ({
       id: randomUUID(),
       customerId: source.customerId,
@@ -544,7 +548,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       SELECT r."recordType",r."recordKey",r."projectId",r.id
       FROM jsonb_to_recordset(${recordInput}::jsonb) AS x("recordType" text,"recordKey" text,"projectId" uuid)
       JOIN public."IngestionExternalRecord" r ON r."customerId"=${source.customerId}::uuid AND r."sourceId"=${source.id}::uuid AND r."recordType"=x."recordType" AND r."recordKey"=x."recordKey"
-      ORDER BY r."recordType",r."recordKey" FOR UPDATE OF r`;
+      ORDER BY r."recordType",r."recordKey"`;
     const recordByIdentity = new Map<string, { id: string; projectId: string }>();
     for (const record of recordResult) {
       const key = `${record.recordType}\u0000${record.recordKey}`;
@@ -599,12 +603,12 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       SELECT r."recordId",r.revision,r."sourceContentHash",r."remoteObservedAt",r."remoteEffectiveAt",r.id
       FROM jsonb_to_recordset(${revisionInput}::jsonb) AS x("recordId" uuid,revision text)
       JOIN public."IngestionSourceRevision" r ON r."customerId"=${source.customerId}::uuid AND r."sourceId"=${source.id}::uuid AND r."recordId"=x."recordId" AND r.revision=x.revision
-      ORDER BY r."recordId",r.revision FOR UPDATE OF r`;
+      ORDER BY r."recordId",r.revision`;
     const revisionByIdentity = new Map<string, { id: string; created: boolean }>();
     for (const row of revisions) {
       const expected = revisionRows.find((item) => item.recordId === row.recordId && item.revision === row.revision);
       if (!expected || row.sourceContentHash !== expected.sourceContentHash ||
-        (row.remoteObservedAt?.getTime() ?? null) !== (expected.remoteObservedAt?.getTime() ?? null) ||
+        (!preserveFirstObservation && (row.remoteObservedAt?.getTime() ?? null) !== (expected.remoteObservedAt?.getTime() ?? null)) ||
         (row.remoteEffectiveAt?.getTime() ?? null) !== (expected.remoteEffectiveAt?.getTime() ?? null))
         throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
       revisionByIdentity.set(`${row.recordId}\u0000${row.revision}`, {
@@ -645,7 +649,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       SELECT p."recordId",p."sourceRevisionId",p."mappingRevision",p."proposalHash",encode(sha256(convert_to(x.proposals::text,'UTF8')),'hex') AS "expectedProposalHash",p.id
       FROM jsonb_to_recordset(${projectionInput}::jsonb) AS x("recordId" uuid,"sourceRevisionId" uuid,"mappingRevision" integer,proposals jsonb)
       JOIN public."IngestionProposalProjection" p ON p."customerId"=${source.customerId}::uuid AND p."sourceId"=${source.id}::uuid AND p."recordId"=x."recordId" AND p."sourceRevisionId"=x."sourceRevisionId" AND p."mappingRevision"=x."mappingRevision"
-      ORDER BY p."recordId",p."sourceRevisionId",p."mappingRevision" FOR UPDATE OF p`;
+      ORDER BY p."recordId",p."sourceRevisionId",p."mappingRevision"`;
     const projectionByIdentity = new Map<string, { id: string; created: boolean }>();
     for (const row of projections) {
       const expected = projectionRows.find((item) => item.recordId === row.recordId && item.sourceRevisionId === row.sourceRevisionId && item.mappingRevision === row.mappingRevision);
@@ -1107,7 +1111,10 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         remoteEffectiveAt: new Date(record.effectiveAt),
         proposals: normalizeProposals(record.observations),
       }));
-      const prepared = await this.prepareRecords(tx, source, job.mappingRevision, pending);
+      // A repeated runtime read has a new read clock, not a new source revision.
+      // Preserve its first observation; source hash/effective time and mapped
+      // proposal payload remain exact. HUMAN/import callers keep strict clocks.
+      const prepared = await this.prepareRecords(tx, source, job.mappingRevision, pending, true);
       const byIdentity = new Map(prepared.map((record) => [`${record.recordType}\u0000${record.recordKey}`, record]));
       const outcomes: OutcomeInput[] = validated.records.map((record) => {
         const saved = byIdentity.get(`${record.ref.recordType}\u0000${record.ref.recordId}`);
@@ -1167,6 +1174,10 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       await tx.$executeRaw`
         UPDATE public."ConnectorSyncJob" SET state='COMPLETED',"leaseUntil"=NULL,"completedAt"=${now}
         WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid AND state='RUNNING'`;
+      await enqueueConnectorReassessments(tx, {
+        customerId, sourceId: source.id, receiptId,
+        configRevision: job.configRevision, mappingRevision: job.mappingRevision, now,
+      });
       let nextJobId: string | null = null;
       if (!validated.terminal && validated.nextCursor !== null) {
         nextJobId = randomUUID();

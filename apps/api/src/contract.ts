@@ -67,6 +67,9 @@ import {
   projectUpdateResponseReceiptSchema,
   projectUpdateCaptureHistorySchema,
   projectUpdateCaptureGenerationSchema,
+  ingestionReassessmentRetrySchema,
+  ingestionReassessmentItemSchema,
+  ingestionReassessmentPageSchema,
 } from "@pdaa/domain";
 import {
   catalogueQuerySchema,
@@ -216,6 +219,16 @@ export const contracts: Record<string, RouteContract> = {
     status: 200, response: projectUpdateCaptureHistorySchema,
     parameters: { id: z.uuid() }, query: { cursor: z.uuid().optional() },
     errors: [400, 403, 404, 503],
+  },
+  "get /api/projects/{id}/ingestion-reassessments": {
+    status: 200, query: { cursor: z.uuid().optional() },
+    response: ingestionReassessmentPageSchema, parameters: { id: z.uuid() },
+    errors: [400, 403, 404, 503],
+  },
+  "post /api/projects/{id}/ingestion-reassessment-retries": {
+    status: 200, request: ingestionReassessmentRetrySchema,
+    response: ingestionReassessmentItemSchema, parameters: { id: z.uuid() },
+    errors: [400, 403, 404, 409, 503],
   },
   "get /api/projects/{id}/project-update-policy": {
     status: 200,

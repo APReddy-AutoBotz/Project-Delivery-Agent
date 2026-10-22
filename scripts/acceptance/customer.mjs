@@ -110,7 +110,9 @@ import { engagementStorageTables, verifyEngagementStoragePrivileges,
   verifyUpdateEngagementStorage, verifyRestoredEngagementStorage } from "./update-engagement-storage.mjs";
 const env = process.env;
 import { updateCaptureTables, verifyUpdateCapturePrivileges, assertUpdateCaptureRestoreProjection } from "./update-capture-storage.mjs";
+import { seedReassessmentRecovery, verifyRestoredReassessments } from "./ingestion-reassessment.mjs";
 const projectUpdateTables = [
+  "IngestionProjectReassessment",
   "ProjectUpdatePolicy",
   "ProjectUpdatePolicyRevision",
   "ProjectUpdateAssessment",
@@ -530,7 +532,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 24);
+    assert.equal(migrations.length, 25);
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
@@ -754,8 +756,10 @@ try {
       await scalarOwner.$disconnect();
     }
     const engagementStorage = await verifyUpdateEngagementStorage(connection);
+    const ingestionReassessment = await seedReassessmentRecovery(db, scalarRuntime, env.CUSTOMER_ID);
     save("project-fact-persistence", {
       engagementStorage,
+      ingestionReassessment,
       status: "awaiting-restore",
       workerRuntimeDenied: await verifyWorkerFactDenials(
         loadDatabaseConfig({
@@ -793,9 +797,9 @@ try {
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 84,
+      businessTableCount: 85,
       engagementStorageTables,
-      migrationCount: 24,
+      migrationCount: 25,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -927,6 +931,7 @@ try {
         await verifyRestoredEngagementStorage(restoredEngagementDb, receipt.engagementStorage);
       } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
+        ingestionReassessment: await verifyRestoredReassessments(restored, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,
         scalarReconciliationOriginalProof: await (async () => {

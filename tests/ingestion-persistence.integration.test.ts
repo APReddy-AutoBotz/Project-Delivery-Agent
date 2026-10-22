@@ -278,6 +278,13 @@ describe("durable ingestion persistence", () => {
       ),
     ).rejects.toMatchObject({ code: "INTEGRITY_CONFLICT" });
 
+    for (const dateField of ["observedAt", "effectiveAt"] as const)
+      await expect(repository.persistConnectorEvent(manager, {
+        sourceId, configRevision: 1, mappingRevision: 1,
+        commandKey: "conflicting-clock-" + dateField, eventId: "conflicting-clock-" + dateField,
+        record: { ...page.records[0]!, [dateField]: "2026-09-24T00:00:00.000Z" },
+      }, "ingestion-test-conflicting-clock")).rejects.toMatchObject({ code: "INTEGRITY_CONFLICT" });
+
     await expect(
       repository.persistConnectorEvent(
         nonReader,

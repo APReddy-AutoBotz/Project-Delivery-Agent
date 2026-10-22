@@ -83,10 +83,11 @@ const added = [
   "ProjectUpdateDispatchAttempt",
   "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
   "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
+  "IngestionProjectReassessment",
 ];
 const receipt = () => ({
   priorMigrationCount: 1,
-  businessTableCount: 84,
+  businessTableCount: 85,
   scheduleHealthPolicyTables: ["ScheduleHealthPolicyRevision"],
   scheduleHealthPolicyBackfill: {
     project_count: 1,
@@ -179,6 +180,7 @@ it("NFR-REL-001: accepts project update and seeded schedule policy release addit
     "ProjectUpdateDispatchAttempt",
     "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation", "ProjectUpdateResponse",
     "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
+    "IngestionProjectReassessment",
   ]);
   expect(assertUpgradeInventory(value, 8)).toBe(true);
 });

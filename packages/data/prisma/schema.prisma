@@ -1235,6 +1235,9 @@ model HealthAssessmentCommandReceipt {
 }
 
 model ProjectUpdatePolicy {
+  scanFailureNextEligibleAt DateTime? @db.Timestamptz(3)
+  scanClaimGeneration Int @default(0)
+  scanClaimUntil DateTime? @db.Timestamptz(3)
   engagementProcessLastAttemptAt DateTime? @db.Timestamptz(3)
   engagementProcessNextEligibleAt DateTime? @db.Timestamptz(3)
   customerId String @db.Uuid
@@ -1247,6 +1250,34 @@ model ProjectUpdatePolicy {
   scheduledScanNextEligibleAt DateTime? @db.Timestamptz(3)
   @@id([customerId, projectId], map: "ProjectUpdatePolicy_pkey")
   @@unique([customerId, projectId, key], map: "ProjectUpdatePolicy_scope_key")
+}
+
+// EXEC-019: operational causes contain identifiers only, never proposed values.
+model IngestionProjectReassessment {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @db.Uuid
+  projectId String @db.Uuid
+  configRevision Int
+  mappingRevision Int
+  reason String @default("CONNECTOR_CHANGED") @db.VarChar(32)
+  createdAt DateTime @db.Timestamptz(3)
+  state String @default("READY") @db.VarChar(16)
+  attemptCount Int @default(0)
+  totalAttempts Int @default(0)
+  recoveryRevision Int @default(0)
+  availableAt DateTime @db.Timestamptz(3)
+  lastReason String @default("QUEUED") @db.VarChar(32)
+  claimedGeneration Int?
+  assessmentId String? @db.Uuid
+  obligationId String? @db.Uuid
+  previewId String? @db.Uuid
+  completedAt DateTime? @db.Timestamptz(3)
+  auditEventId String @db.Uuid
+  @@unique([customerId, sourceId, receiptId, projectId], map: "IngestionReassessment_cause_key")
+  @@unique([customerId, projectId, id], map: "IngestionReassessment_scope_key")
+  @@index([customerId, projectId, createdAt, id], map: "IngestionReassessment_project_idx")
 }
 
 model ProjectUpdatePolicyRevision {

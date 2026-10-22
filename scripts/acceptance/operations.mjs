@@ -89,6 +89,7 @@ import {
 import { engagementStorageTables, verifyEngagementStoragePrivileges,
   verifyUpdateEngagementStorage, verifyRestoredEngagementStorage } from "./update-engagement-storage.mjs";
 import { updateCaptureTables, verifyUpdateCapturePrivileges, assertUpdateCaptureRestoreProjection } from "./update-capture-storage.mjs";
+import { seedReassessmentRecovery, verifyRestoredReassessments } from "./ingestion-reassessment.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -100,6 +101,7 @@ const migrations = readMigrations("/workspace/packages/data/prisma/migrations");
 const output = process.env.PDAA_ARTIFACT_DIR;
 const scheduleHealthPolicyTables = ["ScheduleHealthPolicyRevision"];
 const projectUpdateTables = [
+  "IngestionProjectReassessment",
   "ProjectUpdatePolicy",
   "ProjectUpdatePolicyRevision",
   "ProjectUpdateAssessment",
@@ -414,12 +416,15 @@ try {
       config("database", "pdaa_worker", "worker-password").database,
     );
     const engagementStorage = await verifyUpdateEngagementStorage(adminConfig);
+    const ingestionReassessment = await seedReassessmentRecovery(admin,
+      config("database", "pdaa_api", "api-password").database, process.env.CUSTOMER_ID);
     writeFileSync(
       output + "/project-fact-persistence.json",
       JSON.stringify(
         {
           status: "awaiting-restore",
           engagementStorage,
+          ingestionReassessment,
           upgrade,
           authorityUpgrade,
           canonicalUpgrade,
@@ -448,7 +453,7 @@ try {
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 84,
+          businessTableCount: 85,
           engagementStorageTables,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
@@ -613,6 +618,7 @@ try {
         await verifyRestoredEngagementStorage(restoredEngagementDb, receipt.engagementStorage);
       } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
+        ingestionReassessment: await verifyRestoredReassessments(pool, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,
         status: "passed",

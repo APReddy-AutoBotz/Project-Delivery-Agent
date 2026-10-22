@@ -191,6 +191,7 @@ try {
     ...engagementStorageTables,
     "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
     "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
+    "IngestionProjectReassessment",
   ];
   const actualTables = (await restored.$queryRawUnsafe(
     "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
@@ -274,6 +275,8 @@ try {
     for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
       await verifyImmutableHistoryMutation(restored, table, operation);
   }
+  for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
+    await verifyImmutableHistoryMutation(restored, "IngestionProjectReassessment", operation);
   for (const table of ["HealthAssessment", "HealthAssessmentCommandReceipt"])
     for (const operation of ["UPDATE", "DELETE"])
       await verifyImmutableHistoryMutation(restored, table, operation);

@@ -26,23 +26,43 @@ merged exact independently approved candidate a01cef3 as
 Exact-head Foundation 39661543066 and Documentation 39661543122 pass: 1,824 units,
 161 integrations, 43 browsers, exact 84-table recovery, packaged/customer and
 complete distribution-evidence validation. Post-merge Documentation 39665355872
-passes; Foundation 39665355968 is running at this checkpoint. Internal advice
+passes; Foundation 39665355968 passed on its one unchanged failed-job rerun.
+The earlier external restore sessions_before_commit failure remains retained;
+its session cause is unknown. Internal advice
 groundwork is merged, while full Issue #11 integration/acceptance remains open.
 See [validation](../05-quality/ADVICE_CORE_VALIDATION.md).
 
-EXEC-018 corrects the persisted completeness reader's evidence count. Available
+EXEC-018 merged in [PR #111](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/111).
+Actual merge 7f70063d8a689d66042de93b2537402538eb8423 has the reviewed ordered
+parents and tree fb28771f4eb4b43f9d19741bad213a7e25615f54. Candidate Foundation
+39668043968/Documentation39668044124 and post-merge Foundation39708349577/
+Documentation39708349560 all passed. The correction preserves the completeness reader's available evidence count. Available
 authority-result versions count independently of selection; policyless/stale
 evidence stays UNCONFIRMED, protected versions do not count, and empty facts stay
 MISSING. The private branch is reconciled onto verified main. Native validation
 passes 169 tests/14 files and all three project-update browser journeys pass,
 including the new saved API/UNCONFIRMED view and privacy screenshot. Final build,
 lint, typecheck, 1,824 units/105 files (82.32 seconds), architecture, 42-record
-registration, documentation and unchanged audit pass. Exact-candidate reviews and
-fresh hosted gates remain pending. There is no schema,
+registration, documentation and unchanged audit pass. Both exact-candidate reviews
+approved 0eba485. Hosted checks passed 1,824 units, 169 native and 44 browser tests,
+exact 84-table recovery and packaged/customer/distribution gates. There is no schema,
 connector, visual or source-publication change. See
 [EXEC-018](exec-plans/EXEC-018-authorized-completeness-inputs.md) and
 [validation](../05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md).
 No new criterion/story is accepted; original19/20 capture remains stopped.
+
+EXEC-019 implements the reviewed durable handoff from real CONNECTOR_SYNC changed
+receipts to bounded project reassessment and its actual optional update obligation.
+The private WIP includes migration25/business table85, fenced claims, finite failure
+recovery, current PMO/source status and retry, REST contracts and exact recovery
+inventories. Independent review approved the necessary lock, historical receipt,
+first-observation and RepeatableRead version-fence corrections. The released-24
+upgrade fence probe passes with a genuine available cause and positive control;
+all 24 released migration bytes match verified main. Expanded native/API/COMMIT
+coverage and full final validation remain in progress. No EXEC-019 PR or acceptance
+is claimed. See [plan](exec-plans/EXEC-019-ingestion-assurance-handoff.md) and
+[validation](../05-quality/INGESTION_ASSURANCE_VALIDATION.md). Original19/20 capture
+stays stopped; accepted stories remain R0 3/5, R1 2/33 and overall 5/38 (13.2%).
 
 ### Earlier checkpoints (historical)
 

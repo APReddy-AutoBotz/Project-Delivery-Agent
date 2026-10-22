@@ -408,6 +408,11 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   latest: vi.fn(async () => projectUpdateAssessmentFixture),
   schedulePreview: vi.fn(async () => projectUpdateScheduleFixture),
   scanScheduledProjects: vi.fn(async () => 0),
+  reassessments: vi.fn(async () => ({ items: [], nextCursor: null })),
+  retryReassessment: vi.fn(async () => ({ id: project.id, sourceId: project.id, receiptId: project.id, projectId: project.id,
+    configRevision: 1, mappingRevision: 1, state: "READY" as const, reason: "RETRY_REQUESTED" as const,
+    attemptCount: 0, totalAttempts: 5, recoveryRevision: 1, createdAt: "2026-10-01T00:00:00.000Z",
+    availableAt: "2026-10-02T00:00:00.000Z", completedAt: null, assessmentId: null, obligationId: null, previewId: null })),
   activateEngagement: vi.fn(async () => ({ projectId: project.id,
     engagementId: "40000000-0000-4000-8000-000000000110",
     obligationId: "40000000-0000-4000-8000-000000000111", policyRevision: 1,
@@ -645,6 +650,9 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   );
   await request("/api/projects/" + project.id + "/project-update-engagements", 200, pmoPortfolio,
     "POST", { expectedPolicyRevision: 1 });
+  await request("/api/projects/" + project.id + "/ingestion-reassessments", 200, pmoPortfolio);
+  await request("/api/projects/" + project.id + "/ingestion-reassessment-retries", 200, pmoPortfolio,
+    "POST", { workId: project.id, expectedRecoveryRevision: 0 });
   await request("/api/admin/health-assessment-retention", 200, pmoPortfolio);
   await request(
     "/api/admin/health-assessment-retention",
@@ -759,7 +767,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(60);
+  expect(covered.size).toBe(62);
   assertContractSnapshot(
     spec,
     JSON.parse(

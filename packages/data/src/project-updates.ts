@@ -24,6 +24,10 @@ import {
   selectProjectUpdateTimestamp,
   canonicalSubjectSchema,
   projectUpdateRequiredFactSchema,
+  ingestionReassessmentRetrySchema,
+  ingestionReassessmentItemSchema,
+  type IngestionReassessmentRetry,
+  type IngestionReassessmentItem,
   ProjectUpdateError,
   type Actor,
   type ProjectUpdateAssessmentView,
@@ -37,6 +41,11 @@ import {
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
 import { actorInput, authorizeFactProject } from "./fact-authorization.js";
 import { DatabaseAuthorityRepository } from "./authority-persistence.js";
+import {
+  blockDisabledPolicyCauses, mayReadReassessmentSource, sourceStillMatches,
+  reassessmentAudit, reassessmentNow, type ReassessmentCause,
+} from "./ingestion-reassessments.js";
+import { ProjectUpdateScanCoordinator } from "./project-update-scan.js";
 
 type Tx = Prisma.TransactionClient;
 
@@ -146,8 +155,6 @@ type Resolution = {
   } | null;
   versions: Array<{ id: string; visibility: string; sourceType?: string }>;
 };
-const SCHEDULED_SCAN_INTERVAL_SECONDS = 60 * 60;
-const SCHEDULED_SCAN_RETRY_SECONDS = 5 * 60;
 const projectIdSchema = z.uuid().refine((value) => value === value.toLowerCase());
 const correlationSchema = z.uuid();
 const factsSchema = z.array(projectUpdateRequiredFactSchema).min(1).max(100);
@@ -284,10 +291,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       : null;
   }
 
-  private async transaction<T>(operation: (tx: Tx) => Promise<T>): Promise<T> {
+  private async transaction<T>(operation: (tx: Tx) => Promise<T>, isolationLevel: "RepeatableRead" | "ReadCommitted" = "RepeatableRead"): Promise<T> {
     try {
       return await this.db.$transaction(operation, {
-        isolationLevel: "RepeatableRead",
+        isolationLevel,
         maxWait: 5000,
         timeout: 20000,
       });
@@ -367,6 +374,78 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     });
   }
 
+  private reassessmentItem(row: ReassessmentCause): IngestionReassessmentItem {
+    return ingestionReassessmentItemSchema.parse({
+      id: row.id, sourceId: row.sourceId, receiptId: row.receiptId, projectId: row.projectId,
+      configRevision: row.configRevision, mappingRevision: row.mappingRevision,
+      state: row.state, reason: row.lastReason, attemptCount: row.attemptCount,
+      totalAttempts: row.totalAttempts, recoveryRevision: row.recoveryRevision,
+      createdAt: row.createdAt.toISOString(), availableAt: row.availableAt.toISOString(),
+      completedAt: row.completedAt?.toISOString() ?? null,
+      assessmentId: row.assessmentId, obligationId: row.obligationId, previewId: row.previewId,
+    });
+  }
+
+  async reassessments(actorValue: Actor, projectValue: string, cursorValue?: string | null) {
+    const current = parseActor(actorValue), id = parseProjectId(projectValue);
+    const cursor = cursorValue == null ? null : parseProjectId(cursorValue);
+    if (!current.roles.includes("pmo_admin")) throw new ProjectUpdateError("FORBIDDEN");
+    return this.transaction(async (tx) => {
+      try { await authorizeFactProject(tx, current, id, "access"); }
+      catch { throw new ProjectUpdateError("DENIED"); }
+      // Filter before pagination so unreadable causes cannot displace authorized
+      // work. Source locks then protect the current-reader recheck until commit.
+      const rows = await tx.$queryRaw<ReassessmentCause[]>`
+        SELECT w.* FROM public."IngestionProjectReassessment" w
+        JOIN public."IngestionSource" s ON s."customerId"=w."customerId" AND s.id=w."sourceId"
+        WHERE w."customerId"=${current.customerId}::uuid AND w."projectId"=${id}::uuid
+          AND (${cursor}::uuid IS NULL OR w.id>${cursor}::uuid)
+          AND EXISTS (SELECT 1 FROM public."IngestionConfigurationReader" r
+            JOIN public."IngestionConfigurationRevision" c ON c."customerId"=r."customerId" AND c."sourceId"=r."sourceId"
+              AND c.revision=r."configRevision" AND c.sealed
+            WHERE r."customerId"=s."customerId" AND r."sourceId"=s.id AND r."configRevision"=s."currentConfigRevision"
+              AND r."projectId"=w."projectId" AND r.subject=${current.subject})
+        ORDER BY w.id LIMIT 26`;
+      for (const row of rows) if (!await mayReadReassessmentSource(tx, current, row)) throw new ProjectUpdateError("DENIED");
+      const items = rows.slice(0, 25).map((row) => this.reassessmentItem(row));
+      return { items, nextCursor: rows.length > 25 ? items[24]!.id : null };
+    });
+  }
+
+  async retryReassessment(actorValue: Actor, projectValue: string, changeValue: IngestionReassessmentRetry, correlationValue: string) {
+    const current = parseActor(actorValue), id = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    let change: IngestionReassessmentRetry;
+    try { change = ingestionReassessmentRetrySchema.parse(changeValue); }
+    catch { throw new ProjectUpdateError("INVALID_REQUEST"); }
+    if (!current.roles.includes("pmo_admin")) throw new ProjectUpdateError("FORBIDDEN");
+    return this.transaction(async (tx) => {
+      try { await authorizeFactProject(tx, current, id, "access"); }
+      catch { throw new ProjectUpdateError("DENIED"); }
+      const policy = await this.loadPolicy(tx, current.customerId, id, true);
+      const [cause] = await tx.$queryRaw<ReassessmentCause[]>`
+        SELECT * FROM public."IngestionProjectReassessment" WHERE "customerId"=${current.customerId}::uuid
+          AND "projectId"=${id}::uuid AND id=${change.workId}::uuid FOR UPDATE`;
+      if (!cause || !await mayReadReassessmentSource(tx, current, cause)) throw new ProjectUpdateError("DENIED");
+      if (cause.state !== "BLOCKED" || cause.recoveryRevision !== change.expectedRecoveryRevision)
+        throw new ProjectUpdateError("CONFLICT");
+      if (!this.serviceSubject || !policy?.scheduledScanEnabled || policy.scheduledServiceSubject !== this.serviceSubject ||
+          !await sourceStillMatches(tx, cause)) throw new ProjectUpdateError("CONFLICT");
+      const now = await reassessmentNow(tx);
+      const auditId = await reassessmentAudit(tx, cause, current.subject, "retried", {
+        expectedRecoveryRevision: change.expectedRecoveryRevision,
+      }, now, correlationId);
+      const [updated] = await tx.$queryRaw<ReassessmentCause[]>`
+        UPDATE public."IngestionProjectReassessment" SET state='READY',"attemptCount"=0,
+          "recoveryRevision"="recoveryRevision"+1,"claimedGeneration"=NULL,"availableAt"=${now},
+          "lastReason"='RETRY_REQUESTED',"auditEventId"=${auditId}::uuid
+        WHERE id=${cause.id}::uuid AND "customerId"=${current.customerId}::uuid AND "projectId"=${id}::uuid
+          AND state='BLOCKED' AND "recoveryRevision"=${change.expectedRecoveryRevision} RETURNING *`;
+      if (!updated) throw new ProjectUpdateError("CONFLICT");
+      return this.reassessmentItem(updated);
+    });
+  }
+
   async setPolicy(actorValue: Actor, projectValue: string, changeValue: ProjectUpdatePolicyChange, correlationValue: string) {
     const current = parseActor(actorValue);
     const id = parseProjectId(projectValue);
@@ -417,6 +496,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         'UPDATE public."ProjectUpdatePolicy" SET revision=$3,"changedBy"=$4,"changedAt"=$5 WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid',
         current.customerId, id, revision, current.subject, changedAt,
       );
+      if (!change.scheduledScanEnabled)
+        await blockDisabledPolicyCauses(tx, current, id, correlationId);
       await tx.$executeRawUnsafe(
         'INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId",detail,"occurredAt") VALUES ($1::uuid,$2::uuid,$3,\'project_update.policy.changed\',$4,$5::jsonb,$6)',
         randomUUID(), current.customerId, current.subject, correlationId,
@@ -453,7 +534,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         changedBy: current.subject,
         changedAt,
       });
-    });
+    }, "ReadCommitted");
   }
 
   private async currentOpen(tx: Tx, customerId: string, id: string) {
@@ -1852,52 +1933,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (!this.serviceSubject) throw new ProjectUpdateError("UNAVAILABLE");
     const limit = z.number().int().min(1).max(1).safeParse(limitValue);
     if (!limit.success) throw new ProjectUpdateError("INVALID_REQUEST");
-    let candidate: { customerId: string; projectId: string } | null;
     try {
-      candidate = await this.db.$transaction(async (tx) => {
-        const rows = await tx.$queryRawUnsafe<Array<{
-          customerId: string;
-          projectId: string;
-        }>>(
-          'SELECT p."customerId",p."projectId" FROM public."ProjectUpdatePolicy" p JOIN public."ProjectUpdatePolicyRevision" r ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r.revision=p.revision WHERE r."scheduledScanEnabled"=true AND r."scheduledServiceSubject"=$1 AND (p."scheduledScanNextEligibleAt" IS NULL OR p."scheduledScanNextEligibleAt"<=clock_timestamp()) ORDER BY p."scheduledScanLastAttemptAt" ASC NULLS FIRST,p."customerId",p."projectId" LIMIT 1 FOR UPDATE OF p SKIP LOCKED',
-          this.serviceSubject,
-        );
-        const selected = rows[0];
-        if (!selected) return null;
-        await tx.$executeRawUnsafe(
-          'UPDATE public."ProjectUpdatePolicy" SET "scheduledScanLastAttemptAt"=date_trunc(\'milliseconds\',clock_timestamp()),"scheduledScanNextEligibleAt"=date_trunc(\'milliseconds\',clock_timestamp())+($3::int*interval \'1 second\') WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid',
-          selected.customerId,
-          selected.projectId,
-          SCHEDULED_SCAN_INTERVAL_SECONDS,
-        );
-        return selected;
-      }, {
-        isolationLevel: "ReadCommitted",
-        maxWait: 5000,
-        timeout: 10000,
-      });
+      return await new ProjectUpdateScanCoordinator(
+        this.db, this.serviceSubject,
+        (tx, actor, projectId, correlationId) => this.assessInTransaction(tx, actor, projectId, correlationId, true),
+      ).scan();
     } catch (error) { mapError(error); }
-    if (!candidate) return 0;
-    const serviceActor: Actor = {
-      customerId: candidate.customerId,
-      subject: this.serviceSubject,
-      roles: [],
-    };
-    // Persisted eligibility caps immutable history growth. Failures receive a shorter
-    // retry delay; the attempt timestamp still rotates this project behind peers.
-    try {
-      await this.assessCore(serviceActor, candidate.projectId, randomUUID(), true);
-    } catch (error) {
-      try {
-        await this.db.$executeRawUnsafe(
-          'UPDATE public."ProjectUpdatePolicy" SET "scheduledScanNextEligibleAt"=date_trunc(\'milliseconds\',clock_timestamp())+($3::int*interval \'1 second\') WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid',
-          candidate.customerId,
-          candidate.projectId,
-          SCHEDULED_SCAN_RETRY_SECONDS,
-        );
-      } catch (retryError) { mapError(retryError); }
-      throw error;
-    }
-    return 1;
   }
 }

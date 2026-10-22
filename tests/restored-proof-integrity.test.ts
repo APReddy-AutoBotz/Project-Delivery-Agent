@@ -29,10 +29,11 @@ function fixture(
 it("NFR-REL-001: checks every restored proof across complete bounded keyset pages", async () => {
   const db = fixture();
   const counts = await verifyRestoredProofIntegrity(db);
-  expect(Object.keys(counts)).toHaveLength(13);
+  expect(Object.keys(counts)).toHaveLength(14);
+  expect(counts.IngestionProjectReassessment).toBe(2);
   expect(counts.FactAuthorityConflict).toBe(65);
   expect(Object.values(counts).reduce((a: number, b: any) => a + b, 0)).toBe(
-    89,
+    91,
   );
   const pages = db.$queryRawUnsafe.mock.calls.filter(([sql]) =>
     sql.includes("WITH page"),
