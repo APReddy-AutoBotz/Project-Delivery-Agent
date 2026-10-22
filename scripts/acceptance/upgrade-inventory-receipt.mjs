@@ -99,6 +99,10 @@ const releases = [
     "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent"],
   ["IngestionProjectReassessment"],
 ];
+export function assertBusinessTableInventory(names) {
+  assert.deepEqual([...names].sort(), releases.flat().sort());
+  return true;
+}
 export function assertUpgradeInventory(receipt, prefix) {
   assert([1, 2, 3, 4, 5, 6, 7, 8].includes(prefix));
   assert.equal(receipt.priorMigrationCount, prefix);

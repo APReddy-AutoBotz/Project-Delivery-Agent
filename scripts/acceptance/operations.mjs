@@ -680,9 +680,14 @@ try {
       await assert.rejects(() =>
         pool.query("UPDATE \"AuditEvent\" SET event='tamper'"),
       );
-      const row = (
-        await pool.query('SELECT "envelope" FROM "ConnectorCredential"')
-      ).rows[0];
+      // NFR-AVL-002 / EXEC-019: recovery also retains connector webhook
+      // credentials. Decrypt the exact restore fixture with its own context.
+      const credentials = await pool.query(
+        'SELECT "envelope" FROM "ConnectorCredential" WHERE id=$1::uuid AND "customerId"=$2::uuid AND name=$3 AND "keyId"=$4',
+        ["50000000-0000-4000-8000-000000000001", process.env.CUSTOMER_ID, "Restore fixture", "primary"],
+      );
+      assert.equal(credentials.rows.length, 1);
+      const row = credentials.rows[0];
       const cipher = new CredentialVault(
         loadConfig(process.env).ENCRYPTION_KEY,
       );

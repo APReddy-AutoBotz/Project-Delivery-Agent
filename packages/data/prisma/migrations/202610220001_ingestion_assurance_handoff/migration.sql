@@ -260,16 +260,33 @@ CREATE CONSTRAINT TRIGGER "IngestionReassessment_complete" AFTER INSERT OR UPDAT
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.require_ingestion_reassessment_complete();
 CREATE CONSTRAINT TRIGGER "IngestionReassessment_preview_complete" AFTER INSERT ON public."ProjectUpdatePreview"
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.require_ingestion_reassessment_complete();
-REVOKE ALL ON public."IngestionProjectReassessment" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
-GRANT SELECT,INSERT ON public."IngestionProjectReassessment" TO pdaa_api;
-GRANT UPDATE (state,"attemptCount","totalAttempts","recoveryRevision","availableAt","lastReason","claimedGeneration","assessmentId","obligationId","previewId","completedAt","auditEventId") ON public."IngestionProjectReassessment" TO pdaa_api;
-GRANT SELECT ON public."IngestionProjectReassessment" TO pdaa_backup;
-REVOKE ALL ON FUNCTION public.valid_ingestion_reassessment_row(public."IngestionProjectReassessment"),public.valid_ingestion_project_reassessment(uuid),public.guard_ingestion_project_reassessment(),public.require_ingestion_reassessment_complete(),public.lock_ingestion_reassessment_preview(),public.reject_ingestion_reassessment_history() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
-GRANT EXECUTE ON FUNCTION public.valid_ingestion_reassessment_row(public."IngestionProjectReassessment"),public.valid_ingestion_project_reassessment(uuid) TO pdaa_api;
+REVOKE ALL ON public."IngestionProjectReassessment" FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.valid_ingestion_reassessment_row(public."IngestionProjectReassessment"),public.valid_ingestion_project_reassessment(uuid),public.guard_ingestion_project_reassessment(),public.require_ingestion_reassessment_complete(),public.lock_ingestion_reassessment_preview(),public.reject_ingestion_reassessment_history() FROM PUBLIC;
 -- The configuration trigger calls this pure validator as its API invoker.
 -- Migration 10 revoked its PUBLIC execution; retain that private boundary.
-REVOKE ALL ON FUNCTION public.valid_ingestion_mapping(jsonb) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
-GRANT EXECUTE ON FUNCTION public.valid_ingestion_mapping(jsonb) TO pdaa_api;
+REVOKE ALL ON FUNCTION public.valid_ingestion_mapping(jsonb) FROM PUBLIC;
+-- Prisma bootstrap may precede role creation. Each role is independent; later
+-- controlled bootstrap/restore rebuilds these same finite ACLs.
+DO $reassessment_grants$
+BEGIN
+  IF to_regrole('pdaa_api') IS NOT NULL THEN
+    EXECUTE 'REVOKE ALL ON public."IngestionProjectReassessment" FROM pdaa_api';
+    EXECUTE 'GRANT SELECT,INSERT ON public."IngestionProjectReassessment" TO pdaa_api';
+    EXECUTE 'GRANT UPDATE (state,"attemptCount","totalAttempts","recoveryRevision","availableAt","lastReason","claimedGeneration","assessmentId","obligationId","previewId","completedAt","auditEventId") ON public."IngestionProjectReassessment" TO pdaa_api';
+    EXECUTE 'REVOKE ALL ON FUNCTION public.valid_ingestion_reassessment_row(public."IngestionProjectReassessment"),public.valid_ingestion_project_reassessment(uuid),public.guard_ingestion_project_reassessment(),public.require_ingestion_reassessment_complete(),public.lock_ingestion_reassessment_preview(),public.reject_ingestion_reassessment_history(),public.valid_ingestion_mapping(jsonb) FROM pdaa_api';
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.valid_ingestion_reassessment_row(public."IngestionProjectReassessment"),public.valid_ingestion_project_reassessment(uuid),public.valid_ingestion_mapping(jsonb) TO pdaa_api';
+  END IF;
+  IF to_regrole('pdaa_worker') IS NOT NULL THEN
+    EXECUTE 'REVOKE ALL ON public."IngestionProjectReassessment" FROM pdaa_worker';
+    EXECUTE 'REVOKE ALL ON FUNCTION public.valid_ingestion_reassessment_row(public."IngestionProjectReassessment"),public.valid_ingestion_project_reassessment(uuid),public.guard_ingestion_project_reassessment(),public.require_ingestion_reassessment_complete(),public.lock_ingestion_reassessment_preview(),public.reject_ingestion_reassessment_history(),public.valid_ingestion_mapping(jsonb) FROM pdaa_worker';
+  END IF;
+  IF to_regrole('pdaa_backup') IS NOT NULL THEN
+    EXECUTE 'REVOKE ALL ON public."IngestionProjectReassessment" FROM pdaa_backup';
+    EXECUTE 'GRANT SELECT ON public."IngestionProjectReassessment" TO pdaa_backup';
+    EXECUTE 'REVOKE ALL ON FUNCTION public.valid_ingestion_reassessment_row(public."IngestionProjectReassessment"),public.valid_ingestion_project_reassessment(uuid),public.guard_ingestion_project_reassessment(),public.require_ingestion_reassessment_complete(),public.lock_ingestion_reassessment_preview(),public.reject_ingestion_reassessment_history(),public.valid_ingestion_mapping(jsonb) FROM pdaa_backup';
+  END IF;
+END;
+$reassessment_grants$;
 DO $reassessment_owner$
 BEGIN
   IF to_regrole('pdaa_migrate') IS NOT NULL THEN

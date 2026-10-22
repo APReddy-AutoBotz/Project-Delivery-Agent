@@ -25,6 +25,8 @@ jobs:
       - run: pnpm lint && pnpm typecheck && pnpm test
       - run: node scripts/check-dependencies.mjs
       - run: pnpm audit --audit-level high
+      - name: Fresh role-absent and partial-role migration bootstrap
+        run: node scripts/local.mjs scripts/test-ingestion-role-bootstrap.mjs
       - run: pnpm db:migrate && pnpm db:seed
       - run: pnpm test:integration
       - run: pnpm test:recovery
@@ -45,7 +47,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: database-contract-evidence
-          path: artifacts/database-validation.json
+          path: |
+            artifacts/database-validation.json
+            artifacts/ingestion-role-bootstrap.json
           if-no-files-found: error
       - name: Publish reviewed evidence workflow screenshots
         uses: actions/upload-artifact@v4

@@ -125,8 +125,43 @@ claim about sanitizing arbitrary imported database rows.
 
 ## Traceability and recovery
 
+### Hosted bootstrap corrections (PR #112)
+
+The first hosted candidate `3805568a835686066842b97928991a544f33c550`
+passed Documentation 39719592130, but Foundation 39719592164 failed both jobs:
+
+- Native migration25 referenced `pdaa_api` before role bootstrap. Earlier local
+  prefix-upgrade helpers had already created cluster-global roles and masked this
+  fresh-cluster ordering. Migration25 now always revokes PUBLIC privileges and
+  independently guards each named-role ACL operation with `to_regrole`; existing
+  role privileges remain finite and unchanged. All 24 released migrations remain
+  untouched.
+- Packaged recovery's unqualified first-credential lookup selected the newly
+  retained webhook credential rather than its restore fixture. It now requires
+  exactly the original fixture UUID, customer, name and key ID before applying
+  the unchanged decryption and generated-secret equality assertions. Complete
+  credential-row projection comparison remains unchanged.
+
+Both correction designs received independent approval. Dedicated genuinely fresh
+clusters prove role absence before any helper, API-only partial roles, clean and
+repeat migration25, independent exact 85-table inventory/ledger, PUBLIC denial,
+immediate finite API ACLs and finite privileges after later role bootstrap.
+`scripts/test-ingestion-role-bootstrap.mjs` runs that proof on its own pinned,
+loopback-only disposable server, verifies container ownership before cleanup and
+produces `artifacts/ingestion-role-bootstrap.json`. The normal Foundation workflow
+runs this gate before its regular migrate/seed step. The exact orchestrator passes
+locally and disposes only its verified owned container.
+
+Fresh build/lint/types, 1,828 units/106 files, architecture, registration,
+documentation and unchanged high-severity audit gates pass. Fresh native,
+quarantined recovery, exact-candidate review and complete hosted packaged/customer/
+distribution validation remain required. The prior 200-test run does not prove
+this corrected migration. The new native run has timed out in several existing
+cases; the full outcome and cause remain under investigation, with no passing
+credit or changed test deadlines. Research capture remains stopped.
+
 FR-CON-004/010 -> AC-CON-004 -> INT-CON-004 -> signed native suite and production
-receipt/recovery fixtures -> Issue #7 -> pending EXEC-019 PR. Supporting health,
+receipt/recovery fixtures -> Issue #7 -> draft PR #112. Supporting health,
 update, permission and reliability contracts are listed above. Planned or local
 WIP checks alone do not mark a complete criterion/story accepted.
 

@@ -53,7 +53,7 @@ No new criterion/story is accepted; original19/20 capture remains stopped.
 
 EXEC-019 implements the reviewed durable handoff from real CONNECTOR_SYNC changed
 receipts to bounded project reassessment and its actual optional update obligation.
-The private WIP includes migration25/business table85, fenced claims, finite failure
+Draft PR #112 includes migration25/business table85, fenced claims, finite failure
 recovery, current PMO/source status and retry, REST contracts and exact recovery
 inventories. Independent review approved the necessary lock, historical receipt,
 first-observation and RepeatableRead version-fence corrections. The released-24
@@ -63,8 +63,13 @@ all 24 released migration bytes match verified main. Final local build/lint/type
 proof families, three browser journeys, OpenAPI, architecture, registration and
 documentation pass. Audit passes the unchanged high-severity threshold with zero
 high/critical and six moderate findings. Both independent reviews approve the
-corrected candidate; final evidence-checkpoint review and complete hosted gates
-remain before merge. No EXEC-019 criterion/story acceptance is claimed. See
+corrected candidate. Its first hosted run failed fresh role-absent migration and
+packaged recovery's arbitrary credential selection. Independently reviewed fixes
+and a permanent fresh-role/partial-role CI gate are in progress; the new dedicated
+bootstrap proof and 1,828 units pass locally. A fresh native run has existing-case
+timeouts under investigation. Fresh native/recovery, exact correction reviews and
+complete hosted gates remain before merge. No EXEC-019 criterion/story acceptance
+is claimed. See
 [plan](exec-plans/EXEC-019-ingestion-assurance-handoff.md) and
 [validation](../05-quality/INGESTION_ASSURANCE_VALIDATION.md). Original19/20 capture
 stays stopped; accepted stories remain R0 3/5, R1 2/33 and overall 5/38 (13.2%).

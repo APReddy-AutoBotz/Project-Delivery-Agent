@@ -333,3 +333,17 @@ OpenAPI check pass. Source and bounded coverage review approve `3bccb373`. Recor
 the final evidence-only candidate review, hosted packaged/customer/distribution
 checks and verified merge before claiming this increment complete. All research
 capture actions remain stopped.
+
+PR #112 was opened at reviewed `3805568a835686066842b97928991a544f33c550`.
+Documentation 39719592130 passed; Foundation 39719592164 failed native migration
+before role creation and packaged recovery's arbitrary first-credential selection.
+Independent review approved conditional per-role ACL operations with unconditional
+PUBLIC revokes, plus exact restore-fixture identity selection with unchanged
+decryption/equality and full-row recovery guards. A new dedicated fresh-cluster CI
+gate proves roles absent and API-only partial bootstrap, clean/repeat25, independent
+85-table inventory/ledger and finite ACLs before regular migrate/seed. It passed
+locally using the pinned disposable PostgreSQL image and verified owned cleanup.
+The correction's fresh 1,828 units and standard local gates pass; fresh native
+has existing-case timeouts still being investigated. Preserve all failures and
+require fresh native/recovery, immutable candidate reviews and all hosted gates
+before merge. No test deadline or assertion is relaxed; capture remains stopped.
