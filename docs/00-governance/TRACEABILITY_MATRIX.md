@@ -23,3 +23,14 @@ The machine-readable source is `requirements/traceability.yaml`. This document p
 - Pull requests must list implemented IDs.
 - Test names should include the requirement or acceptance-criterion ID where practical.
 - Any requirement without a parent business need must be justified in the requirements register.
+
+
+## STORY-008 and STORY-013 acceptance evidence, 2026-10-22
+
+| Story | Requirement/criterion chain | Implementation and complete acceptance record |
+| --- | --- | --- |
+| STORY-008 / Issue #7 | FR-CON-004/005/010, NFR-REL-001, NFR-SEC-006 -> AC-CON-004/007 -> INT-CON-004 and webhook/reconciliation suites | PR #112; [complete evidence and gates](../05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md) |
+| STORY-013 / Issue #8 | FR-HLT-001/002, FR-UPD-001 -> AC-HLT-001/002 -> freshness/completeness rules, native policy/evidence suites and E2E-UPD-001 | PR #97/#111/#112; [complete evidence and gates](../05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md) |
+
+Acceptance takes effect after this record's separately reviewed merge and required
+checks. Other story/criterion ownership and shared GOLDEN-003 remain unchanged.

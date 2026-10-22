@@ -1,5 +1,28 @@
 # Document Control
 
+## STORY-008 and STORY-013 software acceptance, 2026-10-22
+
+Under the Product Owner's existing controller delegation, accept only STORY-008
+(FR-CON-004/005/010, NFR-REL-001, NFR-SEC-006; AC-CON-004/007) and STORY-013
+(FR-HLT-001/002, FR-UPD-001; AC-HLT-001/002). Separate non-author complete-story
+audits find all canonical requirements satisfied on verified PR #112 merge
+58da66bcb4d2db78b5d7f3e1e6adf8ffdaced758/tree1a6115c. Exact reviewed candidate
+fbad59b and actual merge pass required Foundation and Documentation checks,
+including packaged/customer and exact 85-table recovery evidence.
+
+This decision becomes effective only after the acceptance/traceability increment
+itself passes independent exact-candidate review, required CI and verified merge.
+Complete evidence, limitations and recovery are in
+[webhook acceptance](../05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md) and
+[freshness acceptance](../05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md).
+Then R0 remains 3/5, R1 is 4/33 (12.1%) and combined acceptance is 7/38 (18.4%).
+No denominator or requirement/test ownership changes. Other stories and Issues
+#7/#8/#9 remain open; shared GOLDEN-003, delivery, interpretation and approval work
+retain their existing scope. OD-013/014, reviewed-proposal imports, all five
+release/security/customer holds and stopped Original19/20 capture remain in force.
+
+
+
 ## EXEC-015 engagement design approval, 2026-09-30
 
 Under the Product Owner's existing controller delegation, approve [EXEC-015](../04-delivery/exec-plans/EXEC-015-update-engagement-workflow.md) following independent exact-candidate review, required hosted checks and verified PR #104 merge. Its design resolves recipient-local scheduling, current-revision PM escalation, owner-plus-PM default, atomic delegate transfer, source-driven suppression, immutable obligation identity and uncertain handoff quarantine. PR #105 adds only the reviewed pure stage decision core. The plan contains immutable candidate, merge-tree and post-merge evidence.

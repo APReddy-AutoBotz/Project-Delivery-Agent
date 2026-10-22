@@ -196,9 +196,13 @@ stories:
   acceptance_criteria:
   - AC-CON-004
   - AC-CON-007
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/112
+  implementation_evidence:
+  - docs/05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md
 - id: STORY-009
   epic: EPIC-02
   title: Implement spreadsheet mapping and import
@@ -297,9 +301,15 @@ stories:
   acceptance_criteria:
   - AC-HLT-001
   - AC-HLT-002
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/8
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/97
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/111
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/112
+  implementation_evidence:
+  - docs/05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md
 - id: STORY-014
   epic: EPIC-04
   title: Implement blocker and overdue signals
