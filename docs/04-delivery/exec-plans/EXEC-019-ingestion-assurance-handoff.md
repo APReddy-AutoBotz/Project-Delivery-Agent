@@ -261,7 +261,7 @@ PR #111 passed all exact-head checks and merged as
 8de60639586bd572d5e34257d07b25e683605b96 then
 0eba485789373f8d54cf4768d114cfe8e3db8e19; actual tree
 fb28771f4eb4b43f9d19741bad213a7e25615f54 matches the reviewed candidate.
-Post-merge Documentation39708349560 and Foundation39708349577 passed.
+Post-merge Documentation 39708349560 and Foundation 39708349577 passed.
 PR #110's ONE unchanged failed-job retry39665355968 passed. Its earlier
 sessions_before_commit failure remains retained; its session cause is unknown.
 Research capture remains stopped; acceptance remains 5/38 and release holds open.
@@ -319,3 +319,17 @@ build/lint/types/1,827 units/architecture/registration/docs pass. Audit passes i
 unchanged high-severity threshold with six moderate and zero high/critical findings.
 Source review approved 4f039823; corrected exact-candidate coverage approval awaits
 fresh native and remaining gates. Research capture stays stopped.
+
+The corrected fresh native run ten now passes all 200 tests/15 files in 334.31
+seconds, including all 31 reassessment cases. Its clean/repeat25 migrations,
+populated prefix-nine/released-24 upgrades and exact 85-table inventory pass.
+Exact native recovery passes for all 85 tables plus ledger and 14 proof families
+(116 cause rows), with runtime CONNECT denied and no application started. The
+first local adapter's missing quarantine command was caught by its assertion;
+that retained target was quarantined, and the corrected adapter passed a complete
+fresh restore. Three existing browser journeys pass in 23.7 seconds on a separate clean
+target after the initial sandbox executable-cache failure; screenshot review and
+OpenAPI check pass. Source and bounded coverage review approve `3bccb373`. Record
+the final evidence-only candidate review, hosted packaged/customer/distribution
+checks and verified merge before claiming this increment complete. All research
+capture actions remain stopped.

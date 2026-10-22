@@ -917,7 +917,7 @@ tests:
   acceptance_criteria:
   - AC-CON-004
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
-  behavior: Submitting the same verified webhook twice returns the original receipt/job and retains one observation, proposal and durable runtime cause; the project scan binds its exact assessment and counts total downstream obligations without promoting proposal values. EXEC-019 extension remains under validation.
+  behavior: Submitting the same verified webhook twice returns the original receipt/job and retains one observation, proposal and durable runtime cause; the project scan binds its exact assessment and counts total downstream obligations without promoting proposal values. EXEC-019 passes local native/upgrade/recovery/browser gates; exact hosted gates and criterion acceptance remain pending.
   evidence:
   - "tests/connector-runtime.integration.test.ts"
   - "tests/ingestion-reassessment.integration.test.ts"

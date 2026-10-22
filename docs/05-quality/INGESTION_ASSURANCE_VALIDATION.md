@@ -85,9 +85,30 @@ runtime is started automatically.
   all 42 direct/override records and documentation checks pass. The unchanged
   high-severity audit threshold passes with zero high/critical and six moderate
   findings at this execution checkpoint; no dependency graph change is included.
-- Fresh expanded native, exact 85-table recovery, relevant browser journeys,
-  packaged/customer profiles, final full gates, immutable candidate reviews and
-  exact-head hosted CI/merge remain pending at this checkpoint.
+- Corrected full native run ten passes **200 tests/15 files in 334.31 seconds**,
+  including all 31 reassessment cases, five actual child exits, both RC/RR conflict
+  orderings, API-role populated recovery and genuine scheduled reconciliation.
+  Clean/repeat migration25, populated prefix-nine/released-24 upgrades, exact
+  85-table inventory and health-retention checks pass on
+  `pdaa_test_1792640436985`.
+- Native dump/restore passes on `pdaa_restore_1792640939903`: all 85 business tables
+  and the migration ledger match exact rows. All 14 proof families pass, including
+  116 reassessment rows; immutable history mutation denials pass. API/worker CONNECT
+  is denied and no application starts. The first local adapter run omitted its
+  quarantine command and failed that assertion before row validation; its retained
+  target was quarantined and the corrected adapter repeated the complete proof in
+  a fresh target, denying CONNECT before and after restore. No default database or
+  unrelated container was used.
+- All three existing project-update browser journeys pass in **23.7 seconds** on
+  separate fresh `pdaa_test_1792641076884`. The first sandbox browser launch failed
+  because that sandbox cache had no executable; the unchanged suite then used the
+  already installed browser outside that sandbox. Root visually checked the saved
+  screenshot: existing Antigravity layout, UNCONFIRMED classification, zero confirmed
+  facts and unsent preview remain, with no private proposal value shown.
+- Final OpenAPI snapshot check passes. Independent source and bounded coverage
+  reviews approve candidate `3bccb373`, tree `0041f487`, after the full 43-path review and
+  five-path fixture correction. The evidence-only checkpoint still requires exact
+  review and complete hosted packaged/customer/distribution gates before merge.
 
 Local execution uses the task-owned PostgreSQL 17.11 server at loopback 51258.
 An exclusive loopback 55432 bridge satisfies the unchanged synthetic guard and
