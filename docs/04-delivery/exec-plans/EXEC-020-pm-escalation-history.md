@@ -1,11 +1,48 @@
 # EXEC-020: Current authorized request history for PM escalations
 
-Status: Independently approved bounded design; implementation under validation.
+Status: Bounded history increment merged in PR #114; exact-candidate and actual post-merge checks verified.
 Owner: Implementation controller
 Date: 2026-10-22
 Issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9
 Requirements: FR-ESC-005, FR-ESC-006, FR-UPD-004, NFR-SEC-001, NFR-SEC-005
 Criterion: AC-UPD-008 (request-history portion only); supporting AC-UPD-003
+
+## Verified merge and validation
+
+The bounded history increment merged in [PR #114](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/114).
+Independent source and coverage reviews approved exact candidate
+`452d455dd269920e73dadaff1919ec33022e9a20`. Actual merge
+`fe353437f45ce37b835255f63bfb12837068fa8a` preserves reviewed tree
+`c45a9c91c58dde05c8079b54dc8c5843ca90d5a8` and ordered parents base
+`9e1d84323c280b74f4f17bf62de80ec664e600fc` then that candidate.
+
+Exact-candidate [Foundation 39809095541](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39809095541)
+and [Documentation 39809095548](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39809095548)
+pass. Separate actual post-merge [Foundation 39814060478](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39814060478)
+and [Documentation 39814060230](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39814060230)
+also pass at the actual merge SHA. Foundation passes on one unchanged failed-job
+rerun. Its first production job failed at bundled restore's
+`sessions_before_commit`; the original failure remains retained and its session
+cause is not established. The verification job already passed on the first
+attempt; no guard, assertion, source or deadline was relaxed for the rerun.
+Exact-candidate hosted evidence confirms
+1,904 units, 225 native tests, 45 ordinary browser cases and the separate saved
+history browser, exact 85-business-table recovery plus the migration ledger,
+and packaged TLS/OIDC/customer/distribution-manifest gates. Technical distribution
+evidence does not accept any of the five release holds.
+
+The fresh local fourth native run separately passes 225 cases / 16 files in
+642.20s. Its genuine success receipt supports guarded recovery into a new,
+quarantined database: exact 85 business tables plus the ledger, 14 populated
+proof families, immutable-history denials and
+no running application. API/worker CONNECT remains false on the restored target.
+Earlier failed and interrupted runs remain historical without passing credit.
+
+This completes the bounded implementation's review and merge gates. Full
+AC-UPD-008, E2E-ESC-008 and Issue #9 remain open; delivery and supported project
+impact are still required. Accepted stories remain 7/38 (R0 3/5, R1 4/33).
+No schema, privilege, dependency or connector scope changes. Original19/20
+research capture remains stopped.
 
 ## Objective and verified boundary
 
@@ -211,7 +248,7 @@ success receipt. Independent coverage review identified retained query data afte
 a denied GET refetch; the view now removes that exact protected query and disables
 it on 401/403/404. Browser and real QueryClient checks cover cleanup.
 
-Fresh full native validation is pending a corrected rerun. Quarantined recovery follows before
+At the earlier local validation checkpoint, fresh full native validation was pending a corrected rerun. Quarantined recovery follows before
 exact candidate reviews, required hosted checks and verified merge. The earlier
 failed runs remain retained without passing credit. No authorization rule,
 production deadline or immutable guard was changed. See
@@ -258,8 +295,8 @@ owner-escalation capture time after the PM message. An old PM invitation cannot
 remain authorized when a later generation exists; its joint epoch/generation
 denial is asserted before context work. No immutable guard is bypassed.
 The current focused 13-case native suite passes in 21.71s. The full current cohort
-now contains 225 cases across the same 16 files; its fresh fourth run is underway.
+contained 225 cases across the same 16 files; at that checkpoint its fresh fourth run was underway.
 The current isolated-customer browser passes. Earlier readiness/cache prerequisite
 failures remain retained without credit; no further startup/test deadline changed.
-No app grant was expanded. Full native/recovery and required hosted results
-remain required before immutable review and publication.
+No app grant was expanded. At that earlier checkpoint, full native/recovery and
+required hosted results remained required before immutable review and publication.

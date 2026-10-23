@@ -31,14 +31,20 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
-EXEC-020 adds current authorized request history to the named PM's existing
+EXEC-020 merged in [PR #114](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/114), adding current authorized request history to the named PM's existing
 escalation invitation. Independent design review approved the bounded projection;
 focused 41 unit and current 13 native tests pass, including real same-engagement
 generation selection. The current dedicated-customer API/browser history journey
 passes one test in 11.6s, with screenshot and exact-fixture receipt inspected.
 Eight related browsers pass in 38.4s. Build,
 lint, typecheck, 1,904 units / 109 files, architecture, contract, dependency and docs gates
-pass. Fresh full native/recovery and exact candidate gates remain in progress. Historical text is source/retention checked per origin;
+pass. Local fourth native validation passes 225/16 and guarded recovery passes
+the exact 85-business-table inventory plus ledger and 14 populated proof families.
+Exact-candidate Foundation39809095541/Documentation39809095548 and actual
+post-merge Foundation39814060478/Documentation39814060230 all pass. Merge
+`fe353437f45ce37b835255f63bfb12837068fa8a` has verified ordered parents and
+reviewed tree `c45a9c91c58dde05c8079b54dc8c5843ca90d5a8`.
+Historical text is source/retention checked per origin;
 raw owner responses/reviewer lists stay private and impact is explicitly UNKNOWN.
 No schema, privilege, connector or story acceptance change is included. See
 [plan](exec-plans/EXEC-020-pm-escalation-history.md) and

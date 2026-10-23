@@ -1,6 +1,6 @@
 # EXEC-017: Deterministic advice and queue core
 
-Status: Limited groundwork merged in PR #110; post-merge Foundation CI pending.
+Status: Limited groundwork merged in PR #110; exact-candidate and post-merge checks verified.
 Owner: Implementation controller
 Target release: R1
 Date: 2026-10-21
@@ -19,7 +19,7 @@ distribution evidence validation with the strict two-profile envelope pins.
 Expected-head merge in PR #110 produced `8de60639586bd572d5e34257d07b25e683605b96`;
 its ordered parents are verified base c52ab15c and candidate a01cef3. Its actual
 tree `b2c1023b71fc10cbc7da954275b7e8d67cd35649` equals the reviewed candidate.
-Post-merge Documentation 39665355872 passes; Foundation 39665355968 is running.
+Post-merge Documentation 39665355872 passes; Foundation 39665355968 passed on its unchanged failed-job rerun.
 See [validation](../../05-quality/ADVICE_CORE_VALIDATION.md) for links and historical
 failed gates. Earlier pending statements below describe those historical checkpoints.
 Full product integration/Issue #11 acceptance and all five release holds remain
