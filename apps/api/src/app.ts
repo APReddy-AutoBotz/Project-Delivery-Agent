@@ -41,6 +41,7 @@ import {
 } from "./ingestion-controller.js";
 import {
   completeContract,
+  errorMessages,
   grantSchema,
   revokeSchema,
   developmentSchema,
@@ -96,6 +97,37 @@ type Request = {
 };
 const REPOSITORY = "PROJECT_REPOSITORY";
 const CONFIG = "APP_CONFIG";
+
+// NFR-SEC-001: body-parser 2.4 adds zstd. Preserve the prior encodings on
+// requests that would be consumed by these parsers, including their error shape.
+type ParserRequest = {
+  url?: string;
+  method: string;
+  headers: Record<string, string | string[] | undefined>;
+  is(type: string): string | false | null;
+};
+type ParserResponse = { status(code: number): ParserResponse; json(value: unknown): void };
+function rejectZstdForParser(
+  matches: (request: ParserRequest) => boolean,
+) {
+  return (request: ParserRequest, response: ParserResponse, next: () => void) => {
+    const encoding = request.headers["content-encoding"];
+    const hasBody = request.headers["transfer-encoding"] !== undefined ||
+      request.headers["content-length"] !== undefined;
+    if (hasBody && typeof encoding === "string" && encoding.toLowerCase() === "zstd" && matches(request)) {
+      response.status(415).json({ statusCode: 415, message: errorMessages[415] });
+      return;
+    }
+    next();
+  };
+}
+function isInternalTextRequest(request: { url?: string; method?: string }) {
+  const pathname = request.url?.split("?", 1)[0] ?? "";
+  return request.method === "POST" &&
+    (pathname.startsWith("/internal/connectors/") ||
+      pathname.startsWith("/internal/project-updates/") ||
+      pathname.startsWith("/webhooks/jira/"));
+}
 
 @ApiTags("Foundation")
 @ApiBearerAuth()
@@ -292,18 +324,16 @@ export async function createApp(
       next();
     },
   );
+  app.use(rejectZstdForParser(isInternalTextRequest));
   app.useBodyParser("text", {
     limit: "1mb",
     type: (request) => {
-      const pathname = request.url?.split("?", 1)[0] ?? "";
-      return request.method === "POST" &&
-        (pathname.startsWith("/internal/connectors/") ||
-          pathname.startsWith("/internal/project-updates/") ||
-          pathname.startsWith("/webhooks/jira/"));
+      return isInternalTextRequest(request);
     },
   });
   preJsonBodyParser?.(app);
   installProjectUpdateInvitationBoundary(app, identity, config.APP_ORIGIN);
+  app.use(rejectZstdForParser((request) => Boolean(request.is("application/json"))));
   app.useBodyParser("json", { limit: "64kb", inflate: false,
     type: (request) => request.method === "POST" && isProjectUpdateInvitationPath(request.url) });
   app.useBodyParser("json", { limit: "100kb" });

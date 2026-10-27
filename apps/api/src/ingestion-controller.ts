@@ -42,15 +42,15 @@ const MAX_CSV_BYTES = 1_048_576;
 const MAX_MULTIPART_OVERHEAD = 16_384;
 const CSV_UPLOAD_LIMITS = {
   fileSize: MAX_CSV_BYTES,
-  fieldSize: 256,
+  // Multer 2.5 accepts the limit itself; preserve the former 255-byte maximum.
+  fieldSize: 255,
   fieldNameSize: 64,
   // The upload form has scalar fields only; reject numeric array field names.
   fieldArrayIndexLimit: 0,
   fields: 3,
   files: 1,
-  // Busboy emits partsLimit as soon as the count reaches the configured value,
-  // so use 5 to accept the four required file/form parts and reject any fifth part.
-  parts: 5,
+  // Multer 2.5 accepts exactly this many parts; reject any fifth part.
+  parts: 4,
 };
 const unavailable = async (): Promise<never> => {
   throw new Error("Ingestion repository unavailable");

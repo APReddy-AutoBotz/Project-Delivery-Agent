@@ -16,7 +16,7 @@
   "dependencies": {
     "@pdaa/domain": "workspace:*",
     "jira.js": "6.2.0",
-    "zod": "4.5.4"
+    "zod": "4.6.6"
   },
   "files": [
     "dist"

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { Console } from "node:console";
+import { gzipSync } from "node:zlib";
 import { createDisclosureCheck } from "../scripts/acceptance/disclosure.mjs";
 import { createApp } from "../apps/api/dist/app.js";
 import { unavailableIngestionRepository } from "../apps/api/dist/ingestion-controller.js";
@@ -20,6 +21,7 @@ import {
   projectUpdatePolicyViewSchema,
   projectUpdateSchedulePreviewSchema,
 } from "../packages/domain/src/index.js";
+import { ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
 import { HealthAssessmentError, ProjectUpdateError } from "../packages/domain/dist/index.js";
 import type {
   ScheduleAdviceHealthRepository,
@@ -490,6 +492,7 @@ it("FR-UPD-006 / NFR-SEC-001: invitation identity precedes JSON parsing and reje
     [{ "Content-Type": "application/json" }, "{", 400],
     [{ "Content-Type": "application/json" }, "x".repeat(80000), 413],
     [{ "Content-Type": "application/json", "Content-Encoding": "gzip" }, "{}", 415],
+    [{ "Content-Type": "application/json", "Content-Encoding": "zstd" }, "{}", 415],
     [{ "Content-Type": "text/plain" }, "{}", 415],
     [{ "Content-Type": "application/json", Origin: "https://other.invalid" }, "{}", 403],
   ] as const) {
@@ -503,6 +506,87 @@ it("FR-UPD-006 / NFR-SEC-001: invitation identity precedes JSON parsing and reje
     headers: { Authorization: "Bearer " + manager, "Content-Type": "application/json" }, body: '{"text":""}' });
   expect(deniedResponse.status).toBe(404);
   expect(await deniedResponse.json()).toEqual({ statusCode: 404, message: "Resource unavailable" });
+});
+
+it("NFR-SEC-001: request encodings preserve parser and invitation boundaries", async () => {
+  const jsonPath = "/api/ingestion/sources/configuration";
+  const compressed = new Uint8Array(gzipSync(JSON.stringify(ingestionConfiguration)));
+  const accepted = await fetch(base + jsonPath, { method: "POST", headers: {
+    Authorization: "Bearer " + pmoPortfolio, "Content-Type": "application/json", "Content-Encoding": "gzip",
+  }, body: compressed });
+  expect(accepted.status).toBe(201);
+  await accepted.arrayBuffer();
+  const trailing = new Uint8Array(Buffer.concat([compressed, Buffer.from([1, 2, 3, 4, 5, 6, 7, 8])]));
+  const malformed = await fetch(base + jsonPath, { method: "POST", headers: {
+    Authorization: "Bearer " + pmoPortfolio, "Content-Type": "application/json", "Content-Encoding": "gzip",
+  }, body: trailing });
+  // The existing filter treats this decoder error as an unknown internal error.
+  expect(malformed.status).toBe(500);
+  expect(await malformed.json()).toEqual({ statusCode: 500, message: "Internal server error" });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const afterTrailing = await fetch(base + jsonPath, { method: "POST", headers: {
+    Authorization: "Bearer " + pmoPortfolio, "Content-Type": "application/json", "Content-Encoding": "gzip",
+  }, body: compressed });
+  expect(afterTrailing.status).toBe(201);
+  await afterTrailing.arrayBuffer();
+  const zstd = await fetch(base + jsonPath, { method: "POST", headers: {
+    Authorization: "Bearer " + pmoPortfolio, "Content-Type": "application/json", "Content-Encoding": "zstd",
+  }, body: "{}" });
+  expect(zstd.status).toBe(415);
+  expect(await zstd.json()).toEqual({ statusCode: 415, message: "Unsupported media type" });
+  const unparsed = await fetch(base + jsonPath, { method: "POST", headers: {
+    "Content-Type": "text/plain", "Content-Encoding": "zstd",
+  }, body: "not-json" });
+  expect(unparsed.status).toBe(401);
+  await unparsed.arrayBuffer();
+  const internal = await fetch(base + "/webhooks/jira/synthetic", { method: "POST", headers: {
+    "Content-Type": "text/plain", "Content-Encoding": "zstd",
+  }, body: "text" });
+  expect(internal.status).toBe(415);
+  await internal.arrayBuffer();
+  const invitation = await fetch(base + `/api/project-update-invitations/${project.id}/responses`, {
+    method: "POST", headers: { "Content-Type": "application/json", "Content-Encoding": "zstd" }, body: "{}",
+  });
+  expect(invitation.status).toBe(401);
+  await invitation.arrayBuffer();
+});
+
+it("FR-CON-006 / NFR-SEC-001: CSV upload retains its multipart boundaries", async () => {
+  const path = `/api/ingestion/sources/${ingestionSourceId}/csv-previews`;
+  const form = (key: string) => {
+    const data = new FormData();
+    data.set("file", new Blob(["id\n1"], { type: "text/csv" }), "review.csv");
+    data.set("commandKey", key);
+    data.set("configRevision", "1");
+    data.set("mappingRevision", "1");
+    return data;
+  };
+  const send = (body: FormData) => fetch(base + path, { method: "POST", headers: {
+    Authorization: "Bearer " + pmoPortfolio,
+  }, body });
+  const accepted = await send(form("boundary-four"));
+  expect(accepted.status).toBe(201);
+  await accepted.arrayBuffer();
+  const persist = vi.mocked(ingestionRepository.persistCsvPreview);
+  const before = persist.mock.calls.length;
+  const extra = form("boundary-five");
+  extra.append("ignored", new Blob([]), "");
+  const rejected = await send(extra);
+  expect(rejected.status).toBe(400);
+  await rejected.arrayBuffer();
+  expect(persist).toHaveBeenCalledTimes(before);
+  const parse = vi.spyOn(ingestionCsvPreviewFormSchema, "safeParse");
+  try {
+    const within = await send(form("x".repeat(255)));
+    expect(within.status).toBe(400);
+    await within.arrayBuffer();
+    expect(parse).toHaveBeenCalledTimes(1);
+    parse.mockClear();
+    const over = await send(form("x".repeat(256)));
+    expect(over.status).toBe(400);
+    await over.arrayBuffer();
+    expect(parse).not.toHaveBeenCalled();
+  } finally { parse.mockRestore(); }
 });
 async function request(
   path: string,

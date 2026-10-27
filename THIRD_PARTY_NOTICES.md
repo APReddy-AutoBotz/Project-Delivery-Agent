@@ -44,7 +44,9 @@ Published packages are used without modification. Their original license and cop
 - **typescript-eslint 8.69.0** — MIT; [publisher metadata](https://registry.npmjs.org/typescript-eslint/8.69.0); source: https://github.com/typescript-eslint/typescript-eslint.git.
 - **vite 7.3.7** — MIT; [publisher metadata](https://registry.npmjs.org/vite/7.3.7); source: git+https://github.com/vitejs/vite.git.
 - **vitest 4.1.11** — MIT; [publisher metadata](https://registry.npmjs.org/vitest/4.1.11); source: git+https://github.com/vitest-dev/vitest.git.
-- **zod 4.5.4** — MIT; [publisher metadata](https://registry.npmjs.org/zod/4.5.4); source: git+https://github.com/colinhacks/zod.git.
+- **zod 4.6.6** — MIT; [publisher metadata](https://registry.npmjs.org/zod/4.6.6); source: git+https://github.com/colinhacks/zod.git.
+- **body-parser 2.4.0** — MIT; [publisher metadata](https://registry.npmjs.org/body-parser/2.4.0); source: git+https://github.com/expressjs/body-parser.git.
+- **multer 2.5.0** — MIT; [publisher metadata](https://registry.npmjs.org/multer/2.5.0); source: git+https://github.com/expressjs/multer.git.
 
 PostgreSQL is used as a separate service under the PostgreSQL License. No enterprise-only code, source repositories or copyleft application dependencies have been vendored.
 
