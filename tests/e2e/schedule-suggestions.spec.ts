@@ -99,10 +99,14 @@ test("EXEC-022: scoped schedule suggestions revalidate across view and access ch
   const heldVisibility = new Promise<void>((resolve) => { releaseVisibility = resolve; });
   const enteredVisibility = new Promise<void>((resolve) => { arrivedVisibility = resolve; });
   await page.route(route, async (intercepted) => { arrivedVisibility(); await heldVisibility; await intercepted.continue(); });
+  const visibilityResponse = page.waitForResponse((response) => response.url().endsWith(`/projects/${projectId}/delivery-suggestions`));
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await enteredVisibility;
   await expect(panel).not.toContainText("MS-1");
   releaseVisibility();
+  const refreshedVisibilityResponse = await visibilityResponse;
+  expect(refreshedVisibilityResponse.status()).toBe(200);
+  await refreshedVisibilityResponse.finished();
   await page.unroute(route);
   await expect(panel).toContainText("MS-1");
 
