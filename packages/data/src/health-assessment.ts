@@ -606,8 +606,10 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         'SELECT role FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND (("scopeType"=\'portfolio\' AND "scopeId"=$3::uuid) OR ("scopeType"=\'project\' AND "scopeId"=$4::uuid)) ORDER BY id FOR SHARE',
         current.customerId, current.subject, project.portfolioId, id,
       );
+      // Responsibilities belong to a sealed immutable graph; Project SHARE
+      // prevents a concurrent graph birth without requiring child UPDATE rights.
       const assignments = await tx.$queryRawUnsafe<{ id: string }[]>(
-        'SELECT id FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'PROJECT_MANAGER\' AND subject=$3 ORDER BY id LIMIT 1 FOR SHARE',
+        'SELECT id FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'PROJECT_MANAGER\' AND subject=$3 ORDER BY id LIMIT 1',
         current.customerId, id, current.subject,
       );
       const isPm = current.roles.includes("project_manager") &&
@@ -626,7 +628,9 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         id, current.customerId,
       );
       if (canonical[0] && !canonical[0].sealed) throw new HealthAssessmentError("UNAVAILABLE");
-      const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT 51 FOR SHARE';
+      // Sealed canonical children are immutable; their parent is locked above.
+      // The API role has SELECT, not UPDATE, on these child tables.
+      const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT 51';
       type ScheduleRow = { id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null };
       const milestones = canonical[0]
         ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id)

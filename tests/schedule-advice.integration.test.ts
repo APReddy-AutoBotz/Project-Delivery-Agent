@@ -51,10 +51,37 @@ it("recomputes schedule-only advice for current assigned PMs and scoped leaders 
     { customerId, subject: dual.subject, scopeType: "project", scopeId: projectId, role: "leadership" },
     { customerId, subject: admin.subject, scopeType: "project", scopeId: projectId, role: "pmo_admin" },
   ] });
+  // Exercise the repository under the production API role, not the fixture owner.
+  // The child tables intentionally have no UPDATE privilege for row locking.
+  let apiTransactions = 0;
+  const apiRoleDatabase = {
+    $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+        const identity = await tx.$queryRawUnsafe<{ role: string; responsibility: boolean; milestone: boolean; workItem: boolean }[]>(
+          `SELECT current_user AS role,
+            has_any_column_privilege(current_user, 'public."ProjectResponsibility"', 'UPDATE') AS responsibility,
+            has_any_column_privilege(current_user, 'public."Milestone"', 'UPDATE') AS milestone,
+            has_any_column_privilege(current_user, 'public."WorkItem"', 'UPDATE') AS "workItem"`,
+        );
+        expect(identity[0]).toEqual({ role: "pdaa_api", responsibility: false, milestone: false, workItem: false });
+        apiTransactions += 1;
+        return operation(tx);
+      }, options as never),
+  };
+  const apiHealth = new DatabaseHealthAssessmentRepository(apiRoleDatabase as never);
   const beforeAssessments = await db.healthAssessment.count({ where: { customerId, projectId } });
   const beforeAudits = await db.auditEvent.count({ where: { customerId } });
   const pmView = await health.scheduleSuggestions(pm, projectId);
   const leadershipView = await health.scheduleSuggestions(leader, projectId);
+  const apiPmView = await apiHealth.scheduleSuggestions(pm, projectId);
+  const apiLeaderView = await apiHealth.scheduleSuggestions(leader, projectId);
+  expect(apiPmView).toMatchObject({ projectId, audience: "project_manager", coverage: "SCHEDULE_ONLY" });
+  expect(apiLeaderView).toMatchObject({ projectId, audience: "leadership", coverage: "SCHEDULE_ONLY" });
+  expect(apiPmView.items.length).toBeGreaterThan(0);
+  expect(apiLeaderView.items.length).toBeGreaterThan(0);
+  expect(apiTransactions).toBe(2);
+  await expect(apiHealth.scheduleSuggestions(unassigned, projectId)).rejects.toMatchObject({ code: "DENIED" });
   expect(pmView).toMatchObject({ projectId, audience: "project_manager", coverage: "SCHEDULE_ONLY", approvalItems: "UNAVAILABLE" });
   expect(leadershipView.audience).toBe("leadership");
   expect((await health.scheduleSuggestions(secondPm, projectId)).audience).toBe("project_manager");
@@ -99,7 +126,7 @@ it("recomputes schedule-only advice for current assigned PMs and scoped leaders 
   }, { timeout: 10000 });
   await Promise.race([ready, writer.then(() => { throw new Error("Policy writer exited before locking"); })]);
   let settled = false;
-  const pending = health.scheduleSuggestions(pm, projectId);
+  const pending = apiHealth.scheduleSuggestions(pm, projectId);
   void pending.then(() => { settled = true; }, () => { settled = true; });
   let settledBeforeRelease: boolean;
   try {
@@ -115,5 +142,5 @@ it("recomputes schedule-only advice for current assigned PMs and scoped leaders 
   expect(afterConcurrentPolicy.items.some((item) => item.category === "SCHEDULE_REVIEW")).toBe(true);
 
   await db.accessGrant.deleteMany({ where: { customerId, subject: leader.subject, scopeType: "project", scopeId: projectId } });
-  await expect(health.scheduleSuggestions(leader, projectId)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(apiHealth.scheduleSuggestions(leader, projectId)).rejects.toMatchObject({ code: "DENIED" });
 });
