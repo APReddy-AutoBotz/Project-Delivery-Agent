@@ -30696,6 +30696,1361 @@
         ]
       }
     },
+    "/api/projects/{id}/delivery-suggestions": {
+      "get": {
+        "operationId": "HealthAssessmentController_scheduleSuggestions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "asOf": {
+                      "type": "string",
+                      "minLength": 24,
+                      "maxLength": 24
+                    },
+                    "projectId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "audience": {
+                      "type": "string",
+                      "enum": [
+                        "project_manager",
+                        "leadership"
+                      ]
+                    },
+                    "coverage": {
+                      "type": "string",
+                      "enum": [
+                        "SCHEDULE_ONLY"
+                      ]
+                    },
+                    "sourceAuthority": {
+                      "type": "string",
+                      "enum": [
+                        "NOT_ASSESSED"
+                      ]
+                    },
+                    "approvalItems": {
+                      "type": "string",
+                      "enum": [
+                        "UNAVAILABLE"
+                      ]
+                    },
+                    "rankPolicyRevision": {
+                      "type": "string",
+                      "enum": [
+                        "advice-core@1"
+                      ]
+                    },
+                    "items": {
+                      "maxItems": 101,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "concernKey": {
+                            "type": "string"
+                          },
+                          "projectId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "classification": {
+                            "type": "string",
+                            "enum": [
+                              "RULE_BASED_SUGGESTION"
+                            ]
+                          },
+                          "adviceRuleRevision": {
+                            "type": "string",
+                            "enum": [
+                              "advice-core@1"
+                            ]
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "SCHEDULE_REVIEW",
+                              "EVIDENCE_REVIEW",
+                              "RECONCILIATION"
+                            ]
+                          },
+                          "urgency": {
+                            "type": "string",
+                            "enum": [
+                              "CRITICAL",
+                              "HIGH",
+                              "MEDIUM",
+                              "LOW"
+                            ]
+                          },
+                          "triggeredAt": {
+                            "type": "string",
+                            "minLength": 24,
+                            "maxLength": 24
+                          },
+                          "assessedAt": {
+                            "type": "string",
+                            "minLength": 24,
+                            "maxLength": 24
+                          },
+                          "approvalRequired": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
+                          "triggeringRule": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 48,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                  },
+                                  "revision": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 64,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "revision"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 48,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                  },
+                                  "revision": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 64,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                  },
+                                  "parameters": {
+                                    "maxItems": 16,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 96,
+                                          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+                                        },
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "maxLength": 512
+                                            },
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "boolean"
+                                            },
+                                            {
+                                              "type": "string",
+                                              "nullable": true,
+                                              "enum": [
+                                                null
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "name",
+                                        "value"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "revision",
+                                  "parameters"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "trigger": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "DELIVERY_SIGNAL"
+                                    ]
+                                  },
+                                  "sourceAssessedAt": {
+                                    "type": "string",
+                                    "minLength": 24,
+                                    "maxLength": 24
+                                  },
+                                  "signal": {
+                                    "type": "object",
+                                    "properties": {
+                                      "signalId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 48,
+                                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "OVERDUE_MILESTONE",
+                                          "OVERDUE_WORK_ITEM",
+                                          "SCHEDULE_COVERAGE"
+                                        ]
+                                      },
+                                      "targetType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "PROJECT",
+                                          "MILESTONE",
+                                          "WORK_ITEM"
+                                        ]
+                                      },
+                                      "targetKey": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 48,
+                                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                      },
+                                      "targetSource": {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "canonical_record"
+                                            ]
+                                          },
+                                          "recordType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "PROJECT",
+                                              "MILESTONE",
+                                              "WORK_ITEM"
+                                            ]
+                                          },
+                                          "recordId": {
+                                            "type": "string",
+                                            "format": "uuid",
+                                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                          },
+                                          "revision": {
+                                            "nullable": true,
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 2147483647
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "recordType",
+                                          "recordId",
+                                          "revision"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "state": {
+                                        "type": "string",
+                                        "enum": [
+                                          "ACTIVE",
+                                          "CLEAR",
+                                          "UNASSESSABLE"
+                                        ]
+                                      },
+                                      "severity": {
+                                        "type": "string",
+                                        "enum": [
+                                          "CRITICAL",
+                                          "HIGH",
+                                          "MEDIUM",
+                                          "LOW"
+                                        ]
+                                      },
+                                      "rule": {
+                                        "type": "object",
+                                        "properties": {
+                                          "key": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 48,
+                                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                          },
+                                          "revision": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 64,
+                                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                          },
+                                          "parameters": {
+                                            "maxItems": 16,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "name": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 96,
+                                                  "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+                                                },
+                                                "value": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "string",
+                                                      "maxLength": 512
+                                                    },
+                                                    {
+                                                      "type": "number"
+                                                    },
+                                                    {
+                                                      "type": "boolean"
+                                                    },
+                                                    {
+                                                      "type": "string",
+                                                      "nullable": true,
+                                                      "enum": [
+                                                        null
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              "required": [
+                                                "name",
+                                                "value"
+                                              ],
+                                              "additionalProperties": false
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "key",
+                                          "revision",
+                                          "parameters"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "sourceFacts": {
+                                        "minItems": 1,
+                                        "maxItems": 16,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "factType": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 96,
+                                              "pattern": "^[a-z][a-z0-9_.-]*$"
+                                            },
+                                            "field": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 96,
+                                              "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+                                            },
+                                            "value": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "maxLength": 512
+                                                },
+                                                {
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "boolean"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "nullable": true,
+                                                  "enum": [
+                                                    null
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            "source": {
+                                              "type": "object",
+                                              "properties": {
+                                                "kind": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "canonical_record"
+                                                  ]
+                                                },
+                                                "recordType": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "PROJECT",
+                                                    "MILESTONE",
+                                                    "WORK_ITEM"
+                                                  ]
+                                                },
+                                                "recordId": {
+                                                  "type": "string",
+                                                  "format": "uuid",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                "revision": {
+                                                  "nullable": true,
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 2147483647
+                                                }
+                                              },
+                                              "required": [
+                                                "kind",
+                                                "recordType",
+                                                "recordId",
+                                                "revision"
+                                              ],
+                                              "additionalProperties": false
+                                            }
+                                          },
+                                          "required": [
+                                            "factType",
+                                            "field",
+                                            "value",
+                                            "source"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "signalId",
+                                      "kind",
+                                      "targetType",
+                                      "targetKey",
+                                      "targetSource",
+                                      "state",
+                                      "severity",
+                                      "rule",
+                                      "sourceFacts"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "sourceAssessedAt",
+                                  "signal"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "REPORTED_CALCULATED_MISMATCH"
+                                    ]
+                                  },
+                                  "sourceAssessedAt": {
+                                    "type": "string",
+                                    "minLength": 24,
+                                    "maxLength": 24
+                                  },
+                                  "reported": {
+                                    "type": "object",
+                                    "properties": {
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "GREEN",
+                                          "AMBER",
+                                          "RED",
+                                          "UNKNOWN"
+                                        ]
+                                      },
+                                      "sourceFact": {
+                                        "type": "object",
+                                        "properties": {
+                                          "factType": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 96,
+                                            "pattern": "^[a-z][a-z0-9_.-]*$"
+                                          },
+                                          "field": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 96,
+                                            "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+                                          },
+                                          "value": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "maxLength": 512
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "boolean"
+                                              },
+                                              {
+                                                "type": "string",
+                                                "nullable": true,
+                                                "enum": [
+                                                  null
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          "source": {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "canonical_record"
+                                                ]
+                                              },
+                                              "recordType": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "PROJECT",
+                                                  "MILESTONE",
+                                                  "WORK_ITEM"
+                                                ]
+                                              },
+                                              "recordId": {
+                                                "type": "string",
+                                                "format": "uuid",
+                                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                              },
+                                              "revision": {
+                                                "nullable": true,
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 2147483647
+                                              }
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "recordType",
+                                              "recordId",
+                                              "revision"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "factType",
+                                          "field",
+                                          "value",
+                                          "source"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "sourceFact"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "calculated": {
+                                    "type": "object",
+                                    "properties": {
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "GREEN",
+                                          "AMBER",
+                                          "RED",
+                                          "UNKNOWN"
+                                        ]
+                                      },
+                                      "rule": {
+                                        "type": "object",
+                                        "properties": {
+                                          "key": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 48,
+                                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                          },
+                                          "revision": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 64,
+                                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                          },
+                                          "severityBands": {
+                                            "type": "object",
+                                            "properties": {
+                                              "red": {
+                                                "minItems": 1,
+                                                "maxItems": 4,
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "CRITICAL",
+                                                    "HIGH",
+                                                    "MEDIUM",
+                                                    "LOW"
+                                                  ]
+                                                }
+                                              },
+                                              "amber": {
+                                                "maxItems": 4,
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "CRITICAL",
+                                                    "HIGH",
+                                                    "MEDIUM",
+                                                    "LOW"
+                                                  ]
+                                                }
+                                              },
+                                              "green": {
+                                                "maxItems": 4,
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "CRITICAL",
+                                                    "HIGH",
+                                                    "MEDIUM",
+                                                    "LOW"
+                                                  ]
+                                                }
+                                              }
+                                            },
+                                            "required": [
+                                              "red",
+                                              "amber",
+                                              "green"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "key",
+                                          "revision",
+                                          "severityBands"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "rationale": {
+                                        "type": "object",
+                                        "properties": {
+                                          "code": {
+                                            "type": "string"
+                                          },
+                                          "text": {
+                                            "type": "string"
+                                          },
+                                          "signalIds": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 48,
+                                              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "code",
+                                          "text",
+                                          "signalIds"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "status",
+                                      "rule",
+                                      "rationale"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "objectiveSignals": {
+                                    "maxItems": 100,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "signalId": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 48,
+                                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                        },
+                                        "kind": {
+                                          "type": "string",
+                                          "enum": [
+                                            "OVERDUE_MILESTONE",
+                                            "OVERDUE_WORK_ITEM",
+                                            "SCHEDULE_COVERAGE"
+                                          ]
+                                        },
+                                        "targetType": {
+                                          "type": "string",
+                                          "enum": [
+                                            "PROJECT",
+                                            "MILESTONE",
+                                            "WORK_ITEM"
+                                          ]
+                                        },
+                                        "targetKey": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 48,
+                                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                        },
+                                        "targetSource": {
+                                          "type": "object",
+                                          "properties": {
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "canonical_record"
+                                              ]
+                                            },
+                                            "recordType": {
+                                              "type": "string",
+                                              "enum": [
+                                                "PROJECT",
+                                                "MILESTONE",
+                                                "WORK_ITEM"
+                                              ]
+                                            },
+                                            "recordId": {
+                                              "type": "string",
+                                              "format": "uuid",
+                                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                            },
+                                            "revision": {
+                                              "nullable": true,
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 2147483647
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "recordType",
+                                            "recordId",
+                                            "revision"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "state": {
+                                          "type": "string",
+                                          "enum": [
+                                            "ACTIVE",
+                                            "CLEAR",
+                                            "UNASSESSABLE"
+                                          ]
+                                        },
+                                        "severity": {
+                                          "type": "string",
+                                          "enum": [
+                                            "CRITICAL",
+                                            "HIGH",
+                                            "MEDIUM",
+                                            "LOW"
+                                          ]
+                                        },
+                                        "rule": {
+                                          "type": "object",
+                                          "properties": {
+                                            "key": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 48,
+                                              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                            },
+                                            "revision": {
+                                              "type": "string",
+                                              "minLength": 1,
+                                              "maxLength": 64,
+                                              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                            },
+                                            "parameters": {
+                                              "maxItems": 16,
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "name": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "maxLength": 96,
+                                                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+                                                  },
+                                                  "value": {
+                                                    "anyOf": [
+                                                      {
+                                                        "type": "string",
+                                                        "maxLength": 512
+                                                      },
+                                                      {
+                                                        "type": "number"
+                                                      },
+                                                      {
+                                                        "type": "boolean"
+                                                      },
+                                                      {
+                                                        "type": "string",
+                                                        "nullable": true,
+                                                        "enum": [
+                                                          null
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                },
+                                                "required": [
+                                                  "name",
+                                                  "value"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            }
+                                          },
+                                          "required": [
+                                            "key",
+                                            "revision",
+                                            "parameters"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "sourceFacts": {
+                                          "minItems": 1,
+                                          "maxItems": 16,
+                                          "type": "array",
+                                          "items": {
+                                            "type": "object",
+                                            "properties": {
+                                              "factType": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 96,
+                                                "pattern": "^[a-z][a-z0-9_.-]*$"
+                                              },
+                                              "field": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 96,
+                                                "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+                                              },
+                                              "value": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string",
+                                                    "maxLength": 512
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  },
+                                                  {
+                                                    "type": "string",
+                                                    "nullable": true,
+                                                    "enum": [
+                                                      null
+                                                    ]
+                                                  }
+                                                ]
+                                              },
+                                              "source": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "kind": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "canonical_record"
+                                                    ]
+                                                  },
+                                                  "recordType": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "PROJECT",
+                                                      "MILESTONE",
+                                                      "WORK_ITEM"
+                                                    ]
+                                                  },
+                                                  "recordId": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                  },
+                                                  "revision": {
+                                                    "nullable": true,
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 2147483647
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind",
+                                                  "recordType",
+                                                  "recordId",
+                                                  "revision"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            },
+                                            "required": [
+                                              "factType",
+                                              "field",
+                                              "value",
+                                              "source"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "signalId",
+                                        "kind",
+                                        "targetType",
+                                        "targetKey",
+                                        "targetSource",
+                                        "state",
+                                        "severity",
+                                        "rule",
+                                        "sourceFacts"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "contradiction": {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "REPORTED_CALCULATED_MISMATCH"
+                                        ]
+                                      },
+                                      "severity": {
+                                        "type": "string",
+                                        "enum": [
+                                          "CRITICAL",
+                                          "HIGH",
+                                          "MEDIUM",
+                                          "LOW"
+                                        ]
+                                      },
+                                      "rule": {
+                                        "type": "object",
+                                        "properties": {
+                                          "key": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 48,
+                                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                          },
+                                          "revision": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 64,
+                                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                          }
+                                        },
+                                        "required": [
+                                          "key",
+                                          "revision"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "reportedStatus": {
+                                        "type": "string",
+                                        "enum": [
+                                          "GREEN",
+                                          "AMBER",
+                                          "RED",
+                                          "UNKNOWN"
+                                        ]
+                                      },
+                                      "calculatedStatus": {
+                                        "type": "string",
+                                        "enum": [
+                                          "GREEN",
+                                          "AMBER",
+                                          "RED",
+                                          "UNKNOWN"
+                                        ]
+                                      },
+                                      "signalIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 48,
+                                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                        }
+                                      },
+                                      "rationale": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "severity",
+                                      "rule",
+                                      "reportedStatus",
+                                      "calculatedStatus",
+                                      "signalIds",
+                                      "rationale"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "sourceAssessedAt",
+                                  "reported",
+                                  "calculated",
+                                  "objectiveSignals",
+                                  "contradiction"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "suggestedAction": {
+                            "type": "string"
+                          },
+                          "expectedOutcome": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "concernKey",
+                          "projectId",
+                          "classification",
+                          "adviceRuleRevision",
+                          "category",
+                          "urgency",
+                          "triggeredAt",
+                          "assessedAt",
+                          "approvalRequired",
+                          "triggeringRule",
+                          "trigger",
+                          "suggestedAction",
+                          "expectedOutcome"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "asOf",
+                    "projectId",
+                    "audience",
+                    "coverage",
+                    "sourceAuthority",
+                    "approvalItems",
+                    "rankPolicyRevision",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Health assessments"
+        ]
+      }
+    },
     "/api/projects/{id}/schedule-health-policy": {
       "get": {
         "operationId": "HealthAssessmentController_scheduleHealthPolicy",

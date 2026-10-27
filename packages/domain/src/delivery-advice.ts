@@ -1,9 +1,18 @@
 import { z } from "zod";
+import type { Actor } from "./actor.js";
 import {
   canonicalKeySchema,
   canonicalSubjectSchema,
 } from "./canonical-project.js";
-import { assessDeliveryHealth } from "./delivery-health.js";
+import {
+  assessDeliveryHealth,
+  deliveryHealthCalculationRuleSchema,
+} from "./delivery-health.js";
+import {
+  buildScheduleHealthAssessment,
+  scheduleHealthSnapshotSchema,
+  type HealthAssessmentRepository,
+} from "./health-assessment.js";
 import { provenanceSchema } from "./fact-state.js";
 
 // FR-ADV-001/002/006/007/008, BR-013, NFR-REL-003: internal pure groundwork.
@@ -114,6 +123,117 @@ export type DeliveryRecommendation = DeepReadonly<{
   suggestedAction: string;
   expectedOutcome: string;
 }>;
+export type PointInTimeScheduleRecommendation = Omit<
+  DeliveryRecommendation,
+  "validUntil" | "recipient"
+>;
+
+const scheduleRag = z.enum(["GREEN", "AMBER", "RED", "UNKNOWN"]);
+const scheduleSource = z.strictObject({
+  kind: z.literal("canonical_record"),
+  recordType: z.enum(["PROJECT", "MILESTONE", "WORK_ITEM"]),
+  recordId: id,
+  revision: z.number().int().min(0).max(2147483647).nullable(),
+});
+const scheduleValue = z.union([z.string().max(512), z.number().finite(), z.boolean(), z.null()]);
+const scheduleFact = z.strictObject({
+  factType: z.string().min(1).max(96).regex(/^[a-z][a-z0-9_.-]*$/),
+  field: z.string().min(1).max(96).regex(/^[A-Za-z][A-Za-z0-9_.-]*$/),
+  value: scheduleValue,
+  source: scheduleSource,
+});
+const scheduleSignalRule = z.strictObject({
+  key: canonicalKeySchema,
+  revision: z.string().min(1).max(64).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+  parameters: z.array(z.strictObject({
+    name: z.string().min(1).max(96).regex(/^[A-Za-z][A-Za-z0-9_.-]*$/),
+    value: scheduleValue,
+  })).max(16),
+});
+const scheduleSignal = z.strictObject({
+  signalId: canonicalKeySchema,
+  kind: z.enum(["OVERDUE_MILESTONE", "OVERDUE_WORK_ITEM", "SCHEDULE_COVERAGE"]),
+  targetType: z.enum(["PROJECT", "MILESTONE", "WORK_ITEM"]),
+  targetKey: canonicalKeySchema,
+  targetSource: scheduleSource,
+  state: z.enum(["ACTIVE", "CLEAR", "UNASSESSABLE"]),
+  severity: urgency,
+  rule: scheduleSignalRule,
+  sourceFacts: z.array(scheduleFact).min(1).max(16),
+});
+const scheduleTrigger = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("DELIVERY_SIGNAL"),
+    sourceAssessedAt: instant,
+    signal: scheduleSignal,
+  }),
+  z.strictObject({
+    kind: z.literal("REPORTED_CALCULATED_MISMATCH"),
+    sourceAssessedAt: instant,
+    reported: z.strictObject({ status: scheduleRag, sourceFact: scheduleFact }),
+    calculated: z.strictObject({
+      status: scheduleRag,
+      rule: deliveryHealthCalculationRuleSchema,
+      rationale: z.strictObject({ code: z.string(), text: z.string(), signalIds: z.array(canonicalKeySchema) }),
+    }),
+    objectiveSignals: z.array(scheduleSignal).max(100),
+    contradiction: z.strictObject({
+      kind: z.literal("REPORTED_CALCULATED_MISMATCH"),
+      severity: urgency,
+      rule,
+      reportedStatus: scheduleRag,
+      calculatedStatus: scheduleRag,
+      signalIds: z.array(canonicalKeySchema),
+      rationale: z.string(),
+    }),
+  }),
+]);
+export const scheduleAdviceSnapshotSchema = z.strictObject({
+  asOf: instant,
+  projectId: id,
+  audience: z.enum(["project_manager", "leadership"]),
+  coverage: z.literal("SCHEDULE_ONLY"),
+  sourceAuthority: z.literal("NOT_ASSESSED"),
+  approvalItems: z.literal("UNAVAILABLE"),
+  rankPolicyRevision: z.literal("advice-core@1"),
+  items: z.array(z.strictObject({
+    concernKey: z.string(),
+    projectId: id,
+    classification: z.literal("RULE_BASED_SUGGESTION"),
+    adviceRuleRevision: z.literal("advice-core@1"),
+    category: z.enum(["SCHEDULE_REVIEW", "EVIDENCE_REVIEW", "RECONCILIATION"]),
+    urgency,
+    triggeredAt: instant,
+    assessedAt: instant,
+    approvalRequired: z.literal(true),
+    triggeringRule: z.union([
+      rule,
+      scheduleSignalRule,
+    ]),
+    trigger: scheduleTrigger,
+    suggestedAction: z.string(),
+    expectedOutcome: z.string(),
+  })).max(101),
+}).superRefine((snapshot, context) => {
+  for (const [index, item] of snapshot.items.entries()) {
+    const trigger = item.trigger;
+    const expectedCategory = trigger.kind === "REPORTED_CALCULATED_MISMATCH"
+      ? "RECONCILIATION"
+      : trigger.signal.state === "UNASSESSABLE" || trigger.signal.kind === "SCHEDULE_COVERAGE"
+        ? "EVIDENCE_REVIEW"
+        : "SCHEDULE_REVIEW";
+    if (
+      item.projectId !== snapshot.projectId ||
+      item.assessedAt !== snapshot.asOf ||
+      item.triggeredAt !== snapshot.asOf ||
+      trigger.sourceAssessedAt !== snapshot.asOf ||
+      item.category !== expectedCategory ||
+      (trigger.kind === "DELIVERY_SIGNAL" && trigger.signal.state === "CLEAR")
+    ) {
+      context.addIssue({ code: "custom", path: ["items", index], message: "Inconsistent schedule suggestion" });
+    }
+  }
+});
 
 const urgencyOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 } as const;
 const categoryOrder: Record<Category, number> = {
@@ -126,6 +246,14 @@ const categoryOrder: Record<Category, number> = {
 };
 const compare = (left: string, right: string) =>
   left < right ? -1 : left > right ? 1 : 0;
+const compareRecommendations = (
+  left: PointInTimeScheduleRecommendation,
+  right: PointInTimeScheduleRecommendation,
+) =>
+  urgencyOrder[left.urgency] - urgencyOrder[right.urgency] ||
+  categoryOrder[left.category] - categoryOrder[right.category] ||
+  compare(left.triggeredAt, right.triggeredAt) ||
+  compare(left.concernKey, right.concernKey);
 function invalid(): never {
   throw new Error("Invalid delivery advice input");
 }
@@ -369,13 +497,7 @@ export function buildDeliveryAdviceQueue(input: unknown) {
       });
     }
   }
-  items.sort(
-    (left, right) =>
-      urgencyOrder[left.urgency] - urgencyOrder[right.urgency] ||
-      categoryOrder[left.category] - categoryOrder[right.category] ||
-      compare(left.triggeredAt, right.triggeredAt) ||
-      compare(left.concernKey, right.concernKey),
-  );
+  items.sort(compareRecommendations);
   return freeze({
     asOf: request.asOf,
     recipient: { ...request.recipient },
@@ -383,3 +505,96 @@ export function buildDeliveryAdviceQueue(input: unknown) {
     items,
   });
 }
+
+// EXEC-022 / FR-ADV-001/006/007: an as-of observation, never an
+// authorization or a promise that the inputs remain current afterward.
+// The caller must construct the snapshot from a current authorized read.
+const scheduleAdviceSnapshotRequest = z.strictObject({
+  asOf: instant,
+  recipient,
+  snapshot: scheduleHealthSnapshotSchema,
+});
+
+export function buildScheduleAdviceSnapshot(input: unknown) {
+  const parsed = scheduleAdviceSnapshotRequest.safeParse(input);
+  if (!parsed.success || parsed.data.snapshot.assessedAt !== parsed.data.asOf)
+    return invalid();
+  const { asOf, recipient: audience, snapshot } = parsed.data;
+  let health: Health;
+  try {
+    health = buildScheduleHealthAssessment(snapshot).result;
+  } catch {
+    return invalid();
+  }
+  const items: PointInTimeScheduleRecommendation[] = [];
+  const append = (details: {
+    concern: readonly string[];
+    category: Category;
+    urgency: DeliveryRecommendation["urgency"];
+    triggeringRule: DeliveryRecommendation["triggeringRule"];
+    trigger: Trigger;
+  }) => {
+    items.push({
+      concernKey: JSON.stringify([health.projectId, ...details.concern]),
+      projectId: health.projectId,
+      classification: "RULE_BASED_SUGGESTION",
+      adviceRuleRevision: "advice-core@1",
+      category: details.category,
+      urgency: details.urgency,
+      triggeredAt: health.assessedAt,
+      assessedAt: asOf,
+      approvalRequired: true,
+      triggeringRule: { ...details.triggeringRule },
+      trigger: details.trigger,
+      ...wording(details.category, audience.audience),
+    });
+  };
+  for (const signal of health.objectiveSignals) {
+    if (signal.state === "CLEAR") continue;
+    const category = categoryFor(signal);
+    append({
+      concern: ["signal", signal.signalId],
+      category,
+      urgency: category === "EVIDENCE_REVIEW" ? "LOW" : signal.severity,
+      triggeringRule: signal.rule,
+      trigger: {
+        kind: "DELIVERY_SIGNAL",
+        sourceAssessedAt: health.assessedAt,
+        signal,
+      },
+    });
+  }
+  if (health.contradiction !== null)
+    append({
+      concern: ["reported-calculated-mismatch"],
+      category: "RECONCILIATION",
+      urgency: health.contradiction.severity,
+      triggeringRule: health.contradiction.rule,
+      trigger: {
+        kind: "REPORTED_CALCULATED_MISMATCH",
+        sourceAssessedAt: health.assessedAt,
+        reported: health.reported,
+        calculated: health.calculated,
+        objectiveSignals: health.objectiveSignals,
+        contradiction: health.contradiction,
+      },
+    });
+  items.sort(compareRecommendations);
+  const result = scheduleAdviceSnapshotSchema.safeParse({
+    asOf,
+    projectId: snapshot.projectId,
+    audience: audience.audience,
+    coverage: "SCHEDULE_ONLY" as const,
+    sourceAuthority: "NOT_ASSESSED" as const,
+    approvalItems: "UNAVAILABLE" as const,
+    rankPolicyRevision: "advice-core@1" as const,
+    items,
+  });
+  if (!result.success) return invalid();
+  return freeze(result.data);
+}
+
+export type ScheduleAdviceSnapshot = ReturnType<typeof buildScheduleAdviceSnapshot>;
+export type ScheduleAdviceHealthRepository = HealthAssessmentRepository & {
+  scheduleSuggestions(actor: Actor, projectId: string): Promise<ScheduleAdviceSnapshot>;
+};

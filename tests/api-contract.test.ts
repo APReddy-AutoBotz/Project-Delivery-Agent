@@ -15,13 +15,14 @@ import {
   IdentityService,
 } from "../packages/platform/dist/index.js";
 import {
+  buildScheduleAdviceSnapshot,
   projectUpdateAssessmentViewSchema,
   projectUpdatePolicyViewSchema,
   projectUpdateSchedulePreviewSchema,
 } from "../packages/domain/src/index.js";
-import { ProjectUpdateError } from "../packages/domain/dist/index.js";
+import { HealthAssessmentError, ProjectUpdateError } from "../packages/domain/dist/index.js";
 import type {
-  HealthAssessmentRepository,
+  ScheduleAdviceHealthRepository,
   IngestionRepository,
   Project,
   ProjectRepository,
@@ -272,7 +273,19 @@ const healthAssessmentRetentionView = {
   changedBy: "pmo-portfolio",
   changedAt: "2026-09-27T00:00:00.000Z",
 };
-const healthAssessmentRepository: HealthAssessmentRepository = {
+const healthAssessmentRepository: ScheduleAdviceHealthRepository = {
+  scheduleSuggestions: vi.fn(async () => buildScheduleAdviceSnapshot({
+    asOf: "2026-10-21T11:00:00.000Z",
+    recipient: { subject: "synthetic-pm", audience: "project_manager" },
+    snapshot: {
+      projectId: project.id,
+      projectRevision: null,
+      reportedStatus: "UNKNOWN",
+      assessedAt: "2026-10-21T11:00:00.000Z",
+      milestones: [],
+      workItems: [],
+    },
+  })),
   create: vi.fn(async () => healthAssessmentView),
   latest: vi.fn(async () => null),
   scheduleHealthPolicy: vi.fn(async () => ({
@@ -586,6 +599,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     200,
     manager,
   );
+  await request(`/api/projects/${project.id}/delivery-suggestions`, 200, manager);
   await request(
     "/api/projects/" + project.id + "/health-assessments",
     201,
@@ -767,7 +781,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(62);
+  expect(covered.size).toBe(63);
   assertContractSnapshot(
     spec,
     JSON.parse(
@@ -775,6 +789,19 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     ),
   );
 });
+it("EXEC-022: suggestions require authentication and keep scope denials private", async () => {
+  const path = `/api/projects/${project.id}/delivery-suggestions`;
+  await request(path, 401);
+  vi.mocked(healthAssessmentRepository.scheduleSuggestions).mockRejectedValueOnce(
+    new HealthAssessmentError("DENIED"),
+  );
+  await request(path, 404, manager);
+  vi.mocked(healthAssessmentRepository.scheduleSuggestions).mockRejectedValueOnce(
+    new HealthAssessmentError("UNAVAILABLE"),
+  );
+  await request(path, 503, manager);
+});
+
 it("NFR-SEC-001: administrator-only endpoints require the PMO administrator role", async () => {
   await request("/api/ingestion/sources", 401);
   await request("/api/ingestion/sources", 403, manager);

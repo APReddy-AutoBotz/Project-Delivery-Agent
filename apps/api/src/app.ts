@@ -83,7 +83,7 @@ import {
   type MilestoneReconciliationRepository,
   type ScalarReconciliationRepository,
   type IngestionRepository,
-  type HealthAssessmentRepository,
+  type ScheduleAdviceHealthRepository,
   type ProjectUpdateRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
@@ -223,7 +223,7 @@ export async function createApp(
   scalarReconciliation: ScalarReconciliationRepository = unavailableScalarReconciliationRepository,
   preJsonBodyParser?: (app: NestExpressApplication) => void,
   ingestion: IngestionRepository = unavailableIngestionRepository,
-  healthAssessment: HealthAssessmentRepository = unavailableHealthAssessmentRepository,
+  healthAssessment: ScheduleAdviceHealthRepository = unavailableHealthAssessmentRepository,
   projectUpdates: ProjectUpdateRepository = unavailableProjectUpdateRepository,
 ) {
   @Module({

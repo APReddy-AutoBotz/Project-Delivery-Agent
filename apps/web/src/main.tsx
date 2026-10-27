@@ -16,6 +16,7 @@ import {
 import "./style.css";
 import { ProjectEvidence } from "./project-evidence.js";
 import { HealthAssessmentPanel } from "./health-assessment.js";
+import { DeliverySuggestions } from "./delivery-suggestions.js";
 import { ProjectUpdates } from "./project-updates.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
 import { CsvIngestion } from "./csv-ingestion.js";
@@ -639,6 +640,14 @@ function App() {
                       request={request}
                       pmoAdmin={pmoAdmin ?? false}
                       visible={!project.isFetching && !project.isError}
+                    />
+                  )}
+                  {project.data && me.data && !project.isFetching && !project.isError && (
+                    <DeliverySuggestions
+                      key={`suggestions:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
+                      projectId={project.data.id}
+                      scope={`${me.data.customerId}:${me.data.subject}:${project.data.id}`}
+                      request={request}
                     />
                   )}
                   <MilestoneReconciliation
