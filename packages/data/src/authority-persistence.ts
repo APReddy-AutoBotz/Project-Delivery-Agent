@@ -122,8 +122,8 @@ export function buildSourceAuthoritySnapshot(
       evidence: [],
     };
   const bySource = new Map(access.map((row) => [row.sourceId, row]));
-  // Carry the source identity and per-version adapter validation receipt persisted with each
-  // canonical fact. Reviewed connector imports remain proposals until an authorized commit.
+  // Carry source identity and the per-version validation marker. Supported writers do not
+  // establish a connector validation receipt; reviewed spreadsheet rows remain proposals.
   const sourceTypeBySource = new Map(
     versions.map((row) => [row.sourceId, row.evidence.source.sourceType] as const),
   );

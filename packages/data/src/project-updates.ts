@@ -259,8 +259,9 @@ function selectorBasis(policy: Resolution["policy"], selectedTier: number | null
 /**
  * Timestamp authorization for canonical project facts. Human statements always
  * use server observation time; connector effectiveAt values require an explicit
- * adapter-validation receipt from the authoritative version snapshot. Visibility
- * only proves reader access and cannot authorize a timestamp.
+ * validation marker from the authoritative version snapshot. Supported writers do
+ * not establish a connector validation receipt. Visibility only proves reader
+ * access and cannot authorize a timestamp.
  */
 export function selectCanonicalProjectUpdateTimestamp(input: {
   sourceType: string;
