@@ -78,7 +78,7 @@ function birthDatabase(bornAt: Date) {
   };
 }
 
-async function fixture() {
+async function fixture(configured = true) {
   const customerId = process.env.CUSTOMER_ID!;
   const portfolioId = randomUUID();
   const admin: Actor = {
@@ -114,7 +114,7 @@ async function fixture() {
   const authority = new DatabaseAuthorityRepository(db);
   const factType = "project.status";
   const statementReferences: string[] = [];
-  await updates.setPolicy(
+  if (configured) await updates.setPolicy(
     admin,
     project.id,
     {
@@ -216,6 +216,295 @@ async function fixture() {
 }
 
 type Fixture = Awaited<ReturnType<typeof fixture>>;
+it("reads current update advice as the API role and withholds revoked source evidence without writes", async () => {
+  const f = await fixture();
+  const leader: Actor = { customerId: f.customerId, subject: `update-advice-${randomUUID()}`, roles: ["leadership"] };
+  await db.accessGrant.create({ data: { customerId: f.customerId, subject: leader.subject,
+    scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  let transactions = 0, readerPid = 0;
+  const apiDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const identity = await tx.$queryRawUnsafe<{ role: string; pid: number }[]>("SELECT current_user AS role, pg_backend_pid() AS pid");
+      expect(identity[0]?.role).toBe("pdaa_api");
+      readerPid = identity[0]!.pid;
+      transactions++;
+      return operation(tx);
+    }, options as never) };
+  const api = new DatabaseProjectUpdateRepository(apiDatabase as never);
+  const counts = async () => Promise.all([
+    db.projectUpdateAssessment.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateObligation.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdatePreview.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateEngagement.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateStage.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateOutbox.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.auditEvent.count({ where: { customerId: f.customerId } }),
+  ]);
+  const beforeMissing = await counts();
+  const missing = await api.updateSuggestions(leader, f.projectId);
+  expect(missing).toMatchObject({ availability: "AVAILABLE", completeness: { state: "INCOMPLETE",
+    factAssessments: [expect.objectContaining({ state: "MISSING" })] } });
+  expect(await counts()).toEqual(beforeMissing);
+  const statement = await f.append(f.admin, [leader.subject, f.admin.subject]);
+  const beforeUnconfirmed = await counts();
+  const unconfirmed = await api.updateSuggestions(leader, f.projectId);
+  expect(unconfirmed).toMatchObject({ availability: "AVAILABLE", completeness: {
+    factAssessments: [expect.objectContaining({ state: "UNCONFIRMED", sourceAuthorityStatus: "NO_POLICY" })] } });
+  expect(await counts()).toEqual(beforeUnconfirmed);
+  await f.policy(31_536_000_000);
+  const beforeResolved = await counts();
+  const resolved = await api.updateSuggestions(leader, f.projectId);
+  expect(resolved).toMatchObject({ availability: "AVAILABLE", completeness: { state: "COMPLETE" },
+    freshness: { sourceDateField: "project.latestValidUpdateAt" },
+    evidence: [expect.objectContaining({ sourceId: statement.entry.sourceId, versionId: statement.entry.id })] });
+  expect(await counts()).toEqual(beforeResolved);
+  const access = await db.factSourceAccess.findFirstOrThrow({ where: {
+    customerId: f.customerId, projectId: f.projectId, sourceId: statement.entry.sourceId } });
+  let release!: () => void, locked!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const ready = new Promise<void>((resolve) => { locked = resolve; });
+  const gatedDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => operation(new Proxy(tx, { get(target, key) {
+      const value = Reflect.get(target, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const result = await Reflect.apply(value, target, args);
+        const sql = Array.isArray(args[0]) ? args[0].join("?") : "";
+        if (sql.includes('FROM "Project"') && sql.includes("FOR UPDATE")) { locked(); await gate; }
+        return result;
+      };
+      return typeof value === "function" ? value.bind(target) : value;
+    } })), options as never) };
+  const writer = new DatabaseProjectFactRepository(gatedDatabase as never).setSourceAccess(f.admin, {
+    projectId: f.projectId, sourceId: statement.entry.sourceId,
+    expectedRevision: access.revision, state: "AVAILABLE", readers: [f.admin.subject],
+  }, { correlationId: randomUUID() });
+  await Promise.race([ready, writer.then(() => { throw new Error("Writer exited before project lock"); })]);
+  const pending = api.updateSuggestions(leader, f.projectId);
+  const rejected = expect(pending).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  let observedWait = false;
+  try {
+    for (let attempt = 0; attempt < 100 && !observedWait; attempt++) {
+      const waiting = await db.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT count(*)::bigint AS count FROM pg_stat_activity WHERE datname=current_database() AND pid=$1
+         AND wait_event_type='Lock' AND query LIKE '%FROM public."Project"%' AND query LIKE '%FOR SHARE%'`, readerPid,
+      );
+      observedWait = Number(waiting[0]?.count ?? 0) > 0;
+      if (!observedWait) await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  } finally { release(); }
+  await writer;
+  await rejected;
+  expect(observedWait).toBe(true);
+  const beforeDenied = await counts();
+  await expect(api.updateSuggestions(leader, f.projectId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await counts()).toEqual(beforeDenied);
+  expect(transactions).toBe(5);
+});
+it.each([true, false])("reads committed policy and post-wait clock after a supported writer (previously configured: %s)", async (configured) => {
+  const f = await fixture(configured);
+  const leader: Actor = { customerId: f.customerId, subject: `update-policy-reader-${randomUUID()}`, roles: ["leadership"] };
+  await db.accessGrant.create({ data: { customerId: f.customerId, subject: leader.subject,
+    scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  let release!: () => void, locked!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const ready = new Promise<void>((resolve) => { locked = resolve; });
+  const gatedDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => operation(new Proxy(tx, { get(target, key) {
+      const value = Reflect.get(target, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const result = await Reflect.apply(value, target, args);
+        const sql = Array.isArray(args[0]) ? args[0].join("?") : "";
+        if (sql.includes('FROM "Project"') && sql.includes("FOR UPDATE")) { locked(); await gate; }
+        return result;
+      };
+      return typeof value === "function" ? value.bind(target) : value;
+    } })), options as never) };
+  const writer = new DatabaseProjectUpdateRepository(gatedDatabase as never).setPolicy(f.admin, f.projectId, {
+    expectedRevision: configured ? 1 : 0, freshnessWindowSeconds: 7200, timeZone: "UTC",
+    requiredFacts: [{ factType: "project.forecast", label: "Forecast" }], responsibleSubject: "synthetic-owner-4",
+    scheduledScanEnabled: false, reminderBusinessDayOffsets: [], escalationAfterBusinessDays: 0,
+    escalationRecipientSubject: null, quietHoursStartLocal: null, quietHoursEndLocal: null,
+  }, randomUUID());
+  await Promise.race([ready, writer.then(() => { throw new Error("Policy writer exited before locking"); })]);
+  let readerPid = 0;
+  const apiDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const rows = await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid");
+      readerPid = rows[0]!.pid;
+      return operation(tx);
+    }, options as never) };
+  const pending = new DatabaseProjectUpdateRepository(apiDatabase as never).updateSuggestions(leader, f.projectId);
+  let observedWait = false;
+  try {
+    for (let attempt = 0; attempt < 100 && !observedWait; attempt++) {
+      const waiting = await db.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT count(*)::bigint AS count FROM pg_stat_activity WHERE datname=current_database() AND pid=$1
+         AND wait_event_type='Lock' AND query LIKE '%FROM public."Project"%' AND query LIKE '%FOR SHARE%'`, readerPid,
+      );
+      observedWait = Number(waiting[0]?.count ?? 0) > 0;
+      if (!observedWait) await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  } finally { release(); }
+  const changed = await writer;
+  const result = await pending;
+  expect(observedWait).toBe(true);
+  expect(result).toMatchObject({ availability: "AVAILABLE", policyRevision: configured ? 2 : 1,
+    completeness: { factAssessments: [expect.objectContaining({ factType: "project.forecast", state: "MISSING" })] } });
+  expect(Date.parse(result.asOf)).toBeGreaterThanOrEqual(Date.parse(changed.changedAt));
+});
+it("denies after a concurrent qualifying grant revocation commits", async () => {
+  const f = await fixture();
+  const leader: Actor = { customerId: f.customerId, subject: `update-grant-reader-${randomUUID()}`, roles: ["leadership"] };
+  await db.accessGrant.create({ data: { customerId: f.customerId, subject: leader.subject,
+    scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  let release!: () => void, locked!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const ready = new Promise<void>((resolve) => { locked = resolve; });
+  const writer = db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe('DELETE FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND "scopeType"=\'project\' AND "scopeId"=$3::uuid',
+      f.customerId, leader.subject, f.projectId);
+    locked();
+    await gate;
+  }, { timeout: 20000 });
+  await Promise.race([ready, writer.then(() => { throw new Error("Grant writer exited before locking"); })]);
+  let readerPid = 0;
+  const apiDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const rows = await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid");
+      readerPid = rows[0]!.pid;
+      return operation(tx);
+    }, options as never) };
+  const pending = new DatabaseProjectUpdateRepository(apiDatabase as never).updateSuggestions(leader, f.projectId);
+  const denied = expect(pending).rejects.toMatchObject({ code: "DENIED" });
+  let observedWait = false;
+  try {
+    for (let attempt = 0; attempt < 100 && !observedWait; attempt++) {
+      const waiting = await db.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT count(*)::bigint AS count FROM pg_stat_activity WHERE datname=current_database() AND pid=$1
+         AND wait_event_type='Lock' AND query LIKE '%FROM public."AccessGrant"%' AND query LIKE '%FOR SHARE%'`, readerPid,
+      );
+      observedWait = Number(waiting[0]?.count ?? 0) > 0;
+      if (!observedWait) await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  } finally { release(); }
+  await writer;
+  await denied;
+  expect(observedWait).toBe(true);
+});
+it("reports an accessible conflict without persisting prepared authority results", async () => {
+  const f = await fixture();
+  const leader: Actor = { customerId: f.customerId, subject: `update-conflict-reader-${randomUUID()}`, roles: ["leadership"] };
+  await db.accessGrant.create({ data: { customerId: f.customerId, subject: leader.subject,
+    scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  await f.append(f.admin, [f.admin.subject, leader.subject], "First authorized value");
+  await f.append(f.writer, [f.admin.subject, leader.subject, f.writer.subject], "Different authorized value");
+  await f.policy(31_536_000_000);
+  const counts = async () => Promise.all([
+    db.factAuthorityConflict.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.factAssessment.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectFact.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectFactVersion.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.factEvidence.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateAssessment.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateObligation.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdatePreview.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateEngagement.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateStage.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateOutbox.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.auditEvent.count({ where: { customerId: f.customerId } }),
+  ]);
+  const apiDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) };
+  const before = await counts();
+  expect(before[0]).toBe(0);
+  const result = await new DatabaseProjectUpdateRepository(apiDatabase as never).updateSuggestions(leader, f.projectId);
+  expect(result).toMatchObject({ availability: "AVAILABLE", completeness: { factAssessments: [
+    expect.objectContaining({ state: "UNCONFIRMED", sourceAuthorityStatus: "CONFLICTING", conflict: "CONFLICTING" }),
+  ] } });
+  expect(JSON.stringify(result)).not.toContain("First authorized value");
+  expect(JSON.stringify(result)).not.toContain("Different authorized value");
+  expect(await counts()).toEqual(before);
+});
+it("accepts 1000 versions across two facts and fails closed at 1001 without writes", async () => {
+  const f = await fixture();
+  const leader: Actor = { customerId: f.customerId, subject: `update-budget-reader-${randomUUID()}`, roles: ["leadership"] };
+  await db.accessGrant.create({ data: { customerId: f.customerId, subject: leader.subject,
+    scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  const first = await f.append(f.admin, [f.admin.subject, leader.subject]);
+  await f.policy(31_536_000_000);
+  const fact = await db.projectFact.findFirstOrThrow({ where: { customerId: f.customerId, projectId: f.projectId, factType: f.factType } });
+  const evidence = await db.factEvidence.findUniqueOrThrow({ where: { id: first.entry.evidenceId } });
+  const secondType = "project.forecast";
+  const second = await f.facts.appendHumanStatement(f.admin, {
+    projectId: f.projectId, factType: secondType, expectedRevision: 0, idempotencyKey: randomUUID(),
+    effectiveAt: evidence.observedAt.toISOString(), value: { type: "text", value: "Private completeness value" },
+    originalStatement: "Synthetic budget statement", validUntil: null,
+  }, { correlationId: randomUUID() });
+  await f.facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: second.entry.sourceId,
+    expectedRevision: second.entry.sourceAccessRevision, state: "AVAILABLE", readers: [f.admin.subject, leader.subject] },
+    { correlationId: randomUUID() });
+  await f.authority.appendPolicy(f.admin, {
+    projectId: f.projectId, factType: secondType, expectedRevision: 0, idempotencyKey: randomUUID(),
+    effectiveAt: evidence.observedAt.toISOString(), definition: { tiers: [{ selectors: [{ sourceType: "human_statement",
+      instanceId: null, requiredApproval: "NOT_REQUIRED", validity: { basis: "observedAt", durationMs: 31_536_000_000 } }] }],
+      conflictBehavior: "REQUEST_RECONCILIATION" },
+  }, { correlationId: randomUUID() });
+  await f.updates.setPolicy(f.admin, f.projectId, { expectedRevision: 1, freshnessWindowSeconds: 1, timeZone: "UTC",
+    requiredFacts: [{ factType: f.factType, label: "Current status" }, { factType: secondType, label: "Forecast" }],
+    responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false, reminderBusinessDayOffsets: [],
+    escalationAfterBusinessDays: 0, escalationRecipientSubject: null, quietHoursStartLocal: null, quietHoursEndLocal: null,
+  }, randomUUID());
+  const secondFact = await db.projectFact.findFirstOrThrow({ where: { customerId: f.customerId, projectId: f.projectId, factType: secondType } });
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION pg_temp.append_update_budget(fid uuid) RETURNS void LANGUAGE plpgsql AS $$
+      DECLARE item record; next_revision integer;
+      BEGIN
+        SELECT revision+1 INTO next_revision FROM public."ProjectFact" WHERE id=fid;
+        FOR item IN SELECT e.* FROM public."FactEvidence" e WHERE e."factId"=fid
+          AND NOT EXISTS (SELECT 1 FROM public."ProjectFactVersion" v WHERE v."evidenceId"=e.id)
+          ORDER BY e."observedAt",e.id LOOP
+          INSERT INTO public."ProjectFactVersion" (id,"customerId","projectId","factId","sourceId","evidenceId",revision,value,"effectiveAt","validUntil")
+          VALUES (gen_random_uuid(),item."customerId",item."projectId",item."factId",item."sourceId",item.id,next_revision,
+            jsonb_build_object('type','text','value','Private completeness value'),item."observedAt",NULL);
+          next_revision:=next_revision+1;
+        END LOOP;
+      END $$`);
+    for (const item of [{ factId: fact.id, sourceId: first.entry.sourceId }, { factId: secondFact.id, sourceId: second.entry.sourceId }]) {
+      await tx.$executeRaw`
+        INSERT INTO "FactEvidence" (id,"customerId","projectId","factId","sourceId","providedBy","observedAt","originalStatement")
+        SELECT gen_random_uuid(),${f.customerId}::uuid,${f.projectId}::uuid,${item.factId}::uuid,${item.sourceId}::uuid,
+          ${f.admin.subject},${evidence.observedAt},'Synthetic budget evidence' FROM generate_series(2,500)`;
+      await tx.$executeRaw`SELECT pg_temp.append_update_budget(${item.factId}::uuid)`;
+    }
+  }, { timeout: 60000 });
+  const apiDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) };
+  const api = new DatabaseProjectUpdateRepository(apiDatabase as never);
+  const before = await db.factAssessment.count({ where: { customerId: f.customerId, projectId: f.projectId } });
+  const bounded = await api.updateSuggestions(leader, f.projectId);
+  expect(bounded).toMatchObject({ availability: "AVAILABLE", completeness: { factAssessments: expect.arrayContaining([
+    expect.objectContaining({ factType: f.factType, canonicalVersionCount: 500 }),
+    expect.objectContaining({ factType: secondType, canonicalVersionCount: 500 }),
+  ]) } });
+  expect(await db.factAssessment.count({ where: { customerId: f.customerId, projectId: f.projectId } })).toBe(before);
+  await f.append(f.admin, [f.admin.subject, leader.subject]);
+  const counts = await Promise.all([
+    db.factAssessment.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.factAuthorityConflict.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateAssessment.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.auditEvent.count({ where: { customerId: f.customerId } }),
+  ]);
+  await expect(api.updateSuggestions(leader, f.projectId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await Promise.all([
+    db.factAssessment.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.factAuthorityConflict.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.projectUpdateAssessment.count({ where: { customerId: f.customerId, projectId: f.projectId } }),
+    db.auditEvent.count({ where: { customerId: f.customerId } }),
+  ])).toEqual(counts);
+}, 120000);
 async function assertUnresolved(
   f: Fixture,
   count: number,

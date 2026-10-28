@@ -5,8 +5,10 @@ import type { ProjectUpdateEngagementView } from "./project-update-engagement.js
 import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "./project-update-capture.js";
 import type { ProjectUpdatePolicyView, ProjectUpdatePolicyChange, ProjectUpdateAssessmentView } from "./project-updates.js";
 import type { ProjectUpdateSchedulePreview } from "./project-update-schedule.js";
+import type { UpdateAdviceSnapshot } from "./update-advice.js";
 
 export interface ProjectUpdateRepository {
+  updateSuggestions(actor: Actor, projectId: string): Promise<UpdateAdviceSnapshot>;
   policy(actor: Actor, projectId: string): Promise<ProjectUpdatePolicyView | null>;
   setPolicy(actor: Actor, projectId: string, change: ProjectUpdatePolicyChange, correlationId: string): Promise<ProjectUpdatePolicyView>;
   assess(actor: Actor, projectId: string, correlationId: string): Promise<ProjectUpdateAssessmentView>;

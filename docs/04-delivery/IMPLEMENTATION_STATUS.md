@@ -31,6 +31,19 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+EXEC-022 merged in [PR #116](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/116).
+The exact reviewed head `2a36e73ebc305b37775429d737971f6486f012d4` passed
+Foundation 40450378096 and Documentation 40450377945. Merge
+`e8e39eb90b3767db8595f63609ba4e4984d69f0d` has ordered parents
+`d2da89c2dfb69591eb9651909f7d35ec1276543e` and the reviewed head, and tree
+`37779d2c7c1ca3700a0a3708fe45d0b87891d80d`. Actual post-merge Foundation
+40721016115 and Documentation 40721016195 passed. This adds a current authorized,
+schedule-only suggestion view and targeted dependency remediation; it does not
+accept Issue #11 or an additional story. The five release holds remain open.
+Original19/20 research capture remains stopped. See the
+[plan](exec-plans/EXEC-022-authorized-schedule-suggestions.md) and
+[validation](../05-quality/SCHEDULE_SUGGESTIONS_VALIDATION.md).
+
 EXEC-020 merged in [PR #114](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/114), adding current authorized request history to the named PM's existing
 escalation invitation. Independent design review approved the bounded projection;
 focused 41 unit and current 13 native tests pass, including real same-engagement

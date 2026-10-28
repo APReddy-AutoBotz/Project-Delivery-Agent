@@ -30,6 +30,7 @@ type Request = {
 };
 export const PROJECT_UPDATE_REPOSITORY = "PROJECT_UPDATE_REPOSITORY";
 export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
+  async updateSuggestions() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async policy() { return null; },
   async setPolicy() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async assess() { throw new ProjectUpdateError("UNAVAILABLE"); },
@@ -94,6 +95,13 @@ export class ProjectUpdateController {
     const actor = await this.actor(req);
     const id = this.projectId(rawId);
     return this.run(() => this.repository.policy(actor, id));
+  }
+
+  @Get("update-suggestions")
+  async updateSuggestions(@Req() req: Request, @Param("id") rawId: string) {
+    const actor = await this.actor(req);
+    const id = this.projectId(rawId);
+    return this.run(() => this.repository.updateSuggestions(actor, id));
   }
 
   @Post("project-update-policy")

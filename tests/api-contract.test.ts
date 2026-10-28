@@ -17,6 +17,7 @@ import {
 } from "../packages/platform/dist/index.js";
 import {
   buildScheduleAdviceSnapshot,
+  buildUpdateAdviceSnapshot,
   projectUpdateAssessmentViewSchema,
   projectUpdatePolicyViewSchema,
   projectUpdateSchedulePreviewSchema,
@@ -409,6 +410,9 @@ const projectUpdateScheduleFixture = projectUpdateSchedulePreviewSchema.parse({
   }],
 });
 const projectUpdateRepository: ProjectUpdateRepository = {
+  updateSuggestions: vi.fn(async () => ({ availability: "UNCONFIGURED" as const,
+    asOf: "2026-10-21T11:00:00.000Z", projectId: project.id, audience: "project_manager" as const,
+    approvalItems: "UNAVAILABLE" as const })),
   policy: vi.fn(async () => projectUpdatePolicyFixture),
   setPolicy: vi.fn(async (_actor, _projectId, change) => ({
     ...projectUpdatePolicyFixture,
@@ -684,6 +688,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     manager,
   );
   await request(`/api/projects/${project.id}/delivery-suggestions`, 200, manager);
+  await request(`/api/projects/${project.id}/update-suggestions`, 200, manager);
   await request(
     "/api/projects/" + project.id + "/health-assessments",
     201,
@@ -865,7 +870,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(63);
+  expect(covered.size).toBe(64);
   assertContractSnapshot(
     spec,
     JSON.parse(
@@ -884,6 +889,30 @@ it("EXEC-022: suggestions require authentication and keep scope denials private"
     new HealthAssessmentError("UNAVAILABLE"),
   );
   await request(path, 503, manager);
+});
+it("EXEC-023: update suggestions require authentication and keep denial and unavailability private", async () => {
+  const path = `/api/projects/${project.id}/update-suggestions`;
+  await request(path, 401);
+  vi.mocked(projectUpdateRepository.updateSuggestions).mockRejectedValueOnce(new ProjectUpdateError("DENIED"));
+  await request(path, 404, manager);
+  vi.mocked(projectUpdateRepository.updateSuggestions).mockRejectedValueOnce(new ProjectUpdateError("UNAVAILABLE"));
+  await request(path, 503, manager);
+});
+it("EXEC-023: the serialized available observation and suggestion match the published contract", async () => {
+  const available = buildUpdateAdviceSnapshot({
+    asOf: projectUpdateAssessmentFixture.assessedAt, projectId: project.id, audience: "project_manager", policyRevision: 1,
+    completeness: projectUpdateAssessmentFixture.completeness,
+    freshness: { ...projectUpdateAssessmentFixture.freshness, state: "STALE", sourceDateField: "project.latestValidUpdateAt",
+      sourceDate: "2026-09-26T00:00:00.000Z", ageMilliseconds: 86400000, exceededByMilliseconds: 82800000 },
+    evidence: [{ factId: "40000000-0000-4000-8000-000000000001", factType: "project.forecast",
+      versionId: "50000000-0000-4000-8000-000000000001", evidenceId: "60000000-0000-4000-8000-000000000001",
+      sourceId: "70000000-0000-4000-8000-000000000001", sourceAccessRevision: 1, authorityRevision: 1,
+      observedAt: "2026-09-26T00:00:00.000Z", effectiveAt: "2026-09-26T00:00:00.000Z", timestampBasis: "HUMAN_OBSERVED_AT" }],
+  });
+  vi.mocked(projectUpdateRepository.updateSuggestions).mockResolvedValueOnce(available);
+  const result = await request(`/api/projects/${project.id}/update-suggestions`, 200, manager);
+  expect(result).toMatchObject({ availability: "AVAILABLE", evidence: [expect.objectContaining({ timestampBasis: "HUMAN_OBSERVED_AT" })],
+    suggestion: { category: "UPDATE_FOLLOW_UP" } });
 });
 
 it("NFR-SEC-001: administrator-only endpoints require the PMO administrator role", async () => {

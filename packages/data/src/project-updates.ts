@@ -2,6 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   deriveProjectUpdateSourceSatisfaction,
+  buildUpdateAdviceSnapshot,
+  updateAdviceSnapshotSchema,
   projectUpdateCaptureConfigurationSchema, projectUpdateInvitationLocatorSchema,
   projectUpdateCaptureGenerationSchema,
   projectUpdateResponseSubmissionSchema, projectUpdateRecipientRequestViewSchema,
@@ -376,6 +378,68 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     });
   }
 
+  // EXEC-023: current, authorized read only; no assessment or workflow writes.
+  async updateSuggestions(actorValue: Actor, projectValue: string) {
+    const current = parseActor(actorValue), id = parseProjectId(projectValue);
+    try { return await this.transaction(async (tx) => {
+      const projects = await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR SHARE',
+        current.customerId, id,
+      );
+      if (!projects[0]) throw new ProjectUpdateError("DENIED");
+      const scope = await tx.$queryRawUnsafe<{ portfolioId: string }[]>(
+        'SELECT "portfolioId" FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid',
+        current.customerId, id,
+      );
+      if (!scope[0]) throw new ProjectUpdateError("DENIED");
+      const grants = await tx.$queryRawUnsafe<{ role: string }[]>(
+        'SELECT role FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND (("scopeType"=\'portfolio\' AND "scopeId"=$3::uuid) OR ("scopeType"=\'project\' AND "scopeId"=$4::uuid)) ORDER BY id FOR SHARE',
+        current.customerId, current.subject, scope[0].portfolioId, id,
+      );
+      const canonical = await tx.$queryRawUnsafe<{ sealed: boolean }[]>(
+        'SELECT sealed FROM public."CanonicalProject" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR SHARE',
+        current.customerId, id,
+      );
+      const assignments = await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'PROJECT_MANAGER\' AND subject=$3 ORDER BY id LIMIT 1',
+        current.customerId, id, current.subject,
+      );
+      const isPm = current.roles.includes("project_manager") &&
+        grants.some((grant) => grant.role === "project_manager") && canonical[0]?.sealed === true && assignments.length === 1;
+      const isLeadership = current.roles.includes("leadership") && grants.some((grant) => grant.role === "leadership");
+      if (!isPm && !isLeadership) throw new ProjectUpdateError("DENIED");
+      if (canonical[0] && !canonical[0].sealed) throw new ProjectUpdateError("UNAVAILABLE");
+      const audience = isPm ? "project_manager" : "leadership";
+      const head = await tx.$queryRawUnsafe<{ revision: number }[]>(
+        'SELECT revision FROM public."ProjectUpdatePolicy" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND key=\'project-update\' FOR SHARE',
+        current.customerId, id,
+      );
+      if (!head[0]) return updateAdviceSnapshotSchema.parse({
+        availability: "UNCONFIGURED", asOf: iso(await this.now(tx)), projectId: id,
+        audience, approvalItems: "UNAVAILABLE",
+      });
+      const policy = await this.loadPolicy(tx, current.customerId, id);
+      if (!policy || policy.revision !== head[0].revision) throw new ProjectUpdateError("UNAVAILABLE");
+      const project = await this.loadProject(tx, current.customerId, id);
+      const requiredFacts = policyFacts(policy.requiredFacts);
+      const facts = await tx.$queryRawUnsafe<FactRow[]>(
+        'SELECT id,"factType",revision FROM public."ProjectFact" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factType"=ANY($3::text[]) ORDER BY "factType",id FOR SHARE',
+        current.customerId, id, requiredFacts.map((fact) => fact.factType),
+      );
+      const asOf = await this.now(tx);
+      const result = await this.prepareUpdateObservation(tx, current, id, project, policy, requiredFacts, asOf, facts, true);
+      return buildUpdateAdviceSnapshot({
+        asOf: iso(asOf), projectId: id, audience, policyRevision: policy.revision,
+        completeness: result.completeness, freshness: result.freshnessAssessment.freshness,
+        evidence: result.evidence,
+      });
+    }, "ReadCommitted"); } catch (error) {
+      if (error instanceof ProjectUpdateError && error.code === "CONFLICT")
+        throw new ProjectUpdateError("UNAVAILABLE");
+      throw error;
+    }
+  }
+
   private reassessmentItem(row: ReassessmentCause): IngestionReassessmentItem {
     return ingestionReassessmentItemSchema.parse({
       id: row.id, sourceId: row.sourceId, receiptId: row.receiptId, projectId: row.projectId,
@@ -550,29 +614,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return rows[0] ?? null;
   }
 
-  private async assessInTransaction(tx: Tx, current: Actor, id: string, correlationId: string, scheduled: boolean): Promise<PreparedUpdate> {
-      // Match source append/configuration lock order before taking shared fact locks.
-      const locked = await tx.$queryRawUnsafe<{ id: string }[]>(
-        'SELECT id FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR UPDATE',
-        current.customerId, id,
-      );
-      if (!locked[0]) throw new ProjectUpdateError("DENIED");
-      await this.authorize(tx, current, id, scheduled);
-      const project = await this.loadProject(tx, current.customerId, id);
-      const policy = await this.loadPolicy(tx, current.customerId, id, true);
-      if (!policy) throw new ProjectUpdateError("CONFLICT");
-      if (scheduled &&
-        (!policy.scheduledScanEnabled ||
-         policy.scheduledServiceSubject !== current.subject ||
-         !this.serviceSubject ||
-         this.serviceSubject !== current.subject))
-        throw new ProjectUpdateError("DENIED");
-      const requiredFacts = policyFacts(policy.requiredFacts);
-      const asOf = await this.now(tx);
-      const facts = await tx.$queryRawUnsafe<FactRow[]>(
-        'SELECT id,"factType",revision FROM public."ProjectFact" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factType"=ANY($3::text[]) ORDER BY "factType",id FOR SHARE',
-        current.customerId, id, requiredFacts.map((fact) => fact.factType),
-      );
+  private async prepareUpdateObservation(
+    tx: Tx, current: Actor, id: string, project: ProjectRow, policy: PolicyRow,
+    requiredFacts: ReturnType<typeof policyFacts>, asOf: Date, facts: FactRow[],
+    strictRead = false,
+  ) {
       const factByType = new Map(facts.map((fact) => [fact.factType, fact]));
       const prefixes = facts.length
         ? await this.authority.loadAssessmentPrefixesInTransaction(tx, current, id, facts, asOf)
@@ -604,11 +650,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           });
           continue;
         }
+        const prefix = prefixes.get(fact.id);
+        if (strictRead && !prefix) throw new ProjectUpdateError("UNAVAILABLE");
         const prepared = await this.authority.prepareAssessmentInTransaction(tx, current, {
           projectId: id,
           fact,
           asOf,
-          prefix: prefixes.get(fact.id),
+          prefix,
         });
         const resolved = prepared.result as unknown as Resolution;
         const statuses = new Set([
@@ -618,6 +666,15 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         const status = statuses.has(resolved.status)
           ? resolved.status as typeof factAssessments[number]["sourceAuthorityStatus"]
           : "INCOMPLETE";
+        if (strictRead && (
+          !prepared.complete || status === "INCOMPLETE" || status === "REVALIDATION_REQUIRED" ||
+          resolved.versions.some((version) => version.visibility !== "available") ||
+          prepared.versions.some((version) => {
+            const access = prepared.access.find((item) => item.sourceId === version.sourceId);
+            return !access || access.state !== "AVAILABLE" ||
+              !access.readers.some((reader) => reader.subject === current.subject);
+          })
+        )) throw new ProjectUpdateError("UNAVAILABLE");
         check.sourceState = "UNKNOWN";
         // Evidence may exist without an eligible authority selection. Count only
         // currently readable assessed versions, never restricted database history.
@@ -693,7 +750,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
             timestampBasis,
           };
           evidence.push(reference);
-          knownPosition.push({
+          if (!strictRead) knownPosition.push({
             factType: requirement.factType,
             label: requirement.label,
             value: knownPositionValue(version.value),
@@ -753,6 +810,36 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           requiredFacts,
         },
       });
+      return { source, completeness, allTrusted, evidence, knownPosition,
+        latestValidUpdateAt, freshnessThresholdAt, freshnessAssessment };
+  }
+
+  private async assessInTransaction(tx: Tx, current: Actor, id: string, correlationId: string, scheduled: boolean): Promise<PreparedUpdate> {
+      // Match source append/configuration lock order before taking shared fact locks.
+      const locked = await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR UPDATE',
+        current.customerId, id,
+      );
+      if (!locked[0]) throw new ProjectUpdateError("DENIED");
+      await this.authorize(tx, current, id, scheduled);
+      const project = await this.loadProject(tx, current.customerId, id);
+      const policy = await this.loadPolicy(tx, current.customerId, id, true);
+      if (!policy) throw new ProjectUpdateError("CONFLICT");
+      if (scheduled &&
+        (!policy.scheduledScanEnabled ||
+         policy.scheduledServiceSubject !== current.subject ||
+         !this.serviceSubject ||
+         this.serviceSubject !== current.subject))
+        throw new ProjectUpdateError("DENIED");
+      const requiredFacts = policyFacts(policy.requiredFacts);
+      const asOf = await this.now(tx);
+      const facts = await tx.$queryRawUnsafe<FactRow[]>(
+        'SELECT id,"factType",revision FROM public."ProjectFact" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factType"=ANY($3::text[]) ORDER BY "factType",id FOR SHARE',
+        current.customerId, id, requiredFacts.map((fact) => fact.factType),
+      );
+      const { source, completeness, allTrusted, evidence, knownPosition,
+        latestValidUpdateAt, freshnessThresholdAt, freshnessAssessment } =
+        await this.prepareUpdateObservation(tx, current, id, project, policy, requiredFacts, asOf, facts);
       const sourceDate = freshnessAssessment.freshness.sourceDate;
       const sourceDateTime = datesFromJson(sourceDate);
       if (!sourceDateTime) throw new ProjectUpdateError("UNAVAILABLE");
