@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   canonicalActorSchema,
   buildScheduleHealthAssessment,
+  buildScheduleAdviceSnapshot,
   healthAssessmentCommandSchema,
   healthAssessmentRetentionPolicySchema,
   healthAssessmentRetentionViewSchema,
@@ -586,6 +587,79 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         ? await this.sourcesReadable(tx, current, id, row.input)
         : false;
       return toView(row, false, contentAvailable && sourcesAvailable);
+    });
+  }
+  // EXEC-022 / FR-ADV-001/006/007: rebuild a single schedule-only snapshot
+  // from current authorized rows. This read does not create an assessment.
+  async scheduleSuggestions(currentValue: Actor, idValue: string) {
+    const current = actor(currentValue);
+    const id = projectId(idValue);
+    return this.transaction(async (tx) => {
+      await this.authorizeProject(tx, current, id);
+      const projects = await tx.$queryRawUnsafe<{ portfolioId: string; reportedStatus: string }[]>(
+        'SELECT "portfolioId","reportedStatus" FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid',
+        current.customerId, id,
+      );
+      const project = projects[0];
+      if (!project) throw new HealthAssessmentError("DENIED");
+      const grants = await tx.$queryRawUnsafe<{ role: string }[]>(
+        'SELECT role FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND (("scopeType"=\'portfolio\' AND "scopeId"=$3::uuid) OR ("scopeType"=\'project\' AND "scopeId"=$4::uuid)) ORDER BY id FOR SHARE',
+        current.customerId, current.subject, project.portfolioId, id,
+      );
+      // Responsibilities belong to a sealed immutable graph; Project SHARE
+      // prevents a concurrent graph birth without requiring child UPDATE rights.
+      const assignments = await tx.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id FROM public."ProjectResponsibility" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND role=\'PROJECT_MANAGER\' AND subject=$3 ORDER BY id LIMIT 1',
+        current.customerId, id, current.subject,
+      );
+      const isPm = current.roles.includes("project_manager") &&
+        grants.some((grant) => grant.role === "project_manager") && assignments.length === 1;
+      const isLeadership = current.roles.includes("leadership") &&
+        grants.some((grant) => grant.role === "leadership");
+      if (!isPm && !isLeadership) throw new HealthAssessmentError("DENIED");
+
+      await tx.$queryRawUnsafe(
+        "SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0)) IS NULL AS locked",
+        "schedule-health-policy:" + current.customerId + ":" + id,
+      );
+      const policy = await this.readScheduleHealthPolicy(tx, current.customerId, id);
+      const canonical = await tx.$queryRawUnsafe<{ revision: number; sealed: boolean }[]>(
+        'SELECT revision,sealed FROM public."CanonicalProject" WHERE id=$1::uuid AND "customerId"=$2::uuid FOR SHARE',
+        id, current.customerId,
+      );
+      if (canonical[0] && !canonical[0].sealed) throw new HealthAssessmentError("UNAVAILABLE");
+      // Sealed canonical children are immutable; their parent is locked above.
+      // The API role has SELECT, not UPDATE, on these child tables.
+      const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT 51';
+      type ScheduleRow = { id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null };
+      const milestones = canonical[0]
+        ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id)
+        : [];
+      const workItems = canonical[0]
+        ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"WorkItem"'), current.customerId, id)
+        : [];
+      if (milestones.length > 50 || workItems.length > 50) throw new HealthAssessmentError("UNAVAILABLE");
+      const asOf = (await this.now(tx)).toISOString();
+      const date = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null;
+      const convert = (row: ScheduleRow) => ({ ...row, forecastEnd: date(row.forecastEnd), plannedEnd: date(row.plannedEnd) });
+      return buildScheduleAdviceSnapshot({
+        asOf,
+        recipient: { subject: current.subject, audience: isPm ? "project_manager" : "leadership" },
+        snapshot: {
+          projectId: id,
+          projectRevision: canonical[0]?.revision ?? null,
+          reportedStatus: project.reportedStatus,
+          assessedAt: asOf,
+          scheduleHealthPolicy: {
+            revision: policy.revision,
+            timeZone: policy.timeZone,
+            defaultMinimumOverdueDays: policy.defaultMinimumOverdueDays,
+            targetOverrides: policy.targetOverrides,
+          },
+          milestones: milestones.map(convert),
+          workItems: workItems.map(convert),
+        },
+      });
     });
   }
   async retention(currentValue: Actor) {

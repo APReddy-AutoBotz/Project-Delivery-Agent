@@ -10,12 +10,19 @@
   },
   {
     "name": "multer",
-    "version": "2.3.0",
-    "reason": "NestJS runtime dependency: publisher security release addressing GHSA-wc9g-mqfw-jrwm, GHSA-qfvm-cv95-jqjf and GHSA-535w-7cp7-47q4; configure fieldArrayIndexLimit before any future multipart route",
+    "version": "2.5.0",
+    "reason": "NestJS runtime dependency: publisher security update addressing GHSA-q7qp-rjg7-q26m and earlier advisories; preserve CSV multipart limits",
     "runtime": true,
     "consumers": [
       "@pdaa/api via @nestjs/platform-express"
     ]
+  },
+  {
+    "name": "body-parser",
+    "version": "2.4.0",
+    "reason": "Express runtime dependency: publisher security update addressing GHSA-27r3-jxmh-p828",
+    "runtime": true,
+    "consumers": ["@pdaa/api via Express"]
   },
   {
     "name": "mysql2",

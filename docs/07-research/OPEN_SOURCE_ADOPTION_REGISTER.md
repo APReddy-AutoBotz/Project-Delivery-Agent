@@ -82,12 +82,22 @@ package bytes and MIT notice remain unmodified; Node engine and runtime dependen
 ranges are unchanged. The controller owns maintenance. Replace this override when
 NestJS adopts a reviewed patched version, with fresh audit and packaged acceptance.
 
-The current API has no multipart route or Multer interceptor. The new
-fieldArrayIndexLimit control is opt-in: any future multipart implementation must
-set explicit field/array/file limits and validate abort/error behavior. This
-dependency update and an audit pass do not authorize an upload feature or prove
-arbitrary multipart configurations safe. Exact metadata and ownership are recorded
-in DEPENDENCIES.json and DEPENDENCY_OVERRIDES.json.
+At the 2026-09-09 review the API had no multipart route. It now has a CSV upload
+route with explicit field, part and file limits. The fieldArrayIndexLimit control
+is opt-in. A dependency update and an audit pass do not prove arbitrary multipart
+configurations safe. Exact metadata and ownership are recorded in
+DEPENDENCIES.json and DEPENDENCY_OVERRIDES.json.
+
+The 2026-10-27 candidate proposes published MIT packages Zod 4.6.6,
+body-parser 2.4.0 and Multer 2.5.0 to address [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5),
+[GHSA-27r3-jxmh-p828](https://github.com/advisories/GHSA-27r3-jxmh-p828) and
+[GHSA-q7qp-rjg7-q26m](https://github.com/advisories/GHSA-q7qp-rjg7-q26m).
+The latter two are exact transitive overrides, subject to compatibility checks and
+replacement when upstream dependencies adopt reviewed patched versions. Preserve
+the prior CSV and request-encoding boundaries. Npm integrity identifies published
+package bytes; Zod's [release notes](https://github.com/colinhacks/zod/releases/tag/v4.6.6)
+describe its separate Git and npm provenance identities. Full image, license,
+vulnerability and signing review remain release gates.
 
 Go 1.26.8 (BSD-3-Clause) is approved for the foundation Caddy build under the
 delegated permissive-license policy on 2026-09-07. It replaces the embedded Go
@@ -144,7 +154,7 @@ Exact direct dependencies verified against publisher metadata on 2026-09-06. Run
 | [typescript-eslint](https://registry.npmjs.org/typescript-eslint/8.69.0)                   | 8.69.0  | MIT          | Development |
 | [vite](https://registry.npmjs.org/vite/7.3.7)                                              | 7.3.7   | MIT          | Development |
 | [vitest](https://registry.npmjs.org/vitest/4.1.11)                                         | 4.1.11  | MIT          | Development |
-| [zod](https://registry.npmjs.org/zod/4.5.4)                                                | 4.5.4   | MIT          | Runtime     |
+| [zod](https://registry.npmjs.org/zod/4.6.6)                                                | 4.6.6   | MIT          | Runtime     |
 
 ## Web transfer-tool exclusion, 2026-09-08
 

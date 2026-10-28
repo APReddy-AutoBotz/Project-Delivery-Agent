@@ -19,7 +19,7 @@ import {
   scheduleHealthPolicyChangeSchema,
   projectFactIdSchema,
   type Actor,
-  type HealthAssessmentRepository,
+  type ScheduleAdviceHealthRepository,
 } from "@pdaa/domain";
 
 type Request = {
@@ -27,7 +27,8 @@ type Request = {
   correlationId: string;
 };
 export const HEALTH_ASSESSMENT_REPOSITORY = "HEALTH_ASSESSMENT_REPOSITORY";
-export const unavailableHealthAssessmentRepository: HealthAssessmentRepository = {
+export const unavailableHealthAssessmentRepository: ScheduleAdviceHealthRepository = {
+  async scheduleSuggestions() { throw new HealthAssessmentError("UNAVAILABLE"); },
   async create() { throw new HealthAssessmentError("UNAVAILABLE"); },
   async latest() { throw new HealthAssessmentError("UNAVAILABLE"); },
   async scheduleHealthPolicy() { throw new HealthAssessmentError("UNAVAILABLE"); },
@@ -43,7 +44,7 @@ export const unavailableHealthAssessmentRepository: HealthAssessmentRepository =
 export class HealthAssessmentController {
   constructor(
     @Inject(HEALTH_ASSESSMENT_REPOSITORY)
-    private readonly repository: HealthAssessmentRepository,
+    private readonly repository: ScheduleAdviceHealthRepository,
     @Inject(IdentityService) private readonly identity: IdentityService,
   ) {}
   private async actor(req: Request): Promise<Actor> {
@@ -92,6 +93,12 @@ export class HealthAssessmentController {
     const actor = await this.actor(req);
     if (!projectFactIdSchema.safeParse(id).success) throw new HttpException("", 404);
     return this.run(() => this.repository.latest(actor, id));
+  }
+  @Get("projects/:id/delivery-suggestions")
+  async scheduleSuggestions(@Req() req: Request, @Param("id") id: string) {
+    const actor = await this.actor(req);
+    if (!projectFactIdSchema.safeParse(id).success) throw new HttpException("", 404);
+    return this.run(() => this.repository.scheduleSuggestions(actor, id));
   }
   @Get("projects/:id/schedule-health-policy")
   async scheduleHealthPolicy(@Req() req: Request, @Param("id") id: string) {

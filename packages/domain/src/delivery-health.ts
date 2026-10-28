@@ -139,6 +139,9 @@ const signalSchema = z.strictObject({
   rule: signalRuleSchema,
   sourceFacts: z.array(sourceFactSchema).min(1).max(16),
 });
+export {
+  calculationRuleSchema as deliveryHealthCalculationRuleSchema,
+};
 const requestSchema = z.strictObject({
   projectId: z
     .uuid()
