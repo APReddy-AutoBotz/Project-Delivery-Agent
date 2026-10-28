@@ -271,6 +271,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
     return row.redactedAt === null &&
       deadline(row.contentExpiresAt, row.assessedAt, policy?.contentRetentionHours).getTime() > now.getTime();
   }
+  // Callers hold Project SHARE, which excludes supported source-reader changes.
   private async sourcesReadable(
     tx: Tx,
     current: Actor,
@@ -308,7 +309,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         values +
         ") AS p(\"factId\",\"sourceId\") ON p.\"factId\"=r.\"factId\" AND p.\"sourceId\"=r.\"sourceId\" WHERE r.\"customerId\"=$1::uuid AND r.\"projectId\"=$2::uuid AND r.subject=$" +
         readerParameter +
-        " ORDER BY r.\"factId\",r.\"sourceId\",r.subject FOR SHARE OF r",
+        " ORDER BY r.\"factId\",r.\"sourceId\",r.subject",
       current.customerId,
       projectId,
       ...parameters,
@@ -401,7 +402,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         id, current.customerId,
       );
       if (canonical[0] && !canonical[0].sealed) throw new HealthAssessmentError("UNAVAILABLE");
-      const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT 51 FOR SHARE';
+      const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT 51';
       const milestones = canonical[0]
         ? await tx.$queryRawUnsafe<{ id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null }[]>(
             rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id)
@@ -742,13 +743,13 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         .filter((item) => item.targetType === "WORK_ITEM")
         .map((item) => item.targetKey);
       const milestones = await tx.$queryRawUnsafe<{ key: string }[]>(
-        'SELECT key FROM public."Milestone" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND key=ANY($3::text[]) FOR SHARE',
+        'SELECT key FROM public."Milestone" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND key=ANY($3::text[])',
         current.customerId,
         id,
         milestoneKeys,
       );
       const workItems = await tx.$queryRawUnsafe<{ key: string }[]>(
-        'SELECT key FROM public."WorkItem" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND key=ANY($3::text[]) FOR SHARE',
+        'SELECT key FROM public."WorkItem" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND key=ANY($3::text[])',
         current.customerId,
         id,
         workItemKeys,

@@ -5,6 +5,14 @@ import { applyBusinessTableGrants } from "../packages/operations/src/business-gr
 // NFR-SEC-001, TR-STACK-005, FR-EVD-012: a no-ACL restore must rebuild the
 // reviewed finite function boundary. These contracts complement real role probes.
 type GrantClient = Parameters<typeof applyBusinessTableGrants>[0];
+
+it("restores the released blocker-age policy grant when business ACLs are reapplied", async () => {
+  const owner = client("pdaa_migrate");
+  await applyBusinessTableGrants(owner as unknown as GrantClient);
+  const sql = owner.query.mock.calls[2]![0] as string;
+  expect(sql).toContain('GRANT SELECT,INSERT,UPDATE ON "BlockerAgeThresholdPolicy" TO pdaa_api;');
+  expect(sql).not.toMatch(/GRANT[^;]*DELETE[^;]*"BlockerAgeThresholdPolicy"/);
+});
 function splitFunctionSignatures(value: string): string[] {
   const signatures: string[] = [];
   let depth = 0;
