@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-10-22
+Updated: 2026-10-28
 
 ## Accepted implementation completion
 
@@ -30,6 +30,30 @@ stories remain open; technical collection does not accept any of the five releas
 holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
+
+EXEC-023's project-scoped current update-information suggestions merged in
+[PR #118](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/118).
+The independently reviewed remote head `bbc2a23f4c6d05c52a42ce59f2741f2cff56f9c9`
+passed Foundation 40731831055 and Documentation 40731831369. Merge
+`6373eb4928a69f7a86ab1ab840d87206a7f0309e` has ordered parents
+`5b7bef21d6ec9761f584da3438ed5a8c44172903` and the reviewed head, and its tree
+`7f6f4753c991ff165e2864e08f1732e6e8395e39` matches that head. Actual post-merge
+Foundation 40736148988 and Documentation 40736149035 passed. This is a partial
+project view: the supported application does not publish a validated connector
+timestamp or a bound adapter receipt, and connector timestamp coverage is limited
+to controlled unit inputs. Issue #11 and story/release acceptance remain open.
+
+EXEC-024's health API-role compatibility correction merged in
+[PR #117](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/117).
+The reviewed head `05dab2cea7f17a3ba8eb5453f4ee52f12a1d9a90` passed Foundation
+40726837514 and Documentation 40726836266. Merge
+`5b7bef21d6ec9761f584da3438ed5a8c44172903` has ordered parents
+`e8e39eb90b3767db8595f63609ba4e4984d69f0d` and the reviewed head, and the same
+tree `be2c5665dc65e091a518b3f051040dd0baf917f1`. Actual post-merge Foundation
+40731347688 and Documentation 40731347660 passed. The isolated fixture observes a
+policy-lock wait without concurrently modifying that policy, and its reader
+revocation is sequential. This correction does not accept a criterion or story.
+The five release holds remain open, and Original19/20 capture stays stopped.
 
 EXEC-022 merged in [PR #116](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/116).
 The exact reviewed head `2a36e73ebc305b37775429d737971f6486f012d4` passed
