@@ -134,6 +134,7 @@ function empty(
   };
 }
 
+// The caller must hold Project SHARE before these bounded source reads.
 export async function buildBlockerAgeAssessmentInTransaction(
   tx: Tx,
   db: Database,
@@ -167,7 +168,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
   }
 
   const raids = await tx.$queryRawUnsafe<Raid[]>(
-    'SELECT id,key,kind,state FROM public."RaidItem" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND state IN (\'OPEN\',\'IN_PROGRESS\') ORDER BY id LIMIT 51 FOR SHARE',
+    'SELECT id,key,kind,state FROM public."RaidItem" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND state IN (\'OPEN\',\'IN_PROGRESS\') ORDER BY id LIMIT 51',
     actor.customerId,
     projectId,
   );
@@ -203,7 +204,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
   const factIds = facts.map((fact) => fact.id);
   const versionLocks = factIds.length
     ? await tx.$queryRawUnsafe<VersionLock[]>(
-        'SELECT id,"factId","sourceId" FROM public."ProjectFactVersion" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factId"=ANY($3::uuid[]) ORDER BY "factId",revision LIMIT 1001 FOR SHARE',
+        'SELECT id,"factId","sourceId" FROM public."ProjectFactVersion" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factId"=ANY($3::uuid[]) ORDER BY "factId",revision LIMIT 1001',
         actor.customerId,
         projectId,
         factIds,
@@ -211,7 +212,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
     : [];
   const conflictLocks = factIds.length
     ? await tx.$queryRawUnsafe<ConflictLock[]>(
-        'SELECT id FROM public."FactAuthorityConflict" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factId"=ANY($3::uuid[]) ORDER BY "factId",id LIMIT 1001 FOR SHARE',
+        'SELECT id FROM public."FactAuthorityConflict" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factId"=ANY($3::uuid[]) ORDER BY "factId",id LIMIT 1001',
         actor.customerId,
         projectId,
         factIds,
@@ -224,7 +225,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
     requestedTypes,
   );
   const policyRevisionLocks = await tx.$queryRawUnsafe<{ id: string }[]>(
-    'SELECT id FROM public."AuthorityPolicyRevision" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factType"=ANY($3::text[]) ORDER BY "factType",revision,id LIMIT 1001 FOR SHARE',
+    'SELECT id FROM public."AuthorityPolicyRevision" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factType"=ANY($3::text[]) ORDER BY "factType",revision,id LIMIT 1001',
     actor.customerId,
     projectId,
     requestedTypes,
@@ -239,7 +240,7 @@ export async function buildBlockerAgeAssessmentInTransaction(
       sourceIds,
     );
     await tx.$queryRawUnsafe(
-      'SELECT "factId","sourceId",subject FROM public."FactSourceReader" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factId"=ANY($3::uuid[]) AND "sourceId"=ANY($4::uuid[]) AND subject=$5 ORDER BY "factId","sourceId",subject FOR SHARE',
+      'SELECT "factId","sourceId",subject FROM public."FactSourceReader" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factId"=ANY($3::uuid[]) AND "sourceId"=ANY($4::uuid[]) AND subject=$5 ORDER BY "factId","sourceId",subject',
       actor.customerId,
       projectId,
       factIds,

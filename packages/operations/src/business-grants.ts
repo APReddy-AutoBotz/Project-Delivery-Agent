@@ -60,6 +60,7 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT EXECUTE ON FUNCTION public.valid_ingestion_reassessment_row(public."IngestionProjectReassessment"),public.valid_ingestion_project_reassessment(uuid) TO pdaa_api;
     GRANT SELECT,INSERT ON "HealthAssessment","HealthAssessmentCommandReceipt" TO pdaa_api;
     GRANT SELECT,INSERT,UPDATE ON "HealthAssessmentRetentionPolicy" TO pdaa_api;
+    GRANT SELECT,INSERT,UPDATE ON "BlockerAgeThresholdPolicy" TO pdaa_api;
     GRANT SELECT,INSERT,DELETE ON "ConnectorTaskReceipt" TO pdaa_api;
     GRANT UPDATE ("currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId") ON "IngestionSource" TO pdaa_api;
     GRANT UPDATE (sealed) ON "IngestionConfigurationRevision" TO pdaa_api;

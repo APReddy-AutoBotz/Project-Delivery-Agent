@@ -9,6 +9,7 @@ import {
 } from "../../packages/operations/dist/index.js";
 import { engagementStorageTables, verifyEngagementStoragePrivileges } from "./update-engagement-storage.mjs";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
+import { verifyHealthApiRoleAfterGrantReapply } from "./health-api-role.mjs";
 
 const { Pool } = createRequire(
   new URL("../../packages/data/package.json", import.meta.url),
@@ -321,6 +322,9 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         worker_purge_execute: true,
         api_purge_execute: false,
       }]);
+      // The pristine-upgrade assertions above precede this separate populated
+      // health journey, which uses the already isolated, regranted database.
+      const healthApiRole = await verifyHealthApiRoleAfterGrantReapply(after, databaseName, databaseUrl.toString());
       return {
         databaseName,
         status: "passed",
@@ -332,6 +336,7 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
         introducedTablesEmpty: true,
         finiteIngestionAcl: true,
         finiteHealthAssessmentAcl: true,
+        healthApiRole,
       };
     } finally {
       await after.$disconnect();
