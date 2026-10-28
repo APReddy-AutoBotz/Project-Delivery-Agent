@@ -56,6 +56,7 @@ import {
   scheduleHealthPolicyViewSchema,
   healthAssessmentViewSchema,
   scheduleAdviceSnapshotSchema,
+  updateAdviceSnapshotSchema,
   projectUpdatePolicyChangeSchema,
   projectUpdateEngagementActivationSchema,
   projectUpdateEngagementViewSchema,
@@ -520,6 +521,12 @@ export const contracts: Record<string, RouteContract> = {
   "get /api/projects/{id}/delivery-suggestions": {
     status: 200,
     response: scheduleAdviceSnapshotSchema,
+    parameters: { id: z.uuid() },
+    errors: [404, 503],
+  },
+  "get /api/projects/{id}/update-suggestions": {
+    status: 200,
+    response: updateAdviceSnapshotSchema,
     parameters: { id: z.uuid() },
     errors: [404, 503],
   },
