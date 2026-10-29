@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { scheduleAdviceSnapshotSchema } from "./delivery-advice.js";
 import { updateAdviceSnapshotSchema } from "./update-advice.js";
+import { blockerAgeAdviceSchema } from "./blocker-age-advice.js";
 import type { Actor } from "./actor.js";
 
 // EXEC-026 / FR-ADV-002 / FR-RPT-002: this is a presentation of already
@@ -10,6 +11,7 @@ const project = z.strictObject({
   name: z.string().min(1).max(160),
   schedule: scheduleAdviceSnapshotSchema,
   update: updateAdviceSnapshotSchema,
+  blockerAge: blockerAgeAdviceSchema,
 });
 const priority = z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW"]);
 const category = z.enum(["UPDATE_FOLLOW_UP", "RECONCILIATION", "SCHEDULE_REVIEW", "EVIDENCE_REVIEW"]);
@@ -28,10 +30,12 @@ const invalid = (): never => { throw new Error("Action queue unavailable"); };
 
 function ranked(projects: readonly ProjectObservation[]): Pointer[] {
   const seenProjects = new Set<string>(), pointers: Pointer[] = [];
+  const blockerCount = projects.reduce((sum, observation) => sum + observation.blockerAge.items.length, 0);
   for (const observation of projects) {
-    const { projectId, schedule, update } = observation;
+    const { projectId, schedule, update, blockerAge } = observation;
     if (seenProjects.has(projectId) || schedule.projectId !== projectId || update.projectId !== projectId ||
-        schedule.audience !== "project_manager" || update.audience !== "project_manager") invalid();
+        blockerAge.projectId !== projectId || schedule.audience !== "project_manager" || update.audience !== "project_manager" ||
+        blockerAge.audience !== "project_manager") invalid();
     seenProjects.add(projectId);
     const keys = new Set<string>();
     for (const [index, item] of schedule.items.entries()) {
@@ -42,7 +46,7 @@ function ranked(projects: readonly ProjectObservation[]): Pointer[] {
     if (update.availability === "AVAILABLE" && update.suggestion) pointers.push({
       projectId, facet: "UPDATE", index: null, key: "update-information", priority: "MEDIUM", category: "UPDATE_FOLLOW_UP",
     });
-    if (pointers.length > 500) invalid();
+    if (pointers.length + blockerCount > 500) invalid();
   }
   return pointers.sort((left, right) => priorityOrder[left.priority] - priorityOrder[right.priority] ||
     categoryOrder[left.category] - categoryOrder[right.category] || compare(left.projectId, right.projectId) ||
@@ -52,7 +56,7 @@ function ranked(projects: readonly ProjectObservation[]): Pointer[] {
 export const pmActionQueueSchema = z.strictObject({
   rankPolicyRevision: z.literal("pm-review-order@1"),
   coverage: z.strictObject({ schedule: z.literal("AVAILABLE"), updateInformation: z.literal("AVAILABLE_OR_UNCONFIGURED"),
-    approvals: z.literal("UNAVAILABLE"), blockerAge: z.literal("UNAVAILABLE"), otherCategories: z.literal("UNAVAILABLE") }),
+    approvals: z.literal("UNAVAILABLE"), blockerAge: z.literal("AVAILABLE_OR_UNASSESSABLE"), otherCategories: z.literal("UNAVAILABLE") }),
   projects: z.array(project).max(25),
   items: z.array(pointer).max(500),
 }).superRefine((value, context) => {
@@ -72,7 +76,7 @@ export function buildPmActionQueue(input: unknown): PmActionQueue {
     const projects = z.array(project).max(25).parse(input).sort((a, b) => compare(a.projectId, b.projectId));
     return pmActionQueueSchema.parse({ rankPolicyRevision: "pm-review-order@1", coverage: {
       schedule: "AVAILABLE", updateInformation: "AVAILABLE_OR_UNCONFIGURED",
-      approvals: "UNAVAILABLE", blockerAge: "UNAVAILABLE", otherCategories: "UNAVAILABLE",
+      approvals: "UNAVAILABLE", blockerAge: "AVAILABLE_OR_UNASSESSABLE", otherCategories: "UNAVAILABLE",
     }, projects, items: ranked(projects) });
   } catch { return invalid(); }
 }

@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { ProjectUpdateInvitationController } from "./project-update-invitation-controller.js";
 import { PmActionQueueController, PM_ACTION_QUEUE_REPOSITORY, unavailablePmActionQueueRepository } from "./pm-action-queue-controller.js";
+import { BlockerAgeAdviceController, BLOCKER_AGE_ADVICE_REPOSITORY, unavailableBlockerAgeAdviceRepository } from "./blocker-age-advice-controller.js";
 import { installProjectUpdateInvitationBoundary, isProjectUpdateInvitationPath } from "./project-update-invitation-boundary.js";
 import {
   ScalarReconciliationController,
@@ -88,6 +89,7 @@ import {
   type ScheduleAdviceHealthRepository,
   type ProjectUpdateRepository,
   type PmActionQueueRepository,
+  type BlockerAgeAdviceRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
@@ -260,6 +262,7 @@ export async function createApp(
   healthAssessment: ScheduleAdviceHealthRepository = unavailableHealthAssessmentRepository,
   projectUpdates: ProjectUpdateRepository = unavailableProjectUpdateRepository,
   pmActionQueue: PmActionQueueRepository = unavailablePmActionQueueRepository,
+  blockerAgeAdvice: BlockerAgeAdviceRepository = unavailableBlockerAgeAdviceRepository,
 ) {
   @Module({
     controllers: [
@@ -273,6 +276,7 @@ export async function createApp(
       ProjectUpdateController,
       ProjectUpdateInvitationController,
       PmActionQueueController,
+      BlockerAgeAdviceController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -290,6 +294,7 @@ export async function createApp(
       { provide: HEALTH_ASSESSMENT_REPOSITORY, useValue: healthAssessment },
       { provide: PROJECT_UPDATE_REPOSITORY, useValue: projectUpdates },
       { provide: PM_ACTION_QUEUE_REPOSITORY, useValue: pmActionQueue },
+      { provide: BLOCKER_AGE_ADVICE_REPOSITORY, useValue: blockerAgeAdvice },
       IngestionIdentityGuard,
     ],
   })

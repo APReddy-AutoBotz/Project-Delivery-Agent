@@ -18,6 +18,7 @@ import { ProjectEvidence } from "./project-evidence.js";
 import { HealthAssessmentPanel } from "./health-assessment.js";
 import { DeliverySuggestions } from "./delivery-suggestions.js";
 import { UpdateSuggestions } from "./update-suggestions.js";
+import { LeadershipBlockerAge } from "./leadership-blocker-age.js";
 import { PmActionQueuePanel } from "./pm-action-queue.js";
 import { ProjectUpdates } from "./project-updates.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
@@ -655,6 +656,14 @@ function App() {
                   {project.data && me.data && !project.isFetching && !project.isError && (
                     <UpdateSuggestions
                       key={`update-suggestions:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
+                      projectId={project.data.id}
+                      scope={`${me.data.customerId}:${me.data.subject}:${project.data.id}`}
+                      request={request}
+                    />
+                  )}
+                  {project.data && me.data?.roles.includes("leadership") && !project.isFetching && !project.isError && (
+                    <LeadershipBlockerAge
+                      key={`leadership-blocker:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
                       projectId={project.data.id}
                       scope={`${me.data.customerId}:${me.data.subject}:${project.data.id}`}
                       request={request}

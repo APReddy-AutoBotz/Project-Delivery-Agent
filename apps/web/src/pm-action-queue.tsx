@@ -5,6 +5,7 @@ import { Button, Message } from "./components.js";
 import { FactList, SignalEvidence } from "./delivery-suggestions.js";
 import { createPmQueueResource, type PmQueueResourceState } from "./pm-queue-resource.js";
 import { decodePmQueue } from "./pm-queue-decoder.js";
+import { BlockerAgeObservation } from "./blocker-age-observation.js";
 
 // EXEC-026: a bounded observation of assigned projects, not a complete queue.
 export function PmActionQueuePanel({ scope, request, openProject }: {
@@ -34,7 +35,7 @@ export function PmActionQueuePanel({ scope, request, openProject }: {
       <div>
         <span className="eyebrow">ASSIGNED PROJECTS</span>
         <h2 id="pm-action-queue-heading">Action suggestions</h2>
-        <p className="muted">Schedule and update information only. Approvals, blocker-age suggestions and other categories are unavailable.
+        <p className="muted">Schedule, update information and source-authorized blocker-age review. Approvals and other categories are unavailable.
           Schedule suggestions do not assess source authority. Each observation has its own evaluation time; access and data can change.</p>
       </div>
       <Button className="secondary" onClick={() => resource.current?.refresh()}>Refresh suggestions</Button>
@@ -45,7 +46,7 @@ export function PmActionQueuePanel({ scope, request, openProject }: {
       <p className="muted">Review ordering {queue.rankPolicyRevision}; priorities help organize review and do not establish a project health rating.</p>
       {queue.projects.filter((project) => project.update.availability === "UNCONFIGURED").map((project) =>
         <p key={project.projectId}>{project.name}: no update policy was configured as of {project.update.asOf}.</p>)}
-      {queue.items.length === 0 ? <p>No suggestions were produced from the available observations. Other categories remain unavailable.</p> :
+      {queue.items.length === 0 ? <p>No schedule or update suggestions were produced from the available observations.</p> :
         <div className="space-y-4">{queue.items.map((pointer) => {
           const project = projects.get(pointer.projectId);
           if (!project) return null;
@@ -79,6 +80,18 @@ export function PmActionQueuePanel({ scope, request, openProject }: {
             <Button className="secondary" onClick={() => openProject(project.projectId)}>Open project</Button>
           </article>;
         })}</div>}
+      <section aria-labelledby="blocker-review-heading" className="space-y-3">
+        <h3 id="blocker-review-heading">Blocker-age review</h3>
+        <p className="muted">Age identifies items to review; it does not establish criticality or assign an owner.</p>
+        {queue.projects.map((project) => {
+          const facet = project.blockerAge;
+          return <div key={project.projectId} className="rounded-lg border border-slate-200 p-4 space-y-2">
+            <h4>{project.name}</h4>
+            <BlockerAgeObservation facet={facet} />
+            <Button className="secondary" onClick={() => openProject(project.projectId)}>Open project</Button>
+          </div>;
+        })}
+      </section>
     </>}
   </section>;
 }

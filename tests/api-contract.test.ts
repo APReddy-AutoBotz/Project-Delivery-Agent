@@ -22,7 +22,7 @@ import {
   projectUpdatePolicyViewSchema,
   projectUpdateSchedulePreviewSchema,
 } from "../packages/domain/src/index.js";
-import { buildPmActionQueue, ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
+import { buildBlockerAgeAdvice, buildPmActionQueue, ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
 import { HealthAssessmentError, ProjectUpdateError } from "../packages/domain/dist/index.js";
 import type {
   ScheduleAdviceHealthRepository,
@@ -153,7 +153,7 @@ const config = loadConfig({
 });
 let app: Awaited<ReturnType<typeof createApp>>["app"];
 let spec: Awaited<ReturnType<typeof createApp>>["spec"];
-let base: string, operator: string, manager: string, pmoPortfolio: string;
+let base: string, operator: string, manager: string, leader: string, pmoPortfolio: string;
 let check: ReturnType<typeof compileContract>;
 const covered = new Set<string>();
 const evidence = evidenceContractFixture();
@@ -468,6 +468,8 @@ beforeAll(async () => {
     healthAssessmentRepository,
     projectUpdateRepository,
     { read: vi.fn(async () => buildPmActionQueue([])) },
+    { readLeadership: vi.fn(async (_actor, projectId) => buildBlockerAgeAdvice({ projectId, audience: "leadership",
+      asOf: "2026-10-21T11:00:00.000Z", coverage: "UNASSESSABLE", threshold: null, inventory: null, noOpenBlockers: null, candidates: [] })) },
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -475,6 +477,7 @@ beforeAll(async () => {
   const identity = new IdentityService(config);
   operator = await identity.developmentToken("operator");
   manager = await identity.developmentToken("pm-atlas");
+  leader = await identity.developmentToken("leader-atlas");
   pmoPortfolio = await identity.developmentToken("pmo-portfolio");
 });
 afterAll(async () => {
@@ -691,6 +694,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request(`/api/projects/${project.id}/delivery-suggestions`, 200, manager);
   await request(`/api/projects/${project.id}/update-suggestions`, 200, manager);
   await request("/api/pm/action-queue", 200, manager);
+  await request(`/api/projects/${project.id}/leadership-blocker-age-suggestions`, 200, leader);
   await request(
     "/api/projects/" + project.id + "/health-assessments",
     201,
@@ -872,7 +876,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(65);
+  expect(covered.size).toBe(66);
   assertContractSnapshot(
     spec,
     JSON.parse(

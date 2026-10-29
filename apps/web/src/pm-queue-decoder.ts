@@ -15,7 +15,9 @@ const revision = (value: unknown, minimum: number) => {
 };
 const instant = (value: unknown) => {
   const result = string(value);
-  if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(result) || !Number.isFinite(Date.parse(result))) fail();
+  const timestamp = Date.parse(result);
+  if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(result) || !Number.isFinite(timestamp) ||
+      new Date(timestamp).toISOString().slice(0, 10) !== result.slice(0, 10)) fail();
 };
 const oneOf = <T extends string>(value: unknown, choices: readonly T[]): T =>
   typeof value === "string" && choices.includes(value as T) ? value as T : fail();
@@ -30,6 +32,22 @@ const identifier = (value: unknown) => {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) fail();
   return id;
 };
+function blockerProof(value: unknown, expectedType: string, validity: "FINITE" | "UNTIL_SUPERSEDED") {
+  const proof = object(value);
+  if (proof.factType !== expectedType || proof.status !== "RESOLVED" || proof.provenance !== "HUMAN_CONFIRMED" ||
+      proof.sourceType !== "human_statement" || proof.freshness !== "CURRENT" || proof.conflict !== "NONE" || proof.validity !== validity) fail();
+  identifier(proof.factId); identifier(proof.policyId); identifier(proof.policyRevisionId);
+  revision(proof.factRevision, 1); revision(proof.policyRevision, 1);
+  const supports = array(proof.supports, 1000), evidence = new Set<string>(), versions = new Set<string>();
+  if (!supports.length) fail();
+  let prior = "";
+  for (const value of supports) {
+    const support = object(value), version = identifier(support.versionId), evidenceId = identifier(support.evidenceId);
+    identifier(support.sourceId); revision(support.accessRevision, 1);
+    if (versions.has(version) || evidence.has(evidenceId) || (prior && compare(prior, version) >= 0)) fail();
+    versions.add(version); evidence.add(evidenceId); prior = version;
+  }
+}
 function fact(value: unknown) {
   const item = object(value), source = object(item.source);
   string(item.factType); string(item.field); scalar(item.value);
@@ -55,19 +73,62 @@ const comparePointers = (left: Pointer, right: Pointer) => priorities.indexOf(le
   compare(left.facet, right.facet) || compare(left.key, right.key);
 const fingerprint = (pointer: Pointer) => JSON.stringify([pointer.projectId, pointer.facet, pointer.index, pointer.key, pointer.priority, pointer.category]);
 
+export function decodeBlockerAge(value: unknown, projectId: string, audience: "project_manager" | "leadership"): PmActionQueue["projects"][number]["blockerAge"] {
+  const blocker = object(value);
+  if (blocker.projectId !== projectId || blocker.audience !== audience || blocker.ruleRevision !== "blocker-age@1" ||
+      blocker.orderRevision !== "blocker-review-order@1" || blocker.timeZone !== "UTC") fail();
+  instant(blocker.asOf);
+  if (new TextEncoder().encode(JSON.stringify(blocker)).byteLength > 262144) fail();
+  const blockerItems = array(blocker.items, 50);
+  if (blocker.coverage === "UNASSESSABLE") {
+    if (blocker.threshold !== null || blocker.inventory !== null || blocker.noOpenBlockers !== null || blockerItems.length) fail();
+  } else {
+    oneOf(blocker.coverage, ["COMPLETE", "PARTIAL"] as const);
+    const threshold = object(blocker.threshold); revision(threshold.minimumBlockerAgeDays, 1); revision(threshold.revision, 1);
+    const minimumAge = integer(threshold.minimumBlockerAgeDays);
+    if (minimumAge > 3650) fail();
+    if (blocker.coverage === "PARTIAL" ? blocker.noOpenBlockers !== null : typeof blocker.noOpenBlockers !== "boolean") fail();
+    if (blocker.noOpenBlockers === true && blockerItems.length) fail();
+    blockerProof(blocker.inventory, "project.open_blocker_inventory_complete", "FINITE");
+    let previous = ""; const raidIds = new Set<string>();
+    for (const value of blockerItems) {
+      const item = object(value), key = string(item.key), raidId = identifier(item.raidItemId);
+      const order = `${key}\u0000${raidId}`;
+      const opened = string(item.openedAt), day = Date.parse(`${opened}T00:00:00.000Z`);
+      const asOfDay = Date.parse(`${string(blocker.asOf).slice(0, 10)}T00:00:00.000Z`);
+      if (!key || raidIds.has(raidId) || (previous && compare(previous, order) >= 0) || !/^\d{4}-\d\d-\d\d$/.test(opened) ||
+          !Number.isFinite(day) || new Date(day).toISOString().slice(0, 10) !== opened ||
+          item.sourceDateField !== "opened_at" || integer(item.ageDays) < minimumAge || item.ageDays !== (asOfDay - day) / 86400000) fail();
+      raidIds.add(raidId);
+      previous = order;
+      oneOf(item.state, ["OPEN", "IN_PROGRESS"] as const);
+      if (item.suggestedAction !== (audience === "project_manager" ? "Review the aged blocker and decide the next delivery action." : "Review the aged blocker and decide whether an intervention is needed.") ||
+          item.expectedOutcome !== "A reviewed next step for the blocker and its delivery impact.") fail();
+      blockerProof(item.classification, `raid_item.${raidId}.blocks_delivery`, "FINITE");
+      blockerProof(item.openedAtProof, `raid_item.${raidId}.opened_at`, "UNTIL_SUPERSEDED");
+    }
+  }
+  return value as PmActionQueue["projects"][number]["blockerAge"];
+}
+
 export function decodePmQueue(value: unknown): PmActionQueue {
   const queue = object(value), coverage = object(queue.coverage);
   if (queue.rankPolicyRevision !== "pm-review-order@1" || coverage.schedule !== "AVAILABLE" ||
       coverage.updateInformation !== "AVAILABLE_OR_UNCONFIGURED" || coverage.approvals !== "UNAVAILABLE" ||
-      coverage.blockerAge !== "UNAVAILABLE" || coverage.otherCategories !== "UNAVAILABLE") fail();
+      coverage.blockerAge !== "AVAILABLE_OR_UNASSESSABLE" || coverage.otherCategories !== "UNAVAILABLE") fail();
   if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 2 * 1024 * 1024) fail();
   const expected: Pointer[] = [], projects = new Set<string>();
+  let blockerCount = 0, priorProject = "";
   for (const entry of array(queue.projects, 25)) {
     const project = object(entry), projectId = identifier(project.projectId);
     const name = string(project.name);
     if (!name || name.length > 160 || projects.has(projectId)) fail();
+    if (priorProject && compare(priorProject, projectId) >= 0) fail();
+    priorProject = projectId;
     projects.add(projectId);
     const schedule = object(project.schedule), update = object(project.update);
+    const blocker = decodeBlockerAge(project.blockerAge, projectId, "project_manager");
+    blockerCount += blocker.items.length;
     if (schedule.projectId !== projectId || update.projectId !== projectId || schedule.audience !== "project_manager" ||
         update.audience !== "project_manager" || schedule.coverage !== "SCHEDULE_ONLY" || schedule.sourceAuthority !== "NOT_ASSESSED" ||
         schedule.approvalItems !== "UNAVAILABLE" || update.approvalItems !== "UNAVAILABLE" ||
@@ -123,6 +184,7 @@ export function decodePmQueue(value: unknown): PmActionQueue {
   }
   expected.sort(comparePointers);
   const actual = array(queue.items, 500);
+  if (actual.length + blockerCount > 500) fail();
   if (actual.length !== expected.length) fail();
   for (const [index, value] of actual.entries()) {
     const item = object(value), projectId = identifier(item.projectId), facet = oneOf(item.facet, ["SCHEDULE", "UPDATE"] as const);

@@ -4,6 +4,7 @@ import type { Prisma, PrismaClient as Database } from "./generated/prisma/client
 import { actorInput } from "./fact-authorization.js";
 import { DatabaseHealthAssessmentRepository } from "./health-assessment.js";
 import { DatabaseProjectUpdateRepository } from "./project-updates.js";
+import { blockerThresholdInTransaction, observeBlockerAgeAdviceInTransaction } from "./blocker-age-advice.js";
 
 type Tx = Prisma.TransactionClient;
 const discoverSql = `SELECT p.id FROM public."Project" p
@@ -50,7 +51,7 @@ export class DatabasePmActionQueueRepository implements PmActionQueueRepository 
             'SELECT id FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR SHARE', actor.customerId, id);
           if (rows.length !== 1 || rows[0]!.id !== id) throw new PmActionQueueError("UNAVAILABLE");
         }
-        const projects = [];
+        const authorized: { id: string; name: string }[] = [];
         for (const id of ids) {
           const rows = await tx.$queryRawUnsafe<{ name: string; portfolioId: string }[]>(
             'SELECT name,"portfolioId" FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid', actor.customerId, id);
@@ -69,10 +70,18 @@ export class DatabasePmActionQueueRepository implements PmActionQueueRepository 
               WHERE r."customerId"=$1::uuid AND r."projectId"=$2::uuid AND r.role='PROJECT_MANAGER' AND r.subject=$3 AND c.sealed ORDER BY r.id LIMIT 1`,
             actor.customerId, id, actor.subject);
           if (!grants.length || assignment.length !== 1) throw new PmActionQueueError("UNAVAILABLE");
+          authorized.push({ id, name: current.name });
+        }
+        // The shared customer threshold gate precedes every schedule policy
+        // gate, and all project and grant locks are acquired in ID order.
+        const threshold = ids.length ? await blockerThresholdInTransaction(tx, actor.customerId) : null;
+        const projects = [];
+        for (const { id, name } of authorized) {
           const schedule = await this.health.scheduleSuggestionsInTransaction(tx, actor, id);
           const update = await this.updates.updateSuggestionsInTransaction(tx, actor, id);
+          const blockerAge = await observeBlockerAgeAdviceInTransaction(tx, this.db, actor, id, "project_manager", threshold, true);
           if (schedule.audience !== "project_manager" || update.audience !== "project_manager") throw new PmActionQueueError("UNAVAILABLE");
-          projects.push({ projectId: id, name: current.name, schedule, update });
+          projects.push({ projectId: id, name, schedule, update, blockerAge });
         }
         const final = await this.discover(tx, actor);
         if (JSON.stringify(ids) !== JSON.stringify(final)) throw new PmActionQueueError("UNAVAILABLE");
