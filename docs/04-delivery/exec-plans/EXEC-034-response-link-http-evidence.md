@@ -1,6 +1,7 @@
 # EXEC-034: Real response-link denial evidence
 
-Status: Local work in progress; no acceptance or publication is claimed. The
+Status: Reviewed PR #127 merged after current-base and actual post-merge hosted
+checks passed; no acceptance is claimed. The
 unmet AC-UPD-003 / SEC-UPD-003 criterion requires expired, invalid and
 unauthorized response links to neither reveal project information nor submit a
 response. Existing repository, pure expiry, mocked HTTP and mocked browser tests
@@ -45,6 +46,21 @@ Independent static fixture and security reviews found and corrected gate-clock,
 responsibility, audit-snapshot, cross-tenant and body-validation test issues.
 Local lint initially found an unused configuration variable; it was removed and
 the affected lint passed. The native HTTP/database tests have not run locally:
-no qualified disposable PostgreSQL server is available. Hosted execution,
-restored-endpoint proof and exact-candidate review remain required. No acceptance
-claim follows from this checkpoint.
+no qualified disposable PostgreSQL server is available. Initial hosted Foundation
+40958959457 and Documentation 40958959430 passed on reviewed head
+`a7d4afdd8df30f24e64bdc32873f16bcfdb14e91`. After retargeting to the verified
+main merge of PR #126, its GitHub merge preview remained stale. The branch was
+refreshed without changing its tree: head `7abc5a38ac6b2a74a6c600185b6c223d21c5cab2`
+has reviewed tree `e84393639d14f6fad86325b27bafef1f5ce490ae`, and current
+preview `3a2771e3635bdff80c055f12b829a7412ca70637` has that tree and ordered
+parents `3c59ea981c023b76af9e2bd535e7d22fefe96d8f`, then refreshed head.
+Independent provider review confirmed the exact five-file diff and tree; fresh
+Foundation 40963155930 and Documentation 40963155935 passed. Actual merge
+`941113241b75fb1f99c6031c9fa9d93a1aa1adc4` has reviewed tree
+`e84393639d14f6fad86325b27bafef1f5ce490ae` and ordered parents
+`3c59ea981c023b76af9e2bd535e7d22fefe96d8f`, then refreshed head. Its
+post-merge Documentation 40966514510 and Foundation 40966514743 passed.
+An earlier CRLF-converted preparation created an unreferenced tree object
+`b64060d54f28c37fa14d97dfe9a255ee95119f63`; the branch was created only after
+the exact blob-based tree matched. Restored-endpoint proof remains required and
+no acceptance claim follows from these tests.

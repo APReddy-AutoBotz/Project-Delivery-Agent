@@ -1,9 +1,10 @@
 # EXEC-031: Bounded milestone question routing
 
-Status: Provisional local implementation under independent review; no publication,
-merge or acceptance is claimed. This is a partial step toward FR-QA-001/002/004/005/007/008/012,
-STORY-027/028/029 and GOLDEN-003. PR #124's milestone observation is a dependency; its exact candidate checks
-passed and its verified actual merge has post-merge checks in progress. No story, criterion or release hold
+Status: Reviewed partial implementation merged in PR #125 with candidate and
+post-merge checks passed; no acceptance is claimed. This is a partial step toward
+FR-QA-001/002/004/005/007/008/012, STORY-027/028/029 and GOLDEN-003. PR #124's
+milestone observation is a dependency; its candidate and post-merge checks passed.
+No story, criterion or release hold
 is accepted by this plan. OD-013/014 and the stop on Original19/20 capture remain
 in force.
 
@@ -156,8 +157,14 @@ PR #124's reviewed head `edc70c71f0702f6136aa52da09672a83289cf26a` passed
 Foundation 40944539384 and Documentation 40944539318. It merged as
 `9386d96f8470fe8f2db881884f6bf0f034e5ae78` with the reviewed tree
 `f790111509770a18bcc4ceea2f6149f2a9ae1791` and expected ordered parents.
-Actual post-merge Foundation 40948055073 and Documentation 40948055192 were
-queued at this checkpoint. The follow-up's local base `40e88fd` has that same
-tree, so the already-run affected local checks apply to the reconciled source;
-the actual post-merge and follow-up hosted gates remain required before merge. Broader Q&A and
-GOLDEN-003 remain open.
+Actual post-merge Foundation 40948055073 and Documentation 40948055192 passed.
+The follow-up's local base `40e88fd` has that same tree.
+PR #125 head `cdf1ccf16d5faeedcec901650395e5733809bfdb` and synthetic
+merge `2ad9323166beabfcf35685c3e020d4790645ee55` have reviewed local tree
+`9587f4d10085e5b7ac1d7353f59702430667f084`. Candidate verification passed
+252 native integration and 57 browser tests plus recovery; Documentation
+40948283374 and Foundation 40948283411 passed. Actual merge
+`b5b438fb0e5ffaee4b743dacdd2d53c55cbb42ec` has the same tree and expected
+ordered parents `9386d96f8470fe8f2db881884f6bf0f034e5ae78` and the reviewed
+head. Post-merge Documentation 40952284651 and Foundation 40952284735 passed.
+Broader Q&A and GOLDEN-003 remain open.

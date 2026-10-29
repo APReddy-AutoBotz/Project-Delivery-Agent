@@ -1,7 +1,8 @@
 # EXEC-029: Operational access-operation history
 
-Status: The first delivery slice has been independently reviewed and is in
-implementation; validation and acceptance are pending. This partial increment
+Status: The independently reviewed first delivery slice merged as PR #123. Its
+actual post-merge Documentation and Foundation passed; story acceptance remains
+pending. This partial increment
 supports operational identity administration and groundwork for FR-AUD-006.
 It does not complete general audit search, STORY-034, Issue #12 or a release gate.
 
@@ -136,4 +137,20 @@ production-boundary job stopped because an existing packaged UI assertion still
 expected the previous `Access granted` message. Update the production and both
 customer-profile acceptance selectors to the new operation wording while
 retaining the same actions, status waits and authorization checks. The failed
-run remains evidence; the corrected candidate requires fresh hosted validation.
+run remains evidence; at that checkpoint the corrected candidate required fresh
+hosted validation.
+
+
+## Reviewed candidate and merge
+
+The corrected candidate head `44934193881ae974cf4abf7bf0847d67c90a11a3`
+passed Foundation 40938370963 and Documentation 40938370641. Synthetic merge
+`3b0105097014a9f934d01550d78f705be91b9fef` and actual merge
+`cde89e33a4dee2bba00885002aaba6b6da246811` have the same tree
+`300fa0e8cb39a6d4949037c70c7cd8ba066cd42e` and ordered parents
+`d7194d6a97af59db125123dba1a6f77f19e312ee` and the candidate head.
+Actual post-merge Documentation 40942547567 and Foundation 40942547520
+passed. The earlier failed production attempt remains recorded above.
+The native test uses role switching in an owned synthetic database, not a
+separately authenticated API login. Browser response cancellation limits the
+late-response proof. No story, criterion, issue or release hold is accepted.
