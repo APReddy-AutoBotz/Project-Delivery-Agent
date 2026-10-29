@@ -19,6 +19,7 @@ import {
   DatabaseAuthorityRepository,
   DatabaseScalarReconciliationRepository,
   DatabaseScalarConflictObservationRepository,
+  DatabaseHealthAssessmentRepository,
 } from "../packages/data/dist/index.js";
 import {
   scalarReconciliationIdentity,
@@ -707,6 +708,139 @@ it("coordinates a modeled health-style SHARE-to-conflict-insert upgrade in both 
     expect((await reader.readLeadership(f.leader, f.projectId, f.input.factId)).positions).toHaveLength(2);
   }
 }, 60000);
+it("coordinates real health conflict capture with a role-switched scalar observation in both orders", async () => {
+  for (const order of ["writer-first", "reader-first"] as const) {
+    const tenant = randomUUID(), portfolioId = randomUUID();
+    const pmo: Actor = { customerId: tenant, subject: "health-race-pmo-" + randomUUID(), roles: ["pmo_admin"] };
+    const pm: Actor = { customerId: tenant, subject: "health-race-pm-" + randomUUID(), roles: ["project_manager"] };
+    const leader: Actor = { customerId: tenant, subject: "health-race-leader-" + randomUUID(), roles: ["leadership"] };
+    await db.customer.create({ data: { id: tenant, name: "Synthetic health concurrency customer" } });
+    await db.portfolio.create({ data: { id: portfolioId, customerId: tenant, name: "Synthetic health concurrency portfolio" } });
+    await db.accessGrant.createMany({ data: [pmo, pm, leader].map((actor) => ({ customerId: tenant, subject: actor.subject,
+      scopeType: "portfolio", scopeId: portfolioId, role: actor.roles[0]! })) });
+    const projectInput = canonicalFixture(portfolioId);
+    projectInput.responsibilities = projectInput.responsibilities.map((row) => row.role === "PROJECT_MANAGER" ? { ...row, subject: pm.subject } : row);
+    projectInput.raidItems = projectInput.raidItems.map((row, index) => ({ ...row, state: index === 0 ? "OPEN" : "COMPLETE" }));
+    const projectId = (await canonical.createProject(pmo, projectInput, randomUUID())).id;
+    const raid = await db.raidItem.findFirstOrThrow({ where: { customerId: tenant, projectId, state: "OPEN" } });
+    const health = new DatabaseHealthAssessmentRepository(db);
+    await health.setRetention(pmo, { contentRetentionHours: 24, auditRetentionHours: 48, idempotencyRetentionHours: 72 }, randomUUID());
+    await health.setBlockerAgeThresholdPolicy(pmo, { expectedRevision: 0, minimumBlockerAgeDays: 5, auditRetentionHours: 720 }, randomUUID());
+    const [clock] = await db.$queryRawUnsafe<{ now: Date }[]>("SELECT date_trunc('milliseconds',clock_timestamp()) AS now");
+    const effectiveAt = new Date(clock!.now.getTime() - 60000).toISOString(), validUntil = new Date(clock!.now.getTime() + 3600000).toISOString();
+    const dates = [11, 10].map((days) => new Date(clock!.now.getTime() - days * 86400000).toISOString().slice(0, 10));
+    const current = { tiers: [{ selectors: [{ sourceType: "human_statement" as const, instanceId: null,
+      requiredApproval: "NOT_REQUIRED" as const, validity: { basis: "observedAt" as const, durationMs: 86400000 } }] }], conflictBehavior: "RETAIN_CONFLICT" as const };
+    const ongoing = { tiers: [{ selectors: [{ sourceType: "human_statement" as const, instanceId: null,
+      requiredApproval: "NOT_REQUIRED" as const, validity: { mode: "UNTIL_SUPERSEDED" as const } }] }], conflictBehavior: "RETAIN_CONFLICT" as const };
+    const testContext = { correlationId: randomUUID() };
+    const configure = async (factType: string, definition: typeof current | typeof ongoing) => authority.appendPolicy(pmo,
+      { projectId, factType, expectedRevision: 0, idempotencyKey: randomUUID(), effectiveAt, definition }, testContext);
+    const add = async (actor: Actor, factType: string, revision: number, value: { type: "boolean"; value: boolean } | { type: "date"; value: string }) => {
+      const entry = await facts.appendHumanStatement(actor, { projectId, factType, expectedRevision: revision, idempotencyKey: randomUUID(),
+        effectiveAt, validUntil, originalStatement: "Synthetic health and scalar concurrency evidence.", value }, testContext);
+      await facts.setSourceAccess(pmo, { projectId, sourceId: entry.entry.sourceId, expectedRevision: entry.entry.sourceAccessRevision,
+        state: "AVAILABLE", readers: [pmo.subject, pm.subject, leader.subject] }, testContext);
+      return entry;
+    };
+    const inventoryType = "project.open_blocker_inventory_complete", classificationType = `raid_item.${raid.id}.blocks_delivery`,
+      openedType = `raid_item.${raid.id}.opened_at`;
+    await configure(inventoryType, current); await add(pmo, inventoryType, 0, { type: "boolean", value: true });
+    await configure(classificationType, current); await add(pmo, classificationType, 0, { type: "boolean", value: true });
+    const openedPolicy = await configure(openedType, ongoing);
+    const first = await add(pmo, openedType, 0, { type: "date", value: dates[0]! });
+    const second = await add(pm, openedType, 1, { type: "date", value: dates[1]! });
+    const factId = first.factId;
+    expect(await db.factAuthorityConflict.count({ where: { customerId: tenant, projectId, factId } })).toBe(0);
+    let writerPid = 0, readerPid = 0, writerReady!: () => void, readerReady!: () => void, release!: () => void, held = false;
+    const writerEntered = new Promise<void>((resolve) => { writerReady = resolve; });
+    const readerEntered = new Promise<void>((resolve) => { readerReady = resolve; });
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const writerDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      db.$transaction(async (tx) => {
+        writerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+        return operation(new Proxy(tx, { get(target, key) {
+          const value = Reflect.get(target, key);
+          if (key === "factAuthorityConflict") return new Proxy(value, { get(model, method) {
+            const fn = Reflect.get(model, method);
+            if (method === "createMany" && typeof fn === "function") return async (...args: unknown[]) => {
+              if (order === "reader-first") writerReady();
+              const result = await Reflect.apply(fn, model, args);
+              if (order === "writer-first") { writerReady(); await gate; }
+              return result;
+            };
+            return typeof fn === "function" ? fn.bind(model) : fn;
+          } });
+          return typeof value === "function" ? value.bind(target) : value;
+        } }));
+      }, options as never) };
+    const readerDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+        expect((await tx.$queryRawUnsafe<{ role: string }[]>("SELECT current_user AS role"))[0]?.role).toBe("pdaa_api");
+        readerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+        if (order === "writer-first") readerReady();
+        return operation(new Proxy(tx, { get(target, key) {
+          const value = Reflect.get(target, key);
+          if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+            const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+            if (order === "reader-first" && !held && sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) {
+              held = true; readerReady(); await gate;
+            }
+            return output;
+          };
+          return typeof value === "function" ? value.bind(target) : value;
+        } }));
+      }, options as never) };
+    const writer = new DatabaseHealthAssessmentRepository(writerDb as never);
+    const reader = new DatabaseScalarConflictObservationRepository(readerDb as never);
+    async function blocked(waiting: number, blocking: number, parts: string[]) {
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+          "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waiting);
+        if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(blocking) && parts.every((part) => rows[0]!.query.includes(part))) return true;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      return false;
+    }
+    let writeResult: ReturnType<DatabaseHealthAssessmentRepository["create"]> | undefined;
+    let readResult: ReturnType<DatabaseScalarConflictObservationRepository["readLeadership"]> | undefined;
+    let sawBlock: boolean;
+    try {
+      if (order === "writer-first") {
+        writeResult = writer.create(pm, projectId, randomUUID(), randomUUID()); void writeResult.catch(() => {});
+        await Promise.race([writerEntered, writeResult.then(() => { throw new Error("Health writer exited before barrier"); })]);
+        readResult = reader.readLeadership(leader, projectId, factId); void readResult.catch(() => {});
+        await Promise.race([readerEntered, readResult.then(() => { throw new Error("Scalar reader exited before barrier"); })]);
+        sawBlock = await blocked(readerPid, writerPid, ['FROM public."Project"', "FOR SHARE"]);
+      } else {
+        readResult = reader.readLeadership(leader, projectId, factId); void readResult.catch(() => {});
+        await Promise.race([readerEntered, readResult.then(() => { throw new Error("Scalar reader exited before barrier"); })]);
+        writeResult = writer.create(pm, projectId, randomUUID(), randomUUID()); void writeResult.catch(() => {});
+        await Promise.race([writerEntered, writeResult.then(() => { throw new Error("Health writer exited before barrier"); })]);
+        sawBlock = await blocked(writerPid, readerPid, ["INSERT", '"FactAuthorityConflict"']);
+      }
+    } finally { release(); await Promise.allSettled([...(readResult ? [readResult] : []), ...(writeResult ? [writeResult] : [])]); }
+    expect(sawBlock).toBe(true);
+    expect(writerPid).toBeGreaterThan(0); expect(readerPid).toBeGreaterThan(0); expect(writerPid).not.toBe(readerPid);
+    const saved = await writeResult;
+    expect(saved).toMatchObject({ contentAvailable: true, blockerAgeCoverage: "UNASSESSABLE", input: { blockerAge: { candidates: [{
+      raidItemId: raid.id, outcome: "UNASSESSABLE_OPENED_AT", openedAt: { factId, status: "UNKNOWN", reason: "CONFLICTING" },
+    }] } } });
+    const observed = await readResult!;
+    expect(observed.positions.map((row) => row.value)).toEqual(dates);
+    for (const [index, version] of [first.entry, second.entry].entries()) expect(observed.positions[index]!.supports).toMatchObject([{
+      versionId: version.id, evidenceId: version.evidenceId, sourceId: version.sourceId, provenance: "HUMAN_CONFIRMED",
+    }]);
+    const conflicts = await db.factAuthorityConflict.findMany({ where: { customerId: tenant, projectId, factId } });
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]).toMatchObject({ policyRevisionId: openedPolicy.event.id, revision: 1,
+      leftVersionId: [first.entry.id, second.entry.id].sort()[0], rightVersionId: [first.entry.id, second.entry.id].sort()[1] });
+    expect(await db.healthAssessment.count({ where: { customerId: tenant, projectId } })).toBe(1);
+    expect((await reader.readLeadership(leader, projectId, factId)).positions.map((row) => row.value)).toEqual(dates);
+  }
+}, 120000);
 it("FR-EVD-007/012: commits owned scalar proof, byte-identical SQL identity and distinct retry/business reuse", async () => {
   const f = await fixture();
   const first = await reconciliation.check(f.pmo, f.input, context);
