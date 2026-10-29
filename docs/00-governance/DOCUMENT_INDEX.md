@@ -130,6 +130,7 @@
 
 - `docs/04-delivery/exec-plans/EXEC-029-operational-access-history.md`: bounded operational access-event view and remaining audit-search boundaries.
 - `docs/04-delivery/exec-plans/EXEC-030-milestone-conflict-explanation.md`: partial source-authorized milestone conflict explanation and remaining validation.
+- `docs/04-delivery/exec-plans/EXEC-031-bounded-milestone-question.md`: narrow fixed-grammar question routing and remaining leadership Q&A work.
 - `docs/04-delivery/exec-plans/EXEC-026-assigned-project-action-queue.md`: partial assigned-project queue design, source boundaries and outstanding verification gates.
 - `docs/04-delivery/exec-plans/EXEC-027-current-blocker-age-advice.md`: current blocker-age advice design, source-authority boundaries and remaining verification gates.
 - `docs/04-delivery/exec-plans/EXEC-019-ingestion-assurance-handoff.md`: durable runtime receipt-to-assessment causes, bounded claims, authorized recovery and exact lineage.
