@@ -204,11 +204,17 @@ async function main() {
       const projects = await request("/api/projects", authorization);
       assert.equal(projects.status, 200);
       assert.deepEqual(projects.body, []);
-      for (const path of ["/api/platform", "/api/audit"])
-        assert.equal(
-          (await request(path, authorization)).status,
-          phase === "removed" ? 403 : 200,
-        );
+      assert.equal((await request("/api/platform", authorization)).status,
+        phase === "removed" ? 403 : 200);
+      const audit = await request("/api/audit", authorization);
+      assert.equal(audit.status, phase === "removed" ? 403 : 200);
+      if (phase !== "removed") {
+        assert(Array.isArray(audit.body) && audit.body.length <= 30);
+        for (const row of audit.body) {
+          assert.deepEqual(Object.keys(row).sort(), ["actor", "event", "id", "occurredAt"]);
+          assert(["access.granted", "access.revoked"].includes(row.event));
+        }
+      }
       if (phase === "removed") {
         assert.equal(
           (

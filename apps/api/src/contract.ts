@@ -97,6 +97,12 @@ export const grantSchema = z.strictObject({
   role: roleSchema,
 });
 export const revokeSchema = grantSchema.omit({ role: true });
+export const accessOperationWireSchema = z.array(z.strictObject({
+  id: z.uuid(),
+  event: z.enum(["access.granted", "access.revoked"]),
+  actor: z.string().min(1).max(512),
+  occurredAt: z.iso.datetime().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+})).max(30);
 export const developmentSchema = z.strictObject({
   persona: z.enum(["pm-atlas", "leader-atlas", "operator", "pmo-portfolio"]),
 });
@@ -624,14 +630,13 @@ export const contracts: Record<string, RouteContract> = {
   },
   "get /api/audit": {
     status: 200,
-    response: z.array(
-      z.strictObject({
-        id: z.uuid(),
-        event: z.string(),
-        actor: z.string(),
-        occurredAt: z.iso.datetime(),
-      }),
-    ),
+    errors: [503],
+    response: accessOperationWireSchema,
+  },
+  "get /api/access-operations": {
+    status: 200,
+    errors: [400, 503],
+    response: accessOperationWireSchema,
   },
   "post /api/access-grants": {
     status: 204,

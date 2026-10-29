@@ -50,6 +50,12 @@ export interface Grant {
   scopeId: string;
   role: Role;
 }
+export type AccessOperation = {
+  id: string;
+  event: "access.granted" | "access.revoked";
+  actor: string;
+  occurredAt: Date;
+};
 export function canReadProject(
   actor: Actor,
   project: Project,
@@ -76,6 +82,7 @@ export interface ProjectRepository {
   listAudit(
     actor: Actor,
   ): Promise<{ id: string; event: string; actor: string; occurredAt: Date }[]>;
+  listAccessOperations(actor: Actor): Promise<AccessOperation[]>;
   ready(): Promise<boolean>;
   heartbeat(): Promise<Date | null>;
 }

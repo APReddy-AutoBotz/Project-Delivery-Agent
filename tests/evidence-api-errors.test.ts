@@ -35,6 +35,7 @@ const foundation: ProjectRepository = {
   setGrant: async () => {},
   revokeGrant: async () => {},
   listAudit: async () => [],
+  listAccessOperations: async () => [],
   ready: async () => true,
   heartbeat: async () => null,
 };

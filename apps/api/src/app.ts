@@ -47,6 +47,7 @@ import {
   grantSchema,
   revokeSchema,
   developmentSchema,
+  accessOperationWireSchema,
 } from "./contract.js";
 import { ResponseContractInterceptor } from "./response-contract.js";
 import { ExceptionContractFilter } from "./exception-contract.js";
@@ -58,6 +59,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   Req,
   Inject,
   Module,
@@ -74,6 +76,7 @@ import {
   SwaggerModule,
   DocumentBuilder,
   ApiBearerAuth,
+  ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
 import { z } from "zod";
@@ -217,12 +220,27 @@ class FoundationController {
       dataMode: this.config.DATA_MODE,
     };
   }
+  @ApiOperation({ deprecated: true, description: "Deprecated system-administrator access-operation view. Other audit events and PMO-only access are unavailable." })
   @Get("audit") async audit(@Req() req: Request) {
-    const rows = await this.repository.listAudit(await this.admin(req));
-    return rows.map((row) => ({
-      ...row,
-      occurredAt: row.occurredAt.toISOString(),
-    }));
+    // Deprecated alias for the scoped operational view; the old generic feed
+    // was not project-scoped and must not disclose other audit event types.
+    return this.accessOperations(req, {});
+  }
+  @Get("access-operations") async accessOperations(@Req() req: Request, @Query() query: unknown) {
+    const actor = await this.actor(req);
+    if (!actor.roles.includes("system_admin"))
+      throw new ForbiddenException("Administrator access required");
+    if (!z.strictObject({}).safeParse(query).success)
+      throw new BadRequestException("Invalid request");
+    try {
+      const rows = await this.repository.listAccessOperations(actor);
+      const wire = rows.map((row) => ({ ...row, occurredAt: row.occurredAt.toISOString() }));
+      if (!accessOperationWireSchema.safeParse(wire).success)
+        throw new Error("Invalid access operation history");
+      return wire;
+    } catch {
+      throw new HttpException("Access operation history unavailable", 503);
+    }
   }
   @Post("access-grants")
   @HttpCode(204)

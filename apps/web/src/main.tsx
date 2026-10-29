@@ -74,7 +74,30 @@ type Platform = {
   identityMode: string;
   dataMode: string;
 };
-type Audit = { id: string; event: string; actor: string; occurredAt: string };
+type AccessOperation = { id: string; event: "access.granted" | "access.revoked"; actor: string; occurredAt: string };
+const operationUuid = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i;
+function decodeAccessOperations(value: unknown): AccessOperation[] {
+  if (!Array.isArray(value) || value.length > 30) throw new Error("Access operation history is unavailable.");
+  const rows = value.map((item: unknown): AccessOperation => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Access operation history is unavailable.");
+    const row = item as Record<string, unknown>;
+    if (Object.keys(row).sort().join(",") !== "actor,event,id,occurredAt" ||
+        typeof row.id !== "string" || !operationUuid.test(row.id) ||
+        (row.event !== "access.granted" && row.event !== "access.revoked") ||
+        typeof row.actor !== "string" || row.actor.length < 1 || row.actor.length > 512 ||
+        typeof row.occurredAt !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(row.occurredAt) ||
+        !Number.isFinite(Date.parse(row.occurredAt)) || new Date(row.occurredAt).toISOString() !== row.occurredAt)
+      throw new Error("Access operation history is unavailable.");
+    return { id: row.id, event: row.event, actor: row.actor, occurredAt: row.occurredAt };
+  });
+  const ids = new Set(rows.map((row) => row.id.toLowerCase()));
+  if (ids.size !== rows.length || rows.some((row, index) => {
+    const previous = rows[index - 1];
+    return previous && (previous.occurredAt < row.occurredAt ||
+      (previous.occurredAt === row.occurredAt && previous.id.toLowerCase() <= row.id.toLowerCase()));
+  })) throw new Error("Access operation history is unavailable.");
+  return rows;
+}
 const client = new QueryClient({
   defaultOptions: {
     queries: { retry: false, staleTime: 15000, refetchOnWindowFocus: true },
@@ -91,6 +114,7 @@ function clearProtectedData() {
 }
 // Tokens live only in memory. OIDC redirect state uses session storage and is removed by the callback.
 let accessToken: string | undefined;
+let sessionGeneration = 0;
 let idToken: string | undefined;
 let oidc: UserManager | undefined;
 let expireSession: (() => void) | undefined;
@@ -198,6 +222,7 @@ function App() {
   React.useEffect(() => {
     expireSession = () => {
       accessToken = undefined;
+      sessionGeneration++;
       idToken = undefined;
       setSignedIn(false);
       setSelected(null);
@@ -253,6 +278,7 @@ function App() {
           body: JSON.stringify({ persona }),
         });
         accessToken = result.token;
+        sessionGeneration++;
         setSignedIn(true);
         setUpdateLocator(updateRequestLocation());
         const link = evidenceLocation();
@@ -284,6 +310,7 @@ function App() {
         if (user.expired) throw new Error("Expired sign-in");
         if (active) {
           accessToken = user.access_token;
+          sessionGeneration++;
           idToken = user.id_token;
           const state = user.state as {
             projectId?: unknown;
@@ -361,6 +388,7 @@ function App() {
     const logoutHint = idToken;
     idToken = undefined;
     accessToken = undefined;
+    sessionGeneration++;
     setSignedIn(false);
     setSelected(null);
     setCreating(false);
@@ -593,7 +621,7 @@ function App() {
           {updateLocator && me.data ? (
             <ProjectUpdateResponse key={`${me.data.customerId}:${me.data.subject}:${updateLocator}`} locator={updateLocator} request={request} />
           ) : view === "platform" && admin ? (
-            <PlatformView />
+            <PlatformView actor={me.data!} />
           ) : view === "ingestion" && pmoAdmin && me.data ? (
             <CsvIngestion request={request} projects={projects.data ?? []} actor={me.data} />
           ) : creating && setup.data ? (
@@ -861,15 +889,18 @@ function ProjectDetail({ project }: { project: Project }) {
     </div>
   );
 }
-function PlatformView() {
+function PlatformView({ actor }: { actor: Actor }) {
   const status = useProtectedQuery({
     queryKey: ["platform"],
     queryFn: () => request<Platform>("/platform"),
     refetchInterval: 15000,
   });
   const audit = useProtectedQuery({
-    queryKey: ["audit"],
-    queryFn: () => request<Audit[]>("/audit"),
+    queryKey: ["access-operations", sessionGeneration, actor.customerId, actor.subject, actor.roles.join(",")],
+    queryFn: async () => decodeAccessOperations(await request<unknown>("/access-operations")),
+    enabled: actor.roles.includes("system_admin"),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   const [subject, setSubject] = useState("");
   const [scopeId, setScopeId] = useState("");
@@ -898,8 +929,8 @@ function PlatformView() {
       });
       setMessage(
         action === "revoke"
-          ? "Access revoked. The change is recorded in the audit log."
-          : "Access granted. The change is recorded in the audit log.",
+          ? "Revoke operation recorded."
+          : "Grant operation recorded.",
       );
       await client.invalidateQueries();
     } catch (e) {
@@ -1014,31 +1045,33 @@ function PlatformView() {
           </form>
         </section>
         <section className="panel">
-          <h2>Recent access changes</h2>
+          <h2>Recent access operations</h2>
           <p className="muted">
-            An append-only record of administrative actions.
+            Up to 30 recorded grant and revoke operations. These records do not
+            establish current access. Historical database timestamps may not have a verified time zone.
           </p>
-          {audit.error && (
-            <p role="alert" className="error">
-              {audit.error.message}
-            </p>
-          )}
-          {audit.data?.length ? (
+          {!actor.roles.includes("system_admin") ? (
+            <p className="muted">Operation history is unavailable for this role.</p>
+          ) : audit.isFetching ? (
+            <p className="muted">Loading operation history…</p>
+          ) : audit.error ? (
+            <p role="alert" className="error">Access operation history is unavailable.</p>
+          ) : audit.data?.length ? (
             <ul className="audit-list">
               {audit.data.map((a) => (
                 <li key={a.id}>
                   <strong>
                     {a.event === "access.granted"
-                      ? "Access granted"
-                      : "Access revoked"}
+                      ? "Grant operation recorded"
+                      : "Revoke operation recorded"}
                   </strong>
                   <span>{a.actor}</span>
-                  <small>{new Date(a.occurredAt).toLocaleString()}</small>
+                  <small>Recorded time: {a.occurredAt.replace("T", " ").replace(/Z$/, "")}</small>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="muted">No administrative changes recorded yet.</p>
+            <p className="muted">No recorded access operations found.</p>
           )}
         </section>
       </div>
