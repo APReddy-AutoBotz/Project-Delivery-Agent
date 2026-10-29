@@ -339,7 +339,7 @@ test("Operator has no implicit project access and can grant and revoke access wi
   await expect(grant).toHaveCSS("outline-style", "solid");
   await expect(grant).toHaveCSS("outline-width", "2px");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toContainText("Access granted.");
+  await expect(page.getByRole("status")).toContainText("Grant operation recorded.");
   await expect(grant).toBeEnabled();
   await grant.focus();
   await page.keyboard.press("Tab");
@@ -347,9 +347,9 @@ test("Operator has no implicit project access and can grant and revoke access wi
     page.getByRole("button", { name: "Revoke access" }),
   ).toBeFocused();
   await page.keyboard.press("Space");
-  await expect(page.getByRole("status")).toContainText("Access revoked.");
+  await expect(page.getByRole("status")).toContainText("Revoke operation recorded.");
   await expect(
-    page.getByText("Access revoked", { exact: true }).first(),
+    page.locator(".audit-list").getByText("Revoke operation recorded", { exact: true }).first(),
   ).toBeVisible();
 });
 test("Small screens retain sign-in and project navigation without horizontal overflow", async ({

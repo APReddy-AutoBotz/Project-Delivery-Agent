@@ -19,6 +19,7 @@ it("reports database unready and stale worker without exposing infrastructure er
     setGrant: async () => {},
     revokeGrant: async () => {},
     listAudit: async () => [],
+    listAccessOperations: async () => [],
     ready: async () => false,
     heartbeat: async () => new Date(0),
   };

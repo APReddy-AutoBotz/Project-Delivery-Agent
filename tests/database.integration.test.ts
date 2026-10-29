@@ -64,6 +64,101 @@ const api = (path: string, token?: string, method = "GET", body?: unknown) =>
   });
 
 describe("Real database and HTTP foundation boundaries", () => {
+  it("lists only this customer's recent recorded access operations under the API role", async () => {
+    const one = randomUUID(), other = randomUUID();
+    await db.customer.createMany({ data: [
+      { id: one, name: "Synthetic operation history A" },
+      { id: other, name: "Synthetic operation history B" },
+    ] });
+    const portfolioId = randomUUID();
+    await db.portfolio.create({ data: { id: portfolioId, customerId: one, name: "Synthetic audit scope" } });
+    await db.accessGrant.create({ data: {
+      customerId: one, subject: "pmo-portfolio", scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin",
+    } });
+    const tied = new Date("2026-09-10T00:00:00.000Z");
+    const access = Array.from({ length: 35 }, (_, index) => ({
+      id: randomUUID(), customerId: one, actor: "synthetic-operator",
+      event: index % 2 ? "access.granted" : "access.revoked",
+      correlationId: "synthetic-private-correlation", detail: { private: "not returned" },
+      occurredAt: tied,
+    }));
+    const noise = Array.from({ length: 35 }, () => ({
+      id: randomUUID(), customerId: one, actor: "other-event-actor",
+      event: "health.assessed", correlationId: "noise", detail: {},
+      occurredAt: new Date("2026-09-11T00:00:00.000Z"),
+    }));
+    await db.auditEvent.createMany({ data: [...access, ...noise, {
+      id: randomUUID(), customerId: other, actor: "other-customer",
+      event: "access.granted", correlationId: "other", detail: {}, occurredAt: tied,
+    }] });
+    const admin: Actor = { subject: "synthetic-operator", customerId: one, roles: ["system_admin"] };
+    const snapshot = () => db.auditEvent.findMany({
+      where: { customerId: { in: [one, other] } }, orderBy: { id: "asc" },
+    });
+    const before = await snapshot();
+    const result = await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const [identity] = await tx.$queryRaw<{ role: string; canRead: boolean; canUpdate: boolean; canDelete: boolean }[]>`
+        SELECT current_user AS role,
+          has_table_privilege(current_user, 'public."AuditEvent"', 'SELECT') AS "canRead",
+          has_table_privilege(current_user, 'public."AuditEvent"', 'UPDATE') AS "canUpdate",
+          has_table_privilege(current_user, 'public."AuditEvent"', 'DELETE') AS "canDelete"`;
+      expect(identity).toEqual({ role: "pdaa_api", canRead: true, canUpdate: false, canDelete: false });
+      const apiRepository = new DatabaseProjectRepository(tx as unknown as typeof db);
+      return {
+        rows: await apiRepository.listAccessOperations(admin),
+        legacy: await apiRepository.listAudit(admin),
+        other: await apiRepository.listAccessOperations({ ...admin, customerId: other }),
+        otherLegacy: await apiRepository.listAudit({ ...admin, customerId: other }),
+      };
+    });
+    const { rows } = result;
+    expect(rows).toHaveLength(30);
+    expect(rows.map((row) => row.id)).toEqual(access.map((row) => row.id).sort().reverse().slice(0, 30));
+    expect(rows.every((row) => Object.keys(row).sort().join(",") === "actor,event,id,occurredAt")).toBe(true);
+    expect(rows.every((row) => row.actor === "synthetic-operator")).toBe(true);
+    expect(rows.every((row) => row.occurredAt.getTime() === tied.getTime())).toBe(true);
+    expect(new Set(rows.map((row) => row.event))).toEqual(new Set(["access.granted", "access.revoked"]));
+    expect(result.other).toHaveLength(1);
+    expect(result.other[0]?.actor).toBe("other-customer");
+    expect(result.legacy).toEqual(rows);
+    expect(result.otherLegacy).toEqual(result.other);
+    await expect(repository.listAccessOperations({ ...admin, roles: ["pmo_admin"] })).rejects.toThrow();
+    await expect(repository.listAudit({ ...admin, roles: ["pmo_admin"] })).rejects.toThrow();
+    await expect(repository.listAccessOperations({ ...admin, roles: ["project_manager"] })).rejects.toThrow();
+    const isolatedConfig = loadConfig({ ...process.env, CUSTOMER_ID: one });
+    const isolatedIdentity = new IdentityService(isolatedConfig);
+    // Exercise each HTTP repository read inside a real restricted-role transaction.
+    let roleReads = 0;
+    const restrictedRepository = new DatabaseProjectRepository({
+      auditEvent: { findMany: (args: Parameters<typeof db.auditEvent.findMany>[0]) => db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+        const [principal] = await tx.$queryRaw<{ role: string }[]>`SELECT current_user AS role`;
+        expect(principal?.role).toBe("pdaa_api");
+        roleReads++;
+        return tx.auditEvent.findMany(args);
+      }) },
+    } as unknown as typeof db);
+    const isolated = await createApp(isolatedConfig, restrictedRepository, isolatedIdentity);
+    try {
+      await isolated.app.listen(0, "127.0.0.1");
+      const isolatedBase = await isolated.app.getUrl();
+      const isolatedOperator = await isolatedIdentity.developmentToken("operator");
+      const isolatedPmo = await isolatedIdentity.developmentToken("pmo-portfolio");
+      for (const path of ["/api/audit", "/api/access-operations"]) {
+        const read = await fetch(isolatedBase + path, { headers: { Authorization: "Bearer " + isolatedOperator } });
+        expect(read.status).toBe(200);
+        const body = await read.json() as { id: string; event: string; actor: string; occurredAt: string }[];
+        expect(body.map((row) => row.id)).toEqual(rows.map((row) => row.id));
+        expect(body.every((row) => Object.keys(row).sort().join(",") === "actor,event,id,occurredAt")).toBe(true);
+        expect(body.every((row) => row.event === "access.granted" || row.event === "access.revoked")).toBe(true);
+        const denied = await fetch(isolatedBase + path, { headers: { Authorization: "Bearer " + isolatedPmo } });
+        expect(denied.status).toBe(403);
+      }
+      expect(roleReads).toBe(2);
+    } finally { await isolated.app.close(); }
+    expect(await snapshot()).toEqual(before);
+  });
   it("INT-DATA-001: enforces customer/portfolio ownership and customer-scoped project-code uniqueness", async () => {
     const other = "10000000-0000-4000-8000-000000000090";
     const portfolio = "20000000-0000-4000-8000-000000000090";

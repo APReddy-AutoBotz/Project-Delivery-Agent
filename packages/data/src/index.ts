@@ -18,6 +18,7 @@ export { ConnectorRuntimeError } from "./connector-runtime.js";
 import type {
   Actor,
   Grant,
+  AccessOperation,
   ProjectRepository,
   WorkerHeartbeatRepository,
 } from "@pdaa/domain";
@@ -155,12 +156,24 @@ export class DatabaseProjectRepository implements ProjectRepository {
     });
   }
   async listAudit(actor: Actor) {
-    this.checkAdministrator(actor);
-    return this.db.auditEvent.findMany({
-      where: { customerId: actor.customerId },
+    // Deprecated compatibility entry: retain the same scoped role boundary.
+    return this.listAccessOperations(actor);
+  }
+  async listAccessOperations(actor: Actor): Promise<AccessOperation[]> {
+    // Identity administration is an operational system-administrator function.
+    // This role is scoped to the authenticated customer, not a project grant.
+    if (!actor.roles.includes("system_admin"))
+      throw new Error("Access operation history denied");
+    const rows = await this.db.auditEvent.findMany({
+      where: { customerId: actor.customerId, event: { in: ["access.granted", "access.revoked"] } },
       select: { id: true, event: true, actor: true, occurredAt: true },
-      orderBy: { occurredAt: "desc" },
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
       take: 30,
+    });
+    return rows.map((row) => {
+      if (row.event !== "access.granted" && row.event !== "access.revoked")
+        throw new Error("Invalid access operation");
+      return { ...row, event: row.event };
     });
   }
   async ready() {

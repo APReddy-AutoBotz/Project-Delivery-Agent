@@ -134,6 +134,12 @@ const repository: ProjectRepository = {
       occurredAt: new Date("2026-09-06T00:00:00.000Z"),
     },
   ]),
+  listAccessOperations: vi.fn(async () => [{
+    id: "50000000-0000-4000-8000-000000000001",
+    event: "access.granted" as const,
+    actor: "operator",
+    occurredAt: new Date("2026-09-06T00:00:00.000Z"),
+  }]),
   ready: async () => ready,
   heartbeat: async () => new Date(),
 };
@@ -631,6 +637,20 @@ async function request(
   if (status < 300) covered.add(method.toLowerCase() + " " + route);
   return parsed;
 }
+it("fails access operation history closed on invalid data and repository errors", async () => {
+  const list = vi.mocked(repository.listAccessOperations);
+  list.mockResolvedValueOnce([{ id: "50000000-0000-4000-8000-000000000001",
+    event: "health.assessed", actor: "synthetic", occurredAt: new Date() }] as never);
+  const invalid = await request("/api/access-operations", 503, operator);
+  expect(JSON.stringify(invalid)).not.toContain("health.assessed");
+  list.mockRejectedValueOnce(new Error("private database detail"));
+  const failure = await request("/api/access-operations", 503, operator);
+  expect(JSON.stringify(failure)).not.toContain("private database detail");
+  list.mockResolvedValueOnce([{ id: "50000000-0000-4000-8000-000000000001",
+    event: "health.assessed", actor: "synthetic", occurredAt: new Date() }] as never);
+  const legacy = await request("/api/audit", 503, operator);
+  expect(JSON.stringify(legacy)).not.toContain("health.assessed");
+});
 it("CI-FND-001: every actual serialized success matches its published schema and status", async () => {
   await request(`/api/project-update-invitations/${project.id}`, 200, manager);
   await request(`/api/project-update-invitations/${project.id}/responses`, 201, manager, "POST", {
@@ -787,7 +807,19 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     },
   );
   await request("/api/platform", 200, operator);
-  await request("/api/audit", 200, operator);
+  const legacyAudit = await request("/api/audit", 200, operator) as Array<{ event: string }>;
+  expect(legacyAudit.map((row) => row.event)).toEqual(["access.granted"]);
+  expect(repository.listAudit).not.toHaveBeenCalled();
+  const ignoredLegacyQuery = await request("/api/audit?ignored=1", 200, operator) as Array<{ event: string }>;
+  expect(ignoredLegacyQuery.map((row) => row.event)).toEqual(["access.granted"]);
+  await request("/api/audit", 403, pmoPortfolio);
+  await request("/api/audit", 403, manager);
+  await request("/api/audit", 401);
+  await request("/api/access-operations", 200, operator);
+  await request("/api/access-operations?unknown=1", 400, operator);
+  await request("/api/access-operations", 403, pmoPortfolio);
+  await request("/api/access-operations", 403, manager);
+  await request("/api/access-operations", 401);
   await request("/api/access-grants", 204, operator, "POST", grant);
   await request("/api/access-grants", 204, operator, "DELETE", {
     subject: grant.subject,
@@ -876,7 +908,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(66);
+  expect(covered.size).toBe(67);
   assertContractSnapshot(
     spec,
     JSON.parse(
