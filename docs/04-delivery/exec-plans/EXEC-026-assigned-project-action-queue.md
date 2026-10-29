@@ -1,6 +1,6 @@
 # EXEC-026: Assigned-project action queue
 
-Status: Local implementation in progress; independent review and acceptance are not complete.
+Status: Merged partial increment; Issue #11 and story acceptance remain open.
 Requirements: FR-ADV-001/002/006/007/008, FR-RPT-002, NFR-SEC-001,
 NFR-REL-003, BR-013. Issue #11; AC-ADV-001/002/003/004/005 and AC-RPT-003
 remain open. Base: verified main `eaa90cf3f521718f8ee6609ddabe85624e21f850`.
@@ -92,27 +92,38 @@ actual merge tree and post-merge checks before updating acceptance evidence.
 Reverting the increment removes the reader and presentation; no business data
 rollback is expected.
 
-Local evidence so far: an isolated source-alias test harness exercised the pure
-ordering and bounds, fake-transaction control flow, controller mapping,
-single-flight refresh and an in-process HTTP route with fake identity and data;
-33 focused and architecture tests passed on 2026-10-29.
-The runtime OpenAPI was compiled and exported with fake dependencies, without
-opening a database connection. A loopback-only frontend with mocked API responses
-passed a Chromium test of failure and invalid-response hiding, focus and visible
-document revalidation, and settlement of an old request after a same-subject new session.
-Independent static reviews found no concrete source blocker; their findings do
-not replace a review of the final candidate. These checks do not validate production identity,
-SQL predicates, real permissions, native locks, race handling or browser session
-behavior against a real identity service. A native fixture has been authored and independently reviewed but not
-run; it creates real synthetic rows and must only run against a separately
-qualified owned disposable database using the exact built candidate. A reviewed
-grant-deletion barrier records the queue backend as the blocking transaction;
-additional unrun cases exercise a committed insertion before the final discovery
-and an unsealed project visible inside its creating transaction. Prepared
-source-reader revocation races use the real fact/authority repositories and
-identify the blocking backend in both transaction orders. Separate native
-fixtures cover populated customer isolation, dual-role fallback and 25/26
-assigned projects. The fixture's count
-assertions cover only audit events and health assessments. These native cases,
-remaining membership races, broader no-write evidence, real integrated browser checks, complete
-candidate review, normal repository checks and hosted validation remain open.
+## Verified merged evidence
+
+The exact reviewed PR #120 head `04a2c52c7dfb6a5a35f53b2f934ad9b26442e9c1`
+has tree `72acdfa2e88374f139880efb41ca4c5f85559b35`. Independent source and
+boundary reviews covered the final queue and the API-contract test correction.
+Head-associated PR [Foundation 40913488026](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40913488026)
+and [Documentation 40913488021](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40913488021)
+passed using synthetic merge `c35d294e7763524cc88a7f51ac555ee9cb22b62c`;
+its ordered parents are the base and reviewed head, and its tree equals the
+reviewed tree. Foundation included 1,966 non-integration tests in 118 files,
+236 tests in 18 database-integration files, 48 browser tests, recovery and
+production-boundary checks.
+The initial candidate Foundation 40912651584 failed because the exhaustive API
+contract test did not list the new route; the final candidate added that route
+and a real success request without weakening route equality.
+
+Merge `d1f52f45da30925752095784aab0b91d5ece5bab` has ordered parents
+`eaa90cf3f521718f8ee6609ddabe85624e21f850` and the reviewed head, and the same
+reviewed tree. Actual post-merge [Foundation 40918133860](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40918133860)
+and [Documentation 40918134190](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40918134190)
+passed on that merge SHA.
+
+Native fixtures use a disposable hosted database with `SET LOCAL ROLE pdaa_api`;
+they cover assigned-project and grant intersection, populated customer isolation,
+dual-role fallback, the 25/26 project limit, source-reader revocation in both
+observed lock orders, grant deletion/insertion and an unsealed candidate visible
+in its creating transaction. Their no-write count assertions cover audit events
+and health assessments only. They do not establish a separate authenticated API
+login, all possible membership or policy races, or unchanged contents of every
+business table. The browser journey uses mocked API responses to exercise refresh,
+visibility and late-session response handling. Schedule output does not assess
+source authority; in the PR #120 merge, approvals, blocker-age and other
+categories are unavailable.
+This is partial queue groundwork, not acceptance of AC-ADV-002, Issue #11, any
+story or a release hold. Original19/20 capture remains stopped.

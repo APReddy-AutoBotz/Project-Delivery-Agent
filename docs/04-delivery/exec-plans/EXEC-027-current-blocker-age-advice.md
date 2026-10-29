@@ -3,8 +3,9 @@
 Status: Local implementation and verification in progress. The design was
 reviewed independently before implementation. Its queue base merged as PR #120,
 actual merge `d1f52f45da30925752095784aab0b91d5ece5bab`; candidate and
-post-merge Foundation and Documentation checks passed. A separate evidence PR
-#121 is pending. Requirements:
+post-merge Foundation and Documentation checks passed. The separate evidence
+PR #121 merged as `5aafae959b88fcd5e141ba8c7be909b1dee31f4a`; its post-merge
+checks are in progress. Requirements:
 FR-HLT-004/009/011, FR-ADV-001/002/006/007/008, FR-RPT-002, NFR-SEC-001,
 NFR-REL-003, BR-013; Issues #9 and #11. This is a partial increment and does
 not accept a story or criterion.
