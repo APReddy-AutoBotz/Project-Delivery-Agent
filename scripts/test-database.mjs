@@ -682,6 +682,7 @@ node([
   "tests/project-update-policy-binding.integration.test.ts",
   "tests/project-update-completeness.integration.test.ts",
   "tests/project-update-engagement.integration.test.ts",
+  "tests/update-invitation-http.integration.test.ts",
   "tests/project-update-escalation.integration.test.ts",
   "tests/authority-persistence.integration.test.ts",
   "tests/blocker-age-assessment.integration.test.ts",
