@@ -17,6 +17,8 @@ import {
   scanExecutionLogs,
   rejectLoggedTokens,
   createHostDisclosure,
+  formatCaptureDiagnostic,
+  reportIdentityCaptureDiagnostic,
 } from "../scripts/acceptance/disclosure.mjs";
 
 const base = "https://product.example.test";
@@ -189,6 +191,57 @@ async function observer() {
     session,
   };
 }
+
+it("reports only fixed, saturated capture diagnostics and preserves the original failure", () => {
+  const canary = secret();
+  const emit = vi.fn();
+  reportIdentityCaptureDiagnostic("other-stage", { diagnostic: () => ({ phase: canary }) }, emit);
+  expect(emit).not.toHaveBeenCalled();
+  reportIdentityCaptureDiagnostic("loaded-details-disclosure", {
+    diagnostic: () => ({ phase: canary, counters: { body: 999, response: -1, headers: canary }, tokenSeen: canary, url: base, error: canary }),
+  }, emit);
+  expect(emit).toHaveBeenCalledTimes(1);
+  const line = emit.mock.calls[0]![0] as string;
+  expect(line).not.toContain(canary);
+  expect(line).not.toContain(base);
+  const value = JSON.parse(line.slice("SEC-AUTH-001 capture diagnostic ".length));
+  expect(value).toEqual({ phase: "unavailable", counters: { response: 0, headers: 0, body: 2, continuation: 0, console: 0, timeout: 0, targets: 0, unresolved: 0, unprepared: 0 }, tokenSeen: false });
+  expect(() => reportIdentityCaptureDiagnostic("loaded-details-disclosure", {
+    diagnostic: () => { throw new Error(canary); },
+  }, () => { throw new Error(canary); })).not.toThrow();
+  const hostile = { get phase() { throw new Error(canary); } };
+  expect(formatCaptureDiagnostic(hostile)).not.toContain(canary);
+});
+
+it("keeps capture failures closed while distinguishing finite diagnostic phases", async () => {
+  for (const fault of ["networkidle", "dom", "storage", "token", "headers", "body", "continuation", "console", "unresolved", "unprepared", "target"]) {
+    const f = await observer();
+    if (fault !== "token") f.response(tokenPath, f.tokens);
+    if (fault === "networkidle") f.page.waitForLoadState = async () => { throw new Error(f.canary); };
+    if (fault === "dom") f.page.content = async () => { throw new Error(f.canary); };
+    if (fault === "storage") f.page.evaluate = async () => { throw new Error(f.canary); };
+    if (fault === "body") f.response("/api/me", {}, {}, true);
+    if (fault === "headers") f.pause({ noResponse: true });
+    if (fault === "continuation") f.pause({ continuationError: true });
+    if (fault === "console") f.page.emit("console", { text: () => "public", args: () => [{ jsonValue: async () => { throw new Error(f.canary); } }] });
+    if (fault === "unresolved") f.pause({ error: "Aborted", noResponse: true, networkId: "synthetic" });
+    if (fault === "unprepared") f.context.emit("page", new EventEmitter());
+    if (fault === "target") f.page.emit("worker", {});
+    await expect(f.capture(f.page)).rejects.toThrow();
+    const diagnostic = JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic()));
+    expect(JSON.stringify(diagnostic)).not.toContain(f.canary);
+    expect(JSON.stringify(diagnostic)).not.toContain(base);
+    if (["networkidle", "dom", "storage"].includes(fault)) expect(diagnostic.phase).toBe(fault);
+    if (fault === "token") expect(diagnostic).toMatchObject({ phase: "token_seen", tokenSeen: false });
+    if (fault === "body") expect(diagnostic.counters.body).toBe(1);
+    if (fault === "headers") expect(diagnostic.counters.headers).toBe(1);
+    if (fault === "continuation") expect(diagnostic.counters.continuation).toBe(1);
+    if (fault === "console") expect(diagnostic.counters.console).toBe(1);
+    if (fault === "unresolved") expect(diagnostic.counters.unresolved).toBe(1);
+    if (fault === "unprepared") expect(diagnostic.counters.unprepared).toBe(1);
+    if (fault === "target") expect(diagnostic.counters.targets).toBe(1);
+  }
+});
 
 it("SEC-SECRET-001: browser collector detects nested console values, error stacks and token header leaks", async () => {
   for (const channel of [
@@ -559,6 +612,9 @@ it("SEC-SECRET-001: stuck response capture fails within its deadline without con
     );
     await vi.advanceTimersByTimeAsync(10001);
     await completion;
+    expect(JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic()))).toMatchObject({
+      phase: "drain_before_dom", counters: { timeout: 1 },
+    });
     expect(
       f.session.send.mock.calls.some(
         ([method, args]) =>

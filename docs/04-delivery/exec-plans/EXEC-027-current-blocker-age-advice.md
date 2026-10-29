@@ -4,8 +4,10 @@ Status: Local implementation and verification in progress. The design was
 reviewed independently before implementation. Its queue base merged as PR #120,
 actual merge `d1f52f45da30925752095784aab0b91d5ece5bab`; candidate and
 post-merge Foundation and Documentation checks passed. The separate evidence
-PR #121 merged as `5aafae959b88fcd5e141ba8c7be909b1dee31f4a`; its post-merge
-checks are in progress. Requirements:
+PR #121 merged as `5aafae959b88fcd5e141ba8c7be909b1dee31f4a`; its actual
+post-merge [Foundation 40927863307](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40927863307)
+and [Documentation 40927863262](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40927863262)
+checks passed. Requirements:
 FR-HLT-004/009/011, FR-ADV-001/002/006/007/008, FR-RPT-002, NFR-SEC-001,
 NFR-REL-003, BR-013; Issues #9 and #11. This is a partial increment and does
 not accept a story or criterion.
@@ -158,3 +160,28 @@ independently verified as isolated. Review the exact final
 candidate and required hosted checks, merge with expected head, verify the merge
 tree and post-merge checks, then update the evidence ledger. No acceptance claim
 follows from an unexecuted fixture or mocked browser alone.
+
+## Production diagnostic increment
+
+The reviewed head `b716bb42a7b0cce4615623a6b3d6a56c327c163a` was tested
+against base `5aafae959b88fcd5e141ba8c7be909b1dee31f4a`. Foundation run
+40928798692's verify job passed. Production-boundary attempt 1 failed during the
+external customer restore after entering `sessions_before_commit`; the public
+log does not establish the underlying failure. One unchanged rerun, job
+123654521327, failed at `loaded-details-disclosure` before the natural-expiry
+wait and the final secret comparison. That stage covers several recorder and
+page operations and does not establish a secret leak, expiry failure or cause.
+These are separate retained failures, not passing evidence. A cancellation
+interaction with the PM queue is a hypothesis only.
+
+The next diagnostic preserves the original CDP response capture, disclosure
+checks, natural expiry, authorization and database assertions and all existing
+deadlines. On that one failure stage it emits only a fixed last-entered capture
+subphase, saturated 0/1/2+ counters for known recorder failure categories,
+unresolved and unprepared targets, and a token-seen boolean. No exception text,
+request path, response, identifier, URL, body, token, secret or digest is
+emitted. The snapshot is point-in-time and cannot identify a request or prove
+causation. Diagnostics must not replace the primary failure or relax capture;
+synthetic tests exercise counter classes, timeouts and canary redaction.
+Independent review and exact-head hosted validation remain required before any
+merge. A diagnostic result is not a fix or an acceptance decision.
