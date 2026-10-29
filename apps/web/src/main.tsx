@@ -18,6 +18,7 @@ import { ProjectEvidence } from "./project-evidence.js";
 import { HealthAssessmentPanel } from "./health-assessment.js";
 import { DeliverySuggestions } from "./delivery-suggestions.js";
 import { UpdateSuggestions } from "./update-suggestions.js";
+import { PmActionQueuePanel } from "./pm-action-queue.js";
 import { ProjectUpdates } from "./project-updates.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
 import { CsvIngestion } from "./csv-ingestion.js";
@@ -687,6 +688,12 @@ function App() {
             </>
           ) : (
             <>
+              {me.data?.roles.includes("project_manager") && <PmActionQueuePanel
+                key={`pm-queue:${me.data.customerId}:${me.data.subject}`}
+                scope={`${me.data.customerId}:${me.data.subject}`}
+                request={request}
+                openProject={navigateProject}
+              />}
               <div className="summary-strip">
                 <div>
                   <span>Accessible projects</span>

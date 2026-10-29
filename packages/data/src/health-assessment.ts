@@ -595,7 +595,14 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
   async scheduleSuggestions(currentValue: Actor, idValue: string) {
     const current = actor(currentValue);
     const id = projectId(idValue);
-    return this.transaction(async (tx) => {
+    return this.transaction((tx) => this.scheduleSuggestionsInTransaction(tx, current, id));
+  }
+
+  // Internal composition: the caller owns the transaction. This method still
+  // performs the complete project, grant, assignment and policy checks itself.
+  async scheduleSuggestionsInTransaction(tx: Tx, currentValue: Actor, idValue: string) {
+      const current = actor(currentValue);
+      const id = projectId(idValue);
       await this.authorizeProject(tx, current, id);
       const projects = await tx.$queryRawUnsafe<{ portfolioId: string; reportedStatus: string }[]>(
         'SELECT "portfolioId","reportedStatus" FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid',
@@ -661,7 +668,6 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
           workItems: workItems.map(convert),
         },
       });
-    });
   }
   async retention(currentValue: Actor) {
     const current = actor(currentValue);

@@ -686,6 +686,7 @@ node([
   "tests/authority-persistence.integration.test.ts",
   "tests/blocker-age-assessment.integration.test.ts",
   "tests/schedule-advice.integration.test.ts",
+  "tests/pm-action-queue.integration.test.ts",
   "tests/canonical-project.integration.test.ts",
   "tests/milestone-persistence.integration.test.ts",
   "tests/milestone-reconciliation.integration.test.ts",

@@ -382,7 +382,17 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   // EXEC-023: current, authorized read only; no assessment or workflow writes.
   async updateSuggestions(actorValue: Actor, projectValue: string) {
     const current = parseActor(actorValue), id = parseProjectId(projectValue);
-    try { return await this.transaction(async (tx) => {
+    try { return await this.transaction((tx) => this.updateSuggestionsInTransaction(tx, current, id), "ReadCommitted"); } catch (error) {
+      if (error instanceof ProjectUpdateError && error.code === "CONFLICT")
+        throw new ProjectUpdateError("UNAVAILABLE");
+      throw error;
+    }
+  }
+
+  // Internal composition: the caller owns the transaction. Every project,
+  // grant, assignment, policy and source-authority check remains mandatory.
+  async updateSuggestionsInTransaction(tx: Tx, actorValue: Actor, projectValue: string) {
+      const current = parseActor(actorValue), id = parseProjectId(projectValue);
       const projects = await tx.$queryRawUnsafe<{ id: string }[]>(
         'SELECT id FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR SHARE',
         current.customerId, id,
@@ -434,11 +444,6 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         completeness: result.completeness, freshness: result.freshnessAssessment.freshness,
         evidence: result.evidence,
       });
-    }, "ReadCommitted"); } catch (error) {
-      if (error instanceof ProjectUpdateError && error.code === "CONFLICT")
-        throw new ProjectUpdateError("UNAVAILABLE");
-      throw error;
-    }
   }
 
   private reassessmentItem(row: ReassessmentCause): IngestionReassessmentItem {

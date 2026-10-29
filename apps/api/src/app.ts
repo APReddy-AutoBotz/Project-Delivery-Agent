@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { ProjectUpdateInvitationController } from "./project-update-invitation-controller.js";
+import { PmActionQueueController, PM_ACTION_QUEUE_REPOSITORY, unavailablePmActionQueueRepository } from "./pm-action-queue-controller.js";
 import { installProjectUpdateInvitationBoundary, isProjectUpdateInvitationPath } from "./project-update-invitation-boundary.js";
 import {
   ScalarReconciliationController,
@@ -86,6 +87,7 @@ import {
   type IngestionRepository,
   type ScheduleAdviceHealthRepository,
   type ProjectUpdateRepository,
+  type PmActionQueueRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
@@ -257,6 +259,7 @@ export async function createApp(
   ingestion: IngestionRepository = unavailableIngestionRepository,
   healthAssessment: ScheduleAdviceHealthRepository = unavailableHealthAssessmentRepository,
   projectUpdates: ProjectUpdateRepository = unavailableProjectUpdateRepository,
+  pmActionQueue: PmActionQueueRepository = unavailablePmActionQueueRepository,
 ) {
   @Module({
     controllers: [
@@ -269,6 +272,7 @@ export async function createApp(
       HealthAssessmentController,
       ProjectUpdateController,
       ProjectUpdateInvitationController,
+      PmActionQueueController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -285,6 +289,7 @@ export async function createApp(
       { provide: INGESTION_REPOSITORY, useValue: ingestion },
       { provide: HEALTH_ASSESSMENT_REPOSITORY, useValue: healthAssessment },
       { provide: PROJECT_UPDATE_REPOSITORY, useValue: projectUpdates },
+      { provide: PM_ACTION_QUEUE_REPOSITORY, useValue: pmActionQueue },
       IngestionIdentityGuard,
     ],
   })

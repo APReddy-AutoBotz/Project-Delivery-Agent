@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
+export { DatabasePmActionQueueRepository } from "./pm-action-queue.js";
 export { DatabaseProjectFactRepository } from "./project-facts.js";
 export { DatabaseAuthorityRepository } from "./authority-persistence.js";
 export { DatabaseMilestoneConsistencyRepository } from "./milestone-persistence.js";

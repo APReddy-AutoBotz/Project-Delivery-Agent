@@ -22,7 +22,7 @@ import {
   projectUpdatePolicyViewSchema,
   projectUpdateSchedulePreviewSchema,
 } from "../packages/domain/src/index.js";
-import { ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
+import { buildPmActionQueue, ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
 import { HealthAssessmentError, ProjectUpdateError } from "../packages/domain/dist/index.js";
 import type {
   ScheduleAdviceHealthRepository,
@@ -467,6 +467,7 @@ beforeAll(async () => {
     ingestionRepository,
     healthAssessmentRepository,
     projectUpdateRepository,
+    { read: vi.fn(async () => buildPmActionQueue([])) },
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -689,6 +690,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   );
   await request(`/api/projects/${project.id}/delivery-suggestions`, 200, manager);
   await request(`/api/projects/${project.id}/update-suggestions`, 200, manager);
+  await request("/api/pm/action-queue", 200, manager);
   await request(
     "/api/projects/" + project.id + "/health-assessments",
     201,
@@ -870,7 +872,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(64);
+  expect(covered.size).toBe(65);
   assertContractSnapshot(
     spec,
     JSON.parse(
