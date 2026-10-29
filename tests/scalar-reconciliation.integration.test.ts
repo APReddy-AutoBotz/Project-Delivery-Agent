@@ -1,6 +1,7 @@
 import { afterAll, expect, it } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
+import { SignJWT } from "jose";
 import {
   PrismaClient,
   type Prisma,
@@ -12,10 +13,12 @@ import {
 } from "../scripts/acceptance/fixture-cleanup.mjs";
 import {
   createDatabase,
+  DatabaseProjectRepository,
   DatabaseCanonicalProjectRepository,
   DatabaseProjectFactRepository,
   DatabaseAuthorityRepository,
   DatabaseScalarReconciliationRepository,
+  DatabaseScalarConflictObservationRepository,
 } from "../packages/data/dist/index.js";
 import {
   scalarReconciliationIdentity,
@@ -23,6 +26,10 @@ import {
 } from "../packages/domain/src/index.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 import { verifyImmutableHistoryMutation } from "../scripts/acceptance/immutable-history.mjs";
+import { possibleMutation, rawSqlText } from "./fixtures/read-only-sql.js";
+import { loadConfig } from "../packages/platform/dist/index.js";
+import { createApp } from "../apps/api/dist/app.js";
+import { compileContract } from "../scripts/validate-openapi.mjs";
 
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_\d+$/.test(new URL(url).pathname))
@@ -35,7 +42,7 @@ const facts = new DatabaseProjectFactRepository(db),
   canonical = new DatabaseCanonicalProjectRepository(db);
 const context = { correlationId: "scalar-reconciliation-integration" };
 afterAll(async () => db.$disconnect());
-async function fixture(configured = true, optedIn = true) {
+async function fixture(configured = true, optedIn = true, withPolicy = true) {
   const portfolioId = randomUUID();
   const pmo: Actor = {
     customerId,
@@ -130,7 +137,7 @@ async function fixture(configured = true, optedIn = true) {
       context,
     );
   }
-  await authority.appendPolicy(
+  if (withPolicy) await authority.appendPolicy(
     pmo,
     {
       projectId,
@@ -164,6 +171,542 @@ async function fixture(configured = true, optedIn = true) {
   const input = { projectId, factId: fact.id, idempotencyKey: randomUUID() };
   return { pmo, pm, leader, projectId, factType, input, versions };
 }
+it("reads the same authorized current disagreement before and after separate reconciliation capture", async () => {
+  const f = await fixture();
+  const attemptedWrites: string[] = [];
+  const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      expect((await tx.$queryRawUnsafe<{ current_user: string }[]>("SELECT current_user"))[0]!.current_user).toBe("pdaa_api");
+      const acl = await tx.$queryRawUnsafe<{ allowed: boolean }[]>(`SELECT has_table_privilege(current_user, 'public."AuditEvent"', 'SELECT') AS allowed`);
+      expect(acl[0]?.allowed).toBe(true);
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if ((key === "$queryRaw" || key === "$queryRawUnsafe" || key === "$executeRaw" || key === "$executeRawUnsafe") && typeof value === "function") return (...args: unknown[]) => {
+          const sql = rawSqlText(args[0]);
+          if ((String(key).startsWith("$execute") && !/^SET LOCAL (?:statement_timeout|lock_timeout)\s*=/.test(sql)) || possibleMutation(sql)) {
+            attemptedWrites.push(sql); throw new Error("Unexpected SQL mutation");
+          }
+          return Reflect.apply(value, target, args);
+        };
+        if (value && typeof value === "object" && typeof key === "string" && !key.startsWith("$")) return new Proxy(value, { get(model, method) {
+          const fn = Reflect.get(model, method);
+          if (typeof fn === "function" && /^(?:create|createMany|update|updateMany|upsert|delete|deleteMany)$/.test(String(method)))
+            return () => { attemptedWrites.push(`${key}.${String(method)}`); throw new Error("Unexpected ORM mutation"); };
+          return typeof fn === "function" ? fn.bind(model) : fn;
+        } });
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const reader = new DatabaseScalarConflictObservationRepository(roleDb as never);
+  const scopedTables = ["ProjectFact", "ProjectFactVersion", "FactEvidence", "FactSource", "FactSourceAccess", "FactSourceReader",
+    "AuthorityPolicy", "AuthorityPolicyRevision", "AuthorityPolicyReceipt", "FactAuthorityConflict", "FactAssessment", "FactAssessmentVersion",
+    "FactAssessmentConflict", "ScalarReconciliationRequest", "ScalarReconciliationCheck", "ScalarReconciliationAssignment"];
+  const snapshot = () => Promise.all([...scopedTables.map((table) => db.$queryRawUnsafe(
+    `SELECT to_jsonb(t)::text AS row FROM public."${table}" t WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY to_jsonb(t)::text COLLATE "C"`, customerId, f.projectId)),
+    db.$queryRawUnsafe(`SELECT to_jsonb(t)::text AS row FROM public."AuditEvent" t WHERE "customerId"=$1::uuid AND detail->>'projectId'=$2 ORDER BY to_jsonb(t)::text COLLATE "C"`, customerId, f.projectId)]);
+  const before = await snapshot();
+  const observed = await reader.readLeadership(f.leader, f.projectId, f.input.factId);
+  expect(await snapshot()).toEqual(before);
+  expect(attemptedWrites).toEqual([]);
+  expect(observed.positions.map((item) => item.value)).toEqual(["2026-10-01", "2026-10-02"]);
+  for (const [index, position] of observed.positions.entries()) {
+    expect(position.supports).toMatchObject([{ versionId: f.versions[index]!.id,
+      evidenceId: f.versions[index]!.evidenceId, sourceId: f.versions[index]!.sourceId, provenance: "HUMAN_CONFIRMED" }]);
+  }
+  await reconciliation.check(f.pmo, f.input, context);
+  const captured = await snapshot();
+  const after = await reader.readLeadership(f.leader, f.projectId, f.input.factId);
+  expect(await snapshot()).toEqual(captured);
+  expect(attemptedWrites).toEqual([]);
+  expect({ ...after, asOf: observed.asOf }).toEqual(observed);
+  await expect(reader.readLeadership(f.pm, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readLeadership({ ...f.leader, customerId: randomUUID() }, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readLeadership(f.leader, randomUUID(), f.input.factId)).rejects.toMatchObject({ code: "DENIED" });
+  const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: f.versions[0]!.sourceId });
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: f.versions[0]!.sourceId,
+    expectedRevision: access!.revision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+  await expect(reader.readLeadership(f.leader, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+});
+it("serves only authorized role-switched scalar observations over the authenticated HTTP boundary", async () => {
+  const f = await fixture(false), config = loadConfig(process.env);
+  const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) };
+  const { app, spec } = await createApp(config, new DatabaseProjectRepository(db), undefined, canonical, facts, authority,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    new DatabaseScalarConflictObservationRepository(roleDb as never));
+  const validate = compileContract(spec), template = "/api/projects/{id}/fact-observations/{factId}/leadership-conflict";
+  await app.listen(0, "127.0.0.1");
+  async function request(actor: Actor, suffix = "") {
+    const token = await new SignJWT({ roles: actor.roles }).setProtectedHeader({ alg: "HS256" }).setSubject(actor.subject)
+      .setIssuer("pdaa:local").setAudience("pdaa:api").setIssuedAt().setExpirationTime("5m")
+      .sign(new TextEncoder().encode(config.SESSION_SECRET));
+    const response = await fetch(`${await app.getUrl()}/api/projects/${f.projectId}/fact-observations/${f.input.factId}/leadership-conflict${suffix}`,
+      { headers: { Authorization: `Bearer ${token}` } });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await response.text(); validate.response("GET", template, response.status, "application/json", body);
+    return { status: response.status, body };
+  }
+  try {
+    const allowed = await request(f.leader); expect(allowed.status).toBe(200);
+    expect(JSON.parse(allowed.body).positions.map((position: { value: string }) => position.value)).toEqual(["2026-10-01", "2026-10-02"]);
+    expect((await request(f.pm)).status).toBe(404);
+    expect((await request({ ...f.leader, subject: "outsider-" + randomUUID() })).status).toBe(404);
+    expect((await request(f.leader, "?cursor=private")).status).toBe(400);
+    const sourceId = f.versions[0]!.sourceId, access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+    await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: access!.revision,
+      state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+    const unavailable = await request(f.leader); expect(unavailable.status).toBe(503); expect(unavailable.body).not.toContain(sourceId);
+  } finally { await app.close(); }
+}, 60000);
+it("conceals fact IDs outside the first authorized 50-item catalogue page", async () => {
+  const f = await fixture(false);
+  const reader = new DatabaseScalarConflictObservationRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never);
+  expect((await reader.readLeadership(f.leader, f.projectId, f.input.factId)).positions).toHaveLength(2);
+  const appendFact = async (index: number) => {
+    await facts.appendHumanStatement(f.pmo, { projectId: f.projectId, factType: `a.fact${String(index).padStart(2, "0")}`,
+      expectedRevision: 0, idempotencyKey: randomUUID(), effectiveAt: new Date(Date.now() - 1000).toISOString(),
+      validUntil: new Date(Date.now() + 3600000).toISOString(), originalStatement: "Synthetic catalogue entry",
+      value: { type: "date", value: "2026-10-01" } }, context);
+  };
+  for (let index = 0; index < 49; index++) await appendFact(index);
+  const lastVisible = await facts.listFacts(f.leader, { projectId: f.projectId });
+  expect(lastVisible?.facts).toHaveLength(50); expect(lastVisible?.facts[49]?.factId).toBe(f.input.factId);
+  expect((await reader.readLeadership(f.leader, f.projectId, f.input.factId)).positions).toHaveLength(2);
+  await appendFact(49);
+  const page = await facts.listFacts(f.leader, { projectId: f.projectId });
+  expect(page?.facts).toHaveLength(50); expect(page?.next).not.toBeNull();
+  expect(page?.facts.some((row) => row.factId === f.input.factId)).toBe(false);
+  await expect(reader.readLeadership(f.leader, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readLeadership(f.leader, f.projectId, page!.facts[0]!.factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  await expect(reader.readLeadership(f.leader, f.projectId, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
+}, 60000);
+it("coordinates source-access revocation and scalar observation in both lock orders", async () => {
+  const f = await fixture(false), sourceId = f.versions[0]!.sourceId;
+  const makeReader = (database: unknown) => new DatabaseScalarConflictObservationRepository(database as never);
+  async function blocked(waiting: number, blocking: number, fragments: string[]) {
+    for (let i = 0; i < 40; i++) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waiting);
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(blocking) && fragments.every((item) => rows[0]!.query.includes(item))) return true;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return false;
+  }
+  let writerPid = 0, readerPid = 0, writerReady!: () => void, readerReady!: () => void, releaseWriter!: () => void;
+  const writerEntered = new Promise<void>((resolve) => { writerReady = resolve; });
+  const readerEntered = new Promise<void>((resolve) => { readerReady = resolve; });
+  const writerGate = new Promise<void>((resolve) => { releaseWriter = resolve; });
+  let paused = false;
+  const gatedWriter = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      writerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (!paused && sql.includes('FROM "Project"') && sql.includes("FOR UPDATE")) { paused = true; writerReady(); await writerGate; }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  let passedProjectGate = false, loadedSourceAccess = false;
+  const startedReader = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      readerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      readerReady(); return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) passedProjectGate = true;
+          return output;
+        };
+        if (key === "factSourceAccess" && value && typeof value === "object") return new Proxy(value, { get(model, method) {
+          const fn = Reflect.get(model, method);
+          if (method === "findMany" && typeof fn === "function") return async (...args: unknown[]) => {
+            const output = await Reflect.apply(fn, model, args); loadedSourceAccess = true; return output;
+          };
+          return typeof fn === "function" ? fn.bind(model) : fn;
+        } });
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const initial = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+  const writer = new DatabaseProjectFactRepository(gatedWriter as never).setSourceAccess(f.pmo, { projectId: f.projectId, sourceId,
+    expectedRevision: initial!.revision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+  void writer.catch(() => {});
+  let waiting: ReturnType<DatabaseScalarConflictObservationRepository["readLeadership"]> | undefined, writerFirst = false;
+  try {
+    await Promise.race([writerEntered, writer.then(() => { throw new Error("Writer exited before barrier"); })]);
+    waiting = makeReader(startedReader).readLeadership(f.leader, f.projectId, f.input.factId); void waiting.catch(() => {});
+    await Promise.race([readerEntered, waiting.then(() => { throw new Error("Reader exited before barrier"); })]);
+    writerFirst = await blocked(readerPid, writerPid, ['FROM public."Project"', "FOR SHARE"]);
+  } finally { releaseWriter(); await Promise.allSettled(waiting ? [writer, waiting] : [writer]); }
+  expect(writerFirst).toBe(true); await writer;
+  await expect(waiting).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(passedProjectGate && loadedSourceAccess).toBe(true);
+  expect(await db.factSourceReader.count({ where: { customerId, projectId: f.projectId, sourceId, subject: f.leader.subject } })).toBe(0);
+  const revoked = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+  const restored = await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: revoked!.revision,
+    state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, f.leader.subject] }, context);
+  expect((await makeReader(startedReader).readLeadership(f.leader, f.projectId, f.input.factId)).positions).toHaveLength(2);
+
+  let heldPid = 0, latePid = 0, heldReady!: () => void, lateReady!: () => void, releaseHeld!: () => void, held = false;
+  const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
+  const lateEntered = new Promise<void>((resolve) => { lateReady = resolve; });
+  const heldGate = new Promise<void>((resolve) => { releaseHeld = resolve; });
+  const heldReader = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      heldPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (!held && sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) { held = true; heldReady(); await heldGate; }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const startedWriter = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      latePid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      lateReady(); return operation(tx);
+    }, options as never) };
+  const observation = makeReader(heldReader).readLeadership(f.leader, f.projectId, f.input.factId); void observation.catch(() => {});
+  let later: ReturnType<DatabaseProjectFactRepository["setSourceAccess"]> | undefined, readerFirst = false;
+  try {
+    await Promise.race([heldEntered, observation.then(() => { throw new Error("Reader exited before barrier"); })]);
+    later = new DatabaseProjectFactRepository(startedWriter as never).setSourceAccess(f.pmo, { projectId: f.projectId, sourceId,
+      expectedRevision: restored.revision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+    void later.catch(() => {});
+    await Promise.race([lateEntered, later.then(() => { throw new Error("Writer exited before barrier"); })]);
+    readerFirst = await blocked(latePid, heldPid, ['FROM "Project"', "FOR UPDATE"]);
+  } finally { releaseHeld(); await Promise.allSettled(later ? [observation, later] : [observation]); }
+  expect(readerFirst).toBe(true); expect((await observation).positions).toHaveLength(2); await later;
+  expect(await db.factSourceReader.count({ where: { customerId, projectId: f.projectId, sourceId, subject: f.leader.subject } })).toBe(0);
+  await expect(makeReader(startedReader).readLeadership(f.leader, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+}, 60000);
+it("coordinates existing leadership grant removal and scalar observation in both lock orders", async () => {
+  const f = await fixture(false);
+  const grant = await db.accessGrant.findFirstOrThrow({ where: { customerId, subject: f.leader.subject, role: "leadership" } });
+  const reader = (database: unknown) => new DatabaseScalarConflictObservationRepository(database as never);
+  async function blocked(waiting: number, blocking: number, fragments: string[]) {
+    for (let i = 0; i < 40; i++) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waiting);
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(blocking) && fragments.every((part) => rows[0]!.query.includes(part))) return true;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return false;
+  }
+  let writerPid = 0, readerPid = 0, writerReady!: () => void, readerReady!: () => void, releaseWriter!: () => void;
+  const writerEntered = new Promise<void>((resolve) => { writerReady = resolve; });
+  const readerEntered = new Promise<void>((resolve) => { readerReady = resolve; });
+  const writerGate = new Promise<void>((resolve) => { releaseWriter = resolve; });
+  const writer = db.$transaction(async (tx) => {
+    writerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    await tx.accessGrant.delete({ where: { id: grant.id } }); writerReady(); await writerGate;
+  }, { timeout: 20000 });
+  void writer.catch(() => {});
+  let finishedGrantQuery = false, returnedGrantCount = -1;
+  const startedReader = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      readerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      readerReady(); return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (sql.includes('FROM public."AccessGrant"') && sql.includes("FOR SHARE")) {
+            finishedGrantQuery = true; returnedGrantCount = Array.isArray(output) ? output.length : -1;
+          }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  let waiting: ReturnType<DatabaseScalarConflictObservationRepository["readLeadership"]> | undefined, writerFirst = false;
+  try {
+    await Promise.race([writerEntered, writer.then(() => { throw new Error("Grant writer exited before barrier"); })]);
+    waiting = reader(startedReader).readLeadership(f.leader, f.projectId, f.input.factId); void waiting.catch(() => {});
+    await Promise.race([readerEntered, waiting.then(() => { throw new Error("Reader exited before barrier"); })]);
+    writerFirst = await blocked(readerPid, writerPid, ['FROM public."AccessGrant"', "FOR SHARE"]);
+  } finally { releaseWriter(); await Promise.allSettled(waiting ? [writer, waiting] : [writer]); }
+  expect(writerFirst).toBe(true); await writer;
+  await expect(waiting).rejects.toMatchObject({ code: "DENIED" });
+  expect(finishedGrantQuery && returnedGrantCount === 0).toBe(true);
+  expect(await db.accessGrant.findUnique({ where: { id: grant.id } })).toBeNull();
+  await db.accessGrant.create({ data: { id: grant.id, customerId, subject: grant.subject,
+    scopeType: grant.scopeType, scopeId: grant.scopeId, role: grant.role } });
+  expect((await reader(startedReader).readLeadership(f.leader, f.projectId, f.input.factId)).positions).toHaveLength(2);
+
+  let heldPid = 0, latePid = 0, heldReady!: () => void, lateReady!: () => void, releaseHeld!: () => void, held = false;
+  const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
+  const lateEntered = new Promise<void>((resolve) => { lateReady = resolve; });
+  const heldGate = new Promise<void>((resolve) => { releaseHeld = resolve; });
+  const heldReader = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      heldPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (!held && sql.includes('FROM public."AccessGrant"') && sql.includes("FOR SHARE")) { held = true; heldReady(); await heldGate; }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const observation = reader(heldReader).readLeadership(f.leader, f.projectId, f.input.factId); void observation.catch(() => {});
+  let later: Promise<unknown> | undefined, readerFirst = false;
+  try {
+    await Promise.race([heldEntered, observation.then(() => { throw new Error("Reader exited before grant barrier"); })]);
+    later = db.$transaction(async (tx) => {
+      latePid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      lateReady(); await tx.accessGrant.delete({ where: { id: grant.id } });
+    }, { timeout: 20000 });
+    void later.catch(() => {});
+    await Promise.race([lateEntered, later.then(() => { throw new Error("Grant writer exited before barrier"); })]);
+    readerFirst = await blocked(latePid, heldPid, ["DELETE", '"AccessGrant"']);
+  } finally { releaseHeld(); await Promise.allSettled(later ? [observation, later] : [observation]); }
+  expect(readerFirst).toBe(true); expect((await observation).positions).toHaveLength(2); await later;
+  expect(await db.accessGrant.findUnique({ where: { id: grant.id } })).toBeNull();
+  await expect(reader(startedReader).readLeadership(f.leader, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "DENIED" });
+}, 60000);
+it("denies a first leadership grant until a later read in both insertion orders", async () => {
+  const f = await fixture(false);
+  const grant = await db.accessGrant.findFirstOrThrow({ where: { customerId, subject: f.leader.subject, role: "leadership" } });
+  await db.accessGrant.delete({ where: { id: grant.id } });
+  const grantData = { id: grant.id, customerId, subject: grant.subject, scopeType: grant.scopeType, scopeId: grant.scopeId, role: grant.role };
+  const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) };
+  const reader = new DatabaseScalarConflictObservationRepository(roleDb as never);
+  let inserted!: () => void, releaseWriter!: () => void;
+  const writerEntered = new Promise<void>((resolve) => { inserted = resolve; });
+  const writerGate = new Promise<void>((resolve) => { releaseWriter = resolve; });
+  const writer = db.$transaction(async (tx) => { await tx.accessGrant.create({ data: grantData }); inserted(); await writerGate; }, { timeout: 20000 });
+  void writer.catch(() => {});
+  async function within<T>(promise: Promise<T>, label: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { return await Promise.race([promise, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(label)), 2000);
+    })]); } finally { if (timer !== undefined) clearTimeout(timer); }
+  }
+  let beforeCommit: unknown;
+  let pendingRead: Promise<unknown> | undefined;
+  try {
+    await Promise.race([writerEntered, writer.then(() => { throw new Error("Writer exited before barrier"); })]);
+    pendingRead = reader.readLeadership(f.leader, f.projectId, f.input.factId).then(() => "unexpected success", (error) => error.code);
+    beforeCommit = await within(pendingRead, "Absent grant read unexpectedly blocked");
+  } finally { releaseWriter(); await Promise.allSettled(pendingRead ? [writer, pendingRead] : [writer]); }
+  expect(beforeCommit).toBe("DENIED"); await writer;
+  expect((await reader.readLeadership(f.leader, f.projectId, f.input.factId)).positions).toHaveLength(2);
+  await db.accessGrant.delete({ where: { id: grant.id } });
+
+  let observed!: () => void, releaseReader!: () => void, held = false, heldGrantCount = -1;
+  const readerEntered = new Promise<void>((resolve) => { observed = resolve; });
+  const readerGate = new Promise<void>((resolve) => { releaseReader = resolve; });
+  const heldDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (!held && sql.includes('FROM public."AccessGrant"') && sql.includes("FOR SHARE")) {
+            held = true; heldGrantCount = Array.isArray(output) ? output.length : -1; observed(); await readerGate;
+          }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const oldRead = new DatabaseScalarConflictObservationRepository(heldDb as never).readLeadership(f.leader, f.projectId, f.input.factId);
+  void oldRead.catch(() => {});
+  let insertion: Promise<unknown> | undefined;
+  try {
+    await Promise.race([readerEntered, oldRead.then(() => { throw new Error("Reader exited before grant barrier"); })]);
+    expect(heldGrantCount).toBe(0);
+    insertion = db.accessGrant.create({ data: grantData }); void insertion.catch(() => {});
+    await within(insertion, "First grant insertion unexpectedly blocked");
+  } finally { releaseReader(); await Promise.allSettled(insertion ? [oldRead, insertion] : [oldRead]); }
+  await expect(oldRead).rejects.toMatchObject({ code: "DENIED" });
+  expect((await reader.readLeadership(f.leader, f.projectId, f.input.factId)).positions).toHaveLength(2);
+}, 60000);
+it.each(["fact-append", "policy-disable", "conflict-capture", "first-fact", "first-policy", "first-source", "first-observed-policy"] as const)(
+  "coordinates %s and the scalar observation in both project-lock orders", async (kind) => {
+    for (const order of ["writer-first", "reader-first"] as const) {
+      const f = await fixture(false, true, kind !== "first-observed-policy");
+      const newAuthor: Actor = { customerId, subject: "scalar-new-author-" + randomUUID(), roles: ["pmo_admin"] };
+      if (kind === "first-source") await db.accessGrant.create({ data: { customerId, subject: newAuthor.subject,
+        scopeType: "project", scopeId: f.projectId, role: "pmo_admin" } });
+      let writerPid = 0, readerPid = 0, writerReady!: () => void, readerReady!: () => void, release!: () => void, held = false;
+      const writerEntered = new Promise<void>((resolve) => { writerReady = resolve; });
+      const readerEntered = new Promise<void>((resolve) => { readerReady = resolve; });
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      const writerDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+        db.$transaction(async (tx) => {
+          writerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+          if (order === "reader-first") writerReady();
+          return operation(new Proxy(tx, { get(target, key) {
+            const value = Reflect.get(target, key);
+            if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+              const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+              if (order === "writer-first" && !held && sql.includes('"Project"') && sql.includes("FOR UPDATE")) {
+                held = true; writerReady(); await gate;
+              }
+              return output;
+            };
+            return typeof value === "function" ? value.bind(target) : value;
+          } }));
+        }, options as never) };
+      const readerDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+        db.$transaction(async (tx) => {
+          await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+          readerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+          if (order === "writer-first") readerReady();
+          return operation(new Proxy(tx, { get(target, key) {
+            const value = Reflect.get(target, key);
+            if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+              const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+              if (order === "reader-first" && !held && sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) {
+                held = true; readerReady(); await gate;
+              }
+              return output;
+            };
+            return typeof value === "function" ? value.bind(target) : value;
+          } }));
+        }, options as never) };
+      const reader = new DatabaseScalarConflictObservationRepository(readerDb as never);
+      const write = () => {
+        const effectiveAt = new Date().toISOString();
+        if (kind === "fact-append" || kind === "first-fact" || kind === "first-source") return new DatabaseProjectFactRepository(writerDb as never).appendHumanStatement(kind === "first-source" ? newAuthor : f.pmo, {
+          projectId: f.projectId, factType: kind === "first-fact" ? "zz.first_fact" : f.factType, expectedRevision: kind === "first-fact" ? 0 : 2,
+          idempotencyKey: randomUUID(), effectiveAt, validUntil: new Date(Date.now() + 3600000).toISOString(),
+          originalStatement: "Synthetic race fact", value: { type: "date", value: "2026-10-03" },
+        }, context);
+        if (kind === "policy-disable" || kind === "first-policy" || kind === "first-observed-policy") return new DatabaseAuthorityRepository(writerDb as never).appendPolicy(f.pmo, {
+          projectId: f.projectId, factType: kind === "first-policy" ? "zz.first_policy" : f.factType,
+          expectedRevision: kind === "policy-disable" ? 1 : 0, idempotencyKey: randomUUID(), effectiveAt,
+          definition: kind === "policy-disable" ? null : { tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null,
+            requiredApproval: "NOT_REQUIRED", validity: null }] }], conflictBehavior: "RETAIN_CONFLICT" },
+        }, context);
+        return new DatabaseScalarReconciliationRepository(writerDb as never).check(f.pmo, f.input, context);
+      };
+      async function blocked(waiting: number, blocking: number, fragments: string[]) {
+        for (let i = 0; i < 40; i++) {
+          const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+            "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waiting);
+          if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(blocking) && fragments.every((part) => rows[0]!.query.includes(part))) return true;
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        return false;
+      }
+      let writeResult: ReturnType<typeof write> | undefined;
+      let readResult: ReturnType<DatabaseScalarConflictObservationRepository["readLeadership"]> | undefined;
+      let sawBlock = false;
+      try {
+        if (order === "writer-first") {
+          writeResult = write(); void writeResult.catch(() => {});
+          await Promise.race([writerEntered, writeResult.then(() => { throw new Error("Writer exited before barrier"); })]);
+          readResult = reader.readLeadership(f.leader, f.projectId, f.input.factId); void readResult.catch(() => {});
+          await Promise.race([readerEntered, readResult.then(() => { throw new Error("Reader exited before barrier"); })]);
+          sawBlock = await blocked(readerPid, writerPid, ['FROM public."Project"', "FOR SHARE"]);
+        } else {
+          readResult = reader.readLeadership(f.leader, f.projectId, f.input.factId); void readResult.catch(() => {});
+          await Promise.race([readerEntered, readResult.then(() => { throw new Error("Reader exited before barrier"); })]);
+          writeResult = write(); void writeResult.catch(() => {});
+          await Promise.race([writerEntered, writeResult.then(() => { throw new Error("Writer exited before barrier"); })]);
+          sawBlock = await blocked(writerPid, readerPid, ['"Project"', "FOR UPDATE"]);
+        }
+      } finally { release(); await Promise.allSettled([...(readResult ? [readResult] : []), ...(writeResult ? [writeResult] : [])]); }
+      expect(sawBlock).toBe(true); await writeResult;
+      if ((order === "writer-first" && (kind === "policy-disable" || kind === "first-source")) ||
+        (order === "reader-first" && kind === "first-observed-policy")) await expect(readResult).rejects.toMatchObject({ code: "UNAVAILABLE" });
+      else {
+        const values = (await readResult!).positions.map((position) => position.value);
+        expect(values).toEqual(order === "writer-first" && kind === "fact-append" ? ["2026-10-02", "2026-10-03"] : ["2026-10-01", "2026-10-02"]);
+      }
+      if (kind === "conflict-capture") expect(await db.factAuthorityConflict.count({ where: { customerId, projectId: f.projectId, factId: f.input.factId } })).toBeGreaterThan(0);
+      if (kind === "policy-disable" || kind === "first-source") await expect(reader.readLeadership(f.leader, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+      else expect((await reader.readLeadership(f.leader, f.projectId, f.input.factId)).positions.map((position) => position.value))
+        .toEqual(kind === "fact-append" ? ["2026-10-02", "2026-10-03"] : ["2026-10-01", "2026-10-02"]);
+    }
+  }, 120000,
+);
+it("coordinates a modeled health-style SHARE-to-conflict-insert upgrade in both orders", async () => {
+  for (const order of ["writer-first", "reader-first"] as const) {
+    const f = await fixture(false);
+    const policy = await db.authorityPolicyRevision.findFirstOrThrow({ where: { customerId, projectId: f.projectId, factType: f.factType } });
+    const [leftVersionId, rightVersionId] = f.versions.map((entry) => entry.id).sort();
+    let writerPid = 0, readerPid = 0, writerReady!: () => void, readerReady!: () => void, release!: () => void, held = false;
+    const writerEntered = new Promise<void>((resolve) => { writerReady = resolve; });
+    const readerEntered = new Promise<void>((resolve) => { readerReady = resolve; });
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const writer = () => db.$transaction(async (tx) => {
+      writerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      await tx.$queryRaw`SELECT id FROM public."Project" WHERE "customerId"=${customerId}::uuid AND id=${f.projectId}::uuid FOR SHARE`;
+      if (order === "reader-first") writerReady();
+      await tx.factAuthorityConflict.create({ data: { id: randomUUID(), customerId, projectId: f.projectId, factId: f.input.factId,
+        factType: f.factType, leftVersionId: leftVersionId!, rightVersionId: rightVersionId!, policyRevisionId: policy.id,
+        detectedAt: new Date(), revision: 1 } });
+      if (order === "writer-first") { writerReady(); await gate; }
+    }, { timeout: 20000 });
+    const readerDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+        readerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+        if (order === "writer-first") readerReady();
+        return operation(new Proxy(tx, { get(target, key) {
+          const value = Reflect.get(target, key);
+          if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+            const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+            if (order === "reader-first" && !held && sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) {
+              held = true; readerReady(); await gate;
+            }
+            return output;
+          };
+          return typeof value === "function" ? value.bind(target) : value;
+        } }));
+      }, options as never) };
+    const reader = new DatabaseScalarConflictObservationRepository(readerDb as never);
+    async function blocked(waiting: number, blocking: number, parts: string[]) {
+      for (let i = 0; i < 40; i++) {
+        const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+          "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waiting);
+        if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(blocking) && parts.every((part) => rows[0]!.query.includes(part))) return true;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      return false;
+    }
+    let writeResult: ReturnType<typeof writer> | undefined, readResult: ReturnType<DatabaseScalarConflictObservationRepository["readLeadership"]> | undefined, sawBlock = false;
+    try {
+      if (order === "writer-first") {
+        writeResult = writer(); void writeResult.catch(() => {});
+        await Promise.race([writerEntered, writeResult.then(() => { throw new Error("Writer exited before barrier"); })]);
+        readResult = reader.readLeadership(f.leader, f.projectId, f.input.factId); void readResult.catch(() => {});
+        await Promise.race([readerEntered, readResult.then(() => { throw new Error("Reader exited before barrier"); })]);
+        sawBlock = await blocked(readerPid, writerPid, ['FROM public."Project"', "FOR SHARE"]);
+      } else {
+        readResult = reader.readLeadership(f.leader, f.projectId, f.input.factId); void readResult.catch(() => {});
+        await Promise.race([readerEntered, readResult.then(() => { throw new Error("Reader exited before barrier"); })]);
+        writeResult = writer(); void writeResult.catch(() => {});
+        await Promise.race([writerEntered, writeResult.then(() => { throw new Error("Writer exited before barrier"); })]);
+        sawBlock = await blocked(writerPid, readerPid, ["INSERT", '"FactAuthorityConflict"']);
+      }
+    } finally { release(); await Promise.allSettled([...(readResult ? [readResult] : []), ...(writeResult ? [writeResult] : [])]); }
+    expect(sawBlock).toBe(true); await writeResult;
+    expect((await readResult!).positions).toHaveLength(2);
+    expect(await db.factAuthorityConflict.count({ where: { customerId, projectId: f.projectId, factId: f.input.factId } })).toBe(1);
+    expect((await reader.readLeadership(f.leader, f.projectId, f.input.factId)).positions).toHaveLength(2);
+  }
+}, 60000);
 it("FR-EVD-007/012: commits owned scalar proof, byte-identical SQL identity and distinct retry/business reuse", async () => {
   const f = await fixture();
   const first = await reconciliation.check(f.pmo, f.input, context);
