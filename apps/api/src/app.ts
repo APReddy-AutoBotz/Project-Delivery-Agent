@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { MilestoneConflictObservationController, MILESTONE_CONFLICT_OBSERVATION_REPOSITORY, unavailableMilestoneConflictObservationRepository } from "./milestone-conflict-observation-controller.js";
+import { ScalarConflictObservationController, SCALAR_CONFLICT_OBSERVATION_REPOSITORY, unavailableScalarConflictObservationRepository } from "./scalar-conflict-observation-controller.js";
 import { ProjectUpdateInvitationController } from "./project-update-invitation-controller.js";
 import { PmActionQueueController, PM_ACTION_QUEUE_REPOSITORY, unavailablePmActionQueueRepository } from "./pm-action-queue-controller.js";
 import { BlockerAgeAdviceController, BLOCKER_AGE_ADVICE_REPOSITORY, unavailableBlockerAgeAdviceRepository } from "./blocker-age-advice-controller.js";
@@ -284,6 +285,7 @@ export async function createApp(
   pmActionQueue: PmActionQueueRepository = unavailablePmActionQueueRepository,
   blockerAgeAdvice: BlockerAgeAdviceRepository = unavailableBlockerAgeAdviceRepository,
   milestoneConflictObservation: MilestoneConflictObservationRepository = unavailableMilestoneConflictObservationRepository,
+  scalarConflictObservation: import("@pdaa/domain").ScalarConflictObservationRepository = unavailableScalarConflictObservationRepository,
 ) {
   @Module({
     controllers: [
@@ -299,6 +301,7 @@ export async function createApp(
       PmActionQueueController,
       BlockerAgeAdviceController,
       MilestoneConflictObservationController,
+      ScalarConflictObservationController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -318,6 +321,7 @@ export async function createApp(
       { provide: PM_ACTION_QUEUE_REPOSITORY, useValue: pmActionQueue },
       { provide: BLOCKER_AGE_ADVICE_REPOSITORY, useValue: blockerAgeAdvice },
       { provide: MILESTONE_CONFLICT_OBSERVATION_REPOSITORY, useValue: milestoneConflictObservation },
+      { provide: SCALAR_CONFLICT_OBSERVATION_REPOSITORY, useValue: scalarConflictObservation },
       IngestionIdentityGuard,
     ],
   })

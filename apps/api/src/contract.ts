@@ -60,6 +60,7 @@ import {
   pmActionQueueSchema,
   leadershipBlockerAgeAdviceSchema,
   milestoneConflictObservationSchema,
+  scalarConflictObservationSchema,
   projectUpdatePolicyChangeSchema,
   projectUpdateEngagementActivationSchema,
   projectUpdateEngagementViewSchema,
@@ -554,6 +555,12 @@ export const contracts: Record<string, RouteContract> = {
     status: 200,
     response: milestoneConflictObservationSchema.describe("IDs use lowercase UUIDs and instants use UTC milliseconds. Calendar validity, cross-field evidence consistency, aggregate support limits and the 262144-byte response limit are enforced at runtime."),
     parameters: { id: z.uuid().regex(/^[0-9a-f-]+$/), milestoneId: z.uuid().regex(/^[0-9a-f-]+$/) },
+    errors: [400, 404, 503],
+  },
+  "get /api/projects/{id}/fact-observations/{factId}/leadership-conflict": {
+    status: 200,
+    response: scalarConflictObservationSchema.describe("IDs use lowercase UUIDs and instants use UTC milliseconds. Calendar dates, cross-field evidence consistency, aggregate support limits and the 262144-byte response limit are enforced at runtime."),
+    parameters: { id: z.uuid().regex(/^[0-9a-f-]+$/), factId: z.uuid().regex(/^[0-9a-f-]+$/) },
     errors: [400, 404, 503],
   },
   "get /api/admin/health-assessment-retention": {

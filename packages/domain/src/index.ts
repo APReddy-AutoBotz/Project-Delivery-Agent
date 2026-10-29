@@ -119,3 +119,4 @@ export type { ProjectUpdateRepository } from "./project-update-repository.js";
 export { ingestionReassessmentRetrySchema, ingestionReassessmentItemSchema, ingestionReassessmentPageSchema } from "./ingestion-reassessment.js";
 export type { IngestionReassessmentRetry, IngestionReassessmentItem, IngestionReassessmentPage } from "./ingestion-reassessment.js";
 export * from "./milestone-conflict-observation.js";
+export * from "./scalar-conflict-observation.js";

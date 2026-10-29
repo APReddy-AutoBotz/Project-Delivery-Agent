@@ -1,4 +1,5 @@
 import { LeadershipMilestoneConflict } from "./leadership-milestone-conflict.js";
+import { LeadershipScalarConflict } from "./leadership-scalar-conflict.js";
 import React, { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, TextField, SelectField, Message } from "./components.js";
@@ -975,6 +976,8 @@ export function CanonicalProjectDetails({
             key={leadershipScope} projectId={id} scope={leadershipScope} request={request}
             milestones={detail.milestones as { id: string; key: string; name: string }[]}
             workItems={detail.workItems as { id: string; key: string; title: string }[]} />}
+          {leadershipScope && !result.isFetching && !result.isError && <LeadershipScalarConflict
+            key={leadershipScope} projectId={id} scope={leadershipScope} request={request} />}
           {sections.map((section) => {
             const rows = detail[section.key] as DetailRow[];
             return (

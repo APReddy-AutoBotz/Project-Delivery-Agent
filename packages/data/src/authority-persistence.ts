@@ -178,6 +178,23 @@ export function buildSourceAuthoritySnapshot(
     })),
   };
 }
+
+// Evaluate only the stored prefix. Capture may subsequently add generated
+// conflict pairs, but read-only observations must not manufacture their IDs.
+export function resolveStoredAuthorityPrefix(
+  scope: Scope,
+  asOf: Date,
+  event: Event | null,
+  versions: Version[],
+  conflicts: Conflict[],
+  access: Access[],
+  complete: boolean,
+) {
+  const snapshot = buildSourceAuthoritySnapshot(
+    scope, asOf.toISOString(), resolverPolicy(event), versions, conflicts, access, complete,
+  );
+  return { snapshot, result: resolveSourceAuthority(snapshot) };
+}
 // The server owns the clock, complete history, policy, approval and access inputs.
 // No route or model tool exposes this repository in this increment.
 export class DatabaseAuthorityRepository implements AuthorityRepository {
@@ -619,16 +636,9 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
           })
         : []);
     const policy = resolverPolicy(event);
-    let authoritySnapshot = buildSourceAuthoritySnapshot(
-      scope,
-      asOf.toISOString(),
-      policy,
-      versions,
-      conflicts,
-      access,
-      complete,
-    );
-    let result = resolveSourceAuthority(authoritySnapshot);
+    const stored = resolveStoredAuthorityPrefix(scope, asOf, event, versions, conflicts, access, complete);
+    let authoritySnapshot = stored.snapshot;
+    let result = stored.result;
     let newConflicts: Conflict[] = [];
     if (
       complete &&

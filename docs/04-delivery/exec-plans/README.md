@@ -2,6 +2,7 @@
 
 ## Active implementation
 
+- [EXEC-032: Current scalar disagreement explanation](EXEC-032-current-scalar-conflict-explanation.md) — bounded local implementation; independent exact-tree review, native execution and hosted evidence remain open.
 - [EXEC-031: Bounded milestone question routing](EXEC-031-bounded-milestone-question.md) — provisional fixed-grammar question flow; depends on verified PR #124 merge and does not complete general Q&A.
 - [EXEC-030: Source-authorized milestone conflict explanation](EXEC-030-milestone-conflict-explanation.md) — partial implementation and isolated checks in progress; native, hosted and golden-scenario evidence remain open.
 - [EXEC-029: Operational access-operation history](EXEC-029-operational-access-history.md) — reviewed partial design and implementation in progress; full audit search and story acceptance remain open.
