@@ -10,6 +10,7 @@ import {
   DatabaseIngestionRepository,
   DatabaseHealthAssessmentRepository,
   DatabaseProjectUpdateRepository,
+  DatabasePmActionQueueRepository,
 } from "@pdaa/data";
 import {
   loadConfig,
@@ -47,6 +48,7 @@ try {
     ingestion,
     healthAssessment,
     projectUpdates,
+    new DatabasePmActionQueueRepository(db),
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

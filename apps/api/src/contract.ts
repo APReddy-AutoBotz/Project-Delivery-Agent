@@ -57,6 +57,7 @@ import {
   healthAssessmentViewSchema,
   scheduleAdviceSnapshotSchema,
   updateAdviceSnapshotSchema,
+  pmActionQueueSchema,
   projectUpdatePolicyChangeSchema,
   projectUpdateEngagementActivationSchema,
   projectUpdateEngagementViewSchema,
@@ -529,6 +530,11 @@ export const contracts: Record<string, RouteContract> = {
     response: updateAdviceSnapshotSchema,
     parameters: { id: z.uuid() },
     errors: [404, 503],
+  },
+  "get /api/pm/action-queue": {
+    status: 200,
+    response: pmActionQueueSchema,
+    errors: [400, 404, 503],
   },
   "get /api/admin/health-assessment-retention": {
     status: 200,

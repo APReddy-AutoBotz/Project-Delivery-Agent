@@ -10,7 +10,7 @@ type ScheduleSignal = Extract<
 >["signal"];
 type ScheduleFact = ScheduleSignal["sourceFacts"][number];
 
-function FactList({ facts }: { facts: readonly ScheduleFact[] }) {
+export function FactList({ facts }: { facts: readonly ScheduleFact[] }) {
   return (
     <ul>
       {facts.map((fact, index) => (
@@ -23,7 +23,7 @@ function FactList({ facts }: { facts: readonly ScheduleFact[] }) {
   );
 }
 
-function SignalEvidence({ signal }: { signal: ScheduleSignal }) {
+export function SignalEvidence({ signal }: { signal: ScheduleSignal }) {
   return (
     <div className="space-y-2">
       <p><strong>{signal.targetKey}</strong> · {signal.kind.replaceAll("_", " ")} · {signal.state}</p>
