@@ -12,6 +12,7 @@ import {
   DatabaseProjectUpdateRepository,
   DatabasePmActionQueueRepository,
   DatabaseBlockerAgeAdviceRepository,
+  DatabaseMilestoneConflictObservationRepository,
 } from "@pdaa/data";
 import {
   loadConfig,
@@ -51,6 +52,7 @@ try {
     projectUpdates,
     new DatabasePmActionQueueRepository(db),
     new DatabaseBlockerAgeAdviceRepository(db),
+    new DatabaseMilestoneConflictObservationRepository(db),
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

@@ -476,6 +476,8 @@ beforeAll(async () => {
     { read: vi.fn(async () => buildPmActionQueue([])) },
     { readLeadership: vi.fn(async (_actor, projectId) => buildBlockerAgeAdvice({ projectId, audience: "leadership",
       asOf: "2026-10-21T11:00:00.000Z", coverage: "UNASSESSABLE", threshold: null, inventory: null, noOpenBlockers: null, candidates: [] })) },
+    { readLeadership: vi.fn(async (_actor, projectId, selectedMilestone) => ({ projectId, milestoneId: selectedMilestone,
+      asOf: "2026-10-21T11:00:00.000Z", ruleRevision: "milestone-required-state/v1" as const, outcome: "NOT_DETECTED" as const })) },
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -715,6 +717,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request(`/api/projects/${project.id}/update-suggestions`, 200, manager);
   await request("/api/pm/action-queue", 200, manager);
   await request(`/api/projects/${project.id}/leadership-blocker-age-suggestions`, 200, leader);
+  await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-conflict-observation`, 200, leader);
   await request(
     "/api/projects/" + project.id + "/health-assessments",
     201,
@@ -908,7 +911,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(67);
+  expect(covered.size).toBe(68);
   assertContractSnapshot(
     spec,
     JSON.parse(

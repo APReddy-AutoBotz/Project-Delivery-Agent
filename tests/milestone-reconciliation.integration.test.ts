@@ -8,12 +8,14 @@ import {
   DatabaseAuthorityRepository,
   DatabaseProjectFactRepository,
   DatabaseMilestoneReconciliationRepository,
+  DatabaseMilestoneConflictObservationRepository,
 } from "../packages/data/dist/index.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 import type { Prisma } from "../packages/data/dist/generated/prisma/client.js";
 import { loadConfig } from "../packages/platform/dist/index.js";
 import { createApp } from "../apps/api/dist/app.js";
 import { compileContract } from "../scripts/validate-openapi.mjs";
+import { possibleMutation, rawSqlText } from "./fixtures/read-only-sql.js";
 import type {
   Actor,
   AuthorityDefinition,
@@ -62,6 +64,9 @@ beforeAll(async () => {
     facts,
     authority,
     reconciliation,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    new DatabaseMilestoneConflictObservationRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never),
   ));
   validate = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -122,6 +127,12 @@ async function fixture(
   grantPm = true,
   bindingThroughHttp = false,
   lastWorkComplete = false,
+  relativeTimes = false,
+  allWorkComplete = false,
+  emptyRequired = false,
+  cancelOne = false,
+  skipOneBinding = false,
+  expiredEvidence = false,
 ) {
   const portfolioId = randomUUID();
   const pm: Actor = {
@@ -159,7 +170,7 @@ async function fixture(
     ...input.workItems[0],
     key: "WI-" + index,
   }));
-  input.requiredWorkItems = [1, 2, 3].map((index) => ({
+  input.requiredWorkItems = emptyRequired ? [] : [1, 2, 3].map((index) => ({
     milestoneKey: "MS-1",
     workItemKey: "WI-" + index,
   }));
@@ -186,12 +197,14 @@ async function fixture(
       targetKind: "WORK_ITEM" as const,
       targetId: link.workItemId,
       initialState:
-        lastWorkComplete && index === links.length - 1
+        cancelOne && index === links.length - 1 ? ("CANCELLED" as const) :
+        allWorkComplete || (lastWorkComplete && index === links.length - 1)
           ? ("COMPLETE" as const)
           : ("OPEN" as const),
     })),
   ];
   const bindings = [];
+  const policies = [];
   const createBinding = async (
     input: StateBindingCreate,
   ): Promise<CanonicalStateBindingView> => {
@@ -206,23 +219,28 @@ async function fixture(
     expect(result.status).toBe(201);
     return result.body;
   };
-  for (const target of targets) {
+  const clock = relativeTimes ? await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now` : [];
+  const effectiveAt = relativeTimes ? new Date(clock[0]!.now.getTime() - 60_000).toISOString() : "2026-09-01T00:00:00.000Z";
+  const validUntil = relativeTimes ? new Date(clock[0]!.now.getTime() + 86_400_000).toISOString() : "2027-09-01T00:00:00.000Z";
+  const expiredUntil = expiredEvidence ? new Date(clock[0]!.now.getTime() - 10_000).toISOString() : validUntil;
+  for (const [index, target] of targets.entries()) {
+    if (skipOneBinding && index === targets.length - 1) continue;
     const bound = await createBinding({
       projectId: project.id,
       ...target,
       idempotencyKey: randomUUID(),
-      effectiveAt: "2026-09-01T00:00:00.000Z",
-      validUntil: "2027-09-01T00:00:00.000Z",
+      effectiveAt,
+      validUntil: expiredEvidence && index === targets.length - 1 ? expiredUntil : validUntil,
       originalStatement: "Synthetic confirmed " + target.initialState,
     });
-    await authority.appendPolicy(
+    const policy = await authority.appendPolicy(
       pmo,
       {
         projectId: project.id,
         factType: bound.factType,
         expectedRevision: 0,
         idempotencyKey: randomUUID(),
-        effectiveAt: "2026-09-01T00:00:00.000Z",
+        effectiveAt,
         definition,
       },
       context,
@@ -239,6 +257,7 @@ async function fixture(
       context,
     );
     bindings.push(bound);
+    policies.push(policy.event);
   }
   const check = {
     projectId: project.id,
@@ -254,6 +273,7 @@ async function fixture(
     pm,
     pmo,
     bindings,
+    policies,
     check,
   };
 }
@@ -1049,3 +1069,649 @@ it("FR-MOD-002 / FR-EVD-009: HTTP context is metadata-only and binding creation 
     ).status,
   ).toBe(400);
 });
+
+// EXEC-030: synthetic database only; SET LOCAL ROLE exercises role privileges,
+// not a separately authenticated production API login.
+it("observes the current three-item conflict under the API role and withholds revoked sources", async () => {
+  const f = await fixture(1, true, false, false, true);
+  const leader: Actor = { customerId, subject: "observation-leader-" + randomUUID(), roles: ["leadership"] };
+  await db.accessGrant.create({ data: { customerId, subject: leader.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  for (const binding of f.bindings) {
+    const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId });
+    await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId,
+      expectedRevision: access!.revision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+  }
+  let roleReads = 0;
+  const attemptedWrites: string[] = [];
+  const apiDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const role = await tx.$queryRawUnsafe<{ role: string }[]>("SELECT current_user AS role");
+      expect(role[0]?.role).toBe("pdaa_api");
+      const acl = await tx.$queryRawUnsafe<{ allowed: boolean }[]>(`SELECT has_table_privilege(current_user, 'public."AuditEvent"', 'SELECT') AS allowed`);
+      expect(acl[0]?.allowed).toBe(true); roleReads++;
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if ((key === "$queryRaw" || key === "$queryRawUnsafe" || key === "$executeRaw" || key === "$executeRawUnsafe") && typeof value === "function")
+          return async (...args: unknown[]) => {
+            const sql = rawSqlText(args[0]);
+            if ((String(key).startsWith("$execute") && !/^SET LOCAL (?:statement_timeout|lock_timeout)\s*=/.test(sql)) || possibleMutation(sql)) {
+              attemptedWrites.push(sql); throw new Error("Unexpected mutation in conflict observation");
+            }
+            return Reflect.apply(value, target, args);
+          };
+        if (value && typeof value === "object" && typeof key === "string" && !key.startsWith("$")) return new Proxy(value, { get(model, method) {
+          const fn = Reflect.get(model, method);
+          if (typeof fn === "function" && /^(?:create|createMany|update|updateMany|upsert|delete|deleteMany)$/.test(String(method)))
+            return () => { attemptedWrites.push(`${key}.${String(method)}`); throw new Error("Unexpected ORM mutation in observation"); };
+          return typeof fn === "function" ? fn.bind(model) : fn;
+        } });
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const reader = new DatabaseMilestoneConflictObservationRepository(apiDatabase as never);
+  const scopeTables = ["ProjectFact", "ProjectFactVersion", "FactEvidence", "FactSource", "FactSourceAccess", "FactSourceReader",
+    "AuthorityPolicy", "AuthorityPolicyRevision", "AuthorityPolicyReceipt", "CanonicalStateBinding", "CanonicalStateBindingReceipt", "RequiredWorkItem"];
+  const sourceRows = () => Promise.all(scopeTables.map((table) => db.$queryRawUnsafe(
+    `SELECT to_jsonb(t)::text AS row FROM public."${table}" t WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY to_jsonb(t)::text COLLATE "C"`, customerId, f.projectId)));
+  const before = await reconciliationRows(f.projectId), sourceBefore = await sourceRows();
+  const observed = await reader.readLeadership(leader, f.projectId, f.milestone.id);
+  expect(observed).toMatchObject({ outcome: "CONFLICTING", positions: expect.any(Array) });
+  if (observed.outcome !== "CONFLICTING") throw new Error("Expected conflict");
+  expect(observed.positions).toHaveLength(4);
+  expect(observed.positions.filter((entry) => entry.targetKind === "WORK_ITEM").map((entry) => entry.state)).toEqual(["OPEN", "OPEN", "OPEN"]);
+  for (const position of observed.positions) {
+    const binding = f.bindings.find((row) => row.id === position.bindingId)!;
+    const policy = f.policies[f.bindings.indexOf(binding)]!;
+    expect(position).toMatchObject({ targetKind: binding.targetKind, targetId: binding.targetId, factId: binding.factId,
+      factType: binding.factType, policyRevisionId: policy.id });
+    expect(position.supports).toMatchObject([{ versionId: binding.entry.id, evidenceId: binding.entry.evidenceId,
+      sourceId: binding.entry.sourceId, provenance: "HUMAN_CONFIRMED", freshness: "CURRENT", validity: "FINITE" }]);
+  }
+  expect(await reconciliationRows(f.projectId)).toEqual(before);
+  expect(await sourceRows()).toEqual(sourceBefore);
+  expect(attemptedWrites).toEqual([]);
+  const observationPath = `/api/projects/${f.projectId}/milestones/${f.milestone.id}/leadership-conflict-observation`;
+  const http = await api(leader, observationPath);
+  expect(http).toMatchObject({ status: 200, body: { projectId: f.projectId, milestoneId: f.milestone.id, outcome: "CONFLICTING" } });
+  expect((await api(f.pm, observationPath)).status).toBe(404);
+  expect((await api(leader, observationPath.replace(f.projectId, randomUUID()))).status).toBe(404);
+  await expect(reader.readLeadership({ ...f.pm, roles: ["project_manager", "leadership"] }, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readLeadership(leader, f.projectId, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
+  const saved = await reconciliation.check(f.pmo, f.check, context);
+  expect(saved.assessment).toMatchObject({ visibility: "available", result: { status: observed.outcome } });
+  if (saved.assessment.visibility !== "available" || saved.assessment.result.status !== "CONFLICTING") throw new Error("Expected captured conflict");
+  for (const position of observed.positions) {
+    const captured = saved.assessment.result.contributors.find((entry) => entry.bindingId === position.bindingId);
+    expect(captured).toMatchObject({ targetKind: position.targetKind, targetId: position.targetId, factId: position.factId, factType: position.factType });
+    expect(captured!.supportingVersionIds.slice().sort()).toEqual(position.supports.map((entry) => entry.versionId).sort());
+    expect(captured!.supportingEvidenceIds.slice().sort()).toEqual(position.supports.map((entry) => entry.evidenceId).sort());
+  }
+  const sourceId = f.bindings[1]!.entry.sourceId;
+  const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: access!.revision,
+    state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+  const afterRevoke = await reconciliationRows(f.projectId);
+  await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await reconciliationRows(f.projectId)).toEqual(afterRevoke);
+  expect(attemptedWrites).toEqual([]);
+  expect(roleReads).toBeGreaterThanOrEqual(4);
+
+  const revoked = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+  let restored = await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: revoked!.revision,
+    state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+  async function blocked(waiting: number, blocking: number, fragments: string[]) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waiting);
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(blocking) && fragments.every((fragment) => rows[0]!.query.includes(fragment))) return true;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return false;
+  }
+  let writerPid = 0, readerPid = 0, writerReady!: () => void, readerReady!: () => void, releaseWriter!: () => void;
+  const writerEntered = new Promise<void>((resolve) => { writerReady = resolve; });
+  const readerEntered = new Promise<void>((resolve) => { readerReady = resolve; });
+  const writerGate = new Promise<void>((resolve) => { releaseWriter = resolve; });
+  let paused = false;
+  const gatedWriterDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      writerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (!paused && sql.includes('FROM "Project"') && sql.includes("FOR UPDATE")) { paused = true; writerReady(); await writerGate; }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  let passedProjectGate = false, loadedSourceAccess = false;
+  const startedReaderDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      readerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      readerReady(); return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) passedProjectGate = true;
+          return output;
+        };
+        if (key === "factSourceAccess" && value && typeof value === "object") return new Proxy(value, { get(model, method) {
+          const fn = Reflect.get(model, method);
+          if (method === "findMany" && typeof fn === "function") return async (...args: unknown[]) => {
+            const output = await Reflect.apply(fn, model, args); loadedSourceAccess = true; return output;
+          };
+          return typeof fn === "function" ? fn.bind(model) : fn;
+        } });
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const writer = new DatabaseProjectFactRepository(gatedWriterDb as never).setSourceAccess(f.pmo, { projectId: f.projectId,
+    sourceId, expectedRevision: restored.revision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+  void writer.catch(() => {});
+  let waitingReader: ReturnType<DatabaseMilestoneConflictObservationRepository["readLeadership"]> | undefined, writerFirst = false;
+  try {
+    await Promise.race([writerEntered, writer.then(() => { throw new Error("Writer exited before barrier"); })]);
+    waitingReader = new DatabaseMilestoneConflictObservationRepository(startedReaderDb as never).readLeadership(leader, f.projectId, f.milestone.id);
+    void waitingReader.catch(() => {});
+    await Promise.race([readerEntered, waitingReader.then(() => { throw new Error("Reader exited before barrier"); })]);
+    writerFirst = await blocked(readerPid, writerPid, ['FROM public."Project"', "FOR SHARE"]);
+  } finally { releaseWriter(); await Promise.allSettled(waitingReader ? [writer, waitingReader] : [writer]); }
+  expect(writerFirst).toBe(true);
+  const written = await writer;
+  await expect(waitingReader).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(passedProjectGate && loadedSourceAccess).toBe(true);
+  expect(await db.factSourceReader.count({ where: { customerId, projectId: f.projectId, sourceId, subject: leader.subject } })).toBe(0);
+  restored = await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: written.revision,
+    state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+  expect(await reader.readLeadership(leader, f.projectId, f.milestone.id)).toMatchObject({ outcome: "CONFLICTING" });
+
+  let heldPid = 0, latePid = 0, heldReady!: () => void, lateReady!: () => void, releaseHeld!: () => void;
+  const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
+  const lateEntered = new Promise<void>((resolve) => { lateReady = resolve; });
+  const heldGate = new Promise<void>((resolve) => { releaseHeld = resolve; });
+  let readerPaused = false;
+  const heldReaderDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      heldPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (!readerPaused && sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) { readerPaused = true; heldReady(); await heldGate; }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const startedWriterDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      latePid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      lateReady(); return operation(tx);
+    }, options as never) };
+  const heldRead = new DatabaseMilestoneConflictObservationRepository(heldReaderDb as never).readLeadership(leader, f.projectId, f.milestone.id);
+  void heldRead.catch(() => {});
+  let lateWriter: ReturnType<DatabaseProjectFactRepository["setSourceAccess"]> | undefined, readerFirst = false;
+  try {
+    await Promise.race([heldEntered, heldRead.then(() => { throw new Error("Reader exited before barrier"); })]);
+    lateWriter = new DatabaseProjectFactRepository(startedWriterDb as never).setSourceAccess(f.pmo, { projectId: f.projectId,
+      sourceId, expectedRevision: restored.revision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+    void lateWriter.catch(() => {});
+    await Promise.race([lateEntered, lateWriter.then(() => { throw new Error("Writer exited before barrier"); })]);
+    readerFirst = await blocked(latePid, heldPid, ['FROM "Project"', "FOR UPDATE"]);
+  } finally { releaseHeld(); await Promise.allSettled(lateWriter ? [heldRead, lateWriter] : [heldRead]); }
+  expect(readerFirst).toBe(true);
+  expect(await heldRead).toMatchObject({ outcome: "CONFLICTING" });
+  await lateWriter;
+  expect(await db.factSourceReader.count({ where: { customerId, projectId: f.projectId, sourceId, subject: leader.subject } })).toBe(0);
+  await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+}, 60000);
+
+// NOT_DETECTED is also gated by every required source; it is not a project-wide clearance.
+it("requires every current required source for a negative completion observation", async () => {
+  const f = await fixture(1, true, false, false, true, true);
+  const leader: Actor = { customerId, subject: "observation-negative-" + randomUUID(), roles: ["leadership"] };
+  await db.accessGrant.create({ data: { customerId, subject: leader.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  for (const binding of f.bindings) {
+    const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId });
+    await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId,
+      expectedRevision: access!.revision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+  }
+  const alternate: Actor = { customerId, subject: "observation-alternate-" + randomUUID(), roles: ["project_manager"] };
+  await db.accessGrant.create({ data: { customerId, subject: alternate.subject, scopeType: "project", scopeId: f.projectId, role: "project_manager" } });
+  const target = f.bindings[3]!, sourceId = target.entry.sourceId;
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const effectiveAt = new Date(now!.getTime() - 10_000).toISOString(), validUntil = new Date(now!.getTime() + 86_400_000).toISOString();
+  const alternateVersion = await facts.appendHumanStatement(alternate, { projectId: f.projectId, factType: target.factType,
+    expectedRevision: 1, idempotencyKey: randomUUID(), value: { type: "text", value: "COMPLETE" }, effectiveAt, validUntil,
+    originalStatement: "Synthetic alternative completed work." }, context);
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId,
+    expectedRevision: alternateVersion.entry.sourceAccessRevision, state: "AVAILABLE", readers: [alternate.subject, f.pmo.subject, leader.subject] }, context);
+  const selector = (instanceId: string) => ({ sourceType: "human_statement", instanceId, requiredApproval: "NOT_REQUIRED" as const, validity: null });
+  await authority.appendPolicy(f.pmo, { projectId: f.projectId, factType: target.factType, expectedRevision: 1, idempotencyKey: randomUUID(),
+    effectiveAt, definition: { tiers: [{ selectors: [selector(alternateVersion.entry.sourceId)] }, { selectors: [selector(sourceId)] }],
+      conflictBehavior: "REQUEST_RECONCILIATION" } }, context);
+  const capture = await reconciliation.check(f.pmo, { ...f.check, idempotencyKey: randomUUID() }, context);
+  if (capture.assessment.visibility !== "available" || capture.assessment.result.status !== "NOT_DETECTED") throw new Error("Expected complete negative capture");
+  const assessment = capture.assessment.result.evaluations.find((entry) => entry.binding?.id === target.id)?.assessment;
+  expect(assessment?.supportingVersionIds).toEqual([alternateVersion.entry.id]);
+  expect(assessment?.supportingVersionIds).not.toContain(target.entry.id);
+  const apiDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) };
+  const reader = new DatabaseMilestoneConflictObservationRepository(apiDatabase as never);
+  expect(await reader.readLeadership(leader, f.projectId, f.milestone.id)).toMatchObject({ outcome: "NOT_DETECTED" });
+  const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: access!.revision,
+    state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+  await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  const restricted = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: restricted!.revision,
+    state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+  expect(await reader.readLeadership(leader, f.projectId, f.milestone.id)).toMatchObject({ outcome: "NOT_DETECTED" });
+}, 60000);
+// Both orders for a positive grant: revoke waits for the reader's locked grant,
+// or a waiting reader sees the committed removal and denies the project.
+it("serializes leadership grant revocation with an observation", async () => {
+  const f = await fixture(1, true, false, false, true);
+  const leader: Actor = { customerId, subject: "observation-grant-" + randomUUID(), roles: ["leadership"] };
+  const grant = { customerId, subject: leader.subject, scopeType: "project" as const, scopeId: f.projectId, role: "leadership" as const };
+  await db.accessGrant.create({ data: grant });
+  for (const binding of f.bindings) {
+    const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId });
+    await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId, expectedRevision: access!.revision,
+      state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+  }
+  async function blocked(waiting: number, blocking: number, fragments: string[]) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waiting);
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(blocking) && fragments.every((x) => rows[0]!.query.includes(x))) return true;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return false;
+  }
+  let writerPid = 0, readerPid = 0, signalWriter!: () => void, signalReader!: () => void, releaseWriter!: () => void;
+  const writerReady = new Promise<void>((resolve) => { signalWriter = resolve; });
+  const readerReady = new Promise<void>((resolve) => { signalReader = resolve; });
+  const writerGate = new Promise<void>((resolve) => { releaseWriter = resolve; });
+  const revokeDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>) => db.$transaction(async (tx) => {
+    writerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    return operation(new Proxy(tx, { get(target, key) {
+      const value = Reflect.get(target, key);
+      if (key === "accessGrant" && value && typeof value === "object") return new Proxy(value, { get(model, method) {
+        const fn = Reflect.get(model, method);
+        if (method === "deleteMany" && typeof fn === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(fn, model, args); signalWriter(); await writerGate; return output;
+        };
+        return typeof fn === "function" ? fn.bind(model) : fn;
+      } });
+      return typeof value === "function" ? value.bind(target) : value;
+    } }));
+  }) };
+  let readerPassedGrant = false;
+  const waitingDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    readerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    signalReader(); return operation(new Proxy(tx, { get(target, key) {
+      const value = Reflect.get(target, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+        if (sql.includes('FROM public."AccessGrant"') && sql.includes("FOR SHARE")) readerPassedGrant = true;
+        return output;
+      };
+      return typeof value === "function" ? value.bind(target) : value;
+    } }));
+  }, options as never) };
+  const revoke = new DatabaseProjectRepository(revokeDb as never).revokeGrant(f.pmo,
+    { subject: leader.subject, scopeType: "project", scopeId: f.projectId }, context.correlationId);
+  void revoke.catch(() => {});
+  let waiting: ReturnType<DatabaseMilestoneConflictObservationRepository["readLeadership"]> | undefined, writerFirst = false;
+  try {
+    await Promise.race([writerReady, revoke.then(() => { throw new Error("Revoke exited before barrier"); })]);
+    waiting = new DatabaseMilestoneConflictObservationRepository(waitingDb as never).readLeadership(leader, f.projectId, f.milestone.id);
+    void waiting.catch(() => {});
+    await Promise.race([readerReady, waiting.then(() => { throw new Error("Reader exited before barrier"); })]);
+    writerFirst = await blocked(readerPid, writerPid, ['FROM public."AccessGrant"', "FOR SHARE"]);
+  } finally { releaseWriter(); await Promise.allSettled(waiting ? [revoke, waiting] : [revoke]); }
+  expect(writerFirst && readerPassedGrant).toBe(true); await revoke;
+  await expect(waiting).rejects.toMatchObject({ code: "DENIED" });
+  expect(await db.accessGrant.count({ where: grant })).toBe(0);
+  await db.accessGrant.create({ data: grant });
+
+  let heldPid = 0, latePid = 0, signalHeld!: () => void, signalLate!: () => void, releaseHeld!: () => void;
+  const heldReady = new Promise<void>((resolve) => { signalHeld = resolve; });
+  const lateReady = new Promise<void>((resolve) => { signalLate = resolve; });
+  const heldGate = new Promise<void>((resolve) => { releaseHeld = resolve; });
+  let paused = false;
+  const heldDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    heldPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    return operation(new Proxy(tx, { get(target, key) {
+      const value = Reflect.get(target, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+        if (!paused && sql.includes('FROM public."AccessGrant"') && sql.includes("FOR SHARE")) { paused = true; signalHeld(); await heldGate; }
+        return output;
+      };
+      return typeof value === "function" ? value.bind(target) : value;
+    } }));
+  }, options as never) };
+  const lateDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>) => db.$transaction(async (tx) => {
+    latePid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    signalLate(); return operation(tx);
+  }) };
+  const held = new DatabaseMilestoneConflictObservationRepository(heldDb as never).readLeadership(leader, f.projectId, f.milestone.id);
+  void held.catch(() => {});
+  let late: ReturnType<DatabaseProjectRepository["revokeGrant"]> | undefined, readerFirst = false;
+  try {
+    await Promise.race([heldReady, held.then(() => { throw new Error("Reader exited before barrier"); })]);
+    late = new DatabaseProjectRepository(lateDb as never).revokeGrant(f.pmo,
+      { subject: leader.subject, scopeType: "project", scopeId: f.projectId }, context.correlationId);
+    void late.catch(() => {});
+    await Promise.race([lateReady, late.then(() => { throw new Error("Revoke exited before barrier"); })]);
+    readerFirst = await blocked(latePid, heldPid, ['DELETE', '"AccessGrant"']);
+  } finally { releaseHeld(); await Promise.allSettled(late ? [held, late] : [held]); }
+  expect(readerFirst).toBe(true); expect(await held).toMatchObject({ outcome: "CONFLICTING" }); await late;
+  expect(await db.accessGrant.count({ where: grant })).toBe(0);
+  await expect(new DatabaseMilestoneConflictObservationRepository(waitingDb as never).readLeadership(leader, f.projectId, f.milestone.id))
+    .rejects.toMatchObject({ code: "DENIED" });
+
+  // A first insert cannot upgrade a read that already observed no positive row.
+  let signalAbsent!: () => void, releaseAbsent!: () => void;
+  const absentReady = new Promise<void>((resolve) => { signalAbsent = resolve; });
+  const absentGate = new Promise<void>((resolve) => { releaseAbsent = resolve; });
+  let absentPaused = false;
+  const absentDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    return operation(new Proxy(tx, { get(target, key) {
+      const value = Reflect.get(target, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+        if (!absentPaused && sql.includes('FROM public."AccessGrant"') && sql.includes("FOR SHARE")) {
+          expect(output).toEqual([]); absentPaused = true; signalAbsent(); await absentGate;
+        }
+        return output;
+      };
+      return typeof value === "function" ? value.bind(target) : value;
+    } }));
+  }, options as never) };
+  const absentRead = new DatabaseMilestoneConflictObservationRepository(absentDb as never).readLeadership(leader, f.projectId, f.milestone.id);
+  void absentRead.catch(() => {});
+  let inserted = false, timeout: ReturnType<typeof setTimeout> | undefined;
+  let grantWrite: ReturnType<DatabaseProjectRepository["setGrant"]> | undefined;
+  try {
+    await Promise.race([absentReady, absentRead.then(() => { throw new Error("Read exited before absence barrier"); })]);
+    grantWrite = new DatabaseProjectRepository(db).setGrant(f.pmo,
+      { subject: leader.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" }, context.correlationId);
+    await Promise.race([grantWrite.then(() => { inserted = true; }), new Promise<void>((_, reject) => { timeout = setTimeout(() => reject(new Error("Grant insert blocked")), 2000); })]);
+  } finally { if (timeout) clearTimeout(timeout); releaseAbsent(); await Promise.allSettled(grantWrite ? [absentRead, grantWrite] : [absentRead]); }
+  expect(inserted).toBe(true); await expect(absentRead).rejects.toMatchObject({ code: "DENIED" });
+  expect(await new DatabaseMilestoneConflictObservationRepository(waitingDb as never).readLeadership(leader, f.projectId, f.milestone.id))
+    .toMatchObject({ outcome: "CONFLICTING" });
+}, 60000);
+// The fact and policy paths take Project UPDATE before their authoritative
+// mutation. Each case observes both backend IDs and the actual lock wait.
+it.each(["fact", "policy"] as const)("serializes %s changes with current observations in both orders", async (kind) => {
+  const f = await fixture(1, true, false, false, true);
+  const leader: Actor = { customerId, subject: `observation-${kind}-` + randomUUID(), roles: ["leadership"] };
+  await db.accessGrant.create({ data: { customerId, subject: leader.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  for (const binding of f.bindings) {
+    const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId });
+    await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId,
+      expectedRevision: access!.revision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+  }
+  const target = f.bindings[1]!;
+  async function isBlocked(waiting: number, blocking: number, fragments: string[]) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waiting);
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(blocking) && fragments.every((x) => rows[0]!.query.includes(x))) return true;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return false;
+  }
+  const findPosition = (value: Awaited<ReturnType<DatabaseMilestoneConflictObservationRepository["readLeadership"]>>) => {
+    if (value.outcome !== "CONFLICTING") throw new Error("Expected conflict");
+    const position = value.positions.find((row) => row.bindingId === target.id);
+    if (!position) throw new Error("Missing target");
+    return position;
+  };
+  const operation = async (dbOverride: unknown, revision: number) => {
+    const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+    const effectiveAt = new Date(now!.getTime() - (revision === 1 ? 4000 : 1000)).toISOString();
+    if (kind === "fact") {
+      const result = await new DatabaseProjectFactRepository(dbOverride as never).appendHumanStatement(f.pmo, {
+        projectId: f.projectId, factType: target.factType, expectedRevision: revision, idempotencyKey: randomUUID(),
+        value: { type: "text", value: "OPEN" }, effectiveAt, validUntil: new Date(now!.getTime() + 86_400_000).toISOString(),
+        originalStatement: "Synthetic current required work state." }, context);
+      return result.entry.id;
+    }
+    const result = await new DatabaseAuthorityRepository(dbOverride as never).appendPolicy(f.pmo, {
+      projectId: f.projectId, factType: target.factType, expectedRevision: revision, idempotencyKey: randomUUID(), effectiveAt, definition }, context);
+    return result.event.id;
+  };
+  let writerPid = 0, readerPid = 0, signalWriter!: () => void, signalReader!: () => void, releaseWriter!: () => void;
+  const writerReady = new Promise<void>((resolve) => { signalWriter = resolve; });
+  const readerReady = new Promise<void>((resolve) => { signalReader = resolve; });
+  const writerGate = new Promise<void>((resolve) => { releaseWriter = resolve; });
+  let writerPaused = false, readerPassed = false;
+  const writerDb = { $transaction: (fn: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+    writerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    return fn(new Proxy(tx, { get(targetTx, key) {
+      const value = Reflect.get(targetTx, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const output = await Reflect.apply(value, targetTx, args), sql = rawSqlText(args[0]);
+        if (!writerPaused && sql.includes('FROM "Project"') && sql.includes("FOR UPDATE")) { writerPaused = true; signalWriter(); await writerGate; }
+        return output;
+      };
+      return typeof value === "function" ? value.bind(targetTx) : value;
+    } }));
+  }, options as never) };
+  const readerDb = { $transaction: (fn: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    readerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid; signalReader();
+    return fn(new Proxy(tx, { get(targetTx, key) {
+      const value = Reflect.get(targetTx, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const output = await Reflect.apply(value, targetTx, args), sql = rawSqlText(args[0]);
+        if (sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) readerPassed = true;
+        return output;
+      };
+      return typeof value === "function" ? value.bind(targetTx) : value;
+    } }));
+  }, options as never) };
+  const firstWrite = operation(writerDb, 1); void firstWrite.catch(() => {});
+  let waiting: ReturnType<DatabaseMilestoneConflictObservationRepository["readLeadership"]> | undefined, writerFirst = false;
+  try {
+    await Promise.race([writerReady, firstWrite.then(() => { throw new Error("Writer exited before barrier"); })]);
+    waiting = new DatabaseMilestoneConflictObservationRepository(readerDb as never).readLeadership(leader, f.projectId, f.milestone.id); void waiting.catch(() => {});
+    await Promise.race([readerReady, waiting.then(() => { throw new Error("Reader exited before barrier"); })]);
+    writerFirst = await isBlocked(readerPid, writerPid, ['FROM public."Project"', "FOR SHARE"]);
+  } finally { releaseWriter(); await Promise.allSettled(waiting ? [firstWrite, waiting] : [firstWrite]); }
+  expect(writerFirst && readerPassed).toBe(true);
+  const firstId = await firstWrite, afterWrite = findPosition((await waiting)!);
+  if (kind === "fact") expect(afterWrite.supports.map((row) => row.versionId)).toEqual([firstId]);
+  else expect(afterWrite.policyRevisionId).toBe(firstId);
+
+  let heldPid = 0, latePid = 0, signalHeld!: () => void, signalLate!: () => void, releaseHeld!: () => void;
+  const heldReady = new Promise<void>((resolve) => { signalHeld = resolve; });
+  const lateReady = new Promise<void>((resolve) => { signalLate = resolve; });
+  const heldGate = new Promise<void>((resolve) => { releaseHeld = resolve; });
+  let heldPaused = false;
+  const heldDb = { $transaction: (fn: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    heldPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    return fn(new Proxy(tx, { get(targetTx, key) {
+      const value = Reflect.get(targetTx, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const output = await Reflect.apply(value, targetTx, args), sql = rawSqlText(args[0]);
+        if (!heldPaused && sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) { heldPaused = true; signalHeld(); await heldGate; }
+        return output;
+      };
+      return typeof value === "function" ? value.bind(targetTx) : value;
+    } }));
+  }, options as never) };
+  const lateDb = { $transaction: (fn: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+    latePid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid; signalLate(); return fn(tx);
+  }, options as never) };
+  const held = new DatabaseMilestoneConflictObservationRepository(heldDb as never).readLeadership(leader, f.projectId, f.milestone.id); void held.catch(() => {});
+  let late: ReturnType<typeof operation> | undefined, readerFirst = false;
+  try {
+    await Promise.race([heldReady, held.then(() => { throw new Error("Reader exited before barrier"); })]);
+    late = operation(lateDb, 2); void late.catch(() => {});
+    await Promise.race([lateReady, late.then(() => { throw new Error("Writer exited before barrier"); })]);
+    readerFirst = await isBlocked(latePid, heldPid, ['FROM "Project"', "FOR UPDATE"]);
+  } finally { releaseHeld(); await Promise.allSettled(late ? [held, late] : [held]); }
+  expect(readerFirst).toBe(true);
+  const heldPosition = findPosition(await held), lateId = await late;
+  if (kind === "fact") expect(heldPosition.supports.map((row) => row.versionId)).toEqual([firstId]);
+  else expect(heldPosition.policyRevisionId).toBe(firstId);
+  const fresh = findPosition(await new DatabaseMilestoneConflictObservationRepository(readerDb as never).readLeadership(leader, f.projectId, f.milestone.id));
+  if (kind === "fact") expect(fresh.supports.map((row) => row.versionId)).toEqual([lateId]);
+  else expect(fresh.policyRevisionId).toBe(lateId);
+}, 60000);
+
+// Sealed structure and source-authority inputs must be complete; none of these
+// cases should be reported as a clean completion result.
+it.each(["empty required links", "missing binding", "cancelled work", "expired evidence", "disabled policy"] as const)(
+  "withholds a completion result for %s", async (variant) => {
+    const f = await fixture(1, true, false, false, true, false,
+      variant === "empty required links", variant === "cancelled work", variant === "missing binding", variant === "expired evidence");
+    const leader: Actor = { customerId, subject: "observation-incomplete-" + randomUUID(), roles: ["leadership"] };
+    await db.accessGrant.create({ data: { customerId, subject: leader.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+    for (const binding of f.bindings) {
+      const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId });
+      await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId, expectedRevision: access!.revision,
+        state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+    }
+    if (variant === "disabled policy") {
+      const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+      await authority.appendPolicy(f.pmo, { projectId: f.projectId, factType: f.bindings[1]!.factType, expectedRevision: 1,
+        idempotencyKey: randomUUID(), effectiveAt: new Date(now!.getTime() - 1000).toISOString(), definition: null }, context);
+    }
+    if (variant === "expired evidence") {
+      const rows = await db.projectFactVersion.findMany({ where: { id: { in: f.bindings.map((binding) => binding.entry.id) } } });
+      const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`;
+      expect(rows.filter((row) => row.validUntil!.getTime() <= now!.getTime())).toHaveLength(1);
+    }
+    const linkCount = await db.requiredWorkItem.count({ where: { customerId, projectId: f.projectId, milestoneId: f.milestone.id } });
+    expect(linkCount).toBe(variant === "empty required links" ? 0 : 3);
+    expect(f.bindings).toHaveLength(variant === "missing binding" ? 3 : linkCount + 1);
+    if (variant === "cancelled work") {
+      const row = await db.projectFactVersion.findFirstOrThrow({ where: { id: f.bindings.at(-1)!.entry.id } });
+      expect(row.value).toEqual({ type: "text", value: "CANCELLED" });
+    }
+    const captured = await reconciliation.check(f.pmo, { ...f.check, idempotencyKey: randomUUID() }, context);
+    expect(captured.assessment).toMatchObject({ visibility: "available", result: { status: "UNKNOWN" } });
+    const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) };
+    await expect(new DatabaseMilestoneConflictObservationRepository(roleDb as never).readLeadership(leader, f.projectId, f.milestone.id))
+      .rejects.toMatchObject({ code: "UNAVAILABLE" });
+  }, 60000,
+);
+// A state-binding birth acquires Project UPDATE before it creates the reserved
+// fact graph. A reader observes the complete before or after state under SHARE.
+it.each(["writer-first", "reader-first"] as const)("serializes binding birth with an observation (%s)", async (order) => {
+  const f = await fixture(1, true, false, false, true, false, false, false, true);
+  const leader: Actor = { customerId, subject: "observation-birth-" + randomUUID(), roles: ["leadership"] };
+  await db.accessGrant.create({ data: { customerId, subject: leader.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  for (const binding of f.bindings) {
+    const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId });
+    await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: binding.entry.sourceId, expectedRevision: access!.revision,
+      state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+  }
+  const links = await db.requiredWorkItem.findMany({ where: { customerId, projectId: f.projectId, milestoneId: f.milestone.id } });
+  const missing = links.find((link) => !f.bindings.some((binding) => binding.targetId === link.workItemId));
+  if (!missing) throw new Error("Missing-birth fixture invalid");
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const effectiveAt = new Date(now!.getTime() - 1000).toISOString(), validUntil = new Date(now!.getTime() + 86_400_000).toISOString();
+  let writerPid = 0, readerPid = 0, signalWriter!: () => void, signalReader!: () => void, release!: () => void;
+  const writerReady = new Promise<void>((resolve) => { signalWriter = resolve; });
+  const readerReady = new Promise<void>((resolve) => { signalReader = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let writerPaused = false, readerPaused = false, bindingCount = -1, bindingIds: string[] = [];
+  const writerDb = { $transaction: (fn: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+    writerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    if (order === "reader-first") signalWriter();
+    return fn(new Proxy(tx, { get(targetTx, key) {
+      const value = Reflect.get(targetTx, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const output = await Reflect.apply(value, targetTx, args), sql = rawSqlText(args[0]);
+        if (order === "writer-first" && !writerPaused && sql.includes('FROM "Project"') && sql.includes("FOR UPDATE")) {
+          writerPaused = true; signalWriter(); await gate;
+        }
+        return output;
+      };
+      return typeof value === "function" ? value.bind(targetTx) : value;
+    } }));
+  }, options as never) };
+  const readerDb = { $transaction: (fn: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    readerPid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    if (order === "writer-first") signalReader();
+    return fn(new Proxy(tx, { get(targetTx, key) {
+      const value = Reflect.get(targetTx, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const output = await Reflect.apply(value, targetTx, args), sql = rawSqlText(args[0]);
+        if (order === "reader-first" && !readerPaused && sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) {
+          readerPaused = true; signalReader(); await gate;
+        }
+        return output;
+      };
+      if (key === "canonicalStateBinding" && value && typeof value === "object") return new Proxy(value, { get(model, method) {
+        const fnModel = Reflect.get(model, method);
+        if (method === "findMany" && typeof fnModel === "function") return async (...args: unknown[]) => {
+          const result = await Reflect.apply(fnModel, model, args); bindingCount = result.length; bindingIds = result.map((row: { id: string }) => row.id); return result;
+        };
+        return typeof fnModel === "function" ? fnModel.bind(model) : fnModel;
+      } });
+      return typeof value === "function" ? value.bind(targetTx) : value;
+    } }));
+  }, options as never) };
+  const startWriter = () => new DatabaseMilestoneReconciliationRepository(writerDb as never).createStateBinding(f.pmo, {
+    projectId: f.projectId, targetKind: "WORK_ITEM", targetId: missing.workItemId, initialState: "OPEN", idempotencyKey: randomUUID(),
+    effectiveAt, validUntil, originalStatement: "Synthetic new binding for required work." }, context);
+  const startReader = () => new DatabaseMilestoneConflictObservationRepository(readerDb as never).readLeadership(leader, f.projectId, f.milestone.id);
+  let writer: ReturnType<typeof startWriter> | undefined, reader: ReturnType<typeof startReader> | undefined, observedBlock = false;
+  try {
+    if (order === "writer-first") {
+      writer = startWriter(); void writer.catch(() => {});
+      await Promise.race([writerReady, writer.then(() => { throw new Error("Writer exited before barrier"); })]);
+      reader = startReader(); void reader.catch(() => {});
+      await Promise.race([readerReady, reader.then(() => { throw new Error("Reader exited before barrier"); })]);
+    } else {
+      reader = startReader(); void reader.catch(() => {});
+      await Promise.race([readerReady, reader.then(() => { throw new Error("Reader exited before barrier"); })]);
+      writer = startWriter(); void writer.catch(() => {});
+      await Promise.race([writerReady, writer.then(() => { throw new Error("Writer exited before barrier"); })]);
+    }
+    const waiting = order === "writer-first" ? readerPid : writerPid, blocking = order === "writer-first" ? writerPid : readerPid;
+    const fragments = order === "writer-first" ? ['FROM public."Project"', "FOR SHARE"] : ['FROM "Project"', "FOR UPDATE"];
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waiting);
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(blocking) && fragments.every((x) => rows[0]!.query.includes(x))) { observedBlock = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  } finally { release(); await Promise.allSettled([...(writer ? [writer] : []), ...(reader ? [reader] : [])]); }
+  expect(observedBlock).toBe(true); const created = await writer;
+  await expect(reader).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(bindingCount).toBe(order === "writer-first" ? 4 : 3);
+  if (!created) throw new Error("Binding was not created");
+  expect(bindingIds.includes(created.id)).toBe(order === "writer-first");
+  await authority.appendPolicy(f.pmo, { projectId: f.projectId, factType: created.factType, expectedRevision: 0,
+    idempotencyKey: randomUUID(), effectiveAt, definition }, context);
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: created.entry.sourceId,
+    expectedRevision: created.entry.sourceAccessRevision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject, leader.subject] }, context);
+  const roleDb = { $transaction: (fn: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return fn(tx); }, options as never) };
+  const fresh = await new DatabaseMilestoneConflictObservationRepository(roleDb as never).readLeadership(leader, f.projectId, f.milestone.id);
+  expect(fresh).toMatchObject({ outcome: "CONFLICTING" });
+  if (fresh.outcome !== "CONFLICTING") throw new Error("Expected configured conflict");
+  expect(fresh.positions.find((position) => position.bindingId === created.id)).toMatchObject({ targetId: missing.workItemId,
+    factId: created.factId, supports: [{ versionId: created.entry.id, evidenceId: created.entry.evidenceId, sourceId: created.entry.sourceId }] });
+}, 60000);
