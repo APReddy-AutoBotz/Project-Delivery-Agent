@@ -402,12 +402,12 @@ try {
       await op.getByRole("button", { name: "Grant access" }).click();
       await op
         .getByRole("status")
-        .filter({ hasText: "Access granted" })
+        .filter({ hasText: "Grant operation recorded" })
         .waitFor();
       await op.getByRole("button", { name: "Revoke access" }).click();
       await op
         .getByRole("status")
-        .filter({ hasText: "Access revoked" })
+        .filter({ hasText: "Revoke operation recorded" })
         .waitFor();
     },
   );

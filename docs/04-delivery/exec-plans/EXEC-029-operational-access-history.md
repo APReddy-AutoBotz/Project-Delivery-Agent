@@ -126,6 +126,14 @@ journeys passed. The held-response test permits request cancellation, so it
 demonstrates stale-content withholding after settlement rather than proving that
 the old response was delivered. These do not prove the real database or authenticated API-role
 behavior. The native fixture is prepared for the hosted disposable database
-wrapper, which reconstructs production business grants; it has not yet run for
-this increment. Architecture and documentation validation passed. No story,
+wrapper, which reconstructs production business grants; the first stacked
+hosted run passed its native integration stage. Architecture and documentation
+validation passed. No story,
 issue, general audit-search criterion or release hold is accepted here.
+
+The first stacked Foundation run 40936197879 passed native integration but its
+production-boundary job stopped because an existing packaged UI assertion still
+expected the previous `Access granted` message. Update the production and both
+customer-profile acceptance selectors to the new operation wording while
+retaining the same actions, status waits and authorization checks. The failed
+run remains evidence; the corrected candidate requires fresh hosted validation.

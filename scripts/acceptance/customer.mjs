@@ -373,7 +373,7 @@ async function browserCheck(afterUpgrade) {
       .click();
     await operator.page
       .getByRole("status")
-      .filter({ hasText: afterUpgrade ? "Access revoked" : "Access granted" })
+      .filter({ hasText: afterUpgrade ? "Revoke operation recorded" : "Grant operation recorded" })
       .waitFor();
     if (afterUpgrade) {
       await verifyEvidenceProjectRevocation({
@@ -414,7 +414,7 @@ async function browserCheck(afterUpgrade) {
         .click();
       await operator.page
         .getByRole("status")
-        .filter({ hasText: "Access granted" })
+        .filter({ hasText: "Grant operation recorded" })
         .waitFor();
     }
     await closeCustomerBrowserSession(operator, base);
