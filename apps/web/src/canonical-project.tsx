@@ -1,3 +1,4 @@
+import { LeadershipMilestoneConflict } from "./leadership-milestone-conflict.js";
 import React, { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, TextField, SelectField, Message } from "./components.js";
@@ -938,12 +939,14 @@ type Detail = {
 export function CanonicalProjectDetails({
   id,
   request,
+  leadershipScope,
 }: {
   id: string;
   request: RequestFn;
+  leadershipScope?: string;
 }) {
   const result = useQuery({
-    queryKey: ["canonical-project", id],
+    queryKey: ["canonical-project", id, leadershipScope],
     queryFn: () => request<Detail>("/projects/" + id + "/canonical"),
   });
   if (result.isError)
@@ -968,6 +971,10 @@ export function CanonicalProjectDetails({
       ) : (
         <>
           <DateDisplay dates={detail.dates} />
+          {leadershipScope && !result.isFetching && !result.isError && <LeadershipMilestoneConflict
+            key={leadershipScope} projectId={id} scope={leadershipScope} request={request}
+            milestones={detail.milestones as { id: string; key: string; name: string }[]}
+            workItems={detail.workItems as { id: string; key: string; title: string }[]} />}
           {sections.map((section) => {
             const rows = detail[section.key] as DetailRow[];
             return (

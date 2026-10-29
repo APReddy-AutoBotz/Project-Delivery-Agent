@@ -534,6 +534,18 @@ export class DatabaseCanonicalProjectRepository
       const mappingsAllowed = granted.some((role) =>
         administrators.includes(role),
       );
+      return this.detailInTransaction(tx, actor, id, mappingsAllowed);
+    });
+  }
+
+  // Internal read-only composition seam. Caller owns authorization, the
+  // project/grant locks and transaction; never expose this as a public port.
+  async detailInTransaction(
+    tx: Tx,
+    actor: Actor,
+    id: string,
+    mappingsAllowed: boolean,
+  ): Promise<CanonicalProjectDetail> {
       const project = await tx.project.findUniqueOrThrow({
         where: { id },
         select: {
@@ -705,6 +717,5 @@ export class DatabaseCanonicalProjectRepository
         ),
         sourceMappingsWithheld: !mappingsAllowed,
       });
-    });
   }
 }

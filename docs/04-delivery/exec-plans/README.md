@@ -2,6 +2,7 @@
 
 ## Active implementation
 
+- [EXEC-030: Source-authorized milestone conflict explanation](EXEC-030-milestone-conflict-explanation.md) — partial implementation and isolated checks in progress; native, hosted and golden-scenario evidence remain open.
 - [EXEC-029: Operational access-operation history](EXEC-029-operational-access-history.md) — reviewed partial design and implementation in progress; full audit search and story acceptance remain open.
 - [EXEC-020: PM escalation request history](EXEC-020-pm-escalation-history.md) — bounded projection merged in PR #114 with exact-candidate and actual post-merge checks verified. Real native/browser privacy, expiry and recovery evidence passes; full AC-UPD-008 and Issue #9 stay open. Capture remains stopped.
 - [EXEC-019: Durable ingestion assurance handoff](EXEC-019-ingestion-assurance-handoff.md) — bounded implementation merged in PR #112 with exact-head and post-merge checks passed. Complete STORY-008/013 acceptance is recorded separately; Issue #7 and release holds remain open. Research capture remains stopped.

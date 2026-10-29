@@ -716,6 +716,8 @@ function App() {
                     <CanonicalProjectDetails
                       id={project.data.id}
                       request={request}
+                      leadershipScope={me.data?.roles.includes("leadership") && !me.isFetching && !me.isError && !project.isFetching && !project.isError
+                        ? `${me.data.customerId}:${me.data.subject}:${project.data.id}` : undefined}
                     />
                   )}
                 </>

@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { MilestoneConflictObservationController, MILESTONE_CONFLICT_OBSERVATION_REPOSITORY, unavailableMilestoneConflictObservationRepository } from "./milestone-conflict-observation-controller.js";
 import { ProjectUpdateInvitationController } from "./project-update-invitation-controller.js";
 import { PmActionQueueController, PM_ACTION_QUEUE_REPOSITORY, unavailablePmActionQueueRepository } from "./pm-action-queue-controller.js";
 import { BlockerAgeAdviceController, BLOCKER_AGE_ADVICE_REPOSITORY, unavailableBlockerAgeAdviceRepository } from "./blocker-age-advice-controller.js";
@@ -93,6 +94,7 @@ import {
   type ProjectUpdateRepository,
   type PmActionQueueRepository,
   type BlockerAgeAdviceRepository,
+  type MilestoneConflictObservationRepository,
 } from "@pdaa/domain";
 import { IdentityService, operationalLog, type Config } from "@pdaa/platform";
 
@@ -281,6 +283,7 @@ export async function createApp(
   projectUpdates: ProjectUpdateRepository = unavailableProjectUpdateRepository,
   pmActionQueue: PmActionQueueRepository = unavailablePmActionQueueRepository,
   blockerAgeAdvice: BlockerAgeAdviceRepository = unavailableBlockerAgeAdviceRepository,
+  milestoneConflictObservation: MilestoneConflictObservationRepository = unavailableMilestoneConflictObservationRepository,
 ) {
   @Module({
     controllers: [
@@ -295,6 +298,7 @@ export async function createApp(
       ProjectUpdateInvitationController,
       PmActionQueueController,
       BlockerAgeAdviceController,
+      MilestoneConflictObservationController,
     ],
     providers: [
       { provide: CONFIG, useValue: config },
@@ -313,6 +317,7 @@ export async function createApp(
       { provide: PROJECT_UPDATE_REPOSITORY, useValue: projectUpdates },
       { provide: PM_ACTION_QUEUE_REPOSITORY, useValue: pmActionQueue },
       { provide: BLOCKER_AGE_ADVICE_REPOSITORY, useValue: blockerAgeAdvice },
+      { provide: MILESTONE_CONFLICT_OBSERVATION_REPOSITORY, useValue: milestoneConflictObservation },
       IngestionIdentityGuard,
     ],
   })
