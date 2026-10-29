@@ -1,13 +1,13 @@
 # EXEC-030: Source-authorized milestone conflict explanation
 
-Status: Implementation in progress; no acceptance is implied. This partial
-increment supports FR-QA-007/012 and the shared
+Status: PR #124 merged with candidate and post-merge checks passed; no acceptance
+is implied. This partial increment supports FR-QA-007/012 and the shared
 GOLDEN-003 scenario. It does not complete natural-language Q&A, AC-QA-005,
 AC-HLT-005, AC-EVD-004, STORY-012/014/015, Issue #6/#8 or a release hold.
 The design began on the tree of merged blocker-age PR #122, whose candidate and
 post-merge checks passed. The isolated implementation has since incorporated the
-reviewed tree of merged access-history PR #123; that merge's Documentation has
-passed and its Foundation run was still in progress at this checkpoint.
+reviewed tree of merged access-history PR #123; its post-merge Documentation
+and Foundation checks also passed.
 
 ## Goal and factual boundary
 
@@ -257,14 +257,29 @@ Synthetic database cases are authored for API-role privileges and an authenticat
 HTTP read, the three-item conflict, source revocation, no-conflict dependency checks including an
 unselected source, both source-writer lock orders, both leadership-grant revoke
 orders and a first-grant insert, and both lock orders for fact/policy updates
-and binding birth. They have not run: the local Docker daemon is unavailable. The
+and binding birth. They could not run locally because the Docker daemon was
+unavailable; the reviewed hosted candidate subsequently passed these cases. The
 standard isolated hosted database runner reconstructs production business
 privileges; the test asserts the effective role and AuditEvent read privilege.
 The HTTP repository uses `SET LOCAL ROLE`, not a separately authenticated API
 database login; race writers use the setup/owner connection.
 The read-only proxy and named scoped row snapshots provide bounded evidence,
 not a proof about arbitrary SELECT-called functions or triggers. Further work
-includes remaining native boundary cases, actual-input
-independent review, exact-head hosted checks, and reconciliation with subsequent
-merged work. Neither a PR nor any acceptance is claimed for this candidate.
+includes remaining native boundary cases and full golden-scenario evidence.
+No story, criterion, issue or release hold is accepted.
 Original19/20 capture remains stopped.
+
+## Reviewed candidate and merge
+
+Reviewed head `edc70c71f0702f6136aa52da09672a83289cf26a` passed Foundation
+40944539384 and Documentation 40944539318. Synthetic merge
+`a0a5e596b68d75237eeff0368f087d228c4f66be` and actual merge
+`9386d96f8470fe8f2db881884f6bf0f034e5ae78` use the same reviewed tree
+`f790111509770a18bcc4ceea2f6149f2a9ae1791`, with ordered parents
+`cde89e33a4dee2bba00885002aaba6b6da246811` and that head. Candidate Foundation
+passed 252 native integration tests, 57 browser tests, recovery, packaged-runtime
+and distribution-evidence steps. Actual post-merge Documentation 40948055192
+and Foundation 40948055073 passed. The role-switched synthetic
+HTTP proof is not a separately authenticated production API database login;
+race writers use the setup/owner connection. No natural-language Q&A, full
+GOLDEN-003, story, criterion, issue or release hold is accepted.

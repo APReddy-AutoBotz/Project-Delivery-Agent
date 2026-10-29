@@ -1,12 +1,12 @@
 # EXEC-032: Current scalar disagreement explanation
 
-Status: Independently reviewed design; implementation and required tests are in
-progress locally. No publication or acceptance is claimed. This possible partial increment supports FR-QA-004/005/007/012
+Status: Independently reviewed candidate merged in PR #126 after its candidate
+checks passed; post-merge Foundation and Documentation passed. No acceptance is claimed. This possible partial increment supports FR-QA-004/005/007/012
 and FR-EVD-004. It is groundwork related to FR-QA-007, not the registered
 GOLDEN-003 sheet-versus-Jira milestone scenario. It depends on the existing
 source-authority evaluator, scoped fact catalogue and scalar reconciliation
 workflow. PR #125's verified merged tree is the source-equivalent local base;
-its actual post-merge Foundation run remains in progress. It does not complete
+its actual post-merge Foundation and Documentation checks passed. It does not complete
 GOLDEN-003, general Q&A, AC-QA-005, AC-EVD-004, STORY-012/027/028/029 or any
 issue or release hold. OD-013/014 and the stop on Original19/20 capture remain.
 
@@ -189,9 +189,19 @@ source of one position, consistent with the approved selected-current semantics.
 An independent exact-tree review found the shared API route-coverage harness had
 not yet included the new endpoint; the fixture and successful authenticated
 contract request were added, and that complete local harness then passed.
-The synthetic native integration and lock-race tests added so far have not run;
-the health lock upgrade is modeled and does not execute the complete health
+The health lock upgrade is modeled and does not execute the complete health
 workflow. The expanded mocked browser journey also covers project switching and
-identity role removal. Full exact-tree review, hosted checks and post-merge
-evidence remain outstanding. These local results do
-not accept any story, criterion, issue or release hold.
+identity role removal. The published candidate passed independent exact-tree and
+remote tree/parent/file-set reviews. Documentation 40955269546 passed; Foundation
+40955269273 passed 266 native cases in 19 files, synthetic 85-table recovery,
+58 browser tests and the production-boundary job. Actual merge
+`3c59ea981c023b76af9e2bd535e7d22fefe96d8f` has reviewed tree
+`46304a87178fccf786d0ba288cfedba527c68f99` and ordered parents
+`b5b438fb0e5ffaee4b743dacdd2d53c55cbb42ec` and reviewed head
+`58d1ec3c5750864268ae9c4ca84579422d14ef5f`. Post-merge Foundation 40959136424
+and Documentation 40959136440 passed, including packaged runtime and distribution
+evidence. Native readers use `SET LOCAL ROLE pdaa_api`, writers use the setup/owner
+connection and no-write claims cover the specified snapshots and proxy; this is
+not a separately authenticated production database login or proof about arbitrary
+SELECT functions. General Q&A and GOLDEN-003 evidence remain incomplete. These
+results do not accept any story, criterion, issue or release hold.

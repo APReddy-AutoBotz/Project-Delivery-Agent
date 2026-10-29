@@ -31,6 +31,93 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+EXEC-034's real synthetic response-link HTTP and database tests merged in
+[PR #127](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/127).
+Refreshed reviewed head `7abc5a38ac6b2a74a6c600185b6c223d21c5cab2` and actual
+merge `941113241b75fb1f99c6031c9fa9d93a1aa1adc4` have the same reviewed tree
+`e84393639d14f6fad86325b27bafef1f5ce490ae`; merge parents are verified current
+main `3c59ea981c023b76af9e2bd535e7d22fefe96d8f` and the refreshed head.
+Current-base Foundation 40963155930 and Documentation 40963155935 passed;
+post-merge Documentation 40966514510 and Foundation 40966514743 passed.
+Tests exercise a real loopback API and a synthetic
+role-switched database, not a separately authenticated production login or
+restored API. The full SEC-UPD-003/AC-UPD-003 criterion remains open; no accepted
+story or release hold changes.
+
+EXEC-032's bounded current scalar disagreement observation merged in
+[PR #126](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/126),
+reviewed head `58d1ec3c5750864268ae9c4ca84579422d14ef5f`, tree
+`46304a87178fccf786d0ba288cfedba527c68f99`. Candidate Documentation
+40955269546 and Foundation 40955269273 passed. Actual merge
+`3c59ea981c023b76af9e2bd535e7d22fefe96d8f` has that tree and ordered parents
+`b5b438fb0e5ffaee4b743dacdd2d53c55cbb42ec` and the reviewed head. Post-merge
+Foundation 40959136424 and Documentation 40959136440 passed, including packaged
+runtime and distribution evidence. Hosted
+verification covered 266
+native integration tests in 19 files, 58 browser tests and an exact 85-business-
+table synthetic recovery. The API reader uses `SET LOCAL ROLE pdaa_api` while
+test writers use the setup/owner connection; the health lock-upgrade case is a
+model, not the full health workflow. This partial date-conflict observation does
+not accept a story, criterion, issue or release hold.
+
+EXEC-031's bounded milestone question flow merged in
+[PR #125](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/125),
+head `cdf1ccf16d5faeedcec901650395e5733809bfdb`. Candidate Foundation
+40948283411 and Documentation 40948283374 passed. Actual merge
+`b5b438fb0e5ffaee4b743dacdd2d53c55cbb42ec` has reviewed tree
+`9587f4d10085e5b7ac1d7353f59702430667f084` and expected ordered parents
+`9386d96f8470fe8f2db881884f6bf0f034e5ae78` and the reviewed head. Its
+post-merge Documentation 40952284651 and Foundation 40952284735 passed. The fixed question grammar and
+explicit submit use the authorized milestone observation; broad natural-language
+Q&A, GOLDEN-003, stories and release holds remain open.
+
+EXEC-030's source-authorized milestone conflict observation merged in
+[PR #124](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/124).
+Reviewed head `edc70c71f0702f6136aa52da09672a83289cf26a` passed Foundation
+40944539384 and Documentation 40944539318. Synthetic merge
+`a0a5e596b68d75237eeff0368f087d228c4f66be` and actual merge
+`9386d96f8470fe8f2db881884f6bf0f034e5ae78` share tree
+`f790111509770a18bcc4ceea2f6149f2a9ae1791` and ordered parents
+`cde89e33a4dee2bba00885002aaba6b6da246811` and the reviewed head.
+Candidate verification passed 252 native integration tests and 57 browser tests,
+recovery and packaged-runtime/distribution checks. Native HTTP reads use
+`SET LOCAL ROLE` in a synthetic database; concurrent writers use the setup
+connection, not a separately authenticated production API login. Actual post-merge
+Documentation 40948055192 and Foundation 40948055073 passed.
+This is a partial deterministic observation, not complete natural-language Q&A,
+GOLDEN-003, a newly accepted story, criterion, issue or release hold.
+
+EXEC-029's bounded operational access history merged in
+[PR #123](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/123).
+Reviewed head `44934193881ae974cf4abf7bf0847d67c90a11a3` passed Foundation
+40938370963 and Documentation 40938370641. The synthetic merge
+`3b0105097014a9f934d01550d78f705be91b9fef` and actual merge
+`cde89e33a4dee2bba00885002aaba6b6da246811` both use tree
+`300fa0e8cb39a6d4949037c70c7cd8ba066cd42e`, with ordered parents
+`d7194d6a97af59db125123dba1a6f77f19e312ee` and the reviewed head.
+Actual post-merge Documentation 40942547567 and Foundation 40942547520
+passed. Earlier Foundation 40936197879 passed native integration but failed a
+packaged status-text assertion; the corrected candidate passed later checks.
+The legacy `/api/audit` alias is now system-admin-only and returns only the two
+access-operation event types; this intentional compatibility change does not
+complete general audit search or accept a story or release hold.
+
+EXEC-027's current authorized blocker-age observation merged in
+[PR #122](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/122).
+Independently reviewed head `80ebfbbc2574c4a91d2134db6ff588131052c75e`
+passed [Foundation 40934477559](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40934477559)
+and [Documentation 40934477495](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40934477495).
+Their synthetic merge `8acbc4c948e04238dcc12eb6b776439aaa8eb813` had ordered
+parents `5aafae959b88fcd5e141ba8c7be909b1dee31f4a` and the reviewed head,
+and tree `d3e0dbd35ee8163970dad08f642f9878c5fb4d9f`. Actual merge
+`d7194d6a97af59db125123dba1a6f77f19e312ee` has the same ordered parents and
+tree. Actual post-merge Documentation 40938266234 and Foundation 40938266008
+passed.
+Earlier production attempts failed at two distinct stages; neither cause was
+established, and the successful later run does not erase those failures. The
+change provides partial PM and leadership observations; it accepts no additional
+story, criterion or release hold. Original19/20 capture remains stopped.
+
 EXEC-026's bounded assigned-project action queue merged in
 [PR #120](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/120).
 The independently reviewed head `04a2c52c7dfb6a5a35f53b2f934ad9b26442e9c1`

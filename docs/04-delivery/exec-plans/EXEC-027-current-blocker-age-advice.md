@@ -1,6 +1,6 @@
 # EXEC-027: Current blocker-age advice
 
-Status: Local implementation and verification in progress. The design was
+Status: PR #122 merged; post-merge Documentation and Foundation passed. The design was
 reviewed independently before implementation. Its queue base merged as PR #120,
 actual merge `d1f52f45da30925752095784aab0b91d5ece5bab`; candidate and
 post-merge Foundation and Documentation checks passed. The separate evidence
@@ -12,16 +12,21 @@ FR-HLT-004/009/011, FR-ADV-001/002/006/007/008, FR-RPT-002, NFR-SEC-001,
 NFR-REL-003, BR-013; Issues #9 and #11. This is a partial increment and does
 not accept a story or criterion.
 
-The current local work adds an assigned-PM blocker facet, an explicitly scoped
+The increment adds an assigned-PM blocker facet, an explicitly scoped
 leadership endpoint, and separate role-specific presentation. Fifty-seven focused
 domain/reader/queue tests and 18 synthetic HTTP contract tests passed; two
 mocked Chromium journeys passed. Domain, data, API and web type checks, lint,
 architecture and documentation validation passed using isolated dependencies.
-These results do not establish native database permissions, source or policy
-races, an authenticated API login, or full no-write behavior. The new native
-fixtures and remaining coverage need execution on the qualified disposable
-hosted target, followed by exact-candidate review and the stated merge and
-post-merge gates. No criterion, story, issue or release hold is accepted here.
+Those local results alone do not establish native database permissions, source
+or policy races, an authenticated API login, or full no-write behavior. The
+reviewed hosted candidate subsequently passed 2,009 unit tests in 122 files,
+239 native tests in 19 files, recovery and 50 browser tests, including the
+synthetic live leadership journey. Native role tests use `SET LOCAL ROLE` in an
+owned disposable database; that is not a separately authenticated API login.
+No-write evidence covers its specified tables and proxied operations, not all
+possible database paths or SELECT-called functions and triggers. Exact candidate
+and merge identities are recorded below; actual post-merge checks passed.
+No criterion, story, issue or release hold is accepted here.
 
 ## Result and boundaries
 
@@ -183,5 +188,21 @@ request path, response, identifier, URL, body, token, secret or digest is
 emitted. The snapshot is point-in-time and cannot identify a request or prove
 causation. Diagnostics must not replace the primary failure or relax capture;
 synthetic tests exercise counter classes, timeouts and canary redaction.
-Independent review and exact-head hosted validation remain required before any
-merge. A diagnostic result is not a fix or an acceptance decision.
+At that diagnostic checkpoint, independent review and exact-head hosted
+validation remained required before merge. A diagnostic result is not a fix or
+an acceptance decision.
+
+## Reviewed candidate and merge
+
+The final diagnostic candidate's public head was
+`80ebfbbc2574c4a91d2134db6ff588131052c75e`, with reviewed tree
+`d3e0dbd35ee8163970dad08f642f9878c5fb4d9f`. Foundation 40934477559 and
+Documentation 40934477495 passed on that head. Their checkout was synthetic
+merge `8acbc4c948e04238dcc12eb6b776439aaa8eb813`, with ordered parents
+`5aafae959b88fcd5e141ba8c7be909b1dee31f4a` and the head and the same tree.
+PR #122 merged as `d7194d6a97af59db125123dba1a6f77f19e312ee`; its actual
+ordered parents and tree match that reviewed combination. Actual post-merge
+Foundation 40938266008 and Documentation 40938266234 passed.
+The earlier two failed production attempts and their unknown causes are retained
+above. A later successful run demonstrates that run passed; it does not explain
+or erase the failures. No story, criterion, issue or release hold is accepted.
