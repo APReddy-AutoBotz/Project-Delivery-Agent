@@ -1,7 +1,10 @@
 // Instrumentation aid for the disposable integration test, not a SQL parser.
 // SELECT functions, triggers and calls bypassing the proxy remain outside it.
 export function possibleMutation(sql: string): boolean {
-  const withoutRowLocks = sql.replace(/\bFOR\s+UPDATE\b/gi, "FOR LOCK");
+  // Fail closed on SQL forms this lightweight inspection cannot parse safely.
+  if (/--|\/\*|\*\/|\$\$|\$[a-z_][a-z0-9_]*\$|\bE'|\bU&'/i.test(sql)) return true;
+  const withoutLiterals = sql.replace(/'(?:''|[^'])*'/g, "''");
+  const withoutRowLocks = withoutLiterals.replace(/\bFOR\s+UPDATE\b/gi, "FOR LOCK");
   return /\b(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE|ALTER|DROP|CREATE)\b/i.test(withoutRowLocks);
 }
 export function rawSqlText(value: unknown): string {

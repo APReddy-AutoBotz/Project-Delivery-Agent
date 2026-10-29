@@ -26,8 +26,12 @@ it("detects raw SQL mutations including data-changing CTEs without flagging row 
     'INSERT INTO public."Project" VALUES (1) RETURNING id', "UPDATE project SET name='x' RETURNING id",
     'UPDATE ONLY public."Project" SET name=\'x\' RETURNING id', 'TRUNCATE "Project"', 'DROP TABLE "Project"', 'CREATE TABLE "x" (id int)'])
     expect(possibleMutation(sql)).toBe(true);
-  for (const sql of ['SELECT id FROM public."Project" FOR UPDATE', 'SELECT * FROM public."Project" FOR SHARE', "SET LOCAL lock_timeout='3s'"])
+  for (const sql of ['SELECT id FROM public."Project" FOR UPDATE', 'SELECT * FROM public."Project" FOR SHARE',
+    "SELECT * FROM public.\"ProjectUpdatePolicy\" WHERE key='project-update' FOR SHARE", "SELECT 'escaped ''UPDATE'' text'", "SET LOCAL lock_timeout='3s'"])
     expect(possibleMutation(sql)).toBe(false);
+  expect(possibleMutation("WITH changed AS (UPDATE project SET name='project-update' RETURNING id) SELECT * FROM changed")).toBe(true);
+  for (const sql of ["SELECT 1 -- unmatched '\n; DELETE FROM project", "SELECT E'escaped\\'quote'", "SELECT $$literal$$", "SELECT /* comment */ 1"])
+    expect(possibleMutation(sql)).toBe(true);
   expect(possibleMutation(rawSqlText({ sql: 'UPDATE public."Project" SET name=? RETURNING id' }))).toBe(true);
   expect(possibleMutation(rawSqlText({ strings: ['WITH changed AS (DELETE FROM public."Project" WHERE id=', ') SELECT * FROM changed'] }))).toBe(true);
   expect(() => rawSqlText({ unexpected: "SELECT 1" })).toThrow("Unknown raw SQL argument");

@@ -96,7 +96,10 @@ it("reads current source-authorized blocker review under the API role and withho
       `SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb) AS rows FROM public."${table}" t WHERE t."customerId"=$1::uuid`, customerId)));
   }
   const before = await snapshot();
-  const pmResult = await queue.read(pm), leaderResult = await leadership.readLeadership(leader, projectId);
+  let pmResult: Awaited<ReturnType<typeof queue.read>>;
+  try { pmResult = await queue.read(pm); }
+  catch (error) { expect(writes, "Read-only SQL interceptor flagged a statement").toEqual([]); throw error; }
+  const leaderResult = await leadership.readLeadership(leader, projectId);
   expect(pmResult.projects).toHaveLength(1);
   const pmFacet = pmResult.projects[0]!.blockerAge;
   const calendarAge = (asOf: string) => (Date.parse(`${asOf.slice(0, 10)}T00:00:00Z`) - Date.parse(`${openedAt}T00:00:00Z`)) / 86400000;
