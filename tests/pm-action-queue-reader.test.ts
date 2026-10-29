@@ -3,6 +3,7 @@ import { DatabasePmActionQueueRepository } from "../packages/data/src/pm-action-
 import { DatabaseHealthAssessmentRepository } from "../packages/data/src/health-assessment.js";
 import { DatabaseProjectUpdateRepository } from "../packages/data/src/project-updates.js";
 import { buildScheduleAdviceSnapshot } from "../packages/domain/src/delivery-advice.js";
+import * as assessment from "../packages/data/src/blocker-age-assessment.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001", portfolioId = "20000000-0000-4000-8000-000000000001";
 const id = (i: number) => `30000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
@@ -36,6 +37,8 @@ function fixture(options: { initial?: string[]; final?: string[]; noGrant?: bool
       if (sql.startsWith('SELECT r.id FROM public."ProjectResponsibility"')) {
         expect(params).toEqual([customerId, params[1], actor.subject]); return options.noAssignment ? [] : [{ id: "assignment" }];
       }
+      if (sql.includes("pg_advisory_xact_lock_shared")) { trace.push("threshold-gate"); expect(params).toEqual(["blocker-age-threshold:" + customerId]); return []; }
+      if (sql.includes('FROM public."BlockerAgeThresholdPolicy"')) { trace.push("threshold-row"); return []; }
       throw new Error("Unexpected fake query");
     }),
   };
@@ -47,7 +50,10 @@ function fixture(options: { initial?: string[]; final?: string[]; noGrant?: bool
   const update = vi.spyOn(DatabaseProjectUpdateRepository.prototype, "updateSuggestionsInTransaction")
     .mockImplementation(async (received, who, projectId) => { expect(received).toBe(tx); expect(who.subject).toBe(actor.subject); trace.push("update:" + projectId);
       return { availability: "UNCONFIGURED", asOf, projectId, audience: "project_manager", approvalItems: "UNAVAILABLE" }; });
-  return { repository: new DatabasePmActionQueueRepository(db as never), tx, trace, health, update, db };
+  const blocker = vi.spyOn(assessment, "buildBlockerAgeAssessmentInTransaction")
+    .mockImplementation(async (_tx, _db, _actor, projectId) => { trace.push("blocker:" + projectId);
+      return { asOf: new Date(asOf), coverage: "UNASSESSABLE", input: {}, newConflicts: [], result: {} } as never; });
+  return { repository: new DatabasePmActionQueueRepository(db as never), tx, trace, health, update, blocker, db };
 }
 afterEach(() => vi.restoreAllMocks());
 
@@ -56,6 +62,9 @@ it("locks all candidate projects before reading facets and rechecks membership",
   expect(result.projects.map((project) => project.projectId)).toEqual([id(1), id(2)]);
   expect(f.trace.slice(2, 5)).toEqual(["discover", "lock:" + id(1), "lock:" + id(2)]);
   expect(f.trace.indexOf("grant:" + id(1))).toBeLessThan(f.trace.indexOf("schedule:" + id(1)));
+  expect(f.trace.indexOf("grant:" + id(2))).toBeLessThan(f.trace.indexOf("threshold-gate"));
+  expect(f.trace.indexOf("threshold-row")).toBeLessThan(f.trace.indexOf("schedule:" + id(1)));
+  expect(result.projects.every((project) => project.blockerAge.coverage === "UNASSESSABLE")).toBe(true);
   expect(f.trace.at(-1)).toBe("discover");
   expect(f.tx.$executeRawUnsafe.mock.calls.map(([sql]) => sql)).toEqual(["SET LOCAL statement_timeout='8s'", "SET LOCAL lock_timeout='3s'"]);
 });
@@ -84,4 +93,9 @@ it("fails the whole response on a facet error or leadership fallback", async () 
   vi.restoreAllMocks();
   const g = fixture(); g.update.mockResolvedValueOnce({ availability: "UNCONFIGURED", asOf, projectId: id(1), audience: "leadership", approvalItems: "UNAVAILABLE" });
   await expect(g.repository.read({ ...actor, roles: [...actor.roles] })).rejects.toMatchObject({ code: "UNAVAILABLE" });
+});
+it.each(["RAID_SNAPSHOT_OVER_LIMIT", "SOURCE_HISTORY_OVER_LIMIT"])("fails the whole queue on %s", async (reason) => {
+  const f = fixture();
+  f.blocker.mockResolvedValueOnce({ asOf: new Date(asOf), coverage: "UNASSESSABLE", input: { reason }, newConflicts: [], result: {} } as never);
+  await expect(f.repository.read({ ...actor, roles: [...actor.roles] })).rejects.toMatchObject({ code: "UNAVAILABLE" });
 });

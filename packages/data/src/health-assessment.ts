@@ -272,7 +272,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       deadline(row.contentExpiresAt, row.assessedAt, policy?.contentRetentionHours).getTime() > now.getTime();
   }
   // Callers hold Project SHARE, which excludes supported source-reader changes.
-  private async sourcesReadable(
+  async sourcesReadableInTransaction(
     tx: Tx,
     current: Actor,
     projectId: string,
@@ -346,7 +346,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       throw new HealthAssessmentError("IDEMPOTENCY_RESULT_EXPIRED");
     const contentAvailable = this.contentAvailable(row, now, policy);
     const sourcesAvailable = contentAvailable
-      ? await this.sourcesReadable(tx, current, id, row.input)
+      ? await this.sourcesReadableInTransaction(tx, current, id, row.input)
       : false;
     return toView(row, true, contentAvailable && sourcesAvailable);
   }
@@ -553,7 +553,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         auditEventId, current.customerId, current.subject, correlationId, detail, assessedAt,
       );
       const contentAvailable =
-        await this.sourcesReadable(tx, current, id, input);
+        await this.sourcesReadableInTransaction(tx, current, id, input);
       return healthAssessmentViewSchema.parse({
         assessmentId,
         projectId: id,
@@ -585,7 +585,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         return null;
       const contentAvailable = this.contentAvailable(row, now, policy);
       const sourcesAvailable = contentAvailable
-        ? await this.sourcesReadable(tx, current, id, row.input)
+        ? await this.sourcesReadableInTransaction(tx, current, id, row.input)
         : false;
       return toView(row, false, contentAvailable && sourcesAvailable);
     });

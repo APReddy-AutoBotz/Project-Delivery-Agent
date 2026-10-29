@@ -107,6 +107,7 @@ export * from "./project-update-capture.js";
 export * from "./delivery-advice.js";
 export * from "./update-advice.js";
 export * from "./pm-action-queue.js";
+export * from "./blocker-age-advice.js";
 export type { ProjectUpdateRepository } from "./project-update-repository.js";
 export { ingestionReassessmentRetrySchema, ingestionReassessmentItemSchema, ingestionReassessmentPageSchema } from "./ingestion-reassessment.js";
 export type { IngestionReassessmentRetry, IngestionReassessmentItem, IngestionReassessmentPage } from "./ingestion-reassessment.js";

@@ -11,6 +11,7 @@ import {
   DatabaseHealthAssessmentRepository,
   DatabaseProjectUpdateRepository,
   DatabasePmActionQueueRepository,
+  DatabaseBlockerAgeAdviceRepository,
 } from "@pdaa/data";
 import {
   loadConfig,
@@ -49,6 +50,7 @@ try {
     healthAssessment,
     projectUpdates,
     new DatabasePmActionQueueRepository(db),
+    new DatabaseBlockerAgeAdviceRepository(db),
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

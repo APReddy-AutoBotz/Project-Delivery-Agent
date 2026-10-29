@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { buildPmActionQueue, buildScheduleAdviceSnapshot } from "../../packages/domain/dist/index.js";
+import { buildBlockerAgeAdvice, buildPmActionQueue, buildScheduleAdviceSnapshot } from "../../packages/domain/dist/index.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const projectId = "30000000-0000-4000-8000-000000000001";
@@ -9,7 +9,9 @@ const schedule = buildScheduleAdviceSnapshot({ asOf, recipient: { subject: "pm-a
     scheduleHealthPolicy: { revision: 1, timeZone: "UTC", defaultMinimumOverdueDays: 1, targetOverrides: [] },
     milestones: [{ id: "40000000-0000-4000-8000-000000000001", key: "M-PRIVATE-SYNTHETIC", state: "OPEN", forecastEnd: null, plannedEnd: null }], workItems: [] } });
 const queue = buildPmActionQueue([{ projectId, name: "Synthetic queue project", schedule,
-  update: { availability: "UNCONFIGURED", asOf, projectId, audience: "project_manager", approvalItems: "UNAVAILABLE" } }]);
+  update: { availability: "UNCONFIGURED", asOf, projectId, audience: "project_manager", approvalItems: "UNAVAILABLE" },
+  blockerAge: buildBlockerAgeAdvice({ projectId, audience: "project_manager", asOf, coverage: "UNASSESSABLE",
+    threshold: null, inventory: null, noOpenBlockers: null, candidates: [] }) }]);
 const newSessionQueue = { ...queue, projects: queue.projects.map((project) => ({ ...project, name: "New session project" })) };
 
 test("EXEC-026: PM queue hides stale or invalid responses across refresh and sign-out", async ({ page }) => {
@@ -43,7 +45,8 @@ test("EXEC-026: PM queue hides stale or invalid responses across refresh and sig
   await page.getByRole("button", { name: /^Project manager / }).click();
   const panel = page.getByRole("region", { name: "Action suggestions" });
   await expect(panel).toContainText("M-PRIVATE-SYNTHETIC");
-  await expect(panel).toContainText("Approvals, blocker-age suggestions and other categories are unavailable");
+  await expect(panel).toContainText("Approvals and other categories are unavailable");
+  await expect(panel).toContainText("Blocker-age review is unavailable");
   await expect(panel).toContainText("no update policy was configured");
   behavior = "error";
   await panel.getByRole("button", { name: "Refresh suggestions" }).click();

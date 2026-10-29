@@ -12,7 +12,7 @@ type Raid = { id: string; key: string; kind: string; state: string };
 type Fact = { id: string; factType: string; revision: number };
 type VersionLock = { id: string; factId: string; sourceId: string };
 type ConflictLock = { id: string };
-type Threshold = {
+export type BlockerAgeThreshold = {
   minimumBlockerAgeDays: number;
   auditRetentionHours: number;
   revision: number;
@@ -90,7 +90,7 @@ function empty(
   asOf: Date,
   reason: string,
   gates: Record<string, boolean>,
-  threshold: Threshold,
+  threshold: BlockerAgeThreshold,
 ) {
   const thresholdView = threshold
     ? blockerAgeThresholdPolicyViewSchema.parse({
@@ -141,8 +141,9 @@ export async function buildBlockerAgeAssessmentInTransaction(
   actor: Actor,
   projectId: string,
   canonicalSealed: boolean,
-  threshold: Threshold,
+  threshold: BlockerAgeThreshold,
   asOfForTests?: Date,
+  options: { strictPreparationErrors?: boolean } = {},
 ) {
   const thresholdValid = threshold !== null &&
     blockerAgeThresholdPolicyViewSchema.safeParse({
@@ -321,7 +322,10 @@ export async function buildBlockerAgeAssessmentInTransaction(
       for (const conflict of result.newConflicts)
         newConflicts.set(conflict.id, conflict);
       return result;
-    } catch {
+    } catch (error) {
+      // EXEC-027 read-only advice must not turn infrastructure or integrity
+      // failures into an apparently ordinary partial observation.
+      if (options.strictPreparationErrors) throw error;
       return null;
     }
   };

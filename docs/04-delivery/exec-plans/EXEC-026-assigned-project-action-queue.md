@@ -123,6 +123,7 @@ and health assessments only. They do not establish a separate authenticated API
 login, all possible membership or policy races, or unchanged contents of every
 business table. The browser journey uses mocked API responses to exercise refresh,
 visibility and late-session response handling. Schedule output does not assess
-source authority; approvals, blocker-age and other categories are unavailable.
+source authority; in the PR #120 merge, approvals, blocker-age and other
+categories are unavailable.
 This is partial queue groundwork, not acceptance of AC-ADV-002, Issue #11, any
 story or a release hold. Original19/20 capture remains stopped.

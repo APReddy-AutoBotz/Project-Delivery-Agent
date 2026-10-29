@@ -1,0 +1,20 @@
+// Instrumentation aid for the disposable integration test, not a SQL parser.
+// SELECT functions, triggers and calls bypassing the proxy remain outside it.
+export function possibleMutation(sql: string): boolean {
+  // Reject these specific forms; other unrecognized SQL may still evade this aid.
+  if (/--|\/\*|\*\/|\$\$|\$[a-z_][a-z0-9_]*\$|\bE'|\bU&'/i.test(sql)) return true;
+  const withoutLiterals = sql.replace(/'(?:''|[^'])*'/g, "''");
+  const withoutRowLocks = withoutLiterals.replace(/\bFOR\s+UPDATE\b/gi, "FOR LOCK");
+  return /\b(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE|ALTER|DROP|CREATE)\b/i.test(withoutRowLocks);
+}
+export function rawSqlText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) return value.join("?");
+  if (value && typeof value === "object") {
+    const item = value as { sql?: unknown; text?: unknown; strings?: unknown };
+    if (typeof item.sql === "string") return item.sql;
+    if (typeof item.text === "string") return item.text;
+    if (Array.isArray(item.strings) && item.strings.every((entry) => typeof entry === "string")) return item.strings.join("?");
+  }
+  throw new Error("Unknown raw SQL argument");
+}

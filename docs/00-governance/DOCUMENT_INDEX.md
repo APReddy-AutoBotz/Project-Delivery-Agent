@@ -129,6 +129,7 @@
 ## Implementation-control additions
 
 - `docs/04-delivery/exec-plans/EXEC-026-assigned-project-action-queue.md`: partial assigned-project queue design, source boundaries and outstanding verification gates.
+- `docs/04-delivery/exec-plans/EXEC-027-current-blocker-age-advice.md`: current blocker-age advice design, source-authority boundaries and remaining verification gates.
 - `docs/04-delivery/exec-plans/EXEC-019-ingestion-assurance-handoff.md`: durable runtime receipt-to-assessment causes, bounded claims, authorized recovery and exact lineage.
 - `docs/04-delivery/exec-plans/EXEC-020-pm-escalation-history.md`: approved current-cycle request projection, current origin permissions, privacy and retention boundary.
 - `docs/05-quality/ESCALATION_HISTORY_VALIDATION.md`: bounded PM history schema, native and real browser evidence; full escalation acceptance remains open.

@@ -9,6 +9,7 @@ import {
   createDisclosureCheck,
   readFixtureSecrets,
   observeBrowserDisclosure,
+  reportIdentityCaptureDiagnostic,
 } from "./disclosure.mjs";
 import {
   expiryWaitMs,
@@ -471,6 +472,7 @@ export async function checkIdentityExpiry(browser) {
       runId,
     );
   } catch {
+    reportIdentityCaptureDiagnostic(stage, capture);
     failure = new Error("SEC-AUTH-001 expiry failed: " + stage);
   } finally {
     try {

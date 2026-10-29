@@ -20,6 +20,42 @@ export const readFixtureSecrets = (directory) =>
     readFileSync(join(directory, name), "utf8").trim(),
   );
 
+// Fixed, saturated counters only: never serialize errors, response data or IDs.
+const captureDiagnosticPhases = new Set([
+  "unavailable", "settle_health", "networkidle", "drain_before_dom",
+  "settle_complete", "dom", "storage", "drain_after_dom", "completeness",
+  "token_seen", "complete",
+]);
+const captureDiagnosticCounters = [
+  "response", "headers", "body", "continuation", "console", "timeout",
+  "targets", "unresolved", "unprepared",
+];
+const bucketCaptureCount = (value) =>
+  typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value >= 2 ? 2 : 1
+    : 0;
+export function formatCaptureDiagnostic(value) {
+  try {
+    const inputPhase = value?.phase;
+    const phase = captureDiagnosticPhases.has(inputPhase) ? inputPhase : "unavailable";
+    return JSON.stringify({
+      phase,
+      counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, bucketCaptureCount(value?.counters?.[key])])),
+      tokenSeen: value?.tokenSeen === true,
+    });
+  } catch {
+    return JSON.stringify({ phase: "unavailable", counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, 0])), tokenSeen: false });
+  }
+}
+export function reportIdentityCaptureDiagnostic(stage, capture, emit = console.error) {
+  if (stage !== "loaded-details-disclosure") return;
+  let result;
+  try { result = formatCaptureDiagnostic(capture?.diagnostic?.()); }
+  catch { result = formatCaptureDiagnostic(undefined); }
+  try { emit("SEC-AUTH-001 capture diagnostic " + result); }
+  catch { /* Diagnostics must not replace the original failure. */ }
+}
+
 // SEC-SECRET-001 / EXEC-015: the late-created capture task key is mounted only
 // into the private verifier. Return no parser/secret details on malformed input.
 export function readCaptureTaskSecrets(file) {
@@ -124,6 +160,7 @@ export async function observeBrowserDisclosure(
     failed.targets++;
   });
   let tokenResponses = 0;
+  let diagnosticPhase = "unavailable";
   const origins = [...new Set([origin, identityOrigin])];
   const tokenUrl =
     identityOrigin + "/identity/realms/pdaa/protocol/openid-connect/token";
@@ -172,9 +209,12 @@ export async function observeBrowserDisclosure(
   };
   const capture = async (page) => {
     await capture.settle(page);
+    diagnosticPhase = "completeness";
     assertComplete();
     if (!preparedPages.has(page)) throw incomplete();
+    diagnosticPhase = "dom";
     disclosure.add("browser-dom", await page.content());
+    diagnosticPhase = "storage";
     disclosure.add(
       "browser-storage",
       JSON.stringify(
@@ -184,17 +224,35 @@ export async function observeBrowserDisclosure(
         })),
       ),
     );
+    diagnosticPhase = "drain_after_dom";
     await drain();
+    diagnosticPhase = "completeness";
     assertComplete();
+    diagnosticPhase = "token_seen";
     if (!tokenResponses)
       throw new Error("Expected token response was not observed");
+    diagnosticPhase = "complete";
   };
+  capture.diagnostic = () => ({
+    phase: diagnosticPhase,
+    counters: {
+      response: failed.response, headers: failed.headers, body: failed.body,
+      continuation: failed.continuation, console: failed.console, timeout: failed.timeout,
+      targets: failed.targets, unresolved: unresolved.size,
+      unprepared: [...observedPages].filter((page) => !preparedPages.has(page)).length,
+    },
+    tokenSeen: tokenResponses > 0,
+  });
   // Explicit test interactions must not navigate away while unrelated assets
   // are still loading; the recorder fails if their capture is cancelled.
   capture.settle = async (page) => {
+    diagnosticPhase = "settle_health";
     assertHealthy();
+    diagnosticPhase = "networkidle";
     await page.waitForLoadState("networkidle");
+    diagnosticPhase = "drain_before_dom";
     await drain();
+    diagnosticPhase = "settle_complete";
     assertComplete();
   };
   // Chromium Fetch pauses the ORIGINAL response before application JavaScript

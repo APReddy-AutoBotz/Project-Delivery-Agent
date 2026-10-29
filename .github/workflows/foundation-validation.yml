@@ -32,6 +32,8 @@ jobs:
       - run: pnpm test:recovery
       - run: pnpm exec playwright install --with-deps chromium
       - name: Browser workflows
+        env:
+          PDAA_EXEC027_DISPOSABLE_E2E: "1"
         run: |
           mkdir -p artifacts
           node scripts/local.mjs scripts/dev.mjs > artifacts/dev.log 2>&1 &
