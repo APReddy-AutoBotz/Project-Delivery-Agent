@@ -26,7 +26,7 @@ test("scalar observation clears on selection, focus revalidation and late replie
     window.fetch = (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/leadership-conflict") && init) {
-        const { signal: _signal, ...rest } = init;
+        const rest = { ...init }; delete rest.signal;
         return original(input, rest).then(async (response) => {
           await response.clone().text();
           if (response.headers.get("x-synthetic-late")) {
@@ -99,4 +99,98 @@ test("scalar observation clears on selection, focus revalidation and late replie
   try { await meEntered; await expect(page.getByText("Sources currently disagree.", { exact: false })).toHaveCount(0); }
   finally { releaseMe(); }
   await expect(page.getByLabel("Project fact")).toHaveCount(0);
+});
+
+test("pages facts and withholds a late answer from the previous page", async ({ page }) => {
+  test.setTimeout(60000);
+  const first = Array.from({ length: 50 }, (_, index) => ({ factId: index === 0 ? factId : id(1000 + index),
+    factType: `project.fact_${String(index).padStart(2, "0")}`, revision: 2 }));
+  const next = first[49]!.factType, later = { factId: otherFact, factType: "project.later", revision: 2 };
+  let persona = "", entered!: () => void, release!: () => void, reads = 0, laterQuery = "";
+  const waiting = new Promise<void>((resolve) => { entered = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.addInitScript(() => {
+    const original = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/leadership-conflict") && init) {
+        const rest = { ...init }; delete rest.signal;
+        return original(input, rest).then(async (response) => {
+          await response.clone().text();
+          if (response.headers.get("x-synthetic-late")) (window as unknown as { pageLate?: boolean }).pageLate = true;
+          return response;
+        });
+      }
+      return original(input, init);
+    };
+  });
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url()), path = url.pathname.replace(/^\/api/, "");
+    if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
+    if (path === "/auth/development") { persona = route.request().postDataJSON().persona; return route.fulfill({ json: { token: `synthetic-${persona}` } }); }
+    if (path === "/me") return route.fulfill({ json: { subject: persona, customerId, roles: ["leadership"] } });
+    if (path === "/projects") return route.fulfill({ json: [project] });
+    if (path === `/projects/${projectId}`) return route.fulfill({ json: project });
+    if (path === `/projects/${projectId}/canonical`) return route.fulfill({ json: detail });
+    if (path === `/projects/${projectId}/facts`) return route.fulfill({ json: url.searchParams.get("afterFactType") === next
+      ? { canAppend: false, canConfigure: false, facts: [later], next: null }
+      : { canAppend: false, canConfigure: false, facts: first, next } });
+    if (path.endsWith(`/fact-observations/${factId}/leadership-conflict`)) {
+      reads++; entered(); await gate;
+      return route.fulfill({ json: { ...observation, factType: first[0]!.factType }, headers: { "x-synthetic-late": "1" } }).catch(() => {});
+    }
+    if (path.endsWith(`/fact-observations/${otherFact}/leadership-conflict`)) {
+      reads++; laterQuery = url.searchParams.get("afterFactType") ?? "";
+      return route.fulfill({ json: { ...observation, factId: otherFact, factType: later.factType } });
+    }
+    return route.fulfill({ status: 404, json: { message: "Not found" } });
+  });
+  await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();
+  await page.getByRole("button", { name: /Synthetic scalar project/ }).click();
+  const select = page.getByLabel("Project fact"), check = page.getByRole("button", { name: "Check disagreement" });
+  await select.selectOption(factId); expect(reads).toBe(0); await check.click(); await waiting;
+  try {
+    await page.getByRole("button", { name: "Next fact page" }).click();
+    await expect(select).toHaveValue(""); await expect(select.locator(`option[value="${otherFact}"]`)).toHaveCount(1);
+  } finally { release(); }
+  await expect.poll(() => page.evaluate(() => (window as unknown as { pageLate?: boolean }).pageLate ?? false)).toBe(true);
+  await expect(page.getByText("Sources currently disagree.", { exact: false })).toHaveCount(0);
+  await select.selectOption(otherFact); await check.click();
+  await expect(page.getByText("Sources currently disagree.", { exact: false })).toBeVisible();
+  expect(laterQuery).toBe(next); expect(reads).toBe(2);
+  await page.getByRole("button", { name: "First fact page" }).click();
+  await expect(page.getByText("Sources currently disagree.", { exact: false })).toHaveCount(0);
+  await expect(select).toHaveValue("");
+});
+
+test("rejects a repeated catalogue cursor and can restart from the first page", async ({ page }) => {
+  let persona = "";
+  const pageRows = (base: number, lastType: string) => Array.from({ length: 50 }, (_, index) => ({
+    factId: id(base + index), factType: index === 49 ? lastType : `project.item_${base}_${index}`, revision: 1,
+  }));
+  const first = pageRows(1000, "project.cursor_a"), second = pageRows(2000, "project.cursor_b"), third = pageRows(3000, "project.cursor_a");
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url()), path = url.pathname.replace(/^\/api/, "");
+    if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
+    if (path === "/auth/development") { persona = route.request().postDataJSON().persona; return route.fulfill({ json: { token: `synthetic-${persona}` } }); }
+    if (path === "/me") return route.fulfill({ json: { subject: persona, customerId, roles: ["leadership"] } });
+    if (path === "/projects") return route.fulfill({ json: [project] });
+    if (path === `/projects/${projectId}`) return route.fulfill({ json: project });
+    if (path === `/projects/${projectId}/canonical`) return route.fulfill({ json: detail });
+    if (path === `/projects/${projectId}/facts`) {
+      const after = url.searchParams.get("afterFactType");
+      const facts = after === null ? first : after === "project.cursor_a" ? second : third;
+      return route.fulfill({ json: { canAppend: false, canConfigure: false, facts, next: facts[49]!.factType } });
+    }
+    return route.fulfill({ status: 404, json: { message: "Not found" } });
+  });
+  await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();
+  await page.getByRole("button", { name: /Synthetic scalar project/ }).click();
+  await page.getByRole("button", { name: "Next fact page" }).click();
+  await expect(page.getByLabel("Project fact").locator(`option[value="${second[0]!.factId}"]`)).toHaveCount(1);
+  await page.getByRole("button", { name: "Next fact page" }).click();
+  await expect(page.getByText("The fact list is unavailable.", { exact: false })).toBeVisible();
+  await expect(page.getByLabel("Project fact")).toHaveCount(0);
+  await page.getByRole("button", { name: "First fact page" }).click();
+  await expect(page.getByLabel("Project fact").locator(`option[value="${first[0]!.factId}"]`)).toHaveCount(1);
 });

@@ -260,7 +260,7 @@ it("serves only authorized role-switched scalar observations over the authentica
     const unavailable = await request(f.leader); expect(unavailable.status).toBe(503); expect(unavailable.body).not.toContain(sourceId);
   } finally { await app.close(); }
 }, 60000);
-it("conceals fact IDs outside the first authorized 50-item catalogue page", async () => {
+it("rechecks selected fact membership on the authorized catalogue page", async () => {
   const f = await fixture(false);
   const reader = new DatabaseScalarConflictObservationRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
     db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never);
@@ -280,9 +280,37 @@ it("conceals fact IDs outside the first authorized 50-item catalogue page", asyn
   expect(page?.facts).toHaveLength(50); expect(page?.next).not.toBeNull();
   expect(page?.facts.some((row) => row.factId === f.input.factId)).toBe(false);
   await expect(reader.readLeadership(f.leader, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "DENIED" });
+  const second = await facts.listFacts(f.leader, { projectId: f.projectId, afterFactType: page!.next });
+  expect(second?.facts.some((row) => row.factId === f.input.factId)).toBe(true);
+  expect((await reader.readLeadership(f.leader, f.projectId, f.input.factId, page!.next)).positions).toHaveLength(2);
+  await expect(reader.readLeadership(f.leader, f.projectId, f.input.factId, "z.not-present")).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readLeadership(f.pm, f.projectId, f.input.factId, page!.next)).rejects.toMatchObject({ code: "DENIED" });
+  const config = loadConfig(process.env);
+  const { app, spec } = await createApp(config, new DatabaseProjectRepository(db), undefined, canonical, facts, authority,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, reader);
+  try {
+    await app.listen(0, "127.0.0.1");
+    const token = await new SignJWT({ roles: f.leader.roles }).setProtectedHeader({ alg: "HS256" }).setSubject(f.leader.subject)
+      .setIssuer("pdaa:local").setAudience("pdaa:api").setIssuedAt().setExpirationTime("5m")
+      .sign(new TextEncoder().encode(config.SESSION_SECRET));
+    const path = `${await app.getUrl()}/api/projects/${f.projectId}/fact-observations/${f.input.factId}/leadership-conflict`;
+    const headers = { Authorization: `Bearer ${token}` }, query = `?afterFactType=${encodeURIComponent(page!.next!)}`;
+    const denied = await fetch(path, { headers }); expect(denied.status).toBe(404);
+    const allowed = await fetch(path + query, { headers }); expect(allowed.status).toBe(200);
+    expect(allowed.headers.get("cache-control")).toBe("no-store");
+    const body = await allowed.text();
+    compileContract(spec).response("GET", "/api/projects/{id}/fact-observations/{factId}/leadership-conflict", 200, "application/json", body);
+    expect(JSON.parse(body).positions).toHaveLength(2);
+    const sourceId = f.versions[0]!.sourceId, access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+    await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: access!.revision,
+      state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+    await expect(reader.readLeadership(f.leader, f.projectId, f.input.factId, page!.next)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    const unavailable = await fetch(path + query, { headers }); expect(unavailable.status).toBe(503);
+    expect(await unavailable.text()).not.toContain(sourceId);
+  } finally { await app.close(); }
   await expect(reader.readLeadership(f.leader, f.projectId, page!.facts[0]!.factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
   await expect(reader.readLeadership(f.leader, f.projectId, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
-}, 60000);
+}, 120000);
 it("coordinates source-access revocation and scalar observation in both lock orders", async () => {
   const f = await fixture(false), sourceId = f.versions[0]!.sourceId;
   const makeReader = (database: unknown) => new DatabaseScalarConflictObservationRepository(database as never);

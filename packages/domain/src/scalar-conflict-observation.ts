@@ -41,5 +41,5 @@ export class ScalarConflictObservationError extends Error {
   constructor(readonly code: "DENIED" | "UNAVAILABLE") { super(code); this.name = "ScalarConflictObservationError"; }
 }
 export interface ScalarConflictObservationRepository {
-  readLeadership(actor: Actor, projectId: string, factId: string): Promise<ScalarConflictObservation>;
+  readLeadership(actor: Actor, projectId: string, factId: string, afterFactType?: string | null): Promise<ScalarConflictObservation>;
 }
