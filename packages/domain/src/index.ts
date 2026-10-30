@@ -1,4 +1,7 @@
 import type { Actor, Role } from "./actor.js";
+import type { AccessOperation } from "./access-operation.js";
+export type { AccessOperation } from "./access-operation.js";
+export * from "./access-operation-search.js";
 export { roles, roleSchema, type Role, type Actor } from "./actor.js";
 export * from "./project-facts.js";
 export * from "./evidence-responses.js";
@@ -50,12 +53,6 @@ export interface Grant {
   scopeId: string;
   role: Role;
 }
-export type AccessOperation = {
-  id: string;
-  event: "access.granted" | "access.revoked";
-  actor: string;
-  occurredAt: Date;
-};
 export function canReadProject(
   actor: Actor,
   project: Project,

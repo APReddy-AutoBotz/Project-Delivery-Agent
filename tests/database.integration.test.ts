@@ -4,6 +4,8 @@ import {
   createDatabase,
   DatabaseProjectRepository,
   DatabaseWorkerHeartbeatRepository,
+  DatabaseAccessOperationSearchRepository,
+  createAccessOperationAdmission,
 } from "../packages/data/dist/index.js";
 import {
   loadConfig,
@@ -64,6 +66,101 @@ const api = (path: string, token?: string, method = "GET", body?: unknown) =>
   });
 
 describe("Real database and HTTP foundation boundaries", () => {
+  it("bounds cooperating search transactions with real advisory locks", async () => {
+    const customer = randomUUID();
+    await db.customer.create({ data: { id: customer, name: "Synthetic search admission" } });
+    const principal: Actor = { subject: "operator", roles: ["system_admin"], customerId: customer };
+    const filters = { from: "2026-10-01T00:00:00.000Z", until: "2026-10-02T00:00:00.000Z" };
+    const observations: { sql: string; args: unknown[]; result: unknown }[] = [], holderPids: number[] = [], searchPids: number[] = [];
+    const roleBound = new DatabaseAccessOperationSearchRepository({
+      $transaction: (fn: (tx: unknown) => unknown, options: unknown) => db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+        const [identity] = await tx.$queryRaw<{ pid: number; role: string }[]>`SELECT pg_backend_pid()::int AS pid, current_user AS role`;
+        expect(identity?.role).toBe("pdaa_api"); searchPids.push(identity!.pid);
+        return fn({
+          $executeRawUnsafe: tx.$executeRawUnsafe.bind(tx),
+          $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+            const result = await tx.$queryRawUnsafe(sql, ...args); observations.push({ sql, args, result }); return result;
+          },
+        });
+      }, options as never),
+    } as unknown as typeof db, createAccessOperationAdmission());
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const holders = Array.from({ length: 4 }, (_, slot) => {
+      let ready!: () => void;
+      const started = new Promise<void>((resolve) => { ready = resolve; });
+      const running = db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+        const [result] = await tx.$queryRaw<{ locked: boolean; pid: number; role: string }[]>`
+          SELECT pg_catalog.pg_try_advisory_xact_lock(1346650451,${slot}::integer) AS locked,
+            pg_backend_pid()::int AS pid, current_user AS role`;
+        expect(result?.role).toBe("pdaa_api"); expect(result?.locked).toBe(true); holderPids.push(result!.pid); ready(); await gate;
+      }, { maxWait: 5000, timeout: 15000 });
+      return { running, started: Promise.race([started, running.then(() => { throw new Error("holder ended early"); })]) };
+    });
+    try {
+      await Promise.all(holders.map((holder) => holder.started));
+      await expect(roleBound.search(principal, filters, null)).rejects.toThrow("Access operation search unavailable");
+      expect(new Set(holderPids).size).toBe(4); expect(searchPids).toHaveLength(1);
+      expect(holderPids).not.toContain(searchPids[0]);
+      expect(observations).toHaveLength(5);
+      expect(observations.map((entry) => entry.result)).toEqual([[{ locked: true }], ...Array(4).fill([{ locked: false }])]);
+      expect(observations.map((entry) => entry.args)).toEqual([[customer], [0], [1], [2], [3]]);
+      expect(observations.every((entry) => entry.sql.includes("pg_try_advisory_xact_lock"))).toBe(true);
+    } finally {
+      release();
+      const settled = await Promise.allSettled(holders.map((holder) => holder.running));
+      for (const result of settled) if (result.status === "rejected") throw result.reason;
+    }
+    await expect(roleBound.search(principal, filters, null)).resolves.toEqual([]);
+  }, 30000);
+  it("searches access operations with role-switched, non-UTC recorded-wall-time keysets", async () => {
+    const customer = randomUUID(), other = randomUUID();
+    await db.customer.createMany({ data: [{ id: customer, name: "Synthetic search A" }, { id: other, name: "Synthetic search B" }] });
+    const tied = new Date("2026-10-15T10:11:12.123Z");
+    const rows = Array.from({ length: 35 }, () => ({ id: randomUUID(), customerId: customer, actor: "Case Sensitive",
+      event: "access.granted", correlationId: "synthetic", detail: {}, occurredAt: tied }));
+    const otherId = randomUUID(), fromId = randomUUID(), beforeUntilId = randomUUID();
+    await db.auditEvent.createMany({ data: [...rows,
+      { ...rows[0]!, id: otherId, customerId: other },
+      { ...rows[0]!, id: randomUUID(), actor: "case sensitive" },
+      { ...rows[0]!, id: randomUUID(), event: "access.revoked" },
+      { ...rows[0]!, id: randomUUID(), event: "health.assessed" },
+      { ...rows[0]!, id: randomUUID(), occurredAt: new Date("2026-10-16T00:00:00.000Z") },
+      { ...rows[0]!, id: fromId, actor: "boundary", occurredAt: new Date("2026-10-15T00:00:00.000Z") },
+      { ...rows[0]!, id: beforeUntilId, actor: "boundary", occurredAt: new Date("2026-10-15T23:59:59.999Z") },
+      { ...rows[0]!, id: randomUUID(), actor: "boundary", occurredAt: new Date("2026-10-16T00:00:00.000Z") },
+    ] });
+    const [stored] = await db.$queryRaw<{ wall: string }[]>`SELECT to_char("occurredAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS wall
+      FROM public."AuditEvent" WHERE id=${rows[0]!.id}::uuid`;
+    expect(stored?.wall).toBe("2026-10-15T10:11:12.123Z");
+    const principal: Actor = { subject: "operator", roles: ["system_admin"], customerId: customer };
+    const filtered = { actor: "Case Sensitive", action: "access.granted" as const,
+      from: "2026-10-15T00:00:00.000Z", until: "2026-10-16T00:00:00.000Z" };
+    const snapshot = await db.auditEvent.findMany({ where: { customerId: { in: [customer, other] } }, orderBy: { id: "asc" } });
+    const roleBound = new DatabaseAccessOperationSearchRepository({
+      $transaction: (fn: (tx: unknown) => unknown, options: unknown) => db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+        await tx.$executeRawUnsafe("SET LOCAL TIME ZONE 'Pacific/Auckland'");
+        const [identity] = await tx.$queryRaw<{ role: string; zone: string }[]>`SELECT current_user AS role, current_setting('TimeZone') AS zone`;
+        expect(identity?.role).toBe("pdaa_api");
+        expect(identity?.zone).toBe("Pacific/Auckland");
+        return fn(tx);
+      }, options as never),
+    } as unknown as typeof db);
+    const first = await roleBound.search(principal, filtered, null);
+    expect(first).toHaveLength(31);
+    const last = first[29]!;
+    const next = await roleBound.search(principal, filtered, { id: last.id, occurredAt: last.occurredAt.toISOString() });
+    expect([...first.slice(0, 30), ...next].map((row) => row.id)).toEqual(rows.map((row) => row.id).sort().reverse());
+    expect([...first, ...next].every((row) => row.occurredAt.toISOString() === tied.toISOString())).toBe(true);
+    expect((await roleBound.search({ ...principal, customerId: other }, filtered, null)).map((row) => row.id)).toEqual([otherId]);
+    expect((await roleBound.search(principal, { ...filtered, actor: "boundary" }, null)).map((row) => row.id)).toEqual([beforeUntilId, fromId]);
+    expect(await roleBound.search(principal, { ...filtered, actor: "missing" }, null)).toEqual([]);
+    await expect(roleBound.search({ ...principal, roles: ["pmo_admin"] }, filtered, null)).rejects.toThrow("denied");
+    expect(await db.auditEvent.findMany({ where: { customerId: { in: [customer, other] } }, orderBy: { id: "asc" } })).toEqual(snapshot);
+  });
   it("lists only this customer's recent recorded access operations under the API role", async () => {
     const one = randomUUID(), other = randomUUID();
     await db.customer.createMany({ data: [
