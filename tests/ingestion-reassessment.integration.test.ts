@@ -3,20 +3,22 @@ import { createHmac, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createRequire } from "node:module";
+import { SignJWT } from "jose";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   createDatabase, DatabaseCanonicalProjectRepository, DatabaseIngestionRepository,
   DatabaseConnectorRuntimeRepository, DatabaseProjectUpdateRepository,
-  DatabaseProjectFactRepository, DatabaseAuthorityRepository,
+  DatabaseProjectFactRepository, DatabaseAuthorityRepository, DatabaseProjectRepository,
 } from "../packages/data/dist/index.js";
 import { ProjectUpdateScanCoordinator, type Claim } from "../packages/data/src/project-update-scan.js";
 import { reassessmentAudit, type ReassessmentTx } from "../packages/data/src/ingestion-reassessments.js";
-import { CredentialVault, CredentialKeyRingVault, signConnectorTaskRequest } from "../packages/platform/src/index.js";
-import type { Actor } from "../packages/domain/src/index.js";
+import { CredentialVault, CredentialKeyRingVault, signConnectorTaskRequest, loadConfig } from "../packages/platform/src/index.js";
+import { ingestionReassessmentPageSchema, type Actor } from "../packages/domain/src/index.js";
 import { JiraRuntimeService } from "../apps/api/src/jira-runtime.js";
 import { installConnectorRoutes } from "../apps/api/src/connector-routes.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 import { seedReassessmentRecovery, verifyRestoredReassessments, claimReassessmentFixtureJob } from "../scripts/acceptance/ingestion-reassessment.mjs";
+import { createApp } from "../apps/api/dist/app.js";
 
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "synthetic" ||
@@ -265,6 +267,61 @@ async function manualPage(f: Fixture, configuration: Fixture["configuration"], s
       observations: [{ factType: "jira.status", value: { type: "text", value: "Private pagination proposal" } }],
     }] } });
 }
+
+it("serves only currently readable reassessment status over role-switched synthetic HTTP", async () => {
+  const f = await fixture(), visible = await f.ingest(); expect(visible).toHaveLength(1);
+  const hidden = { ...f.configuration, binding: { ...f.configuration.binding, sourceId: randomUUID() },
+    projects: [{ projectId: f.projectId, readers: ["another-reader"] }] };
+  await f.ingestion.configure(f.admin, hidden as never, randomUUID()); await manualPage(f, hidden, 1);
+  const privateRows = await db.ingestionProjectReassessment.findMany({ where: { customerId: f.customerId, sourceId: hidden.binding.sourceId } });
+  expect(privateRows).toHaveLength(1);
+  const otherCustomer = randomUUID(), otherPortfolio = randomUUID(), otherProject = randomUUID();
+  await db.customer.create({ data: { id: otherCustomer, name: "Synthetic other customer" } });
+  await db.portfolio.create({ data: { id: otherPortfolio, customerId: otherCustomer, name: "Synthetic other portfolio" } });
+  await db.project.create({ data: { id: otherProject, customerId: otherCustomer, portfolioId: otherPortfolio,
+    code: "OTHER", name: "Synthetic other project", description: "Synthetic", reportedStatus: "UNKNOWN" } });
+  const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      expect((await tx.$queryRawUnsafe<{ role: string }[]>("SELECT current_user AS role"))[0]?.role).toBe("pdaa_api");
+      return operation(tx);
+    }, options as never) };
+  const updates = new DatabaseProjectUpdateRepository(roleDb as never, f.service, { customerId: f.customerId, customerTimeZone: "UTC", recipientTimeZones: [] });
+  const config = loadConfig({ ...process.env, CUSTOMER_ID: f.customerId });
+  const { app } = await createApp(config, new DatabaseProjectRepository(db), undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, updates);
+  const tables = ["IngestionProjectReassessment", "IngestionOperationReceipt", "ProjectUpdateAssessment", "AuditEvent"];
+  const snapshot = () => Promise.all(tables.map((table) => db.$queryRawUnsafe(
+    `SELECT to_jsonb(t)::text AS row FROM public."${table}" t WHERE "customerId"=$1::uuid ORDER BY to_jsonb(t)::text COLLATE "C"`, f.customerId)));
+  async function get(actor: Actor, projectId = f.projectId) {
+    const token = await new SignJWT({ roles: actor.roles }).setProtectedHeader({ alg: "HS256" }).setSubject(actor.subject)
+      .setIssuer("pdaa:local").setAudience("pdaa:api").setIssuedAt().setExpirationTime("5m")
+      .sign(new TextEncoder().encode(config.SESSION_SECRET));
+    const response = await fetch(`${await app.getUrl()}/api/projects/${projectId}/ingestion-reassessments`,
+      { headers: { Authorization: `Bearer ${token}` } });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    return { status: response.status, body: await response.text() };
+  }
+  try {
+    await app.listen(0, "127.0.0.1"); const before = await snapshot();
+    const allowed = await get(f.admin); expect(allowed.status).toBe(200);
+    const parsed = ingestionReassessmentPageSchema.parse(JSON.parse(allowed.body));
+    expect(parsed.items).toHaveLength(1); expect(parsed.items[0]!.id).toBe(visible[0]!.id);
+    expect(parsed.items[0]!.sourceId).toBe(f.sourceId);
+    for (const privateId of [privateRows[0]!.id, privateRows[0]!.sourceId, privateRows[0]!.receiptId]) expect(allowed.body).not.toContain(privateId);
+    expect(allowed.body).not.toContain("PRIVATE PROPOSAL VALUE"); expect(allowed.body).not.toContain("Private pagination proposal");
+    expect((await get({ ...f.admin, roles: ["leadership"] })).status).toBe(403);
+    expect((await get({ ...f.admin, subject: `outsider-${randomUUID()}` })).status).toBe(404);
+    expect((await get(f.admin, randomUUID())).status).toBe(404);
+    expect((await get(f.admin, otherProject)).status).toBe(404);
+    expect(await snapshot()).toEqual(before);
+    await f.ingestion.configure(f.admin, { ...f.configuration,
+      projects: [{ projectId: f.projectId, readers: ["another-reader"] }] } as never, randomUUID());
+    const afterRevoke = await snapshot(), revoked = await get(f.admin);
+    expect(revoked.status).toBe(200); expect(JSON.parse(revoked.body)).toEqual({ items: [], nextCursor: null });
+    expect(await snapshot()).toEqual(afterRevoke);
+  } finally { await app.close(); }
+}, 120000);
 
 it("rolls the receipt/cursor/job/page back if the atomic cause insertion fails", async () => {
   const f = await fixture(); await f.webhook();
