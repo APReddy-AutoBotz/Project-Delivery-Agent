@@ -31,6 +31,56 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+The read-only PMO ingestion reassessment status panel merged in
+[PR #134](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/134)
+as `a59b2d22d76be614b287b03d186e8d922b4c8f06`, reviewed head
+`38c6327b07f97c99538837c312fedcdaf57e8b3b`, tree
+`097ee6f72e44ab57aaa5fe4cb2a827f1bc910c1d`, with ordered merge parents
+`9f46d6b0abf51f20587402d7eefc7776887c88a1` and the reviewed head. Corrected
+candidate Foundation 40998795639 and Documentation 40998795630 passed; actual
+post-merge Foundation 41001414248 and Documentation 41001414146 also passed.
+Initial Foundation 40998210774 failed its verify job because a
+unit test used an unavailable root import alias; its separate production-boundary
+job passed. The corrected synthetic HTTP fixture uses a role-switched repository
+and compares four named customer-scoped tables; browser cases are mocked. This
+first-page observation does not accept a story, criterion, issue or release hold.
+
+The bounded PM reconciliation preview merged in [PR #133](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/133)
+as `9f46d6b0abf51f20587402d7eefc7776887c88a1`, reviewed head
+`a353e8eb882ea66ecfc3e534f1db874667dab1c6`, tree
+`6d0a8f43c596a8fcdf3eda2960806e3fb4ad1be3`, with ordered merge parents
+`f70093a49f1087ae299ee83256dceed6cd306f44` and the reviewed head. Candidate
+Foundation 40993940587 and Documentation 40993940448 passed; post-merge
+Foundation 40996865826 and Documentation 40996865722 passed. The native fixture is synthetic and role-switched;
+its positive assignment covers scalar requests, and its no-write snapshot is
+limited to named tables and project-tagged audit rows. This partial, live-page
+preview does not accept a story, criterion, issue or release hold.
+
+The access-operation search groundwork merged in [PR #132](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/132).
+Reviewed head `08544fa66312d1becd13213114509bfcd7b81681` and actual merge
+`f70093a49f1087ae299ee83256dceed6cd306f44` share tree
+`bca5b4d17118bdf4d8d2f9da715bf8397196d0f5`; the merge parents are
+`15846267d3984d9825197235eb4325074af988d1` and the reviewed head. Candidate
+Foundation 40989482642 and Documentation 40989482620 passed; post-merge
+Foundation 40992309783 and Documentation 40992310126 passed. The synthetic
+role-switched database tests include recorded-time paging and held advisory
+slots. Search remains unwired, with no new API endpoint, UI or migration; index/planning,
+failure recovery and production authorization remain open. No acceptance changes.
+
+The scalar disagreement catalogue paging observation merged in
+[PR #131](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/131)
+as `15846267d3984d9825197235eb4325074af988d1`, reviewed head
+`c224a3e976dfb2d4f9db38858726687c662710c8`, tree
+`529fdc5fc71e49ffb9ace650dedac931a4fc2204`. Candidate Foundation 40986778812
+and Documentation 40986778815 and post-merge Foundation 40989229726 and
+Documentation 40989229702 passed. The native catalogue membership test uses
+role-switched synthetic fixtures; the partial observation does not accept a story.
+
+The prior evidence ledger merged in [PR #130](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/130)
+as `7f31350a55ce61e8b7ff905a399745f6cea95b3c`; candidate Foundation 40981110340
+and Documentation 40981110267 and post-merge Foundation 40983905252 and
+Documentation 40983905303 passed. This ledger added no acceptance credit.
+
 The real health-assessment conflict writer and role-switched scalar reader now
 have native concurrency coverage in [PR #129](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/129).
 GitHub's synthetic merge `14bdb6a45493ab7f338b89f60c01320b1842256a` of reviewed

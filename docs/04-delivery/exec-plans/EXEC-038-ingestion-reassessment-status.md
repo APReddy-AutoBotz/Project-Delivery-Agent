@@ -1,6 +1,6 @@
 # EXEC-038: PMO ingestion reassessment status
 
-Status: design for a partial read-only project panel. No additional story,
+Status: partial read-only project panel merged in PR #134. No additional story,
 criterion, issue or release hold is accepted. Original19/20 capture remains
 stopped; live Jira activation and comment ingestion remain disabled under
 OD-013/014. Imported spreadsheet values remain proposals, not canonical facts.
@@ -44,13 +44,13 @@ does not establish server-side cancellation. Known access-denial/expiry signals
 must be acted on before waiting for a slow response body; use the existing
 streaming discard and session-generation protections.
 
-Design, source and test reviews precede publication. Cover correct and malformed
+The design required source and test reviews before publication. It covers correct and malformed
 pages, role and source loss, delayed body and old-session responses, no automatic
 write or retry calls, accessible controls and navigation. Use existing native
 authorization tests and add narrowly scoped role-switched synthetic HTTP/database
 evidence where needed; mocked browser cases are not production authorization or
-OIDC evidence. Exact-candidate review, hosted checks, a verified merge and actual
-post-merge checks remain required before describing the panel as delivered.
+OIDC evidence. The reviewed corrected candidate passed its hosted checks and was
+merged; actual post-merge Foundation and Documentation checks also passed.
 
 Local checkpoint: the scoped architecture check, web typecheck and lint passed;
 four decoder/lease tests and eight mocked Chromium cases passed. The browser cases
@@ -68,3 +68,13 @@ root, where that package alias is not installed. The other 2,073 unit tests pass
 the native and browser steps did not run. Its separate production-boundary job
 was still running at this checkpoint. The parity test now imports the domain
 source by relative path; corrected hosted results do not erase this failure.
+
+Three independent reviews approved corrected public head
+`38c6327b07f97c99538837c312fedcdaf57e8b3b`. Corrected candidate Foundation
+40998795639 and Documentation 40998795630 passed, including the new role-switched
+synthetic HTTP test, eight mocked browser cases and existing packaged OIDC and
+disclosure checks. Actual merge `a59b2d22d76be614b287b03d186e8d922b4c8f06` has
+reviewed tree `097ee6f72e44ab57aaa5fe4cb2a827f1bc910c1d` and ordered parents
+`9f46d6b0abf51f20587402d7eefc7776887c88a1` and that head. Post-merge Documentation
+41001414146 and Foundation 41001414248 passed. The
+packaged checks are not a dedicated real-OIDC reassessment-panel journey.

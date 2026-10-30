@@ -1,7 +1,7 @@
 # EXEC-036: Bounded access-operation search
 
-Status: local implementation in progress. The search repository and cursor are
-not wired into the API or UI, and no native database or hosted result is claimed.
+Status: partial groundwork merged in PR #132. The search repository and cursor
+are not wired into the API or UI, and no index or migration was added.
 This is a partial step toward FR-AUD-006; project-scoped and general audit search,
 STORY-034, Issue #12 and release acceptance remain open. Original19/20 capture
 remains stopped.
@@ -19,8 +19,9 @@ The interval and results describe recorded wall-time values. The database column
 is `timestamp(3) without time zone`, and historical writer time zones are not
 established. The existing ISO `Z` suffix is a serialization convention, not
 evidence that historical values were written in UTC. The database query strips
-the suffix for comparison and formats the stored wall time explicitly. Native
-non-UTC session tests are required before relying on this interpretation. Results
+the suffix for comparison and formats the stored wall time explicitly. A synthetic
+role-switched, non-UTC session test exercises this interpretation; it does not
+establish how historical records were written. Results
 are live keyset pages, not a forensic snapshot: concurrent late commits can be
 missed until refresh. Order is recorded time descending, then UUID descending.
 
@@ -73,18 +74,24 @@ block audit inserts while it holds its table lock; a lock-acquisition deadline
 does not bound build time. A reviewed timeout and failure/recovery strategy must
 cover both operations and Prisma migration paths, including the migration ledger
 and restored index definition and validity. Existing row-only recovery comparisons
-do not establish index recovery. No migration is included in this local checkpoint.
+do not establish index recovery. No migration was included in the merged groundwork.
 
 Local unit tests cover cursor tampering, identity/filter binding, expiry, keyset
 progression, Unicode and token capacity, and a mocked repository's SQL shape and
-failure handling. Prepared role-switched, non-UTC and pre-held-advisory-slot native
-fixtures have not run; the latter observes actual lock replies and backend IDs,
+failure handling. Role-switched, non-UTC and pre-held-advisory-slot synthetic
+native fixtures passed in candidate Foundation 40989482642 and post-merge
+Foundation 40992309783; the latter fixture observes actual lock replies and backend IDs,
 but does not cover independent full search processes, disconnects or restart.
 Scoped domain, data and API TypeScript checks passed using mapped local dependencies.
 A separate clean dependency installation downloaded the locked packages but could
 not finish because Windows denied a workspace symlink, so it did not establish a
 complete clean-install build.
-These tests do not prove PostgreSQL planning, permissions,
-actual session time-zone behavior, cancellation, full-stack authentication or
-browser handling. Independent exact-candidate review, hosted validation, expected-
-head merge and verified post-merge checks remain required.
+The candidate Documentation 40989482620 and post-merge Documentation 40992310126
+also passed. Three independent reviewers approved exact public head
+`08544fa66312d1becd13213114509bfcd7b81681` as inert groundwork. Actual merge
+`f70093a49f1087ae299ee83256dceed6cd306f44` has reviewed tree
+`bca5b4d17118bdf4d8d2f9da715bf8397196d0f5` and ordered parents
+`15846267d3984d9825197235eb4325074af988d1` and that head. The tests do not prove
+query planning and index behavior, separate production database login,
+cancellation, full-stack authentication or browser handling. All integration and
+exposure gates above remain open; no story, issue or release hold is accepted.

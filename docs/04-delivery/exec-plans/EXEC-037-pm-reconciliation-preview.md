@@ -1,6 +1,6 @@
 # EXEC-037: PM reconciliation previews
 
-Status: design reviewed; implementation in progress. This partial navigation aid
+Status: partial navigation aid merged in PR #133. It
 does not complete the PM action queue, approvals, any story, issue or release
 hold. Original19/20 capture stays stopped; OD-013/014 remain unchanged.
 
@@ -40,16 +40,23 @@ clear the affected view promptly and drain response bytes without retaining them
 so the existing disclosure recorder can observe a complete response when it
 arrives; a stalled body must not delay the visible denial or identity clearing.
 
-Independent design reviews, synthetic API/native access and browser tests,
-exact-candidate review, hosted checks and verified merge/post-merge evidence are
-required before describing this slice as delivered.
+Independent exact-candidate reviews approved public head
+`a353e8eb882ea66ecfc3e534f1db874667dab1c6`. Candidate Foundation 40993940587
+and Documentation 40993940448 passed, including the synthetic native fixture,
+mocked browser cases and existing packaged OIDC/disclosure checks. Actual merge
+`9f46d6b0abf51f20587402d7eefc7776887c88a1` has reviewed tree
+`6d0a8f43c596a8fcdf3eda2960806e3fb4ad1be3` and ordered parents
+`f70093a49f1087ae299ee83256dceed6cd306f44` and that head. Post-merge
+Foundation 40996865826 and Documentation 40996865722 passed. The native test's positive assignment is scalar only and its
+no-write snapshot covers named tables and project-tagged audit rows. The packaged
+checks are not a dedicated real-OIDC preview journey.
 
 Local checkpoint: scoped web typecheck and lint, 12 focused unit tests and 10
 mocked Chromium cases passed. The browser cases cover bounded batches, denial,
 timeouts, same-token session replacement and recipient-detail navigation; they
-do not establish real OIDC or production authorization. A new disposable-database
-HTTP case is prepared but has not run locally: it uses role-switched transactions,
+do not establish real OIDC or production authorization. The disposable-database
+HTTP case passed in candidate hosted verification: it uses role-switched transactions,
 two synthetic actors, a positive scalar assignment and empty milestone lists,
 and compares named assessment/reconciliation tables plus project-tagged audit
 rows. It does not prove a database-wide absence of writes or a real production
-database login. Hosted disclosure and identity-expiry checks remain required.
+database login. Actual post-merge Foundation and Documentation checks passed.
