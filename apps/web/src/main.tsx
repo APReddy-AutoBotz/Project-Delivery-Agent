@@ -21,6 +21,7 @@ import { UpdateSuggestions } from "./update-suggestions.js";
 import { LeadershipBlockerAge } from "./leadership-blocker-age.js";
 import { PmActionQueuePanel } from "./pm-action-queue.js";
 import { discardResponse, readBoundedJson } from "./bounded-json.js";
+import { IngestionReassessmentPreview } from "./ingestion-reassessment-preview-panel.js";
 import { ProjectUpdates } from "./project-updates.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
 import { CsvIngestion } from "./csv-ingestion.js";
@@ -709,6 +710,13 @@ function App() {
                       projectId={project.data.id}
                       scope={`${me.data.customerId}:${me.data.subject}:${project.data.id}`}
                       request={request}
+                    />
+                  )}
+                  {project.data && me.data?.roles.includes("pmo_admin") && !me.isFetching && !me.isError && !project.isFetching && !project.isError && (
+                    <IngestionReassessmentPreview
+                      key={`ingestion-reassessment:${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}:${project.data.id}`}
+                      projectId={project.data.id}
+                      request={previewRequest}
                     />
                   )}
                   <MilestoneReconciliation
