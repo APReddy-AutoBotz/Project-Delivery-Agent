@@ -61,3 +61,10 @@ and a hidden source, role/project/customer denials, reader revocation and four
 named customer-scoped tables around the reads. It does not establish database-wide
 no-write behavior, separately authenticated production database access or a
 real OIDC journey.
+
+The verify job of initial hosted Foundation 40998210774 failed in unit-test
+collection because the parity test imported `@pdaa/domain` from the repository
+root, where that package alias is not installed. The other 2,073 unit tests passed;
+the native and browser steps did not run. Its separate production-boundary job
+was still running at this checkpoint. The parity test now imports the domain
+source by relative path; corrected hosted results do not erase this failure.

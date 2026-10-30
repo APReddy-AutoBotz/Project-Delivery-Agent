@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { ingestionReassessmentPageSchema } from "@pdaa/domain";
+import { ingestionReassessmentPageSchema } from "../packages/domain/src/ingestion-reassessment.js";
 import { decodeReassessmentPreview, loadReassessmentPreview } from "../apps/web/src/ingestion-reassessment-preview.js";
 
 const id = (n: number) => `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
