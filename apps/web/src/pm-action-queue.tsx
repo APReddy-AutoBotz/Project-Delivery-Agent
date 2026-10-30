@@ -6,10 +6,13 @@ import { FactList, SignalEvidence } from "./delivery-suggestions.js";
 import { createPmQueueResource, type PmQueueResourceState } from "./pm-queue-resource.js";
 import { decodePmQueue } from "./pm-queue-decoder.js";
 import { BlockerAgeObservation } from "./blocker-age-observation.js";
+import { PmReconciliationPreview } from "./pm-reconciliation-preview-panel.js";
+import type { PreviewKind } from "./pm-reconciliation-preview.js";
 
 // EXEC-026: a bounded observation of assigned projects, not a complete queue.
-export function PmActionQueuePanel({ scope, request, openProject }: {
-  scope: string; request: RequestFn; openProject: (projectId: string) => void;
+export function PmActionQueuePanel({ scope, subject, request, previewRequest, openProject, openRequest }: {
+  scope: string; subject: string; request: RequestFn; previewRequest: (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void) => Promise<unknown>;
+  openProject: (projectId: string) => void; openRequest: (projectId: string, kind: PreviewKind, requestId: string) => void;
 }) {
   const loader = useRef(request);
   const resource = useRef<ReturnType<typeof createPmQueueResource<PmActionQueue>> | null>(null);
@@ -92,6 +95,8 @@ export function PmActionQueuePanel({ scope, request, openProject }: {
           </div>;
         })}
       </section>
+      <PmReconciliationPreview projects={queue.projects.map((project) => ({ projectId: project.projectId, name: project.name }))}
+        subject={subject} request={previewRequest} openRequest={openRequest} />
     </>}
   </section>;
 }
