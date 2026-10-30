@@ -20,6 +20,7 @@ import { DeliverySuggestions } from "./delivery-suggestions.js";
 import { UpdateSuggestions } from "./update-suggestions.js";
 import { LeadershipBlockerAge } from "./leadership-blocker-age.js";
 import { PmActionQueuePanel } from "./pm-action-queue.js";
+import { discardResponse, readBoundedJson } from "./bounded-json.js";
 import { ProjectUpdates } from "./project-updates.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
 import { CsvIngestion } from "./csv-ingestion.js";
@@ -126,8 +127,9 @@ function useProtectedQuery<T>(options: UseQueryOptions<T>) {
     data: query.isError ? undefined : query.data,
   };
 }
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, maxResponseBytes?: number, onUnavailable: (denied?: boolean) => void = () => {}): Promise<T> {
   const requestToken = accessToken;
+  const requestGeneration = sessionGeneration;
   const isMultipart = typeof FormData !== "undefined" && init.body instanceof FormData;
   const response = await fetch("/api" + path, {
     ...init,
@@ -139,17 +141,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   // FR-EVD-009 / SEC-SECRET-001: consume discarded bodies on early exits, too.
   // Start the reader before throwing, but never delay a known denial/session
   // clear on body delivery. The recorder independently requires complete bytes.
-  if (!response.ok || (requestToken && requestToken !== accessToken))
-    void response.arrayBuffer().catch(() => {});
-  if (requestToken && requestToken !== accessToken)
-    throw new Error("The session changed before this request completed.");
-  if (response.status === 401 && requestToken && requestToken === accessToken)
+  const stale = Boolean(requestToken && (requestToken !== accessToken || requestGeneration !== sessionGeneration));
+  if (response.status === 401 && requestToken && !stale)
     expireSession?.();
-  if (
-    (response.status === 403 || response.status === 404) &&
-    path.startsWith("/projects/")
-  )
+  if (!stale && (response.status === 403 || response.status === 404) && path.startsWith("/projects/"))
     void client.invalidateQueries({ queryKey: ["projects"] });
+  if (!response.ok || stale) {
+    if (maxResponseBytes !== undefined) {
+      try { onUnavailable(!stale && (response.status === 403 || response.status === 404)); } catch { /* A denial still clears the response. */ }
+      await discardResponse(response);
+    } else void response.arrayBuffer().catch(() => {});
+  }
+  if (stale)
+    throw new Error("The session changed before this request completed.");
   if (!response.ok)
     throw Object.assign(
       new Error(
@@ -167,11 +171,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ),
       { status: response.status },
     );
-  const data = response.status === 204 ? undefined : await response.json();
-  if (requestToken && requestToken !== accessToken)
+  const data = response.status === 204 ? undefined : maxResponseBytes === undefined
+    ? await response.json() : await readBoundedJson(response, maxResponseBytes, onUnavailable);
+  if (requestToken && (requestToken !== accessToken || requestGeneration !== sessionGeneration))
     throw new Error("The session changed before this request completed.");
   return data as T;
 }
+const previewRequest = (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void): Promise<unknown> =>
+  request(path, init, 65536, onUnavailable);
 function manager(config: AuthConfig) {
   if (oidc) return oidc;
   oidc = new UserManager({
@@ -417,6 +424,13 @@ function App() {
     setLinkedRequest(null);
     setLinkedScalarRequest(null);
     window.history.replaceState({}, "", "/");
+  }
+  function navigateReconciliation(projectId: string, kind: "milestone" | "scalar", requestId: string) {
+    navigateProject(projectId);
+    if (kind === "scalar") setLinkedScalarRequest(requestId);
+    else setLinkedRequest(requestId);
+    window.history.replaceState({}, "", kind === "scalar"
+      ? savedScalarReconciliationLink(projectId, requestId) : savedReconciliationLink(projectId, requestId));
   }
   const displayName =
     me.data?.subject === "pm-atlas"
@@ -727,11 +741,14 @@ function App() {
             </>
           ) : (
             <>
-              {me.data?.roles.includes("project_manager") && <PmActionQueuePanel
-                key={`pm-queue:${me.data.customerId}:${me.data.subject}`}
-                scope={`${me.data.customerId}:${me.data.subject}`}
+              {me.data?.roles.includes("project_manager") && !me.isFetching && !me.isError && <PmActionQueuePanel
+                key={`pm-queue:${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}`}
+                scope={`${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}`}
+                subject={me.data.subject}
                 request={request}
+                previewRequest={previewRequest}
                 openProject={navigateProject}
+                openRequest={navigateReconciliation}
               />}
               <div className="summary-strip">
                 <div>

@@ -20,6 +20,8 @@ import {
   DatabaseScalarReconciliationRepository,
   DatabaseScalarConflictObservationRepository,
   DatabaseHealthAssessmentRepository,
+  DatabaseMilestoneReconciliationRepository,
+  DatabasePmActionQueueRepository,
 } from "../packages/data/dist/index.js";
 import {
   scalarReconciliationIdentity,
@@ -172,6 +174,65 @@ async function fixture(configured = true, optedIn = true, withPolicy = true) {
   const input = { projectId, factId: fact.id, idempotencyKey: randomUUID() };
   return { pmo, pm, leader, projectId, factType, input, versions };
 }
+it("links authorized PM discovery to read-only recipient lists on the API role", async () => {
+  if (process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "synthetic" || new URL(url).hostname !== "127.0.0.1")
+    throw new Error("Preview integration requires a qualified disposable synthetic database");
+  const first = await fixture(), second = await fixture();
+  const created = await reconciliation.check(first.pmo, first.input, context);
+  expect(created.outcome).toBe("CREATED"); expect(created.request?.assignment.recipientSubject).toBe(first.pm.subject);
+  const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      expect((await tx.$queryRawUnsafe<{ role: string }[]>("SELECT current_user AS role"))[0]?.role).toBe("pdaa_api");
+      return operation(tx);
+    }, options as never) };
+  const scalarReader = new DatabaseScalarReconciliationRepository(roleDb as never);
+  const milestoneReader = new DatabaseMilestoneReconciliationRepository(roleDb as never);
+  const queueReader = new DatabasePmActionQueueRepository(roleDb as never), config = loadConfig(process.env);
+  const { app } = await createApp(config, new DatabaseProjectRepository(db), undefined, canonical, facts, authority,
+    milestoneReader, scalarReader, undefined, undefined, undefined, undefined, queueReader);
+  const tables = ["FactAssessment", "FactAssessmentVersion", "FactAssessmentConflict", "MilestoneConsistencyAssessment",
+    "MilestoneReconciliationRequest", "MilestoneReconciliationCheck", "MilestoneReconciliationAssignment",
+    "ScalarReconciliationRequest", "ScalarReconciliationCheck", "ScalarReconciliationAssignment"];
+  const snapshot = () => Promise.all([first.projectId, second.projectId].flatMap((projectId) => [
+    ...tables.map((table) => db.$queryRawUnsafe(
+      `SELECT to_jsonb(t)::text AS row FROM public."${table}" t WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY to_jsonb(t)::text COLLATE "C"`, customerId, projectId)),
+    db.$queryRawUnsafe(`SELECT to_jsonb(t)::text AS row FROM public."AuditEvent" t WHERE "customerId"=$1::uuid AND detail->>'projectId'=$2 ORDER BY to_jsonb(t)::text COLLATE "C"`, customerId, projectId),
+  ]));
+  async function get(actor: Actor, path: string) {
+    const token = await new SignJWT({ roles: actor.roles }).setProtectedHeader({ alg: "HS256" }).setSubject(actor.subject)
+      .setIssuer("pdaa:local").setAudience("pdaa:api").setIssuedAt().setExpirationTime("5m")
+      .sign(new TextEncoder().encode(config.SESSION_SECRET));
+    const response = await fetch(`${await app.getUrl()}/api${path}`, { headers: { Authorization: `Bearer ${token}` } });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    return { status: response.status, text: await response.text() };
+  }
+  try {
+    await app.listen(0, "127.0.0.1");
+    const before = await snapshot();
+    for (const f of [first, second]) {
+      const discovered = await get(f.pm, "/pm/action-queue"); expect(discovered.status).toBe(200);
+      expect(JSON.parse(discovered.text).projects.map((p: { projectId: string }) => p.projectId)).toContain(f.projectId);
+      const milestone = await get(f.pm, `/projects/${f.projectId}/reconciliation-requests`);
+      const scalar = await get(f.pm, `/projects/${f.projectId}/scalar-reconciliation-requests`);
+      expect(milestone.status).toBe(200); expect(JSON.parse(milestone.text).requests).toEqual([]);
+      expect(scalar.status).toBe(200);
+      expect(JSON.parse(scalar.text).requests.map((r: { id: string }) => r.id)).toEqual(f === first ? [created.request!.id] : []);
+    }
+    for (const path of [`/projects/${first.projectId}/reconciliation-requests`, `/projects/${first.projectId}/scalar-reconciliation-requests`,
+      `/projects/${second.projectId}/scalar-reconciliation-requests/${created.request!.id}`]) {
+      const denied = await get(second.pm, path); expect(denied.status).toBe(404); expect(denied.text).not.toContain(created.request!.id);
+    }
+    expect((await get({ ...first.pm, roles: ["leadership"] }, `/projects/${first.projectId}/scalar-reconciliation-requests`)).status).toBe(404);
+    expect(await scalarReader.list({ ...first.pm, customerId: randomUUID() }, { projectId: first.projectId }, "recipient")).toBeNull();
+    await db.accessGrant.deleteMany({ where: { customerId, subject: first.pm.subject, role: "project_manager" } });
+    for (const suffix of ["reconciliation-requests", "scalar-reconciliation-requests"]) {
+      const denied = await get(first.pm, `/projects/${first.projectId}/${suffix}`); expect(denied.status).toBe(404);
+      expect(denied.text).not.toContain(created.request!.id);
+    }
+    expect(await snapshot()).toEqual(before);
+  } finally { await app.close(); }
+}, 120000);
 it("reads the same authorized current disagreement before and after separate reconciliation capture", async () => {
   const f = await fixture();
   const attemptedWrites: string[] = [];
