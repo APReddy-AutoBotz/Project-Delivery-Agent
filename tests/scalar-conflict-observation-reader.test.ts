@@ -58,6 +58,17 @@ it("conceals missing grants, hidden catalogue IDs and pre-visibility failures", 
   f.state.projectError = true;
   await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "DENIED" });
 });
+it("reconstructs the selected bounded page and excludes its 51st sentinel", async () => {
+  const f = fake();
+  expect((await f.reader.readLeadership(leader, projectId, factId, "project.alpha")).factId).toBe(factId);
+  expect(f.tx.projectFact.findMany).toHaveBeenLastCalledWith({ where: { customerId, projectId, factType: { gt: "project.alpha" } },
+    orderBy: { factType: "asc" }, take: 51, select: { id: true, factType: true, revision: true } });
+  const fact = f.state.page[0]!;
+  f.state.page = [...Array.from({ length: 50 }, (_, index) => ({ id: id(100 + index), factType: `project.x${index}`, revision: 1 })), fact];
+  await expect(f.reader.readLeadership(leader, projectId, factId, "project.alpha")).rejects.toMatchObject({ code: "DENIED" });
+  f.state.page = [fact];
+  await expect(f.reader.readLeadership(leader, projectId, factId, "BAD")).rejects.toMatchObject({ code: "DENIED" });
+});
 it("withholds an ambiguous lower-tier stream even when higher-tier dates disagree", async () => {
   const f = fake();
   f.prefix.versions[2]!.evidence.source.sourceType = "jira_connector";

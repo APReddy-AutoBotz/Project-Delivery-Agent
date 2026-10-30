@@ -1,5 +1,5 @@
 import {
-  ScalarConflictObservationError, projectFactIdSchema, scalarConflictObservationSchema,
+  ScalarConflictObservationError, projectFactIdSchema, scalarConflictObservationSchema, factCatalogueRequestSchema,
   type Actor, type ScalarConflictObservation, type ScalarConflictObservationRepository,
 } from "@pdaa/domain";
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
@@ -13,12 +13,13 @@ const unavailable = (): never => { throw new ScalarConflictObservationError("UNA
 export class DatabaseScalarConflictObservationRepository implements ScalarConflictObservationRepository {
   constructor(private readonly db: Database) {}
 
-  async readLeadership(actorValue: Actor, projectValue: string, factValue: string): Promise<ScalarConflictObservation> {
-    let actor: Actor, projectId: string, factId: string;
+  async readLeadership(actorValue: Actor, projectValue: string, factValue: string, afterFactType: string | null = null): Promise<ScalarConflictObservation> {
+    let actor: Actor, projectId: string, factId: string, after: string | null;
     try {
       actor = actorInput(actorValue);
       projectId = projectFactIdSchema.parse(projectValue);
       factId = projectFactIdSchema.parse(factValue);
+      after = factCatalogueRequestSchema.parse({ projectId, afterFactType, limit: 50 }).afterFactType;
       if (!actor.roles.includes("leadership")) return denied();
     } catch { return denied(); }
     let visible = false;
@@ -34,7 +35,8 @@ export class DatabaseScalarConflictObservationRepository implements ScalarConfli
           AND (("scopeType"='project' AND "scopeId"=${projectId}::uuid)
             OR ("scopeType"='portfolio' AND "scopeId"=${projects[0].portfolioId}::uuid)) ORDER BY id FOR SHARE`;
         if (!grants.some((grant) => grant.role === "leadership" && actor.roles.includes("leadership"))) return denied();
-        const page = await tx.projectFact.findMany({ where: { customerId: actor.customerId, projectId },
+        const page = await tx.projectFact.findMany({ where: { customerId: actor.customerId, projectId,
+          ...(after === null ? {} : { factType: { gt: after } }) },
           orderBy: { factType: "asc" }, take: 51, select: { id: true, factType: true, revision: true } });
         const fact = page.slice(0, 50).find((row) => row.id === factId);
         if (!fact) return denied();

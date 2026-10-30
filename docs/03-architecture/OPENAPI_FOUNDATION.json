@@ -49269,6 +49269,17 @@
                 }
               ]
             }
+          },
+          {
+            "name": "afterFactType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "^[a-z][a-z0-9_.-]*$"
+            }
           }
         ],
         "responses": {

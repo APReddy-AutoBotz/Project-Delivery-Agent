@@ -19,17 +19,18 @@ const date = (v: unknown): string => {
   return v;
 };
 
-export function decodeScalarCatalogue(value: unknown): FactCatalogue {
+export function decodeScalarCatalogue(value: unknown, after: string | null = null, visited: readonly string[] = []): FactCatalogue {
   const v = object(value); keys(v, ["canAppend", "canConfigure", "facts", "next"]);
   if (typeof v.canAppend !== "boolean" || typeof v.canConfigure !== "boolean") fail();
   const facts = array(v.facts, 0, 50), ids = new Set<string>(), types = new Set<string>();
   for (const raw of facts) {
     const row = object(raw); keys(row, ["factId", "factType", "revision"]);
     const key = id(row.factId), type = factType(row.factType);
-    if (ids.has(key) || types.has(type) || !Number.isInteger(row.revision) || (row.revision as number) < 1 || (row.revision as number) > 2147483647) fail();
+    if (ids.has(key) || types.has(type) || type === after || !Number.isInteger(row.revision) || (row.revision as number) < 1 || (row.revision as number) > 2147483647) fail();
     ids.add(key); types.add(type);
   }
-  if (v.next !== null && (!facts.length || factType(v.next) !== object(facts[facts.length - 1]).factType)) fail();
+  if (v.next !== null && (facts.length !== 50 || factType(v.next) === after || visited.includes(factType(v.next)) ||
+    factType(v.next) !== object(facts[facts.length - 1]).factType)) fail();
   return v as FactCatalogue;
 }
 

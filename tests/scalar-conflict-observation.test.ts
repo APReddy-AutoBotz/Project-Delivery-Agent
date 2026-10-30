@@ -32,6 +32,15 @@ describe("scalar conflict presentation", () => {
     expect(() => decodeScalarCatalogue({ ...catalogue, facts: [catalogue.facts[0], catalogue.facts[0]] })).toThrow();
     expect(() => decodeScalarCatalogue({ ...catalogue, extra: "private" })).toThrow();
   });
+  it("requires a complete, advancing catalogue page before offering a next cursor", () => {
+    const facts = Array.from({ length: 50 }, (_, n) => ({ factId: id(n + 100), factType: `project.fact_${n}`, revision: 1 }));
+    const value = { canAppend: false, canConfigure: false, facts, next: facts[49]!.factType };
+    expect(decodeScalarCatalogue(value, "project.prior")).toEqual(value);
+    expect(() => decodeScalarCatalogue({ ...value, facts: facts.slice(0, 49) }, "project.prior")).toThrow();
+    expect(() => decodeScalarCatalogue(value, facts[0]!.factType)).toThrow();
+    expect(() => decodeScalarCatalogue(value, "project.prior", [facts[49]!.factType, "project.prior"])).toThrow();
+    expect(() => decodeScalarCatalogue({ ...value, next: "project.other" }, "project.prior")).toThrow();
+  });
   it("withholds oversized support sets and serialized envelopes", () => {
     const value = observation();
     value.positions[0]!.supports = Array.from({ length: 999 }, (_, index) => support(index + 100));
