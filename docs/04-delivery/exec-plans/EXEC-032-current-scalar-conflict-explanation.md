@@ -10,6 +10,33 @@ its actual post-merge Foundation and Documentation checks passed. It does not co
 GOLDEN-003, general Q&A, AC-QA-005, AC-EVD-004, STORY-012/027/028/029 or any
 issue or release hold. OD-013/014 and the stop on Original19/20 capture remain.
 
+## Catalogue-page extension candidate
+
+The original first-page-only restriction below describes PR #126. This candidate
+accepts the existing catalogue's validated `afterFactType` as an
+optional page boundary, with the same fixed page size of 50. The boundary is
+untrusted navigation input, not evidence that the caller visited a page or an
+authorization grant. Under the same project and ordered grant locks, the reader
+must independently reconstruct that exact customer/project catalogue page and
+deny a target outside its first 50 entries before loading authority data. Keep
+all source, freshness and provenance checks unchanged. Denial and pre-visibility
+failure remain generic 404; proven-visible but unavailable evidence remains 503.
+
+The UI must show one current page at a time, clear the selection and answer on
+page, project, session, role, refresh or visibility changes, and reject late
+responses. Pages are live keyset views, not a fixed snapshot: concurrent inserts
+can move a selected fact out of its page, in which case a fresh read may deny it.
+The browser rejects repeated page boundaries and caps each navigation at 200
+next-page steps; returning to the first page clears that navigation history.
+Fact types in the query use the same URL/logging boundary as the existing
+catalogue. Preserve the original generic unavailable response and avoid exposing
+source metadata unless all source checks pass. This proposed partial extension
+does not accept a story, criterion, issue or release hold. Local synthetic
+checks include five presentation tests, ten reader tests, three API tests and
+three browser journeys. A role-switched native second-page HTTP and source-access
+fixture is prepared but has not run locally. Hosted candidate and post-merge
+validation remain required; browser mocks do not prove the native database path.
+
 ## Scope and semantics
 
 A leadership reader may select one fact already visible in its authorized,

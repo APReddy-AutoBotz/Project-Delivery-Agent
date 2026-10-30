@@ -38,6 +38,15 @@ it("authenticates, binds IDs and forbids unrecognized parameters", async () => {
   expect((await fetch(base + path, { headers: { Authorization: "Bearer invalid" } })).status).toBe(401);
   expect(repository.readLeadership).toHaveBeenCalledTimes(calls);
 });
+it("accepts only a validated catalogue-page boundary and passes it to the reader", async () => {
+  const headers = { Authorization: "Bearer valid" }, before = repository.readLeadership.mock.calls.length;
+  const response = await fetch(base + path + "?afterFactType=project.forecast", { headers });
+  expect(response.status).toBe(200);
+  expect(repository.readLeadership).toHaveBeenLastCalledWith(actor, projectId, factId, "project.forecast");
+  for (const query of ["?afterFactType=BAD", "?afterFactType=", "?afterFactType=a&afterFactType=b", "?afterFactType=a&limit=50"])
+    expect((await fetch(base + path + query, { headers })).status).toBe(400);
+  expect(repository.readLeadership).toHaveBeenCalledTimes(before + 1);
+});
 it("withholds denial, unavailable state and malformed or mismatched outputs", async () => {
   repository.readLeadership.mockRejectedValueOnce(new ScalarConflictObservationError("DENIED"));
   repository.readLeadership.mockRejectedValueOnce(new ScalarConflictObservationError("UNAVAILABLE"));

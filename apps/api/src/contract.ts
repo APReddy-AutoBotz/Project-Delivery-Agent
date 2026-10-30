@@ -82,6 +82,7 @@ import {
   historyQuerySchema,
 } from "./evidence-controller.js";
 import { reconciliationQuerySchema } from "./milestone-controller.js";
+import { scalarConflictQuerySchema } from "./scalar-conflict-observation-controller.js";
 
 // The wire pattern preserves the existing 1..200 limit after trimming. A raw
 // maxLength would incorrectly reject a valid subject padded with whitespace.
@@ -561,6 +562,7 @@ export const contracts: Record<string, RouteContract> = {
     status: 200,
     response: scalarConflictObservationSchema.describe("IDs use lowercase UUIDs and instants use UTC milliseconds. Calendar dates, cross-field evidence consistency, aggregate support limits and the 262144-byte response limit are enforced at runtime."),
     parameters: { id: z.uuid().regex(/^[0-9a-f-]+$/), factId: z.uuid().regex(/^[0-9a-f-]+$/) },
+    query: scalarConflictQuerySchema.shape,
     errors: [400, 404, 503],
   },
   "get /api/admin/health-assessment-retention": {
