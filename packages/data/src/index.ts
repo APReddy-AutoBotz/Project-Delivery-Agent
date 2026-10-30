@@ -2,6 +2,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
 export { DatabasePmActionQueueRepository } from "./pm-action-queue.js";
 export { DatabaseBlockerAgeAdviceRepository } from "./blocker-age-advice.js";
+export { DatabaseAccessOperationSearchRepository } from "./access-operation-search.js";
+export { createAccessOperationAdmission } from "./access-operation-admission.js";
 export { DatabaseProjectFactRepository } from "./project-facts.js";
 export { DatabaseAuthorityRepository } from "./authority-persistence.js";
 export { DatabaseMilestoneConsistencyRepository } from "./milestone-persistence.js";
