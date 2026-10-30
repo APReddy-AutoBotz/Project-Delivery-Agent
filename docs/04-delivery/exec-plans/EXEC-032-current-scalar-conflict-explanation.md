@@ -82,7 +82,8 @@ gated, but enters the assessed prefix only through a project-gated version inser
 Seed/restore maintenance and arbitrary privileged cross-table SQL are outside this
 guarantee. Confirm these claims with native blocker-PID tests, including a
 modeled health-style SHARE-to-conflict-insert upgrade and both orders of first
-insertion. That model does not exercise the full health-assessment workflow.
+insertion. That original model does not exercise the full health-assessment
+workflow; the later PR #129 test below exercises the real health writer.
 
 ## Conservative initial candidate
 
@@ -189,8 +190,8 @@ source of one position, consistent with the approved selected-current semantics.
 An independent exact-tree review found the shared API route-coverage harness had
 not yet included the new endpoint; the fixture and successful authenticated
 contract request were added, and that complete local harness then passed.
-The health lock upgrade is modeled and does not execute the complete health
-workflow. The expanded mocked browser journey also covers project switching and
+The PR #126 health lock upgrade was modeled and did not execute the complete
+health workflow. The expanded mocked browser journey also covers project switching and
 identity role removal. The published candidate passed independent exact-tree and
 remote tree/parent/file-set reviews. Documentation 40955269546 passed; Foundation
 40955269273 passed 266 native cases in 19 files, synthetic 85-table recovery,
@@ -205,3 +206,24 @@ connection and no-write claims cover the specified snapshots and proxy; this is
 not a separately authenticated production database login or proof about arbitrary
 SELECT functions. General Q&A and GOLDEN-003 evidence remain incomplete. These
 results do not accept any story, criterion, issue or release hold.
+
+## Subsequent real health-writer concurrency evidence
+
+[PR #129](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/129)
+adds a native test using `DatabaseHealthAssessmentRepository.create` and the
+role-switched scalar reader against the same synthetic opened-at conflict. It
+observes the database blocker in both lock orders and checks the exact recorded
+conflict, policy, source/evidence/version associations and health result. The
+health writer uses the setup/owner connection; the reader uses
+`SET LOCAL ROLE pdaa_api`. This is not a separately authenticated API database
+login, an HTTP journey, or proof for arbitrary privileged SQL.
+
+The reviewed published head `8e5be2ecedc8e6764515ae37b475d0918364116b` has
+tree `538f9174158e7043759ddd9daeed465724cb5610` and sole parent
+`77dc781a2ee1a355cafec2a0753e401b5c032101`. GitHub's synthetic merge
+`14bdb6a45493ab7f338b89f60c01320b1842256a` passed Foundation 40974732508,
+including the new test. Actual merge `87274123880b84b63450ed4e3da2c42885e5522a`
+has that tree and ordered parents `77dc781a2ee1a355cafec2a0753e401b5c032101`
+and the reviewed head. Post-merge Foundation 40977661194 and Documentation
+40977661313 passed, and the new test ran successfully again on the merged tree.
+This evidence does not change any acceptance or release-hold decision.

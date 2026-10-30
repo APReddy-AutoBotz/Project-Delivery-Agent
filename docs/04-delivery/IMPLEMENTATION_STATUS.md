@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-10-29
+Updated: 2026-10-30
 
 ## Accepted implementation completion
 
@@ -31,6 +31,28 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+The real health-assessment conflict writer and role-switched scalar reader now
+have native concurrency coverage in [PR #129](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/129).
+GitHub's synthetic merge `14bdb6a45493ab7f338b89f60c01320b1842256a` of reviewed
+head `8e5be2ecedc8e6764515ae37b475d0918364116b` into the then-current main
+passed Foundation 40974732508. Actual merge `87274123880b84b63450ed4e3da2c42885e5522a` has the
+same tree `538f9174158e7043759ddd9daeed465724cb5610` and ordered parents
+`77dc781a2ee1a355cafec2a0753e401b5c032101` and the reviewed head. Post-merge
+Foundation 40977661194 and Documentation 40977661313 passed; the new test ran
+successfully on both candidate and merge. It exercises both lock orders with a
+synthetic setup/owner writer and a `SET LOCAL ROLE pdaa_api` reader. It is not a
+separately authenticated production database session or an HTTP journey and
+does not accept any story, criterion, issue or release hold.
+
+The evidence ledger through PR #127 merged in [PR #128](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/128)
+as `77dc781a2ee1a355cafec2a0753e401b5c032101`. Candidate Foundation 40970267334
+and Documentation 40970267651 passed against synthetic merge
+`eb7d0fb9d189decffd62c09a6f9167380b318f76`; post-merge Foundation 40973518726
+and Documentation 40973518685 passed. The actual merge has the reviewed tree
+`f73ddbb332bb3d241611df93ec66662ac184171b` and ordered parents
+`941113241b75fb1f99c6031c9fa9d93a1aa1adc4` and reviewed head
+`aa5f24b3f42d9b8396baba5338fc34fa23bb4cd6`. This documentation update changed no acceptance totals.
+
 EXEC-034's real synthetic response-link HTTP and database tests merged in
 [PR #127](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/127).
 Refreshed reviewed head `7abc5a38ac6b2a74a6c600185b6c223d21c5cab2` and actual
@@ -56,8 +78,9 @@ runtime and distribution evidence. Hosted
 verification covered 266
 native integration tests in 19 files, 58 browser tests and an exact 85-business-
 table synthetic recovery. The API reader uses `SET LOCAL ROLE pdaa_api` while
-test writers use the setup/owner connection; the health lock-upgrade case is a
-model, not the full health workflow. This partial date-conflict observation does
+test writers use the setup/owner connection; the PR #126 health lock-upgrade case
+was a model. The later PR #129 coverage above exercises the real health writer.
+This partial date-conflict observation does
 not accept a story, criterion, issue or release hold.
 
 EXEC-031's bounded milestone question flow merged in
