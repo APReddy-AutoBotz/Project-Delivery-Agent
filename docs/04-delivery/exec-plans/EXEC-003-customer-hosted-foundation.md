@@ -748,5 +748,8 @@ and permits additional extension types. A reported category is a snapshot, not
 proof of ownership or cause. The zero-other-sessions guard, rollback and
 quarantine behavior are unchanged; a diagnostic query error still fails closed.
 Synthetic mocked and PostgreSQL VALUES cases do not establish the type of the
-earlier backend. Native validation for this candidate has not run locally; exact
-reviews and hosted/post-merge checks remain required. No acceptance changes.
+earlier backend. On an isolated synthetic PostgreSQL 17.11 container, the native
+VALUES classification and held-client cases passed; the separate restricted-login
+case was skipped because its test credential was unavailable. The container was
+stopped after the read-only run. Exact reviews and hosted/post-merge checks remain
+required. No acceptance changes.
