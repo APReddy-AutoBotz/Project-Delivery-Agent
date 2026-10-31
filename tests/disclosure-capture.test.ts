@@ -266,6 +266,45 @@ it("keeps failure closed when request diagnostic getters throw", async () => {
   expect(JSON.parse(diagnostic).request).toEqual({ resource: "unknown", method: "unknown", failure: "unknown", response: "none", phase: "identity" });
 });
 
+it.each([
+  [base + "/api/pm/action-queue?private=canary", "GET", 200, "pm_queue", "GET", "2xx"],
+  [base + "/api/projects/11111111-1111-4111-8111-111111111111/scalar-reconciliation-requests/22222222-2222-4222-8222-222222222222", "GET", 404, "project", "GET", "4xx"],
+  [base + "/api/projects/project_1/scalar-reconciliation-requests/secret", "GET", 200, "other", "GET", "2xx"],
+  [base + "/api/projects/11111111-1111-4111-8111-111111111111/secret", "GET", 200, "other", "GET", "2xx"],
+  [base + "/api/access-grants", "DELETE", 204, "access_grants", "DELETE", "204"],
+  [base + "/api/projects-lookalike/secret", "PATCH", 302, "other", "other", "3xx"],
+  ["https://foreign.invalid/api/pm/action-queue", "GET", 503, "other", "GET", "5xx"],
+  [base + "/api/pm/action-queue", "GET", 600, "pm_queue", "GET", "other"],
+])("reports only finite request classes for failed captures", async (url, method, status, resourceClass, methodClass, responseClass) => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  let identities = 0;
+  const request = { url: () => url, method: () => method,
+    failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => response };
+  const response = { request: () => { identities++; return {}; }, status: () => status };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  const diagnostic = formatCaptureDiagnostic(f.capture.diagnostic());
+  expect(diagnostic).not.toContain(url);
+  expect(diagnostic).not.toContain("secret");
+  expect(JSON.parse(diagnostic).request).toEqual({ resource: resourceClass, method: methodClass,
+    failure: "aborted", response: responseClass, phase: "identity" });
+  expect(identities).toBe(1);
+});
+
+it("keeps the capture failed if a response diagnostic accessor throws", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  let identities = 0;
+  const request = { url: () => base + "/api/pm/action-queue", method: () => "GET",
+    failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => response };
+  const response = { request: () => { identities++; return {}; }, status: () => { throw new Error(f.canary); } };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  const diagnostic = formatCaptureDiagnostic(f.capture.diagnostic());
+  expect(diagnostic).not.toContain(f.canary);
+  expect(JSON.parse(diagnostic).request).toMatchObject({ resource: "pm_queue", method: "GET", response: "unknown" });
+  expect(identities).toBe(1);
+});
+
 it("does not combine different request URLs to qualify a DELETE fallback", async () => {
   const f = await observer(); f.response(tokenPath, f.tokens);
   let calls = 0;

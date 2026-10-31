@@ -37,10 +37,10 @@ const continuationDiagnosticAllowed = {
   page: new Set(["closed", "open"]),
 };
 const requestDiagnosticAllowed = {
-  resource: new Set(["access_grants", "other"]),
-  method: new Set(["POST", "DELETE", "other"]),
+  resource: new Set(["access_grants", "pm_queue", "project", "other"]),
+  method: new Set(["GET", "POST", "DELETE", "other"]),
   failure: new Set(["aborted", "other"]),
-  response: new Set(["none", "204", "other"]),
+  response: new Set(["none", "204", "2xx", "3xx", "4xx", "5xx", "other"]),
   phase: new Set(["response", "identity", "origin", "headers"]),
 };
 const safeRequestDiagnostic = (value) => Object.fromEntries(
@@ -375,11 +375,22 @@ export async function observeBrowserDisclosure(
           // diagnostic getters cannot turn a success into a failure or vice versa.
           try {
             const url = new URL(request.url());
-            diagnostic.resource = origins.includes(url.origin) && url.pathname === "/api/access-grants" ? "access_grants" : "other";
+            diagnostic.resource = "other";
+            if (url.origin === origin) {
+              if (url.pathname === "/api/access-grants") diagnostic.resource = "access_grants";
+              else if (url.pathname === "/api/pm/action-queue") diagnostic.resource = "pm_queue";
+              else if (/^\/api\/projects\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/scalar-reconciliation-requests(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?)?$/i.test(url.pathname)) diagnostic.resource = "project";
+            }
           } catch { /* unavailable */ }
-          try { const method = request.method(); diagnostic.method = ["POST", "DELETE"].includes(method) ? method : "other"; } catch { /* unavailable */ }
+          try { const method = request.method(); diagnostic.method = ["GET", "POST", "DELETE"].includes(method) ? method : "other"; } catch { /* unavailable */ }
           try { diagnostic.failure = request.failure()?.errorText === "net::ERR_ABORTED" ? "aborted" : "other"; } catch { /* unavailable */ }
-          try { diagnostic.response = response === null ? "none" : response ? response.status() === 204 ? "204" : "other" : undefined; } catch { /* unavailable */ }
+          try {
+            if (response === null) diagnostic.response = "none";
+            else if (response) {
+              const status = response.status();
+              diagnostic.response = status === 204 ? "204" : Number.isInteger(status) && status >= 200 && status < 600 ? `${Math.floor(status / 100)}xx` : "other";
+            }
+          } catch { /* unavailable */ }
           if (!requestDiagnostic) requestDiagnostic = diagnostic;
           throw error;
         }

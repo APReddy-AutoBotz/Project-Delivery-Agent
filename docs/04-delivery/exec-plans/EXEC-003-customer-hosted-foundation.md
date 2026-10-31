@@ -657,3 +657,23 @@ merged with evidence in FOUNDATION_OPERATIONS_VALIDATION.md. Direct customer
 composition and TLS/external-database acceptance are now verified in PR #22;
 STORY-003 is accepted. Full distribution gates and remaining identity validation
 stay in this ExecPlan. R0 release and Issue #5 remain open.
+
+## Disclosure capture diagnostic checkpoint
+
+The failed-job rerun of PR #145 Foundation run
+[41233262839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41233262839),
+attempt 2, stopped at SEC-AUTH-001 `scalar-proof-disclosure`. The prior finite
+diagnostic reported one aborted request with method and resource `other` at the
+request/response identity check. It did not identify the endpoint or establish
+the cause or an actual disclosure, and it stopped before the separate restore
+check. Attempt 1 had failed the restore's other-session guard; these failures
+are not assumed related.
+
+The failure-only recorder diagnostic now additionally buckets GET, selected
+same-product-origin path shapes and HTTP status classes into fixed labels. It
+does not emit URLs, identifiers, query strings, headers or exception text, and
+does not change the capture decision. The post-failure classifications are
+best-effort accessor observations: they do not prove a response belongs to the
+failed request or establish the prior failure's cause. Focused synthetic tests
+are not a real-browser or packaged acceptance result. Exact-candidate review and
+fresh hosted checks remain required; no story acceptance changes.
