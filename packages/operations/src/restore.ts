@@ -223,11 +223,14 @@ async function restoreArchive(
         if (authorityIntegrity !== 0)
           throw new Error("Restored authority integrity failed");
         diagnostic.enter("sessions_before_commit");
-        await assertNoOtherSessions(client, (category) => diagnostic.enter(({
-          other_sessions: "sessions_before_commit_other_sessions",
-          query_failed: "sessions_before_commit_query_failed",
-          invalid_result: "sessions_before_commit_invalid_result",
-        } as const)[category]));
+        await assertNoOtherSessions(client, (category, observation) => {
+          diagnostic.enter(({
+            other_sessions: "sessions_before_commit_other_sessions",
+            query_failed: "sessions_before_commit_query_failed",
+            invalid_result: "sessions_before_commit_invalid_result",
+          } as const)[category]);
+          if (category === "other_sessions") diagnostic.observeSessions(observation);
+        });
         diagnostic.enter("commit");
         await client.query("COMMIT");
       } catch {
