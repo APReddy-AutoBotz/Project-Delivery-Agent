@@ -90,6 +90,58 @@ export function parseCsvPreview(input: unknown): {
     throw new IngestionInputError("CSV_RAGGED");
   return { headers, rows: records };
 }
+
+// This validates already-decoded, bounded data; it is not a workbook parser or
+// an isolation boundary for arbitrary in-process Proxy objects. A future file
+// adapter must establish physical row/column, formula and sheet semantics first.
+function parseSpreadsheetGrid(input: unknown): { headers: string[]; rows: string[][] } {
+  const invalid = (): never => { throw new IngestionInputError("GRID_SHAPE"); };
+  if (!input || typeof input !== "object" || Array.isArray(input)) return invalid();
+  const prototype = Object.getPrototypeOf(input);
+  if (prototype !== Object.prototype && prototype !== null) return invalid();
+  const keys = Reflect.ownKeys(input);
+  if (keys.length !== 2 || !keys.includes("headers") || !keys.includes("rows")) return invalid();
+  for (const key in input) if (!Object.hasOwn(input, key)) return invalid();
+  const property = (object: object, key: PropertyKey): unknown => {
+    const descriptor = Object.getOwnPropertyDescriptor(object, key);
+    if (!descriptor || !("value" in descriptor)) return invalid();
+    return descriptor.value;
+  };
+  const dense = (value: unknown, max: number, over: string): unknown[] => {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return invalid();
+    const length = property(value, "length");
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) return invalid();
+    if (length > max) throw new IngestionInputError(over);
+    const ownKeys = Reflect.ownKeys(value);
+    if (ownKeys.length !== length + 1 || !ownKeys.includes("length")) return invalid();
+    for (const key in value) if (!Object.hasOwn(value, key)) return invalid();
+    const result: unknown[] = [];
+    for (let index = 0; index < length; index++) result.push(property(value, String(index)));
+    return result;
+  };
+  const headerValues = dense(property(input, "headers"), CSV_LIMITS.columns, "GRID_COLUMNS");
+  if (!headerValues.length) throw new IngestionInputError("GRID_HEADERS");
+  const rowValues = dense(property(input, "rows"), CSV_LIMITS.rows, "GRID_ROWS");
+  const encoder = new globalThis.TextEncoder();
+  let bytes = 0;
+  const cell = (value: unknown): string => {
+    if (typeof value !== "string") return invalid();
+    if (value.length > CSV_LIMITS.cell) throw new IngestionInputError("GRID_CELL_SIZE");
+    if (/[\0\p{Surrogate}]/u.test(value)) throw new IngestionInputError("GRID_ENCODING");
+    bytes += encoder.encode(value).byteLength;
+    if (bytes > CSV_LIMITS.bytes) throw new IngestionInputError("GRID_SIZE");
+    return value;
+  };
+  const headers = headerValues.map(cell);
+  if (headers.some((header) => !header.trim() || header.length > 256) || new Set(headers).size !== headers.length)
+    throw new IngestionInputError("GRID_HEADERS");
+  const rows = rowValues.map((value) => {
+    const cells = dense(value, CSV_LIMITS.columns, "GRID_COLUMNS");
+    if (cells.length !== headers.length) return invalid();
+    return cells.map(cell);
+  });
+  return { headers, rows };
+}
 const unique = (values: readonly string[]) =>
   new Set(values).size === values.length;
 const mapping = z
@@ -223,6 +275,24 @@ export function previewSpreadsheetCsv(
   configInput: unknown,
   baselineInput?: unknown,
 ): SpreadsheetPreview {
+  return previewSpreadsheetParsed(configInput, baselineInput, () => parseCsvPreview(csv));
+}
+
+// Pure mapping for a future reviewed workbook adapter. It makes no claim about
+// workbook identity, formulas, hidden content, provenance or persistence.
+export function previewSpreadsheetGrid(
+  grid: unknown,
+  configInput: unknown,
+  baselineInput?: unknown,
+): SpreadsheetPreview {
+  return previewSpreadsheetParsed(configInput, baselineInput, () => parseSpreadsheetGrid(grid));
+}
+
+function previewSpreadsheetParsed(
+  configInput: unknown,
+  baselineInput: unknown,
+  parse: () => { headers: string[]; rows: string[][] },
+): SpreadsheetPreview {
   const config = parseIngestion(spreadsheetPreviewConfigSchema, configInput);
   const baseline =
     baselineInput === undefined
@@ -247,7 +317,7 @@ export function previewSpreadsheetCsv(
       ))
   )
     throw new IngestionInputError("INVALID_BASELINE");
-  const parsed = parseCsvPreview(csv);
+  const parsed = parse();
   const columns = new Map(
     parsed.headers.map((header, index) => [header, index]),
   );
