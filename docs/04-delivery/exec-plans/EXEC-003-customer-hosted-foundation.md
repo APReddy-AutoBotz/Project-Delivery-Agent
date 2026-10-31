@@ -759,3 +759,23 @@ once the installed browser path was specified. This test does not reproduce the
 production application or prove the cause of the hosted failure. It does not
 relax the response eligibility rules. Exact-candidate review and hosted checks
 remain required, and a later passing run does not erase the failure.
+
+PR #158 candidate `3a5e1f54c1269bcc0f966a246858a4b0628542a3` also failed
+the Browser workflows step of Foundation run
+[41252342290](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41252342290),
+verify job `124688263566`. The leadership milestone observation test had seen a
+200 response, but Playwright could not retrieve its body from Chromium's network
+buffer. Later body, UI and revocation assertions in that test were not reached;
+the cause of the unavailable buffer is unknown. This is separate from the earlier
+incomplete disclosure capture, and neither failure is erased by a later pass.
+
+The proposed test-only observer records the bounded response stream consumed by
+the page, correlates it to the observed request and retains the existing response
+and UI assertions. A synthetic canary checks the observer before the real click.
+An isolated loopback Chromium test of the same installer passed for a page-read
+response, a separate oversized response and fetch restoration; it did not run the
+database-backed journey. An extra lint invocation on the whole test file reported
+seven existing explicit-any errors, also present on the unchanged base. These
+checks do not establish why Chromium's buffer was
+unavailable or replace the full customer and browser acceptance run. Exact review
+and hosted checks remain required.
