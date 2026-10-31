@@ -482,16 +482,89 @@ test("FR-QA-007 / FR-HLT-009: leadership sees the PM's synthetic positions until
   await expect(answer.locator(".canonical-review-row")).toHaveCount(4);
 
   await f.share(f.bindings[3].entry.sourceId, ["pmo-portfolio", "pm-atlas"]);
-  const denied = page.waitForResponse((item) =>
-    item.url().endsWith(`/milestones/${f.milestoneId}/leadership-conflict-observation`) && item.request().method() === "GET");
-  await answer.getByRole("button", { name: "Refresh completion check", exact: true }).click();
-  const deniedResponse = await denied;
-  expect(deniedResponse.status()).toBe(503);
-  const deniedBody = await deniedResponse.text();
-  expect(JSON.parse(deniedBody)).toEqual({ statusCode: 503, message: "Service unavailable" });
-  for (const binding of f.bindings) {
-    expect(deniedBody).not.toContain(binding.entry.evidenceId);
-    expect(deniedBody).not.toContain(binding.entry.sourceId);
+  // Observe the same stream consumed by the page, rather than depending on
+  // Chromium retaining its response in the DevTools network buffer.
+  await page.evaluate((pathname) => {
+    type Capture = { done: boolean; failed: boolean; bytes: number[]; status: number; readers: number; afterClick: boolean };
+    const state = window as unknown as { __denialCapture: Record<string, Capture>; __restoreFetch: () => void };
+    const records: Record<string, Capture> = Object.create(null);
+    state.__denialCapture = records;
+    const original = window.fetch;
+    let active = true, clicked = false;
+    const markClick = (event: Event) => {
+      if (event.composedPath().some((element) => element instanceof HTMLButtonElement && element.textContent?.trim() === "Refresh completion check")) clicked = true;
+    };
+    document.addEventListener("click", markClick, true);
+    window.fetch = async (...args) => {
+      const method = (args[1]?.method ?? (args[0] instanceof Request ? args[0].method : "GET")).toUpperCase();
+      const afterClick = clicked;
+      const response = await original(...args);
+      let url: URL;
+      try { url = new URL(response.url); } catch { return response; }
+      if (active && method === "GET" && url.origin === location.origin && url.pathname === pathname && response.status === 503 && response.body) {
+        const requestId = response.headers.get("x-request-id") ?? "";
+        const existing = records[requestId];
+        const capture = existing ?? { done: false, failed: !requestId, bytes: [], status: response.status, readers: 0, afterClick };
+        if (existing) capture.failed = true;
+        records[requestId] = capture;
+        const stream = response.body, getReader = stream.getReader.bind(stream);
+        stream.getReader = (() => {
+          if (++capture.readers !== 1) capture.failed = true;
+          const reader = getReader(), read = reader.read.bind(reader);
+          reader.read = async () => {
+            try {
+              const part = await read();
+              if (part.done) capture.done = true;
+              else if (capture.bytes.length + part.value.length > 65536) capture.failed = true;
+              else for (const byte of part.value) capture.bytes.push(byte);
+              return part;
+            } catch (error) { capture.failed = true; throw error; }
+          };
+          return reader;
+        }) as typeof stream.getReader;
+      }
+      return response;
+    };
+    state.__restoreFetch = () => { active = false; document.removeEventListener("click", markClick, true); window.fetch = original; };
+  }, `/api${f.prefix}/milestones/${f.milestoneId}/leadership-conflict-observation`);
+  try {
+    const canaryId = "10000000-0000-4000-8000-000000000099", canary = "synthetic-hidden-evidence-canary";
+    const canaryPath = `/api${f.prefix}/milestones/${f.milestoneId}/leadership-conflict-observation?capture-canary=1`;
+    const canaryUrl = `**${canaryPath}`;
+    await page.route(canaryUrl, (route) => route.fulfill({ status: 503,
+      headers: { "content-type": "text/plain", "x-request-id": canaryId }, body: canary }));
+    try {
+      await page.evaluate(async (path) => {
+        const response = await fetch(path), reader = response.body!.getReader();
+        try { while (!(await reader.read()).done) { /* Exercise the same observer. */ } }
+        finally { reader.releaseLock(); }
+      }, canaryPath);
+      const probe = await page.evaluate((id) => (window as any).__denialCapture[id], canaryId) as
+        { done: boolean; failed: boolean; bytes: number[]; status: number; readers: number };
+      expect(probe).toMatchObject({ done: true, failed: false, status: 503, readers: 1 });
+      const probeText = new TextDecoder().decode(Uint8Array.from(probe.bytes));
+      expect(probeText).toBe(canary);
+      expect(() => expect(probeText).not.toContain(canary)).toThrow();
+    } finally { await page.unroute(canaryUrl); }
+    const denied = page.waitForResponse((item) =>
+      item.url().endsWith(`/milestones/${f.milestoneId}/leadership-conflict-observation`) && item.request().method() === "GET");
+    await answer.getByRole("button", { name: "Refresh completion check", exact: true }).click();
+    const deniedResponse = await denied;
+    expect(deniedResponse.status()).toBe(503);
+    const requestId = await deniedResponse.headerValue("x-request-id");
+    expect(requestId).toMatch(/^[a-f0-9-]{36}$/);
+    await expect.poll(() => page.evaluate((id) => (window as any).__denialCapture[id!]?.done === true, requestId)).toBe(true);
+    const captured = await page.evaluate((id) => (window as any).__denialCapture[id!], requestId) as
+      { done: boolean; failed: boolean; bytes: number[]; status: number; readers: number; afterClick: boolean };
+    expect(captured).toMatchObject({ done: true, failed: false, status: 503, readers: 1, afterClick: true });
+    const deniedBody = new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(captured.bytes));
+    expect(JSON.parse(deniedBody)).toEqual({ statusCode: 503, message: "Service unavailable" });
+    for (const binding of f.bindings) {
+      expect(deniedBody).not.toContain(binding.entry.evidenceId);
+      expect(deniedBody).not.toContain(binding.entry.sourceId);
+    }
+  } finally {
+    await page.evaluate(() => { const state = window as any; state.__restoreFetch(); delete state.__restoreFetch; delete state.__denialCapture; });
   }
   await expect(answer.getByText(/Completion check is unavailable/)).toBeVisible();
   await expect(answer.locator(".canonical-review-row")).toHaveCount(0);
