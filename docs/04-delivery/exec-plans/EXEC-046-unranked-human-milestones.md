@@ -173,6 +173,15 @@ multi-fact caller must also preserve the existing combined 1,000-revision and
 
 ## Remaining proof and integration
 
+PR #144 merged as `d344d3b83c11a8991d608016be13c77599386673` with reviewed
+head `9e0b9f62913b4de014f92b79075d24fa2a1bf14c` and actual merge tree
+`bab4d725cb201a8ce12c979b0d7f22ae42305a27`; its ordered parents are
+`56688d3e58dccd66883753eb17ffe1992d18ad7d` and the reviewed head. Candidate
+Foundation `41231014184` and Documentation `41231014207` passed. Actual
+post-merge Foundation `41233129454` and Documentation `41233129581` were
+running when this checkpoint was written. The unranked route and view remain
+disabled and no acceptance follows from this merge.
+
 Candidate Foundation run `41229589875` on head `7c944ce79f6feb3f6af68fb0854acbd2595b90d0`
 passed its unit, native integration and recovery steps, but its browser workflow
 failed while the existing milestone-reconciliation test attempted to obtain a
