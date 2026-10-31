@@ -405,6 +405,59 @@ it("withholds an unranked milestone when an applicable source has expired", asyn
   expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
 }, 60000);
 
+it("isolates unranked milestone reads across two populated customer scopes", async () => {
+  const { f, leader, reader } = await stateDisagreementFixture(true);
+  const secondCustomer = randomUUID(), secondPortfolio = randomUUID();
+  const secondPmo: Actor = { customerId: secondCustomer, subject: "second-pmo-" + randomUUID(), roles: ["pmo_admin"] };
+  const secondLeader: Actor = { customerId: secondCustomer, subject: leader.subject, roles: ["leadership"] };
+  await db.customer.create({ data: { id: secondCustomer, name: "Synthetic second tenant" } });
+  await db.portfolio.create({ data: { id: secondPortfolio, customerId: secondCustomer, name: "Synthetic second portfolio" } });
+  await db.accessGrant.createMany({ data: [secondPmo, secondLeader].map((actor) => ({ customerId: secondCustomer,
+    subject: actor.subject, scopeType: "portfolio", scopeId: secondPortfolio, role: actor.roles[0]! })) });
+  const input = canonicalFixture(secondPortfolio); input.raidItems = []; input.sourceMappings = [];
+  const secondProject = await canonical.createProject(secondPmo, input, context.correlationId);
+  const secondMilestone = await db.milestone.findFirstOrThrow({ where: { customerId: secondCustomer, projectId: secondProject.id } });
+  expect((await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).kind).toBe("UNRANKED_NO_POLICY");
+  // The second actor is authorized for its own project and milestone, which
+  // lacks a state binding; it must not read the first customer's observation.
+  await expect(reader.readUnrankedLeadership(secondLeader, secondProject.id, secondMilestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  const before = await unrankedReadSnapshot(f, leader);
+  await expect(reader.readUnrankedLeadership(secondLeader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readUnrankedLeadership(leader, secondProject.id, secondMilestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
+}, 60000);
+
+it("requires access to a future human source even when it is not a displayed head", async () => {
+  const { f, leader, target, alternateVersion, reader } = await stateDisagreementFixture(true);
+  const futureActor: Actor = { customerId, subject: "future-source-" + randomUUID(), roles: ["project_manager"] };
+  await db.accessGrant.create({ data: { customerId, subject: futureActor.subject, scopeType: "project", scopeId: f.projectId, role: "project_manager" } });
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const effectiveAt = new Date(now!.getTime() + 86_400_000).toISOString();
+  const validUntil = new Date(now!.getTime() + 172_800_000).toISOString();
+  const future = await facts.appendHumanStatement(futureActor, { projectId: f.projectId, factType: target.factType,
+    expectedRevision: 2, idempotencyKey: randomUUID(), value: { type: "text", value: "CANCELLED" },
+    effectiveAt, validUntil,
+    originalStatement: "Synthetic future report." }, context);
+  expect(future.entry).toMatchObject({ revision: 3, visibility: "available", content: { effectiveAt, validUntil,
+    value: { type: "text", value: "CANCELLED" } } });
+  const accessible = await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: future.entry.sourceId,
+    expectedRevision: future.entry.sourceAccessRevision, state: "AVAILABLE", readers: [futureActor.subject, f.pmo.subject, leader.subject] }, context);
+  const observed = await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id);
+  expect(observed.positions).toMatchObject([
+    { state: "COMPLETE", supports: [{ versionId: target.entry.id, evidenceId: target.entry.evidenceId, sourceId: target.entry.sourceId }] },
+    { state: "OPEN", supports: [{ versionId: alternateVersion.entry.id, evidenceId: alternateVersion.entry.evidenceId, sourceId: alternateVersion.entry.sourceId }] },
+  ]);
+  expect(observed.positions.flatMap((position) => position.supports.map((support) => support.sourceId))).not.toContain(future.entry.sourceId);
+  const removed = await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: future.entry.sourceId,
+    expectedRevision: accessible.revision, state: "AVAILABLE", readers: [futureActor.subject, f.pmo.subject] }, context);
+  const before = await unrankedReadSnapshot(f, leader);
+  await expect(reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: future.entry.sourceId,
+    expectedRevision: removed.revision, state: "AVAILABLE", readers: [futureActor.subject, f.pmo.subject, leader.subject] }, context);
+  expect((await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).positions).toEqual(observed.positions);
+}, 60000);
+
 it.each(["same-state", "missing-validity"] as const)("withholds unranked reports for %s human heads", async (kind) => {
   const { f, leader, alternate, target, alternateVersion, reader } = await stateDisagreementFixture(true);
   expect((await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).kind).toBe("UNRANKED_NO_POLICY");
@@ -833,16 +886,23 @@ it.each([["equal-tier", "reader"], ["equal-tier", "writer"], ["unranked", "reade
     : reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
 }, 90000);
 
-it.each(["reader", "writer"] as const)("serializes milestone-state reads with direct source-reader deletion when %s starts first", async (firstKind) => {
-  const { f, leader, alternateVersion, reader } = await stateDisagreementFixture();
-  const baseline = await reader.readLeadership(leader, f.projectId, f.milestone.id);
+it.each([["equal-tier", "reader"], ["equal-tier", "writer"], ["unranked", "reader"], ["unranked", "writer"]] as const)(
+  "serializes %s milestone-state reads with direct source-reader deletion when %s starts first", async (mode, firstKind) => {
+  const { f, leader, target, alternateVersion, reader } = await stateDisagreementFixture(mode === "unranked");
+  const baseline = mode === "unranked" ? await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)
+    : await reader.readLeadership(leader, f.projectId, f.milestone.id);
+  expect(baseline.positions).toMatchObject([
+    { state: "COMPLETE", supports: [{ versionId: target.entry.id, evidenceId: target.entry.evidenceId, sourceId: target.entry.sourceId }] },
+    { state: "OPEN", supports: [{ versionId: alternateVersion.entry.id, evidenceId: alternateVersion.entry.evidenceId, sourceId: alternateVersion.entry.sourceId }] },
+  ]);
   const sourceId = alternateVersion.entry.sourceId;
   let release!: () => void, heldReady!: () => void, waitingReady!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
   const waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
   let heldPid = 0, waitingPid = 0, paused = false;
-  const read = (hold: boolean) => new DatabaseMilestoneStateDisagreementRepository({
+  const read = (hold: boolean) => {
+    const repository = new DatabaseMilestoneStateDisagreementRepository({
     $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
       await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
       const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
@@ -859,7 +919,10 @@ it.each(["reader", "writer"] as const)("serializes milestone-state reads with di
         return typeof value === "function" ? value.bind(targetTx) : value;
       } }));
     }, options as never),
-  } as never).readLeadership(leader, f.projectId, f.milestone.id);
+    } as never);
+    return mode === "unranked" ? repository.readUnrankedLeadership(leader, f.projectId, f.milestone.id)
+      : repository.readLeadership(leader, f.projectId, f.milestone.id);
+  };
   const remove = (hold: boolean) => db.$transaction(async (tx) => {
     await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
     const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
@@ -893,7 +956,9 @@ it.each(["reader", "writer"] as const)("serializes milestone-state reads with di
     expect(await first).toBe(1);
     await expect(second).rejects.toMatchObject({ code: "UNAVAILABLE" });
   }
-  await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await db.factSourceReader.count({ where: { customerId, projectId: f.projectId, sourceId, subject: leader.subject } })).toBe(0);
+  await expect(mode === "unranked" ? reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)
+    : reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
 }, 90000);
 
 it.each(["fact", "policy"] as const)("serializes milestone-state reads with %s changes in both orders", async (kind) => {
