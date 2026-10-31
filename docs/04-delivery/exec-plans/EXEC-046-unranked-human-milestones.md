@@ -71,8 +71,9 @@ denials, source-reader removal, creation of an active policy and the existing
 equal-tier result, plus an expired source. Selected scoped data and audit
 snapshots were unchanged by the reads. These cases do not prove all-table
 no-write behavior, transaction ordering or the remaining negative cases. The
-local run used Node 22, while the project declares Node 24; hosted-runtime
-verification remains necessary.
+first local run used Node 22. All sixteen targeted cases described here were
+subsequently rerun successfully on Node 24 against the same isolated synthetic
+PostgreSQL 17 database. This is not the full integration suite or hosted proof.
 Two more targeted cases passed on that synthetic database for first-policy
 creation through the current repository writer. They observed the expected
 project-lock blocker in both reader-first and writer-first orders, then checked
@@ -90,6 +91,13 @@ effective-time scenario, not arbitrary writers or all temporal edge cases.
 Two sequential cases also passed for an existing disabled policy revision and
 an enabled revision scheduled in the future: neither aggregate was treated as
 absent, and selected scoped snapshots remained unchanged by the reads.
+For FR-EVD-009/012 and FR-QA-007, an unregistered local controller boundary and
+an unused browser decoder now validate the separate unranked DTO. Direct tests
+cover scope, generic denial/unavailability and representative malformed and
+oversized decoded objects. They do not demonstrate an HTTP route, response
+headers, wire-byte limits, browser expiry or live authorization. The existing
+equal-tier route is unchanged. Registration and presentation require the
+remaining native, API and browser proofs and independent review.
 Further native and independent review is required; there is no HTTP route or
 user-facing view.
 An internal fact-prefix admission helper checks bounded metadata,
@@ -138,6 +146,26 @@ and independently review bounded API serialization and as-of UI behavior,
 including cancellation, stale responses, session changes and contributor expiry.
 Exact-candidate review, hosted checks, merge and actual post-merge verification
 remain required. No current statement changes any acceptance total.
+
+For a future transport, use a separately authorized leadership route and
+explicit action; never fall back to it based on an equal-tier error. Validate
+strict route identity and DTO shape, cap the wire stream before parsing, return
+generic unavailable errors, and apply no-store to success and every error.
+Successful output reveals that no policy aggregate existed at its as-of and
+that all required historical sources were accessible to that actor. Existing
+authority reads expose a null policy identifier to project-authorized leaders,
+but the combined disclosure still requires an explicit information-flow
+review, especially for historical sources.
+
+Present any result as a historical observation with no selected winner. Say
+reports, policy or access may have changed and ask for refresh before reliance;
+contributor expiry is not a guarantee of current authorization or policy.
+The client must invalidate on selection/session changes, hide on backgrounding,
+abort on refresh and enforce a finite body deadline. Use no periodic polling or
+unbounded automatic retry. Track both wall and monotonic time and fail closed
+on observed regression or contributor expiry; test sleep, clock changes,
+page restoration and delayed bodies in real browsers. The existing polling
+resource cannot be reused unchanged for this behavior.
 
 Before adding the read, independently review a shared, transaction-owned
 preparation seam with the existing equal-tier observation. Preserve its prior

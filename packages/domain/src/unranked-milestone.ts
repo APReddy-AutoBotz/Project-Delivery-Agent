@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { projectFactIdSchema, projectFactInstantSchema } from "./project-facts.js";
 import { resolveSourceAuthority } from "./source-authority.js";
+import type { Actor } from "./actor.js";
 
 const id = projectFactIdSchema.regex(/^[0-9a-f-]+$/);
 const instant = projectFactInstantSchema.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
@@ -41,6 +42,9 @@ export const unrankedMilestoneObservationSchema = z.strictObject({
   }
 });
 export type UnrankedMilestoneObservation = z.infer<typeof unrankedMilestoneObservationSchema>;
+export interface UnrankedMilestoneObservationRepository {
+  readUnrankedLeadership(actor: Actor, projectId: string, milestoneId: string): Promise<UnrankedMilestoneObservation>;
+}
 
 // Pure transformation of an already complete, authorized snapshot. A null
 // resolver policy does not prove that a policy aggregate is absent: callers
