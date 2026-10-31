@@ -669,6 +669,12 @@ the cause or an actual disclosure, and it stopped before the separate restore
 check. Attempt 1 had failed the restore's other-session guard; these failures
 are not assumed related.
 
+The subsequent PR #145 candidate `86517ac48274e8cb691414e016c57af32e68b78e`
+also failed SEC-AUTH-001 `scalar-proof-disclosure` in Foundation run
+[41235799930](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41235799930),
+job `124639205094`, with the same coarse aborted/other/identity categories.
+Those labels do not establish that the same request or underlying cause recurred.
+
 The failure-only recorder diagnostic now additionally buckets GET, selected
 same-product-origin path shapes and HTTP status classes into fixed labels. It
 does not emit URLs, identifiers, query strings, headers or exception text, and
