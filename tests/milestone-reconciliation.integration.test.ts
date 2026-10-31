@@ -468,6 +468,136 @@ it.each(["reader", "writer"] as const)("serializes milestone-state read and read
     .readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
 }, 90000);
 
+it.each(["reader", "writer"] as const)("serializes milestone-state reads with leadership grant revocation when %s starts first", async (firstKind) => {
+  const { f, leader, reader } = await stateDisagreementFixture();
+  const baseline = await reader.readLeadership(leader, f.projectId, f.milestone.id);
+  let release!: () => void, heldReady!: () => void, waitingReady!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
+  const waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
+  let heldPid = 0, waitingPid = 0, paused = false;
+  const wrapped = (role: "reader" | "writer", hold: boolean) => ({
+    $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      if (hold) heldPid = pid; else { waitingPid = pid; waitingReady(); }
+      return operation(new Proxy(tx, { get(targetTx, key) {
+        const value = Reflect.get(targetTx, key);
+        if (hold && role === "reader" && key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const result = await Reflect.apply(value, targetTx, args), sql = rawSqlText(args[0]);
+          if (!paused && sql.includes('FROM public."AccessGrant"') && sql.includes("FOR SHARE")) {
+            paused = true; heldReady(); await gate;
+          }
+          return result;
+        };
+        if (hold && role === "writer" && key === "accessGrant" && value && typeof value === "object") {
+          return new Proxy(value, { get(model, method) {
+            const fn = Reflect.get(model, method);
+            if (method === "deleteMany" && typeof fn === "function") return async (...args: unknown[]) => {
+              const result = await Reflect.apply(fn, model, args); heldReady(); await gate; return result;
+            };
+            return typeof fn === "function" ? fn.bind(model) : fn;
+          } });
+        }
+        return typeof value === "function" ? value.bind(targetTx) : value;
+      } }));
+    }, options as never),
+  });
+  const read = (hold: boolean) => new DatabaseMilestoneStateDisagreementRepository(wrapped("reader", hold) as never)
+    .readLeadership(leader, f.projectId, f.milestone.id);
+  const revoke = (hold: boolean) => new DatabaseProjectRepository(wrapped("writer", hold) as never).revokeGrant(f.pmo,
+    { subject: leader.subject, scopeType: "project", scopeId: f.projectId }, context.correlationId);
+  const first = firstKind === "reader" ? read(true) : revoke(true); void first.catch(() => {});
+  let second: Promise<unknown> | undefined, sawBlock = false;
+  try {
+    await Promise.race([heldEntered, first.then(() => { throw new Error("First transaction exited before its barrier"); })]);
+    second = firstKind === "reader" ? revoke(false) : read(false); void second.catch(() => {});
+    await Promise.race([waitingEntered, second.then(() => { throw new Error("Second transaction exited before its barrier"); })]);
+    const deadline = Date.now() + 1500;
+    while (Date.now() < deadline) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waitingPid);
+      const fragments = firstKind === "reader" ? ['DELETE', '"AccessGrant"'] : ['FROM public."AccessGrant"', "FOR SHARE"];
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(heldPid) &&
+          fragments.every((fragment) => rows[0]!.query.includes(fragment))) { sawBlock = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  } finally { release(); await Promise.allSettled(second ? [first, second] : [first]); }
+  expect(sawBlock).toBe(true);
+  if (firstKind === "reader") {
+    expect(await first).toMatchObject({ milestoneId: f.milestone.id, positions: baseline.positions });
+    await second;
+  } else {
+    await first;
+    await expect(second).rejects.toMatchObject({ code: "DENIED" });
+  }
+  expect(await db.accessGrant.count({ where: { customerId, subject: leader.subject, scopeType: "project", scopeId: f.projectId } })).toBe(0);
+  await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
+}, 90000);
+
+it.each(["reader", "writer"] as const)("serializes milestone-state reads with direct source-reader deletion when %s starts first", async (firstKind) => {
+  const { f, leader, alternateVersion, reader } = await stateDisagreementFixture();
+  const baseline = await reader.readLeadership(leader, f.projectId, f.milestone.id);
+  const sourceId = alternateVersion.entry.sourceId;
+  let release!: () => void, heldReady!: () => void, waitingReady!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
+  const waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
+  let heldPid = 0, waitingPid = 0, paused = false;
+  const read = (hold: boolean) => new DatabaseMilestoneStateDisagreementRepository({
+    $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      if (hold) heldPid = pid; else { waitingPid = pid; waitingReady(); }
+      return operation(new Proxy(tx, { get(targetTx, key) {
+        const value = Reflect.get(targetTx, key);
+        if (hold && key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const result = await Reflect.apply(value, targetTx, args), sql = rawSqlText(args[0]);
+          if (!paused && sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) {
+            paused = true; heldReady(); await gate;
+          }
+          return result;
+        };
+        return typeof value === "function" ? value.bind(targetTx) : value;
+      } }));
+    }, options as never),
+  } as never).readLeadership(leader, f.projectId, f.milestone.id);
+  const remove = (hold: boolean) => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    if (hold) heldPid = pid; else { waitingPid = pid; waitingReady(); }
+    const count = await tx.$executeRaw`DELETE FROM public."FactSourceReader" WHERE "customerId"=${customerId}::uuid
+      AND "projectId"=${f.projectId}::uuid AND "sourceId"=${sourceId}::uuid AND subject=${leader.subject}`;
+    if (hold) { heldReady(); await gate; }
+    return count;
+  }, { timeout: 20000 });
+  const first = firstKind === "reader" ? read(true) : remove(true); void first.catch(() => {});
+  let second: Promise<unknown> | undefined, sawBlock = false;
+  try {
+    await Promise.race([heldEntered, first.then(() => { throw new Error("First transaction exited before its barrier"); })]);
+    second = firstKind === "reader" ? remove(false) : read(false); void second.catch(() => {});
+    await Promise.race([waitingEntered, second.then(() => { throw new Error("Second transaction exited before its barrier"); })]);
+    const deadline = Date.now() + 1500;
+    while (Date.now() < deadline) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waitingPid);
+      const fragments = firstKind === "reader" ? ['DELETE FROM public."FactSourceReader"'] : ['FROM public."Project"', "FOR SHARE"];
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(heldPid) &&
+          fragments.every((fragment) => rows[0]!.query.includes(fragment))) { sawBlock = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  } finally { release(); await Promise.allSettled(second ? [first, second] : [first]); }
+  expect(sawBlock).toBe(true);
+  if (firstKind === "reader") {
+    expect(await first).toMatchObject({ milestoneId: f.milestone.id, positions: baseline.positions });
+    expect(await second).toBe(1);
+  } else {
+    expect(await first).toBe(1);
+    await expect(second).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  }
+  await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+}, 90000);
+
 it.each(["fact", "policy"] as const)("serializes milestone-state reads with %s changes in both orders", async (kind) => {
   for (const firstKind of ["reader", "writer"] as const) {
     const { f, leader, alternate, target, reader } = await stateDisagreementFixture();

@@ -78,7 +78,20 @@ decoder/API tests passed locally. The decoder tests exercise the same malformed
 responses against both server and browser validation. Native HTTP and the
 corrected candidate's hosted validation remain pending.
 
+The next verify job `124542359067` of Foundation run `41202994446` passed
+architecture and contract snapshot checks but failed the shared API-contract
+coverage assertion because the new route was absent from that suite's exercised
+successes. The local correction injects a synthetic disagreement repository
+and validates an actual serialized 200 response against the published contract.
+The 17-test shared API-contract file passed locally; hosted validation remains
+required before acceptance.
+
 The local follow-up also adds synthetic database tests for fact revisions and
 policy disablement in both orderings with milestone disagreement reads. These
 tests are not evidence of serialization until run under native PostgreSQL;
 direct-SQL enforcement and leadership-grant races remain open.
+
+A further local test draft exercises API-role direct SQL source-reader removal
+and application-repository leadership-grant revocation in both orderings, designed to observe backend
+process IDs and actual lock waits. These tests have not run against PostgreSQL;
+their presence does not close either race or establish global deadlock freedom.
