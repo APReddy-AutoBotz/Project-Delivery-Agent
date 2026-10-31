@@ -288,10 +288,84 @@ export function previewSpreadsheetGrid(
   return previewSpreadsheetParsed(configInput, baselineInput, () => parseSpreadsheetGrid(grid));
 }
 
+// Interprets asserted synthetic data, not XLSX bytes. A future isolated parser
+// must independently establish every declaration from the complete workbook.
+// This is not a boundary against hostile in-process JavaScript Proxy traps.
+export function previewSyntheticWorksheet(
+  descriptor: unknown,
+  configInput: unknown,
+  baselineInput?: unknown,
+): SpreadsheetPreview {
+  return previewSpreadsheetParsed(configInput, baselineInput, (config) =>
+    parseSpreadsheetGrid(syntheticWorksheetGrid(descriptor, config.sheet)));
+}
+
+function syntheticWorksheetGrid(input: unknown, selectedSheet: string): { headers: string[]; rows: string[][] } {
+  const invalid = (): never => { throw new IngestionInputError("WORKSHEET_SHAPE"); };
+  const object = (value: unknown, keys: readonly string[]): Record<string, unknown> => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return invalid();
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) return invalid();
+    const own = Reflect.ownKeys(value);
+    if (own.length !== keys.length || keys.some((key) => !own.includes(key))) return invalid();
+    const copy: Record<string, unknown> = Object.create(null);
+    for (const key of keys) {
+      const item = Object.getOwnPropertyDescriptor(value, key);
+      if (!item || !("value" in item)) return invalid();
+      copy[key] = item.value;
+    }
+    return copy;
+  };
+  const array = (value: unknown, max: number): unknown[] => {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return invalid();
+    const length = Object.getOwnPropertyDescriptor(value, "length")?.value;
+    if (!Number.isSafeInteger(length) || length < 0 || length > max) return invalid();
+    const keys = Reflect.ownKeys(value);
+    if (keys.length !== length + 1 || !keys.includes("length")) return invalid();
+    const copy: unknown[] = [];
+    for (let index = 0; index < length; index++) {
+      const item = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!item || !("value" in item)) return invalid();
+      copy.push(item.value);
+    }
+    return copy;
+  };
+  const workbook = object(input, ["version", "complete", "macros", "externalRelationships", "unsupportedFeatures", "sheets"]);
+  if (workbook.version !== 1 || workbook.complete !== true || workbook.macros !== false ||
+      workbook.externalRelationships !== false || workbook.unsupportedFeatures !== false) return invalid();
+  const sheets = array(workbook.sheets, 1);
+  if (sheets.length !== 1) return invalid();
+  const sheet = object(sheets[0], ["name", "visibility", "rowCount", "columnCount", "hiddenRows", "hiddenColumns", "mergedCells", "unsupportedFeatures", "cells"]);
+  if (sheet.name !== selectedSheet || sheet.visibility !== "VISIBLE" || sheet.hiddenRows !== false ||
+      sheet.hiddenColumns !== false || sheet.mergedCells !== false || sheet.unsupportedFeatures !== false) return invalid();
+  const rowCount = sheet.rowCount, columnCount = sheet.columnCount;
+  if (typeof rowCount !== "number" || !Number.isSafeInteger(rowCount) || rowCount < 1 || rowCount > CSV_LIMITS.rows + 1 ||
+      typeof columnCount !== "number" || !Number.isSafeInteger(columnCount) || columnCount < 1 || columnCount > CSV_LIMITS.columns) return invalid();
+  const cells = array(sheet.cells, (CSV_LIMITS.rows + 1) * CSV_LIMITS.columns);
+  if (cells.length !== rowCount * columnCount) return invalid();
+  const rows: string[][] = [];
+  const encoder = new globalThis.TextEncoder();
+  let bytes = 0;
+  for (let row = 1; row <= rowCount; row++) {
+    const values: string[] = [];
+    for (let column = 1; column <= columnCount; column++) {
+      const cell = object(cells[(row - 1) * columnCount + column - 1], ["row", "column", "kind", "value", "formula"]);
+      if (cell.row !== row || cell.column !== column || cell.kind !== "TEXT" || cell.formula !== false ||
+          typeof cell.value !== "string" || cell.value.length > CSV_LIMITS.cell) return invalid();
+      if (/[\0\p{Surrogate}]/u.test(cell.value)) throw new IngestionInputError("GRID_ENCODING");
+      bytes += encoder.encode(cell.value).byteLength;
+      if (bytes > CSV_LIMITS.bytes) throw new IngestionInputError("GRID_SIZE");
+      values.push(cell.value);
+    }
+    rows.push(values);
+  }
+  return { headers: rows[0]!, rows: rows.slice(1) };
+}
+
 function previewSpreadsheetParsed(
   configInput: unknown,
   baselineInput: unknown,
-  parse: () => { headers: string[]; rows: string[][] },
+  parse: (config: Config) => { headers: string[]; rows: string[][] },
 ): SpreadsheetPreview {
   const config = parseIngestion(spreadsheetPreviewConfigSchema, configInput);
   const baseline =
@@ -317,7 +391,7 @@ function previewSpreadsheetParsed(
       ))
   )
     throw new IngestionInputError("INVALID_BASELINE");
-  const parsed = parse();
+  const parsed = parse(config);
   const columns = new Map(
     parsed.headers.map((header, index) => [header, index]),
   );

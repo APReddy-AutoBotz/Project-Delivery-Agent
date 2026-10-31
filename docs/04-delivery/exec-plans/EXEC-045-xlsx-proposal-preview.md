@@ -3,12 +3,31 @@
 Status: implementation in progress; not accepted. This extends the approved
 spreadsheet journey under FR-CON-006/007/008 and Issue #7. AC-CON-005's CSV
 alternative is already accepted; this work adds no criterion or story credit.
-The initial local base is PR #141 head `ce4b865eed43a1a40d994443775d24529160f624`;
-reconcile actual main and required gates before publication. Original19/20
+The local candidate will be reconciled to current main and independently
+reviewed before publication. Original19/20
 capture remains stopped, and OD-013/014 remain in force. Spreadsheet saves
 remain reviewed import proposals and do not publish canonical facts.
 
 ## Current increment
+
+An unwired synthetic interpreter accepts one explicitly declared visible sheet,
+whose exact name equals the mapping, with contiguous physical coordinates and
+literal text cells. It rejects omitted or unsupported declarations and applies
+the decoded-cell byte limit during traversal before invoking the grid mapper.
+This deliberately rejects multi-sheet inputs; it is a smaller experimental
+subset than the eventual selected-sheet requirement. Its declarations are
+caller assertions, not proof about a workbook's ZIP/XML parts, formulas, hidden
+content, encryption or external references. It neither accepts workbook files
+nor creates a receipt or persists anything. Bounds do not prevent a caller from
+allocating a large descriptor before the function is called, and arbitrary
+in-process Proxy traps are not isolated. A future adapter must prove descriptor
+fidelity and enforce independent input, memory, concurrency and deployment
+isolation limits. Formula-like literal handling is inherited from mapped text
+fields and is not a general spreadsheet-injection guarantee.
+The focused Node 24 CSV, grid and synthetic descriptor suites passed 70 tests,
+including the combined 1,001-row by 64-column declaration and exact decoded
+byte boundary. These local unit tests are not workbook or runtime-isolation
+evidence and do not accept an XLSX criterion.
 
 The deterministic CSV mapping and row comparison now share an internal routine
 with a separately validated, bounded string-grid entry point. CSV configuration,
