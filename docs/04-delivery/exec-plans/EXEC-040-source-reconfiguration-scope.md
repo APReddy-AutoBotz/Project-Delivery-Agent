@@ -81,6 +81,21 @@ separately reviewed lock-graph repair is required. Do not claim deadlock freedom
 
 ## Verification and review
 
+Initial stacked draft PR #138 Foundation run `41197188967` failed its verify
+job in the unit suite: the finite function-ACL test still expected eight revoke
+statements after the new guard added a ninth. The run reported 2,112 passing
+and one failing unit test and did not reach database integration or recovery.
+The corrected assertion includes the exact new private guard in the revoked
+signature inventory and keeps the explicit granted-function inventory unchanged.
+Full checks remain required; the earlier failure is retained here.
+The corrected six-test ACL unit file passed locally after its exact three
+historical migration fixtures were copied into the isolated test location; the
+first local attempt failed because those scratch fixtures were absent.
+That same hosted run's production-boundary job failed the operator disclosure
+check, classifying an aborted access-grant DELETE with a 204 response. The
+prerequisite PR #137 is preparing a separately reviewed capture correction; the
+source candidate cannot claim its packaged production checks passed.
+
 Use isolated synthetic data only. Test real application and runtime database
 role behavior for B-only takeover denial of an existing A-only non-Jira/CSV
 source, A-only denial when adding B, and successful explicitly authorized A+B
@@ -103,8 +118,11 @@ At this checkpoint the candidate's synthetic test coverage does not yet prove
 all of the verification above. In particular, the existing non-Jira denial
 snapshot has no live Jira job or sync grant and does not assert the generic
 denial audit. A separate synthetic Jira fixture now specifies those checks for
-a pending job and active grant; it has not yet run on PostgreSQL. Simultaneous first-create and replacement, malformed old-head
-integrity, token-role intersection, and denied-request content leakage remain
+a pending job and active grant; it has not yet run on PostgreSQL. A new
+repository case supplies a downgraded actor role despite both database grants,
+and the inverse case downgrades the replacement-scope database grant. Neither
+has run on PostgreSQL or exercises JWT authentication. Simultaneous first-create and replacement,
+malformed old-head integrity, and denied-request content leakage remain
 unverified for this change. The populated upgrade covers generic-source
 revisions and readers under synthetic role/ACL conditions; it does not establish
 production function-owner parity or retained Jira receipt/history recovery.

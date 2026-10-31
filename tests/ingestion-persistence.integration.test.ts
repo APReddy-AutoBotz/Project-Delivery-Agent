@@ -1058,6 +1058,26 @@ it.each(["CONNECTOR", "CSV"] as const)(
     await db.accessGrant.create({ data: {
       customerId, subject: adminA.subject, scopeType: "project", scopeId: projectB, role: "pmo_admin",
     } });
+    const downgraded: Actor = { ...adminA, roles: ["project_manager"] };
+    const tokenCorrelation = randomUUID(), databaseRoleCorrelation = randomUUID();
+    await expect(repository.configure(downgraded, replacement, tokenCorrelation))
+      .rejects.toMatchObject({ code: "DENIED" });
+    expect(await snapshot()).toEqual(before);
+    const tokenDenials = await db.auditEvent.findMany({ where: { customerId, correlationId: tokenCorrelation } });
+    expect(tokenDenials).toHaveLength(1);
+    expect(tokenDenials[0]).toMatchObject({ actor: adminA.subject, event: "ingestion.operation.denied" });
+    expect(tokenDenials[0]!.detail).toEqual({ operation: "configure", reason: "DENIED" });
+    await db.accessGrant.updateMany({ where: { customerId, subject: adminA.subject, scopeType: "project", scopeId: projectB },
+      data: { role: "project_manager" } });
+    await expect(repository.configure(adminA, replacement, databaseRoleCorrelation))
+      .rejects.toMatchObject({ code: "DENIED" });
+    expect(await snapshot()).toEqual(before);
+    const databaseRoleDenials = await db.auditEvent.findMany({ where: { customerId, correlationId: databaseRoleCorrelation } });
+    expect(databaseRoleDenials).toHaveLength(1);
+    expect(databaseRoleDenials[0]).toMatchObject({ actor: adminA.subject, event: "ingestion.operation.denied" });
+    expect(databaseRoleDenials[0]!.detail).toEqual({ operation: "configure", reason: "DENIED" });
+    await db.accessGrant.updateMany({ where: { customerId, subject: adminA.subject, scopeType: "project", scopeId: projectB },
+      data: { role: "pmo_admin" } });
     await expect(repository.configure(adminA, replacement, "scope-authorized-replacement"))
       .resolves.toMatchObject({ sourceId, configRevision: 2 });
   }, 120_000,
