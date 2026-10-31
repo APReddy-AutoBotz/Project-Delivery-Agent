@@ -216,15 +216,21 @@ function manager(config: AuthConfig) {
 }
 function App() {
   const pmPreviewInvalidate = React.useRef<(() => void) | null>(null);
+  const reassessmentInvalidate = React.useRef<(() => void) | null>(null), reassessmentScope = React.useRef(0);
+  const [, refreshReassessmentScope] = React.useReducer((value: number) => value + 1, 0);
+  const renderedReassessmentScope = reassessmentScope.current;
+  const invalidateReassessment = () => { reassessmentScope.current++; reassessmentInvalidate.current?.(); refreshReassessmentScope(); };
   const renderedSessionGeneration = sessionGeneration, renderedSessionToken = accessToken;
   const isCurrentPreviewSession = () => Boolean(renderedSessionToken && accessToken === renderedSessionToken &&
     sessionGeneration === renderedSessionGeneration);
-  const advanceSession = () => { sessionGeneration++; pmPreviewInvalidate.current?.(); };
+  const advanceSession = () => { sessionGeneration++; pmPreviewInvalidate.current?.(); invalidateReassessment(); };
   const [signedIn, setSignedIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [view, setView] = useState<"projects" | "platform" | "ingestion">("projects");
   const [selected, setSelected] = useState<string | null>(null);
+  const changeSelected = (value: string | null) => { invalidateReassessment(); setSelected(value); };
+  const changeView = (value: "projects" | "platform" | "ingestion") => { invalidateReassessment(); setView(value); };
   const [creating, setCreating] = useState(false);
   const [updateLocator, setUpdateLocator] = useState<string | null>(updateRequestLocation);
   const [linkedAssessment, setLinkedAssessment] = useState<string | null>(null);
@@ -238,12 +244,12 @@ function App() {
       advanceSession();
       idToken = undefined;
       setSignedIn(false);
-      setSelected(null);
+      changeSelected(null);
       setCreating(false);
       setLinkedAssessment(null);
       setLinkedRequest(null);
       setLinkedScalarRequest(null);
-      setView("projects");
+      changeView("projects");
       setError("Your session has ended. Please sign in again.");
       clearProtectedData();
     };
@@ -270,6 +276,18 @@ function App() {
     queryFn: () => request<Project>("/projects/" + selected),
     enabled: signedIn && !!selected,
   });
+  const renderedActor = me.data, renderedProject = selected;
+  const renderedActorUpdatedAt = client.getQueryState(["me"])?.dataUpdatedAt;
+  const renderedProjectUpdatedAt = client.getQueryState(["project", renderedProject])?.dataUpdatedAt;
+  const isCurrentReassessmentScope = () => {
+    const identity = client.getQueryState<Actor>(["me"]), projectState = client.getQueryState<Project>(["project", renderedProject]);
+    return isCurrentPreviewSession() && renderedReassessmentScope === reassessmentScope.current && !!renderedActor &&
+      !!renderedProject && identity?.fetchStatus === "idle" && identity.status === "success" &&
+      identity.dataUpdatedAt === renderedActorUpdatedAt && projectState?.dataUpdatedAt === renderedProjectUpdatedAt &&
+      identity.data?.customerId === renderedActor.customerId && identity.data.subject === renderedActor.subject &&
+      identity.data.roles.join(",") === renderedActor.roles.join(",") && identity.data.roles.includes("pmo_admin") &&
+      projectState?.fetchStatus === "idle" && projectState.status === "success" && projectState.data?.id === renderedProject;
+  };
   const admin = me.data?.roles.some((r) =>
     ["system_admin", "pmo_admin"].includes(r),
   );
@@ -296,7 +314,7 @@ function App() {
         setUpdateLocator(updateRequestLocation());
         const link = evidenceLocation();
         if (link) {
-          setSelected(link.projectId);
+          changeSelected(link.projectId);
           setLinkedAssessment(link.assessmentId);
           setLinkedRequest(link.requestId);
           setLinkedScalarRequest(link.scalarRequestId);
@@ -371,7 +389,7 @@ function App() {
               : "/",
           );
           if (linked) {
-            setSelected(state.projectId as string);
+            changeSelected(state.projectId as string);
             setLinkedAssessment(
               typeof state.assessmentId === "string"
                 ? state.assessmentId
@@ -403,12 +421,12 @@ function App() {
     accessToken = undefined;
     advanceSession();
     setSignedIn(false);
-    setSelected(null);
+    changeSelected(null);
     setCreating(false);
     setLinkedAssessment(null);
     setLinkedRequest(null);
     setLinkedScalarRequest(null);
-    setView("projects");
+    changeView("projects");
     clearProtectedData();
     if (auth.data?.mode === "oidc" && oidc) {
       try {
@@ -423,9 +441,9 @@ function App() {
   }
   function navigateProject(id: string | null = null) {
     setUpdateLocator(null);
-    setView("projects");
+    changeView("projects");
     setCreating(false);
-    setSelected(id);
+    changeSelected(id);
     setLinkedAssessment(null);
     setLinkedRequest(null);
     setLinkedScalarRequest(null);
@@ -562,7 +580,7 @@ function App() {
               className={view === "platform" ? "active" : ""}
               onClick={() => {
                 navigateProject();
-                setView("platform");
+                changeView("platform");
               }}
             >
               <span aria-hidden="true">⚙</span> Platform & access
@@ -573,7 +591,7 @@ function App() {
               className={view === "ingestion" ? "active" : ""}
               onClick={() => {
                 navigateProject();
-                setView("ingestion");
+                changeView("ingestion");
               }}
             >
               <span aria-hidden="true">⇧</span> Data imports
@@ -722,6 +740,8 @@ function App() {
                       key={`ingestion-reassessment:${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}:${project.data.id}`}
                       projectId={project.data.id}
                       request={previewRequest}
+                      invalidateRef={reassessmentInvalidate}
+                      isCurrentScope={isCurrentReassessmentScope}
                     />
                   )}
                   <MilestoneReconciliation
