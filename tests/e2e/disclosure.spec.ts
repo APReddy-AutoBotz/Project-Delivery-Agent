@@ -4,6 +4,8 @@ import { randomBytes } from "node:crypto";
 import {
   createDisclosureCheck,
   observeBrowserDisclosure,
+  afterDisclosureSettle,
+  formatCaptureDiagnostic,
 } from "../../scripts/acceptance/disclosure.mjs";
 
 test("SEC-SECRET-001: Chromium teardown waits for a late original response continuation", async ({
@@ -128,6 +130,190 @@ test("SEC-SECRET-001: Chromium teardown waits for a late original response conti
   }
 });
 
+test("SEC-SECRET-001: Chromium continuation failures remain closed and diagnostics stay bounded", async ({ browser }) => {
+  const canary = randomBytes(32).toString("base64url");
+  const tokenPath = "/identity/realms/pdaa/protocol/openid-connect/token";
+  const server = createServer((request, response) => {
+    if (request.url === "/") {
+      response.writeHead(200, { "Content-Type": "text/html" }); response.end("<h1>Fixture</h1>");
+    } else {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify(request.url === tokenPath
+        ? { access_token: randomBytes(32).toString("base64url"), id_token: randomBytes(32).toString("base64url") }
+        : { value: "public" }));
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Loopback fixture unavailable");
+  const base = "http://127.0.0.1:" + address.port;
+  const context = await browser.newContext();
+  const originalSession = context.newCDPSession.bind(context);
+  let failed!: () => void;
+  const failureRaised = new Promise<void>((resolve) => { failed = resolve; });
+  let queueId: string | undefined;
+  context.newCDPSession = async (target) => {
+    const session = await originalSession(target);
+    session.on("Fetch.requestPaused", (event) => { if (event.request.url === base + "/api/pm/action-queue") queueId = event.requestId; });
+    const originalSend = session.send.bind(session);
+    session.send = (async (method: string, params?: { requestId?: string }) => {
+      if (method === "Fetch.continueRequest" && queueId !== undefined && params?.requestId === queueId) {
+        failed(); throw new Error("Invalid InterceptionId " + canary + " " + base);
+      }
+      return originalSend(method as Parameters<typeof originalSend>[0], params);
+    }) as typeof session.send;
+    return session;
+  };
+  try {
+    const check = createDisclosureCheck([canary]);
+    const capture = await observeBrowserDisclosure(context, base, check);
+    const page = await capture.newPage();
+    await page.goto(base);
+    await page.evaluate(async (path) => { await fetch(path, { method: "POST" }); }, tokenPath);
+    await capture(page);
+    await page.evaluate(() => { void fetch("/api/pm/action-queue").catch(() => {}); });
+    await failureRaised;
+    await expect(capture(page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+    const diagnostic = formatCaptureDiagnostic(capture.diagnostic());
+    expect(JSON.parse(diagnostic).continuation).toEqual({ branch: "response", resource: "pm_queue", error: "invalid_interception", page: "open" });
+    expect(diagnostic).not.toContain(canary);
+    expect(diagnostic).not.toContain(base);
+    await expect(capture.close()).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  } finally {
+    await context.close();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("SEC-SECRET-001: Chromium close waits for a response held before headers", async ({ browser }) => {
+  const canary = randomBytes(32).toString("base64url");
+  const tokenPath = "/identity/realms/pdaa/protocol/openid-connect/token";
+  let held: import("node:http").ServerResponse | undefined;
+  let signal!: () => void;
+  const requested = new Promise<void>((resolve) => { signal = resolve; });
+  const server = createServer((request, response) => {
+    if (request.url === "/late") { held = response; signal(); return; }
+    if (request.url === tokenPath) {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ access_token: randomBytes(32).toString("base64url"), id_token: randomBytes(32).toString("base64url") }));
+    } else { response.writeHead(200, { "Content-Type": "text/html" }); response.end("<h1>Fixture</h1>"); }
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Loopback fixture unavailable");
+  const base = "http://127.0.0.1:" + address.port;
+  const context = await browser.newContext();
+  let closed = false; context.on("close", () => { closed = true; });
+  try {
+    const check = createDisclosureCheck([canary]);
+    const capture = await observeBrowserDisclosure(context, base, check);
+    const page = await capture.newPage();
+    await page.goto(base);
+    await page.evaluate(async (path) => { await fetch(path, { method: "POST" }); }, tokenPath);
+    await capture(page);
+    await page.evaluate(() => { void fetch("/late").catch(() => {}); });
+    await requested;
+    const closing = capture.close();
+    expect(await Promise.race([closing.then(() => "closed"), new Promise((resolve) => setTimeout(() => resolve("waiting"), 150))])).toBe("waiting");
+    expect(closed).toBe(false);
+    held!.writeHead(200, { "Content-Type": "application/json" });
+    held!.end(JSON.stringify({ value: canary }));
+    await closing;
+    expect(closed).toBe(true);
+    expect(() => check.verify(["browser-response-bodies"])).toThrow(/^Secret disclosure detected$/);
+  } finally {
+    held?.end(); await context.close(); server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("SEC-SECRET-001: project interaction waits for a pending original response before unmount", async ({ browser }) => {
+  const canary = randomBytes(32).toString("base64url");
+  const tokenPath = "/identity/realms/pdaa/protocol/openid-connect/token";
+  let injected = false;
+  let pendingResponse: import("node:http").ServerResponse | undefined;
+  let requestSeen!: () => void;
+  const server = createServer((request, response) => {
+    if (request.url === "/api/pm/action-queue") {
+      pendingResponse = response; requestSeen();
+    } else if (request.url === tokenPath) {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ access_token: randomBytes(32).toString("base64url"), id_token: randomBytes(32).toString("base64url") }));
+    } else {
+      response.writeHead(200, { "Content-Type": "text/html" });
+      response.end(`<button id="project">Open project</button><div id="view">List</div><script>
+        let controller;
+        window.startQueue = () => { controller = new AbortController(); fetch('/api/pm/action-queue', {signal: controller.signal}).catch(() => {}); };
+        document.querySelector('#project').onclick = () => { controller.abort(); document.querySelector('#view').textContent = 'Project'; };
+      </script>`);
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Loopback fixture unavailable");
+  const base = "http://127.0.0.1:" + address.port;
+  try {
+    for (const leak of [false, true]) {
+      injected = leak; pendingResponse = undefined;
+      const seen = new Promise<void>((resolve) => { requestSeen = resolve; });
+      const check = createDisclosureCheck([canary]);
+      const context = await browser.newContext();
+      const originalSession = context.newCDPSession.bind(context);
+      let queueId: string | undefined, queueBody: string | undefined, continued = false;
+      context.newCDPSession = async (target) => {
+        const session = await originalSession(target);
+        session.on("Fetch.requestPaused", (event) => { if (event.request.url === base + "/api/pm/action-queue") queueId = event.requestId; });
+        const originalSend = session.send.bind(session);
+        session.send = (async (method: string, params?: { requestId?: string }) => {
+          const result = await originalSend(method as Parameters<typeof originalSend>[0], params);
+          if (params?.requestId === queueId && method === "Fetch.getResponseBody") {
+            const body = result as { body: string; base64Encoded: boolean };
+            queueBody = Buffer.from(body.body, body.base64Encoded ? "base64" : "utf8").toString("utf8");
+          }
+          if (params?.requestId === queueId && method === "Fetch.continueRequest") continued = true;
+          return result;
+        }) as typeof session.send;
+        return session;
+      };
+      try {
+        const capture = await observeBrowserDisclosure(context, base, check);
+        const page = await capture.newPage();
+        await page.goto(base);
+        await page.evaluate(async (path) => { await fetch(path, { method: "POST" }); }, tokenPath);
+        await capture(page);
+        await page.evaluate(() => { (window as unknown as { startQueue: () => void }).startQueue(); });
+        await seen;
+        let settling!: () => void;
+        const started = new Promise<void>((resolve) => { settling = resolve; });
+        const target = { click: async () => {
+          expect(continued).toBe(true);
+          expect(JSON.parse(queueBody!).value).toBe(injected ? canary : "public");
+          await page.getByRole("button", { name: "Open project" }).click();
+        } };
+        const opening = afterDisclosureSettle({ settle: async (p: typeof page) => { settling(); await capture.settle(p); } }, page, () => target.click());
+        await started;
+        expect(await Promise.race([opening.then(() => "opened"), new Promise((resolve) => setTimeout(() => resolve("waiting"), 150))])).toBe("waiting");
+        expect(await page.locator("#view").textContent()).toBe("List");
+        pendingResponse!.writeHead(200, { "Content-Type": "application/json" });
+        pendingResponse!.end(JSON.stringify({ value: injected ? canary : "public" }));
+        await opening;
+        await expect(page.locator("#view")).toHaveText("Project");
+        await capture(page);
+        await capture.close();
+        if (injected) expect(() => check.verify(["browser-response-bodies"])).toThrow(/^Secret disclosure detected$/);
+        else expect(check.verify(["browser-response-bodies"])["browser-response-bodies"].captures).toBeGreaterThan(0);
+      } finally {
+        pendingResponse?.end();
+        await context.close();
+      }
+    }
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test("SEC-SECRET-001: Chromium captures original responses before immediate navigation", async ({
   browser,
 }) => {
@@ -138,6 +324,7 @@ test("SEC-SECRET-001: Chromium captures original responses before immediate navi
   };
   const tokenPath = "/identity/realms/pdaa/protocol/openid-connect/token";
   let leaked = false;
+  let leakedHeader = false;
   let metadataRequests = 0;
   const server = createServer((request, response) => {
     const path = request.url;
@@ -149,7 +336,7 @@ test("SEC-SECRET-001: Chromium captures original responses before immediate navi
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify({ value: leaked ? canary : "public" }));
     } else if (path === "/empty") {
-      response.writeHead(204, { "X-Public": "bodyless" });
+      response.writeHead(204, { "X-Public": "bodyless", ...(leakedHeader ? { "Set-Cookie": `proof=${canary}; Path=/` } : {}) });
       response.end();
     } else {
       response.writeHead(200, { "Content-Type": "text/html" });
@@ -170,12 +357,39 @@ test("SEC-SECRET-001: Chromium captures original responses before immediate navi
   if (!address || typeof address === "string")
     throw new Error("Loopback fixture unavailable");
   const base = "http://127.0.0.1:" + address.port;
+  let failedBodylessRequests = 0, fallbackHeaderReads = 0, fallbackSawCookie = false;
   try {
-    for (const inject of [false, true, false]) {
-      leaked = inject;
+    // Every independent iteration must pass; repeated header cases make the
+    // observed Chromium abort path less sensitive to event scheduling.
+    for (const inject of ["none", "body", "header", "header", "header", "none"]) {
+      leaked = inject === "body";
+      leakedHeader = inject === "header";
       const before = metadataRequests;
       const check = createDisclosureCheck([canary]);
       const context = await browser.newContext();
+      const originalNewPage = context.newPage.bind(context);
+      context.newPage = async () => {
+        const page = await originalNewPage();
+        page.on("request", (request) => {
+          if (request.url() !== base + "/empty") return;
+          const originalResponse = request.response.bind(request);
+          request.response = async () => {
+            const response = await originalResponse();
+            if (response) {
+              const originalHeaders = response.headersArray.bind(response);
+              response.headersArray = async () => {
+                const headers = await originalHeaders();
+                fallbackHeaderReads++;
+                if (headers.some((entry) => entry.name.toLowerCase() === "set-cookie" && entry.value.includes(canary))) fallbackSawCookie = true;
+                return headers;
+              };
+            }
+            return response;
+          };
+        });
+        page.on("requestfailed", (request) => { if (request.url() === base + "/empty") failedBodylessRequests++; });
+        return page;
+      };
       const capture = await observeBrowserDisclosure(context, base, check);
       try {
         const page = await capture.newPage();
@@ -186,8 +400,8 @@ test("SEC-SECRET-001: Chromium captures original responses before immediate navi
         await capture(page);
         await capture.close();
         expect(metadataRequests - before).toBe(1);
-        if (inject)
-          expect(() => check.verify(["browser-response-bodies"])).toThrow(
+        if (inject !== "none")
+          expect(() => check.verify([inject === "header" ? "browser-response-headers" : "browser-response-bodies"])).toThrow(
             /^Secret disclosure detected$/,
           );
         else {
@@ -207,6 +421,9 @@ test("SEC-SECRET-001: Chromium captures original responses before immediate navi
         await context.close();
       }
     }
+    expect(failedBodylessRequests).toBeGreaterThan(0);
+    expect(fallbackHeaderReads).toBeGreaterThan(0);
+    expect(fallbackSawCookie).toBe(true);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));

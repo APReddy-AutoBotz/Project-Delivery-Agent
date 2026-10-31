@@ -41,7 +41,7 @@ Foundation 41190388647 and Documentation 41190388646 passed. Actual post-merge
 Documentation 41192305020 passed; Foundation 41192305015's verify job failed
 before role inspection or migrations when the disposable role-bootstrap
 database's first query reported `Connection terminated unexpectedly`. Its
-production-boundary job was still running at this checkpoint. The failed log
+production-boundary job passed. The failed verify log
 does not establish the cause of the disconnection. The synthetic journey uses
 human-confirmed facts; it does not establish Jira or spreadsheet provenance or
 complete GOLDEN-003, and adds no acceptance credit.

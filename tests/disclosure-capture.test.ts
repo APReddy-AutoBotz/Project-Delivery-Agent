@@ -205,12 +205,179 @@ it("reports only fixed, saturated capture diagnostics and preserves the original
   expect(line).not.toContain(canary);
   expect(line).not.toContain(base);
   const value = JSON.parse(line.slice("SEC-AUTH-001 capture diagnostic ".length));
-  expect(value).toEqual({ phase: "unavailable", counters: { response: 0, headers: 0, body: 2, continuation: 0, console: 0, timeout: 0, targets: 0, unresolved: 0, unprepared: 0 }, tokenSeen: false });
+  expect(value).toEqual({ phase: "unavailable", counters: { response: 0, headers: 0, body: 2, continuation: 0, console: 0, timeout: 0, targets: 0, unresolved: 0, unprepared: 0, inflight: 0, requests: 0 }, tokenSeen: false,
+    continuation: { branch: "unknown", resource: "unknown", error: "unknown", page: "unknown" } });
   expect(() => reportIdentityCaptureDiagnostic("loaded-details-disclosure", {
     diagnostic: () => { throw new Error(canary); },
   }, () => { throw new Error(canary); })).not.toThrow();
+  reportIdentityCaptureDiagnostic("loaded-details-before-click-disclosure", { diagnostic: () => ({}) }, emit);
+  expect(emit).toHaveBeenCalledTimes(2);
   const hostile = { get phase() { throw new Error(canary); } };
   expect(formatCaptureDiagnostic(hostile)).not.toContain(canary);
+});
+
+it("waits for multiple observed requests, including one started while capture drains", async () => {
+  const f = await observer();
+  f.response(tokenPath, f.tokens);
+  const first = {}, second = {}, later = {};
+  f.page.emit("request", first); f.page.emit("request", second);
+  let settled = false;
+  const capture = f.capture(f.page).then(() => { settled = true; });
+  await Promise.resolve();
+  f.page.emit("requestfinished", second);
+  expect(settled).toBe(false);
+  let release!: () => void, started!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const entered = new Promise<void>((resolve) => { started = resolve; });
+  f.pause({ path: "/asset" }, async () => { started(); await held; return { body: "public", base64Encoded: false }; });
+  f.page.emit("requestfinished", first);
+  await entered;
+  f.page.emit("request", later);
+  f.pause({ path: "/late", error: "Failed", noResponse: true, networkId: "new-native" });
+  release();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(settled).toBe(false);
+  f.pause({ path: "/late", networkId: "new-native" });
+  f.page.emit("requestfinished", later);
+  await capture;
+  expect(settled).toBe(true);
+});
+
+it("fails closed for a tracked request failure without any CDP response", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const request = {};
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  expect(f.capture.diagnostic().counters.requests).toBe(1);
+});
+
+it("only accepts an exact failed 204 POST after independently recording its original headers", async () => {
+  for (const fault of ["none", "header-secret", "null", "other-request", "foreign", "status", "method", "failure", "worker", "url", "headers", "header-error", "continuation"]) {
+    const f = await observer(); f.response(tokenPath, f.tokens);
+    const request = {
+      url: () => fault === "foreign" ? "https://foreign.example.test/empty" : base + "/empty",
+      method: () => fault === "method" ? "GET" : "POST",
+      failure: () => ({ errorText: fault === "failure" ? "net::ERR_FAILED" : "net::ERR_ABORTED" }),
+      response: async () => fault === "null" ? null : response,
+    };
+    const response = {
+      request: () => fault === "other-request" ? { ...request } : request,
+      url: () => fault === "url" ? base + "/different" : request.url(), status: () => fault === "status" ? 200 : 204,
+      fromServiceWorker: () => fault === "worker",
+      headersArray: async () => {
+        if (fault === "header-error") throw new Error(f.canary);
+        return fault === "headers" ? [{ name: "invalid" }] : [{ name: "x-proof", value: fault === "header-secret" ? f.canary : "public" }];
+      },
+    };
+    f.page.emit("request", request);
+    if (fault === "continuation") f.pause({ path: "/empty", status: 204, method: "POST", continuationError: true });
+    f.page.emit("requestfailed", request);
+    if (fault === "none" || fault === "header-secret") {
+      await f.capture(f.page);
+      if (fault === "header-secret") expect(() => f.check.verify(["browser-response-headers"])).toThrow(/^Secret disclosure detected$/);
+      else expect(f.check.verify(["browser-response-headers"])["browser-response-headers"].captures).toBeGreaterThan(0);
+    } else await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  }
+});
+
+it("does not match two concurrent failed requests merely because their URLs agree", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const first = { url: () => base + "/empty", method: () => "POST", failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => response };
+  const second = { ...first };
+  const response = { request: () => first, url: () => first.url(), status: () => 204,
+    fromServiceWorker: () => false, headersArray: async () => [{ name: "x-proof", value: "public" }] };
+  f.page.emit("request", first); f.page.emit("request", second);
+  f.page.emit("requestfailed", first); f.page.emit("requestfailed", second);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+});
+
+it("times out closed if a failed 204 response's original headers cannot be read", async () => {
+  vi.useFakeTimers();
+  try {
+    const f = await observer(); f.response(tokenPath, f.tokens);
+    const request = { url: () => base + "/empty", method: () => "POST", failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => response };
+    const response = { request: () => request, url: () => request.url(), status: () => 204,
+      fromServiceWorker: () => false, headersArray: async () => new Promise(() => {}) };
+    f.page.emit("request", request); f.page.emit("requestfailed", request);
+    const failure = expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+    await vi.advanceTimersByTimeAsync(10001);
+    await failure;
+    expect(f.capture.diagnostic().counters.timeout).toBe(1);
+  } finally { vi.useRealTimers(); }
+});
+
+it("waits for a request started during DOM capture and retains its canary", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const request = {};
+  let started!: () => void;
+  const reached = new Promise<void>((resolve) => { started = resolve; });
+  f.page.content = async () => { f.page.emit("request", request); started(); return "<html>Public page</html>"; };
+  const done = f.capture(f.page);
+  await reached;
+  f.response("/late", { value: f.canary });
+  f.page.emit("requestfinished", request);
+  await done;
+  expect(() => f.check.verify(["browser-response-bodies"])).toThrow(/^Secret disclosure detected$/);
+});
+
+it("waits for a request already in flight before intentional close", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  await f.capture(f.page);
+  const request = {};
+  f.page.emit("request", request);
+  let closed = false;
+  f.context.on("closed", () => { closed = true; });
+  const done = f.capture.close();
+  await Promise.resolve();
+  expect(closed).toBe(false);
+  f.response("/late", { value: f.canary });
+  f.page.emit("requestfinished", request);
+  await done;
+  expect(closed).toBe(true);
+  expect(() => f.check.verify(["browser-response-bodies"])).toThrow(/^Secret disclosure detected$/);
+});
+
+it("does not let failed requests erase unresolved CDP response evidence", async () => {
+  const f = await observer();
+  f.response(tokenPath, f.tokens);
+  const request = {};
+  f.page.emit("request", request);
+  f.pause({ error: "Aborted", noResponse: true, networkId: "synthetic" });
+  f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  expect(f.capture.diagnostic().counters.unresolved).toBe(1);
+});
+
+it("fails closed on request tracking overflow and unexpected page closure", async () => {
+  for (const fault of ["overflow", "closed"]) {
+    const f = await observer(); f.response(tokenPath, f.tokens);
+    if (fault === "overflow") for (let i = 0; i < 1025; i++) f.page.emit("request", {});
+    else { f.page.emit("request", {}); f.page.emit("close"); }
+    await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+    const counters = f.capture.diagnostic().counters;
+    expect(fault === "overflow" ? counters.requests : counters.targets).toBe(1);
+  }
+});
+
+it("counts network-idle timeouts without leaking the underlying message", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  f.page.waitForLoadState = async () => { throw Object.assign(new Error(f.canary), { name: "TimeoutError" }); };
+  await expect(f.capture(f.page)).rejects.toThrow();
+  const diagnostic = formatCaptureDiagnostic(f.capture.diagnostic());
+  expect(JSON.parse(diagnostic)).toMatchObject({ phase: "networkidle", counters: { timeout: 1 } });
+  expect(diagnostic).not.toContain(f.canary);
+});
+
+it("fails closed when a tracked request never finishes", async () => {
+  vi.useFakeTimers();
+  try {
+    const f = await observer(); f.response(tokenPath, f.tokens);
+    f.page.emit("request", {});
+    const failure = expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+    await vi.advanceTimersByTimeAsync(10001);
+    await failure;
+    expect(f.capture.diagnostic()).toMatchObject({ phase: "inflight", counters: { timeout: 1, inflight: 1 } });
+  } finally { vi.useRealTimers(); }
 });
 
 it("keeps capture failures closed while distinguishing finite diagnostic phases", async () => {
@@ -236,11 +403,35 @@ it("keeps capture failures closed while distinguishing finite diagnostic phases"
     if (fault === "body") expect(diagnostic.counters.body).toBe(1);
     if (fault === "headers") expect(diagnostic.counters.headers).toBe(1);
     if (fault === "continuation") expect(diagnostic.counters.continuation).toBe(1);
+    if (fault === "continuation") expect(diagnostic.continuation).toEqual({ branch: "response", resource: "other", error: "other", page: "unknown" });
     if (fault === "console") expect(diagnostic.counters.console).toBe(1);
     if (fault === "unresolved") expect(diagnostic.counters.unresolved).toBe(1);
     if (fault === "unprepared") expect(diagnostic.counters.unprepared).toBe(1);
     if (fault === "target") expect(diagnostic.counters.targets).toBe(1);
   }
+});
+
+it("reports only fixed categories for full and provisional continuation failures", async () => {
+  for (const branch of ["response", "provisional"] as const) {
+    const f = await observer();
+    f.response(tokenPath, f.tokens);
+    f.pause({ path: "/api/pm/action-queue?token=" + f.canary, continuationError: true,
+      ...(branch === "provisional" ? { error: "Aborted", noResponse: true, networkId: "synthetic" } : {}) });
+    await expect(f.capture(f.page)).rejects.toThrow();
+    const diagnostic = JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic()));
+    expect(diagnostic.continuation).toEqual({ branch, resource: "pm_queue", error: "other", page: "unknown" });
+    expect(JSON.stringify(diagnostic)).not.toContain(f.canary);
+    expect(JSON.stringify(diagnostic)).not.toContain(base);
+  }
+  const canary = secret();
+  let reads = 0;
+  const diagnostic = formatCaptureDiagnostic({ continuation: {
+    get branch() { reads++; return reads === 1 ? "response" : canary; },
+    resource: canary, error: canary, page: canary,
+  } });
+  expect(reads).toBe(1);
+  expect(diagnostic).not.toContain(canary);
+  expect(JSON.parse(diagnostic).continuation).toEqual({ branch: "response", resource: "unknown", error: "unknown", page: "unknown" });
 });
 
 it("SEC-SECRET-001: browser collector detects nested console values, error stacks and token header leaks", async () => {

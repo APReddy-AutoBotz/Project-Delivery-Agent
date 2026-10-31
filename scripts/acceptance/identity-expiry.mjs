@@ -10,6 +10,7 @@ import {
   readFixtureSecrets,
   observeBrowserDisclosure,
   reportIdentityCaptureDiagnostic,
+  afterDisclosureSettle,
 } from "./disclosure.mjs";
 import {
   expiryWaitMs,
@@ -227,16 +228,20 @@ export async function checkIdentityExpiry(browser) {
       name: /Atlas · Customer platform/,
     });
     await card.waitFor();
-    stage = "loaded-details-listener";
-    const loaded = page.waitForResponse(
-      (response) =>
-        response.url() === base + "/api/projects/" + projectId &&
-        response.request().method() === "GET",
-    );
-    stage = "loaded-details-click";
-    await card.click();
-    stage = "loaded-details-response";
-    const detail = await loaded;
+    stage = "loaded-details-before-click-disclosure";
+    const detail = await afterDisclosureSettle(capture, page, async () => {
+      stage = "loaded-details-listener";
+      const loaded = page.waitForResponse(
+        (response) =>
+          response.url() === base + "/api/projects/" + projectId &&
+          response.request().method() === "GET",
+      );
+      void loaded.catch(() => {});
+      stage = "loaded-details-click";
+      await card.click();
+      stage = "loaded-details-response";
+      return loaded;
+    });
     assert.equal(detail.status(), 200);
     assert.equal(
       await detail.request().headerValue("authorization"),
