@@ -200,8 +200,10 @@ back and retain quarantine. Earlier generic restore failures cannot be assumed
 to share this cause. The single unchanged failed-job rerun (attempt 2, job
 `124637888803`) failed earlier in packaged acceptance at the SEC-AUTH-001
 identity-expiry `scalar-proof-disclosure` check and did not reach the restore.
-Its finite capture diagnostic reported one aborted request in the identity
-phase; its cause is unknown. This second failure neither reproduces nor resolves
+Its finite capture diagnostic reported one request in the phase labeled
+`identity`, with a best-effort post-failure accessor classifying it as aborted.
+That historical phase covered response identity and later eligibility checks;
+the request and cause are unknown. This second failure neither reproduces nor resolves
 the restore failure, and does not by itself establish a disclosure. No session
 guard was weakened.
 
