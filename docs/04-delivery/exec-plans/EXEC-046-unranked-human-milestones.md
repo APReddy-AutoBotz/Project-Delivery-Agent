@@ -102,6 +102,10 @@ oversized decoded objects. They do not demonstrate an HTTP route, response
 headers, wire-byte limits, browser expiry or live authorization. The existing
 equal-tier route is unchanged. Registration and presentation require the
 remaining native, API and browser proofs and independent review.
+An unused freshness helper and focused tests now calculate a conservative
+contributor-validity upper bound from request start using wall and monotonic
+clocks; invalid timestamps, observed regressions and expiry fail closed. This
+does not prove browser lifecycle behavior or current source access or policy.
 Further native and independent review is required; there is no HTTP route or
 user-facing view.
 An internal fact-prefix admission helper checks bounded metadata,
