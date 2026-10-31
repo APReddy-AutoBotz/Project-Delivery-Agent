@@ -109,3 +109,57 @@ export function matchesUnrankedFactPrefix(
   }
   return true;
 }
+
+type PolicyMetadata = {
+  id: string; customerId: string; projectId: string; policyId: string; factType: string;
+  revision: number; state: string; definitionBytes: number | null;
+};
+
+// Equal-tier policy admission only. The caller must first authorize and fence
+// writers, establish the actual aggregate/head, then later compare all loaded
+// identities, validate the native history and select the as-of event. SQL NULL
+// is kept distinct from JSON null. Byte limits do not bound SQL work.
+export async function preflightMilestonePolicyHistory(
+  tx: Tx, scope: { customerId: string; projectId: string; policyId: string; factType: string; revision: number },
+): Promise<PolicyMetadata[] | null> {
+  if (!Number.isInteger(scope.revision) || scope.revision < 1 || scope.revision > 1000) return null;
+  const policies = await tx.$queryRaw<PolicyMetadata[]>`
+    SELECT id,"customerId","projectId","policyId","factType",revision,state,
+      CASE WHEN definition IS NULL THEN NULL ELSE octet_length(definition::text)::int END AS "definitionBytes"
+    FROM public."AuthorityPolicyRevision" WHERE "policyId"=${scope.policyId}::uuid
+    ORDER BY revision,id LIMIT 1001`;
+  if (policies.length !== scope.revision) return null;
+  const ids = new Set<string>();
+  let bytes = 0;
+  for (const [index, policy] of policies.entries()) {
+    if (policy.customerId !== scope.customerId || policy.projectId !== scope.projectId ||
+        policy.policyId !== scope.policyId || policy.factType !== scope.factType || policy.revision !== index + 1 ||
+        typeof policy.id !== "string" || !policy.id || ids.has(policy.id)) return null;
+    if (policy.state === "DISABLED") {
+      if (policy.definitionBytes !== null) return null;
+    } else if (policy.state === "ENABLED") {
+      if (!Number.isSafeInteger(policy.definitionBytes) || policy.definitionBytes! <= 0) return null;
+      bytes += policy.definitionBytes!;
+      if (bytes > 4_194_304) return null;
+    } else return null;
+    ids.add(policy.id);
+  }
+  return policies;
+}
+
+// This identity comparison relies on the caller's immutable-row/writer fence;
+// it does not compare definition contents or determine the applicable event.
+export function matchesMilestonePolicyHistory(
+  expected: readonly PolicyMetadata[],
+  loaded: readonly Pick<PolicyMetadata, "id" | "customerId" | "projectId" | "policyId" | "factType" | "revision" | "state">[],
+): boolean {
+  if (expected.length === 0 || expected.length !== loaded.length) return false;
+  for (let index = 0; index < expected.length; index++) {
+    if (!Object.hasOwn(expected, index) || !Object.hasOwn(loaded, index)) return false;
+    const policy = expected[index], actual = loaded[index];
+    if (!policy || !actual || actual.id !== policy.id || actual.customerId !== policy.customerId ||
+        actual.projectId !== policy.projectId || actual.policyId !== policy.policyId || actual.factType !== policy.factType ||
+        actual.revision !== policy.revision || actual.state !== policy.state) return false;
+  }
+  return true;
+}

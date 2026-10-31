@@ -54,6 +54,13 @@ milestone flow, full authorization, conflict rejection or concurrent behavior.
 An unwired comparator checks that a later loaded prefix has the same ordered
 version, scope, revision, source and evidence identities; it does not compare
 fact contents or establish immutability, source access or a writer fence.
+An unwired policy-history preflight and comparator apply a per-history 4 MiB
+admission limit and distinguish SQL NULL from a non-null definition. Mocked
+tests and one read-only API-role PostgreSQL smoke via `pg` cover admission and
+native history validation for one synthetic policy. They do not establish Prisma
+transport, policy selection, authorization or concurrency behavior. Any
+multi-fact caller must also preserve the existing combined 1,000-revision and
+4 MiB limits across all policies, not just invoke the per-history limit.
 
 ## Remaining proof and integration
 

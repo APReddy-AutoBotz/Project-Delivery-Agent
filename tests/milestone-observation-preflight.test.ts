@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
-import { matchesUnrankedFactPrefix, preflightMilestoneCanonicalProject as preflight, preflightUnrankedFactPrefix } from "../packages/data/src/milestone-observation-preflight.js";
+import { matchesMilestonePolicyHistory, matchesUnrankedFactPrefix, preflightMilestoneCanonicalProject as preflight, preflightMilestonePolicyHistory,
+  preflightUnrankedFactPrefix } from "../packages/data/src/milestone-observation-preflight.js";
 
 const customer = "10000000-0000-4000-8000-000000000002";
 const project = "10000000-0000-4000-8000-000000000003";
@@ -33,6 +34,50 @@ describe("canonical milestone preflight metadata", () => {
   it("propagates database failure to the authorized caller's error boundary", async () => {
     const failed = { $queryRaw: async () => { throw new Error("database failed"); } } as unknown as Prisma.TransactionClient;
     await expect(preflight(failed, customer, project)).rejects.toThrow("database failed");
+  });
+});
+
+describe("milestone policy history metadata admission", () => {
+  const scope = { customerId: customer, projectId: project, policyId: "policy-id", factType: "project.status", revision: 2 };
+  const revision = (number: number) => ({ id: `policy-revision-${number}`, customerId: customer,
+    projectId: project, policyId: scope.policyId, factType: scope.factType, revision: number,
+    state: "ENABLED", definitionBytes: 25 as number | null });
+  it("admits complete enabled and disabled history without selecting an event", async () => {
+    const rows = [revision(1), { ...revision(2), state: "DISABLED", definitionBytes: null }];
+    expect(await preflightMilestonePolicyHistory(tx(rows), scope)).toEqual(rows);
+  });
+  it("rejects gaps, duplicates, scope drift and inconsistent state/SQL-null combinations", async () => {
+    const first = revision(1), second = revision(2);
+    const cases = [[first], [first, revision(3)], [first, { ...second, id: first.id }],
+      [first, { ...second, customerId: "other" }], [first, { ...second, projectId: "other" }],
+      [first, { ...second, policyId: "other" }], [first, { ...second, factType: "other" }],
+      [first, { ...second, state: "UNKNOWN" }], [first, { ...second, state: "DISABLED" }],
+      [first, { ...second, definitionBytes: null }], [first, { ...second, definitionBytes: 0 }],
+      [first, { ...second, definitionBytes: Number.NaN }]];
+    for (const rows of cases) expect(await preflightMilestonePolicyHistory(tx(rows), scope)).toBeNull();
+  });
+  it("enforces history and aggregate byte limits using synthetic metadata", async () => {
+    expect(await preflightMilestonePolicyHistory(tx([]), { ...scope, revision: 0 })).toBeNull();
+    expect(await preflightMilestonePolicyHistory(tx([]), { ...scope, revision: 1001 })).toBeNull();
+    const rows = [revision(1), { ...revision(2), definitionBytes: 4_194_279 }];
+    expect(await preflightMilestonePolicyHistory(tx(rows), scope)).toEqual(rows);
+    rows[1]!.definitionBytes!++;
+    expect(await preflightMilestonePolicyHistory(tx(rows), scope)).toBeNull();
+    const thousand = Array.from({ length: 1000 }, (_, i) => ({ ...revision(i + 1), state: "DISABLED", definitionBytes: null }));
+    expect((await preflightMilestonePolicyHistory(tx(thousand), { ...scope, revision: 1000 }))?.length).toBe(1000);
+    expect(await preflightMilestonePolicyHistory(tx([...thousand, revision(1001)]), { ...scope, revision: 1000 })).toBeNull();
+  });
+  it("compares the complete ordered policy identity and state after loading", () => {
+    const expected = [revision(1), revision(2)];
+    expect(matchesMilestonePolicyHistory(expected, expected.map((item) => ({ ...item })))).toBe(true);
+    expect(matchesMilestonePolicyHistory(expected, [expected[0]!])).toBe(false);
+    expect(matchesMilestonePolicyHistory(expected, [...expected, revision(3)])).toBe(false);
+    expect(matchesMilestonePolicyHistory(expected, [expected[1]!, expected[0]!])).toBe(false);
+    for (const change of [{ id: "other" }, { customerId: "other" }, { projectId: "other" },
+      { policyId: "other" }, { factType: "other" }, { revision: 3 }, { state: "DISABLED" }])
+      expect(matchesMilestonePolicyHistory(expected, [expected[0]!, { ...expected[1]!, ...change }])).toBe(false);
+    expect(matchesMilestonePolicyHistory(new Array(1), [expected[0]!])).toBe(false);
+    expect(matchesMilestonePolicyHistory([expected[0]!], new Array(1))).toBe(false);
   });
 });
 
