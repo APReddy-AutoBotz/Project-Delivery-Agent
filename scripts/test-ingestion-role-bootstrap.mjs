@@ -4,7 +4,11 @@ import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createRequire } from "node:module";
 import { verifyIngestionRoleBootstrap } from "./acceptance/ingestion-role-bootstrap.mjs";
+import { probeRoleBootstrapEndpoint, runRoleBootstrapWhenReady, runWithOwnedCleanup } from "./acceptance/role-bootstrap-readiness.mjs";
+
+const { Client } = createRequire(new URL("../packages/data/package.json", import.meta.url))("pg");
 
 assert.equal(process.env.DATA_MODE, "synthetic");
 assert.notEqual(process.env.NODE_ENV, "production");
@@ -45,26 +49,21 @@ function ownedContainer() {
   assert.match(bindings[0].HostPort, /^\d+$/);
   return bindings[0];
 }
-let proof;
-try {
+const proof = await runWithOwnedCleanup(async () => {
   id = docker(["run", "--rm", "-d", "--name", name, "--label", "pdaa.purpose=" + purpose,
     "--network", "bridge", "--env-file", envFile, "-p", "127.0.0.1::5432",
     "--tmpfs", "/var/lib/postgresql/data:rw,noexec,nosuid", image]);
   const binding = ownedContainer();
-  let ready = false;
-  for (let tick = 0; tick < 60; tick++) {
-    const result = spawnSync("docker", ["--host", endpoint, "exec", id, "pg_isready", "-U", "pdaa", "-d", "postgres"],
-      { cwd: root, encoding: "utf8", timeout: 5_000 });
-    if (result.status === 0) { ready = true; break; }
-    await new Promise((done) => setTimeout(done, 500));
-  }
-  assert.equal(ready, true, "Fresh isolated PostgreSQL readiness deadline");
   const url = new URL("postgresql://127.0.0.1/postgres");
   url.username = "pdaa"; url.password = password; url.port = binding.HostPort;
-  proof = await verifyIngestionRoleBootstrap(url.toString());
-} finally {
+  return runRoleBootstrapWhenReady(
+    (budget) => probeRoleBootstrapEndpoint(Client, url.toString(), budget), async () => {
+    assert.deepEqual(ownedContainer(), binding);
+    return verifyIngestionRoleBootstrap(url.toString());
+  });
+}, () => {
   if (id) { ownedContainer(); docker(["stop", "--time", "10", id]); }
-}
+}, () => console.error("Isolated role bootstrap cleanup failed; the original failure is retained."));
 const checks = { ...proof };
 delete checks.retainedDatabases;
 mkdirSync(resolve(root, "artifacts"), { recursive: true });
@@ -72,4 +71,4 @@ writeFileSync(resolve(root, "artifacts", "ingestion-role-bootstrap.json"), JSON.
   status: "passed", checkedAt: new Date().toISOString(), image,
   ...checks, isolatedClusterDisposed: true,
 }, null, 2) + "\n");
-console.log("Role-absent and partial-role clean/repeat migrations passed: 25 migrations, exact 85 tables, finite ACLs; owned cluster disposed.");
+console.log("Role-absent and partial-role clean/repeat migrations passed: 26 migrations, exact 85 tables, finite ACLs; owned cluster disposed.");

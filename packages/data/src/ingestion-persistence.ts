@@ -275,7 +275,9 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     action: "read" | "write" | "configure",
   ) {
     const projectIds = [...new Set(projectsInput)].sort(exactCompare);
-    if (!projectIds.length || projectIds.length > 100)
+    // Configuration changes must check every historic grant as well as both
+    // configuration scopes. History cannot be truncated to fit a fixed union.
+    if (!projectIds.length || (action !== "configure" && projectIds.length > 100))
       throw new IngestionPersistenceError("DENIED");
     const projects = action === "read"
       ? await tx.$queryRaw<{ id: string; portfolioId: string }[]>`
@@ -303,16 +305,13 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         : action === "write"
           ? ["project_manager", "portfolio_manager", "pmo_admin"]
           : ["pmo_admin"];
-    for (const project of projects) {
-      const hasGrant = grants.some(
-        (grant) =>
-          allowed.includes(grant.role) &&
-          currentRoleMatches(actor, grant.role) &&
-          ((grant.scopeType === "project" && grant.scopeId === project.id) ||
-            (grant.scopeType === "portfolio" && grant.scopeId === project.portfolioId)),
-      );
-      if (!hasGrant) throw new IngestionPersistenceError("DENIED");
-    }
+    const eligible = grants.filter((grant) =>
+      allowed.includes(grant.role) && currentRoleMatches(actor, grant.role));
+    const allowedProjects = new Set(eligible.filter((grant) => grant.scopeType === "project").map((grant) => grant.scopeId));
+    const allowedPortfolios = new Set(eligible.filter((grant) => grant.scopeType === "portfolio").map((grant) => grant.scopeId));
+    for (const project of projects)
+      if (!allowedProjects.has(project.id) && !allowedPortfolios.has(project.portfolioId))
+        throw new IngestionPersistenceError("DENIED");
     return { projectIds, projects, grants };
   }
 
@@ -1201,8 +1200,24 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
           FROM public."IngestionSource" WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid FOR UPDATE`;
         let source = found[0];
-        if (source && (source.sourceType !== configuration.binding.sourceType || source.origin !== configuration.binding.origin))
-          throw new IngestionPersistenceError("CONFLICT");
+        let previousConfiguration: { mapping: unknown; revision: number; mappingRevision: number } | undefined;
+        let previousProjectIds: string[] = [];
+        if (source) {
+          if (source.currentConfigRevision === null)
+            throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+          const previous = await tx.$queryRaw<{ mapping: unknown; revision: number; mappingRevision: number }[]>`
+            SELECT mapping,revision,"mappingRevision" FROM public."IngestionConfigurationRevision"
+            WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${configuration.binding.sourceId}::uuid AND revision=${source.currentConfigRevision} AND sealed`;
+          previousConfiguration = previous[0];
+          if (!previousConfiguration) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+          const previousProjects = await tx.$queryRaw<{ projectId: string }[]>`
+            SELECT "projectId" FROM public."IngestionConfigurationProject"
+            WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${configuration.binding.sourceId}::uuid AND "configRevision"=${source.currentConfigRevision}
+            ORDER BY "projectId"`;
+          previousProjectIds = previousProjects.map((project) => project.projectId);
+          if (!previousProjectIds.length || previousProjectIds.length > 100)
+            throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        }
         const previousSyncGrants = source
           ? await tx.$queryRaw<{ id: string; projectId: string; configRevision: number; revision: number; active: boolean }[]>`
               SELECT id,"projectId","configRevision",revision,active FROM public."ConnectorSyncGrant"
@@ -1211,22 +1226,20 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           : [];
         const projectIds = [...new Set([
           ...configuration.projects.map((project) => project.projectId),
+          ...previousProjectIds,
           ...previousSyncGrants.map((grant) => grant.projectId),
         ])].sort(exactCompare);
         await this.authorizedProjects(tx, actor, projectIds, "configure");
+        if (source && (source.sourceType !== configuration.binding.sourceType || source.origin !== configuration.binding.origin))
+          throw new IngestionPersistenceError("CONFLICT");
         let configRevision = 1;
         let mappingRevision = 1;
         if (source) {
-          if (source.currentConfigRevision !== null) {
-            const previous = await tx.$queryRaw<{ mapping: unknown; revision: number; mappingRevision: number }[]>`
-              SELECT mapping,revision,"mappingRevision" FROM public."IngestionConfigurationRevision"
-              WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${configuration.binding.sourceId}::uuid AND revision=${source.currentConfigRevision} AND sealed`;
-            if (!previous[0]) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
-            const priorMapping = canonical(requireJsonObject(previous[0].mapping));
-            mappingRevision = previous[0].mappingRevision;
-            configRevision = previous[0].revision + 1;
-            if (priorMapping !== canonical(configuration.mapping)) mappingRevision++;
-          }
+          if (!previousConfiguration) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+          const priorMapping = canonical(requireJsonObject(previousConfiguration.mapping));
+          mappingRevision = previousConfiguration.mappingRevision;
+          configRevision = previousConfiguration.revision + 1;
+          if (priorMapping !== canonical(configuration.mapping)) mappingRevision++;
         } else {
           await tx.$executeRaw`
             INSERT INTO public."IngestionSource" (id,"customerId","sourceType",origin)

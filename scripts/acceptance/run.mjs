@@ -12,11 +12,13 @@ import {
 import { createDatabase } from "../../packages/data/dist/index.js";
 import { Pool, config, secret, migrate, guard } from "./common.mjs";
 import { checkIdentityExpiry } from "./identity-expiry.mjs";
+import { verifyIsolatedTlsRejection } from "./isolated-tls-probe.mjs";
 import { expiryCheckName } from "./expiry-evidence.mjs";
 import {
   createDisclosureCheck,
   readFixtureSecrets,
   observeBrowserDisclosure,
+  reportIdentityCaptureDiagnostic,
   scanBrowserAssets,
 } from "./disclosure.mjs";
 guard();
@@ -350,19 +352,7 @@ try {
         () => identity.authenticate(tokenResponse.access_token),
         "JWKS hostname mismatch must deny identity",
       );
-      const invalidTlsPage = await capture.newPage();
-      try {
-        const failure = await rejected(
-          () => invalidTlsPage.goto("https://gateway-alias:8443"),
-          "Browser must reject ingress hostname mismatch",
-        );
-        assert(
-          String(failure).includes("ERR_CERT_COMMON_NAME_INVALID"),
-          "Ingress denial must be a certificate hostname failure",
-        );
-      } finally {
-        await invalidTlsPage.close();
-      }
+      await verifyIsolatedTlsRejection(browser, "https://gateway-alias:8443", "ERR_CERT_COMMON_NAME_INVALID");
       await page.goto(
         base + "/auth/callback?code=synthetic-invalid&state=unrecognized",
       );
@@ -411,7 +401,12 @@ try {
         .waitFor();
     },
   );
-  await captureOperator(op);
+  try {
+    await captureOperator(op);
+  } catch (error) {
+    reportIdentityCaptureDiagnostic("operator-disclosure", captureOperator);
+    throw error;
+  }
   await captureOperator.close();
   await check(expiryCheckName, async () => {
     identityExpiry = await checkIdentityExpiry(browser);

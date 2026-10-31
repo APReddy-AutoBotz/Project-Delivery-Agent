@@ -22,14 +22,39 @@ export const readFixtureSecrets = (directory) =>
 
 // Fixed, saturated counters only: never serialize errors, response data or IDs.
 const captureDiagnosticPhases = new Set([
-  "unavailable", "settle_health", "networkidle", "drain_before_dom",
+  "unavailable", "settle_health", "networkidle", "inflight", "drain_before_dom",
   "settle_complete", "dom", "storage", "drain_after_dom", "completeness",
   "token_seen", "complete",
 ]);
 const captureDiagnosticCounters = [
   "response", "headers", "body", "continuation", "console", "timeout",
-  "targets", "unresolved", "unprepared",
+  "targets", "unresolved", "unprepared", "inflight", "requests",
 ];
+const continuationDiagnosticAllowed = {
+  branch: new Set(["provisional", "response"]),
+  resource: new Set(["pm_queue", "project", "identity", "other"]),
+  error: new Set(["invalid_interception", "target_closed", "other"]),
+  page: new Set(["closed", "open"]),
+};
+const requestDiagnosticAllowed = {
+  resource: new Set(["access_grants", "other"]),
+  method: new Set(["POST", "DELETE", "other"]),
+  failure: new Set(["aborted", "other"]),
+  response: new Set(["none", "204", "other"]),
+  phase: new Set(["response", "identity", "origin", "headers"]),
+};
+const safeRequestDiagnostic = (value) => Object.fromEntries(
+  Object.entries(requestDiagnosticAllowed).map(([key, allowed]) => {
+    const candidate = value?.[key];
+    return [key, allowed.has(candidate) ? candidate : "unknown"];
+  }),
+);
+const safeContinuationDiagnostic = (value) => Object.fromEntries(
+  Object.entries(continuationDiagnosticAllowed).map(([key, allowed]) => {
+    const candidate = value?.[key];
+    return [key, allowed.has(candidate) ? candidate : "unknown"];
+  }),
+);
 const bucketCaptureCount = (value) =>
   typeof value === "number" && Number.isFinite(value) && value > 0
     ? value >= 2 ? 2 : 1
@@ -42,18 +67,27 @@ export function formatCaptureDiagnostic(value) {
       phase,
       counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, bucketCaptureCount(value?.counters?.[key])])),
       tokenSeen: value?.tokenSeen === true,
+      continuation: safeContinuationDiagnostic(value?.continuation),
+      request: safeRequestDiagnostic(value?.request),
     });
   } catch {
-    return JSON.stringify({ phase: "unavailable", counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, 0])), tokenSeen: false });
+    return JSON.stringify({ phase: "unavailable", counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, 0])), tokenSeen: false, continuation: safeContinuationDiagnostic(undefined), request: safeRequestDiagnostic(undefined) });
   }
 }
 export function reportIdentityCaptureDiagnostic(stage, capture, emit = console.error) {
-  if (stage !== "loaded-details-disclosure") return;
+  if (!["loaded-details-disclosure", "loaded-details-before-click-disclosure", "operator-disclosure", "scalar-proof-disclosure"].includes(stage)) return;
   let result;
   try { result = formatCaptureDiagnostic(capture?.diagnostic?.()); }
   catch { result = formatCaptureDiagnostic(undefined); }
-  try { emit("SEC-AUTH-001 capture diagnostic " + result); }
+  try { emit((stage === "operator-disclosure" ? "SEC-SECRET-001 operator capture diagnostic " : "SEC-AUTH-001 capture diagnostic ") + result); }
   catch { /* Diagnostics must not replace the original failure. */ }
+}
+
+// An explicit verifier interaction must not abandon responses still being
+// captured from the current view. This does not change product requests.
+export async function afterDisclosureSettle(capture, page, action) {
+  await capture.settle(page);
+  return action();
 }
 
 // SEC-SECRET-001 / EXEC-015: the late-created capture task key is mounted only
@@ -152,15 +186,26 @@ export async function observeBrowserDisclosure(
     console: 0,
     timeout: 0,
     targets: 0,
+    requests: 0,
   };
   const observedPages = new Set();
   const preparedPages = new Set();
+  const requestTrackers = new Map();
+  const requestWaiters = new Set();
+  let closing = false;
+  const notifyRequests = () => {
+    for (const wake of requestWaiters) wake();
+    requestWaiters.clear();
+  };
+  const inflightCount = () => [...requestTrackers.values()].reduce((count, tracker) => count + tracker.size, 0);
   context.on("page", (page) => observedPages.add(page));
   context.on("serviceworker", () => {
     failed.targets++;
   });
   let tokenResponses = 0;
   let diagnosticPhase = "unavailable";
+  let continuationDiagnostic;
+  let requestDiagnostic;
   const origins = [...new Set([origin, identityOrigin])];
   const tokenUrl =
     identityOrigin + "/identity/realms/pdaa/protocol/openid-connect/token";
@@ -185,7 +230,7 @@ export async function observeBrowserDisclosure(
     assertHealthy();
     if (unresolved.size) throw incomplete();
   };
-  const drain = async () => {
+  const drain = async (timeoutMs = 10000) => {
     let timer;
     try {
       await Promise.race([
@@ -200,12 +245,35 @@ export async function observeBrowserDisclosure(
           timer = setTimeout(() => {
             failed.timeout++;
             reject(incomplete());
-          }, 10000);
+          }, timeoutMs);
         }),
       ]);
     } finally {
       clearTimeout(timer);
     }
+  };
+  const settleRequests = async (deadline, drainPhase) => {
+    do {
+      diagnosticPhase = "inflight";
+      while (inflightCount()) {
+        assertHealthy();
+        const remaining = deadline - performance.now();
+        if (remaining <= 0) { failed.timeout++; throw incomplete(); }
+        let wake, timer;
+        try {
+          await Promise.race([
+            new Promise((resolve) => { wake = resolve; requestWaiters.add(wake); }),
+            new Promise((_, reject) => { timer = setTimeout(() => { failed.timeout++; reject(incomplete()); }, remaining); }),
+          ]);
+        } finally { requestWaiters.delete(wake); clearTimeout(timer); }
+      }
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) { failed.timeout++; throw incomplete(); }
+      diagnosticPhase = drainPhase;
+      await drain(remaining);
+      assertHealthy();
+    } while (inflightCount());
+    assertComplete();
   };
   const capture = async (page) => {
     await capture.settle(page);
@@ -224,8 +292,7 @@ export async function observeBrowserDisclosure(
         })),
       ),
     );
-    diagnosticPhase = "drain_after_dom";
-    await drain();
+    await settleRequests(performance.now() + 10000, "drain_after_dom");
     diagnosticPhase = "completeness";
     assertComplete();
     diagnosticPhase = "token_seen";
@@ -240,18 +307,22 @@ export async function observeBrowserDisclosure(
       continuation: failed.continuation, console: failed.console, timeout: failed.timeout,
       targets: failed.targets, unresolved: unresolved.size,
       unprepared: [...observedPages].filter((page) => !preparedPages.has(page)).length,
+      inflight: inflightCount(), requests: failed.requests,
     },
     tokenSeen: tokenResponses > 0,
+    continuation: continuationDiagnostic,
+    request: requestDiagnostic,
   });
   // Explicit test interactions must not navigate away while unrelated assets
   // are still loading; the recorder fails if their capture is cancelled.
   capture.settle = async (page) => {
     diagnosticPhase = "settle_health";
     assertHealthy();
+    const deadline = performance.now() + 10000;
     diagnosticPhase = "networkidle";
-    await page.waitForLoadState("networkidle");
-    diagnosticPhase = "drain_before_dom";
-    await drain();
+    try { await page.waitForLoadState("networkidle", { timeout: 10000 }); }
+    catch (error) { if (error?.name === "TimeoutError") failed.timeout++; throw error; }
+    await settleRequests(deadline, "drain_before_dom");
     diagnosticPhase = "settle_complete";
     assertComplete();
   };
@@ -263,6 +334,62 @@ export async function observeBrowserDisclosure(
     const page = await context.newPage();
     const session = await context.newCDPSession(page);
     const provisional = new Map();
+    const requests = new Set();
+    requestTrackers.set(page, requests);
+    page.on("request", (request) => {
+      if (inflightCount() >= 1024) { failed.requests++; notifyRequests(); return; }
+      requests.add(request); notifyRequests();
+    });
+    const finished = (request) => { requests.delete(request); notifyRequests(); };
+    page.on("requestfinished", finished);
+    page.on("requestfailed", (request) => {
+      if (requests.has(request)) collect("requests", (async () => {
+        const diagnostic = { phase: "response" };
+        let response;
+        try {
+        // Chromium can report a completed bodyless request as aborted. Only
+        // POST or the observed access-grant DELETE, with the exact request's
+        // same-origin 204 response, can qualify;
+        // record its original headers for the same secret scan. Every other
+        // failed request remains fatal, as do all independent CDP failures.
+        response = await request.response();
+        diagnostic.phase = "identity";
+        if (!response || response.request() !== request) throw new Error("Failed request capture incomplete");
+        const method = request.method();
+        const requestUrl = request.url();
+        const parsedUrl = new URL(requestUrl);
+        if (!(method === "POST" || (method === "DELETE" && parsedUrl.pathname === "/api/access-grants")) || response.status() !== 204 ||
+            request.failure()?.errorText !== "net::ERR_ABORTED" || response.fromServiceWorker() !== false)
+          throw new Error("Failed request capture incomplete");
+        diagnostic.phase = "origin";
+        if (response.url() !== requestUrl || !origins.includes(parsedUrl.origin))
+          throw new Error("Failed request capture incomplete");
+        diagnostic.phase = "headers";
+        const headers = await response.headersArray();
+        if (!Array.isArray(headers) || headers.some((item) => typeof item?.name !== "string" || typeof item?.value !== "string"))
+          throw new Error("Failed request headers unavailable");
+        disclosure.add("browser-response-headers", JSON.stringify(headers));
+        disclosure.add("browser-bodyless-responses", JSON.stringify({ method, status: 204 }));
+        } catch (error) {
+          // Only inspect accessors after the capture decision has already failed;
+          // diagnostic getters cannot turn a success into a failure or vice versa.
+          try {
+            const url = new URL(request.url());
+            diagnostic.resource = origins.includes(url.origin) && url.pathname === "/api/access-grants" ? "access_grants" : "other";
+          } catch { /* unavailable */ }
+          try { const method = request.method(); diagnostic.method = ["POST", "DELETE"].includes(method) ? method : "other"; } catch { /* unavailable */ }
+          try { diagnostic.failure = request.failure()?.errorText === "net::ERR_ABORTED" ? "aborted" : "other"; } catch { /* unavailable */ }
+          try { diagnostic.response = response === null ? "none" : response ? response.status() === 204 ? "204" : "other" : undefined; } catch { /* unavailable */ }
+          if (!requestDiagnostic) requestDiagnostic = diagnostic;
+          throw error;
+        }
+      })());
+      finished(request);
+    });
+    page.on("close", () => {
+      if (!closing || requests.size) failed.targets++;
+      requests.clear(); requestTrackers.delete(page); notifyRequests();
+    });
     page.on("worker", () => {
       failed.targets++;
     });
@@ -292,10 +419,14 @@ export async function observeBrowserDisclosure(
         "response",
         (async () => {
           let phase = "headers";
+          let branch = "response", resource = "other";
           try {
             const url = new URL(event.request.url);
             if (!origins.includes(url.origin))
               throw new Error("Unexpected disclosure response origin");
+            if (url.pathname === "/api/pm/action-queue") resource = "pm_queue";
+            else if (/^\/api\/projects(?:\/|$)/.test(url.pathname)) resource = "project";
+            else if (url.pathname.startsWith("/identity/")) resource = "identity";
             const status = event.responseStatusCode;
             const method = event.request.method;
             const headers = event.responseHeaders;
@@ -318,6 +449,7 @@ export async function observeBrowserDisclosure(
               typeof method === "string" &&
               method.length > 0
             ) {
+              branch = "provisional";
               if (!provisional.has(identity)) {
                 const record = {};
                 provisional.set(identity, record);
@@ -394,7 +526,16 @@ export async function observeBrowserDisclosure(
             });
             unresolved.delete(provisional.get(identity));
             provisional.delete(identity);
-          } catch {
+          } catch (error) {
+            if (phase === "continuation" && !continuationDiagnostic) {
+              try {
+                const message = typeof error?.message === "string" ? error.message : "";
+                const category = /Invalid InterceptionId/i.test(message) ? "invalid_interception"
+                  : /Target (?:page|closed)|Session closed/i.test(message) ? "target_closed" : "other";
+                const closed = typeof page.isClosed === "function" ? (page.isClosed() ? "closed" : "open") : "unknown";
+                continuationDiagnostic = safeContinuationDiagnostic({ branch, resource, error: category, page: closed });
+              } catch { continuationDiagnostic = safeContinuationDiagnostic(undefined); }
+            }
             failed[phase]++;
             await session
               .send("Fetch.failRequest", {
@@ -402,6 +543,8 @@ export async function observeBrowserDisclosure(
                 errorReason: "Aborted",
               })
               .catch(() => {});
+            // Do not attach raw protocol errors, which may contain credentials.
+            // eslint-disable-next-line preserve-caught-error
             throw new Error("Disclosure response capture failed");
           }
         })(),
@@ -425,9 +568,10 @@ export async function observeBrowserDisclosure(
     // Finish already queued original-body reads and continuation acknowledgements
     // before destroying their CDP target. Cleanup still runs if capture failed.
     try {
-      await drain();
+      await settleRequests(performance.now() + 10000, "drain_after_dom");
       assertComplete();
     } finally {
+      closing = true;
       await context.close();
     }
     await drain();

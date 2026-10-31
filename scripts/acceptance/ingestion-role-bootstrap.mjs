@@ -10,7 +10,8 @@ const roles = ["pdaa_api", "pdaa_worker", "pdaa_backup", "pdaa_migrate"];
 const functions = ['valid_ingestion_reassessment_row(public."IngestionProjectReassessment")',
   "valid_ingestion_project_reassessment(uuid)", "guard_ingestion_project_reassessment()",
   "require_ingestion_reassessment_complete()", "lock_ingestion_reassessment_preview()",
-  "reject_ingestion_reassessment_history()", "valid_ingestion_mapping(jsonb)"];
+  "reject_ingestion_reassessment_history()", "valid_ingestion_mapping(jsonb)",
+  "guard_ingestion_reconfiguration_scope()"];
 const apiFunctions = new Set([functions[0], functions[1], functions[6]]);
 const controls = new Set(["state", "attemptCount", "totalAttempts", "recoveryRevision", "availableAt", "lastReason",
   "claimedGeneration", "assessmentId", "obligationId", "previewId", "completedAt", "auditEventId"]);
@@ -18,6 +19,7 @@ async function currentRoles(pool) {
   return (await pool.query("SELECT rolname FROM pg_roles WHERE rolname=ANY($1) ORDER BY rolname", [roles])).rows.map((row) => row.rolname);
 }
 async function privateBoundary(pool, presentRoles) {
+  assert.equal((await pool.query("SELECT to_regprocedure('public.guard_ingestion_reconfiguration_scope()') IS NOT NULL AS present")).rows[0].present, true);
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM pg_proc p
     WHERE p.oid=ANY(SELECT to_regprocedure(name) FROM unnest($1::text[]) AS entries(name))
       AND (p.prosecdef OR EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
@@ -50,7 +52,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
   const url = new URL(sourceUrl);
   assert(["127.0.0.1", "localhost"].includes(url.hostname)); assert.equal(url.pathname, "/postgres");
   const creator = new Pool({ connectionString: url.toString() });
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 25);
+  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 26);
   try {
     assert.deepEqual((await creator.query("SELECT datname FROM pg_database ORDER BY datname")).rows.map((row) => row.datname), ["postgres", "template0", "template1"]);
     assert.deepEqual(await currentRoles(creator), []);
@@ -88,6 +90,10 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
           LOOP EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname); END LOOP;
         END $owners$`);
         for (const name of functions) await pool.query("ALTER FUNCTION public." + name + " OWNER TO pdaa_migrate");
+        // Simulate the default function EXECUTE grant introduced by --no-acl
+        // restore, plus explicit role grants, before reconstructing the ACL.
+        await pool.query("GRANT EXECUTE ON FUNCTION public.guard_ingestion_reconfiguration_scope() TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
+        assert.equal((await pool.query("SELECT has_function_privilege('pdaa_worker','public.guard_ingestion_reconfiguration_scope()','EXECUTE') AS allowed")).rows[0].allowed, true);
         await applyBusinessTableGrants(pool);
         await verifyReassessmentPrivileges(pool);
         await privateBoundary(pool, roles.slice(0, 3));
@@ -95,7 +101,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
       } finally { await pool.end(); }
     }
     return { rolesAbsentBeforeAnyBootstrap: true, rolelessDatabase: first, partialRoleDatabase: second,
-      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 25, businessTables: 85,
+      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 26, businessTables: 85,
       publicPrivilegesDenied: true, finiteAclAfterLaterBootstrap: true, retainedDatabases: true };
   } finally { await creator.end(); }
 }

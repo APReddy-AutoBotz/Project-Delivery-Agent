@@ -10,6 +10,7 @@ import {
   readFixtureSecrets,
   observeBrowserDisclosure,
   reportIdentityCaptureDiagnostic,
+  afterDisclosureSettle,
 } from "./disclosure.mjs";
 import {
   expiryWaitMs,
@@ -227,16 +228,20 @@ export async function checkIdentityExpiry(browser) {
       name: /Atlas · Customer platform/,
     });
     await card.waitFor();
-    stage = "loaded-details-listener";
-    const loaded = page.waitForResponse(
-      (response) =>
-        response.url() === base + "/api/projects/" + projectId &&
-        response.request().method() === "GET",
-    );
-    stage = "loaded-details-click";
-    await card.click();
-    stage = "loaded-details-response";
-    const detail = await loaded;
+    stage = "loaded-details-before-click-disclosure";
+    const detail = await afterDisclosureSettle(capture, page, async () => {
+      stage = "loaded-details-listener";
+      const loaded = page.waitForResponse(
+        (response) =>
+          response.url() === base + "/api/projects/" + projectId &&
+          response.request().method() === "GET",
+      );
+      void loaded.catch(() => {});
+      stage = "loaded-details-click";
+      await card.click();
+      stage = "loaded-details-response";
+      return loaded;
+    });
     assert.equal(detail.status(), 200);
     assert.equal(
       await detail.request().headerValue("authorization"),
@@ -262,13 +267,14 @@ export async function checkIdentityExpiry(browser) {
     await page.getByRole("button", { name: "← All projects" }).click();
     stage = "loaded-details-return-card";
     await card.waitFor();
-    stage = "loaded-scalar-proof";
+    stage = "scalar-project-listener";
     const projectOpened = page.waitForResponse(
       (response) =>
         response.url() === base + prefix &&
         response.request().method() === "GET",
     );
     void projectOpened.catch(() => {});
+    stage = "scalar-project-click";
     await page
       .getByRole("button")
       .filter({
@@ -278,35 +284,47 @@ export async function checkIdentityExpiry(browser) {
         }),
       })
       .click();
+    stage = "scalar-project-response";
     assert.equal((await projectOpened).status(), 200);
+    stage = "scalar-proof-listener";
     const proofOpened = page.waitForResponse(
       (response) =>
         response.url() === base + scalarPath &&
         response.request().method() === "GET",
     );
     void proofOpened.catch(() => {});
+    stage = "scalar-proof-click";
     await page
       .getByRole("button", { name: "Open scalar proof", exact: true })
       .click();
+    stage = "scalar-proof-response";
     const proofResponse = await proofOpened;
+    stage = "scalar-proof-authorization";
     assert.equal(
       await proofResponse.request().headerValue("authorization"),
       authorization,
     );
+    stage = "scalar-proof-body";
     const original = await observe(
       scalarPath,
       proofResponse.status(),
       Buffer.from(await proofResponse.body()),
     );
+    stage = "scalar-proof-status";
     assert.equal(original.status, 200);
+    stage = "scalar-proof-equality";
     assert.deepEqual(original.body.assessment, created.assessment);
     const proofView = page.getByRole("region", {
       name: "PM scalar reconciliation request",
       exact: true,
     });
+    stage = "scalar-proof-first-date";
     await expect(proofView).toContainText("2026-10-01");
+    stage = "scalar-proof-second-date";
     await expect(proofView).toContainText("2026-10-02");
+    stage = "scalar-proof-assessed-at";
     await expect(proofView).toContainText(created.assessment.asOf);
+    stage = "scalar-proof-disclosure";
     await capture(page);
     // This manager has business read scope but never had grant authority.
     // Identical valid payloads move from authorization 403 to authentication 401.

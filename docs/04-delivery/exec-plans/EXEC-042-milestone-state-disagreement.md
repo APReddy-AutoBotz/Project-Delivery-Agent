@@ -99,3 +99,15 @@ their presence does not close either race or establish global deadlock freedom.
 Another local native-test draft distinguishes absent policy from an equal-tier
 tie and an expired alternative from a later current revision. It is not yet
 PostgreSQL execution evidence.
+
+The production-boundary job `124544243399` of Foundation run `41203642586`
+failed at the broad identity-expiry `loaded-scalar-proof` stage. That stage
+includes navigation, response and authorization assertions, proof comparison,
+rendered checks and disclosure capture; the log does not identify which failed
+or establish a cause. A local diagnostic change separates those operations into
+fixed stage names and uses the existing saturated, non-payload capture counters
+only for the disclosure substage. Assertions and fail-closed capture remain in
+place. The diagnostic still requires independent review and hosted validation.
+After integration with PR #137's expanded recorder, the 32-test disclosure
+capture suite and changed acceptance-script lint passed locally; the earlier
+broad failure remains unexplained.
