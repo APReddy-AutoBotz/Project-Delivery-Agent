@@ -48,3 +48,30 @@ and independently review bounded API serialization and as-of UI behavior,
 including cancellation, stale responses, session changes and contributor expiry.
 Exact-candidate review, hosted checks, merge and actual post-merge verification
 remain required. No current statement changes any acceptance total.
+
+Before adding the read, independently review a shared, transaction-owned
+preparation seam with the existing equal-tier observation. Preserve its prior
+authorization, error and resolver semantics for inputs within the reviewed
+limits; any newly rejected over-budget history is an explicit availability
+change. Run preflight only after the existing project and token-compatible grant
+gate; preserve DENIED until the selected milestone is established visible, so an
+oversized hidden project cannot become an existence oracle. Test both authorized
+and unauthorized oversized inputs. Preflight before canonical-project and state-binding validators,
+prefix or policy materialization, and other relevant detail reads. The state-binding validator scans
+the fact's versions, and the existing prefix loader materializes values, so
+check bounded version counts, continuity and aggregate value bytes before
+either operation; bound conflict rows before invoking conflict validators. A
+truly absent policy with stored authority-conflict history must fail closed.
+For the existing equal-tier path, bound the complete policy revision count and
+aggregate definition bytes before the prefix loader or authority-history
+validator, including future and disabled revisions; do not validate only the
+selected event. Cover admitted boundaries and the intended over-limit response
+without weakening existing conflict or no-winner semantics.
+Also account for the canonical-project validator, its child collections and
+programme validation: preflight actual bounded scope and retain database
+statement and lock timeouts. A bounded result alone does not bound database
+scan, sort, I/O or a large value before byte accounting. These limits control
+this path's requested work, not arbitrary SQL execution or
+privileged trigger-bypassing maintenance. Validate the complete stored
+version/evidence/source graph and a current reader for every historical source,
+not merely each contributor shown in the output.
