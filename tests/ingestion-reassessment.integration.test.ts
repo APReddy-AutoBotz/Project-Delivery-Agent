@@ -141,6 +141,41 @@ async function fixture(options: { current?: boolean; service?: string; enabled?:
     providerRevision: () => { sequence++; updated = new Date(Date.now() - 60_000 + sequence).toISOString(); } };
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
+it("preserves a live Jira job and grants on denied source reconfiguration", async () => {
+  const f = await fixture();
+  const delivery = await f.webhook();
+  const webhook = await db.connectorWebhookReceipt.findFirstOrThrow({ where: { sourceId: f.sourceId,
+    eventId: delivery.headers["x-atlassian-webhook-identifier"] } });
+  expect(await db.connectorSyncJob.findUniqueOrThrow({ where: { id: webhook.jobId } })).toMatchObject({ state: "READY" });
+  expect(await db.connectorSyncGrant.findFirstOrThrow({ where: { sourceId: f.sourceId, projectId: f.projectId } })).toMatchObject({ active: true });
+  const portfolioId = randomUUID(), projectId = randomUUID();
+  const admin: Actor = { customerId: f.customerId, subject: "replacement-pmo-" + randomUUID(), roles: ["pmo_admin"] };
+  await db.portfolio.create({ data: { id: portfolioId, customerId: f.customerId, name: "Replacement scope" } });
+  await db.project.create({ data: { id: projectId, customerId: f.customerId, portfolioId, code: "REPLACE-" + projectId,
+    name: "Replacement scope", description: "Synthetic denial fixture", reportedStatus: "UNKNOWN" } });
+  await db.accessGrant.create({ data: { customerId: f.customerId, subject: admin.subject, scopeType: "project", scopeId: projectId, role: "pmo_admin" } });
+  const snapshot = async () => ({
+    source: await db.ingestionSource.findUniqueOrThrow({ where: { id: f.sourceId } }),
+    configurations: await db.ingestionConfigurationRevision.findMany({ where: { sourceId: f.sourceId }, orderBy: { revision: "asc" } }),
+    projects: await db.ingestionConfigurationProject.findMany({ where: { sourceId: f.sourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }] }),
+    readers: await db.ingestionConfigurationReader.findMany({ where: { sourceId: f.sourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }, { subject: "asc" }] }),
+    grants: await db.connectorSyncGrant.findMany({ where: { sourceId: f.sourceId }, orderBy: { id: "asc" } }),
+    jobs: await db.connectorSyncJob.findMany({ where: { sourceId: f.sourceId }, orderBy: { id: "asc" } }),
+    webhooks: await db.connectorWebhookReceipt.findMany({ where: { sourceId: f.sourceId }, orderBy: { id: "asc" } }),
+    receipts: await db.ingestionOperationReceipt.findMany({ where: { sourceId: f.sourceId }, orderBy: { id: "asc" } }),
+  });
+  const before = await snapshot(), correlationId = randomUUID();
+  const replacement = { ...f.configuration, projects: [{ projectId, readers: [admin.subject] }],
+    mapping: { ...f.configuration.mapping, adapterConfiguration: JSON.stringify({
+      projects: [{ projectId, projectKey: "SAFE" }], fields: [{ jiraField: "status", factType: "jira.status", valueType: "text" }],
+    }) } };
+  await expect(f.ingestion.configure(admin, replacement as never, correlationId)).rejects.toMatchObject({ code: "DENIED" });
+  expect(await snapshot()).toEqual(before);
+  const audit = await db.auditEvent.findMany({ where: { customerId: f.customerId, correlationId } });
+  expect(audit).toHaveLength(1);
+  expect(audit[0]).toMatchObject({ actor: admin.subject, event: "ingestion.operation.denied", detail: { operation: "configure", reason: "DENIED" } });
+  expect(audit[0]!.detail).toEqual({ operation: "configure", reason: "DENIED" });
+}, 120_000);
 type CoordinatorAccess = {
   claim(tx: ReassessmentTx): Promise<Claim | null>;
   complete(tx: ReassessmentTx, claim: Claim): Promise<void>;
@@ -205,7 +240,7 @@ function transactionFault(match: (sql: string) => boolean) {
   } };
 }
 
-function transactionGate(match: (sql: string) => boolean) {
+function transactionGate(match: (sql: string) => boolean, timeoutMs?: number) {
   let resume!: () => void, signal!: (pid: number) => void, used = false;
   const reached = new Promise<number>((resolve) => { signal = resolve; });
   const waiting = new Promise<void>((resolve) => { resume = resolve; });
@@ -223,7 +258,7 @@ function transactionGate(match: (sql: string) => boolean) {
           return Reflect.apply(value, target, args);
         };
       return typeof value === "function" ? value.bind(target) : value;
-    } })), options as never) };
+    } })), (timeoutMs === undefined ? options : { ...(options as object), timeout: timeoutMs }) as never) };
   return { database, reached, resume };
 }
 
@@ -236,6 +271,28 @@ async function waitForBlockedBy(pid: number) {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error("Expected a real PostgreSQL lock waiter");
+}
+
+async function waitForSpecificBlocker(blockerPid: number, waiterPid: number) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const [row] = await db.$queryRaw<{ blocked: boolean }[]>`
+      SELECT ${blockerPid}::int=ANY(pg_blocking_pids(${waiterPid}::int)) AS blocked`;
+    if (row!.blocked) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("Expected the named PostgreSQL lock waiter");
+}
+
+async function awaitBarrier<T>(signal: Promise<T>, operation: Promise<unknown>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      signal,
+      operation.then(() => { throw new Error("Operation settled before the expected lock barrier"); }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Lock barrier deadline")), 10000); }),
+    ]);
+  } finally { if (timer) clearTimeout(timer); }
 }
 
 function databaseMessage(error: unknown): string {
@@ -948,6 +1005,222 @@ it("retains configuration seal, scope, mapping and PMO denials under the actual 
   await expect(asApi((tx) => tx.ingestionConfigurationRevision.create({ data: { ...original, revision: 2, sealed: true } }))).rejects.toThrow();
   expect(await db.ingestionSource.findUnique({ where: { id: f.sourceId } })).toEqual(head);
 });
+
+it("checks old and new source scope at both seal and activation under the API role", async () => {
+  const f = await fixture();
+  const { portfolioId } = await db.project.findUniqueOrThrow({ where: { id: f.projectId } });
+  const sourceId = randomUUID(), otherPortfolio = randomUUID(), otherProject = randomUUID();
+  const replacementAdmin = "replacement-pmo-" + randomUUID();
+  await db.portfolio.create({ data: { id: otherPortfolio, customerId: f.customerId, name: "Replacement scope" } });
+  await db.project.create({ data: { id: otherProject, customerId: f.customerId, portfolioId: otherPortfolio,
+    code: "REPLACEMENT-" + otherProject, name: "Replacement scope", description: "Synthetic scope", reportedStatus: "UNKNOWN" } });
+  await db.accessGrant.createMany({ data: [
+    { customerId: f.customerId, subject: replacementAdmin, scopeType: "project", scopeId: otherProject, role: "pmo_admin" },
+    { customerId: f.customerId, subject: f.admin.subject, scopeType: "project", scopeId: otherProject, role: "pmo_admin" },
+  ] });
+  const configuration = { binding: { customerId: f.customerId, sourceId, sourceType: "test.tracker", origin: "https://tracker.example" },
+    projects: [{ projectId: f.projectId, readers: [f.admin.subject] }], mapping: { kind: "CONNECTOR", factTypes: ["project.forecast"] } };
+  await f.ingestion.configure(f.admin, configuration as never, randomUUID());
+  const original = await db.ingestionConfigurationRevision.findFirstOrThrow({ where: { sourceId, revision: 1 } });
+  const head = await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } });
+  const attemptedAudits: string[] = [];
+  const update = (subject: string, removeOldGrant: boolean, stages: string[]) => asApi(async (tx) => {
+    const at = new Date(), auditId = randomUUID();
+    attemptedAudits.push(auditId);
+    await tx.auditEvent.create({ data: { id: auditId, customerId: f.customerId, actor: subject,
+      event: "ingestion.configuration.changed", correlationId: randomUUID(), occurredAt: at,
+      detail: { sourceId, configRevision: 2, mappingRevision: 1 } } });
+    await tx.ingestionConfigurationRevision.create({ data: { customerId: f.customerId, sourceId, revision: 2,
+      mappingRevision: 1, mapping: original.mapping as never, changedBy: subject, auditEventId: auditId, createdAt: at, sealed: false } });
+    await tx.ingestionConfigurationProject.create({ data: { customerId: f.customerId, sourceId, configRevision: 2, projectId: otherProject } });
+    stages.push("sealing");
+    await tx.ingestionConfigurationRevision.update({ where: { customerId_sourceId_revision: {
+      customerId: f.customerId, sourceId, revision: 2 } }, data: { sealed: true } });
+    stages.push("sealed");
+    if (removeOldGrant) await tx.accessGrant.deleteMany({ where: { customerId: f.customerId, subject,
+      scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin" } });
+    stages.push("activating");
+    await tx.ingestionSource.update({ where: { id: sourceId }, data: { currentConfigRevision: 2, mappingRevision: 1,
+      cursorEnvelope: null, cursorState: "RESET_REQUIRED" } });
+  });
+  const sealStages: string[] = [], activationStages: string[] = [];
+  const sealError = await update(replacementAdmin, false, sealStages).then(() => null, (error: unknown) => error);
+  expect(sealError).not.toBeNull();
+  expect(databaseMessage(sealError)).toMatch(/requires current PMO project grants/);
+  expect(sealStages).toEqual(["sealing"]);
+  const activationError = await update(f.admin.subject, true, activationStages).then(() => null, (error: unknown) => error);
+  expect(activationError).not.toBeNull();
+  expect(databaseMessage(activationError)).toMatch(/requires current PMO project grants/);
+  expect(activationStages).toEqual(["sealing", "sealed", "activating"]);
+  expect(await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } })).toEqual(head);
+  expect(await db.ingestionConfigurationRevision.count({ where: { sourceId } })).toBe(1);
+  expect(await db.ingestionConfigurationProject.count({ where: { sourceId, configRevision: 2 } })).toBe(0);
+  expect(await db.auditEvent.count({ where: { id: { in: attemptedAudits } } })).toBe(0);
+  expect(await db.accessGrant.count({ where: { customerId: f.customerId, subject: f.admin.subject,
+    scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin" } })).toBe(1);
+  await expect(update(f.admin.subject, false, [])).resolves.toBeUndefined();
+  expect(await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } })).toMatchObject({ currentConfigRevision: 2 });
+});
+
+it.each(["configure-first", "revoke-first"] as const)(
+  "serializes source reconfiguration with external PMO revocation: %s",
+  async (ordering) => {
+    const f = await fixture();
+    const { portfolioId } = await db.project.findUniqueOrThrow({ where: { id: f.projectId } });
+    const replacementPortfolio = randomUUID(), replacementProject = randomUUID(), sourceId = randomUUID();
+    await db.portfolio.create({ data: { id: replacementPortfolio, customerId: f.customerId, name: "Race replacement scope" } });
+    await db.project.create({ data: { id: replacementProject, customerId: f.customerId, portfolioId: replacementPortfolio,
+      code: "RACE-" + replacementProject, name: "Race replacement scope", description: "Synthetic grant race", reportedStatus: "UNKNOWN" } });
+    await db.accessGrant.create({ data: { customerId: f.customerId, subject: f.admin.subject,
+      scopeType: "project", scopeId: replacementProject, role: "pmo_admin" } });
+    const initial = { binding: { customerId: f.customerId, sourceId, sourceType: "test.tracker", origin: "https://tracker.example" },
+      projects: [{ projectId: f.projectId, readers: [f.admin.subject] }], mapping: { kind: "CONNECTOR", factTypes: ["project.forecast"] } };
+    await f.ingestion.configure(f.admin, initial as never, randomUUID());
+    const replacement = { ...initial, projects: [{ projectId: replacementProject, readers: [f.admin.subject] }] };
+    const grant = await db.accessGrant.findFirstOrThrow({ where: { customerId: f.customerId,
+      subject: f.admin.subject, scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin" } });
+    if (ordering === "configure-first") {
+      const gate = transactionGate((sql) => sql.includes('INSERT INTO public."IngestionConfigurationRevision"'), 25000);
+      Reflect.set(f.ingestion, "db", gate.database);
+      const configuration = f.ingestion.configure(f.admin, replacement as never, randomUUID())
+        .then((value) => ({ value, error: null }), (error: unknown) => ({ value: null, error }));
+      let revoke: Promise<{ error: unknown }> | undefined;
+      try {
+        const holderPid = await awaitBarrier(gate.reached, configuration);
+        let signal!: (pid: number) => void;
+        const reached = new Promise<number>((resolve) => { signal = resolve; });
+        revoke = transact(async (tx) => {
+          signal((await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`)[0]!.pid);
+          await tx.accessGrant.delete({ where: { id: grant.id } });
+        }).then(() => ({ error: null }), (error: unknown) => ({ error }));
+        const waiterPid = await awaitBarrier(reached, revoke);
+        await waitForSpecificBlocker(holderPid, waiterPid);
+      } finally {
+        gate.resume(); Reflect.set(f.ingestion, "db", db);
+        await Promise.all([configuration, revoke]);
+      }
+      expect((await configuration).value).toMatchObject({ configRevision: 2 });
+      expect((await revoke!).error).toBeNull();
+      expect((await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } })).currentConfigRevision).toBe(2);
+      expect(await db.ingestionConfigurationProject.findMany({ where: { sourceId, configRevision: 2 } }))
+        .toMatchObject([{ projectId: replacementProject }]);
+    } else {
+      let release!: () => void, signal!: (pid: number) => void;
+      const reached = new Promise<number>((resolve) => { signal = resolve; });
+      const wait = new Promise<void>((resolve) => { release = resolve; });
+      const revoke = transact(async (tx) => {
+        await tx.accessGrant.delete({ where: { id: grant.id } });
+        signal((await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`)[0]!.pid);
+        await wait;
+      }).then(() => ({ error: null }), (error: unknown) => ({ error }));
+      const gate = transactionGate((sql) => sql.includes('FROM public."AccessGrant"') && sql.includes("FOR SHARE"), 25000);
+      let configuration: Promise<{ value: unknown; error: unknown }> | undefined;
+      try {
+        const holderPid = await awaitBarrier(reached, revoke);
+        Reflect.set(f.ingestion, "db", gate.database);
+        configuration = f.ingestion.configure(f.admin, replacement as never, randomUUID())
+          .then((value) => ({ value, error: null }), (error: unknown) => ({ value: null, error }));
+        const waiterPid = await awaitBarrier(gate.reached, configuration);
+        gate.resume();
+        await waitForSpecificBlocker(holderPid, waiterPid);
+      } finally {
+        gate.resume(); release(); Reflect.set(f.ingestion, "db", db);
+        await Promise.all([revoke, configuration]);
+      }
+      expect((await revoke).error).toBeNull();
+      const outcome = await configuration!;
+      expect(outcome.error).toMatchObject({ code: "DENIED" });
+      expect((await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } })).currentConfigRevision).toBe(1);
+      expect(await db.ingestionConfigurationRevision.count({ where: { sourceId } })).toBe(1);
+      expect(await db.ingestionConfigurationProject.findMany({ where: { sourceId, configRevision: 1 } }))
+        .toMatchObject([{ projectId: f.projectId }]);
+    }
+  }, 60_000,
+);
+
+it.each(["seal-first", "revoke-first"] as const)(
+  "serializes direct API-role configuration sealing with old-scope revocation: %s",
+  async (ordering) => {
+    const f = await fixture();
+    const { portfolioId } = await db.project.findUniqueOrThrow({ where: { id: f.projectId } });
+    const replacementPortfolio = randomUUID(), replacementProject = randomUUID(), sourceId = randomUUID();
+    await db.portfolio.create({ data: { id: replacementPortfolio, customerId: f.customerId, name: "Native race replacement" } });
+    await db.project.create({ data: { id: replacementProject, customerId: f.customerId, portfolioId: replacementPortfolio,
+      code: "NATIVE-RACE-" + replacementProject, name: "Native race replacement", description: "Synthetic role race", reportedStatus: "UNKNOWN" } });
+    await db.accessGrant.create({ data: { customerId: f.customerId, subject: f.admin.subject,
+      scopeType: "project", scopeId: replacementProject, role: "pmo_admin" } });
+    const initial = { binding: { customerId: f.customerId, sourceId, sourceType: "test.tracker", origin: "https://tracker.example" },
+      projects: [{ projectId: f.projectId, readers: [f.admin.subject] }], mapping: { kind: "CONNECTOR", factTypes: ["project.forecast"] } };
+    await f.ingestion.configure(f.admin, initial as never, randomUUID());
+    const previous = await db.ingestionConfigurationRevision.findFirstOrThrow({ where: { sourceId, revision: 1 } });
+    const oldGrant = await db.accessGrant.findFirstOrThrow({ where: { customerId: f.customerId, subject: f.admin.subject,
+      scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin" } });
+    const auditId = randomUUID();
+    let signalApi!: (pid: number) => void, signalRevoke!: (pid: number) => void, releaseApi!: () => void, releaseRevoke!: () => void;
+    const apiReached = new Promise<number>((resolve) => { signalApi = resolve; });
+    const revokeReached = new Promise<number>((resolve) => { signalRevoke = resolve; });
+    const apiWait = new Promise<void>((resolve) => { releaseApi = resolve; });
+    const revokeWait = new Promise<void>((resolve) => { releaseRevoke = resolve; });
+    const runApi = () => asApi(async (tx) => {
+      const [principal] = await tx.$queryRaw<{ role: string; superuser: boolean; member: boolean }[]>`
+        SELECT current_user AS role,(SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser,
+          pg_has_role(current_user,'pdaa_migrate','MEMBER') AS member`;
+      expect(principal).toEqual({ role: "pdaa_api", superuser: false, member: false });
+      const at = new Date();
+      await tx.auditEvent.create({ data: { id: auditId, customerId: f.customerId, actor: f.admin.subject,
+        event: "ingestion.configuration.changed", correlationId: randomUUID(), occurredAt: at,
+        detail: { sourceId, configRevision: 2, mappingRevision: 1 } } });
+      await tx.ingestionConfigurationRevision.create({ data: { customerId: f.customerId, sourceId, revision: 2,
+        mappingRevision: 1, mapping: previous.mapping as never, changedBy: f.admin.subject, auditEventId: auditId, createdAt: at, sealed: false } });
+      await tx.ingestionConfigurationProject.create({ data: { customerId: f.customerId, sourceId, configRevision: 2, projectId: replacementProject } });
+      const pid = (await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`)[0]!.pid;
+      if (ordering === "revoke-first") signalApi(pid);
+      await tx.ingestionConfigurationRevision.update({ where: { customerId_sourceId_revision: {
+        customerId: f.customerId, sourceId, revision: 2 } }, data: { sealed: true } });
+      if (ordering === "seal-first") { signalApi(pid); await apiWait; }
+      await tx.ingestionSource.update({ where: { id: sourceId }, data: { currentConfigRevision: 2, mappingRevision: 1,
+        cursorEnvelope: null, cursorState: "RESET_REQUIRED" } });
+    }).then(() => ({ error: null }), (error: unknown) => ({ error }));
+    const runRevoke = () => transact(async (tx) => {
+      const pid = (await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`)[0]!.pid;
+      if (ordering === "seal-first") signalRevoke(pid);
+      await tx.accessGrant.delete({ where: { id: oldGrant.id } });
+      if (ordering === "revoke-first") { signalRevoke(pid); await revokeWait; }
+    }).then(() => ({ error: null }), (error: unknown) => ({ error }));
+    let api: Promise<{ error: unknown }> | undefined, revoke: Promise<{ error: unknown }> | undefined;
+    try {
+      if (ordering === "seal-first") {
+        api = runApi();
+        const holder = await awaitBarrier(apiReached, api);
+        revoke = runRevoke();
+        const waiter = await awaitBarrier(revokeReached, revoke);
+        await waitForSpecificBlocker(holder, waiter);
+      } else {
+        revoke = runRevoke();
+        const holder = await awaitBarrier(revokeReached, revoke);
+        api = runApi();
+        const waiter = await awaitBarrier(apiReached, api);
+        await waitForSpecificBlocker(holder, waiter);
+      }
+    } finally {
+      releaseApi(); releaseRevoke();
+      await Promise.all([api, revoke]);
+    }
+    expect((await revoke!).error).toBeNull();
+    if (ordering === "seal-first") {
+      expect((await api!).error).toBeNull();
+      expect((await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } })).currentConfigRevision).toBe(2);
+    } else {
+      const error = (await api!).error;
+      expect(error).not.toBeNull();
+      expect(databaseMessage(error)).toMatch(/requires current PMO project grants/);
+      expect((await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } })).currentConfigRevision).toBe(1);
+      expect(await db.ingestionConfigurationRevision.count({ where: { sourceId } })).toBe(1);
+      expect(await db.ingestionConfigurationProject.count({ where: { sourceId, configRevision: 2 } })).toBe(0);
+      expect(await db.auditEvent.count({ where: { id: auditId } })).toBe(0);
+    }
+  }, 60_000,
+);
 
 it("serializes policy disablement after ingestion and blocks the just-committed cause", async () => {
   const f = await fixture(); await f.webhook();

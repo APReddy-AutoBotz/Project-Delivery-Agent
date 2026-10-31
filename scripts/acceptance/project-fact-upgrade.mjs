@@ -71,7 +71,8 @@ export async function verifyFoundationUpgrade(
 ) {
   guard();
   assert([1, 2, 3, 4, 5, 6].includes(priorCount));
-  assert.equal(migrations.length, 25);
+  assert.equal(migrations.length, 26);
+  assert.equal(migrations[25].name, "202610310001_ingestion_reconfiguration_scope");
   assert.equal(migrations[24].name, "202610220001_ingestion_assurance_handoff");
   assert.equal(migrations[23].name, "202610010001_update_capture_response");
   assert.equal(migrations[21].name, "202609300001_update_engagement_storage");
