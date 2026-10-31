@@ -78,6 +78,11 @@ creation through the current repository writer. They observed the expected
 project-lock blocker in both reader-first and writer-first orders, then checked
 the unranked result or withholding and the created revision. They do not cover
 arbitrary writers, source or grant revocation, fact append or deadlock freedom.
+Eight further targeted cases passed for repository-mediated source-reader
+removal and leadership-grant revocation, in both transaction orders and for
+both unranked and existing equal-tier reads. They observed the expected lock
+blockers and subsequent withholding or denial. They do not prove direct SQL
+mutation behavior, complete no-write behavior or global deadlock freedom.
 Further native and independent review is required; there is no HTTP route or
 user-facing view.
 An internal fact-prefix admission helper checks bounded metadata,
