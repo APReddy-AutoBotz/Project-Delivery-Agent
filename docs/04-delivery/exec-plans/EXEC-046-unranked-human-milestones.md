@@ -187,6 +187,28 @@ canary capture. It did not run the full application journey. This does not
 establish production-recorder behavior or a general non-disclosure guarantee.
 The production-boundary job was still running when this note was written.
 
+Two local synthetic PostgreSQL cases exercised direct `pdaa_api` deletion of a
+leader's reader row on a third human source effective in the future and absent
+from the displayed positions. The fixture verifies the two displayed
+version/evidence/source tuples and the distinct future source. In reader-first
+order, its project SHARE lock blocked deletion and the baseline returned before
+the delete; in writer-first order, the delete's project fence blocked the reader
+and the subsequent read was unavailable. Both cases observed the waiting SQL
+and blocking backend PID and verified later withholding. These are two isolated
+role-switched database cases, not production authentication, every writer or
+proof against response-availability inference. The target was stopped after a
+zero-session check and its volume retained. Hosted and exact-candidate checks
+remain required.
+
+The complete-prefix endpoint remains disabled. A change from success to generic
+unavailable can reveal that some prerequisite changed; with auxiliary knowledge,
+repeated requests could permit inference about restricted history. The approved
+requirements do not clearly resolve that particular inference, and the existing
+project leadership grant does not establish access to every future source.
+Generic errors reduce specificity but do not eliminate the inference. A future
+domain-wide capability or independently reviewed partial design requires its
+own authorization and evidence; no new endpoint or acceptance follows here.
+
 Use the existing project/leadership and full-prefix source-reader checks with
 complete contiguous versions, canonical binding validation, human provenance,
 finite resource limits and a coherent reread. Derive latest applicable stream
