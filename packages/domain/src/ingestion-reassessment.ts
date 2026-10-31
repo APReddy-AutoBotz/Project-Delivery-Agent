@@ -2,6 +2,7 @@
 import { z } from "zod";
 const id = z.uuid().refine((value) => value === value.toLowerCase());
 const revision = z.number().int().min(0).max(2147483646);
+export const ingestionReassessmentPageRequestSchema = z.strictObject({ cursor: id });
 export const ingestionReassessmentRetrySchema = z.strictObject({
   workId: id,
   expectedRecoveryRevision: revision,

@@ -800,6 +800,15 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request("/api/projects/" + project.id + "/project-update-engagements", 200, pmoPortfolio,
     "POST", { expectedPolicyRevision: 1 });
   await request("/api/projects/" + project.id + "/ingestion-reassessments", 200, pmoPortfolio);
+  await request("/api/projects/" + project.id + "/ingestion-reassessment-pages", 200, pmoPortfolio,
+    "POST", { cursor: project.id });
+  await request("/api/projects/" + project.id + "/ingestion-reassessment-pages", 400, pmoPortfolio,
+    "POST", { cursor: project.id, extra: true });
+  await request("/api/projects/" + project.id + "/ingestion-reassessment-pages", 400, pmoPortfolio,
+    "POST", { cursor: null });
+  await request("/api/projects/" + project.id + "/ingestion-reassessment-pages?extra=1", 400, pmoPortfolio,
+    "POST", { cursor: project.id });
+  await request("/api/projects/" + project.id + "/ingestion-reassessment-pages", 415, pmoPortfolio, "POST");
   await request("/api/projects/" + project.id + "/ingestion-reassessment-retries", 200, pmoPortfolio,
     "POST", { workId: project.id, expectedRecoveryRevision: 0 });
   await request("/api/admin/health-assessment-retention", 200, pmoPortfolio);
@@ -928,7 +937,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(71);
+  expect(covered.size).toBe(72);
   assertContractSnapshot(
     spec,
     JSON.parse(

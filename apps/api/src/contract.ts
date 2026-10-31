@@ -78,6 +78,7 @@ import {
   ingestionReassessmentRetrySchema,
   ingestionReassessmentItemSchema,
   ingestionReassessmentPageSchema,
+  ingestionReassessmentPageRequestSchema,
 } from "@pdaa/domain";
 import {
   catalogueQuerySchema,
@@ -239,6 +240,11 @@ export const contracts: Record<string, RouteContract> = {
     status: 200, query: { cursor: z.uuid().optional() },
     response: ingestionReassessmentPageSchema, parameters: { id: z.uuid() },
     errors: [400, 403, 404, 503],
+  },
+  "post /api/projects/{id}/ingestion-reassessment-pages": {
+    status: 200, request: ingestionReassessmentPageRequestSchema,
+    response: ingestionReassessmentPageSchema, parameters: { id: z.uuid() },
+    errors: [400, 403, 404, 413, 415, 503],
   },
   "post /api/projects/{id}/ingestion-reassessment-retries": {
     status: 200, request: ingestionReassessmentRetrySchema,
