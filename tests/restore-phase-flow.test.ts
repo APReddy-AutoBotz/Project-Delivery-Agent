@@ -4,7 +4,7 @@ import { restoreFailurePhase } from "../scripts/acceptance/restore-diagnostic.mj
 
 // Failure-control tests only: no real database, archive or filesystem target.
 const f = vi.hoisted(() => {
-  const state = { fault: "", cleanupFault: "" };
+  const state = { fault: "", cleanupFault: "", sessionChecks: 0 };
   const fail = (phase: string) => {
     if (state.fault === phase || state.cleanupFault === phase)
       throw new Error("Private error details must not be logged");
@@ -36,7 +36,17 @@ vi.mock("../packages/operations/src/config.js", () => ({
   connect: async () => f.client,
   assertPostgres17: async () => {},
   assertEmptyTarget: async () => {},
-  assertNoOtherSessions: async () => {},
+  assertNoOtherSessions: async (_client: unknown, report?: (category: string) => void) => {
+    f.state.sessionChecks++;
+    if (f.state.sessionChecks !== 3) return;
+    const categories: Record<string, string> = {
+      sessions_before_commit_other_sessions: "other_sessions",
+      sessions_before_commit_query_failed: "query_failed",
+      sessions_before_commit_invalid_result: "invalid_result",
+    };
+    const category = categories[f.state.fault];
+    if (category) { report?.(category); throw new Error("Private session-check error"); }
+  },
   identifier: () => '"synthetic_target"',
 }));
 vi.mock("../packages/operations/src/provision.js", () => ({
@@ -80,6 +90,10 @@ it.each([
   ["ownership", ""],
   ["grants", ""],
   ["integrity", ""],
+  ["sessions_before_commit_other_sessions", ""],
+  ["sessions_before_commit_query_failed", ""],
+  ["sessions_before_commit_invalid_result", ""],
+  ["sessions_before_commit_other_sessions", "rollback"],
   ["commit", ""],
   ["connection_cleanup", ""],
   ["plaintext_cleanup", ""],
@@ -91,6 +105,7 @@ it.each([
   async (fault, cleanupFault) => {
     f.state.fault = fault;
     f.state.cleanupFault = cleanupFault;
+    f.state.sessionChecks = 0;
     f.client.query.mockClear();
     f.client.end.mockClear();
     const output = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -115,7 +130,7 @@ it.each([
       const line = output.mock.calls[0]![0];
       expect(line).not.toContain("Private error details");
       expect(restoreFailurePhase(Buffer.from(line))).toBe(fault);
-      if (["ownership", "grants", "integrity", "commit"].includes(fault))
+      if (["ownership", "grants", "integrity", "commit"].includes(fault) || fault.startsWith("sessions_before_commit_"))
         expect(f.client.query).toHaveBeenCalledWith("ROLLBACK");
     } finally {
       output.mockRestore();

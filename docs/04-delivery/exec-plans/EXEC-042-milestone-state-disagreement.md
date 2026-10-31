@@ -111,3 +111,19 @@ place. The diagnostic still requires independent review and hosted validation.
 After integration with PR #137's expanded recorder, the 32-test disclosure
 capture suite and changed acceptance-script lint passed locally; the earlier
 broad failure remains unexplained.
+
+Foundation run `41204397697` passed its verify job and the natural identity
+expiry check, then production-boundary job `124546421573` failed external
+customer restore after entering `sessions_before_commit`. The existing check
+rejects any other target-database session, but that phase alone does not say
+whether it found another session, received a malformed result or its query
+failed. The target remains subject to restore quarantine and rollback; the
+external restored-profile check and subsequent production gate did not pass.
+The local diagnostic change records only one of those fixed failure categories
+from the actual check and relays it through the existing phase allowlist. It
+does not retry, terminate sessions, expose identifiers or weaken the guard.
+The 54 focused session-gate, diagnostic and failure-flow tests, operations
+typecheck and changed-script lint passed locally with mocks; independent review
+and native hosted validation remain required. A separate isolated synthetic
+PostgreSQL test is prepared to exercise a real second connection and a rejected
+query; it has not yet run.
