@@ -886,16 +886,36 @@ it.each([["equal-tier", "reader"], ["equal-tier", "writer"], ["unranked", "reade
     : reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
 }, 90000);
 
-it.each([["equal-tier", "reader"], ["equal-tier", "writer"], ["unranked", "reader"], ["unranked", "writer"]] as const)(
-  "serializes %s milestone-state reads with direct source-reader deletion when %s starts first", async (mode, firstKind) => {
+it.each([["equal-tier", "reader", "displayed"], ["equal-tier", "writer", "displayed"],
+  ["unranked", "reader", "displayed"], ["unranked", "writer", "displayed"],
+  ["unranked", "reader", "future"], ["unranked", "writer", "future"]] as const)(
+  "serializes %s milestone-state reads with direct source-reader deletion when %s starts first (%s source)", async (mode, firstKind, sourceKind) => {
   const { f, leader, target, alternateVersion, reader } = await stateDisagreementFixture(mode === "unranked");
+  let sourceId = alternateVersion.entry.sourceId;
+  if (sourceKind === "future") {
+    const futureActor: Actor = { customerId, subject: "future-race-" + randomUUID(), roles: ["project_manager"] };
+    await db.accessGrant.create({ data: { customerId, subject: futureActor.subject, scopeType: "project", scopeId: f.projectId, role: "project_manager" } });
+    const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+    const effectiveAt = new Date(now!.getTime() + 86_400_000).toISOString();
+    const validUntil = new Date(now!.getTime() + 172_800_000).toISOString();
+    const future = await facts.appendHumanStatement(futureActor, { projectId: f.projectId, factType: target.factType,
+      expectedRevision: 2, idempotencyKey: randomUUID(), value: { type: "text", value: "CANCELLED" },
+      effectiveAt, validUntil, originalStatement: "Synthetic future report." }, context);
+    expect(future.entry).toMatchObject({ revision: 3, visibility: "available", content: { effectiveAt, validUntil,
+      value: { type: "text", value: "CANCELLED" } } });
+    sourceId = future.entry.sourceId;
+    expect([target.entry.sourceId, alternateVersion.entry.sourceId]).not.toContain(sourceId);
+    await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: future.entry.sourceAccessRevision,
+      state: "AVAILABLE", readers: [futureActor.subject, f.pmo.subject, leader.subject] }, context);
+  }
   const baseline = mode === "unranked" ? await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)
     : await reader.readLeadership(leader, f.projectId, f.milestone.id);
   expect(baseline.positions).toMatchObject([
     { state: "COMPLETE", supports: [{ versionId: target.entry.id, evidenceId: target.entry.evidenceId, sourceId: target.entry.sourceId }] },
     { state: "OPEN", supports: [{ versionId: alternateVersion.entry.id, evidenceId: alternateVersion.entry.evidenceId, sourceId: alternateVersion.entry.sourceId }] },
   ]);
-  const sourceId = alternateVersion.entry.sourceId;
+  if (sourceKind === "future")
+    expect(baseline.positions.flatMap((position) => position.supports.map((support) => support.sourceId))).not.toContain(sourceId);
   let release!: () => void, heldReady!: () => void, waitingReady!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
