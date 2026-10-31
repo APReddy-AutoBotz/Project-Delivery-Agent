@@ -106,14 +106,24 @@ export async function assertEmptyTarget(client: Client) {
     throw new Error("Target contains existing objects or extensions");
 }
 type SessionCheckFailure = "other_sessions" | "query_failed" | "invalid_result";
-export async function assertNoOtherSessions(client: Client, onFailure?: (category: SessionCheckFailure) => void) {
-  const report = (category: SessionCheckFailure) => {
-    try { onFailure?.(category); } catch { /* Diagnostics must not change restore behavior. */ }
+export type SessionObservation = { count: "one" | "multiple"; client: "yes" | "no" | "unknown"; nonclient: "yes" | "no" | "unknown"; null_type: "yes" | "no" | "unknown" };
+export async function assertNoOtherSessions(client: Client, onFailure?: (category: SessionCheckFailure, observation?: SessionObservation) => void) {
+  const report = (category: SessionCheckFailure, observation?: SessionObservation) => {
+    try {
+      if (observation) onFailure?.(category, observation);
+      else onFailure?.(category);
+    } catch { /* Diagnostics must not change restore behavior. */ }
   };
   let result: unknown;
   try {
     result = await client.query(
-      "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()",
+      onFailure
+        ? `SELECT count(*)::int AS n,
+             bool_or(backend_type = 'client backend') AS client,
+             bool_or(backend_type <> 'client backend' AND backend_type IS NOT NULL) AS nonclient,
+             bool_or(backend_type IS NULL) AS null_type
+           FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()`
+        : "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()",
     );
   } catch (error) {
     report("query_failed");
@@ -129,7 +139,21 @@ export async function assertNoOtherSessions(client: Client, onFailure?: (categor
     throw new Error("Target has another database session");
   }
   if (count !== 0) {
-    report(typeof count === "number" && Number.isSafeInteger(count) && count > 0 ? "other_sessions" : "invalid_result");
+    if (typeof count === "number" && Number.isSafeInteger(count) && count > 0) {
+      const flag = (key: "client" | "nonclient" | "null_type"): boolean | undefined => {
+        try {
+          const value = (result as { rows: Record<string, unknown>[] }).rows[0]![key];
+          return typeof value === "boolean" ? value : undefined;
+        } catch { return undefined; }
+      };
+      const clientSeen = flag("client"), nonclientSeen = flag("nonclient"), nullTypeSeen = flag("null_type");
+      const flags = [clientSeen, nonclientSeen, nullTypeSeen];
+      const contradiction = flags.every((value) => value === false) ||
+        (count === 1 && flags.filter((value) => value === true).length > 1);
+      const classify = (seen: boolean | undefined): "yes" | "no" | "unknown" =>
+        contradiction ? "unknown" : seen === true ? "yes" : seen === false && nullTypeSeen === false ? "no" : "unknown";
+      report("other_sessions", { count: count === 1 ? "one" : "multiple", client: classify(clientSeen), nonclient: classify(nonclientSeen), null_type: contradiction ? "unknown" : nullTypeSeen === true ? "yes" : nullTypeSeen === false ? "no" : "unknown" });
+    } else report("invalid_result");
     throw new Error("Target has another database session");
   }
 }

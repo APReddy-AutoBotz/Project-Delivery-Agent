@@ -25,8 +25,15 @@ export const restorePhases = Object.freeze([
   "plaintext_cleanup",
 ]);
 const maximum = 65536;
-export function restoreFailurePhase(bytes) {
-  if (!Buffer.isBuffer(bytes) || bytes.length > maximum) return "unavailable";
+const unavailable = () => ({ phase: "unavailable" });
+function safeSessions(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const read = (key, allowed) => allowed.includes(value[key]) ? value[key] : "unknown";
+  return { count: read("count", ["one", "multiple"]), client: read("client", ["yes", "no"]),
+    nonclient: read("nonclient", ["yes", "no"]), null_type: read("null_type", ["yes", "no"]) };
+}
+export function restoreFailureDetails(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length > maximum) return unavailable();
   const found = [];
   for (const line of bytes.toString("utf8").split(/\r?\n/)) {
     if (!line.includes("operations.restore.failed")) continue;
@@ -34,20 +41,22 @@ export function restoreFailurePhase(bytes) {
     try {
       value = JSON.parse(line);
     } catch {
-      return "unavailable";
+      return unavailable();
     }
     if (
       !value ||
       value.event !== "operations.restore.failed" ||
       ![...restorePhases, "unknown"].includes(value.phase)
     )
-      return "unavailable";
-    found.push(value.phase);
+      return unavailable();
+    const sessions = value.phase === "sessions_before_commit_other_sessions" ? safeSessions(value.sessions) : undefined;
+    found.push(sessions ? { phase: value.phase, sessions } : { phase: value.phase });
   }
-  return found.length === 1 ? found[0] : "unavailable";
+  return found.length === 1 ? found[0] : unavailable();
 }
+export function restoreFailurePhase(bytes) { return restoreFailureDetails(bytes).phase; }
 export function reportRestoreFailure(file, profile) {
-  let phase = "unavailable";
+  let details = unavailable();
   try {
     if (!lstatSync(file).isFile())
       throw new Error("Unavailable restore diagnostic");
@@ -60,7 +69,7 @@ export function reportRestoreFailure(file, profile) {
         const bytes = Buffer.alloc(maximum + 1);
         const length = readSync(fd, bytes, 0, bytes.length, 0);
         if (length === size)
-          phase = restoreFailurePhase(bytes.subarray(0, length));
+          details = restoreFailureDetails(bytes.subarray(0, length));
       }
     } finally {
       closeSync(fd);
@@ -72,6 +81,7 @@ export function reportRestoreFailure(file, profile) {
     ? profile
     : "unknown";
   console.log(
-    `FAIL: customer ${safeProfile} restore last entered phase: ${phase}`,
+    `FAIL: customer ${safeProfile} restore last entered phase: ${details.phase}`,
   );
+  if (details.sessions) console.log(`FAIL: customer ${safeProfile} restore session classes: ${JSON.stringify(details.sessions)}`);
 }
