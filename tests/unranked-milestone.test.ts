@@ -177,4 +177,31 @@ describe("unranked projection of a complete authority snapshot", () => {
     input.evidence.push({ id: id(32), scope, access: "AUTHORIZED", verification: "VALID" });
     expect(unrankedMilestoneFromSnapshot(input, target)).toBeNull();
   });
+  it("retains all agreeing sources and ignores a not-yet-effective later version", () => {
+    const input = fixture();
+    const agreeing = structuredClone(input.versions[0]!);
+    agreeing.id = id(12); agreeing.source.instanceId = id(22); agreeing.source.recordId = id(22);
+    agreeing.source.revision = id(32); agreeing.evidenceIds = [id(32)];
+    input.versions.push(agreeing);
+    input.sources.push({ instanceId: id(22), sourceType: "human_statement" });
+    input.evidence.push({ id: id(32), scope, access: "AUTHORIZED", verification: "VALID" });
+    const future = structuredClone(input.versions[0]!);
+    future.id = id(13); future.source.revision = id(33); future.evidenceIds = [id(33)];
+    future.effectiveAt = "2026-10-31T13:00:00.000Z";
+    input.versions.push(future);
+    input.evidence.push({ id: id(33), scope, access: "AUTHORIZED", verification: "VALID" });
+    const output = unrankedMilestoneFromSnapshot(input, target);
+    expect(output?.positions.find((p) => p.state === "OPEN")?.supports.map((s) => s.versionId)).toEqual([id(10), id(12)]);
+    expect(output?.positions.flatMap((p) => p.supports).map((s) => s.versionId)).not.toContain(id(13));
+  });
+  it("withholds nonhuman superseded history even when current heads are human", () => {
+    const input = fixture();
+    const old = structuredClone(input.versions[0]!);
+    old.id = id(12); old.source.revision = id(32); old.evidenceIds = [id(32)];
+    old.effectiveAt = "2026-10-29T12:00:00.000Z"; old.observedAt = old.effectiveAt;
+    old.provenance = "SYSTEM_VERIFIED"; input.versions.push(old);
+    input.evidence.push({ id: id(32), scope, access: "AUTHORIZED", verification: "VALID" });
+    expect(resolveSourceAuthority(input).status).toBe("NO_POLICY");
+    expect(unrankedMilestoneFromSnapshot(input, target)).toBeNull();
+  });
 });

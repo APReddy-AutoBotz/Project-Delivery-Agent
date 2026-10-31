@@ -17,7 +17,12 @@ selecting a winner, calling the outcome an authority conflict, or issuing or
 delivering a request. A disabled, scheduled, corrupt or inaccessible policy is
 not proof that no policy exists. Missing, expired, ambiguous, restricted or
 unsupported applicable history must fail closed; do not infer disagreement by
-filtering inconvenient inputs. Human reports do not prove Jira or sheet origin.
+filtering inconvenient inputs. Stored human-reported provenance does not by
+itself verify authorship or prove Jira or sheet origin. The initial binding
+uses its binding receipt; native version constraints alone do not require a
+matching append receipt for every later version, so do not imply otherwise or
+silently add that eligibility requirement. Do not expose original statement
+text in this diagnostic.
 
 The first local change defines only a strict presentation shape. It requires
 distinct alternatives and explicit future contributor expiry, bounds output,
