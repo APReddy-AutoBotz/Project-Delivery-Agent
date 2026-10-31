@@ -105,15 +105,33 @@ export async function assertEmptyTarget(client: Client) {
   if (Number(unexpected.rows[0].n) !== 0)
     throw new Error("Target contains existing objects or extensions");
 }
-export async function assertNoOtherSessions(client: Client) {
-  if (
-    (
-      await client.query(
-        "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()",
-      )
-    ).rows[0].n !== 0
-  )
+type SessionCheckFailure = "other_sessions" | "query_failed" | "invalid_result";
+export async function assertNoOtherSessions(client: Client, onFailure?: (category: SessionCheckFailure) => void) {
+  const report = (category: SessionCheckFailure) => {
+    try { onFailure?.(category); } catch { /* Diagnostics must not change restore behavior. */ }
+  };
+  let result: unknown;
+  try {
+    result = await client.query(
+      "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()",
+    );
+  } catch (error) {
+    report("query_failed");
+    throw error;
+  }
+  let count: unknown;
+  try {
+    const rows = (result as { rows?: unknown }).rows;
+    if (!Array.isArray(rows) || rows.length !== 1 || !rows[0] || typeof rows[0] !== "object") throw new Error();
+    count = (rows[0] as { n?: unknown }).n;
+  } catch {
+    report("invalid_result");
     throw new Error("Target has another database session");
+  }
+  if (count !== 0) {
+    report(typeof count === "number" && Number.isSafeInteger(count) && count > 0 ? "other_sessions" : "invalid_result");
+    throw new Error("Target has another database session");
+  }
 }
 export async function lock(client: Client) {
   const deadline = Date.now() + 10000;

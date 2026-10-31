@@ -484,6 +484,12 @@ beforeAll(async () => {
         value: n === 10 ? "2026-11-01" : "2026-11-02", supports: [{ versionId: scalarId(n), evidenceId: scalarId(n + 20),
           sourceId: scalarId(n + 40), provenance: "HUMAN_CONFIRMED" as const, effectiveAt: "2026-10-20T00:00:00.000Z",
           observedAt: "2026-10-20T00:00:00.000Z", versionValidUntil: "2026-10-23T00:00:00.000Z", assessedValidUntil: "2026-10-22T00:00:00.000Z" }] })) })) },
+    { readLeadership: vi.fn(async (_actor, projectId, selectedMilestone) => ({ projectId, milestoneId: selectedMilestone,
+      bindingId: scalarId(101), factId: scalarId(102), factType: "canonical.state.00000000000040008000000000000001",
+      asOf: "2026-10-21T11:00:00.000Z", policyRevisionId: scalarId(103), positions: [10, 11].map((n) => ({
+        state: n === 10 ? "OPEN" as const : "COMPLETE" as const, supports: [{ versionId: scalarId(n), evidenceId: scalarId(n + 20),
+          sourceId: scalarId(n + 40), provenance: "HUMAN_CONFIRMED" as const, effectiveAt: "2026-10-20T00:00:00.000Z",
+          observedAt: "2026-10-20T00:00:00.000Z", versionValidUntil: "2026-10-23T00:00:00.000Z", assessedValidUntil: "2026-10-22T00:00:00.000Z" }] })) })) },
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -724,6 +730,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request("/api/pm/action-queue", 200, manager);
   await request(`/api/projects/${project.id}/leadership-blocker-age-suggestions`, 200, leader);
   await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-conflict-observation`, 200, leader);
+  await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-state-disagreement`, 200, leader);
   await request(`/api/projects/${project.id}/fact-observations/${scalarScope.factId}/leadership-conflict`, 200, leader);
   await request(
     "/api/projects/" + project.id + "/health-assessments",
@@ -918,7 +925,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(69);
+  expect(covered.size).toBe(70);
   assertContractSnapshot(
     spec,
     JSON.parse(

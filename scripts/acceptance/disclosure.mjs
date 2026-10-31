@@ -75,7 +75,7 @@ export function formatCaptureDiagnostic(value) {
   }
 }
 export function reportIdentityCaptureDiagnostic(stage, capture, emit = console.error) {
-  if (!["loaded-details-disclosure", "loaded-details-before-click-disclosure", "operator-disclosure"].includes(stage)) return;
+  if (!["loaded-details-disclosure", "loaded-details-before-click-disclosure", "operator-disclosure", "scalar-proof-disclosure"].includes(stage)) return;
   let result;
   try { result = formatCaptureDiagnostic(capture?.diagnostic?.()); }
   catch { result = formatCaptureDiagnostic(undefined); }

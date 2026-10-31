@@ -678,6 +678,7 @@ node([
   "node_modules/vitest/vitest.mjs",
   "run",
   "tests/database.integration.test.ts",
+  "tests/restore-session-check.integration.test.ts",
   "tests/project-facts.integration.test.ts",
   "tests/project-update-policy-binding.integration.test.ts",
   "tests/project-update-completeness.integration.test.ts",

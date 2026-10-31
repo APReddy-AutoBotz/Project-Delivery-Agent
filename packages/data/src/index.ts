@@ -202,3 +202,4 @@ export class DatabaseProjectRepository implements ProjectRepository {
 }
 export * from "./milestone-conflict-observation.js";
 export * from "./scalar-conflict-observation.js";
+export * from "./milestone-state-disagreement.js";

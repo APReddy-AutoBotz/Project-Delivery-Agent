@@ -213,6 +213,13 @@ it("reports only fixed, saturated capture diagnostics and preserves the original
   }, () => { throw new Error(canary); })).not.toThrow();
   reportIdentityCaptureDiagnostic("loaded-details-before-click-disclosure", { diagnostic: () => ({}) }, emit);
   expect(emit).toHaveBeenCalledTimes(2);
+  reportIdentityCaptureDiagnostic("scalar-proof-disclosure", {
+    diagnostic: () => ({ phase: "dom", counters: { body: 9 }, tokenSeen: false, url: canary, error: canary }),
+  }, emit);
+  expect(emit).toHaveBeenCalledTimes(3);
+  const scalarLine = emit.mock.calls[2]![0] as string;
+  expect(scalarLine).not.toContain(canary);
+  expect(JSON.parse(scalarLine.slice("SEC-AUTH-001 capture diagnostic ".length))).toMatchObject({ phase: "dom", counters: { body: 2 }, tokenSeen: false });
   const hostile = { get phase() { throw new Error(canary); } };
   expect(formatCaptureDiagnostic(hostile)).not.toContain(canary);
 });

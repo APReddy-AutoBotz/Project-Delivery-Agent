@@ -117,3 +117,4 @@ export { ingestionReassessmentRetrySchema, ingestionReassessmentItemSchema, inge
 export type { IngestionReassessmentRetry, IngestionReassessmentItem, IngestionReassessmentPage } from "./ingestion-reassessment.js";
 export * from "./milestone-conflict-observation.js";
 export * from "./scalar-conflict-observation.js";
+export * from "./milestone-state-disagreement.js";
