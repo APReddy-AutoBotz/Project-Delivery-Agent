@@ -215,6 +215,11 @@ function manager(config: AuthConfig) {
   return oidc;
 }
 function App() {
+  const pmPreviewInvalidate = React.useRef<(() => void) | null>(null);
+  const renderedSessionGeneration = sessionGeneration, renderedSessionToken = accessToken;
+  const isCurrentPreviewSession = () => Boolean(renderedSessionToken && accessToken === renderedSessionToken &&
+    sessionGeneration === renderedSessionGeneration);
+  const advanceSession = () => { sessionGeneration++; pmPreviewInvalidate.current?.(); };
   const [signedIn, setSignedIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -230,7 +235,7 @@ function App() {
   React.useEffect(() => {
     expireSession = () => {
       accessToken = undefined;
-      sessionGeneration++;
+      advanceSession();
       idToken = undefined;
       setSignedIn(false);
       setSelected(null);
@@ -286,7 +291,7 @@ function App() {
           body: JSON.stringify({ persona }),
         });
         accessToken = result.token;
-        sessionGeneration++;
+        advanceSession();
         setSignedIn(true);
         setUpdateLocator(updateRequestLocation());
         const link = evidenceLocation();
@@ -318,7 +323,7 @@ function App() {
         if (user.expired) throw new Error("Expired sign-in");
         if (active) {
           accessToken = user.access_token;
-          sessionGeneration++;
+          advanceSession();
           idToken = user.id_token;
           const state = user.state as {
             projectId?: unknown;
@@ -396,7 +401,7 @@ function App() {
     const logoutHint = idToken;
     idToken = undefined;
     accessToken = undefined;
-    sessionGeneration++;
+    advanceSession();
     setSignedIn(false);
     setSelected(null);
     setCreating(false);
@@ -756,6 +761,8 @@ function App() {
                 subject={me.data.subject}
                 request={request}
                 previewRequest={previewRequest}
+                previewInvalidate={pmPreviewInvalidate}
+                isCurrentPreviewSession={isCurrentPreviewSession}
                 openProject={navigateProject}
                 openRequest={navigateReconciliation}
               />}

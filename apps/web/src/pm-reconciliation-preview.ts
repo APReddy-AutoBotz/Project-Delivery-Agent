@@ -1,10 +1,10 @@
-// EXEC-037: first-page recipient metadata only. A browser lease does not prove
+// EXEC-037: bounded recipient metadata only. A browser lease does not prove
 // that a server transaction has stopped after a request is aborted.
 export type PreviewProject = { projectId: string; name: string };
 export type PreviewKind = "milestone" | "scalar";
 export type PreviewItem = { id: string; createdAt: string };
-export type PreviewPart = { phase: "loading" } | { phase: "unavailable" } |
-  { phase: "ready"; items: PreviewItem[]; more: boolean };
+export type PreviewPart = { phase: "idle" } | { phase: "loading" } | { phase: "unavailable" } |
+  { phase: "ready"; items: PreviewItem[]; more: boolean; next?: PreviewItem; advanced?: true };
 export type PreviewRow = { project: PreviewProject; milestone: PreviewPart; scalar: PreviewPart };
 type PreviewRequest = (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void) => Promise<unknown>;
 const fail = (): never => { throw new Error("Reconciliation preview unavailable"); };
@@ -21,7 +21,8 @@ const instant = (value: unknown): string => {
   return value;
 };
 
-export function decodeReconciliationPreview(value: unknown, projectId: string, subject: string, kind: PreviewKind): PreviewPart {
+export function decodeReconciliationPreview(value: unknown, projectId: string, subject: string, kind: PreviewKind, after?: PreviewItem): PreviewPart {
+  if (after) { id(after.id); instant(after.createdAt); }
   const page = object(value); exact(page, ["requests", "next", "live"]);
   if (page.live !== true || !Array.isArray(page.requests) || page.requests.length > 20 || !subject) return fail();
   const seen = new Set<string>(), items: PreviewItem[] = [];
@@ -40,17 +41,43 @@ export function decodeReconciliationPreview(value: unknown, projectId: string, s
     } else id(row.milestoneId);
     const previous = items.at(-1);
     if (previous && (createdAt < previous.createdAt || (createdAt === previous.createdAt && itemId <= previous.id))) return fail();
+    if (after && (createdAt < after.createdAt || (createdAt === after.createdAt && itemId <= after.id))) return fail();
     seen.add(itemId); items.push({ id: itemId, createdAt });
   }
+  let next: PreviewItem | undefined;
   if (page.next !== null) {
     const cursor = object(page.next); exact(cursor, ["id", "createdAt"]);
     const last = items.at(-1);
     if (items.length !== 20 || !last || id(cursor.id) !== last.id || instant(cursor.createdAt) !== last.createdAt) return fail();
+    next = { id: last.id, createdAt: last.createdAt };
   }
-  return { phase: "ready", items, more: page.next !== null };
+  return { phase: "ready", items, more: next !== undefined, ...(next ? { next } : {}), ...(after ? { advanced: true as const } : {}) };
 }
 
 let batchActive = false;
+
+// One explicit live page shares the lease with initial batches. The caller
+// withholds prior rows while loading and clears on scope/lifecycle changes.
+export async function loadReconciliationPreviewPage(projectId: string, subject: string, kind: PreviewKind,
+  after: PreviewItem | null, request: PreviewRequest, signal: AbortSignal,
+  onUnavailable: (denied?: boolean) => void): Promise<PreviewPart> {
+  if (batchActive || signal.aborted || !subject || (kind !== "milestone" && kind !== "scalar")) return fail();
+  id(projectId);
+  const cursor = after ? { id: id(after.id), createdAt: instant(after.createdAt) } : undefined;
+  const params = new URLSearchParams({ limit: "20" });
+  if (cursor) { params.set("afterCreatedAt", cursor.createdAt); params.set("afterId", cursor.id); }
+  const endpoint = kind === "milestone" ? "reconciliation-requests" : "scalar-reconciliation-requests";
+  batchActive = true;
+  try {
+    let unavailable = false;
+    const page = await request(`/projects/${projectId}/${endpoint}?${params.toString()}`, { signal }, (denied) => {
+      unavailable = true;
+      if (!signal.aborted) onUnavailable(denied);
+    });
+    if (signal.aborted || unavailable) return fail();
+    return decodeReconciliationPreview(page, projectId, subject, kind, cursor);
+  } finally { batchActive = false; }
+}
 // A lease spans all requests, even after abort, until their promises settle.
 // Callers receive no previous-generation data when a lease cannot be acquired.
 export async function loadReconciliationPreview(projects: PreviewProject[], subject: string, request: PreviewRequest,
