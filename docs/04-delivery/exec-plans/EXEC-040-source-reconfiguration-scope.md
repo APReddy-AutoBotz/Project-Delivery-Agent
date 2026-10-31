@@ -81,6 +81,18 @@ separately reviewed lock-graph repair is required. Do not claim deadlock freedom
 
 ## Verification and review
 
+The corrected source head `b1e4acedf78930065dd27cd450ec932e86bff70f` was
+tested together with prerequisite head `fc5f405a7692d7ffabcbca0e277fed748b7e780e`
+in GitHub merge candidate `0810da7131325c9de4ec2202347ad8dda32092fe`, tree
+`da02c6c96b39b3194ef311a99fab7f70fb454e49`. Foundation run `41197867904`
+passed its verify and production-boundary jobs; documentation run
+`41197867920` passed. The verify job included the source PostgreSQL integration
+tests and an 85-table native recovery check; packaged acceptance included
+customer upgrade and restore profiles. These are synthetic checks; they do not
+establish production function-owner parity, arbitrary-size performance or the
+remaining verification items below. PR #137 subsequently merged with the same
+prerequisite tree; retargeted candidate and post-merge checks remain required.
+
 Initial stacked draft PR #138 Foundation run `41197188967` failed its verify
 job in the unit suite: the finite function-ACL test still expected eight revoke
 statements after the new guard added a ninth. The run reported 2,112 passing
