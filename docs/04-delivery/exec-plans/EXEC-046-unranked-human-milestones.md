@@ -51,9 +51,16 @@ A second local synthetic probe admitted one arbitrary no-policy fact using the
 Prisma adapter and API role, then verified its fixture and audit rows were rolled
 back. That transaction used a repository shim; it does not prove the canonical
 milestone flow, full authorization, conflict rejection or concurrent behavior.
+After extracting shared version admission, both this positive probe and the
+read-only policy-present rejection probe passed again against the revised code.
 An unwired comparator checks that a later loaded prefix has the same ordered
 version, scope, revision, source and evidence identities; it does not compare
 fact contents or establish immutability, source access or a writer fence.
+Its reusable version admission applies a 1 MiB per-fact limit; any future
+multi-fact caller also needs a separately enforced aggregate budget. Applying
+the existing total limit of 1,000 fact revisions across the observation remains
+mandatory. Applying this new limit to an existing read may make formerly readable histories
+unavailable and requires compatibility review.
 An unwired policy-history preflight and comparator apply a per-history 4 MiB
 admission limit and distinguish SQL NULL from a non-null definition. Mocked
 tests and one read-only API-role PostgreSQL smoke via `pg` cover admission and

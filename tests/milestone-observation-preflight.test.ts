@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
-import { matchesMilestonePolicyHistory, matchesUnrankedFactPrefix, preflightMilestoneCanonicalProject as preflight, preflightMilestonePolicyHistory,
+import { matchesMilestonePolicyHistory, matchesUnrankedFactPrefix, preflightMilestoneCanonicalProject as preflight, preflightMilestoneFactVersions, preflightMilestonePolicyHistory,
   preflightUnrankedFactPrefix } from "../packages/data/src/milestone-observation-preflight.js";
 
 const customer = "10000000-0000-4000-8000-000000000002";
@@ -92,6 +92,7 @@ describe("unranked fact-prefix metadata admission", () => {
   };
   it("returns the exact complete prefix only with no policy or conflicts", async () => {
     const rows = [version(1), version(2)];
+    expect(await preflightMilestoneFactVersions(queryResults([rows]), scope)).toEqual(rows);
     expect(await preflightUnrankedFactPrefix(queryResults([rows, [], []]), scope)).toEqual(rows);
     expect(await preflightUnrankedFactPrefix(queryResults([rows, [{ id: "policy" }]]), scope)).toBeNull();
     expect(await preflightUnrankedFactPrefix(queryResults([rows, [], [{ id: "conflict" }]]), scope)).toBeNull();

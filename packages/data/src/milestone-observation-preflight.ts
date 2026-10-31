@@ -50,16 +50,12 @@ type VersionMetadata = {
   revision: number; evidenceId: string; sourceId: string; valueBytes: number;
 };
 
-// Admission for the new unranked path only. The caller must have authenticated,
-// locked Project and grants, checked the actual fact head and binding, and must
-// compare the returned complete metadata with its later loaded snapshot. Before
-// presentation it must recheck the head, policy and conflict absence under a
-// proven writer fence, independently verify every historical source's current
-// access and validate the stored graph and temporal proof. A null result is
-// unavailable, never evidence that there is no disagreement. Neither this
-// helper nor its LIMIT and byte checks bound SQL scans or decompression.
-export async function preflightUnrankedFactPrefix(
-  tx: Tx, scope: { customerId: string; projectId: string; factId: string; factType: string; revision: number },
+// The caller must authenticate, hold the project/grant writer fence, check the
+// actual fact and binding and compare this complete metadata with the later
+// loaded snapshot. This admits materialization; it is not proof of access,
+// validity or bounded SQL scan/decompression work.
+export async function preflightMilestoneFactVersions(
+  tx: Tx, scope: { customerId: string; projectId: string; factId: string; revision: number },
 ): Promise<VersionMetadata[] | null> {
   if (!Number.isInteger(scope.revision) || scope.revision < 1 || scope.revision > 1000) return null;
   const versions = await tx.$queryRaw<VersionMetadata[]>`
@@ -81,6 +77,19 @@ export async function preflightUnrankedFactPrefix(
     bytes += version.valueBytes;
     if (bytes > 1_048_576) return null;
   }
+  return versions;
+}
+
+// Admission for the unranked path additionally requires actual policy and
+// conflict absence. The caller must recheck head and absence under a proven
+// writer fence, verify every historical source's current access and validate
+// the stored graph and temporal proof before presentation. A null result means
+// unavailable, never evidence that there is no disagreement.
+export async function preflightUnrankedFactPrefix(
+  tx: Tx, scope: { customerId: string; projectId: string; factId: string; factType: string; revision: number },
+): Promise<VersionMetadata[] | null> {
+  const versions = await preflightMilestoneFactVersions(tx, scope);
+  if (!versions) return null;
   const policies = await tx.$queryRaw<{ id: string }[]>`
     SELECT id FROM public."AuthorityPolicy"
     WHERE "customerId"=${scope.customerId}::uuid AND "projectId"=${scope.projectId}::uuid
