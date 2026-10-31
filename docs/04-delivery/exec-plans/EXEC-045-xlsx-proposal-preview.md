@@ -1,8 +1,9 @@
 # EXEC-045: XLSX preview and reviewed proposals
 
 Status: implementation in progress; not accepted. This extends the approved
-spreadsheet journey under FR-CON-006/007/008 and Issue #7. AC-CON-005's CSV
-alternative is already accepted; this work adds no criterion or story credit.
+spreadsheet journey under FR-CON-006/007 and Issue #7. AC-CON-005's CSV
+alternative is accepted at the software-behavior level; this work adds no
+criterion or story credit.
 The local candidate will be reconciled to current main and independently
 reviewed before publication. Original19/20
 capture remains stopped, and OD-013/014 remain in force. Spreadsheet saves
