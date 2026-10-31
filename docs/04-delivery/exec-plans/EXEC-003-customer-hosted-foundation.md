@@ -750,6 +750,8 @@ quarantine behavior are unchanged; a diagnostic query error still fails closed.
 Synthetic mocked and PostgreSQL VALUES cases do not establish the type of the
 earlier backend. On an isolated synthetic PostgreSQL 17.11 container, the native
 VALUES classification and held-client cases passed; the separate restricted-login
-case was skipped because its test credential was unavailable. The container was
-stopped after the read-only run. Exact reviews and hosted/post-merge checks remain
-required. No acceptance changes.
+case was initially skipped because its test credential was unavailable. A later
+run in a new isolated synthetic PostgreSQL 17.11 container passed all three cases,
+including a login without monitoring grants. Both containers were stopped after
+testing. These tests do not establish the earlier backend's type. Exact reviews
+and hosted/post-merge checks remain required. No acceptance changes.
