@@ -769,6 +769,15 @@ buffer. Later body, UI and revocation assertions in that test were not reached;
 the cause of the unavailable buffer is unknown. This is separate from the earlier
 incomplete disclosure capture, and neither failure is erased by a later pass.
 
+The actual PR #159 merge `339bce086232e16c1e655910164657025fd5e8d7` passed
+exact-candidate Foundation and Documentation, but its post-merge Foundation
+[41253892720](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41253892720)
+verify job `124692865141` failed the same browser test after observing a 200,
+when Playwright reported that the response body was unavailable. The later
+assertions were not reached. The reason the buffer was unavailable remains
+unknown; the matching symptom alone does not prove a shared cause with PR #158.
+Its separate production-boundary job was still running when this was recorded.
+
 The proposed test-only observer records the bounded response stream consumed by
 the page, correlates it to the observed request and retains the existing response
 and UI assertions. A synthetic canary checks the observer before the real click.
