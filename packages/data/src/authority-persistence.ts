@@ -495,9 +495,12 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       result: row.result as unknown as AuthorityAssessment,
     });
   }
-  // A single bounded history load for the entire cross-fact capture. Callers
-  // hold Project and all fact locks before taking asOf. No scalar conflicts or
-  // assessment rows are written until every prefix and derived budget passes.
+  // A single bounded history load for the entire cross-fact capture. Capture
+  // callers hold Project and all fact locks before taking asOf. A read-only v1
+  // caller may instead hold Project SHARE throughout, but only where every
+  // supported writer is fenced by Project UPDATE and it rechecks its graph.
+  // This does not cover privileged trigger-bypassing maintenance or future
+  // source-origin writers. No conflicts or assessment rows are written here.
   async loadAssessmentPrefixesInTransaction(
     tx: Tx,
     actor: Actor,
