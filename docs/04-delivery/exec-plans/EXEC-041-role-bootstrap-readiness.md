@@ -18,6 +18,12 @@ nontransient errors without exposing credentials, and never retry acceptance,
 migration or security assertions. Keep existing container identity and cleanup
 checks; if cleanup also fails, preserve and report the original failure.
 
+PR #137's first candidate Foundation run 41193148089 failed its verify job at
+lint before running the bootstrap checks. It identified an unnecessary initial
+assignment and a throw from a `finally` block in the readiness helper. The
+corrected candidate must pass lint and the full hosted gates; the initial
+failure is not erased by a later result.
+
 Unit tests cover delayed readiness, expiry, mismatch, error classes, an emitted
 client error, forced socket destruction and no retries of acceptance. These do
 not replace the required real isolated PostgreSQL and hosted role-bootstrap

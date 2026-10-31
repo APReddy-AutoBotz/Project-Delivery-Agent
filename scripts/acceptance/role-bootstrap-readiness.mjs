@@ -31,7 +31,7 @@ export async function probeRoleBootstrapEndpoint(Client, connectionString, timeo
   let emittedError = false;
   client.on("error", () => { emittedError = true; });
   const work = (async () => {
-    let result = "unavailable";
+    let result;
     try {
       await client.connect();
       const rows = (await client.query("SELECT current_database() AS database, current_user AS username")).rows;
@@ -68,13 +68,15 @@ export async function runRoleBootstrapWhenReady(probe, acceptance, options = {})
 
 export async function runWithOwnedCleanup(run, cleanup, reportCleanupFailure) {
   let primaryFailed = false;
-  try { return await run(); }
-  catch (error) { primaryFailed = true; throw error; }
-  finally {
-    try { await cleanup(); }
-    catch (error) {
-      if (!primaryFailed) throw error;
-      try { reportCleanupFailure(); } catch { /* Preserve the original failure. */ }
-    }
+  let primaryError;
+  let value;
+  try { value = await run(); }
+  catch (error) { primaryFailed = true; primaryError = error; }
+  try { await cleanup(); }
+  catch (error) {
+    if (!primaryFailed) throw error;
+    try { reportCleanupFailure(); } catch { /* Preserve the original failure. */ }
   }
+  if (primaryFailed) throw primaryError;
+  return value;
 }
