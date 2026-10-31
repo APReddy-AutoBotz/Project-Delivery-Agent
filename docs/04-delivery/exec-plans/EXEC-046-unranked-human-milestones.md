@@ -1,9 +1,6 @@
 # EXEC-046: Unranked human-reported milestone states
 
-Status: local implementation started; no endpoint or acceptance. Base is merged
-PR #141 `374f2ee950599c62bf12d351459acbfa0ff3bf24`; its actual post-merge
-Foundation and Documentation checks passed. Reconcile current main before any
-publication. Original19/20 capture
+Status: internal reader merged; no unranked endpoint or acceptance. Original19/20 capture
 remains stopped, OD-013/014 remain in force, and spreadsheet/connector proposals
 do not become source facts. This slice does not complete GOLDEN-003.
 
@@ -14,6 +11,16 @@ The subsequent evidence ledger PR #142 merged as
 `6a80e5b46c4a8359d6d6f7b23395ad0d2cb4fee8`. Candidate Foundation
 `41215228464` and Documentation `41215228449`, and actual post-merge Foundation
 `41217633613` and Documentation `41217633628`, passed. It changes no acceptance.
+
+Internal observation PR #143 merged as
+`56688d3e58dccd66883753eb17ffe1992d18ad7d`, tree
+`1d0d6286d29fd0ee1982640d272a0c9e99699685`, with ordered parents
+`28852f306956f82946f8c77afea8a348cafab063` and reviewed head
+`dd4885491d562f4c35f98c39aee407baad127468`. Candidate Foundation
+`41224293163` and Documentation `41224293130` passed. Actual post-merge
+Foundation `41226320971` and Documentation `41226320917` also passed. This
+merges the internal partial slice only; it does not enable its API or view or
+change acceptance.
 
 ## Intended limited behavior
 
