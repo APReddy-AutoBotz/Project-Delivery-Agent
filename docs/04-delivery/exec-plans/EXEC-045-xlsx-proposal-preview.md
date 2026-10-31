@@ -10,6 +10,15 @@ remain reviewed import proposals and do not publish canonical facts.
 
 ## Current increment
 
+PR #144 merged as `d344d3b83c11a8991d608016be13c77599386673`; its reviewed
+head `9e0b9f62913b4de014f92b79075d24fa2a1bf14c` and actual merge share tree
+`bab4d725cb201a8ce12c979b0d7f22ae42305a27`, with ordered merge parents
+`56688d3e58dccd66883753eb17ffe1992d18ad7d` and that head. Candidate Foundation
+`41231014184` and Documentation `41231014207` passed. Actual post-merge
+Foundation `41233129454` and Documentation `41233129581` were still running at
+this checkpoint. The earlier Foundation browser failure remains documented in
+EXEC-046; this merge does not enable the unranked API/view or accept a story.
+
 An unwired synthetic interpreter accepts one explicitly declared visible sheet,
 whose exact name equals the mapping, with contiguous physical coordinates and
 literal text cells. It rejects omitted or unsupported declarations and applies

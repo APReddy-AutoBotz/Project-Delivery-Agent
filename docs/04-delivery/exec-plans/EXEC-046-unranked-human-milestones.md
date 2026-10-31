@@ -1,9 +1,6 @@
 # EXEC-046: Unranked human-reported milestone states
 
-Status: local implementation started; no endpoint or acceptance. Base is merged
-PR #141 `374f2ee950599c62bf12d351459acbfa0ff3bf24`; its actual post-merge
-Foundation and Documentation checks passed. Reconcile current main before any
-publication. Original19/20 capture
+Status: internal reader merged; no unranked endpoint or acceptance. Original19/20 capture
 remains stopped, OD-013/014 remain in force, and spreadsheet/connector proposals
 do not become source facts. This slice does not complete GOLDEN-003.
 
@@ -14,6 +11,16 @@ The subsequent evidence ledger PR #142 merged as
 `6a80e5b46c4a8359d6d6f7b23395ad0d2cb4fee8`. Candidate Foundation
 `41215228464` and Documentation `41215228449`, and actual post-merge Foundation
 `41217633613` and Documentation `41217633628`, passed. It changes no acceptance.
+
+Internal observation PR #143 merged as
+`56688d3e58dccd66883753eb17ffe1992d18ad7d`, tree
+`1d0d6286d29fd0ee1982640d272a0c9e99699685`, with ordered parents
+`28852f306956f82946f8c77afea8a348cafab063` and reviewed head
+`dd4885491d562f4c35f98c39aee407baad127468`. Candidate Foundation
+`41224293163` and Documentation `41224293130` passed. Actual post-merge
+Foundation `41226320971` and Documentation `41226320917` also passed. This
+merges the internal partial slice only; it does not enable its API or view or
+change acceptance.
 
 ## Intended limited behavior
 
@@ -84,6 +91,10 @@ removal and leadership-grant revocation, in both transaction orders and for
 both unranked and existing equal-tier reads. They observed the expected lock
 blockers and subsequent withholding or denial. They do not prove direct SQL
 mutation behavior, complete no-write behavior or global deadlock freedom.
+Four subsequent Node 24 / PostgreSQL 17 synthetic cases also passed for direct
+deletion of the selected source-reader row under the API role, in both orders
+and both reader modes. They observed the project-gate blocker and withholding
+after deletion; they do not cover every direct mutation or historical-only row.
 Two additional cases passed for a repository-mediated human fact append,
 observing the project-lock blocker in both orders and checking the exact old
 or new version, evidence and source as appropriate. This covers one source and
@@ -95,6 +106,14 @@ Three additional Node 24 cases passed: agreeing human heads and a head with no
 validity were withheld, and the positive scenario denied an unknown milestone
 and a mismatched customer identifier. The latter uses an unprovisioned customer
 ID, not two populated tenants or an authenticated cross-tenant HTTP session.
+One later Node 24 synthetic case created two customers with their own projects,
+milestones and leadership grants for the same subject, then confirmed repository
+denial in both cross-customer directions. The second milestone had no state
+binding; this is not a test of two complete observations or authenticated HTTP.
+One additional synthetic case passed with a future, non-displayed human source:
+removing the leader's reader access withheld the observation, and restoring it
+made the original displayed positions available again. This does not prove a
+superseded historical-only source or concurrent revocation for that source.
 For FR-EVD-009/012 and FR-QA-007, an unregistered local controller boundary and
 an unused browser decoder now validate the separate unranked DTO. Direct tests
 cover scope, generic denial/unavailability and representative malformed and
@@ -106,6 +125,22 @@ An unused freshness helper and focused tests now calculate a conservative
 contributor-validity upper bound from request start using wall and monotonic
 clocks; invalid timestamps, observed regressions and expiry fail closed. This
 does not prove browser lifecycle behavior or current source access or policy.
+An unconnected local resource now exercises explicit refresh, single in-flight
+loading, timeout, cancellation, scope-owner disposal, visibility and manual
+retry after expiry. Its unit tests do not establish HTTP streaming, React
+integration, stale DOM behavior, browser suspension or authorization freshness.
+An unused shared lease limits unresolved loads across owner-supplied scope
+generations and fails closed when busy or aborted. Its guarantee depends on a
+long-lived owner reusing the same lease and holding it through the full bounded
+body read and decode; an uncooperative load can block later attempts indefinitely.
+An unmounted local view and shared page-lifecycle helper now compose these
+pieces. Eight synthetic Chrome harness cases passed for scope and session
+changes, delayed old responses, bounded input, synthetic visibility events and
+disposal. The denial case holds an already-received EOF inside the test wrapper;
+it does not prove a stalled network or the production disclosure recorder.
+This is not authenticated HTTP, real OS suspension or evidence of a view mounted
+in the application. Scope-owner lifetime, current access and policy, endpoint contract and
+the remaining browser and information-flow checks are still required.
 Further native and independent review is required; there is no HTTP route or
 user-facing view.
 An internal fact-prefix admission helper checks bounded metadata,
@@ -137,6 +172,20 @@ multi-fact caller must also preserve the existing combined 1,000-revision and
 4 MiB limits across all policies, not just invoke the per-history limit.
 
 ## Remaining proof and integration
+
+Candidate Foundation run `41229589875` on head `7c944ce79f6feb3f6af68fb0854acbd2595b90d0`
+passed its unit, native integration and recovery steps, but its browser workflow
+failed while the existing milestone-reconciliation test attempted to obtain a
+503 body from Chromium's DevTools buffer. The log reports no data for that
+resource; it does not establish navigation or the cause. All eight unmounted
+view harness cases passed in that run. A later successful run would not explain
+or erase this failure. The proposed correction is designed to observe the matching response's
+page-consumed body through EOF, correlated by request ID, with a synthetic
+canary; a local Chrome smoke test exercised the proposed probe on intercepted
+synthetic responses and confirmed request-ID association, click ordering and
+canary capture. It did not run the full application journey. This does not
+establish production-recorder behavior or a general non-disclosure guarantee.
+The production-boundary job was still running when this note was written.
 
 Use the existing project/leadership and full-prefix source-reader checks with
 complete contiguous versions, canonical binding validation, human provenance,
