@@ -2,9 +2,18 @@
 
 Status: local implementation started; no endpoint or acceptance. Base is merged
 PR #141 `374f2ee950599c62bf12d351459acbfa0ff3bf24`; its actual post-merge
-Foundation check was still running at this checkpoint. Original19/20 capture
+Foundation and Documentation checks passed. Reconcile current main before any
+publication. Original19/20 capture
 remains stopped, OD-013/014 remain in force, and spreadsheet/connector proposals
 do not become source facts. This slice does not complete GOLDEN-003.
+
+The subsequent evidence ledger PR #142 merged as
+`28852f306956f82946f8c77afea8a348cafab063`, tree
+`ba4f7d096c981d8d0a2d0ab11fa1840fa14d3406`, with ordered parents
+`374f2ee950599c62bf12d351459acbfa0ff3bf24` and reviewed head
+`6a80e5b46c4a8359d6d6f7b23395ad0d2cb4fee8`. Candidate Foundation
+`41215228464` and Documentation `41215228449`, and actual post-merge Foundation
+`41217633613` and Documentation `41217633628`, passed. It changes no acceptance.
 
 ## Intended limited behavior
 
@@ -34,14 +43,39 @@ snapshot, rejecting unsupported approvals and inconsistent source/evidence
 associations. Snapshot completeness, source access, actual absent policy and
 stored graph integrity remain caller proof obligations, not conclusions of this
 transformation. Its output bound is not an input, SQL or transport bound.
-A local, currently unused canonical-project preflight checks scoped receipt
+A local canonical-project preflight checks scoped receipt
 metadata and the seven declared and actual collection counts. Focused mocked
 metadata tests passed, as did a read-only API-role PostgreSQL smoke on one
 previously created synthetic project using a `pg` query adapter. This does not
 test Prisma transport, authorization ordering, programme and size boundaries,
 concurrent changes or native proof validation after preflight. It does not
 establish that the forthcoming read is safe to expose.
-An additional unused fact-prefix admission helper checks bounded metadata,
+An internal, not-yet-exposed reader now composes this preflight with scoped
+leadership checks, fact-prefix admission, native binding validation, complete
+source access and graph checks, a coherence reread and the pure projection.
+One local rollback-only API-role Prisma probe returned two evidence-linked
+human states for a synthetic canonical milestone, denied a non-leader and
+withheld the view after one source reader was removed. It checked selected
+assessment, conflict and correlation-audit counts around two reads, then verified
+scoped project/grant/audit rollback. It used a transaction shim and does not
+prove normal transaction boundaries, complete no-write behavior or races.
+An expanded run restored source access, created a synthetic active policy and
+confirmed the no-policy reader withheld the view while the existing equal-tier
+reader returned the same two evidence-linked states and exact policy revision.
+This was also a single rolled-back, same-transaction case, not a policy-birth
+race or a full regression suite.
+Two targeted integration cases subsequently passed against a separate synthetic
+PostgreSQL 17 database using normal repository transaction boundaries. They
+cover exact evidence, source and version identities, selected authorization
+denials, source-reader removal, creation of an active policy and the existing
+equal-tier result, plus an expired source. Selected scoped data and audit
+snapshots were unchanged by the reads. These cases do not prove all-table
+no-write behavior, transaction ordering or the remaining negative cases. The
+local run used Node 22, while the project declares Node 24; hosted-runtime
+verification remains necessary.
+Further native and independent review is required; there is no HTTP route or
+user-facing view.
+An internal fact-prefix admission helper checks bounded metadata,
 contiguous revision identities, the absence of a policy aggregate and absence
 of stored conflicts. Mocked metadata tests and one read-only API-role PostgreSQL
 smoke cover rejection of an existing synthetic fact with a policy, via a `pg`
@@ -53,7 +87,7 @@ back. That transaction used a repository shim; it does not prove the canonical
 milestone flow, full authorization, conflict rejection or concurrent behavior.
 After extracting shared version admission, both this positive probe and the
 read-only policy-present rejection probe passed again against the revised code.
-An unwired comparator checks that a later loaded prefix has the same ordered
+An internal comparator checks that a later loaded prefix has the same ordered
 version, scope, revision, source and evidence identities; it does not compare
 fact contents or establish immutability, source access or a writer fence.
 Its reusable version admission applies a 1 MiB per-fact limit; any future

@@ -1,11 +1,14 @@
 import {
   MilestoneStateDisagreementError, milestoneStateDisagreementSchema, projectFactIdSchema,
+  unrankedMilestoneFromSnapshot,
   type Actor, type MilestoneStateDisagreement, type MilestoneStateDisagreementRepository,
+  type UnrankedMilestoneObservation,
 } from "@pdaa/domain";
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
 import { actorInput } from "./fact-authorization.js";
 import { DatabaseCanonicalProjectRepository } from "./canonical-project.js";
-import { DatabaseAuthorityRepository, resolveStoredAuthorityPrefix } from "./authority-persistence.js";
+import { buildSourceAuthoritySnapshot, DatabaseAuthorityRepository, resolveStoredAuthorityPrefix } from "./authority-persistence.js";
+import { matchesUnrankedFactPrefix, preflightMilestoneCanonicalProject, preflightUnrankedFactPrefix } from "./milestone-observation-preflight.js";
 
 type Tx = Prisma.TransactionClient;
 const denied = (): never => { throw new MilestoneStateDisagreementError("DENIED"); };
@@ -18,6 +21,18 @@ export class DatabaseMilestoneStateDisagreementRepository implements MilestoneSt
   constructor(private readonly db: Database) {}
 
   async readLeadership(actorValue: Actor, projectValue: string, milestoneValue: string): Promise<MilestoneStateDisagreement> {
+    return this.readScoped(actorValue, projectValue, milestoneValue, false,
+      (tx, actor, projectId, milestoneId) => this.observe(tx, actor, projectId, milestoneId));
+  }
+
+  // Internal only: there is no API route or user-facing no-policy view yet.
+  async readUnrankedLeadership(actorValue: Actor, projectValue: string, milestoneValue: string): Promise<UnrankedMilestoneObservation> {
+    return this.readScoped(actorValue, projectValue, milestoneValue, true,
+      (tx, actor, projectId, milestoneId) => this.observeUnranked(tx, actor, projectId, milestoneId));
+  }
+
+  private async readScoped<T>(actorValue: Actor, projectValue: string, milestoneValue: string, boundedCanonical: boolean,
+    observe: (tx: Tx, actor: Actor, projectId: string, milestoneId: string) => Promise<T>): Promise<T> {
     let actor: Actor, projectId: string, milestoneId: string;
     try {
       actor = actorInput(actorValue);
@@ -39,6 +54,7 @@ export class DatabaseMilestoneStateDisagreementRepository implements MilestoneSt
             OR ("scopeType"='portfolio' AND "scopeId"=${projects[0].portfolioId}::uuid)) ORDER BY id FOR SHARE`;
         const roles = grants.filter((grant) => actor.roles.some((role) => role === grant.role)).map((grant) => grant.role);
         if (!roles.includes("leadership")) return denied();
+        if (boundedCanonical && !await preflightMilestoneCanonicalProject(tx, actor.customerId, projectId)) return denied();
         let detail;
         try {
           detail = await new DatabaseCanonicalProjectRepository(this.db).detailInTransaction(tx, actor, projectId,
@@ -46,7 +62,7 @@ export class DatabaseMilestoneStateDisagreementRepository implements MilestoneSt
         } catch { return denied(); }
         if (!detail.configured || !detail.milestones.some((row) => row.id === milestoneId)) return denied();
         visible = true;
-        return await this.observe(tx, actor, projectId, milestoneId);
+        return await observe(tx, actor, projectId, milestoneId);
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 20000 });
     } catch (error) {
       if (error instanceof MilestoneStateDisagreementError) throw error;
@@ -151,5 +167,74 @@ export class DatabaseMilestoneStateDisagreementRepository implements MilestoneSt
     return milestoneStateDisagreementSchema.parse({ projectId, milestoneId, bindingId: binding.id, factId: fact.id,
       factType: fact.factType, asOf: asOf.toISOString(), policyRevisionId: result.policy.revisionId,
       positions: [...positions.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([state, supports]) => ({ state, supports })) });
+  }
+
+  private async observeUnranked(tx: Tx, actor: Actor, projectId: string, milestoneId: string): Promise<UnrankedMilestoneObservation> {
+    const scope = { customerId: actor.customerId, projectId };
+    const canonical = await tx.canonicalProject.findFirst({ where: { customerId: actor.customerId, id: projectId, sealed: true },
+      include: { canonicalCreationReceipt_project: true } });
+    if (!canonical?.canonicalCreationReceipt_project) return unavailable();
+    const canonicalValid = await tx.$queryRaw<{ valid: boolean }[]>`SELECT public.valid_canonical_project(${projectId}::uuid) AS valid`;
+    if (canonicalValid[0]?.valid !== true) return unavailable();
+    const bindings = await tx.canonicalStateBinding.findMany({ where: { ...scope, sealed: true,
+      targetKind: "MILESTONE", milestoneId, field: "state" }, take: 2 });
+    if (bindings.length !== 1 || bindings[0]!.workItemId !== null) return unavailable();
+    const binding = bindings[0]!;
+    const fact = await tx.projectFact.findFirst({ where: { ...scope, id: binding.factId, factType: binding.factType } });
+    if (!fact) return unavailable();
+    // Admission precedes the binding validator, which scans all fact values.
+    const admitted = await preflightUnrankedFactPrefix(tx, { ...scope, factId: fact.id, factType: fact.factType, revision: fact.revision });
+    if (!admitted) return unavailable();
+    const bindingValid = await tx.$queryRaw<{ valid: boolean }[]>`SELECT public.valid_canonical_state_binding(${binding.id}::uuid) AS valid`;
+    if (bindingValid[0]?.valid !== true) return unavailable();
+    const clock = await tx.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+    const asOf = clock[0]?.now;
+    if (!asOf) return unavailable();
+    const prefixes = await new DatabaseAuthorityRepository(this.db).loadAssessmentPrefixesInTransaction(tx, actor, projectId, [fact], asOf);
+    const prefix = prefixes?.get(fact.id);
+    if (!prefix || prefix.aggregate !== null || prefix.event !== null || prefix.conflicts.length !== 0 ||
+        !matchesUnrankedFactPrefix(admitted, prefix.versions) ||
+        prefix.versions.some((version) => version.provenance !== "HUMAN_CONFIRMED" || version.evidence.source.sourceType !== "human_statement"))
+      return unavailable();
+    const access = new Map(prefix.access.map((row) => [row.sourceId, row]));
+    if (access.size !== prefix.access.length || prefix.versions.some((version) => {
+      const row = access.get(version.sourceId);
+      return !row || row.factId !== fact.id || row.state !== "AVAILABLE" || row.readers.length !== 1 || row.readers[0]?.subject !== actor.subject;
+    })) return unavailable();
+    const versionIds = admitted.map((version) => version.id);
+    const graph = await tx.$queryRaw<{ versionId: string; evidenceId: string; sourceId: string }[]>`
+      SELECT v.id AS "versionId", e.id AS "evidenceId", s.id AS "sourceId"
+      FROM public."ProjectFactVersion" v
+      JOIN public."FactEvidence" e ON e.id=v."evidenceId" AND e."customerId"=v."customerId" AND e."projectId"=v."projectId"
+        AND e."factId"=v."factId" AND e."sourceId"=v."sourceId"
+      JOIN public."FactSource" s ON s.id=v."sourceId" AND s."customerId"=v."customerId" AND s."projectId"=v."projectId"
+        AND s."factId"=v."factId" AND s."providedBy"=e."providedBy" AND s."sourceType"='human_statement'
+      WHERE v."customerId"=${actor.customerId}::uuid AND v."projectId"=${projectId}::uuid
+        AND v."factId"=${fact.id}::uuid AND v.id=ANY(${versionIds}::uuid[]) AND v.provenance='HUMAN_CONFIRMED'`;
+    const graphByVersion = new Map(graph.map((row) => [row.versionId, row]));
+    if (graph.length !== admitted.length || graphByVersion.size !== admitted.length || admitted.some((version) => {
+      const row = graphByVersion.get(version.id);
+      return !row || row.evidenceId !== version.evidenceId || row.sourceId !== version.sourceId;
+    })) return unavailable();
+    const coherent = await tx.$queryRaw<{ valid: boolean }[]>`
+      SELECT EXISTS (SELECT 1 FROM public."CanonicalProject" c
+        JOIN public."CanonicalCreationReceipt" r ON r."customerId"=c."customerId" AND r."projectId"=c.id
+        JOIN public."Milestone" m ON m."customerId"=c."customerId" AND m."projectId"=c.id
+        JOIN public."CanonicalStateBinding" b ON b."customerId"=c."customerId" AND b."projectId"=c.id AND b."milestoneId"=m.id
+        JOIN public."ProjectFact" f ON f."customerId"=b."customerId" AND f."projectId"=b."projectId" AND f.id=b."factId"
+        WHERE c."customerId"=${actor.customerId}::uuid AND c.id=${projectId}::uuid AND c.sealed
+          AND r.id=${canonical.canonicalCreationReceipt_project.id}::uuid AND m.id=${milestoneId}::uuid
+          AND b.id=${binding.id}::uuid AND b.sealed AND b."targetKind"='MILESTONE' AND b.field='state'
+          AND b."workItemId" IS NULL AND b."factId"=${fact.id}::uuid AND b."factType"=${fact.factType}
+          AND f."factType"=${fact.factType} AND f.revision=${fact.revision}) AS valid`;
+    if (coherent[0]?.valid !== true) return unavailable();
+    const rechecked = await preflightUnrankedFactPrefix(tx, { ...scope, factId: fact.id, factType: fact.factType, revision: fact.revision });
+    if (!rechecked || !matchesUnrankedFactPrefix(admitted, rechecked) ||
+        rechecked.some((version, index) => version.valueBytes !== admitted[index]!.valueBytes)) return unavailable();
+    const snapshot = buildSourceAuthoritySnapshot({ ...scope, factId: fact.id, factType: fact.factType }, asOf.toISOString(),
+      null, prefix.versions, prefix.conflicts, prefix.access, true);
+    const result = unrankedMilestoneFromSnapshot(snapshot, { milestoneId, bindingId: binding.id });
+    if (!result) return unavailable();
+    return result;
   }
 }

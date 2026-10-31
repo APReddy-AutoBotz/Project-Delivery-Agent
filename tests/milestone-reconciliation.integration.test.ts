@@ -338,6 +338,71 @@ async function stateDisagreementFixture(omitMilestonePolicy = false, expiredAlte
   return { f, leader, alternate, target, alternateVersion, reader };
 }
 
+async function unrankedReadSnapshot(f: Awaited<ReturnType<typeof stateDisagreementFixture>>["f"], leader: Actor) {
+  return {
+    facts: await db.projectFact.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { id: "asc" } }),
+    versions: await db.projectFactVersion.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { id: "asc" } }),
+    evidence: await db.factEvidence.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { id: "asc" } }),
+    appendReceipts: await db.factAppendReceipt.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { id: "asc" } }),
+    sources: await db.factSource.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { id: "asc" } }),
+    access: await db.factSourceAccess.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { sourceId: "asc" } }),
+    readers: await db.factSourceReader.findMany({ where: { customerId, projectId: f.projectId }, orderBy: [{ sourceId: "asc" }, { subject: "asc" }] }),
+    policies: await db.authorityPolicy.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { id: "asc" } }),
+    policyRevisions: await db.authorityPolicyRevision.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { id: "asc" } }),
+    policyReceipts: await db.authorityPolicyReceipt.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { id: "asc" } }),
+    bindings: await db.canonicalStateBinding.findMany({ where: { customerId, projectId: f.projectId }, orderBy: { id: "asc" } }),
+    grants: await db.accessGrant.findMany({ where: { customerId, OR: [{ scopeType: "project", scopeId: f.projectId },
+      { scopeType: "portfolio", scopeId: f.portfolioId }] }, orderBy: { id: "asc" } }),
+    leaderAudit: await db.auditEvent.findMany({ where: { customerId, actor: leader.subject }, orderBy: { id: "asc" } }),
+    ...await reconciliationRows(f.projectId),
+  };
+}
+
+it("observes unranked human milestone reports only while policy is absent and every source remains readable", async () => {
+  const { f, leader, alternate, target, alternateVersion, reader } = await stateDisagreementFixture(true);
+  const snapshot = () => unrankedReadSnapshot(f, leader);
+  const before = await snapshot();
+  const observed = await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id);
+  expect(observed).toMatchObject({ kind: "UNRANKED_NO_POLICY", projectId: f.projectId, milestoneId: f.milestone.id,
+    bindingId: target.id, factId: target.factId, factType: target.factType });
+  expect(observed.positions.map((position) => ({ state: position.state, supports: position.supports.map((item) =>
+    ({ versionId: item.versionId, evidenceId: item.evidenceId, sourceId: item.sourceId })) }))).toEqual([
+    { state: "COMPLETE", supports: [{ versionId: target.entry.id, evidenceId: target.entry.evidenceId, sourceId: target.entry.sourceId }] },
+    { state: "OPEN", supports: [{ versionId: alternateVersion.entry.id, evidenceId: alternateVersion.entry.evidenceId, sourceId: alternateVersion.entry.sourceId }] },
+  ]);
+  await expect(reader.readUnrankedLeadership(f.pm, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  const noGrant: Actor = { customerId, subject: "unranked-no-grant-" + randomUUID(), roles: ["leadership"] };
+  await expect(reader.readUnrankedLeadership(noGrant, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readUnrankedLeadership(leader, randomUUID(), f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  expect(await snapshot()).toEqual(before);
+
+  const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId });
+  const revoked = await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId,
+    expectedRevision: access!.revision, state: "AVAILABLE", readers: [alternate.subject, f.pmo.subject] }, context);
+  const afterRevocation = await snapshot();
+  await expect(reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await snapshot()).toEqual(afterRevocation);
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId,
+    expectedRevision: revoked.revision, state: "AVAILABLE", readers: [alternate.subject, f.pmo.subject, leader.subject] }, context);
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const policy = await authority.appendPolicy(f.pmo, { projectId: f.projectId, factType: target.factType, expectedRevision: 0,
+    idempotencyKey: randomUUID(), effectiveAt: new Date(now!.getTime() - 1000).toISOString(), definition }, context);
+  const afterPolicy = await snapshot();
+  await expect(reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  const ranked = await reader.readLeadership(leader, f.projectId, f.milestone.id);
+  expect(ranked.policyRevisionId).toBe(policy.event.id);
+  expect(ranked.positions.map((position) => position.state)).toEqual(["COMPLETE", "OPEN"]);
+  expect(ranked.positions.map((position) => position.supports.map((support) => support.versionId))).toEqual([[target.entry.id], [alternateVersion.entry.id]]);
+  expect(await snapshot()).toEqual(afterPolicy);
+}, 60000);
+
+it("withholds an unranked milestone when an applicable source has expired", async () => {
+  const { f, leader, reader } = await stateDisagreementFixture(true, true);
+  const before = await unrankedReadSnapshot(f, leader);
+  await expect(reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
+}, 60000);
+
 it("withholds milestone alternatives without a policy and exposes the tie only after policy creation", async () => {
   const { f, leader, target, reader } = await stateDisagreementFixture(true);
   expect(await db.authorityPolicy.count({ where: { customerId, projectId: f.projectId, factType: target.factType } })).toBe(0);
