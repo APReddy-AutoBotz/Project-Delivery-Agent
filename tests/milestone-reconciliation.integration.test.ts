@@ -17,6 +17,7 @@ import { loadConfig } from "../packages/platform/dist/index.js";
 import { createApp } from "../apps/api/dist/app.js";
 import { compileContract } from "../scripts/validate-openapi.mjs";
 import { possibleMutation, rawSqlText } from "./fixtures/read-only-sql.js";
+import { findMatchingMilestoneRequest } from "../packages/data/dist/milestone-request-proof.js";
 import type {
   Actor,
   AuthorityDefinition,
@@ -70,6 +71,8 @@ beforeAll(async () => {
       db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never),
     undefined,
     new DatabaseMilestoneStateDisagreementRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never),
+    new DatabaseMilestoneConflictObservationRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
       db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never),
   ));
   validate = compileContract(spec);
@@ -2118,3 +2121,355 @@ it.each(["writer-first", "reader-first"] as const)("serializes binding birth wit
   expect(fresh.positions.find((position) => position.bindingId === created.id)).toMatchObject({ targetId: missing.workItemId,
     factId: created.factId, supports: [{ versionId: created.entry.id, evidenceId: created.entry.evidenceId, sourceId: created.entry.sourceId }] });
 }, 60000);
+
+it.each(["project-leadership", "portfolio-leadership"] as const)("reports a matching request without writing with %s grants", async (arrangement) => {
+  const f = await fixture(1, true, false, false, true);
+  const dual: Actor = { ...f.pmo, roles: ["leadership", "pmo_admin"] };
+  if (arrangement === "portfolio-leadership") {
+    const changed = await db.accessGrant.updateMany({ where: { customerId, subject: dual.subject, scopeType: "portfolio", scopeId: f.portfolioId },
+      data: { role: "leadership" } });
+    expect(changed.count).toBe(1);
+  }
+  await db.accessGrant.create({ data: { customerId, subject: dual.subject, scopeType: "project", scopeId: f.projectId,
+    role: arrangement === "project-leadership" ? "leadership" : "pmo_admin" } });
+  const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) };
+  const reader = new DatabaseMilestoneConflictObservationRepository(roleDb as never);
+  const read = () => reader.readForLeaderManager(dual, f.projectId, f.milestone.id);
+  const before = await reconciliationRows(f.projectId);
+  const absent = await read();
+  expect(absent).toMatchObject({ observation: { projectId: f.projectId, milestoneId: f.milestone.id, outcome: "CONFLICTING" },
+    requestStatus: "NO_MATCHING_REQUEST_RECORDED" });
+  expect(await reconciliationRows(f.projectId)).toEqual(before);
+  const created = await reconciliation.check(f.pmo, f.check, context);
+  expect(created.outcome).toBe("CREATED");
+  const afterCreate = await reconciliationRows(f.projectId);
+  const matched = await read();
+  expect(matched).toMatchObject({ observation: { projectId: f.projectId, milestoneId: f.milestone.id, outcome: "CONFLICTING" },
+    requestStatus: "MATCHING_REQUEST_RECORDED" });
+  expect(JSON.stringify(matched)).not.toContain(created.request!.id);
+  expect(JSON.stringify(matched)).not.toContain(f.pm.subject);
+  expect(await reconciliationRows(f.projectId)).toEqual(afterCreate);
+  await expect(reader.readForLeaderManager({ ...dual, roles: ["leadership"] }, f.projectId, f.milestone.id))
+    .rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readForLeaderManager({ ...dual, roles: ["pmo_admin"] }, f.projectId, f.milestone.id))
+    .rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readForLeaderManager(dual, randomUUID(), f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  for (const role of ["leadership", "pmo_admin"]) {
+    const grant = await db.accessGrant.findFirstOrThrow({ where: { customerId, subject: dual.subject, role } });
+    await db.accessGrant.delete({ where: { id: grant.id } });
+    await expect(read()).rejects.toMatchObject({ code: "DENIED" });
+    await db.accessGrant.create({ data: grant });
+  }
+  const sourceId = f.bindings[0]!.entry.sourceId;
+  const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: access!.revision,
+    state: "AVAILABLE", readers: [f.pm.subject] }, context);
+  const afterRevocation = await reconciliationRows(f.projectId);
+  await expect(read()).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await reconciliationRows(f.projectId)).toEqual(afterRevocation);
+}, 60000);
+
+it("enforces dual-role and source access on the serialized request observation endpoint", async () => {
+  const f = await fixture(1, true, false, false, true);
+  const dual: Actor = { ...f.pmo, roles: ["leadership", "pmo_admin"] };
+  const grant = await db.accessGrant.create({ data: { customerId, subject: dual.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  const path = `/api/projects/${f.projectId}/milestones/${f.milestone.id}/leadership-manager-request-observation`;
+  const before = await reconciliationRows(f.projectId);
+  const absent = await api(dual, path);
+  expect(absent).toMatchObject({ status: 200, body: { requestStatus: "NO_MATCHING_REQUEST_RECORDED", observation: { outcome: "CONFLICTING" } } });
+  expect(await reconciliationRows(f.projectId)).toEqual(before);
+  const created = await reconciliation.check(f.pmo, f.check, context);
+  const afterCreate = await reconciliationRows(f.projectId);
+  const matched = await api(dual, path);
+  expect(matched).toMatchObject({ status: 200, body: { requestStatus: "MATCHING_REQUEST_RECORDED" } });
+  expect(JSON.stringify(matched.body)).not.toContain(created.request!.id);
+  expect(JSON.stringify(matched.body)).not.toContain(f.pm.subject);
+  expect(await reconciliationRows(f.projectId)).toEqual(afterCreate);
+  expect((await api({ ...dual, roles: ["leadership"] }, path)).status).toBe(404);
+  expect((await api({ ...dual, roles: ["pmo_admin"] }, path)).status).toBe(404);
+  expect((await api(dual, path.replace(f.projectId, randomUUID()))).status).toBe(404);
+  await db.accessGrant.delete({ where: { id: grant.id } });
+  expect((await api(dual, path)).status).toBe(404);
+  await db.accessGrant.create({ data: grant });
+  const sourceId = f.bindings[0]!.entry.sourceId;
+  const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: access!.revision,
+    state: "AVAILABLE", readers: [f.pm.subject] }, context);
+  const afterRevoke = await reconciliationRows(f.projectId);
+  expect((await api(dual, path)).status).toBe(503);
+  expect(await reconciliationRows(f.projectId)).toEqual(afterRevoke);
+}, 60000);
+
+it("withholds request status for a non-conflict and fails closed after policy removal", async () => {
+  const f = await fixture(1, true, false, false, true, true);
+  const dual: Actor = { ...f.pmo, roles: ["leadership", "pmo_admin"] };
+  await db.accessGrant.create({ data: { customerId, subject: dual.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  const reader = new DatabaseMilestoneConflictObservationRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never);
+  const read = () => reader.readForLeaderManager(dual, f.projectId, f.milestone.id);
+  const before = await reconciliationRows(f.projectId);
+  expect(await read()).toMatchObject({ observation: { outcome: "NOT_DETECTED" }, requestStatus: null });
+  expect(await reconciliationRows(f.projectId)).toEqual(before);
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  await authority.appendPolicy(f.pmo, { projectId: f.projectId, factType: f.bindings[0]!.factType, expectedRevision: 1,
+    idempotencyKey: randomUUID(), effectiveAt: new Date(now!.getTime() - 1000).toISOString(), definition: null }, context);
+  const afterPolicy = await reconciliationRows(f.projectId);
+  await expect(read()).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await reconciliationRows(f.projectId)).toEqual(afterPolicy);
+}, 60000);
+
+it("matches only the current contributor identity when other evidence and policy change", async () => {
+  const f = await fixture(1, true, false, true, true);
+  const dual: Actor = { ...f.pmo, roles: ["leadership", "pmo_admin"] };
+  await db.accessGrant.create({ data: { customerId, subject: dual.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  const reader = new DatabaseMilestoneConflictObservationRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never);
+  const read = () => reader.readForLeaderManager(dual, f.projectId, f.milestone.id);
+  expect((await reconciliation.check(f.pmo, f.check, context)).outcome).toBe("CREATED");
+  const initial = await read();
+  expect(initial).toMatchObject({ requestStatus: "MATCHING_REQUEST_RECORDED" });
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const effectiveAt = new Date(now!.getTime() - 1000).toISOString(), validUntil = new Date(now!.getTime() + 86_400_000).toISOString();
+  const noncontributor = f.bindings.at(-1)!;
+  await facts.appendHumanStatement(f.pmo, { projectId: f.projectId, factType: noncontributor.factType, expectedRevision: 1,
+    idempotencyKey: randomUUID(), value: { type: "text", value: "COMPLETE" }, effectiveAt, validUntil,
+    originalStatement: "Synthetic revised noncontributing completed work." }, context);
+  await authority.appendPolicy(f.pmo, { projectId: f.projectId, factType: noncontributor.factType, expectedRevision: 1,
+    idempotencyKey: randomUUID(), effectiveAt, definition }, context);
+  const afterOtherChanges = await reconciliationRows(f.projectId);
+  const afterOther = await read();
+  expect(afterOther).toMatchObject({ requestStatus: "MATCHING_REQUEST_RECORDED" });
+  if (initial.observation.outcome !== "CONFLICTING" || afterOther.observation.outcome !== "CONFLICTING") throw new Error("Expected conflicts");
+  expect(afterOther.observation.positions).toEqual(initial.observation.positions);
+  expect(await reconciliationRows(f.projectId)).toEqual(afterOtherChanges);
+  const contributor = f.bindings[1]!;
+  await facts.appendHumanStatement(f.pmo, { projectId: f.projectId, factType: contributor.factType, expectedRevision: 1,
+    idempotencyKey: randomUUID(), value: { type: "text", value: "OPEN" }, effectiveAt, validUntil,
+    originalStatement: "Synthetic revised contributing open work." }, context);
+  const afterContributorChange = await reconciliationRows(f.projectId);
+  expect(await read()).toMatchObject({ requestStatus: "NO_MATCHING_REQUEST_RECORDED" });
+  expect(await reconciliationRows(f.projectId)).toEqual(afterContributorChange);
+}, 60000);
+
+it("withholds a revoked original source in the isolated historical proof helper", async () => {
+  const f = await fixture(1, true, false, false, true);
+  const dual: Actor = { ...f.pmo, roles: ["leadership", "pmo_admin"] };
+  await db.accessGrant.create({ data: { customerId, subject: dual.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  const created = await reconciliation.check(f.pmo, f.check, context);
+  expect(created.outcome).toBe("CREATED");
+  const request = await db.milestoneReconciliationRequest.findUniqueOrThrow({ where: { id: created.request!.id }, select: { contributorIdentity: true } });
+  const reader = new DatabaseMilestoneConflictObservationRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never);
+  const read = () => reader.readForLeaderManager(dual, f.projectId, f.milestone.id);
+  const before = await read();
+  expect(before.requestStatus).toBe("MATCHING_REQUEST_RECORDED");
+  const proof = () => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    await tx.$queryRaw`SELECT id FROM public."Project" WHERE "customerId"=${customerId}::uuid AND id=${f.projectId}::uuid FOR SHARE`;
+    await tx.$queryRaw`SELECT id FROM public."AccessGrant" WHERE "customerId"=${customerId}::uuid AND subject=${dual.subject}
+      AND (("scopeType"='project' AND "scopeId"=${f.projectId}::uuid) OR ("scopeType"='portfolio' AND "scopeId"=${f.portfolioId}::uuid)) ORDER BY id FOR SHARE`;
+    return findMatchingMilestoneRequest(tx, dual, before.observation, request.contributorIdentity);
+  });
+  await expect(proof()).resolves.toBe("MATCHING_REQUEST_RECORDED");
+  const sourceId = f.bindings[0]!.entry.sourceId;
+  const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId });
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId, expectedRevision: access!.revision,
+    state: "AVAILABLE", readers: [f.pm.subject] }, context);
+  const afterRevocation = await reconciliationRows(f.projectId);
+  await expect(read()).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  // Exercise the defense-in-depth helper separately. Normal reads withhold at
+  // the current complete-prefix gate before reaching this historical check.
+  await expect(proof()).rejects.toThrow("Milestone request proof unavailable");
+  expect(await reconciliationRows(f.projectId)).toEqual(afterRevocation);
+}, 60000);
+
+it.each(["reader", "writer"] as const)("serializes matching-request observation and request birth when %s starts first", async (firstKind) => {
+  const f = await fixture(1, true, false, false, true);
+  const dual: Actor = { ...f.pmo, roles: ["leadership", "pmo_admin"] };
+  await db.accessGrant.create({ data: { customerId, subject: dual.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  let release!: () => void, heldReady!: () => void, waitingReady!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
+  const waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
+  let heldPid = 0, waitingPid = 0, paused = false;
+  const wrapped = (kind: "reader" | "writer", hold: boolean) => ({
+    $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      if (hold) heldPid = pid; else { waitingPid = pid; waitingReady(); }
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (hold && key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          const lock = sql.includes('FROM public."Project"') && sql.includes(kind === "reader" ? "FOR SHARE" : "FOR UPDATE");
+          if (!paused && lock) { paused = true; heldReady(); await gate; }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never),
+  });
+  const read = (hold: boolean) => new DatabaseMilestoneConflictObservationRepository(wrapped("reader", hold) as never)
+    .readForLeaderManager(dual, f.projectId, f.milestone.id);
+  const write = (hold: boolean) => new DatabaseMilestoneReconciliationRepository(wrapped("writer", hold) as never)
+    .check(f.pmo, f.check, context);
+  const first = firstKind === "reader" ? read(true) : write(true); void first.catch(() => {});
+  let second: Promise<unknown> | undefined, sawBlock = false;
+  try {
+    await Promise.race([heldEntered, first.then(() => { throw new Error("First transaction exited before its barrier"); })]);
+    second = firstKind === "reader" ? write(false) : read(false); void second.catch(() => {});
+    await Promise.race([waitingEntered, second.then(() => { throw new Error("Second transaction exited before its barrier"); })]);
+    const deadline = Date.now() + 1500;
+    while (Date.now() < deadline) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waitingPid);
+      const fragments = ['FROM public."Project"', firstKind === "reader" ? "FOR UPDATE" : "FOR SHARE"];
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(heldPid) &&
+          fragments.every((fragment) => rows[0]!.query.includes(fragment))) { sawBlock = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  } finally { release(); await Promise.allSettled(second ? [first, second] : [first]); }
+  expect(sawBlock).toBe(true);
+  if (firstKind === "reader") {
+    expect(await first).toMatchObject({ requestStatus: "NO_MATCHING_REQUEST_RECORDED" });
+    expect(await second).toMatchObject({ outcome: "CREATED" });
+  } else {
+    expect(await first).toMatchObject({ outcome: "CREATED" });
+    expect(await second).toMatchObject({ requestStatus: "MATCHING_REQUEST_RECORDED" });
+  }
+  const afterWrite = await reconciliationRows(f.projectId);
+  expect(await read(false)).toMatchObject({ requestStatus: "MATCHING_REQUEST_RECORDED" });
+  expect(await reconciliationRows(f.projectId)).toEqual(afterWrite);
+}, 90000);
+
+it.each(["reader", "writer"] as const)("serializes matching-request observation and direct reader removal when %s starts first", async (firstKind) => {
+  const f = await fixture(1, true, false, false, true);
+  const dual: Actor = { ...f.pmo, roles: ["leadership", "pmo_admin"] };
+  await db.accessGrant.create({ data: { customerId, subject: dual.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  expect((await reconciliation.check(f.pmo, f.check, context)).outcome).toBe("CREATED");
+  const sourceId = f.bindings[0]!.entry.sourceId;
+  let release!: () => void, heldReady!: () => void, waitingReady!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
+  let waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
+  let heldPid = 0, waitingPid = 0, paused = false;
+  const read = (hold: boolean) => new DatabaseMilestoneConflictObservationRepository({
+    $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      if (hold) heldPid = pid; else { waitingPid = pid; waitingReady(); }
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (hold && key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (!paused && sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")) { paused = true; heldReady(); await gate; }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never),
+  } as never).readForLeaderManager(dual, f.projectId, f.milestone.id);
+  const remove = (hold: boolean) => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    if (hold) heldPid = pid; else { waitingPid = pid; waitingReady(); }
+    const count = await tx.$executeRaw`DELETE FROM public."FactSourceReader" WHERE "customerId"=${customerId}::uuid
+      AND "projectId"=${f.projectId}::uuid AND "sourceId"=${sourceId}::uuid AND subject=${dual.subject}`;
+    if (hold) { heldReady(); await gate; }
+    return count;
+  }, { timeout: 20000 });
+  expect(await read(false)).toMatchObject({ requestStatus: "MATCHING_REQUEST_RECORDED" });
+  waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
+  const beforeRace = await reconciliationRows(f.projectId);
+  const first = firstKind === "reader" ? read(true) : remove(true); void first.catch(() => {});
+  let second: Promise<unknown> | undefined, sawBlock = false;
+  try {
+    await Promise.race([heldEntered, first.then(() => { throw new Error("First transaction exited before its barrier"); })]);
+    second = firstKind === "reader" ? remove(false) : read(false); void second.catch(() => {});
+    await Promise.race([waitingEntered, second.then(() => { throw new Error("Second transaction exited before its barrier"); })]);
+    const deadline = Date.now() + 1500;
+    while (Date.now() < deadline) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waitingPid);
+      const fragments = firstKind === "reader" ? ['DELETE FROM public."FactSourceReader"'] : ['FROM public."Project"', "FOR SHARE"];
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(heldPid) &&
+          fragments.every((fragment) => rows[0]!.query.includes(fragment))) { sawBlock = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  } finally { release(); await Promise.allSettled(second ? [first, second] : [first]); }
+  expect(sawBlock).toBe(true);
+  if (firstKind === "reader") {
+    expect(await first).toMatchObject({ requestStatus: "MATCHING_REQUEST_RECORDED" });
+    expect(await second).toBe(1);
+  } else {
+    expect(await first).toBe(1);
+    await expect(second).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  }
+  await expect(read(false)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await reconciliationRows(f.projectId)).toEqual(beforeRace);
+}, 90000);
+
+it.each(["reader", "writer"] as const)("serializes matching-request observation and grant revocation when %s starts first", async (firstKind) => {
+  const f = await fixture(1, true, false, false, true);
+  const dual: Actor = { ...f.pmo, roles: ["leadership", "pmo_admin"] };
+  const grant = await db.accessGrant.create({ data: { customerId, subject: dual.subject, scopeType: "project", scopeId: f.projectId, role: "leadership" } });
+  expect((await reconciliation.check(f.pmo, f.check, context)).outcome).toBe("CREATED");
+  let release!: () => void, heldReady!: () => void, waitingReady!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
+  let waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
+  let heldPid = 0, waitingPid = 0, paused = false;
+  const read = (hold: boolean) => new DatabaseMilestoneConflictObservationRepository({
+    $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      if (hold) heldPid = pid; else { waitingPid = pid; waitingReady(); }
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (hold && key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const output = await Reflect.apply(value, target, args), sql = rawSqlText(args[0]);
+          if (!paused && sql.includes('FROM public."AccessGrant"') && sql.includes("FOR SHARE")) { paused = true; heldReady(); await gate; }
+          return output;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never),
+  } as never).readForLeaderManager(dual, f.projectId, f.milestone.id);
+  const revoke = (hold: boolean) => db.$transaction(async (tx) => {
+    const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+    if (hold) heldPid = pid; else { waitingPid = pid; waitingReady(); }
+    const count = await tx.$executeRaw`DELETE FROM public."AccessGrant" WHERE id=${grant.id}::uuid`;
+    if (hold) { heldReady(); await gate; }
+    return count;
+  }, { timeout: 20000 });
+  expect(await read(false)).toMatchObject({ requestStatus: "MATCHING_REQUEST_RECORDED" });
+  waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
+  const beforeRace = await reconciliationRows(f.projectId);
+  const first = firstKind === "reader" ? read(true) : revoke(true); void first.catch(() => {});
+  let second: Promise<unknown> | undefined, sawBlock = false;
+  try {
+    await Promise.race([heldEntered, first.then(() => { throw new Error("First transaction exited before its barrier"); })]);
+    second = firstKind === "reader" ? revoke(false) : read(false); void second.catch(() => {});
+    await Promise.race([waitingEntered, second.then(() => { throw new Error("Second transaction exited before its barrier"); })]);
+    const deadline = Date.now() + 1500;
+    while (Date.now() < deadline) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waitingPid);
+      const fragments = firstKind === "reader" ? ['DELETE FROM public."AccessGrant"'] : ['FROM public."AccessGrant"', "FOR SHARE"];
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(heldPid) &&
+          fragments.every((fragment) => rows[0]!.query.includes(fragment))) { sawBlock = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  } finally { release(); await Promise.allSettled(second ? [first, second] : [first]); }
+  expect(sawBlock).toBe(true);
+  if (firstKind === "reader") {
+    expect(await first).toMatchObject({ requestStatus: "MATCHING_REQUEST_RECORDED" });
+    expect(await second).toBe(1);
+  } else {
+    expect(await first).toBe(1);
+    await expect(second).rejects.toMatchObject({ code: "DENIED" });
+  }
+  await expect(read(false)).rejects.toMatchObject({ code: "DENIED" });
+  expect(await reconciliationRows(f.projectId)).toEqual(beforeRace);
+}, 90000);

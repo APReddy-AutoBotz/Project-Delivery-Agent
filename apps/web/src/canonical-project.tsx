@@ -942,10 +942,12 @@ export function CanonicalProjectDetails({
   id,
   request,
   leadershipScope,
+  canInspectMilestoneRequest = false,
 }: {
   id: string;
   request: RequestFn;
   leadershipScope?: string;
+  canInspectMilestoneRequest?: boolean;
 }) {
   const result = useQuery({
     queryKey: ["canonical-project", id, leadershipScope],
@@ -975,6 +977,7 @@ export function CanonicalProjectDetails({
           <DateDisplay dates={detail.dates} />
           {leadershipScope && !result.isFetching && !result.isError && <LeadershipMilestoneConflict
             key={leadershipScope} projectId={id} scope={leadershipScope} request={request}
+            canInspectRequest={canInspectMilestoneRequest}
             milestones={detail.milestones as { id: string; key: string; name: string }[]}
             workItems={detail.workItems as { id: string; key: string; title: string }[]} />}
           {leadershipScope && !result.isFetching && !result.isError && <LeadershipScalarConflict

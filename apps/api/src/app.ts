@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { MilestoneStateDisagreementController, MILESTONE_STATE_DISAGREEMENT_REPOSITORY, unavailableMilestoneStateDisagreementRepository } from "./milestone-state-disagreement-controller.js";
 import { MilestoneConflictObservationController, MILESTONE_CONFLICT_OBSERVATION_REPOSITORY, unavailableMilestoneConflictObservationRepository } from "./milestone-conflict-observation-controller.js";
+import { MilestoneRequestObservationController, MILESTONE_REQUEST_OBSERVATION_REPOSITORY, unavailableMilestoneRequestObservationRepository } from "./milestone-request-observation-controller.js";
 import { ScalarConflictObservationController, SCALAR_CONFLICT_OBSERVATION_REPOSITORY, unavailableScalarConflictObservationRepository } from "./scalar-conflict-observation-controller.js";
 import { ProjectUpdateInvitationController } from "./project-update-invitation-controller.js";
 import { PmActionQueueController, PM_ACTION_QUEUE_REPOSITORY, unavailablePmActionQueueRepository } from "./pm-action-queue-controller.js";
@@ -288,6 +289,7 @@ export async function createApp(
   milestoneConflictObservation: MilestoneConflictObservationRepository = unavailableMilestoneConflictObservationRepository,
   scalarConflictObservation: import("@pdaa/domain").ScalarConflictObservationRepository = unavailableScalarConflictObservationRepository,
   milestoneStateDisagreement: import("@pdaa/domain").MilestoneStateDisagreementRepository = unavailableMilestoneStateDisagreementRepository,
+  milestoneRequestObservation: import("@pdaa/domain").MilestoneRequestObservationRepository = unavailableMilestoneRequestObservationRepository,
 ) {
   @Module({
     controllers: [
@@ -303,6 +305,7 @@ export async function createApp(
       PmActionQueueController,
       BlockerAgeAdviceController,
       MilestoneConflictObservationController,
+      MilestoneRequestObservationController,
       ScalarConflictObservationController,
       MilestoneStateDisagreementController,
     ],
@@ -324,6 +327,7 @@ export async function createApp(
       { provide: PM_ACTION_QUEUE_REPOSITORY, useValue: pmActionQueue },
       { provide: BLOCKER_AGE_ADVICE_REPOSITORY, useValue: blockerAgeAdvice },
       { provide: MILESTONE_CONFLICT_OBSERVATION_REPOSITORY, useValue: milestoneConflictObservation },
+      { provide: MILESTONE_REQUEST_OBSERVATION_REPOSITORY, useValue: milestoneRequestObservation },
       { provide: SCALAR_CONFLICT_OBSERVATION_REPOSITORY, useValue: scalarConflictObservation },
       { provide: MILESTONE_STATE_DISAGREEMENT_REPOSITORY, useValue: milestoneStateDisagreement },
       IngestionIdentityGuard,
