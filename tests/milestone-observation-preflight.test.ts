@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
-import { preflightMilestoneCanonicalProject as preflight, preflightUnrankedFactPrefix } from "../packages/data/src/milestone-observation-preflight.js";
+import { matchesUnrankedFactPrefix, preflightMilestoneCanonicalProject as preflight, preflightUnrankedFactPrefix } from "../packages/data/src/milestone-observation-preflight.js";
 
 const customer = "10000000-0000-4000-8000-000000000002";
 const project = "10000000-0000-4000-8000-000000000003";
@@ -77,5 +77,18 @@ describe("unranked fact-prefix metadata admission", () => {
     const thousand = Array.from({ length: 1000 }, (_, i) => version(i + 1));
     expect((await preflightUnrankedFactPrefix(queryResults([thousand, [], []]), { ...scope, revision: 1000 }))?.length).toBe(1000);
     expect(await preflightUnrankedFactPrefix(queryResults([[...thousand, version(1001)]]), { ...scope, revision: 1000 })).toBeNull();
+  });
+  it("compares every preflight identity and revision against the complete ordered load", () => {
+    const expected = [version(1), version(2)];
+    expect(matchesUnrankedFactPrefix(expected, expected.map((row) => ({ ...row })))).toBe(true);
+    expect(matchesUnrankedFactPrefix(expected, [expected[0]!])).toBe(false);
+    expect(matchesUnrankedFactPrefix(expected, [...expected, version(3)])).toBe(false);
+    expect(matchesUnrankedFactPrefix(expected, [expected[1]!, expected[0]!])).toBe(false);
+    for (const change of [{ id: "other" }, { customerId: "other" }, { projectId: "other" },
+      { factId: "other" }, { revision: 3 }, { sourceId: "other" }, { evidenceId: "other" }])
+      expect(matchesUnrankedFactPrefix(expected, [expected[0]!, { ...expected[1]!, ...change }])).toBe(false);
+    expect(matchesUnrankedFactPrefix([], [])).toBe(false);
+    expect(matchesUnrankedFactPrefix(new Array(1), [expected[0]!])).toBe(false);
+    expect(matchesUnrankedFactPrefix([expected[0]!], new Array(1))).toBe(false);
   });
 });

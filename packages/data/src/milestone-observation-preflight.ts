@@ -91,3 +91,21 @@ export async function preflightUnrankedFactPrefix(
   if (conflicts.length !== 0) return null;
   return versions;
 }
+
+// This comparison is necessary after materialization but does not authorize the
+// sources, validate evidence content, or recheck the fact head/policy fences.
+export function matchesUnrankedFactPrefix(
+  expected: readonly VersionMetadata[],
+  loaded: readonly Pick<VersionMetadata, "id" | "customerId" | "projectId" | "factId" | "revision" | "sourceId" | "evidenceId">[],
+): boolean {
+  if (expected.length === 0 || expected.length !== loaded.length) return false;
+  for (let index = 0; index < expected.length; index++) {
+    if (!Object.hasOwn(expected, index) || !Object.hasOwn(loaded, index)) return false;
+    const version = expected[index];
+    const actual = loaded[index];
+    if (!version || !actual || actual.id !== version.id || actual.customerId !== version.customerId ||
+        actual.projectId !== version.projectId || actual.factId !== version.factId || actual.revision !== version.revision ||
+        actual.sourceId !== version.sourceId || actual.evidenceId !== version.evidenceId) return false;
+  }
+  return true;
+}

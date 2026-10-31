@@ -45,8 +45,15 @@ An additional unused fact-prefix admission helper checks bounded metadata,
 contiguous revision identities, the absence of a policy aggregate and absence
 of stored conflicts. Mocked metadata tests and one read-only API-role PostgreSQL
 smoke cover rejection of an existing synthetic fact with a policy, via a `pg`
-adapter. The no-policy and conflict paths, Prisma transport, subsequent exact
-comparison, source access and race behavior require further native tests.
+adapter. The broader no-policy and conflict paths, subsequent exact comparison,
+source access and race behavior require further native tests.
+A second local synthetic probe admitted one arbitrary no-policy fact using the
+Prisma adapter and API role, then verified its fixture and audit rows were rolled
+back. That transaction used a repository shim; it does not prove the canonical
+milestone flow, full authorization, conflict rejection or concurrent behavior.
+An unwired comparator checks that a later loaded prefix has the same ordered
+version, scope, revision, source and evidence identities; it does not compare
+fact contents or establish immutability, source access or a writer fence.
 
 ## Remaining proof and integration
 
