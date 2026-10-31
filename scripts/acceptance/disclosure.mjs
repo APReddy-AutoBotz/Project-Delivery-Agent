@@ -347,24 +347,29 @@ export async function observeBrowserDisclosure(
         const diagnostic = { phase: "response" };
         let response;
         try {
-        // Chromium can report a completed 204 POST as aborted by the next
-        // navigation. Only the exact request's bodyless response can qualify;
+        // Chromium can report a completed bodyless request as aborted. Only
+        // POST or the observed access-grant DELETE, with the exact request's
+        // same-origin 204 response, can qualify;
         // record its original headers for the same secret scan. Every other
         // failed request remains fatal, as do all independent CDP failures.
         response = await request.response();
         diagnostic.phase = "identity";
-        if (!response || response.request() !== request || request.method() !== "POST" || response.status() !== 204 ||
+        if (!response || response.request() !== request) throw new Error("Failed request capture incomplete");
+        const method = request.method();
+        const requestUrl = request.url();
+        const parsedUrl = new URL(requestUrl);
+        if (!(method === "POST" || (method === "DELETE" && parsedUrl.pathname === "/api/access-grants")) || response.status() !== 204 ||
             request.failure()?.errorText !== "net::ERR_ABORTED" || response.fromServiceWorker() !== false)
           throw new Error("Failed request capture incomplete");
         diagnostic.phase = "origin";
-        if (response.url() !== request.url() || !origins.includes(new URL(request.url()).origin))
+        if (response.url() !== requestUrl || !origins.includes(parsedUrl.origin))
           throw new Error("Failed request capture incomplete");
         diagnostic.phase = "headers";
         const headers = await response.headersArray();
         if (!Array.isArray(headers) || headers.some((item) => typeof item?.name !== "string" || typeof item?.value !== "string"))
           throw new Error("Failed request headers unavailable");
         disclosure.add("browser-response-headers", JSON.stringify(headers));
-        disclosure.add("browser-bodyless-responses", JSON.stringify({ method: "POST", status: 204 }));
+        disclosure.add("browser-bodyless-responses", JSON.stringify({ method, status: 204 }));
         } catch (error) {
           // Only inspect accessors after the capture decision has already failed;
           // diagnostic getters cannot turn a success into a failure or vice versa.

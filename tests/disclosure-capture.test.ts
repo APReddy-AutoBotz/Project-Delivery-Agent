@@ -221,7 +221,7 @@ it("reports only allowlisted failed-request classes without relaxing capture", a
   const f = await observer(); f.response(tokenPath, f.tokens);
   const request = { url: () => base + "/api/access-grants", method: () => "DELETE",
     failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => response };
-  const response = { request: () => request, status: () => 204, fromServiceWorker: () => false };
+  const response = { request: () => ({}), status: () => 204, fromServiceWorker: () => false };
   f.page.emit("request", request); f.page.emit("requestfailed", request);
   await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
   const emit = vi.fn();
@@ -237,14 +237,14 @@ it("reports only allowlisted failed-request classes without relaxing capture", a
 it("does not read diagnostic getters before an otherwise successful capture decision", async () => {
   const f = await observer(); f.response(tokenPath, f.tokens);
   let methods = 0, failures = 0, urls = 0, statuses = 0;
-  const request = { url: () => ++urls <= 2 ? base + "/empty" : f.canary,
+  const request = { url: () => ++urls === 1 ? base + "/empty" : f.canary,
     method: () => ++methods === 1 ? "POST" : f.canary,
     failure: () => ({ errorText: ++failures === 1 ? "net::ERR_ABORTED" : f.canary }), response: async () => response };
   const response = { request: () => request, url: () => base + "/empty", status: () => ++statuses === 1 ? 204 : 200,
     fromServiceWorker: () => false, headersArray: async () => [{ name: "x-proof", value: "public" }] };
   f.page.emit("request", request); f.page.emit("requestfailed", request);
   await f.capture(f.page);
-  expect({ methods, failures, urls, statuses }).toEqual({ methods: 1, failures: 1, urls: 2, statuses: 1 });
+  expect({ methods, failures, urls, statuses }).toEqual({ methods: 1, failures: 1, urls: 1, statuses: 1 });
   expect(f.capture.diagnostic().counters.requests).toBe(0);
 });
 
@@ -257,6 +257,18 @@ it("keeps failure closed when request diagnostic getters throw", async () => {
   const diagnostic = formatCaptureDiagnostic(f.capture.diagnostic());
   expect(diagnostic).not.toContain(f.canary);
   expect(JSON.parse(diagnostic).request).toEqual({ resource: "unknown", method: "unknown", failure: "unknown", response: "none", phase: "identity" });
+});
+
+it("does not combine different request URLs to qualify a DELETE fallback", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  let calls = 0;
+  const request = { url: () => ++calls === 1 ? base + "/api/access-grants" : base + "/unrelated",
+    method: () => "DELETE", failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => response };
+  const response = { request: () => request, url: () => base + "/unrelated", status: () => 204,
+    fromServiceWorker: () => false, headersArray: async () => [{ name: "x-proof", value: "public" }] };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  expect(f.capture.diagnostic().counters.requests).toBe(1);
 });
 
 it("waits for multiple observed requests, including one started while capture drains", async () => {
@@ -294,12 +306,12 @@ it("fails closed for a tracked request failure without any CDP response", async 
   expect(f.capture.diagnostic().counters.requests).toBe(1);
 });
 
-it("only accepts an exact failed 204 POST after independently recording its original headers", async () => {
-  for (const fault of ["none", "header-secret", "null", "other-request", "foreign", "status", "method", "failure", "worker", "url", "headers", "header-error", "continuation"]) {
+it("only accepts exact eligible failed 204 responses after recording their original headers", async () => {
+  for (const requestMethod of ["POST", "DELETE"]) for (const fault of ["none", "query", "header-secret", "null", "other-request", "foreign", "status", "method", "failure", "worker", "url", "headers", "header-error", "continuation", "delete-path"]) {
     const f = await observer(); f.response(tokenPath, f.tokens);
     const request = {
-      url: () => fault === "foreign" ? "https://foreign.example.test/empty" : base + "/empty",
-      method: () => fault === "method" ? "GET" : "POST",
+      url: () => (fault === "foreign" ? "https://foreign.example.test" : base) + (requestMethod === "DELETE" && fault !== "delete-path" ? "/api/access-grants" : "/empty") + (fault === "query" ? "?synthetic=1" : ""),
+      method: () => fault === "method" ? "GET" : requestMethod,
       failure: () => ({ errorText: fault === "failure" ? "net::ERR_FAILED" : "net::ERR_ABORTED" }),
       response: async () => fault === "null" ? null : response,
     };
@@ -315,7 +327,7 @@ it("only accepts an exact failed 204 POST after independently recording its orig
     f.page.emit("request", request);
     if (fault === "continuation") f.pause({ path: "/empty", status: 204, method: "POST", continuationError: true });
     f.page.emit("requestfailed", request);
-    if (fault === "none" || fault === "header-secret") {
+    if (fault === "none" || fault === "query" || fault === "header-secret" || (fault === "delete-path" && requestMethod === "POST")) {
       await f.capture(f.page);
       if (fault === "header-secret") expect(() => f.check.verify(["browser-response-headers"])).toThrow(/^Secret disclosure detected$/);
       else expect(f.check.verify(["browser-response-headers"])["browser-response-headers"].captures).toBeGreaterThan(0);

@@ -76,8 +76,28 @@ disclosure capture reported one failed request. It did not identify the request,
 establish the cause, or complete the packaged disclosure check. A failed DELETE
 204 is one hypothesis, not an observed fact. Fixed, allowlisted request-failure
 categories are now emitted on that capture failure without raw paths, IDs,
-headers, bodies, errors or credentials. Capture remains fail-closed; no new
-request-failure exception is authorized by these diagnostics.
+headers, bodies, errors or credentials. At that checkpoint capture remained
+fail-closed and the diagnostics alone introduced no new exception.
+
+The subsequent Foundation run `41197034088` again failed the operator capture.
+Its fixed diagnostic classified the failed request as an aborted DELETE with a
+204 response at the access-grant endpoint; it did not prove the earlier run had
+the same cause. The proposed correction extends the bodyless fallback only to
+DELETE at that exact endpoint on an allowed origin, and still requires the exact
+request/response association, `net::ERR_ABORTED`, no service worker, matching
+URL and successful capture of original response headers for the secret scan.
+It does not prove CDP captured that response. Other failed requests and every
+observed CDP error remain fatal; complete packaged checks are still required.
+The disclosure unit suite passed locally. A synthetic Chromium
+regression exercised both POST and access-grant DELETE cases and detected a
+header canary through each fallback. Its first local launch failed because the
+sandbox selected a browser cache without an executable; selecting the existing
+user browser cache allowed the test to run and pass. This is not packaged OIDC
+or hosted acceptance evidence.
+The Chromium regression requires an observed aborted header case for each
+method, so it is timing-sensitive and can fail if every response finishes
+normally; the unit cases cover the corresponding strict decision paths without
+depending on browser scheduling.
 
 Unit tests cover delayed readiness, expiry, mismatch, error classes, an emitted
 client error, forced socket destruction and no retries of acceptance. These do
