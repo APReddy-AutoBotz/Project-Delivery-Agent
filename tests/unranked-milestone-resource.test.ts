@@ -125,3 +125,23 @@ it("replaces a same-turn refresh without starting the canceled loader", async ()
   resource.refresh(); resource.refresh(); await tick();
   expect(load).toHaveBeenCalledTimes(1); expect(resource.current().phase).toBe("ready"); resource.dispose();
 });
+
+it("revalidates on focus only after a request and not after an observed expiry", async () => {
+  vi.useFakeTimers(); let wall = 1000, monotonic = 500;
+  const load = vi.fn(async () => observation()), publish = vi.fn();
+  const resource = createUnrankedMilestoneResource({ load, publish, clock: { wall: () => wall, monotonic: () => monotonic } });
+  resource.revalidate(); await tick(); expect(load).not.toHaveBeenCalled();
+  resource.refresh(); await tick(); resource.revalidate(); await tick(); expect(load).toHaveBeenCalledTimes(2);
+  wall += 10000; monotonic += 10000; resource.revalidate(); await tick();
+  expect(load).toHaveBeenCalledTimes(2); expect(publish).toHaveBeenLastCalledWith({ phase: "error" });
+  resource.dispose();
+});
+
+it("discards a pending pre-focus result before revalidating", async () => {
+  vi.useFakeTimers(); const first = deferred<UnrankedMilestoneObservation>(), second = deferred<UnrankedMilestoneObservation>();
+  const signals: AbortSignal[] = [], load = vi.fn((signal: AbortSignal) => { signals.push(signal); return signals.length === 1 ? first.promise : second.promise; });
+  const resource = createUnrankedMilestoneResource({ load, publish: vi.fn(), clock: { wall: () => 1000, monotonic: () => 500 } });
+  resource.refresh(); await tick(); resource.revalidate(); expect(signals[0]!.aborted).toBe(true);
+  first.resolve(observation()); await tick(); expect(load).toHaveBeenCalledTimes(2); expect(resource.current().phase).toBe("loading");
+  second.resolve(observation()); await tick(); expect(resource.current().phase).toBe("ready"); resource.dispose();
+});

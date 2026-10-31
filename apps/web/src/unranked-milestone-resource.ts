@@ -83,11 +83,16 @@ export function createUnrankedMilestoneResource(options: {
   };
   // Call from lifecycle events, not render; current() never publishes.
   const check = () => { if (live && state.phase === "ready" && current().phase === "error") expire(); };
+  const revalidate = () => {
+    if (!live || !visible) return;
+    check();
+    if (requested) refresh();
+  };
   const dispose = () => {
     if (!live) return;
     live = false; generation++; queued = false; hiddenFreshness = undefined; clearExpiry();
     if (pending) { clearTimeout(pending.deadline); pending.controller.abort(); }
     state = { phase: "idle" };
   };
-  return { refresh, setVisible, current, check, dispose };
+  return { refresh, setVisible, current, check, revalidate, dispose };
 }
