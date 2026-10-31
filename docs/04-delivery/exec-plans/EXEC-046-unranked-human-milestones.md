@@ -84,6 +84,10 @@ removal and leadership-grant revocation, in both transaction orders and for
 both unranked and existing equal-tier reads. They observed the expected lock
 blockers and subsequent withholding or denial. They do not prove direct SQL
 mutation behavior, complete no-write behavior or global deadlock freedom.
+Four subsequent Node 24 / PostgreSQL 17 synthetic cases also passed for direct
+deletion of the selected source-reader row under the API role, in both orders
+and both reader modes. They observed the project-gate blocker and withholding
+after deletion; they do not cover every direct mutation or historical-only row.
 Two additional cases passed for a repository-mediated human fact append,
 observing the project-lock blocker in both orders and checking the exact old
 or new version, evidence and source as appropriate. This covers one source and

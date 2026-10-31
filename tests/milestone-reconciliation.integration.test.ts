@@ -833,16 +833,23 @@ it.each([["equal-tier", "reader"], ["equal-tier", "writer"], ["unranked", "reade
     : reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
 }, 90000);
 
-it.each(["reader", "writer"] as const)("serializes milestone-state reads with direct source-reader deletion when %s starts first", async (firstKind) => {
-  const { f, leader, alternateVersion, reader } = await stateDisagreementFixture();
-  const baseline = await reader.readLeadership(leader, f.projectId, f.milestone.id);
+it.each([["equal-tier", "reader"], ["equal-tier", "writer"], ["unranked", "reader"], ["unranked", "writer"]] as const)(
+  "serializes %s milestone-state reads with direct source-reader deletion when %s starts first", async (mode, firstKind) => {
+  const { f, leader, target, alternateVersion, reader } = await stateDisagreementFixture(mode === "unranked");
+  const baseline = mode === "unranked" ? await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)
+    : await reader.readLeadership(leader, f.projectId, f.milestone.id);
+  expect(baseline.positions).toMatchObject([
+    { state: "COMPLETE", supports: [{ versionId: target.entry.id, evidenceId: target.entry.evidenceId, sourceId: target.entry.sourceId }] },
+    { state: "OPEN", supports: [{ versionId: alternateVersion.entry.id, evidenceId: alternateVersion.entry.evidenceId, sourceId: alternateVersion.entry.sourceId }] },
+  ]);
   const sourceId = alternateVersion.entry.sourceId;
   let release!: () => void, heldReady!: () => void, waitingReady!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
   const waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
   let heldPid = 0, waitingPid = 0, paused = false;
-  const read = (hold: boolean) => new DatabaseMilestoneStateDisagreementRepository({
+  const read = (hold: boolean) => {
+    const repository = new DatabaseMilestoneStateDisagreementRepository({
     $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
       await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
       const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
@@ -859,7 +866,10 @@ it.each(["reader", "writer"] as const)("serializes milestone-state reads with di
         return typeof value === "function" ? value.bind(targetTx) : value;
       } }));
     }, options as never),
-  } as never).readLeadership(leader, f.projectId, f.milestone.id);
+    } as never);
+    return mode === "unranked" ? repository.readUnrankedLeadership(leader, f.projectId, f.milestone.id)
+      : repository.readLeadership(leader, f.projectId, f.milestone.id);
+  };
   const remove = (hold: boolean) => db.$transaction(async (tx) => {
     await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
     const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
@@ -893,7 +903,9 @@ it.each(["reader", "writer"] as const)("serializes milestone-state reads with di
     expect(await first).toBe(1);
     await expect(second).rejects.toMatchObject({ code: "UNAVAILABLE" });
   }
-  await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await db.factSourceReader.count({ where: { customerId, projectId: f.projectId, sourceId, subject: leader.subject } })).toBe(0);
+  await expect(mode === "unranked" ? reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)
+    : reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
 }, 90000);
 
 it.each(["fact", "policy"] as const)("serializes milestone-state reads with %s changes in both orders", async (kind) => {
