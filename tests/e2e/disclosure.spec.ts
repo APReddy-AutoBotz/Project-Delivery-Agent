@@ -1,6 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { createServer } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
 import { randomBytes } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, realpathSync, rmdirSync, unlinkSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
+import { verifyIsolatedTlsRejection } from "../../scripts/acceptance/isolated-tls-probe.mjs";
 import {
   createDisclosureCheck,
   observeBrowserDisclosure,
@@ -127,6 +133,56 @@ test("SEC-SECRET-001: Chromium teardown waits for a late original response conti
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("SEC-SECRET-001: an isolated rejected TLS probe leaves the recorded context strict", async ({ browser }) => {
+  const directory = mkdtempSync(join(tmpdir(), "pdaa-tls-probe-"));
+  const key = join(directory, "key.pem"), cert = join(directory, "cert.pem");
+  const canary = randomBytes(32).toString("base64url");
+  const tokenPath = "/identity/realms/pdaa/protocol/openid-connect/token";
+  let tlsServer: ReturnType<typeof createHttpsServer> | undefined;
+  let server: ReturnType<typeof createServer> | undefined;
+  let context: Awaited<ReturnType<typeof browser.newContext>> | undefined;
+  try {
+    execFileSync(process.env.PDAA_SYNTHETIC_OPENSSL ?? "openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes",
+      "-keyout", key, "-out", cert, "-days", "1", "-subj", "/CN=synthetic.invalid", "-addext", "subjectAltName=IP:127.0.0.1"],
+      { stdio: "ignore", timeout: 20000 });
+    tlsServer = createHttpsServer({ key: readFileSync(key), cert: readFileSync(cert) }, (_request, response) => response.end("unexpected"));
+    await new Promise<void>((resolve) => tlsServer!.listen(0, "127.0.0.1", resolve));
+    const tlsAddress = tlsServer.address();
+    if (!tlsAddress || typeof tlsAddress === "string") throw new Error("TLS fixture unavailable");
+    server = createServer((request, response) => {
+      if (request.url === tokenPath) {
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ access_token: randomBytes(32).toString("base64url"), id_token: randomBytes(32).toString("base64url") }));
+      } else { response.writeHead(200, { "Content-Type": "text/html" }); response.end(`<h1>Fixture</h1><p>${canary}</p>`); }
+    });
+    await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Loopback fixture unavailable");
+    const base = "http://127.0.0.1:" + address.port;
+    const check = createDisclosureCheck([canary]);
+    context = await browser.newContext();
+    const capture = await observeBrowserDisclosure(context, base, check);
+    const page = await capture.newPage();
+    await page.goto(base);
+    await page.evaluate(async (path) => { await fetch(path, { method: "POST" }); }, tokenPath);
+    await capture(page);
+    await verifyIsolatedTlsRejection(browser, `https://127.0.0.1:${tlsAddress.port}`, "ERR_CERT_AUTHORITY_INVALID");
+    await capture(page);
+    expect(() => check.verify(["browser-response-bodies"])).toThrow(/^Secret disclosure detected$/);
+    const unexpected = await capture.newPage();
+    await unexpected.close();
+    await expect(capture(page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+    await expect(capture.close()).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  } finally {
+    if (context) await context.close();
+    if (server) { server.closeAllConnections(); await new Promise<void>((resolve) => server!.close(() => resolve())); }
+    if (tlsServer) { tlsServer.closeAllConnections(); await new Promise<void>((resolve) => tlsServer!.close(() => resolve())); }
+    if (dirname(realpathSync(directory)) !== realpathSync(tmpdir())) throw new Error("Unexpected TLS fixture directory");
+    for (const file of [key, cert]) { try { unlinkSync(file); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; } }
+    rmdirSync(directory);
   }
 });
 
