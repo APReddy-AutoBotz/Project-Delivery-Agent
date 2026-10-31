@@ -60,6 +60,7 @@ import {
   pmActionQueueSchema,
   leadershipBlockerAgeAdviceSchema,
   milestoneConflictObservationSchema,
+  milestoneStateDisagreementSchema,
   scalarConflictObservationSchema,
   projectUpdatePolicyChangeSchema,
   projectUpdateEngagementActivationSchema,
@@ -555,6 +556,12 @@ export const contracts: Record<string, RouteContract> = {
   "get /api/projects/{id}/milestones/{milestoneId}/leadership-conflict-observation": {
     status: 200,
     response: milestoneConflictObservationSchema.describe("IDs use lowercase UUIDs and instants use UTC milliseconds. Calendar validity, cross-field evidence consistency, aggregate support limits and the 262144-byte response limit are enforced at runtime."),
+    parameters: { id: z.uuid().regex(/^[0-9a-f-]+$/), milestoneId: z.uuid().regex(/^[0-9a-f-]+$/) },
+    errors: [400, 404, 503],
+  },
+  "get /api/projects/{id}/milestones/{milestoneId}/leadership-state-disagreement": {
+    status: 200,
+    response: milestoneStateDisagreementSchema.describe("IDs use lowercase UUIDs and instants use UTC milliseconds. Distinct states, contributor uniqueness, validity and the response size bound are enforced at runtime."),
     parameters: { id: z.uuid().regex(/^[0-9a-f-]+$/), milestoneId: z.uuid().regex(/^[0-9a-f-]+$/) },
     errors: [400, 404, 503],
   },

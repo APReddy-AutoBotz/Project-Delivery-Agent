@@ -42,10 +42,29 @@ repository, ten focused schema/reader tests and a synthetic PostgreSQL test with
 two human writers, source-reader removal in both transaction orderings, and a
 disabled-policy check. The focused tests passed in an isolated copied test
 setup, and the repository and focused tests typechecked there. The PostgreSQL
-test has not run; its races, database role/ACL checks and no-write snapshots are
-not execution evidence. The repository relies on the current v1 writers'
+test had not run at that initial checkpoint. The repository relies on the current v1 writers'
 project-gate triggers, not arbitrary privileged trigger-bypassing maintenance;
 the reviewed source lock graph still requires native verification.
-This draft has no API route or UI wiring. The prepared race covers application
+The next local change adds an authenticated, read-only API route with strict
+response validation and a separate leadership action for the selected milestone;
+14 focused schema, reader and mocked-HTTP tests passed locally, and the generated
+OpenAPI snapshot adds only that route. A synthetic browser test passed locally
+for selection, denial, bounded response cancellation, expiry refresh, held
+responses across selection and sign-out, and a transient-DOM observer canary.
+The browser test uses intercepted responses and a bounded post-consumption
+observation; it is not native authorization or a guarantee of real-time timer
+execution while the browser is suspended. Native HTTP and hosted checks for the
+additional code remain pending. The prepared race covers application
 source-reader removal, not direct-SQL writer enforcement, policy or grant
 revocation races, or global deadlock freedom. Those remain open.
+
+Public draft head `515048ce56b27fad8bee70768a455e9e4bf79708` was tested with
+main merge `6c5b30cbcece992135606c27f6fcca807c5e3694` in candidate
+`2bac947e0dc025f4fc96c6b7ae44fffba7bf3a91`, tree
+`333e2a634e76c362764a1b7e7f8b35062d21e6cd`. Foundation run `41199982388`'s
+verify and production-boundary jobs passed, and documentation run `41199982490`
+passed. The verify job included 28 milestone-reconciliation integration tests and
+the 85-table native recovery check. That suite includes the role-switched
+human-source, disabled-policy, no-write snapshot and two-order reader-removal
+tests. Checks on the later API and UI changes remain pending;
+no broader direct-writer, policy/grant race or acceptance claim follows.

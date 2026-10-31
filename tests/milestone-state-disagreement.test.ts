@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { milestoneStateDisagreementSchema as schema } from "../packages/domain/src/milestone-state-disagreement.js";
+import { decodeMilestoneStateDisagreement } from "../apps/web/src/milestone-state-disagreement-decoder.js";
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const asOf = "2026-10-31T12:00:00.000Z";
@@ -17,6 +18,9 @@ describe("human milestone state disagreement presentation", () => {
   it("retains all distinct supported positions without choosing a winner", () => {
     const input = observation();
     expect(schema.parse(input)).toEqual(input);
+    expect(decodeMilestoneStateDisagreement(input, input.projectId, input.milestoneId)).toEqual(input);
+    expect(() => decodeMilestoneStateDisagreement(input, id(99), input.milestoneId)).toThrow();
+    expect(() => decodeMilestoneStateDisagreement(input, input.projectId, id(99))).toThrow();
     expect(schema.safeParse({ ...input, resolvedValue: "COMPLETE" }).success).toBe(false);
   });
   it("rejects duplicate states, versions and evidence", () => {

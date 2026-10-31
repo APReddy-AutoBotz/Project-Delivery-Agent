@@ -68,6 +68,9 @@ beforeAll(async () => {
     undefined, undefined, undefined, undefined, undefined, undefined, undefined,
     new DatabaseMilestoneConflictObservationRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
       db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never),
+    undefined,
+    new DatabaseMilestoneStateDisagreementRepository({ $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+      db.$transaction(async (tx) => { await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api"); return operation(tx); }, options as never) } as never),
   ));
   validate = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -357,12 +360,28 @@ it("observes all current human milestone-state alternatives without writing", as
     { state: "COMPLETE", supports: [{ versionId: target.entry.id, evidenceId: target.entry.evidenceId, sourceId: target.entry.sourceId }] },
     { state: "OPEN", supports: [{ versionId: alternateVersion.entry.id, evidenceId: alternateVersion.entry.evidenceId, sourceId: alternateVersion.entry.sourceId }] },
   ]);
+  const path = `/api/projects/${f.projectId}/milestones/${f.milestone.id}/leadership-state-disagreement`;
+  const http = await api(leader, path);
+  expect(http.status).toBe(200);
+  expect(http.body).toMatchObject({ projectId: f.projectId, milestoneId: f.milestone.id, positions: observed.positions });
+  expect((await api(null, path)).status).toBe(401);
+  expect((await api(f.pm, path)).status).toBe(404);
+  const noGrant: Actor = { customerId, subject: "state-no-grant-" + randomUUID(), roles: ["leadership"] };
+  expect((await api(noGrant, path)).status).toBe(404);
+  expect((await api(leader, path.replace(f.projectId, randomUUID()))).status).toBe(404);
+  const otherCustomer = randomUUID(), otherPortfolio = randomUUID(), otherProject = randomUUID();
+  await db.customer.create({ data: { id: otherCustomer, name: "Synthetic other tenant" } });
+  await db.portfolio.create({ data: { id: otherPortfolio, customerId: otherCustomer, name: "Synthetic other tenant" } });
+  await db.project.create({ data: { id: otherProject, customerId: otherCustomer, portfolioId: otherPortfolio,
+    code: "OTHER-" + otherProject, name: "Synthetic other tenant", description: "Scoped denial fixture", reportedStatus: "UNKNOWN" } });
+  expect((await api(leader, path.replace(f.projectId, otherProject))).status).toBe(404);
   expect(await snapshot()).toEqual(before);
   const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId });
   await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId,
     expectedRevision: access!.revision, state: "AVAILABLE", readers: [alternate.subject, f.pmo.subject] }, context);
   const afterRevocation = await snapshot();
   await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect((await api(leader, path)).status).toBe(503);
   expect(await snapshot()).toEqual(afterRevocation);
   const revokedAccess = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId });
   await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId,
@@ -373,6 +392,7 @@ it("observes all current human milestone-state alternatives without writing", as
     idempotencyKey: randomUUID(), effectiveAt: new Date(disabledAt!.getTime() - 1000).toISOString(), definition: null }, context);
   const afterDisable = await snapshot();
   await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect((await api(leader, path)).status).toBe(503);
   expect(await snapshot()).toEqual(afterDisable);
 }, 60000);
 

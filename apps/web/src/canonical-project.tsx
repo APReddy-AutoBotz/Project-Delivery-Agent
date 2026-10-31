@@ -4,7 +4,7 @@ import React, { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, TextField, SelectField, Message } from "./components.js";
 
-export type RequestFn = <T>(path: string, init?: RequestInit) => Promise<T>;
+export type RequestFn = <T>(path: string, init?: RequestInit, maxResponseBytes?: number, onUnavailable?: (denied?: boolean) => void) => Promise<T>;
 export type ProjectSetup = {
   truncated: boolean;
   portfolios: {

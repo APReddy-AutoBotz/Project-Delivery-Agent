@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { MilestoneConflictObservation } from "@pdaa/domain";
+import type { MilestoneConflictObservation, MilestoneStateDisagreement } from "@pdaa/domain";
 import { decodeMilestoneConflict } from "./milestone-conflict-decoder.js";
+import { decodeMilestoneStateDisagreement } from "./milestone-state-disagreement-decoder.js";
+import type { RequestFn } from "./canonical-project.js";
 import { milestoneQuestionExample, supportsMilestoneQuestion } from "./milestone-question.js";
-type RequestFn = <T>(path: string, init?: RequestInit) => Promise<T>;
 import { Button, Message } from "./components.js";
 import { createPmQueueResource, type PmQueueResourceState } from "./pm-queue-resource.js";
 
@@ -47,9 +48,72 @@ export function LeadershipMilestoneConflict({ projectId, scope, milestones, work
       <Button type="submit" className="secondary">Check question</Button>
     </form>
     {error && <Message error>{error}</Message>}
+    {selectedItem && <StateDisagreement key={`${scope}:${selectedItem.id}`} projectId={projectId} milestoneId={selectedItem.id}
+      scope={`${scope}:${selectedItem.id}`} request={request} />}
     {selectedItem && submitted !== null && <Observation key={`${scope}:${selectedItem.id}:${submitted}`} projectId={projectId} milestoneId={selectedItem.id}
       scope={`${scope}:${selectedItem.id}:${submitted}`} milestones={milestones} workItems={workItems} request={request} />}
   </section>;
+}
+
+function StateDisagreement({ projectId, milestoneId, scope, request }: {
+  projectId: string; milestoneId: string; scope: string; request: RequestFn;
+}) {
+  type TimedResult = { observation: MilestoneStateDisagreement; expiresAt: number };
+  const [requested, setRequested] = useState(false);
+  const loader = useRef(request), resource = useRef<ReturnType<typeof createPmQueueResource<TimedResult>> | null>(null);
+  const [state, setState] = useState<{ scope: string; value: PmQueueResourceState<TimedResult> }>({ scope, value: { phase: "loading" } });
+  useEffect(() => { loader.current = request; }, [request]);
+  useEffect(() => {
+    if (!requested) return;
+    let live = true;
+    const driver = createPmQueueResource<TimedResult>({
+      load: async (signal) => {
+        const started = performance.now();
+        const observation = decodeMilestoneStateDisagreement(await loader.current<unknown>(
+          `/projects/${projectId}/milestones/${milestoneId}/leadership-state-disagreement`, { signal }, 262144,
+          () => { if (live && !signal.aborted) setState({ scope, value: { phase: "error" } }); }), projectId, milestoneId);
+        const deadline = Math.min(...observation.positions.flatMap((position) => position.supports.map((support) => Date.parse(support.assessedValidUntil))));
+        // The server evaluates at asOf after this request starts; measuring from
+        // the client start is conservative about transit and processing delay.
+        const expiresAt = started + deadline - Date.parse(observation.asOf);
+        if (!Number.isFinite(expiresAt) || expiresAt <= performance.now()) throw new Error("Disagreement expired");
+        return { observation, expiresAt };
+      },
+      publish: (value) => setState({ scope, value }), visible: () => document.visibilityState === "visible",
+    });
+    resource.current = driver; driver.refresh();
+    const revalidate = () => { if (document.visibilityState === "visible") driver.refresh(); };
+    window.addEventListener("focus", revalidate); document.addEventListener("visibilitychange", revalidate);
+    return () => { live = false; driver.dispose(); if (resource.current === driver) resource.current = null;
+      window.removeEventListener("focus", revalidate); document.removeEventListener("visibilitychange", revalidate); };
+  }, [requested, scope, projectId, milestoneId]);
+  useEffect(() => {
+    if (!requested || state.scope !== scope || state.value.phase !== "ready") return;
+    const remaining = state.value.data.expiresAt - performance.now();
+    const timer = setTimeout(() => resource.current?.refresh(), Math.max(0, Math.min(remaining, 2147483647)));
+    return () => clearTimeout(timer);
+  }, [requested, scope, state]);
+  const current = state.scope === scope ? state.value : { phase: "loading" as const };
+  const display = current.phase === "ready" && current.data.expiresAt <= performance.now() ? { phase: "loading" as const } : current;
+  return <div className="space-y-3">
+    <Button className="secondary" onClick={() => { if (requested) resource.current?.refresh(); else setRequested(true); }}>
+      {requested ? "Refresh milestone state evidence" : "Check for conflicting milestone states"}
+    </Button>
+    {requested && <div aria-live="polite" aria-atomic="true">
+      {display.phase === "loading" && <p role="status">Checking current milestone state evidence…</p>}
+      {display.phase === "error" && <Message error>Current conflicting state evidence could not be established. Refresh to check access and evidence.</Message>}
+      {display.phase === "ready" && <>
+        <p>Records with stored human-confirmed provenance disagree about this milestone’s state. No state has been selected as the winner.</p>
+        <p className="muted">Checked at {display.data.observation.asOf}. This check does not create a reconciliation request or independently verify a person’s confirmation.</p>
+        {display.data.observation.positions.map((position) => <div className="canonical-review-row" key={position.state}>
+          <p><strong>{position.state.replaceAll("_", " ")}</strong></p>
+          <ul>{position.supports.map((support) => <li key={support.versionId}>
+            Evidence {support.evidenceId} · version {support.versionId} · source {support.sourceId} · observed {support.observedAt} · valid until {support.assessedValidUntil}
+          </li>)}</ul>
+        </div>)}
+      </>}
+    </div>}
+  </div>;
 }
 function Observation({ projectId, milestoneId, scope, milestones, workItems, request }: {
   projectId: string; milestoneId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn;
