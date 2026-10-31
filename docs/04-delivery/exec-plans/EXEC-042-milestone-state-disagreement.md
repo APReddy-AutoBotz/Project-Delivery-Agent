@@ -95,3 +95,7 @@ A further local test draft exercises API-role direct SQL source-reader removal
 and application-repository leadership-grant revocation in both orderings, designed to observe backend
 process IDs and actual lock waits. These tests have not run against PostgreSQL;
 their presence does not close either race or establish global deadlock freedom.
+
+Another local native-test draft distinguishes absent policy from an equal-tier
+tie and an expired alternative from a later current revision. It is not yet
+PostgreSQL execution evidence.

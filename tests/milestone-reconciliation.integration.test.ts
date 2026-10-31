@@ -137,6 +137,7 @@ async function fixture(
   cancelOne = false,
   skipOneBinding = false,
   expiredEvidence = false,
+  omitMilestonePolicy = false,
 ) {
   const portfolioId = randomUUID();
   const pm: Actor = {
@@ -237,7 +238,7 @@ async function fixture(
       validUntil: expiredEvidence && index === targets.length - 1 ? expiredUntil : validUntil,
       originalStatement: "Synthetic confirmed " + target.initialState,
     });
-    const policy = await authority.appendPolicy(
+    const policy = omitMilestonePolicy && index === 0 ? null : await authority.appendPolicy(
       pmo,
       {
         projectId: project.id,
@@ -261,7 +262,7 @@ async function fixture(
       context,
     );
     bindings.push(bound);
-    policies.push(policy.event);
+    if (policy) policies.push(policy.event);
   }
   const check = {
     projectId: project.id,
@@ -309,8 +310,8 @@ async function reconciliationRows(projectId: string, includeAudit = true) {
   return rows;
 }
 
-async function stateDisagreementFixture() {
-  const f = await fixture(1, true, false, false, true);
+async function stateDisagreementFixture(omitMilestonePolicy = false, expiredAlternate = false) {
+  const f = await fixture(1, true, false, false, true, false, false, false, false, false, omitMilestonePolicy);
   const leader: Actor = { customerId, subject: "state-leader-" + randomUUID(), roles: ["leadership"] };
   const alternate: Actor = { customerId, subject: "state-alternate-" + randomUUID(), roles: ["project_manager"] };
   await db.accessGrant.createMany({ data: [leader, alternate].map((actor) => ({ customerId, subject: actor.subject,
@@ -322,7 +323,8 @@ async function stateDisagreementFixture() {
   const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
   const alternateVersion = await facts.appendHumanStatement(alternate, { projectId: f.projectId, factType: target.factType,
     expectedRevision: 1, idempotencyKey: randomUUID(), value: { type: "text", value: "OPEN" },
-    effectiveAt: new Date(now!.getTime() - 10_000).toISOString(), validUntil: new Date(now!.getTime() + 86_400_000).toISOString(),
+    effectiveAt: new Date(now!.getTime() - 10_000).toISOString(),
+    validUntil: new Date(now!.getTime() + (expiredAlternate ? -1000 : 86_400_000)).toISOString(),
     originalStatement: "Synthetic alternative milestone state." }, context);
   await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId,
     expectedRevision: alternateVersion.entry.sourceAccessRevision, state: "AVAILABLE",
@@ -332,6 +334,42 @@ async function stateDisagreementFixture() {
   const reader = new DatabaseMilestoneStateDisagreementRepository(readerDb as never);
   return { f, leader, alternate, target, alternateVersion, reader };
 }
+
+it("withholds milestone alternatives without a policy and exposes the tie only after policy creation", async () => {
+  const { f, leader, target, reader } = await stateDisagreementFixture(true);
+  expect(await db.authorityPolicy.count({ where: { customerId, projectId: f.projectId, factType: target.factType } })).toBe(0);
+  const before = await reconciliationRows(f.projectId);
+  await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect((await api(leader, `/api/projects/${f.projectId}/milestones/${f.milestone.id}/leadership-state-disagreement`)).status).toBe(503);
+  expect(await reconciliationRows(f.projectId)).toEqual(before);
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const created = await authority.appendPolicy(f.pmo, { projectId: f.projectId, factType: target.factType, expectedRevision: 0,
+    idempotencyKey: randomUUID(), effectiveAt: new Date(now!.getTime() - 1000).toISOString(), definition }, context);
+  const result = await reader.readLeadership(leader, f.projectId, f.milestone.id);
+  expect(result.policyRevisionId).toBe(created.event.id);
+  expect(result.positions.map((position) => position.state)).toEqual(["COMPLETE", "OPEN"]);
+}, 60000);
+
+it("withholds an expired milestone alternative until that source provides a current revision", async () => {
+  const { f, leader, alternate, target, alternateVersion, reader } = await stateDisagreementFixture(false, true);
+  const path = `/api/projects/${f.projectId}/milestones/${f.milestone.id}/leadership-state-disagreement`;
+  const before = await reconciliationRows(f.projectId);
+  await expect(reader.readLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect((await api(leader, path)).status).toBe(503);
+  expect(await reconciliationRows(f.projectId)).toEqual(before);
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const current = await facts.appendHumanStatement(alternate, { projectId: f.projectId, factType: target.factType,
+    expectedRevision: 2, idempotencyKey: randomUUID(), value: { type: "text", value: "OPEN" },
+    effectiveAt: new Date(now!.getTime() - 1000).toISOString(), validUntil: new Date(now!.getTime() + 86_400_000).toISOString(),
+    originalStatement: "Synthetic current alternative milestone state." }, context);
+  const result = await reader.readLeadership(leader, f.projectId, f.milestone.id);
+  expect(current.entry.sourceId).toBe(alternateVersion.entry.sourceId);
+  expect(result.positions.map((position) => position.state)).toEqual(["COMPLETE", "OPEN"]);
+  expect(result.positions.find((position) => position.state === "OPEN")?.supports.map((support) =>
+    ({ versionId: support.versionId, evidenceId: support.evidenceId, sourceId: support.sourceId }))).toEqual([
+    { versionId: current.entry.id, evidenceId: current.entry.evidenceId, sourceId: alternateVersion.entry.sourceId },
+  ]);
+}, 60000);
 
 it("observes all current human milestone-state alternatives without writing", async () => {
   const { f, leader, alternate, target, alternateVersion, reader } = await stateDisagreementFixture();
