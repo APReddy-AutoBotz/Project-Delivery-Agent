@@ -48,6 +48,32 @@ equate the two.
 
 ## Required workbook and persistence work
 
+An additional, unconnected identity experiment emits synthetic UTF-8 bytes, not
+receipts. The preview format is the ECMAScript `JSON.stringify` serialization of
+the fixed array `["pdaa.synthetic.xlsx.preview.v1", customerId, sourceId,
+workbookDigest, sheet, parserContract, configRevision, mappingRevision, baseline]`.
+Baseline is exactly `["ABSENT"]` or `["PRESENT", digest]`. The distinct selection
+array is `["pdaa.synthetic.xlsx.selection.v1", customerId, sourceId,
+parentReceiptId, previewDigest, rowOrdinals]`. UUIDs and SHA-256-shaped values
+must be lowercase canonical text; this experiment admits RFC-variant UUID
+versions 1 through 8 only and does not claim parity with all existing UUID
+sentinels. Revisions are positive 32-bit integers, and
+row ordinals are unique ascending one-based data-row ordinals 1 through 1000.
+There is no Unicode normalization; sheet text is preserved exactly. In the
+synthetic single-sheet dense subset, the physical worksheet row equals the
+data-row ordinal plus one; the experiment does not prove a real workbook's
+coordinates.
+
+Every digest and receipt ID in this local experiment is asserted by its caller.
+It computes no workbook hash, establishes no authority or eligibility, performs
+no authorization and saves nothing. The baseline digest has no approved real
+canonicalization contract yet. Before production use, a future service must
+compute digests from original accepted bytes and validated retained state, bind
+the exact parent preview and eligible outcomes, and recheck scope and revisions
+under lock. Synthetic vectors do not alter historical CSV identities or prove
+replay behavior. The separate domains and examples are experimental, not a
+stable production wire format.
+
 Support an explicitly selected visible worksheet whose exact name matches the
 saved mapping. Define and present restrictions on hidden rows/columns, merged
 cells, sparse coordinates, formulas including cached/shared/array formulas,
