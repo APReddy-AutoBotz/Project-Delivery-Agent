@@ -106,6 +106,10 @@ An unused freshness helper and focused tests now calculate a conservative
 contributor-validity upper bound from request start using wall and monotonic
 clocks; invalid timestamps, observed regressions and expiry fail closed. This
 does not prove browser lifecycle behavior or current source access or policy.
+An unconnected local resource now exercises explicit refresh, single in-flight
+loading, timeout, cancellation, scope-owner disposal, visibility and manual
+retry after expiry. Its unit tests do not establish HTTP streaming, React
+integration, stale DOM behavior, browser suspension or authorization freshness.
 Further native and independent review is required; there is no HTTP route or
 user-facing view.
 An internal fact-prefix admission helper checks bounded metadata,
