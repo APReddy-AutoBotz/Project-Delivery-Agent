@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { decodeReconciliationPreview, loadReconciliationPreview } from "../apps/web/src/pm-reconciliation-preview.js";
+import { decodeReconciliationPreview, loadReconciliationPreview, loadReconciliationPreviewPage } from "../apps/web/src/pm-reconciliation-preview.js";
 
 const id = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const subject = "synthetic-pm", projectId = id(1), time = "2026-10-30T00:00:00.000Z";
@@ -28,6 +28,54 @@ it("marks a valid truncated first page and rejects malformed cursors", () => {
   expect(decodeReconciliationPreview(page(rows, next), projectId, subject, "milestone")).toMatchObject({ more: true });
   expect(() => decodeReconciliationPreview(page(rows.slice(0, 19), next), projectId, subject, "milestone")).toThrow();
   expect(() => decodeReconciliationPreview(page(rows, { ...next, id: id(80) }), projectId, subject, "milestone")).toThrow();
+});
+it.each(["milestone", "scalar"] as const)("validates %s pages against the prior cursor, including timestamp ties", (kind) => {
+  const make = (n: number) => {
+    const row = summary(n);
+    if (kind === "milestone") return row;
+    const scalar: Record<string, unknown> = { ...row, factId: id(60), factType: "project.forecast" };
+    delete scalar.milestoneId; return scalar;
+  };
+  const after = { id: id(20), createdAt: time }, rows = Array.from({ length: 20 }, (_, n) => make(n + 21));
+  const next = { id: id(40), createdAt: time };
+  expect(decodeReconciliationPreview(page(rows, next), projectId, subject, kind, after)).toMatchObject({
+    phase: "ready", advanced: true, more: true, next,
+  });
+  expect(decodeReconciliationPreview(page(), projectId, subject, kind, after)).toEqual({ phase: "ready", advanced: true, items: [], more: false });
+  for (const invalid of [page([make(20)]), page([make(19)]), page([make(22), make(21)]), page([make(21), make(21)]),
+    page([{ ...make(21), projectId: id(9) }]), page([{ ...make(21), assignment: { ...summary(21).assignment, recipientSubject: "other" } }])])
+    expect(() => decodeReconciliationPreview(invalid, projectId, subject, kind, after)).toThrow();
+});
+it("fetches one explicitly selected recipient page with encoded cursor and no implicit follow-up", async () => {
+  const request = vi.fn(async () => page([summary(21)])), after = { id: id(20), createdAt: time };
+  const result = await loadReconciliationPreviewPage(projectId, subject, "milestone", after, request, new AbortController().signal, () => {});
+  expect(result).toMatchObject({ phase: "ready", advanced: true, items: [{ id: id(21) }], more: false });
+  expect(request).toHaveBeenCalledTimes(1);
+  const [path] = request.mock.calls[0] as unknown as [string];
+  const url = new URL(path, "https://example.invalid");
+  expect(url.pathname).toBe(`/projects/${projectId}/reconciliation-requests`);
+  expect(Object.fromEntries(url.searchParams)).toEqual({ limit: "20", afterCreatedAt: time, afterId: id(20) });
+});
+it("keeps the shared lease on a denied page until its body settles, then fails closed", async () => {
+  let release!: (value: unknown) => void, denied = false, calls = 0;
+  const request = (_path: string, _init: RequestInit, unavailable: (denied?: boolean) => void) => {
+    calls++; unavailable(true); return new Promise<unknown>((resolve) => { release = resolve; });
+  };
+  const active = loadReconciliationPreviewPage(projectId, subject, "scalar", { id: id(20), createdAt: time },
+    request, new AbortController().signal, (value) => { denied = value === true; });
+  void active.catch(() => {});
+  expect(denied).toBe(true);
+  await expect(loadReconciliationPreview([{ projectId, name: "Synthetic" }], subject, async () => page(), new AbortController().signal, () => {})).rejects.toThrow();
+  expect(calls).toBe(1); release(page()); await expect(active).rejects.toThrow();
+  expect((await loadReconciliationPreviewPage(projectId, subject, "scalar", null, async () => page(), new AbortController().signal, () => {})).phase).toBe("ready");
+});
+it("never publishes an abort-resistant page after its generation is cancelled", async () => {
+  let release!: (value: unknown) => void; const controller = new AbortController();
+  const active = loadReconciliationPreviewPage(projectId, subject, "milestone", { id: id(20), createdAt: time },
+    () => new Promise((resolve) => { release = resolve; }), controller.signal, () => { throw new Error("unexpected denial"); });
+  void active.catch(() => {}); controller.abort();
+  await expect(loadReconciliationPreviewPage(projectId, subject, "scalar", null, async () => page(), new AbortController().signal, () => {})).rejects.toThrow();
+  release(page([summary(21)])); await expect(active).rejects.toThrow();
 });
 it("limits fan-out to two projects and never overlaps categories for one project", async () => {
   const projects = Array.from({ length: 5 }, (_, n) => ({ projectId: id(n + 1), name: `Project ${n}` }));

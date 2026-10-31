@@ -4,6 +4,44 @@ Status: partial navigation aid merged in PR #133. It
 does not complete the PM action queue, approvals, any story, issue or release
 hold. Original19/20 capture stays stopped; OD-013/014 remain unchanged.
 
+## Current pagination increment
+
+The local pagination increment adds an explicit next-page action for a single
+project and request category, using the existing recipient endpoint and its
+paired `(createdAt, id)` cursor. Each response is a new authorized live read,
+not an atomic inbox: assignments and access may change, and newly eligible
+requests before an already-passed cursor may be missed. The current project page
+replaces prior rows; its other category is cleared and can be explicitly read
+again. Cursors remain in memory only. A return to the first page performs a new
+read. Opening any row still invokes the existing authorized detail journey.
+
+The browser checks each row's project, recipient, assignment and strict
+ordering beyond the previous cursor, limits pages to 20, and accepts a next
+cursor only when it matches the last returned row of a full page. Batch and
+single-page reads share the existing non-queuing lease through actual promise
+settlement. Queue refresh invalidates the child synchronously and increments a
+generation; session, scope, navigation, focus and visibility changes discard
+old views. Denials clear both project categories before the body finishes.
+These client checks do not prove server authorization or stop work after a
+browser abort.
+
+Local synthetic browser coverage includes both request categories, cursor
+queries, page replacement, stalled denial and duplicate clicks, StrictMode
+mount replay, same-turn queue refresh and delayed response after session or focus
+changes. The delayed-response fixture waits for actual body EOF and uses a DOM
+observer canary; it is not production OIDC or a general disclosure proof. Two
+isolated synthetic HTTP/database cases passed, each with 21 real scalar or
+milestone requests, a role-switched API reader, both pages, a separately granted
+but non-recipient PM and a later revoked recipient grant. Scalar no-write
+comparison checks counts in five named tables only; milestone comparison checks
+full rows in named assessment/reconciliation tables and excludes audit. Neither
+proves database-wide absence of writes. The first scalar run was inconclusive
+before fixture creation because a local OpenAPI test dependency was missing;
+the corrected run passed after linking the existing dependency. The isolated
+database was stopped after a zero-session check and its volume retained. Forced
+equal-timestamp boundaries and assignment-change races remain required before
+broader claims. No story or release hold is accepted.
+
 For a currently authenticated project manager, use only projects from a freshly
 validated PM action-queue observation as discovery hints. On explicit request,
 show the first page of recorded open scalar and milestone reconciliation requests
