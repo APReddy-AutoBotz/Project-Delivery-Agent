@@ -641,6 +641,40 @@ Container resource use and vulnerability findings may require narrower fixes.
 Pin images and scan actual build outputs; keep all failures visible. Keep native
 controls and existing UX stable while introducing the required CSS toolchain.
 
+## Restore session diagnostic candidate
+
+Foundation run [41233262839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41233262839),
+attempt 1, failed the external restore final session gate with a positive count
+of other target-database backends. The earlier log did not identify their type,
+number or cause, nor prove cleanup completed. A later rerun failed before restore
+at a separate identity-expiry capture check; their relationship is unknown.
+
+This candidate adds same-statement, coarse backend classes and a one/multiple
+bucket to the failure diagnostic. The original count predicate and zero-only
+decision remain authoritative. Diagnostic fields are emitted to the operations
+failure record and, for packaged tests, a fixed-class acceptance log; this
+intentionally exposes coarse activity, never PIDs, names, addresses or SQL text.
+NULL or contradictory types produce unknown classifications; NULL does not by
+itself establish why a type is unavailable. The aggregate
+query adds no monitoring privilege, but an error in the expanded query still
+fails the gate. The observation cannot explain why a session connected or
+identify the backend in an earlier run. No sessions are terminated or retried.
+
+In a new isolated PostgreSQL 17.11 synthetic database, the gate rejected one
+held client. A restricted synthetic login without `pg_read_all_stats` saw its
+type as redacted and still rejected the session. The initial restricted-role
+assertion incorrectly expected visible type and failed; after correcting that
+assertion, both native cases passed. The test role is not a packaged customer
+restore role, and packaged/upgrade/recovery evidence remains required. A later
+native rerun first failed to connect because the restarted container received a
+new loopback port; both cases passed on its actual port. The stopped container
+and data are retained. The first
+two local unit invocations could not load the session suite due to missing
+worktree dependencies; after linking source-identical workspace dependencies,
+63 focused unit cases passed. A scoped operations typecheck used a local path
+mapping for the existing built domain package. Independent exact-candidate
+review and hosted checks remain required; no release or story status changes.
+
 ## Validation evidence
 
 See PRODUCTION_BOUNDARY_VALIDATION.md for this increment's native results and the
