@@ -663,8 +663,10 @@ stay in this ExecPlan. R0 release and Issue #5 remain open.
 The failed-job rerun of PR #145 Foundation run
 [41233262839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41233262839),
 attempt 2, stopped at SEC-AUTH-001 `scalar-proof-disclosure`. The prior finite
-diagnostic reported one aborted request with method and resource `other` at the
-request/response identity check. It did not identify the endpoint or establish
+diagnostic reported one failed request, subsequently classified as aborted with
+method and resource `other`, in the request-validation phase labeled `identity`,
+which covers several checks. The post-failure classes are best-effort accessor
+observations. The diagnostic did not identify the endpoint or establish
 the cause or an actual disclosure, and it stopped before the separate restore
 check. Attempt 1 had failed the restore's other-session guard; these failures
 are not assumed related.
