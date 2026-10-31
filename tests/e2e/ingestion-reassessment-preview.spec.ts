@@ -9,6 +9,183 @@ function row(n: number) {
     createdAt: time, availableAt: time, completedAt: null, assessmentId: null, obligationId: null, previewId: null };
 }
 
+test("PMO explicitly pages without putting the cursor in the URL and rejects same-task stale actions", async ({ page }) => {
+  let firstReads = 0, pageReads = 0;
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url()), path = url.pathname.replace(/^\/api/, "");
+    if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
+    if (path === "/auth/development") return route.fulfill({ json: { token: "synthetic-token" } });
+    if (path === "/me") return route.fulfill({ json: { subject: "pmo-portfolio", customerId, roles: ["pmo_admin"] } });
+    if (path === "/projects") return route.fulfill({ json: [project] });
+    if (path === `/projects/${project.id}`) return route.fulfill({ json: project });
+    if (path === `/projects/${project.id}/ingestion-reassessments`) {
+      firstReads++; const items = Array.from({ length: 25 }, (_, index) => row(index + 100));
+      return route.fulfill({ json: { items, nextCursor: items[24]!.id } });
+    }
+    if (path === `/projects/${project.id}/ingestion-reassessment-pages`) {
+      pageReads++; expect(url.search).toBe(""); expect(route.request().method()).toBe("POST");
+      expect(route.request().postDataJSON()).toEqual({ cursor: id(124) });
+      return route.fulfill({ json: { items: [{ ...row(125), state: "COMPLETED", reason: "COMPLETED" }], nextCursor: null } });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/"); await page.getByRole("button", { name: /^PMO administrator/ }).click();
+  await page.getByRole("button", { name: /Synthetic reassessment project/ }).click();
+  const panel = page.getByRole("region", { name: "Ingestion reassessment status" });
+  await panel.getByRole("button", { name: "Load reassessment status" }).click();
+  await expect(panel.getByRole("button", { name: "Next page" })).toBeVisible();
+  await panel.getByRole("button", { name: "Next page" }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
+  await expect(panel).toContainText("COMPLETED"); await expect(panel).not.toContainText("READY");
+  await panel.getByRole("button", { name: "First page" }).click();
+  await expect(panel.getByRole("button", { name: "Next page" })).toBeVisible();
+  expect(firstReads).toBe(2); expect(pageReads).toBe(1); await expect(panel).not.toContainText(id(124));
+  await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll("button")];
+    const next = buttons.find((button) => button.textContent?.trim() === "Next page")!;
+    const projects = buttons.find((button) => button.textContent?.trim().endsWith("Projects"))!;
+    projects.click(); next.click();
+  });
+  await page.getByRole("button", { name: "Projects", exact: true }).click();
+  expect(pageReads).toBe(1);
+  await page.getByRole("button", { name: /Synthetic reassessment project/ }).click();
+  await panel.getByRole("button", { name: "Load reassessment status" }).click();
+  await expect(panel.getByRole("button", { name: "Next page" })).toBeVisible(); expect(firstReads).toBe(3);
+  await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll("button")];
+    const next = buttons.find((button) => button.textContent?.trim() === "Next page")!;
+    const signout = buttons.find((button) => button.textContent?.trim() === "Sign out")!;
+    signout.click(); next.click();
+  });
+  await expect(page.getByRole("button", { name: /^PMO administrator/ })).toBeVisible();
+  expect(pageReads).toBe(1);
+});
+
+test("a denied next page clears the prior page before draining without aborting its response", async ({ page }) => {
+  let firstReads = 0;
+  await page.addInitScript(() => {
+    const original = window.fetch;
+    const state = window as Window & { releaseDenied?: () => void; deniedState?: () => number[] };
+    let stream: ReadableStreamDefaultController<Uint8Array> | undefined, signal = 0, aborted = 0, chunks = 0, eof = 0, released = 0;
+    state.deniedState = () => [stream ? 1 : 0, signal, aborted, chunks, eof, released];
+    state.releaseDenied = () => { if (stream) { stream.enqueue(new TextEncoder().encode("{}")); stream.close(); stream = undefined; } };
+    window.fetch = (input, init) => {
+      if (String(input).endsWith("/ingestion-reassessment-pages")) {
+        if (init?.signal) { signal++; init.signal.addEventListener("abort", () => { aborted++; }); }
+        const body = new ReadableStream<Uint8Array>({ start(controller) { stream = controller; } });
+        const getReader = body.getReader.bind(body);
+        Object.defineProperty(body, "getReader", { value: () => {
+          const reader = getReader(), read = reader.read.bind(reader), release = reader.releaseLock.bind(reader);
+          reader.read = async () => { const value = await read(); if (value.done) eof++; else chunks++; return value; };
+          reader.releaseLock = () => { released++; release(); }; return reader;
+        } });
+        return Promise.resolve(new Response(body, { status: 403 }));
+      }
+      return original(input, init);
+    };
+  });
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
+    if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
+    if (path === "/auth/development") return route.fulfill({ json: { token: "synthetic-token" } });
+    if (path === "/me") return route.fulfill({ json: { subject: "pmo-portfolio", customerId, roles: ["pmo_admin"] } });
+    if (path === "/projects") return route.fulfill({ json: [project] });
+    if (path === `/projects/${project.id}`) return route.fulfill({ json: project });
+    if (path === `/projects/${project.id}/ingestion-reassessments`) {
+      firstReads++;
+      const items = Array.from({ length: 25 }, (_, index) => row(index + 100));
+      return route.fulfill({ json: { items, nextCursor: items[24]!.id } });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/"); await page.getByRole("button", { name: /^PMO administrator/ }).click();
+  await page.getByRole("button", { name: /Synthetic reassessment project/ }).click();
+  const panel = page.getByRole("region", { name: "Ingestion reassessment status" });
+  await panel.getByRole("button", { name: "Load reassessment status" }).click();
+  try {
+    await panel.getByRole("button", { name: "Next page" }).click();
+    await expect(panel).toContainText("Reassessment status is unavailable"); await expect(panel).not.toContainText("READY");
+    expect(await page.evaluate(() => (window as Window & { deniedState: () => number[] }).deniedState())).toEqual([1, 1, 0, 0, 0, 0]);
+    await panel.getByRole("button", { name: "Load reassessment status" }).click(); expect(firstReads).toBe(1);
+    await page.evaluate(() => (window as Window & { releaseDenied: () => void }).releaseDenied());
+    await expect.poll(() => page.evaluate(() => (window as Window & { deniedState: () => number[] }).deniedState())).toEqual([0, 1, 0, 1, 1, 1]);
+    await panel.getByRole("button", { name: "Load reassessment status" }).click();
+    await expect(panel.getByRole("button", { name: "Next page" })).toBeVisible(); expect(firstReads).toBe(2);
+  } finally { await page.evaluate(() => (window as Window & { releaseDenied?: () => void }).releaseDenied?.()).catch(() => {}); }
+});
+
+test("a late next page cannot populate a newly selected project", async ({ page }) => {
+  const second = { ...project, id: id(2), name: "Other synthetic project" };
+  await page.addInitScript((staleRow) => {
+    const original = window.fetch;
+    const state = window as Window & { releaseNext?: () => void; nextPending?: () => boolean;
+      nextState?: () => number[]; probeCanary?: () => Promise<boolean> };
+    let release: (() => void) | undefined, eof = 0, released = 0, canaryHits = 0;
+    state.nextPending = () => Boolean(release);
+    state.nextState = () => [eof, released, canaryHits];
+    state.probeCanary = async () => {
+      const observer = new MutationObserver((records) => {
+        if (records.some((record) => record.target.textContent?.includes("987654321") || record.oldValue?.includes("987654321") ||
+          [...record.addedNodes, ...record.removedNodes].some((node) => node.textContent?.includes("987654321")))) canaryHits++;
+      });
+      observer.observe(document.body, { subtree: true, childList: true, characterData: true, characterDataOldValue: true });
+      const marker = document.createElement("span"); marker.textContent = "987654321"; document.body.append(marker);
+      marker.textContent = ""; marker.remove(); await Promise.resolve(); const worked = canaryHits > 0; canaryHits = 0; return worked;
+    };
+    state.releaseNext = () => release?.();
+    window.fetch = (input, init) => {
+      if (!String(input).endsWith("/ingestion-reassessment-pages")) return original(input, init);
+      return new Promise<Response>((resolve) => {
+        release = () => {
+          release = undefined;
+          const bytes = new TextEncoder().encode(JSON.stringify({ items: [staleRow], nextCursor: null }));
+          const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(bytes); controller.close(); } });
+          const getReader = body.getReader.bind(body);
+          Object.defineProperty(body, "getReader", { value: () => {
+            const reader = getReader(), read = reader.read.bind(reader), releaseLock = reader.releaseLock.bind(reader);
+            reader.read = async () => { const value = await read(); if (value.done) eof++; return value; };
+            reader.releaseLock = () => { released++; releaseLock(); }; return reader;
+          } });
+          resolve(new Response(body, { status: 200, headers: { "Content-Type": "application/json" } }));
+        };
+      });
+    };
+  }, { ...row(125), totalAttempts: 987654321 });
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
+    if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
+    if (path === "/auth/development") return route.fulfill({ json: { token: "synthetic-token" } });
+    if (path === "/me") return route.fulfill({ json: { subject: "pmo-portfolio", customerId, roles: ["pmo_admin"] } });
+    if (path === "/projects") return route.fulfill({ json: [project, second] });
+    if (path === `/projects/${project.id}`) return route.fulfill({ json: project });
+    if (path === `/projects/${second.id}`) return route.fulfill({ json: second });
+    if (path === `/projects/${project.id}/ingestion-reassessments`) {
+      const items = Array.from({ length: 25 }, (_, index) => row(index + 100));
+      return route.fulfill({ json: { items, nextCursor: items[24]!.id } });
+    }
+    if (path === `/projects/${second.id}/ingestion-reassessments`) return route.fulfill({ json: { items: [], nextCursor: null } });
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/"); await page.getByRole("button", { name: /^PMO administrator/ }).click();
+  await page.getByRole("button", { name: /Synthetic reassessment project/ }).click();
+  let panel = page.getByRole("region", { name: "Ingestion reassessment status" });
+  await panel.getByRole("button", { name: "Load reassessment status" }).click();
+  try {
+    await panel.getByRole("button", { name: "Next page" }).click();
+    await expect.poll(() => page.evaluate(() => (window as Window & { nextPending: () => boolean }).nextPending())).toBe(true);
+    await page.getByRole("button", { name: "Projects", exact: true }).click();
+    await page.getByRole("button", { name: /Other synthetic project/ }).click();
+    panel = page.getByRole("region", { name: "Ingestion reassessment status" });
+    await panel.getByRole("button", { name: "Load reassessment status" }).click();
+    await expect(panel).toContainText("Reassessment status is unavailable");
+    expect(await page.evaluate(() => (window as Window & { probeCanary: () => Promise<boolean> }).probeCanary())).toBe(true);
+    await page.evaluate(() => (window as Window & { releaseNext: () => void }).releaseNext());
+    await expect.poll(() => page.evaluate(() => (window as Window & { nextState: () => number[] }).nextState())).toEqual([1, 1, 0]);
+    await panel.getByRole("button", { name: "Load reassessment status" }).click();
+    await expect(panel).toContainText("No reassessment work was visible to your account on this page.");
+    expect(await page.evaluate(() => (window as Window & { nextState: () => number[] }).nextState())).toEqual([1, 1, 0]);
+  } finally { await page.evaluate(() => (window as Window & { releaseNext?: () => void }).releaseNext?.()).catch(() => {}); }
+});
+
 test("PMO first-page status is explicit, bounded, scoped and expires", async ({ page }) => {
   let persona = "", reads = 0, writes = 0, state: "full" | "empty" | "invalid" | "error" | "oversize" = "full";
   await page.route("**/api/**", async (route) => {
