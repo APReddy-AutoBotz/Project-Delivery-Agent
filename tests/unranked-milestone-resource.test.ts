@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { UnrankedMilestoneObservation } from "../packages/domain/src/unranked-milestone.js";
 import { createUnrankedMilestoneResource } from "../apps/web/src/unranked-milestone-resource.js";
+import { createUnrankedRequestLease } from "../apps/web/src/unranked-milestone-lease.js";
 
 const id = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const observation = (): UnrankedMilestoneObservation => ({ kind: "UNRANKED_NO_POLICY", projectId: id(2), milestoneId: id(3),
@@ -144,4 +145,18 @@ it("discards a pending pre-focus result before revalidating", async () => {
   resource.refresh(); await tick(); resource.revalidate(); expect(signals[0]!.aborted).toBe(true);
   first.resolve(observation()); await tick(); expect(load).toHaveBeenCalledTimes(2); expect(resource.current().phase).toBe("loading");
   second.resolve(observation()); await tick(); expect(resource.current().phase).toBe("ready"); resource.dispose();
+});
+
+it("shares one lease across scope replacement until an abort-ignoring body settles", async () => {
+  vi.useFakeTimers(); const lease = createUnrankedRequestLease(), oldBody = deferred<UnrankedMilestoneObservation>();
+  const oldPublish = vi.fn(), nextPublish = vi.fn(), nextLoad = vi.fn(async () => ({ ...observation(), projectId: id(91) }));
+  let oldSignal: AbortSignal | undefined;
+  const clock = { wall: () => 1000, monotonic: () => 500 };
+  const old = createUnrankedMilestoneResource({ clock, publish: oldPublish, load: (signal) => { oldSignal = signal; return lease.run(signal, () => oldBody.promise); } });
+  const next = createUnrankedMilestoneResource({ clock, publish: nextPublish, load: (signal) => lease.run(signal, nextLoad) });
+  old.refresh(); await tick(); const oldCalls = oldPublish.mock.calls.length; old.dispose(); expect(oldSignal?.aborted).toBe(true);
+  next.refresh(); await tick(); expect(next.current().phase).toBe("error"); expect(nextLoad).not.toHaveBeenCalled();
+  oldBody.resolve({ ...observation(), projectId: id(90) }); await tick(); expect(oldPublish).toHaveBeenCalledTimes(oldCalls);
+  next.refresh(); await tick(); expect(nextLoad).toHaveBeenCalledTimes(1);
+  expect(next.current()).toMatchObject({ phase: "ready", data: { projectId: id(91) } }); next.dispose();
 });

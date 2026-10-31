@@ -122,6 +122,10 @@ An unconnected local resource now exercises explicit refresh, single in-flight
 loading, timeout, cancellation, scope-owner disposal, visibility and manual
 retry after expiry. Its unit tests do not establish HTTP streaming, React
 integration, stale DOM behavior, browser suspension or authorization freshness.
+An unused shared lease limits unresolved loads across owner-supplied scope
+generations and fails closed when busy or aborted. Its guarantee depends on a
+long-lived owner reusing the same lease and holding it through the full bounded
+body read and decode; an uncooperative load can block later attempts indefinitely.
 Further native and independent review is required; there is no HTTP route or
 user-facing view.
 An internal fact-prefix admission helper checks bounded metadata,
