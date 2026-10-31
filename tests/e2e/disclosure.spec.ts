@@ -287,7 +287,6 @@ test("SEC-SECRET-001: Chromium close waits for a response held before headers", 
 test("SEC-SECRET-001: project interaction waits for a pending original response before unmount", async ({ browser }) => {
   const canary = randomBytes(32).toString("base64url");
   const tokenPath = "/identity/realms/pdaa/protocol/openid-connect/token";
-  let injected = false;
   let pendingResponse: import("node:http").ServerResponse | undefined;
   let requestSeen!: () => void;
   const server = createServer((request, response) => {
@@ -298,10 +297,11 @@ test("SEC-SECRET-001: project interaction waits for a pending original response 
       response.end(JSON.stringify({ access_token: randomBytes(32).toString("base64url"), id_token: randomBytes(32).toString("base64url") }));
     } else {
       response.writeHead(200, { "Content-Type": "text/html" });
-      response.end(`<button id="project">Open project</button><div id="view">List</div><script>
+      response.end(`<button id="project">Open project</button><button id="back">All projects</button><div id="view">List</div><script>
         let controller;
         window.startQueue = () => { controller = new AbortController(); fetch('/api/pm/action-queue', {signal: controller.signal}).catch(() => {}); };
         document.querySelector('#project').onclick = () => { controller.abort(); document.querySelector('#view').textContent = 'Project'; };
+        document.querySelector('#back').onclick = () => { document.querySelector('#view').textContent = 'List'; window.startQueue(); };
       </script>`);
     }
   });
@@ -311,23 +311,27 @@ test("SEC-SECRET-001: project interaction waits for a pending original response 
   const base = "http://127.0.0.1:" + address.port;
   try {
     for (const leak of [false, true]) {
-      injected = leak; pendingResponse = undefined;
-      const seen = new Promise<void>((resolve) => { requestSeen = resolve; });
+      pendingResponse = undefined;
       const check = createDisclosureCheck([canary]);
       const context = await browser.newContext();
       const originalSession = context.newCDPSession.bind(context);
-      let queueId: string | undefined, queueBody: string | undefined, continued = false;
+      const queueIds: string[] = [];
+      const queueBodies = new Map<string, string>();
+      const continued = new Set<string>();
+      const openings: Promise<unknown>[] = [];
       context.newCDPSession = async (target) => {
         const session = await originalSession(target);
-        session.on("Fetch.requestPaused", (event) => { if (event.request.url === base + "/api/pm/action-queue") queueId = event.requestId; });
+        session.on("Fetch.requestPaused", (event) => {
+          if (event.request.url === base + "/api/pm/action-queue" && !queueIds.includes(event.requestId)) queueIds.push(event.requestId);
+        });
         const originalSend = session.send.bind(session);
         session.send = (async (method: string, params?: { requestId?: string }) => {
           const result = await originalSend(method as Parameters<typeof originalSend>[0], params);
-          if (params?.requestId === queueId && method === "Fetch.getResponseBody") {
+          if (params?.requestId && queueIds.includes(params.requestId) && method === "Fetch.getResponseBody") {
             const body = result as { body: string; base64Encoded: boolean };
-            queueBody = Buffer.from(body.body, body.base64Encoded ? "base64" : "utf8").toString("utf8");
+            queueBodies.set(params.requestId, Buffer.from(body.body, body.base64Encoded ? "base64" : "utf8").toString("utf8"));
           }
-          if (params?.requestId === queueId && method === "Fetch.continueRequest") continued = true;
+          if (params?.requestId && queueIds.includes(params.requestId) && method === "Fetch.continueRequest") continued.add(params.requestId);
           return result;
         }) as typeof session.send;
         return session;
@@ -338,30 +342,41 @@ test("SEC-SECRET-001: project interaction waits for a pending original response 
         await page.goto(base);
         await page.evaluate(async (path) => { await fetch(path, { method: "POST" }); }, tokenPath);
         await capture(page);
-        await page.evaluate(() => { (window as unknown as { startQueue: () => void }).startQueue(); });
-        await seen;
-        let settling!: () => void;
-        const started = new Promise<void>((resolve) => { settling = resolve; });
-        const target = { click: async () => {
-          expect(continued).toBe(true);
-          expect(JSON.parse(queueBody!).value).toBe(injected ? canary : "public");
-          await page.getByRole("button", { name: "Open project" }).click();
-        } };
-        const opening = afterDisclosureSettle({ settle: async (p: typeof page) => { settling(); await capture.settle(p); } }, page, () => target.click());
-        await started;
-        expect(await Promise.race([opening.then(() => "opened"), new Promise((resolve) => setTimeout(() => resolve("waiting"), 150))])).toBe("waiting");
-        expect(await page.locator("#view").textContent()).toBe("List");
-        pendingResponse!.writeHead(200, { "Content-Type": "application/json" });
-        pendingResponse!.end(JSON.stringify({ value: injected ? canary : "public" }));
-        await opening;
-        await expect(page.locator("#view")).toHaveText("Project");
+        for (const navigation of [0, 1]) {
+          pendingResponse = undefined;
+          const seen = new Promise<void>((resolve) => { requestSeen = resolve; });
+          if (navigation === 0) await page.evaluate(() => { (window as unknown as { startQueue: () => void }).startQueue(); });
+          else await page.getByRole("button", { name: "All projects" }).click();
+          await seen;
+          let settling!: () => void;
+          const started = new Promise<void>((resolve) => { settling = resolve; });
+          const expected = navigation === 1 && leak ? canary : `public-${navigation}`;
+          const opening = afterDisclosureSettle({ settle: async (p: typeof page) => { settling(); await capture.settle(p); } }, page, async () => {
+            const id = queueIds[navigation];
+            expect(id).toBeTruthy();
+            if (navigation === 1) expect(id).not.toBe(queueIds[0]);
+            expect(continued.has(id)).toBe(true);
+            expect(JSON.parse(queueBodies.get(id)!).value).toBe(expected);
+            await page.getByRole("button", { name: "Open project" }).click();
+          });
+          openings.push(opening);
+          void opening.catch(() => {});
+          await started;
+          expect(await Promise.race([opening.then(() => "opened"), new Promise((resolve) => setTimeout(() => resolve("waiting"), 150))])).toBe("waiting");
+          expect(await page.locator("#view").textContent()).toBe("List");
+          pendingResponse!.writeHead(200, { "Content-Type": "application/json" });
+          pendingResponse!.end(JSON.stringify({ value: expected }));
+          await opening;
+          await expect(page.locator("#view")).toHaveText("Project");
+        }
         await capture(page);
         await capture.close();
-        if (injected) expect(() => check.verify(["browser-response-bodies"])).toThrow(/^Secret disclosure detected$/);
+        if (leak) expect(() => check.verify(["browser-response-bodies"])).toThrow(/^Secret disclosure detected$/);
         else expect(check.verify(["browser-response-bodies"])["browser-response-bodies"].captures).toBeGreaterThan(0);
       } finally {
         pendingResponse?.end();
         await context.close();
+        await Promise.allSettled(openings);
       }
     }
   } finally {
