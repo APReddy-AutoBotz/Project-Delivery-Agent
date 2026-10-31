@@ -774,8 +774,10 @@ the page, correlates it to the observed request and retains the existing respons
 and UI assertions. A synthetic canary checks the observer before the real click.
 An isolated loopback Chromium test of the same installer passed for a page-read
 response, a separate oversized response and fetch restoration; it did not run the
-database-backed journey. An extra lint invocation on the whole test file reported
-seven existing explicit-any errors, also present on the unchanged base. These
+database-backed journey. A strict standalone TypeScript check of the test passed
+after correcting a position type identified in review. An extra lint invocation
+on the whole test file reported seven existing explicit-any errors, also present
+on the unchanged base. These
 checks do not establish why Chromium's buffer was
 unavailable or replace the full customer and browser acceptance run. Exact review
 and hosted checks remain required.

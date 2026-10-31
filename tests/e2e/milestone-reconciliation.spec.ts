@@ -566,7 +566,7 @@ test("FR-QA-007 / FR-HLT-009: leadership sees the PM's synthetic positions until
   // Observe the bounded stream actually consumed by the page, rather than relying
   // on Chromium retaining a second copy in its DevTools network buffer.
   await installPositiveCapture(page, `/api${f.prefix}/milestones/${f.milestoneId}/leadership-conflict-observation`);
-  let body!: { outcome: string; positions: Array<{ bindingId: string; state: string }> };
+  let body!: { outcome: string; positions: Array<{ bindingId: string; state: string; supports: unknown }> };
   try {
     const canaryId = "10000000-0000-4000-8000-000000000098", canary = "synthetic-positive-stream-canary";
     const canaryPath = `/api${f.prefix}/milestones/${f.milestoneId}/leadership-conflict-observation?positive-capture-canary=1`;
@@ -609,6 +609,7 @@ test("FR-QA-007 / FR-HLT-009: leadership sees the PM's synthetic positions until
   expect(body.positions.filter((position: { state: string }) => position.state === "OPEN")).toHaveLength(3);
   for (const binding of f.bindings) {
     const position = body.positions.find((item: { bindingId: string }) => item.bindingId === binding.id);
+    if (!position) throw new Error("Expected milestone observation position is missing");
     expect(position).toMatchObject({ targetKind: binding.targetKind, targetId: binding.targetId,
       factId: binding.factId, factType: binding.factType,
       state: binding.targetKind === "MILESTONE" ? "COMPLETE" : "OPEN" });
