@@ -119,9 +119,13 @@ positive safe-integer count of other target-database backends at the final
 pre-commit check; the sanitized log does not identify the backend, count or
 cause, or prove that cleanup completed. The failure path is designed to roll
 back and retain quarantine. Earlier generic restore failures cannot be assumed
-to share this cause. A single unchanged failed-job rerun was started; its
-outcome must be checked separately. A passing rerun would not explain or erase
-the original failure. No session guard was weakened.
+to share this cause. The single unchanged failed-job rerun (attempt 2, job
+`124637888803`) failed earlier in packaged acceptance at the SEC-AUTH-001
+identity-expiry `scalar-proof-disclosure` check and did not reach the restore.
+Its finite capture diagnostic reported one aborted request in the identity
+phase; its cause is unknown. This second failure neither reproduces nor resolves
+the restore failure, and does not by itself establish a disclosure. No session
+guard was weakened.
 
 Retain CSV regression and grid equivalence tests. Add genuine and adversarial
 workbooks covering archive expansion, malformed XML/relationships, formulas,
