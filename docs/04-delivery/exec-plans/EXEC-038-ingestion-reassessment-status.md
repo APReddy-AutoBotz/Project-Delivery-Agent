@@ -5,6 +5,55 @@ criterion, issue or release hold is accepted. Original19/20 capture remains
 stopped; live Jira activation and comment ingestion remain disabled under
 OD-013/014. Imported spreadsheet values remain proposals, not canonical facts.
 
+## Candidate follow-up: explicit live pages
+
+The in-progress follow-up supersedes the sole-GET and first-page-only restrictions
+below, which describe PR #134. A separately authorized read-only page POST sends one
+canonical UUID position in a strict JSON body, not a URL. It reuses the current
+PMO, project and source-reader repository checks for every page. The cursor is
+an arbitrary position, not proof of previous access. The browser validates the
+page and ordering, retains only one next position in scoped memory, and replaces
+the old page after a fresh explicit action. Live UUID ordering is not a snapshot;
+new rows before the cursor can be missed. Current application operational logs
+are body-free, but external proxy, browser and trace body capture is not proven
+safe. The response still transports other internal IDs to the authorized browser.
+
+This candidate adds no write, retry, canonical fact publication or acceptance.
+Client session/project scope changes, stale actions, expiry, denial-body draining
+and settled-request admission are part of the review. A new native two-page
+role-switched HTTP fixture is included; exact-candidate review and hosted checks
+remain required. Local web typecheck and five focused
+unit cases passed. The first browser attempt could not locate Chromium in the
+sandbox; the second found it but could not reach the sandboxed test server. An
+unrestricted local server and the installed Chromium then passed nine cases.
+After adding denial-drain coverage, nine of ten passed; the navigation case first
+timed out looking for an unavailable project selector and then failed an
+ambiguous selector. A corrected targeted retry passed. These failures remain part
+of the evidence, not results from the hosted candidate.
+The generated OpenAPI snapshot and 17 API-contract cases subsequently passed;
+the first contract run failed because the expected route count had not yet been
+updated for the new endpoint. The first export attempt failed the synthetic
+target guard before connecting; the corrected unique synthetic target setting
+allowed contract export. The focused denial-body test passed, and the corrected
+navigation case also passed with same-task double-action and project/sign-out
+checks. These mocked browser cases do not establish native role or proxy behavior.
+An isolated PostgreSQL 17.11 target was then prepared with 26 reviewed migrations
+and finite business grants, and the focused role-switched synthetic HTTP test
+passed with 27 visible rows, at least one hidden source row ordered before the
+first-page boundary, distinct pages, token-role/project denials and reader
+revocation. It compared four named customer-scoped tables around the reads; it
+does not establish database-wide no-write behavior or production function-owner
+parity. The initial database-preparation script was not run: review identified
+insufficient target and ownership checks. A revised script verified the fresh
+container, cluster and migration socket before its single successful run. The
+late-page project-switch browser case passed. Scoped product lint passed; a
+broader ad-hoc lint including tests encountered an existing `any` in the
+unchanged API-contract fixture, outside the repository's normal lint targets.
+The expanded native case also passed for arbitrary and hidden-source cursor
+positions. Eleven focused Chromium cases passed together after strengthening
+denial-reader EOF/lease and delayed-page canary instrumentation. These remain
+synthetic and mocked browser results; the retained test database is stopped.
+
 Use the existing `GET /projects/:id/ingestion-reassessments` as the sole data
 source, gated by a current authenticated `pmo_admin` role and the currently
 authorized project. The endpoint independently rechecks project access and

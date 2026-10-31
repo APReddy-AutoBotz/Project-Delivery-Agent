@@ -19,6 +19,7 @@ import {
   projectUpdateCaptureGenerationSchema,
   projectUpdateAssessmentRequestSchema,
   ingestionReassessmentRetrySchema,
+  ingestionReassessmentPageRequestSchema,
   ProjectUpdateError,
   type Actor,
   type ProjectUpdateRepository,
@@ -165,6 +166,18 @@ export class ProjectUpdateController {
         (query.cursor !== undefined && !projectFactIdSchema.safeParse(query.cursor).success))
       throw new HttpException("", 400);
     return this.run(() => this.repository.reassessments(actor, id, query.cursor as string | undefined));
+  }
+
+  // Read-only page: the cursor is a position, not a source-access grant.
+  @Post("ingestion-reassessment-pages")
+  @HttpCode(200)
+  async reassessmentPage(@Req() req: Request, @Param("id") rawId: string,
+    @Query() query: Record<string, unknown>, @Body() body: unknown) {
+    const actor = await this.actor(req), id = this.projectId(rawId);
+    if (!/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"] ?? "")) throw new HttpException("", 415);
+    const parsed = ingestionReassessmentPageRequestSchema.safeParse(body);
+    if (Object.keys(query).length !== 0 || !parsed.success) throw new HttpException("", 400);
+    return this.run(() => this.repository.reassessments(actor, id, parsed.data.cursor));
   }
 
   @Post("ingestion-reassessment-retries")
