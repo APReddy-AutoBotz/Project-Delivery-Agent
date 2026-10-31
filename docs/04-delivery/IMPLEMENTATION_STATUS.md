@@ -31,6 +31,28 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+Source reconfiguration authorization merged in [PR #138](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/138)
+as `de8a2e3f6c13a18fd77a4c2ba28d04203a4c2e20`. The verified merge tree is
+`5c991c3a187320361f542c0c87a443ec29e68f02` and ordered parents are
+`6c5b30cbcece992135606c27f6fcca807c5e3694` and reviewed head
+`5f22a31cfd124ee9058014c3fdd1fcffa93d5466`. Current-base candidate Foundation
+`41200748491` and Documentation `41200748392` passed. Actual post-merge
+Foundation `41202784246` and Documentation `41202784099` also passed. The change
+checks current, replacement and retained-history scope for existing source
+reconfiguration. Large-history resource limits, existing lock-order inversion,
+and production upgrade/restore function-owner parity remain open; synthetic
+checks do not accept a story or authorize source-fact publication.
+
+The isolated bootstrap readiness and narrowly scoped browser capture correction
+merged in [PR #137](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/137)
+as `6c5b30cbcece992135606c27f6fcca807c5e3694`, tree
+`d392b5ba97b2661ee7d3196e3af4979c78e64855`, with ordered parents
+`2c70ab888af026d18565804a68b371d32ec02904` and reviewed head
+`fc5f405a7692d7ffabcbca0e277fed748b7e780e`. Candidate Foundation
+`41197848850` and Documentation `41197848690`, and actual post-merge Foundation
+`41199705743` and Documentation `41199705809`, passed. Earlier failed bootstrap
+and disclosure attempts remain recorded in EXEC-041; no story acceptance changed.
+
 The browser-fixture correction and partial PM-to-leadership journey merged in
 [PR #136](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/136)
 as `2c70ab888af026d18565804a68b371d32ec02904`, with reviewed head
