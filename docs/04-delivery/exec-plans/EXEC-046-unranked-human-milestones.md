@@ -99,6 +99,10 @@ Three additional Node 24 cases passed: agreeing human heads and a head with no
 validity were withheld, and the positive scenario denied an unknown milestone
 and a mismatched customer identifier. The latter uses an unprovisioned customer
 ID, not two populated tenants or an authenticated cross-tenant HTTP session.
+One additional synthetic case passed with a future, non-displayed human source:
+removing the leader's reader access withheld the observation, and restoring it
+made the original displayed positions available again. This does not prove a
+superseded historical-only source or concurrent revocation for that source.
 For FR-EVD-009/012 and FR-QA-007, an unregistered local controller boundary and
 an unused browser decoder now validate the separate unranked DTO. Direct tests
 cover scope, generic denial/unavailability and representative malformed and

@@ -405,6 +405,37 @@ it("withholds an unranked milestone when an applicable source has expired", asyn
   expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
 }, 60000);
 
+it("requires access to a future human source even when it is not a displayed head", async () => {
+  const { f, leader, target, alternateVersion, reader } = await stateDisagreementFixture(true);
+  const futureActor: Actor = { customerId, subject: "future-source-" + randomUUID(), roles: ["project_manager"] };
+  await db.accessGrant.create({ data: { customerId, subject: futureActor.subject, scopeType: "project", scopeId: f.projectId, role: "project_manager" } });
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const effectiveAt = new Date(now!.getTime() + 86_400_000).toISOString();
+  const validUntil = new Date(now!.getTime() + 172_800_000).toISOString();
+  const future = await facts.appendHumanStatement(futureActor, { projectId: f.projectId, factType: target.factType,
+    expectedRevision: 2, idempotencyKey: randomUUID(), value: { type: "text", value: "CANCELLED" },
+    effectiveAt, validUntil,
+    originalStatement: "Synthetic future report." }, context);
+  expect(future.entry).toMatchObject({ revision: 3, visibility: "available", content: { effectiveAt, validUntil,
+    value: { type: "text", value: "CANCELLED" } } });
+  const accessible = await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: future.entry.sourceId,
+    expectedRevision: future.entry.sourceAccessRevision, state: "AVAILABLE", readers: [futureActor.subject, f.pmo.subject, leader.subject] }, context);
+  const observed = await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id);
+  expect(observed.positions).toMatchObject([
+    { state: "COMPLETE", supports: [{ versionId: target.entry.id, evidenceId: target.entry.evidenceId, sourceId: target.entry.sourceId }] },
+    { state: "OPEN", supports: [{ versionId: alternateVersion.entry.id, evidenceId: alternateVersion.entry.evidenceId, sourceId: alternateVersion.entry.sourceId }] },
+  ]);
+  expect(observed.positions.flatMap((position) => position.supports.map((support) => support.sourceId))).not.toContain(future.entry.sourceId);
+  const removed = await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: future.entry.sourceId,
+    expectedRevision: accessible.revision, state: "AVAILABLE", readers: [futureActor.subject, f.pmo.subject] }, context);
+  const before = await unrankedReadSnapshot(f, leader);
+  await expect(reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: future.entry.sourceId,
+    expectedRevision: removed.revision, state: "AVAILABLE", readers: [futureActor.subject, f.pmo.subject, leader.subject] }, context);
+  expect((await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).positions).toEqual(observed.positions);
+}, 60000);
+
 it.each(["same-state", "missing-validity"] as const)("withholds unranked reports for %s human heads", async (kind) => {
   const { f, leader, alternate, target, alternateVersion, reader } = await stateDisagreementFixture(true);
   expect((await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).kind).toBe("UNRANKED_NO_POLICY");
