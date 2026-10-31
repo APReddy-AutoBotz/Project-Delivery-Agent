@@ -405,6 +405,28 @@ it("withholds an unranked milestone when an applicable source has expired", asyn
   expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
 }, 60000);
 
+it("isolates unranked milestone reads across two populated customer scopes", async () => {
+  const { f, leader, reader } = await stateDisagreementFixture(true);
+  const secondCustomer = randomUUID(), secondPortfolio = randomUUID();
+  const secondPmo: Actor = { customerId: secondCustomer, subject: "second-pmo-" + randomUUID(), roles: ["pmo_admin"] };
+  const secondLeader: Actor = { customerId: secondCustomer, subject: leader.subject, roles: ["leadership"] };
+  await db.customer.create({ data: { id: secondCustomer, name: "Synthetic second tenant" } });
+  await db.portfolio.create({ data: { id: secondPortfolio, customerId: secondCustomer, name: "Synthetic second portfolio" } });
+  await db.accessGrant.createMany({ data: [secondPmo, secondLeader].map((actor) => ({ customerId: secondCustomer,
+    subject: actor.subject, scopeType: "portfolio", scopeId: secondPortfolio, role: actor.roles[0]! })) });
+  const input = canonicalFixture(secondPortfolio); input.raidItems = []; input.sourceMappings = [];
+  const secondProject = await canonical.createProject(secondPmo, input, context.correlationId);
+  const secondMilestone = await db.milestone.findFirstOrThrow({ where: { customerId: secondCustomer, projectId: secondProject.id } });
+  expect((await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).kind).toBe("UNRANKED_NO_POLICY");
+  // The second actor is authorized for its own project and milestone, which
+  // lacks a state binding; it must not read the first customer's observation.
+  await expect(reader.readUnrankedLeadership(secondLeader, secondProject.id, secondMilestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  const before = await unrankedReadSnapshot(f, leader);
+  await expect(reader.readUnrankedLeadership(secondLeader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readUnrankedLeadership(leader, secondProject.id, secondMilestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
+}, 60000);
+
 it("requires access to a future human source even when it is not a displayed head", async () => {
   const { f, leader, target, alternateVersion, reader } = await stateDisagreementFixture(true);
   const futureActor: Actor = { customerId, subject: "future-source-" + randomUUID(), roles: ["project_manager"] };

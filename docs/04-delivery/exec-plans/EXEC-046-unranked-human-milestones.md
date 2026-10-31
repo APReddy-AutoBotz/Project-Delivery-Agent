@@ -99,6 +99,10 @@ Three additional Node 24 cases passed: agreeing human heads and a head with no
 validity were withheld, and the positive scenario denied an unknown milestone
 and a mismatched customer identifier. The latter uses an unprovisioned customer
 ID, not two populated tenants or an authenticated cross-tenant HTTP session.
+One later Node 24 synthetic case created two customers with their own projects,
+milestones and leadership grants for the same subject, then confirmed repository
+denial in both cross-customer directions. The second milestone had no state
+binding; this is not a test of two complete observations or authenticated HTTP.
 One additional synthetic case passed with a future, non-displayed human source:
 removing the leader's reader access withheld the observation, and restoring it
 made the original displayed positions available again. This does not prove a
