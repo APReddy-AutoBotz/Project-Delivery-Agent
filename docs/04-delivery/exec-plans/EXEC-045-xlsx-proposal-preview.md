@@ -58,6 +58,34 @@ equate the two.
 
 ## Required workbook and persistence work
 
+An additional unconnected synthetic framing codec models one frame per
+half-closed stream. A four-byte big-endian length precedes a canonical
+ECMAScript JSON/UTF-8 array header and a binary payload. Request and response
+tags are distinct; their lowercase 32-hex job and generation identifiers are
+syntax only. Request headers also bind parser token and exact sheet; responses
+must match independently supplied job/generation and use `OK` with a nonempty
+body or `REJECTED` with an empty body. Header bytes are limited to 4,096,
+request payloads to 1 MiB, responses to 4 MiB, and each decoder to 65,536 push
+calls including empty chunks. The decoder allocates bounded buffers, requires
+exact EOF, rejects noncanonical/malformed/trailing frames and never returns a
+partial payload. It copies incoming views and releases its references on
+completion or failure; this is not a claim of physical memory erasure.
+
+This deliberately limits supported fragmentation and rejects foreign-realm
+Uint8Array objects and all shared buffers; integration would need to normalize
+input and account for external chunks, encoded frame copies and per-slot memory.
+Identifiers do not prove randomness, freshness, peer identity or authorization.
+The codec opens no socket and supplies no deadline, kill/reset mechanism,
+backpressure, cross-replica admission, descriptor validation or proof that a
+parser interpreted bytes faithfully. It is not a production protocol or
+isolation boundary; Proxy side effects and caller-allocated input are outside
+its guarantees. The focused Node 24 CSV, grid, descriptor, identity, baseline,
+selection and framing suites passed 118 synthetic tests, including independent
+fixed vectors, split/EOF and work bounds, malformed/correlation cases, and
+copied hostile byte views. Scoped domain typecheck and lint passed. Real
+deployment tests and an independently enforced slot lifecycle remain required
+before any upload path is enabled.
+
 A further unconnected synthetic selection simulation hashes a separately
 domain-tagged full manifest, distinct from the synthetic preview-request
 identity. The manifest contains asserted customer/source/sheet, configuration
