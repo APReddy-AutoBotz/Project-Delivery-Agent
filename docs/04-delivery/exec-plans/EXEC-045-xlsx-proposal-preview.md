@@ -56,6 +56,19 @@ is archived and documents XML-parser limitations. Their licenses and exact
 versions, transitive dependencies, notices, vulnerabilities and operational
 behavior require independent review before adoption. Do not infer acceptance
 from these references or adopt a package solely because its license is permissive.
+At the local research checkpoint, registry metadata identified yauzl 3.4.0 and
+its pend 1.2.0 dependency as MIT, and saxes 6.0.0 as ISC with xmlchars 2.2.0
+MIT. This metadata is not a security or distribution clearance; no package has
+been added to the application manifests or lockfile. Node 24's [permission documentation](https://github.com/nodejs/node/blob/v24.x/doc/api/permissions.md)
+explicitly does not promise protection against malicious code; do not present a
+Node permission flag or ordinary worker thread as the required isolation boundary.
+
+A local synthetic-only archive probe illustrated additional work: the toy
+scanner rejected a duplicate name, simple formula tag, DOCTYPE and one expanded
+entry over its reduced limit, but accepted a bad CRC and a disagreement between
+local and central ZIP filenames. These narrow fixtures neither implement XLSX
+nor demonstrate archive security. Validate integrity, relationships, workbook
+semantics and actual deployment isolation before enabling any file adapter.
 
 The existing path labels and hashes CSV. Do not convert a workbook to CSV and
 reuse its receipt as if the original upload were CSV. Design a truthful versioned
