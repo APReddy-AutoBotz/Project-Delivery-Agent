@@ -20,15 +20,22 @@ ordering beyond the previous cursor, limits pages to 20, and accepts a next
 cursor only when it matches the last returned row of a full page. Batch and
 single-page reads share the existing non-queuing lease through actual promise
 settlement. Queue refresh invalidates the child synchronously and increments a
-generation; session, scope, navigation, focus and visibility changes discard
+generation. A further review of the original draft found that an old Next or
+Open control could still act in the same JavaScript task after sign-out and
+before React unmounted it. The correction synchronously invalidates the preview
+on session-generation transitions and checks its captured session before action
+or publication. Session, scope, navigation, focus and visibility changes discard
 old views. Denials clear both project categories before the body finishes.
 These client checks do not prove server authorization or stop work after a
 browser abort.
 
 Local synthetic browser coverage includes both request categories, cursor
 queries, page replacement, stalled denial and duplicate clicks, StrictMode
-mount replay, same-turn queue refresh and delayed response after session or focus
-changes. The delayed-response fixture waits for actual body EOF and uses a DOM
+mount replay, same-turn queue refresh and separate same-task stale Next/Open
+after development sign-out, and delayed response after session or focus changes.
+The 19-case local browser suite passed after the session correction. It does not
+independently simulate every OIDC expiry or token-replacement path. The
+delayed-response fixture waits for actual body EOF and uses a DOM
 observer canary; it is not production OIDC or a general disclosure proof. Two
 isolated synthetic HTTP/database cases passed, each with 21 real scalar or
 milestone requests, a role-switched API reader, both pages, a separately granted

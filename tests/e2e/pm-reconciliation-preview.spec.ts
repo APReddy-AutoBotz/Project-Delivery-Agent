@@ -215,6 +215,50 @@ test("a queue refresh synchronously invalidates old row and next-page actions", 
   expect(nextCalls).toBe(0); expect(page.url()).toBe(before);
 });
 
+for (const staleAction of ["next", "open"] as const) test(`sign-out blocks a same-task stale ${staleAction} action`, async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = window.fetch, state = window as Window & { stalePageCalls?: number };
+    state.stalePageCalls = 0;
+    window.fetch = (input, init) => {
+      if (String(input).includes("reconciliation-requests?") && String(input).includes("afterId=")) state.stalePageCalls!++;
+      return original(input, init);
+    };
+  });
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
+    if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
+    if (path === "/auth/development") return route.fulfill({ json: { token: "synthetic-preview-token" } });
+    if (path === "/me") return route.fulfill({ json: { subject: "pm-atlas", customerId, roles: ["project_manager"] } });
+    if (path === "/projects") return route.fulfill({ json: [] });
+    if (path === "/pm/action-queue") return route.fulfill({ json: queue });
+    if (path === `/projects/${id(1)}/reconciliation-requests`) {
+      const requests = Array.from({ length: 20 }, (_, n) => ({ id: id(100 + n), projectId: id(1), milestoneId: id(500),
+        createdAt: asOf, state: "OPEN", assignment: { id: id(600 + n), revision: 1, occurredAt: asOf, reason: "ASSIGNED", recipientSubject: "pm-atlas" } }));
+      return route.fulfill({ json: { requests, next: { id: id(119), createdAt: asOf }, live: true } });
+    }
+    if (/\/(scalar-)?reconciliation-requests$/.test(path)) return route.fulfill({ json: empty });
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/"); await page.getByRole("button", { name: /^Project manager / }).click();
+  const panel = page.getByRole("region", { name: "Recorded reconciliation requests" });
+  await panel.getByRole("button", { name: "Load reconciliation previews" }).click();
+  await expect(panel.getByRole("button", { name: "Next page" })).toBeEnabled();
+  const before = page.url();
+  const immediateUrl = await page.evaluate((action) => {
+    const buttons = [...document.querySelectorAll("button")];
+    const signOut = buttons.find((button) => button.textContent?.trim() === "Sign out")!;
+    const target = action === "next" ? buttons.find((button) => button.textContent?.trim() === "Next page")!
+      : buttons.find((button) => button.getAttribute("aria-label")?.startsWith("Open milestone request"))!;
+    signOut.click(); target.click(); return location.href;
+  }, staleAction);
+  expect(immediateUrl).toBe(before);
+  expect(await page.evaluate(() => (window as Window & { stalePageCalls: number }).stalePageCalls)).toBe(0);
+  await page.getByRole("button", { name: /^Project manager / }).click();
+  await expect(page.getByRole("region", { name: "Recorded reconciliation requests" })).toContainText("Load this batch");
+  expect(page.url()).toBe(before);
+  expect(await page.evaluate(() => (window as Window & { stalePageCalls: number }).stalePageCalls)).toBe(0);
+});
+
 test("a denied next page clears both categories before its body finishes", async ({ page }) => {
   await page.addInitScript(() => {
     const original = window.fetch;

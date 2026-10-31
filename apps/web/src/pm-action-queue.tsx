@@ -10,12 +10,13 @@ import { PmReconciliationPreview } from "./pm-reconciliation-preview-panel.js";
 import type { PreviewKind } from "./pm-reconciliation-preview.js";
 
 // EXEC-026: a bounded observation of assigned projects, not a complete queue.
-export function PmActionQueuePanel({ scope, subject, request, previewRequest, openProject, openRequest }: {
+export function PmActionQueuePanel({ scope, subject, request, previewRequest, openProject, openRequest, previewInvalidate, isCurrentPreviewSession }: {
   scope: string; subject: string; request: RequestFn; previewRequest: (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void) => Promise<unknown>;
   openProject: (projectId: string) => void; openRequest: (projectId: string, kind: PreviewKind, requestId: string) => void;
+  previewInvalidate: React.RefObject<(() => void) | null>; isCurrentPreviewSession: () => boolean;
 }) {
   const loader = useRef(request);
-  const previewInvalidate = useRef<(() => void) | null>(null), queueEpoch = useRef(0);
+  const queueEpoch = useRef(0);
   const resource = useRef<ReturnType<typeof createPmQueueResource<PmActionQueue>> | null>(null);
   const [state, setState] = useState<{ scope: string; epoch: number; value: PmQueueResourceState<PmActionQueue> }>({ scope, epoch: 0, value: { phase: "loading" } });
   useEffect(() => { loader.current = request; }, [request]);
@@ -101,7 +102,8 @@ export function PmActionQueuePanel({ scope, subject, request, previewRequest, op
       </section>
       <PmReconciliationPreview key={JSON.stringify([scope, subject, state.epoch, queue.projects.map((project) => [project.projectId, project.name])])}
         projects={queue.projects.map((project) => ({ projectId: project.projectId, name: project.name }))}
-        subject={subject} request={previewRequest} openRequest={openRequest} invalidateRef={previewInvalidate} />
+        subject={subject} request={previewRequest} openRequest={openRequest} invalidateRef={previewInvalidate}
+        isCurrentSession={isCurrentPreviewSession} />
     </>}
   </section>;
 }

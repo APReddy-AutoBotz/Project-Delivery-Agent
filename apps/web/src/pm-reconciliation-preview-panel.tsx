@@ -5,10 +5,11 @@ import { loadReconciliationPreview, loadReconciliationPreviewPage, type PreviewI
 type Request = (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void) => Promise<unknown>;
 type View = { phase: "idle" } | { phase: "loading" | "ready"; rows: PreviewRow[] } | { phase: "error" };
 
-export function PmReconciliationPreview({ projects, subject, request, openRequest, invalidateRef }: {
+export function PmReconciliationPreview({ projects, subject, request, openRequest, invalidateRef, isCurrentSession }: {
   projects: PreviewProject[]; subject: string; request: Request;
   openRequest: (projectId: string, kind: PreviewKind, requestId: string) => void;
   invalidateRef: React.RefObject<(() => void) | null>;
+  isCurrentSession: () => boolean;
 }) {
   const [offset, setOffset] = useState(0), [view, setView] = useState<View>({ phase: "idle" });
   const turn = useRef(0), controller = useRef<AbortController | null>(null), alive = useRef(true);
@@ -31,36 +32,36 @@ export function PmReconciliationPreview({ projects, subject, request, openReques
   }, []);
   const batch = projects.slice(offset, offset + 5);
   async function load() {
-    if (turn.current !== renderedTurn || action.current || view.phase === "loading" || !batch.length || document.visibilityState !== "visible") return;
+    if (!isCurrentSession() || turn.current !== renderedTurn || action.current || view.phase === "loading" || !batch.length || document.visibilityState !== "visible") return;
     cancel(); action.current = true; const current = ++turn.current, active = new AbortController(); controller.current = active;
     setView({ phase: "loading", rows: [] });
     deadline.current = setTimeout(() => {
-      if (alive.current && turn.current === current) { active.abort(); setView({ phase: "error" }); }
+      if (isCurrentSession() && alive.current && turn.current === current) { active.abort(); setView({ phase: "error" }); }
     }, 15000);
     try {
       const rows = await loadReconciliationPreview(batch, subject, request, active.signal, (partial) => {
-        if (alive.current && turn.current === current && !active.signal.aborted) setView({ phase: "loading", rows: partial });
+        if (isCurrentSession() && alive.current && turn.current === current && !active.signal.aborted) setView({ phase: "loading", rows: partial });
       });
-      if (alive.current && turn.current === current && !active.signal.aborted) { valid.current = true; setView({ phase: "ready", rows }); }
+      if (isCurrentSession() && alive.current && turn.current === current && !active.signal.aborted) { valid.current = true; setView({ phase: "ready", rows }); }
     } catch {
-      if (alive.current && turn.current === current && !active.signal.aborted) setView({ phase: "error" });
+      if (isCurrentSession() && alive.current && turn.current === current && !active.signal.aborted) setView({ phase: "error" });
     } finally { if (controller.current === active) { controller.current = null; action.current = false;
       if (deadline.current !== undefined) clearTimeout(deadline.current); deadline.current = undefined; } }
   }
-  function changeBatch(next: number) { if (turn.current !== renderedTurn) return; cancel(); setView({ phase: "idle" }); setOffset(next); }
+  function changeBatch(next: number) { if (!isCurrentSession() || turn.current !== renderedTurn) return; cancel(); setView({ phase: "idle" }); setOffset(next); }
   function open(projectId: string, kind: PreviewKind, requestId: string) {
-    if (!valid.current || turn.current !== renderedTurn) return;
+    if (!isCurrentSession() || !valid.current || turn.current !== renderedTurn) return;
     cancel(); openRequest(projectId, kind, requestId);
   }
   async function loadPage(projectId: string, kind: PreviewKind, after: PreviewItem | null) {
-    if (!valid.current || turn.current !== renderedTurn || action.current || view.phase !== "ready" ||
+    if (!isCurrentSession() || !valid.current || turn.current !== renderedTurn || action.current || view.phase !== "ready" ||
         document.visibilityState !== "visible" || !view.rows.some((row) => row.project.projectId === projectId)) return;
     cancel(); action.current = true; const current = ++turn.current, active = new AbortController(); controller.current = active;
     let rows = view.rows.map((row): PreviewRow => row.project.projectId === projectId
       ? { ...row, milestone: kind === "milestone" ? { phase: "loading" } : { phase: "idle" },
           scalar: kind === "scalar" ? { phase: "loading" } : { phase: "idle" } } : row);
     const publish = (phase: "loading" | "ready") => {
-      if (alive.current && turn.current === current && !active.signal.aborted) {
+      if (isCurrentSession() && alive.current && turn.current === current && !active.signal.aborted) {
         if (phase === "ready") valid.current = true;
         setView({ phase, rows: rows.map((row) => ({ ...row })) });
       }
@@ -73,7 +74,7 @@ export function PmReconciliationPreview({ projects, subject, request, openReques
     };
     publish("loading");
     deadline.current = setTimeout(() => {
-      if (alive.current && turn.current === current) { active.abort(); setView({ phase: "error" }); }
+      if (isCurrentSession() && alive.current && turn.current === current) { active.abort(); setView({ phase: "error" }); }
     }, 15000);
     try {
       const result = await loadReconciliationPreviewPage(projectId, subject, kind, after, request, active.signal, markUnavailable);
