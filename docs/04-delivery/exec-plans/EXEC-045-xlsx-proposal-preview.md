@@ -111,6 +111,18 @@ verification of the workbook's upstream origin.
 
 ## Required validation
 
+The earlier PR #145 candidate `228880f43c0fdb640e3f83537d7feaf038dd6e82`
+had a successful verify job but failed its synthetic customer external restore
+in Foundation run [41233262839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41233262839),
+attempt 1, at `sessions_before_commit_other_sessions`. That diagnostic reports a
+positive safe-integer count of other target-database backends at the final
+pre-commit check; the sanitized log does not identify the backend, count or
+cause, or prove that cleanup completed. The failure path is designed to roll
+back and retain quarantine. Earlier generic restore failures cannot be assumed
+to share this cause. A single unchanged failed-job rerun was started; its
+outcome must be checked separately. A passing rerun would not explain or erase
+the original failure. No session guard was weakened.
+
 Retain CSV regression and grid equivalence tests. Add genuine and adversarial
 workbooks covering archive expansion, malformed XML/relationships, formulas,
 hidden/merged/sparse cells, Unicode, dates, numeric precision and exact bounds;
