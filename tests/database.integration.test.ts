@@ -10,13 +10,16 @@ import {
 import {
   loadConfig,
   IdentityService,
+  assertSyntheticDatabaseUrl,
 } from "../packages/platform/dist/index.js";
 import { createApp } from "../apps/api/dist/app.js";
 import type { Actor, Grant } from "../packages/domain/src/index.js";
 
 const url = process.env.PDAA_DATABASE_URL!;
-if (!url || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
-  throw new Error("Integration tests require the isolated pdaa_test database");
+const target = assertSyntheticDatabaseUrl(url ?? "");
+if (!/^\/pdaa_test_[0-9]+$/.test(target.pathname) ||
+    process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "synthetic")
+  throw new Error("Integration tests require a local, non-production synthetic pdaa_test database");
 const db = createDatabase(url);
 const repository = new DatabaseProjectRepository(db);
 const customerId = process.env.CUSTOMER_ID!;
@@ -160,6 +163,65 @@ describe("Real database and HTTP foundation boundaries", () => {
     expect(await roleBound.search(principal, { ...filtered, actor: "missing" }, null)).toEqual([]);
     await expect(roleBound.search({ ...principal, roles: ["pmo_admin"] }, filtered, null)).rejects.toThrow("denied");
     expect(await db.auditEvent.findMany({ where: { customerId: { in: [customer, other] } }, orderBy: { id: "asc" } })).toEqual(snapshot);
+  });
+  it("pages recorded wall times in timestamp and UUID order under the API role", async () => {
+    const customer = randomUUID();
+    await db.customer.create({ data: { id: customer, name: "Synthetic search ordering" } });
+    const input = Array.from({ length: 50 }, (_, index) => ({ id: randomUUID(), customerId: customer,
+      actor: "ordered", event: "access.granted", correlationId: "synthetic", detail: {},
+      occurredAt: new Date(index < 35 ? "2026-10-15T12:00:00.123Z" : `2026-10-15T11:59:${String(59 - index).padStart(2, "0")}.000Z`) }));
+    await db.auditEvent.createMany({ data: input });
+    for (const wall of ["0001-01-01 00:00:00", "9999-12-30 00:00:00", "0001-01-01 00:00:00 BC", "10000-01-01 00:00:00", "infinity"]) {
+      await db.$executeRawUnsafe(`INSERT INTO public."AuditEvent" (id, "customerId", actor, event, "correlationId", detail, "occurredAt")
+        VALUES ($1::uuid, $2::uuid, 'edge', 'access.granted', 'synthetic', '{}'::jsonb, $3::timestamp)`, randomUUID(), customer, wall);
+    }
+    const snapshot = () => db.$queryRawUnsafe<{ id: string; wall: string }[]>(
+      `SELECT id::text, "occurredAt"::text AS wall FROM public."AuditEvent" WHERE "customerId"=$1::uuid ORDER BY id`, customer);
+    const before = await snapshot();
+    const principal: Actor = { subject: "operator", roles: ["system_admin"], customerId: customer };
+    const filters = { actor: "ordered", action: "access.granted" as const,
+      from: "2026-10-15T00:00:00.000Z", until: "2026-10-16T00:00:00.000Z" };
+    const oracle = await db.$queryRawUnsafe<{ id: string }[]>(`SELECT id::text FROM public."AuditEvent"
+      WHERE "customerId"=$1::uuid AND actor='ordered' AND event='access.granted'
+      ORDER BY "AuditEvent"."occurredAt" DESC, "AuditEvent".id DESC`, customer);
+    for (const [zone, mode] of [["UTC", "force_custom_plan"], ["Pacific/Auckland", "force_generic_plan"]] as const) {
+      const oldOrder = await db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+        await tx.$executeRawUnsafe(`SET LOCAL TIME ZONE '${zone}'`);
+        await tx.$executeRawUnsafe(`SET LOCAL plan_cache_mode='${mode}'`);
+        const identity = await tx.$queryRaw<{ role: string; zone: string; mode: string }[]>`
+          SELECT current_user AS role, current_setting('TimeZone') AS zone, current_setting('plan_cache_mode') AS mode`;
+        expect(identity).toEqual([{ role: "pdaa_api", zone, mode }]);
+        return tx.$queryRawUnsafe<{ id: string }[]>(`SELECT id, to_char("occurredAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "occurredAt"
+          FROM public."AuditEvent" WHERE "customerId"=$1::uuid AND actor='ordered' AND event='access.granted'
+          AND "occurredAt">=$2::timestamp AND "occurredAt"<$3::timestamp ORDER BY "occurredAt" DESC, id DESC`,
+        customer, filters.from.slice(0, -1), filters.until.slice(0, -1));
+      });
+      expect(oldOrder.map((row) => row.id)).toEqual(oracle.map((row) => row.id));
+      const roleBound = new DatabaseAccessOperationSearchRepository({
+        $transaction: (fn: (tx: unknown) => unknown, options: unknown) => db.$transaction(async (tx) => {
+          await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+          await tx.$executeRawUnsafe(`SET LOCAL TIME ZONE '${zone}'`);
+          await tx.$executeRawUnsafe(`SET LOCAL plan_cache_mode='${mode}'`);
+          return fn(tx);
+        }, options as never),
+      } as unknown as typeof db);
+      const first = await roleBound.search(principal, filters, null);
+      expect(first).toHaveLength(31);
+      const last = first[29]!;
+      const second = await roleBound.search(principal, filters, { id: last.id, occurredAt: last.occurredAt.toISOString() });
+      const actual = [...first.slice(0, 30), ...second];
+      expect(actual.map((row) => row.id)).toEqual(oracle.map((row) => row.id));
+      expect(new Set(actual.map((row) => row.id)).size).toBe(50);
+      for (const edge of [
+        { from: "0001-01-01T00:00:00.000Z", until: "0001-01-02T00:00:00.000Z", expected: "0001-01-01T00:00:00.000Z" },
+        { from: "9999-12-30T00:00:00.000Z", until: "9999-12-31T00:00:00.000Z", expected: "9999-12-30T00:00:00.000Z" },
+      ]) {
+        const rows = await roleBound.search(principal, { actor: "edge", from: edge.from, until: edge.until }, null);
+        expect(rows.map((row) => row.occurredAt.toISOString())).toEqual([edge.expected]);
+      }
+    }
+    expect(await snapshot()).toEqual(before);
   });
   it("lists only this customer's recent recorded access operations under the API role", async () => {
     const one = randomUUID(), other = randomUUID();
