@@ -207,6 +207,18 @@ the request and cause are unknown. This second failure neither reproduces nor re
 the restore failure, and does not by itself establish a disclosure. No session
 guard was weakened.
 
+PR #151 Foundation run [41249318263](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41249318263)
+passed its verify job but failed the external customer restore at
+`sessions_before_commit_other_sessions`. Its finite diagnostic reported one
+other same-database backend, classified non-client with a non-null type. It did
+not identify the backend or cause, establish a relationship to earlier failures,
+or independently prove rollback or quarantine cleanup. The failure path attempts
+rollback and retains quarantine; the zero-session guard remains unchanged. The
+run tested synthetic merge `056e77ab0eeb74b25767a73f23b7e26a49c89e6f` before the
+PR was retargeted to main, with the same then-reviewed tree. A fresh full run
+against the current-base candidate is required; a later pass cannot explain this
+failure.
+
 Retain CSV regression and grid equivalence tests. Add genuine and adversarial
 workbooks covering archive expansion, malformed XML/relationships, formulas,
 hidden/merged/sparse cells, Unicode, dates, numeric precision and exact bounds;
