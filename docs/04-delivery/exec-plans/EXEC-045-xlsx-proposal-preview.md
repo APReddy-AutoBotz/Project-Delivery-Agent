@@ -172,6 +172,18 @@ the request and cause are unknown. This second failure neither reproduces nor re
 the restore failure, and does not by itself establish a disclosure. No session
 guard was weakened.
 
+PR #156 candidate `ba2f52f5383e2969c6520024b74f5493e0729d5d` failed its
+production-boundary job `124688225333` in Foundation run
+[41252329821](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41252329821)
+at SEC-AUTH-001 `scalar-proof-disclosure`, before restore. The finite diagnostic
+reported `settle_health`, one request, `pm_queue`, `GET` and `eligibility`, with
+best-effort post-failure classifications of `aborted` and `2xx`. The expected
+identity-provider token response had been observed for scanning; this is not a
+token-disclosure finding. Capture was incomplete, so neither disclosure nor its
+absence is established. The cause is unknown, and matching diagnostic categories
+do not prove the same cause as other runs. The separate verify job was still
+running when recorded. A later passing run does not erase this failure.
+
 Retain CSV regression and grid equivalence tests. Add genuine and adversarial
 workbooks covering archive expansion, malformed XML/relationships, formulas,
 hidden/merged/sparse cells, Unicode, dates, numeric precision and exact bounds;
