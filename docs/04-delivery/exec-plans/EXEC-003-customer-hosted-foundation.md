@@ -674,6 +674,13 @@ also failed SEC-AUTH-001 `scalar-proof-disclosure` in Foundation run
 [41235799930](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41235799930),
 job `124639205094`, with the same coarse aborted/other/identity categories.
 Those labels do not establish that the same request or underlying cause recurred.
+The actual PR #148 merge `b2f54211be116177bff6161a5d7e1cd408f12b6c` had
+passed exact-candidate Foundation and Documentation checks, but its post-merge
+Foundation [41237787401](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41237787401)
+production-boundary job `124645097663` failed the same capture stage with the
+same coarse categories. The request and cause are unknown, and this does not
+establish a disclosure. The post-merge verify job was still running when this
+failure was recorded.
 
 The failure-only recorder diagnostic now additionally buckets GET, selected
 same-product-origin path shapes and HTTP status classes into fixed labels. It
