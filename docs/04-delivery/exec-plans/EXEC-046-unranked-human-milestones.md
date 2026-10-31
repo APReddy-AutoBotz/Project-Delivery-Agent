@@ -23,6 +23,12 @@ The first local change defines only a strict presentation shape. It requires
 distinct alternatives and explicit future contributor expiry, bounds output,
 and cannot establish policy absence, source access, temporal completeness or
 any database invariant. No route or user-facing feature is enabled by it.
+A local pure transformation now uses the existing temporal resolver to select
+unambiguous, explicitly unexpired human-v1 heads from a caller-supplied complete
+snapshot, rejecting unsupported approvals and inconsistent source/evidence
+associations. Snapshot completeness, source access, actual absent policy and
+stored graph integrity remain caller proof obligations, not conclusions of this
+transformation. Its output bound is not an input, SQL or transport bound.
 
 ## Remaining proof and integration
 
