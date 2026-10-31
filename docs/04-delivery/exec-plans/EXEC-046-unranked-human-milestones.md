@@ -173,6 +173,20 @@ multi-fact caller must also preserve the existing combined 1,000-revision and
 
 ## Remaining proof and integration
 
+Candidate Foundation run `41229589875` on head `7c944ce79f6feb3f6af68fb0854acbd2595b90d0`
+passed its unit, native integration and recovery steps, but its browser workflow
+failed while the existing milestone-reconciliation test attempted to obtain a
+503 body from Chromium's DevTools buffer. The log reports no data for that
+resource; it does not establish navigation or the cause. All eight unmounted
+view harness cases passed in that run. A later successful run would not explain
+or erase this failure. The proposed correction is designed to observe the matching response's
+page-consumed body through EOF, correlated by request ID, with a synthetic
+canary; a local Chrome smoke test exercised the proposed probe on intercepted
+synthetic responses and confirmed request-ID association, click ordering and
+canary capture. It did not run the full application journey. This does not
+establish production-recorder behavior or a general non-disclosure guarantee.
+The production-boundary job was still running when this note was written.
+
 Use the existing project/leadership and full-prefix source-reader checks with
 complete contiguous versions, canonical binding validation, human provenance,
 finite resource limits and a coherent reread. Derive latest applicable stream
