@@ -677,3 +677,9 @@ best-effort accessor observations: they do not prove a response belongs to the
 failed request or establish the prior failure's cause. Focused synthetic tests
 are not a real-browser or packaged acceptance result. Exact-candidate review and
 fresh hosted checks remain required; no story acceptance changes.
+
+The focused local disclosure suite passed 41 synthetic unit cases, lint and
+documentation validation. In the existing Chromium suite, five cases passed;
+the TLS fixture could not start because `openssl` was absent from PATH. Its
+single unchanged retry passed when the already-installed OpenSSL executable was
+specified explicitly. These local results do not replace packaged acceptance.
