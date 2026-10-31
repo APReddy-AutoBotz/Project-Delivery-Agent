@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { restore } from "../packages/operations/src/restore.js";
-import { restoreFailurePhase } from "../scripts/acceptance/restore-diagnostic.mjs";
+import { restoreFailureDetails, restoreFailurePhase } from "../scripts/acceptance/restore-diagnostic.mjs";
 
 // Failure-control tests only: no real database, archive or filesystem target.
 const f = vi.hoisted(() => {
@@ -36,7 +36,7 @@ vi.mock("../packages/operations/src/config.js", () => ({
   connect: async () => f.client,
   assertPostgres17: async () => {},
   assertEmptyTarget: async () => {},
-  assertNoOtherSessions: async (_client: unknown, report?: (category: string) => void) => {
+  assertNoOtherSessions: async (_client: unknown, report?: (category: string, observation?: unknown) => void) => {
     f.state.sessionChecks++;
     if (f.state.sessionChecks !== 3) return;
     const categories: Record<string, string> = {
@@ -45,7 +45,10 @@ vi.mock("../packages/operations/src/config.js", () => ({
       sessions_before_commit_invalid_result: "invalid_result",
     };
     const category = categories[f.state.fault];
-    if (category) { report?.(category); throw new Error("Private session-check error"); }
+    if (category) {
+      report?.(category, category === "other_sessions" ? { count: "one", client: "yes", nonclient: "no", null_type: "no" } : undefined);
+      throw new Error("Private session-check error");
+    }
   },
   identifier: () => '"synthetic_target"',
 }));
@@ -130,6 +133,8 @@ it.each([
       const line = output.mock.calls[0]![0];
       expect(line).not.toContain("Private error details");
       expect(restoreFailurePhase(Buffer.from(line))).toBe(fault);
+      if (fault === "sessions_before_commit_other_sessions")
+        expect(restoreFailureDetails(Buffer.from(line))).toEqual({ phase: fault, sessions: { count: "one", client: "yes", nonclient: "no", null_type: "no" } });
       if (["ownership", "grants", "integrity", "commit"].includes(fault) || fault.startsWith("sessions_before_commit_"))
         expect(f.client.query).toHaveBeenCalledWith("ROLLBACK");
     } finally {
