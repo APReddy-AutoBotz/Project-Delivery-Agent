@@ -196,6 +196,7 @@ async function fixture(request: APIRequestContext, omitMilestone = false) {
     effectiveAt,
     validUntil,
     bindings,
+    canonical,
     configure,
     share,
     check,
@@ -420,6 +421,92 @@ test("GOLDEN-003 / AC-HLT-005: assigned PM opens retained Complete/Open proof, t
   expect((await f.api("pmo-portfolio", f.prefix + "/canonical")).status()).toBe(
     200,
   );
+});
+test("FR-QA-007 / FR-HLT-009: leadership sees the PM's synthetic positions until its source-reader access is removed", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request);
+  for (const binding of f.bindings)
+    await f.share(binding.entry.sourceId, ["pmo-portfolio", "pm-atlas", "leader-atlas"]);
+  const checked = await f.check();
+  expect(checked.request.assignment.recipientSubject).toBe("pm-atlas");
+  await signIn(page, "Project manager", `/?project=${f.projectId}&reconciliation=${checked.request.id}`);
+  const proof = page.getByRole("region", { name: "PM reconciliation request", exact: true });
+  await expect(proof.getByRole("article")).toHaveCount(4);
+  await expect(proof.getByText("Value at capture: COMPLETE (text)", { exact: true })).toHaveCount(1);
+  await expect(proof.getByText("Value at capture: OPEN (text)", { exact: true })).toHaveCount(3);
+  for (const binding of f.bindings) {
+    const article = proof.getByRole("article", { name: `${binding.targetKind} evidence ${binding.targetId}`, exact: true });
+    await expect(article).toBeVisible();
+    await expect(article.getByText(`Value at capture: ${binding.targetKind === "MILESTONE" ? "COMPLETE" : "OPEN"} (text)`, { exact: true })).toBeVisible();
+    await article.getByText("Retained evidence references", { exact: true }).click();
+    await expect(article.getByText(`Version: ${binding.entry.id}`, { exact: true })).toBeVisible();
+    await expect(article.getByText(`Evidence: ${binding.entry.evidenceId}`, { exact: true })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+
+  await signIn(page, "Leadership");
+  await page.getByRole("button", { name: new RegExp(f.name) }).click();
+  const answer = page.getByRole("region", { name: "Ask about milestone completion" });
+  await answer.getByLabel("Milestone", { exact: true }).selectOption(f.milestoneId);
+  await answer.getByLabel("Question", { exact: true }).fill("Does the selected milestone's recorded completion conflict with required work?");
+  const observed = page.waitForResponse((response) =>
+    response.url().endsWith(`/milestones/${f.milestoneId}/leadership-conflict-observation`) && response.request().method() === "GET");
+  await answer.getByRole("button", { name: "Check question", exact: true }).click();
+  const response = await observed;
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  expect(body.outcome).toBe("CONFLICTING"); expect(body.positions).toHaveLength(4);
+  expect(body.positions.filter((position: { state: string }) => position.state === "COMPLETE")).toHaveLength(1);
+  expect(body.positions.filter((position: { state: string }) => position.state === "OPEN")).toHaveLength(3);
+  for (const binding of f.bindings) {
+    const position = body.positions.find((item: { bindingId: string }) => item.bindingId === binding.id);
+    expect(position).toMatchObject({ targetKind: binding.targetKind, targetId: binding.targetId,
+      factId: binding.factId, factType: binding.factType,
+      state: binding.targetKind === "MILESTONE" ? "COMPLETE" : "OPEN" });
+    expect(position.supports).toMatchObject([{ versionId: binding.entry.id, evidenceId: binding.entry.evidenceId,
+      sourceId: binding.entry.sourceId, provenance: "HUMAN_CONFIRMED" }]);
+    const row = answer.locator(".canonical-review-row").filter({ hasText: binding.entry.evidenceId });
+    const entity = binding.targetKind === "MILESTONE"
+      ? f.canonical.milestones.find((item: { id: string }) => item.id === binding.targetId)
+      : f.canonical.workItems.find((item: { id: string }) => item.id === binding.targetId);
+    expect(entity).toBeDefined();
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText(`${entity.key} · ${binding.targetKind === "MILESTONE" ? "Milestone · COMPLETE" : "Required work item · OPEN"}`);
+    await expect(row).toContainText(`Evidence ${binding.entry.evidenceId} · version ${binding.entry.id} · source ${binding.entry.sourceId}`);
+    await expect(row).toContainText("stored provenance: HUMAN CONFIRMED");
+  }
+  await expect(answer.getByText(/Completion is not established/)).toBeVisible();
+  await expect(answer.getByText(/This result does not create a reconciliation request/)).toBeVisible();
+  await expect(answer.locator(".canonical-review-row")).toHaveCount(4);
+
+  await f.share(f.bindings[3].entry.sourceId, ["pmo-portfolio", "pm-atlas"]);
+  const denied = page.waitForResponse((item) =>
+    item.url().endsWith(`/milestones/${f.milestoneId}/leadership-conflict-observation`) && item.request().method() === "GET");
+  await answer.getByRole("button", { name: "Refresh completion check", exact: true }).click();
+  const deniedResponse = await denied;
+  expect(deniedResponse.status()).toBe(503);
+  const deniedBody = await deniedResponse.text();
+  expect(JSON.parse(deniedBody)).toEqual({ statusCode: 503, message: "Service unavailable" });
+  for (const binding of f.bindings) {
+    expect(deniedBody).not.toContain(binding.entry.evidenceId);
+    expect(deniedBody).not.toContain(binding.entry.sourceId);
+  }
+  await expect(answer.getByText(/Completion check is unavailable/)).toBeVisible();
+  await expect(answer.locator(".canonical-review-row")).toHaveCount(0);
+  const retained = await f.api("pm-atlas", `${f.prefix}/reconciliation-requests/${checked.request.id}`);
+  expect(retained.status()).toBe(200);
+  const delivered = await retained.json();
+  expect(delivered).toMatchObject({ request: { id: checked.request.id, state: "OPEN",
+    assignment: { recipientSubject: "pm-atlas" } }, assessment: { visibility: "available",
+    revalidationRequired: false, result: { status: "CONFLICTING" } } });
+  expect(delivered.assessment.result.contributors).toHaveLength(4);
+  for (const binding of f.bindings) {
+    const contributor = delivered.assessment.result.contributors.find((item: { bindingId: string }) => item.bindingId === binding.id);
+    expect(contributor).toMatchObject({ targetKind: binding.targetKind, targetId: binding.targetId,
+      factId: binding.factId, supportingVersionIds: [binding.entry.id], supportingEvidenceIds: [binding.entry.evidenceId] });
+  }
 });
 test("FR-EVD-009: project navigation discards saved request scope before another workspace mounts", async ({
   page,

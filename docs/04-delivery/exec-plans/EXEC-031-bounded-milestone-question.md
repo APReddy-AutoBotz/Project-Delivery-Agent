@@ -168,3 +168,17 @@ merge `2ad9323166beabfcf35685c3e020d4790645ee55` have reviewed local tree
 ordered parents `9386d96f8470fe8f2db881884f6bf0f034e5ae78` and the reviewed
 head. Post-merge Documentation 40952284651 and Foundation 40952284735 passed.
 Broader Q&A and GOLDEN-003 remain open.
+
+## Real synthetic PM-to-leadership journey candidate
+
+A later candidate adds a real browser/API/database test joining the same
+four human-confirmed synthetic state bindings to an assigned PM's retained
+reconciliation proof and the leadership completion question. It compares each
+target, state, version and evidence across both views, then removes only the
+leadership reader from one still-available source and checks that the answer is
+withheld while the PM's historical proof remains available. Test discovery is
+local evidence only; execution against a fresh isolated database and all normal
+candidate, review and post-merge gates remain required. The test does not prove
+Jira or spreadsheet provenance, a separately authenticated production database
+session, production OIDC, all writes, or the complete shared GOLDEN-003 scenario.
+No story, criterion or release hold is accepted by this candidate.

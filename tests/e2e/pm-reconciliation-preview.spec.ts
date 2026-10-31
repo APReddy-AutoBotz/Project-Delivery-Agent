@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { buildBlockerAgeAdvice, buildPmActionQueue, buildScheduleAdviceSnapshot } from "../../packages/domain/dist/index.js";
 
 const id = (n: number) => `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -15,6 +15,85 @@ const queue = buildPmActionQueue(Array.from({ length: 6 }, (_, index) => {
       threshold: null, inventory: null, noOpenBlockers: null, candidates: [] }) };
 }));
 const empty = { requests: [], next: null, live: true };
+const oldMarker = "2098-01-02T03:04:05.000Z";
+function oldPage(projectId: string, scalar: boolean, number: number) {
+  return { requests: [{ id: id(800 + number), projectId,
+    ...(scalar ? { factId: id(900 + number), factType: "project.schedule" } : { milestoneId: id(900 + number) }),
+    createdAt: oldMarker, state: "OPEN", assignment: { id: id(950 + number), revision: 1,
+      occurredAt: oldMarker, reason: "ASSIGNED", recipientSubject: "pm-atlas" } }], next: null, live: true };
+}
+async function installPreviewProbe(page: Page) {
+  await page.addInitScript(() => {
+    const original = window.fetch; let firstCalls = 0, readersReleased = 0, completeBodies = 0, staleRendered = false;
+    const initialSignals: (AbortSignal | null | undefined)[] = [];
+    const marker = "2098-01-02T03:04:05.000Z";
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.oldValue?.includes(marker) || record.target.textContent?.includes(marker) || Array.from(record.addedNodes).some((node) => node.textContent?.includes(marker)))
+          staleRendered = true;
+      }
+    }).observe(document, { subtree: true, childList: true, characterData: true, characterDataOldValue: true });
+    (window as Window & { previewProbe?: () => { readersReleased: number; completeBodies: number; staleRendered: boolean; started: number; initialAborted: boolean } }).previewProbe =
+      () => ({ readersReleased, completeBodies, staleRendered, started: firstCalls,
+        initialAborted: initialSignals.every((signal) => signal?.aborted === true) });
+    window.fetch = (input, init) => {
+      if (!String(input).includes("reconciliation-requests")) return original(input, init);
+      const first = ++firstCalls <= 2;
+      if (first) initialSignals.push(init?.signal);
+      return original(input, { ...init, signal: undefined }).then((response) => {
+        if (first && response.body) {
+          const getReader = response.body.getReader.bind(response.body);
+          Object.defineProperty(response.body, "getReader", { value: () => {
+            const reader = getReader(), release = reader.releaseLock.bind(reader), read = reader.read.bind(reader);
+            const decoder = new TextDecoder(); let released = false, ended = false, body = "";
+            reader.read = async () => {
+              const result = await read();
+              if (!result.done) body += decoder.decode(result.value, { stream: true });
+              else if (!ended) {
+                ended = true;
+                try { if (JSON.parse(body + decoder.decode()).requests?.[0]?.createdAt === marker) completeBodies++; } catch { /* Invalid old body is not a completed observation. */ }
+              }
+              return result;
+            };
+            reader.releaseLock = () => { release(); if (!released) { released = true; readersReleased++; } };
+            return reader;
+          } });
+        }
+        return response;
+      });
+    };
+  });
+}
+async function expectEmptyPreviewBatch(panel: Locator) {
+  for (let index = 1; index <= 5; index++) {
+    const row = panel.getByRole("heading", { name: `Preview project ${index}`, exact: true }).locator("..");
+    await expect(row).toHaveCount(1);
+    for (const kind of ["Milestone", "Scalar"]) {
+      const category = row.getByRole("heading", { name: `${kind} reconciliation`, exact: true }).locator("..");
+      await expect(category.getByText("No recorded open requests on this page.", { exact: true })).toHaveCount(1);
+    }
+  }
+  await expect(panel).not.toContainText("Requests unavailable for this project and type");
+}
+function trackPreviewHandlers() {
+  const pending: Promise<void>[] = []; let failures = 0;
+  return {
+    async run(work: () => Promise<void>) {
+      let finish!: () => void;
+      pending.push(new Promise<void>((resolve) => { finish = resolve; }));
+      try { await work(); } catch (error) { failures++; throw error; } finally { finish(); }
+    },
+    async settle() {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([Promise.all(pending), new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error("Preview route settlement timed out")), 5000);
+        })]);
+        expect(failures).toBe(0);
+      } finally { if (timer) clearTimeout(timer); }
+    },
+  };
+}
 
 test("explicit previews limit concurrency and distinguish denied and truncated pages", async ({ page }) => {
   let active = 0, maximum = 0, calls = 0; const projects = new Set<string>();
@@ -55,12 +134,11 @@ test("explicit previews limit concurrency and distinguish denied and truncated p
 });
 
 test("refresh hides old previews and retains the lease until both late calls settle", async ({ page }) => {
-  let calls = 0, release!: () => void;
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  await page.addInitScript(() => {
-    const original = window.fetch;
-    window.fetch = (input, init) => original(input, String(input).includes("reconciliation-requests") ? { ...init, signal: undefined } : init);
-  });
+  let calls = 0, releaseFirst!: () => void, releaseSecond!: () => void;
+  const held = [new Promise<void>((resolve) => { releaseFirst = resolve; }),
+    new Promise<void>((resolve) => { releaseSecond = resolve; })];
+  const delivered: number[] = [], fresh = new Map<string, number>(), handlers = trackPreviewHandlers();
+  await installPreviewProbe(page);
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
     if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
@@ -68,7 +146,14 @@ test("refresh hides old previews and retains the lease until both late calls set
     if (path === "/me") return route.fulfill({ json: { subject: "pm-atlas", customerId, roles: ["project_manager"] } });
     if (path === "/projects") return route.fulfill({ json: [] });
     if (path === "/pm/action-queue") return route.fulfill({ json: queue });
-    if (/\/reconciliation-requests$/.test(path)) { calls++; if (calls <= 2) await held; return route.fulfill({ json: empty }).catch(() => {}); }
+    const match = /^\/projects\/([^/]+)\/(scalar-)?reconciliation-requests$/.exec(path);
+    if (match) return handlers.run(async () => {
+      const number = ++calls;
+      if (number <= 2) await held[number - 1];
+      else { const key = `${match[1]}:${match[2] ? "scalar" : "milestone"}`; fresh.set(key, (fresh.get(key) ?? 0) + 1); }
+      await route.fulfill({ json: number <= 2 ? oldPage(match[1]!, Boolean(match[2]), number) : empty });
+      if (number <= 2) delivered.push(number);
+    });
     return route.fulfill({ status: 404, json: {} });
   });
   try {
@@ -79,20 +164,46 @@ test("refresh hides old previews and retains the lease until both late calls set
     await expect(panel).toContainText("Load this batch");
     await panel.getByRole("button", { name: "Load reconciliation previews" }).click();
     await expect(panel).toContainText("Previews are unavailable"); expect(calls).toBe(2);
-    release(); await page.waitForTimeout(100);
-    await expect(panel).not.toContainText("No recorded open requests on this page");
+    releaseFirst(); await expect.poll(() => delivered).toEqual([1]);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased)).toBe(1);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { completeBodies: number } }).previewProbe().completeBodies)).toBe(1);
     await panel.getByRole("button", { name: "Load reconciliation previews" }).click();
-    await expect(panel).toContainText("No recorded open requests on this page");
-  } finally { release(); }
+    await expect(panel).toContainText("Previews are unavailable"); expect(calls).toBe(2);
+    await expect(panel).not.toContainText("No recorded open requests on this page");
+    releaseSecond(); await expect.poll(() => [...delivered].sort()).toEqual([1, 2]);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased)).toBe(2);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { completeBodies: number } }).previewProbe().completeBodies)).toBe(2);
+    await expect(panel).not.toContainText(oldMarker);
+    await expect(async () => {
+      if (calls === 2) await panel.getByRole("button", { name: "Load reconciliation previews" }).click();
+      await expect.poll(() => calls, { timeout: 1000 }).toBe(12);
+    }).toPass({ timeout: 5000, intervals: [100] });
+    expect([...fresh.keys()].sort()).toEqual(Array.from({ length: 5 }, (_, i) =>
+      [`${id(i + 1)}:milestone`, `${id(i + 1)}:scalar`]).flat().sort());
+    expect([...fresh.values()].every((count) => count === 1)).toBe(true);
+    await expectEmptyPreviewBatch(panel);
+    expect(await page.evaluate(() => (window as Window & { previewProbe: () => { staleRendered: boolean } }).previewProbe().staleRendered)).toBe(false);
+  } finally {
+    let snapshot: { started: number; initialAborted: boolean } | undefined;
+    try { snapshot = await page.evaluate(() => { window.dispatchEvent(new Event("focus"));
+      return (window as Window & { previewProbe?: () => { started: number; initialAborted: boolean } }).previewProbe?.(); }); }
+    finally { releaseFirst(); releaseSecond();
+      try { if (snapshot) await expect.poll(() => calls, { timeout: 5000 }).toBe(snapshot.started); }
+      finally { await handlers.settle(); } }
+    if (snapshot?.started) {
+      expect(snapshot.initialAborted).toBe(true);
+      await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased),
+        { timeout: 5000 }).toBe(Math.min(snapshot.started, 2));
+    }
+  }
 });
 
 test("a stalled batch times out visibly but cannot overlap later browser requests", async ({ page }) => {
-  let calls = 0, release!: () => void;
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  await page.addInitScript(() => {
-    const original = window.fetch;
-    window.fetch = (input, init) => original(input, String(input).includes("reconciliation-requests") ? { ...init, signal: undefined } : init);
-  });
+  let calls = 0, releaseFirst!: () => void, releaseSecond!: () => void;
+  const held = [new Promise<void>((resolve) => { releaseFirst = resolve; }),
+    new Promise<void>((resolve) => { releaseSecond = resolve; })];
+  const delivered: number[] = [], fresh = new Map<string, number>(), handlers = trackPreviewHandlers();
+  await installPreviewProbe(page);
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
     if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
@@ -100,7 +211,14 @@ test("a stalled batch times out visibly but cannot overlap later browser request
     if (path === "/me") return route.fulfill({ json: { subject: "pm-atlas", customerId, roles: ["project_manager"] } });
     if (path === "/projects") return route.fulfill({ json: [] });
     if (path === "/pm/action-queue") return route.fulfill({ json: queue });
-    if (/\/(scalar-)?reconciliation-requests$/.test(path)) { calls++; if (calls <= 2) await held; return route.fulfill({ json: empty }).catch(() => {}); }
+    const match = /^\/projects\/([^/]+)\/(scalar-)?reconciliation-requests$/.exec(path);
+    if (match) return handlers.run(async () => {
+      const number = ++calls;
+      if (number <= 2) await held[number - 1];
+      else { const key = `${match[1]}:${match[2] ? "scalar" : "milestone"}`; fresh.set(key, (fresh.get(key) ?? 0) + 1); }
+      await route.fulfill({ json: number <= 2 ? oldPage(match[1]!, Boolean(match[2]), number) : empty });
+      if (number <= 2) delivered.push(number);
+    });
     return route.fulfill({ status: 404, json: {} });
   });
   try {
@@ -110,10 +228,38 @@ test("a stalled batch times out visibly but cannot overlap later browser request
     await page.clock.fastForward(15001); await expect(panel).toContainText("Previews are unavailable");
     await panel.getByRole("button", { name: "Load reconciliation previews" }).click();
     await expect(panel).toContainText("Previews are unavailable"); expect(calls).toBe(2);
-    release(); await page.waitForTimeout(100);
+    releaseFirst(); await expect.poll(() => delivered).toEqual([1]);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased)).toBe(1);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { completeBodies: number } }).previewProbe().completeBodies)).toBe(1);
     await panel.getByRole("button", { name: "Load reconciliation previews" }).click();
-    await expect(panel).toContainText("No recorded open requests on this page");
-  } finally { release(); }
+    await expect(panel).toContainText("Previews are unavailable"); expect(calls).toBe(2);
+    await expect(panel).not.toContainText("No recorded open requests on this page");
+    releaseSecond(); await expect.poll(() => [...delivered].sort()).toEqual([1, 2]);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased)).toBe(2);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { completeBodies: number } }).previewProbe().completeBodies)).toBe(2);
+    await expect(panel).not.toContainText(oldMarker);
+    await expect(async () => {
+      if (calls === 2) await panel.getByRole("button", { name: "Load reconciliation previews" }).click();
+      await expect.poll(() => calls, { timeout: 1000 }).toBe(12);
+    }).toPass({ timeout: 5000, intervals: [100] });
+    expect([...fresh.keys()].sort()).toEqual(Array.from({ length: 5 }, (_, i) =>
+      [`${id(i + 1)}:milestone`, `${id(i + 1)}:scalar`]).flat().sort());
+    expect([...fresh.values()].every((count) => count === 1)).toBe(true);
+    await expectEmptyPreviewBatch(panel);
+    expect(await page.evaluate(() => (window as Window & { previewProbe: () => { staleRendered: boolean } }).previewProbe().staleRendered)).toBe(false);
+  } finally {
+    let snapshot: { started: number; initialAborted: boolean } | undefined;
+    try { snapshot = await page.evaluate(() => { window.dispatchEvent(new Event("focus"));
+      return (window as Window & { previewProbe?: () => { started: number; initialAborted: boolean } }).previewProbe?.(); }); }
+    finally { releaseFirst(); releaseSecond();
+      try { if (snapshot) await expect.poll(() => calls, { timeout: 5000 }).toBe(snapshot.started); }
+      finally { await handlers.settle(); } }
+    if (snapshot?.started) {
+      expect(snapshot.initialAborted).toBe(true);
+      await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased),
+        { timeout: 5000 }).toBe(Math.min(snapshot.started, 2));
+    }
+  }
 });
 
 test("an unauthorized preview expires the current session without showing the response body", async ({ page }) => {
