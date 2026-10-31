@@ -126,6 +126,14 @@ An unused shared lease limits unresolved loads across owner-supplied scope
 generations and fails closed when busy or aborted. Its guarantee depends on a
 long-lived owner reusing the same lease and holding it through the full bounded
 body read and decode; an uncooperative load can block later attempts indefinitely.
+An unmounted local view and shared page-lifecycle helper now compose these
+pieces. Eight synthetic Chrome harness cases passed for scope and session
+changes, delayed old responses, bounded input, synthetic visibility events and
+disposal. The denial case holds an already-received EOF inside the test wrapper;
+it does not prove a stalled network or the production disclosure recorder.
+This is not authenticated HTTP, real OS suspension or evidence of a view mounted
+in the application. Scope-owner lifetime, current access and policy, endpoint contract and
+the remaining browser and information-flow checks are still required.
 Further native and independent review is required; there is no HTTP route or
 user-facing view.
 An internal fact-prefix admission helper checks bounded metadata,

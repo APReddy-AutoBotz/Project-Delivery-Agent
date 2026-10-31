@@ -3,7 +3,7 @@ import { startUnrankedFreshnessClock } from "./unranked-milestone-freshness.js";
 
 type State = { phase: "idle" | "loading" | "error" } | { phase: "ready"; data: UnrankedMilestoneObservation };
 type Clock = { wall: () => number; monotonic: () => number };
-type Pending = { controller: AbortController; token: number; deadline: ReturnType<typeof setTimeout>; timedOut: boolean };
+type Pending = { controller: AbortController; token: number; deadline: ReturnType<typeof setTimeout>; timedOut: boolean; unavailable: boolean };
 const maxDelay = 2147483647;
 const expiredState: State = Object.freeze({ phase: "error" });
 
@@ -32,10 +32,10 @@ export function createUnrankedMilestoneResource(options: {
   const begin = () => {
     if (!live || !visible || pending) return;
     const token = generation, controller = new AbortController(), clock = startUnrankedFreshnessClock(options.clock);
-    const active: Pending = { controller, token, timedOut: false, deadline: setTimeout(() => {
+    const active: Pending = { controller, token, timedOut: false, unavailable: false, deadline: setTimeout(() => {
       if (!live || pending !== active) return;
       active.timedOut = true; generation++; queued = false; requested = false; controller.abort();
-      clearExpiry(); if (visible) publish({ phase: "error" });
+      clearExpiry(); if (visible && state.phase !== "error") publish({ phase: "error" });
     }, 30000) };
     pending = active;
     void Promise.resolve().then(() => {
@@ -60,7 +60,7 @@ export function createUnrankedMilestoneResource(options: {
   const refresh = () => {
     if (!live || !visible) return;
     requested = true; generation++; hiddenFreshness = undefined; clearExpiry();
-    if (pending?.timedOut) { queued = false; requested = false; publish({ phase: "error" }); return; }
+    if (pending?.timedOut || pending?.unavailable) { queued = false; requested = false; publish({ phase: "error" }); return; }
     publish({ phase: "loading" });
     if (pending) { queued = true; pending.controller.abort(); return; }
     begin();
@@ -88,11 +88,18 @@ export function createUnrankedMilestoneResource(options: {
     check();
     if (requested) refresh();
   };
+  // A known denial or stream failure must clear the view immediately, even if
+  // the response body or its cancellation has not yet settled.
+  const unavailable = (signal: AbortSignal) => {
+    if (!live || !visible || !pending || pending.controller.signal !== signal || pending.token !== generation || pending.timedOut || pending.unavailable) return;
+    pending.unavailable = true; generation++; queued = false; requested = false;
+    clearExpiry(); publish({ phase: "error" });
+  };
   const dispose = () => {
     if (!live) return;
     live = false; generation++; queued = false; hiddenFreshness = undefined; clearExpiry();
     if (pending) { clearTimeout(pending.deadline); pending.controller.abort(); }
     state = { phase: "idle" };
   };
-  return { refresh, setVisible, current, check, revalidate, dispose };
+  return { refresh, setVisible, current, check, revalidate, unavailable, dispose };
 }

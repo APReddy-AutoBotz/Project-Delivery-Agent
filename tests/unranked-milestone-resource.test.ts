@@ -160,3 +160,36 @@ it("shares one lease across scope replacement until an abort-ignoring body settl
   next.refresh(); await tick(); expect(nextLoad).toHaveBeenCalledTimes(1);
   expect(next.current()).toMatchObject({ phase: "ready", data: { projectId: id(91) } }); next.dispose();
 });
+
+it("clears immediately on a known failure while allowing its body to finish", async () => {
+  vi.useFakeTimers(); const body = deferred<UnrankedMilestoneObservation>(); let signal: AbortSignal | undefined;
+  const load = vi.fn((value: AbortSignal) => { signal = value; return body.promise; }), publish = vi.fn();
+  const resource = createUnrankedMilestoneResource({ load, publish, clock: { wall: () => 1000, monotonic: () => 500 } });
+  resource.refresh(); await tick();
+  resource.unavailable(new AbortController().signal); expect(resource.current().phase).toBe("loading");
+  resource.unavailable(signal!); expect(signal!.aborted).toBe(false); expect(resource.current().phase).toBe("error");
+  expect(publish).toHaveBeenLastCalledWith({ phase: "error" });
+  resource.refresh(); await tick(); expect(load).toHaveBeenCalledTimes(1);
+  body.resolve(observation()); await tick(); expect(resource.current().phase).toBe("error");
+  resource.dispose();
+});
+
+it("aborts a stalled denial body at its deadline and never overlaps it", async () => {
+  vi.useFakeTimers(); const body = deferred<UnrankedMilestoneObservation>(); let signal: AbortSignal | undefined;
+  const load = vi.fn((value: AbortSignal) => { signal = value; return body.promise; });
+  const resource = createUnrankedMilestoneResource({ load, publish: vi.fn(), clock: { wall: () => 1000, monotonic: () => 500 } });
+  resource.refresh(); await tick(); resource.unavailable(signal!); expect(signal!.aborted).toBe(false);
+  await vi.advanceTimersByTimeAsync(30000); expect(signal!.aborted).toBe(true); expect(resource.current().phase).toBe("error");
+  resource.refresh(); await tick(); expect(load).toHaveBeenCalledTimes(1);
+  body.resolve(observation()); await tick(); expect(resource.current().phase).toBe("error"); resource.dispose();
+});
+
+it("ignores an unavailable callback from a previous settled request", async () => {
+  vi.useFakeTimers(); const first = deferred<UnrankedMilestoneObservation>(), second = deferred<UnrankedMilestoneObservation>();
+  const signals: AbortSignal[] = [], load = vi.fn((signal: AbortSignal) => { signals.push(signal); return signals.length === 1 ? first.promise : second.promise; });
+  const resource = createUnrankedMilestoneResource({ load, publish: vi.fn(), clock: { wall: () => 1000, monotonic: () => 500 } });
+  resource.refresh(); await tick(); resource.refresh(); first.resolve(observation()); await tick();
+  expect(load).toHaveBeenCalledTimes(2); resource.unavailable(signals[0]!);
+  expect(resource.current().phase).toBe("loading"); expect(signals[1]!.aborted).toBe(false);
+  second.resolve(observation()); await tick(); expect(resource.current().phase).toBe("ready"); resource.dispose();
+});
