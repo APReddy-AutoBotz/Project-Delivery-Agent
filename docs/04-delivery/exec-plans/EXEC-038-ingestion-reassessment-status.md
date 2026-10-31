@@ -7,8 +7,8 @@ OD-013/014. Imported spreadsheet values remain proposals, not canonical facts.
 
 ## Candidate follow-up: explicit live pages
 
-The in-progress follow-up supersedes the first-page-only restriction below for
-its reviewed candidate. A separately authorized read-only page POST sends one
+The in-progress follow-up supersedes the sole-GET and first-page-only restrictions
+below, which describe PR #134. A separately authorized read-only page POST sends one
 canonical UUID position in a strict JSON body, not a URL. It reuses the current
 PMO, project and source-reader repository checks for every page. The cursor is
 an arbitrary position, not proof of previous access. The browser validates the
