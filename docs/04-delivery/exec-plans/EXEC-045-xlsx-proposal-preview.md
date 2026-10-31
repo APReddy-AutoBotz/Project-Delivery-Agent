@@ -58,6 +58,32 @@ equate the two.
 
 ## Required workbook and persistence work
 
+An additional unconnected synthetic baseline codec encodes an ordered JSON-array
+tuple in ECMAScript UTF-8 with domain `pdaa.synthetic.xlsx.baseline.v1`, exact
+customer/source/sheet and a positive 32-bit mapping revision. It distinguishes
+ABSENT from PRESENT with zero rows and includes every ordered row key, project,
+field type and typed value. Revision is passed to the existing baseline schema
+as its canonical decimal string; negative zero and nonfinite numbers are
+rejected. The serializer measures actual escaped JSON bytes, punctuation and
+UTF-8 before joining output and rejects anything over 1 MiB. Equal semantic
+baselines in a different order intentionally yield different synthetic bytes.
+
+The caller supplies the root scope and rows: the codec cannot establish their
+original scope, config compatibility, required fields, project membership,
+workbook contents, authority or authorization. The baseline schema alone admits
+`empty` typed values even though spreadsheet mappings cannot declare that type.
+The stricter synthetic customer/source UUID format and integer revision do not
+change existing CSV rules; row project IDs use the existing baseline schema.
+This is not a production wire format or a sandbox against Proxy traps or input
+already allocated by a caller. A future manifest and selection simulation must
+bind and validate its own asserted context and outcomes; real retained receipts
+still need independently reviewed transactional and provenance design.
+The focused Node 24 CSV, descriptor, identity and baseline suites passed 89
+synthetic tests. No workbook parser, API, persistence or story acceptance is
+introduced by this codec. The first scoped lint invocation could not find ESLint
+in this worktree; a retry using the existing workspace ESLint and configuration
+passed. Domain typecheck and documentation validation passed.
+
 An additional, unconnected identity experiment emits synthetic UTF-8 bytes, not
 receipts. The preview format is the ECMAScript `JSON.stringify` serialization of
 the fixed array `["pdaa.synthetic.xlsx.preview.v1", customerId, sourceId,
