@@ -734,6 +734,32 @@ the TLS fixture could not start because `openssl` was absent from PATH. Its
 single unchanged retry passed when the already-installed OpenSSL executable was
 specified explicitly. These local results do not replace packaged acceptance.
 
+PR #158 Foundation run
+[41250779234](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41250779234),
+production-boundary job `124683650504`, stopped at SEC-AUTH-001
+`scalar-proof-disclosure`, before the separate restore check. The finite diagnostic
+reported `settle_health`, one tracked request, `pm_queue`, `GET`, `aborted`, a
+`2xx` response class and the `eligibility` phase. The `tokenSeen` indication
+records that the expected identity-provider token response was observed for
+scanning; it is not evidence of a token disclosure. Capture was incomplete, so
+the result establishes neither disclosure nor its absence. The request abort's
+cause is unknown, and the earlier failures are not assumed to have the same cause.
+PR #153 Foundation run
+[41250990415](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41250990415),
+job `124684278051`, also stopped at that stage with the same finite categories.
+Those categories do not establish that the same underlying cause recurred.
+
+The acceptance journey now settles disclosure capture before the second
+list-to-project interaction as it already did before the first. A synthetic
+loopback Chromium regression holds two distinct queue responses across those
+interactions and checks that each original body was captured and continued before
+navigation; a canary in the second response is detected. The initial local run
+could not find Chromium under the sandbox browser path; the unchanged test passed
+once the installed browser path was specified. This test does not reproduce the
+production application or prove the cause of the hosted failure. It does not
+relax the response eligibility rules. Exact-candidate review and hosted checks
+remain required, and a later passing run does not erase the failure.
+
 ## Restore backend-kind diagnostic candidate
 
 PR #151 Foundation run 41249318263 failed its external customer restore at the

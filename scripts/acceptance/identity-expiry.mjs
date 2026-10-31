@@ -267,25 +267,29 @@ export async function checkIdentityExpiry(browser) {
     await page.getByRole("button", { name: "← All projects" }).click();
     stage = "loaded-details-return-card";
     await card.waitFor();
-    stage = "scalar-project-listener";
-    const projectOpened = page.waitForResponse(
-      (response) =>
-        response.url() === base + prefix &&
-        response.request().method() === "GET",
-    );
-    void projectOpened.catch(() => {});
-    stage = "scalar-project-click";
-    await page
-      .getByRole("button")
-      .filter({
-        has: page.getByRole("heading", {
-          name: scalarProject.name,
-          exact: true,
-        }),
-      })
-      .click();
-    stage = "scalar-project-response";
-    assert.equal((await projectOpened).status(), 200);
+    stage = "scalar-project-before-click-settle";
+    const projectOpened = await afterDisclosureSettle(capture, page, async () => {
+      stage = "scalar-project-listener";
+      const pending = page.waitForResponse(
+        (response) =>
+          response.url() === base + prefix &&
+          response.request().method() === "GET",
+      );
+      void pending.catch(() => {});
+      stage = "scalar-project-click";
+      await page
+        .getByRole("button")
+        .filter({
+          has: page.getByRole("heading", {
+            name: scalarProject.name,
+            exact: true,
+          }),
+        })
+        .click();
+      stage = "scalar-project-response";
+      return pending;
+    });
+    assert.equal(projectOpened.status(), 200);
     stage = "scalar-proof-listener";
     const proofOpened = page.waitForResponse(
       (response) =>
