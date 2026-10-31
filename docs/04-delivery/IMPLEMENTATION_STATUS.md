@@ -31,6 +31,19 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+Read-only matched milestone reconciliation request observation merged in
+[PR #141](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/141)
+as `374f2ee950599c62bf12d351459acbfa0ff3bf24`, with reviewed head
+`ce4b865eed43a1a40d994443775d24529160f624` and verified tree
+`c4ff9a38031ce6debe3c38e25144891377d6bc2a`. Its ordered parents are
+`a78b8b93cbcc088d1ae7449ec38cd43b7d02ef41` and the reviewed head. Candidate
+Foundation `41210493680` and Documentation `41210493670` passed. Actual
+post-merge Foundation `41212711134` and Documentation `41212711110` passed.
+The observation is an as-of view requiring both leadership and
+manage access; refresh before reliance. It assigns or delivers no request,
+publishes no source fact and does not complete GOLDEN-003 or accept a story,
+criterion or release hold.
+
 Read-only human milestone state disagreement merged in [PR #139](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/139)
 as `a78b8b93cbcc088d1ae7449ec38cd43b7d02ef41`, with reviewed head
 `6b22b50c4caeaaa0636b04fdcc6641f6f62fa737` and verified tree
@@ -1189,6 +1202,10 @@ At this 2026-09-26 checkpoint, AC-MNT-003 remained partial and Issue #7 checkbox
 Record software-behavior acceptance for AC-CON-002, AC-CON-005, AC-CON-006, AC-CON-007, AC-CON-008 and AC-MNT-003 on the merged synthetic adapter/runtime, OAuth-revocation and CSV proposal flows. AC-CON-006 restores canonical acceptance mapping for FR-CON-009, which Issue #7 already lists; Issue #7 also lists FAIL-001/FAIL-002, which `requirements/traceability/tests.yaml` maps to AC-CON-006 and AC-CON-008. Its omission is a checklist gap proposed for correction through reviewable change control. Exact evidence and implementation candidate SHAs are listed in [EXEC-009](exec-plans/EXEC-009-read-only-ingestion.md#issue-7-synthetic-criterion-acceptance-2026-09-28). PR #93 merged as `150447436074a26dfeab093e3918159877bcba06`; its exact-head and post-merge Foundation and Documentation checks passed.
 
 AC-CON-004 remains partial: the signed-event replay evidence reaches one durable receipt/job, source observation and proposal projection, but does not create and count the downstream domain obligation required by the criterion.
+
+This entire dated checkpoint, including the totals in the following paragraph,
+is historical. The STORY-008 acceptance recorded above became effective with
+PR #113 and supersedes this AC-CON-004 status; current totals are 7/38 above.
 
 AC-CON-001 remains partial because OD-013 keeps public OAuth onboarding and live activation disabled. AC-CON-003 remains partial because OD-014 keeps Jira comment reads and body/author retention disabled. Issue #7 stays open; no story or accepted-story total changes (R0 3/5, R1 2/33; 5/38 combined). No customer Jira site is activated and no proposal becomes a canonical fact.
 
