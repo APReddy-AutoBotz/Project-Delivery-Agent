@@ -70,6 +70,15 @@ Chromium test uses an untrusted local certificate to exercise context isolation
 and confirms an unexpected close in the recorded context remains fatal; the
 packaged hostname-specific check must still run.
 
+Foundation run 41196254183 passed the hostname-negative probe and the operator
+grant/revoke UI checks, but production-boundary failed when the operator's
+disclosure capture reported one failed request. It did not identify the request,
+establish the cause, or complete the packaged disclosure check. A failed DELETE
+204 is one hypothesis, not an observed fact. Fixed, allowlisted request-failure
+categories are now emitted on that capture failure without raw paths, IDs,
+headers, bodies, errors or credentials. Capture remains fail-closed; no new
+request-failure exception is authorized by these diagnostics.
+
 Unit tests cover delayed readiness, expiry, mismatch, error classes, an emitted
 client error, forced socket destruction and no retries of acceptance. These do
 not replace the required real isolated PostgreSQL and hosted role-bootstrap

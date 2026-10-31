@@ -18,6 +18,7 @@ import {
   createDisclosureCheck,
   readFixtureSecrets,
   observeBrowserDisclosure,
+  reportIdentityCaptureDiagnostic,
   scanBrowserAssets,
 } from "./disclosure.mjs";
 guard();
@@ -400,7 +401,12 @@ try {
         .waitFor();
     },
   );
-  await captureOperator(op);
+  try {
+    await captureOperator(op);
+  } catch (error) {
+    reportIdentityCaptureDiagnostic("operator-disclosure", captureOperator);
+    throw error;
+  }
   await captureOperator.close();
   await check(expiryCheckName, async () => {
     identityExpiry = await checkIdentityExpiry(browser);

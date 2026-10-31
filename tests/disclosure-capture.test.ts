@@ -206,7 +206,8 @@ it("reports only fixed, saturated capture diagnostics and preserves the original
   expect(line).not.toContain(base);
   const value = JSON.parse(line.slice("SEC-AUTH-001 capture diagnostic ".length));
   expect(value).toEqual({ phase: "unavailable", counters: { response: 0, headers: 0, body: 2, continuation: 0, console: 0, timeout: 0, targets: 0, unresolved: 0, unprepared: 0, inflight: 0, requests: 0 }, tokenSeen: false,
-    continuation: { branch: "unknown", resource: "unknown", error: "unknown", page: "unknown" } });
+    continuation: { branch: "unknown", resource: "unknown", error: "unknown", page: "unknown" },
+    request: { resource: "unknown", method: "unknown", failure: "unknown", response: "unknown", phase: "unknown" } });
   expect(() => reportIdentityCaptureDiagnostic("loaded-details-disclosure", {
     diagnostic: () => { throw new Error(canary); },
   }, () => { throw new Error(canary); })).not.toThrow();
@@ -214,6 +215,48 @@ it("reports only fixed, saturated capture diagnostics and preserves the original
   expect(emit).toHaveBeenCalledTimes(2);
   const hostile = { get phase() { throw new Error(canary); } };
   expect(formatCaptureDiagnostic(hostile)).not.toContain(canary);
+});
+
+it("reports only allowlisted failed-request classes without relaxing capture", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const request = { url: () => base + "/api/access-grants", method: () => "DELETE",
+    failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => response };
+  const response = { request: () => request, status: () => 204, fromServiceWorker: () => false };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  const emit = vi.fn();
+  reportIdentityCaptureDiagnostic("operator-disclosure", f.capture, emit);
+  const line = emit.mock.calls[0]![0] as string;
+  expect(line).not.toContain(base);
+  expect(JSON.parse(line.slice("SEC-SECRET-001 operator capture diagnostic ".length)).request).toEqual({
+    resource: "access_grants", method: "DELETE", failure: "aborted", response: "204", phase: "identity",
+  });
+  expect(formatCaptureDiagnostic({ request: { resource: f.canary, method: f.canary, failure: f.canary, response: f.canary, phase: f.canary } })).not.toContain(f.canary);
+});
+
+it("does not read diagnostic getters before an otherwise successful capture decision", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  let methods = 0, failures = 0, urls = 0, statuses = 0;
+  const request = { url: () => ++urls <= 2 ? base + "/empty" : f.canary,
+    method: () => ++methods === 1 ? "POST" : f.canary,
+    failure: () => ({ errorText: ++failures === 1 ? "net::ERR_ABORTED" : f.canary }), response: async () => response };
+  const response = { request: () => request, url: () => base + "/empty", status: () => ++statuses === 1 ? 204 : 200,
+    fromServiceWorker: () => false, headersArray: async () => [{ name: "x-proof", value: "public" }] };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await f.capture(f.page);
+  expect({ methods, failures, urls, statuses }).toEqual({ methods: 1, failures: 1, urls: 2, statuses: 1 });
+  expect(f.capture.diagnostic().counters.requests).toBe(0);
+});
+
+it("keeps failure closed when request diagnostic getters throw", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const hostile = () => { throw new Error(f.canary); };
+  const request = { response: async () => null, url: hostile, method: hostile, failure: hostile };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  const diagnostic = formatCaptureDiagnostic(f.capture.diagnostic());
+  expect(diagnostic).not.toContain(f.canary);
+  expect(JSON.parse(diagnostic).request).toEqual({ resource: "unknown", method: "unknown", failure: "unknown", response: "none", phase: "identity" });
 });
 
 it("waits for multiple observed requests, including one started while capture drains", async () => {

@@ -36,6 +36,19 @@ const continuationDiagnosticAllowed = {
   error: new Set(["invalid_interception", "target_closed", "other"]),
   page: new Set(["closed", "open"]),
 };
+const requestDiagnosticAllowed = {
+  resource: new Set(["access_grants", "other"]),
+  method: new Set(["POST", "DELETE", "other"]),
+  failure: new Set(["aborted", "other"]),
+  response: new Set(["none", "204", "other"]),
+  phase: new Set(["response", "identity", "origin", "headers"]),
+};
+const safeRequestDiagnostic = (value) => Object.fromEntries(
+  Object.entries(requestDiagnosticAllowed).map(([key, allowed]) => {
+    const candidate = value?.[key];
+    return [key, allowed.has(candidate) ? candidate : "unknown"];
+  }),
+);
 const safeContinuationDiagnostic = (value) => Object.fromEntries(
   Object.entries(continuationDiagnosticAllowed).map(([key, allowed]) => {
     const candidate = value?.[key];
@@ -55,17 +68,18 @@ export function formatCaptureDiagnostic(value) {
       counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, bucketCaptureCount(value?.counters?.[key])])),
       tokenSeen: value?.tokenSeen === true,
       continuation: safeContinuationDiagnostic(value?.continuation),
+      request: safeRequestDiagnostic(value?.request),
     });
   } catch {
-    return JSON.stringify({ phase: "unavailable", counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, 0])), tokenSeen: false, continuation: safeContinuationDiagnostic(undefined) });
+    return JSON.stringify({ phase: "unavailable", counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, 0])), tokenSeen: false, continuation: safeContinuationDiagnostic(undefined), request: safeRequestDiagnostic(undefined) });
   }
 }
 export function reportIdentityCaptureDiagnostic(stage, capture, emit = console.error) {
-  if (!["loaded-details-disclosure", "loaded-details-before-click-disclosure"].includes(stage)) return;
+  if (!["loaded-details-disclosure", "loaded-details-before-click-disclosure", "operator-disclosure"].includes(stage)) return;
   let result;
   try { result = formatCaptureDiagnostic(capture?.diagnostic?.()); }
   catch { result = formatCaptureDiagnostic(undefined); }
-  try { emit("SEC-AUTH-001 capture diagnostic " + result); }
+  try { emit((stage === "operator-disclosure" ? "SEC-SECRET-001 operator capture diagnostic " : "SEC-AUTH-001 capture diagnostic ") + result); }
   catch { /* Diagnostics must not replace the original failure. */ }
 }
 
@@ -191,6 +205,7 @@ export async function observeBrowserDisclosure(
   let tokenResponses = 0;
   let diagnosticPhase = "unavailable";
   let continuationDiagnostic;
+  let requestDiagnostic;
   const origins = [...new Set([origin, identityOrigin])];
   const tokenUrl =
     identityOrigin + "/identity/realms/pdaa/protocol/openid-connect/token";
@@ -296,6 +311,7 @@ export async function observeBrowserDisclosure(
     },
     tokenSeen: tokenResponses > 0,
     continuation: continuationDiagnostic,
+    request: requestDiagnostic,
   });
   // Explicit test interactions must not navigate away while unrelated assets
   // are still loading; the recorder fails if their capture is cancelled.
@@ -328,20 +344,40 @@ export async function observeBrowserDisclosure(
     page.on("requestfinished", finished);
     page.on("requestfailed", (request) => {
       if (requests.has(request)) collect("requests", (async () => {
+        const diagnostic = { phase: "response" };
+        let response;
+        try {
         // Chromium can report a completed 204 POST as aborted by the next
         // navigation. Only the exact request's bodyless response can qualify;
         // record its original headers for the same secret scan. Every other
         // failed request remains fatal, as do all independent CDP failures.
-        const response = await request.response();
+        response = await request.response();
+        diagnostic.phase = "identity";
         if (!response || response.request() !== request || request.method() !== "POST" || response.status() !== 204 ||
-            request.failure()?.errorText !== "net::ERR_ABORTED" || response.fromServiceWorker() !== false ||
-            response.url() !== request.url() || !origins.includes(new URL(request.url()).origin))
+            request.failure()?.errorText !== "net::ERR_ABORTED" || response.fromServiceWorker() !== false)
           throw new Error("Failed request capture incomplete");
+        diagnostic.phase = "origin";
+        if (response.url() !== request.url() || !origins.includes(new URL(request.url()).origin))
+          throw new Error("Failed request capture incomplete");
+        diagnostic.phase = "headers";
         const headers = await response.headersArray();
         if (!Array.isArray(headers) || headers.some((item) => typeof item?.name !== "string" || typeof item?.value !== "string"))
           throw new Error("Failed request headers unavailable");
         disclosure.add("browser-response-headers", JSON.stringify(headers));
         disclosure.add("browser-bodyless-responses", JSON.stringify({ method: "POST", status: 204 }));
+        } catch (error) {
+          // Only inspect accessors after the capture decision has already failed;
+          // diagnostic getters cannot turn a success into a failure or vice versa.
+          try {
+            const url = new URL(request.url());
+            diagnostic.resource = origins.includes(url.origin) && url.pathname === "/api/access-grants" ? "access_grants" : "other";
+          } catch { /* unavailable */ }
+          try { const method = request.method(); diagnostic.method = ["POST", "DELETE"].includes(method) ? method : "other"; } catch { /* unavailable */ }
+          try { diagnostic.failure = request.failure()?.errorText === "net::ERR_ABORTED" ? "aborted" : "other"; } catch { /* unavailable */ }
+          try { diagnostic.response = response === null ? "none" : response ? response.status() === 204 ? "204" : "other" : undefined; } catch { /* unavailable */ }
+          if (!requestDiagnostic) requestDiagnostic = diagnostic;
+          throw error;
+        }
       })());
       finished(request);
     });
