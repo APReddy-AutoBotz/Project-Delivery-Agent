@@ -403,6 +403,79 @@ it("withholds an unranked milestone when an applicable source has expired", asyn
   expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
 }, 60000);
 
+it.each(["reader", "writer"] as const)("serializes unranked milestone reads with first policy creation when %s starts first", async (firstKind) => {
+  const { f, leader, target, alternateVersion, reader } = await stateDisagreementFixture(true);
+  const baseline = await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id);
+  expect(baseline.positions).toMatchObject([
+    { state: "COMPLETE", supports: [{ versionId: target.entry.id, evidenceId: target.entry.evidenceId, sourceId: target.entry.sourceId }] },
+    { state: "OPEN", supports: [{ versionId: alternateVersion.entry.id, evidenceId: alternateVersion.entry.evidenceId, sourceId: alternateVersion.entry.sourceId }] },
+  ]);
+  expect(await db.authorityPolicy.count({ where: { customerId, projectId: f.projectId, factType: target.factType } })).toBe(0);
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  let release!: () => void, heldReady!: () => void, waitingReady!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const heldEntered = new Promise<void>((resolve) => { heldReady = resolve; });
+  const waitingEntered = new Promise<void>((resolve) => { waitingReady = resolve; });
+  let heldPid = 0, waitingPid = 0, paused = false;
+  const wrapped = (role: "reader" | "writer", hold: boolean) => ({
+    $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      const pid = (await tx.$queryRawUnsafe<{ pid: number }[]>("SELECT pg_backend_pid() AS pid"))[0]!.pid;
+      if (hold) heldPid = pid; else { waitingPid = pid; waitingReady(); }
+      return operation(new Proxy(tx, { get(targetTx, key) {
+        const value = Reflect.get(targetTx, key);
+        if (hold && key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const result = await Reflect.apply(value, targetTx, args), sql = rawSqlText(args[0]);
+          const lock = role === "reader" ? sql.includes('FROM public."Project"') && sql.includes("FOR SHARE")
+            : sql.includes('FROM "Project"') && sql.includes("FOR UPDATE");
+          if (!paused && lock) { paused = true; heldReady(); await gate; }
+          return result;
+        };
+        return typeof value === "function" ? value.bind(targetTx) : value;
+      } }));
+    }, options as never),
+  });
+  const read = (database: unknown) => new DatabaseMilestoneStateDisagreementRepository(database as never)
+    .readUnrankedLeadership(leader, f.projectId, f.milestone.id);
+  const createPolicy = (database: unknown) => new DatabaseAuthorityRepository(database as never).appendPolicy(f.pmo, {
+    projectId: f.projectId, factType: target.factType, expectedRevision: 0, idempotencyKey: randomUUID(),
+    effectiveAt: new Date(now!.getTime() - 1000).toISOString(), definition,
+  }, context);
+  const first = firstKind === "reader" ? read(wrapped("reader", true)) : createPolicy(wrapped("writer", true));
+  void first.catch(() => {});
+  let second: Promise<unknown> | undefined, sawBlock = false;
+  try {
+    await Promise.race([heldEntered, first.then(() => { throw new Error("First transaction exited before its barrier"); })]);
+    second = firstKind === "reader" ? createPolicy(wrapped("writer", false)) : read(wrapped("reader", false));
+    void second.catch(() => {});
+    await Promise.race([waitingEntered, second.then(() => { throw new Error("Second transaction exited before its barrier"); })]);
+    const deadline = Date.now() + 1500;
+    while (Date.now() < deadline) {
+      const rows = await db.$queryRawUnsafe<{ wait_event_type: string | null; blockers: number[]; query: string }[]>(
+        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers,query FROM pg_stat_activity WHERE pid=$1", waitingPid);
+      const fragments = firstKind === "reader" ? ['FROM "Project"', "FOR UPDATE"] : ['FROM public."Project"', "FOR SHARE"];
+      if (rows[0]?.wait_event_type === "Lock" && rows[0].blockers.includes(heldPid) &&
+          fragments.every((fragment) => rows[0]!.query.includes(fragment))) { sawBlock = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  } finally { release(); await Promise.allSettled(second ? [first, second] : [first]); }
+  expect(sawBlock).toBe(true);
+  let created: Awaited<ReturnType<DatabaseAuthorityRepository["appendPolicy"]>>;
+  if (firstKind === "reader") {
+    expect(await first).toMatchObject({ kind: "UNRANKED_NO_POLICY", milestoneId: f.milestone.id, positions: baseline.positions });
+    created = await second as typeof created;
+  } else {
+    created = await first as typeof created;
+    await expect(second).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  }
+  const policies = await db.authorityPolicy.findMany({ where: { customerId, projectId: f.projectId, factType: target.factType }, include: { events: true } });
+  expect(policies).toHaveLength(1);
+  expect(policies[0]).toMatchObject({ revision: 1, events: [{ id: created.event.id, revision: 1, state: "ENABLED" }] });
+  const afterPolicy = await unrankedReadSnapshot(f, leader);
+  await expect(reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await unrankedReadSnapshot(f, leader)).toEqual(afterPolicy);
+}, 90000);
+
 it("withholds milestone alternatives without a policy and exposes the tie only after policy creation", async () => {
   const { f, leader, target, reader } = await stateDisagreementFixture(true);
   expect(await db.authorityPolicy.count({ where: { customerId, projectId: f.projectId, factType: target.factType } })).toBe(0);
