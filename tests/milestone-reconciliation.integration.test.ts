@@ -1349,6 +1349,70 @@ it("NFR-SEC-001: configured PM equality, exact role and inherited scope are inde
   expect(await reconciliationRows(f.projectId, false)).toEqual(before);
 });
 
+it("pages real milestone recipient requests and rechecks current scope on the API role", async () => {
+  if (process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "synthetic" || new URL(url).hostname !== "127.0.0.1")
+    throw new Error("Preview integration requires a qualified disposable synthetic database");
+  const f = await fixture(1, true, false, false, true), created: string[] = [], work = f.bindings[1]!;
+  for (let index = 0; index < 21; index++) {
+    if (index > 0) await facts.appendHumanStatement(f.pmo, { projectId: f.projectId, factType: work.factType,
+      expectedRevision: index, idempotencyKey: randomUUID(), effectiveAt: new Date(Date.now() - 500).toISOString(),
+      validUntil: new Date(Date.now() + 3_600_000).toISOString(), originalStatement: "Synthetic paging report",
+      value: { type: "text", value: "OPEN" } }, context);
+    const result = await reconciliation.check(f.pmo, { ...f.check, idempotencyKey: randomUUID() }, context);
+    expect(result.outcome).toBe("CREATED");
+    expect(result.request?.assignment.recipientSubject).toBe(f.pm.subject);
+    created.push(result.request!.id);
+  }
+  expect(new Set(created).size).toBe(21);
+  const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      expect((await tx.$queryRawUnsafe<{ role: string }[]>("SELECT current_user AS role"))[0]?.role).toBe("pdaa_api");
+      return operation(tx);
+    }, options as never) };
+  const reader = new DatabaseMilestoneReconciliationRepository(roleDb as never);
+  const { app: testApp } = await createApp(config, new DatabaseProjectRepository(db), undefined, canonical, facts, authority, reader);
+  async function get(actor: Actor, query = "") {
+    const token = await new SignJWT({ roles: actor.roles }).setProtectedHeader({ alg: "HS256" }).setSubject(actor.subject)
+      .setIssuer("pdaa:local").setAudience("pdaa:api").setIssuedAt().setExpirationTime("5m")
+      .sign(new TextEncoder().encode(config.SESSION_SECRET));
+    const response = await fetch(`${await testApp.getUrl()}/api/projects/${f.projectId}/reconciliation-requests${query}`,
+      { headers: { Authorization: `Bearer ${token}` } });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    return { status: response.status, text: await response.text() };
+  }
+  try {
+    await testApp.listen(0, "127.0.0.1");
+    const outsider: Actor = { customerId, subject: "other-pm-" + randomUUID(), roles: ["project_manager"] };
+    await db.accessGrant.create({ data: { customerId, subject: outsider.subject, role: "project_manager", scopeType: "project", scopeId: f.projectId } });
+    expect(await db.accessGrant.count({ where: { customerId, subject: outsider.subject, role: "project_manager", scopeId: f.projectId } })).toBe(1);
+    const before = await reconciliationRows(f.projectId, false);
+    const first = await get(f.pm); expect(first.status).toBe(200);
+    const page1 = JSON.parse(first.text); expect(page1.requests).toHaveLength(20); expect(page1.live).toBe(true);
+    expect(page1.next).toEqual({ id: page1.requests[19].id, createdAt: page1.requests[19].createdAt });
+    const params = new URLSearchParams({ limit: "20", afterId: page1.next.id, afterCreatedAt: page1.next.createdAt });
+    const second = await get(f.pm, `?${params}`); expect(second.status).toBe(200);
+    const page2 = JSON.parse(second.text); expect(page2.requests).toHaveLength(1); expect(page2.next).toBeNull();
+    const observed = [...page1.requests, ...page2.requests];
+    expect(observed.map((row: { id: string }) => row.id).sort()).toEqual([...created].sort());
+    for (const [index, row] of observed.entries()) {
+      expect(row).toMatchObject({ projectId: f.projectId, state: "OPEN", assignment: { recipientSubject: f.pm.subject } });
+      if (index > 0) {
+        const prior = observed[index - 1];
+        expect(row.createdAt > prior.createdAt || (row.createdAt === prior.createdAt && row.id > prior.id)).toBe(true);
+      }
+    }
+    const denied = await get(outsider, `?${params}`); expect(denied.status).toBe(404);
+    for (const requestId of created) expect(denied.text).not.toContain(requestId);
+    expect(await reconciliationRows(f.projectId, false)).toEqual(before);
+    await db.accessGrant.deleteMany({ where: { customerId, subject: f.pm.subject, role: "project_manager" } });
+    const afterRevocation = await reconciliationRows(f.projectId, false);
+    const revoked = await get(f.pm, `?${params}`); expect(revoked.status).toBe(404);
+    for (const requestId of created) expect(revoked.text).not.toContain(requestId);
+    expect(await reconciliationRows(f.projectId, false)).toEqual(afterRevocation);
+  } finally { await testApp.close(); }
+}, 120000);
+
 it("AC-HLT-005: one durable request across creators, original proof, explicit assignment and retry receipts", async () => {
   const f = await fixture();
   const [a, b] = await Promise.all([
