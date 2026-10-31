@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { MilestoneConflictObservation, MilestoneStateDisagreement } from "@pdaa/domain";
 import { decodeMilestoneConflict } from "./milestone-conflict-decoder.js";
 import { decodeMilestoneStateDisagreement } from "./milestone-state-disagreement-decoder.js";
-import type { RequestFn } from "./canonical-project.js";
+import type { RequestFn } from "./request-types.js";
 import { milestoneQuestionExample, supportsMilestoneQuestion } from "./milestone-question.js";
 import { Button, Message } from "./components.js";
 import { createPmQueueResource, type PmQueueResourceState } from "./pm-queue-resource.js";

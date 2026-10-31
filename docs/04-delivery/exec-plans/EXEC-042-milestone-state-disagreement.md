@@ -68,3 +68,17 @@ the 85-table native recovery check. That suite includes the role-switched
 human-source, disabled-policy, no-write snapshot and two-order reader-removal
 tests. Checks on the later API and UI changes remain pending;
 no broader direct-writer, policy/grant race or acceptance claim follows.
+
+The API/UI public candidate `07467a006cc181008cb500c5c65f6aab75cb2f0d`
+failed the verify job `124540386903` of Foundation run `41202318544` at architecture validation: the browser
+decoder imported a domain runtime schema. The local correction uses a
+presentation-only decoder with a type-only domain import and moves the shared
+request type into an acyclic module; the architecture checker and focused
+decoder/API tests passed locally. The decoder tests exercise the same malformed
+responses against both server and browser validation. Native HTTP and the
+corrected candidate's hosted validation remain pending.
+
+The local follow-up also adds synthetic database tests for fact revisions and
+policy disablement in both orderings with milestone disagreement reads. These
+tests are not evidence of serialization until run under native PostgreSQL;
+direct-SQL enforcement and leadership-grant races remain open.

@@ -3,8 +3,9 @@ import { LeadershipScalarConflict } from "./leadership-scalar-conflict.js";
 import React, { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, TextField, SelectField, Message } from "./components.js";
+import type { RequestFn } from "./request-types.js";
+export type { RequestFn } from "./request-types.js";
 
-export type RequestFn = <T>(path: string, init?: RequestInit, maxResponseBytes?: number, onUnavailable?: (denied?: boolean) => void) => Promise<T>;
 export type ProjectSetup = {
   truncated: boolean;
   portfolios: {
