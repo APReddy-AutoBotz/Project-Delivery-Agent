@@ -641,6 +641,40 @@ Container resource use and vulnerability findings may require narrower fixes.
 Pin images and scan actual build outputs; keep all failures visible. Keep native
 controls and existing UX stable while introducing the required CSS toolchain.
 
+## Restore session diagnostic candidate
+
+Foundation run [41233262839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41233262839),
+attempt 1, failed the external restore final session gate with a positive count
+of other target-database backends. The earlier log did not identify their type,
+number or cause, nor prove cleanup completed. A later rerun failed before restore
+at a separate identity-expiry capture check; their relationship is unknown.
+
+This candidate adds same-statement, coarse backend classes and a one/multiple
+bucket to the failure diagnostic. The original count predicate and zero-only
+decision remain authoritative. Diagnostic fields are emitted to the operations
+failure record and, for packaged tests, a fixed-class acceptance log; this
+intentionally exposes coarse activity, never PIDs, names, addresses or SQL text.
+NULL or contradictory types produce unknown classifications; NULL does not by
+itself establish why a type is unavailable. The aggregate
+query adds no monitoring privilege, but an error in the expanded query still
+fails the gate. The observation cannot explain why a session connected or
+identify the backend in an earlier run. No sessions are terminated or retried.
+
+In a new isolated PostgreSQL 17.11 synthetic database, the gate rejected one
+held client. A restricted synthetic login without `pg_read_all_stats` saw its
+type as redacted and still rejected the session. The initial restricted-role
+assertion incorrectly expected visible type and failed; after correcting that
+assertion, both native cases passed. The test role is not a packaged customer
+restore role, and packaged/upgrade/recovery evidence remains required. A later
+native rerun first failed to connect because the restarted container received a
+new loopback port; both cases passed on its actual port. The stopped container
+and data are retained. The first
+two local unit invocations could not load the session suite due to missing
+worktree dependencies; after linking source-identical workspace dependencies,
+63 focused unit cases passed. A scoped operations typecheck used a local path
+mapping for the existing built domain package. Independent exact-candidate
+review and hosted checks remain required; no release or story status changes.
+
 ## Validation evidence
 
 See PRODUCTION_BOUNDARY_VALIDATION.md for this increment's native results and the
@@ -657,3 +691,45 @@ merged with evidence in FOUNDATION_OPERATIONS_VALIDATION.md. Direct customer
 composition and TLS/external-database acceptance are now verified in PR #22;
 STORY-003 is accepted. Full distribution gates and remaining identity validation
 stay in this ExecPlan. R0 release and Issue #5 remain open.
+
+## Disclosure capture diagnostic checkpoint
+
+The failed-job rerun of PR #145 Foundation run
+[41233262839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41233262839),
+attempt 2, stopped at SEC-AUTH-001 `scalar-proof-disclosure`. The prior finite
+diagnostic reported one failed request, subsequently classified as aborted with
+method and resource `other`, in the request-validation phase labeled `identity`,
+which covers several checks. The post-failure classes are best-effort accessor
+observations. The diagnostic did not identify the endpoint or establish
+the cause or an actual disclosure, and it stopped before the separate restore
+check. Attempt 1 had failed the restore's other-session guard; these failures
+are not assumed related.
+
+The subsequent PR #145 candidate `86517ac48274e8cb691414e016c57af32e68b78e`
+also failed SEC-AUTH-001 `scalar-proof-disclosure` in Foundation run
+[41235799930](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41235799930),
+job `124639205094`, with the same coarse aborted/other/identity categories.
+Those labels do not establish that the same request or underlying cause recurred.
+The actual PR #148 merge `b2f54211be116177bff6161a5d7e1cd408f12b6c` had
+passed exact-candidate Foundation and Documentation checks, but its post-merge
+Foundation [41237787401](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41237787401)
+production-boundary job `124645097663` failed the same capture stage with the
+same coarse categories. The request and cause are unknown, and this does not
+establish a disclosure. The post-merge verify job was still running when this
+failure was recorded.
+
+The failure-only recorder diagnostic now distinguishes its initial response
+identity check from the subsequent fallback eligibility checks, and buckets GET, selected
+same-product-origin path shapes and HTTP status classes into fixed labels. It
+does not emit URLs, identifiers, query strings, headers or exception text, and
+does not change the capture decision. The post-failure classifications are
+best-effort accessor observations: they do not prove a response belongs to the
+failed request or establish the prior failure's cause. Focused synthetic tests
+are not a real-browser or packaged acceptance result. Exact-candidate review and
+fresh hosted checks remain required; no story acceptance changes.
+
+The focused local disclosure suite passed 42 synthetic unit cases, lint and
+documentation validation. In the existing Chromium suite, five cases passed;
+the TLS fixture could not start because `openssl` was absent from PATH. Its
+single unchanged retry passed when the already-installed OpenSSL executable was
+specified explicitly. These local results do not replace packaged acceptance.
