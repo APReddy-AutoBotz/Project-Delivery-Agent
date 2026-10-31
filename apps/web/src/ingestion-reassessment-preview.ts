@@ -1,7 +1,7 @@
 type BoundedRequest = (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void) => Promise<unknown>;
 export type ReassessmentRow = { state: string; reason: string; attemptCount: number; totalAttempts: number;
   createdAt: string; availableAt: string; completedAt: string | null };
-export type ReassessmentPreview = { rows: ReassessmentRow[]; more: boolean };
+export type ReassessmentPreview = { rows: ReassessmentRow[]; more: boolean; next?: string; advanced?: true };
 const fail = (): never => { throw new Error("Reassessment status unavailable"); };
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value)
   ? value as Record<string, unknown> : fail();
@@ -25,11 +25,12 @@ const optionalId = (value: unknown) => value === null ? null : uuid(value);
 const states = new Set(["READY", "COMPLETED", "BLOCKED"]);
 const reasons = new Set(["QUEUED", "CLAIMED", "FAILED", "LOCK_CONTENDED", "POLICY_DISABLED", "SOURCE_SCOPE_CHANGED", "RETRY_EXHAUSTED", "RETRY_REQUESTED", "COMPLETED"]);
 
-export function decodeReassessmentPreview(value: unknown, projectId: string): ReassessmentPreview {
+export function decodeReassessmentPreview(value: unknown, projectId: string, after?: string): ReassessmentPreview {
   uuid(projectId);
+  if (after !== undefined) uuid(after);
   const page = object(value); exact(page, ["items", "nextCursor"]);
   if (!Array.isArray(page.items) || page.items.length > 25) return fail();
-  const rows: ReassessmentRow[] = []; let previous: string | undefined;
+  const rows: ReassessmentRow[] = []; let previous: string | undefined = after;
   for (const raw of page.items) {
     const item = object(raw); exact(item, ["id", "sourceId", "receiptId", "projectId", "configRevision", "mappingRevision",
       "state", "reason", "attemptCount", "totalAttempts", "recoveryRevision", "createdAt", "availableAt", "completedAt",
@@ -45,22 +46,26 @@ export function decodeReassessmentPreview(value: unknown, projectId: string): Re
     rows.push({ state: item.state, reason: item.reason, attemptCount, totalAttempts, createdAt, availableAt, completedAt }); previous = id;
   }
   if (page.nextCursor !== null && (page.items.length !== 25 || uuid(page.nextCursor) !== previous)) return fail();
-  return { rows, more: page.nextCursor !== null };
+  return { rows, more: page.nextCursor !== null,
+    ...(page.nextCursor !== null ? { next: uuid(page.nextCursor) } : {}), ...(after ? { advanced: true as const } : {}) };
 }
 
 let active = false;
 // The browser lease survives abort and unmount until the original read settles.
 export async function loadReassessmentPreview(projectId: string, request: BoundedRequest,
-  signal: AbortSignal, unavailable: () => void): Promise<ReassessmentPreview> {
+  signal: AbortSignal, unavailable: () => void, after?: string): Promise<ReassessmentPreview> {
   if (active || signal.aborted) return fail();
   uuid(projectId);
+  if (after !== undefined) uuid(after);
   active = true; let rejected = false;
   try {
-    const value = await request(`/projects/${projectId}/ingestion-reassessments`, { signal }, () => {
+    const endpoint = after ? "ingestion-reassessment-pages" : "ingestion-reassessments";
+    const init: RequestInit = after ? { signal, method: "POST", body: JSON.stringify({ cursor: after }) } : { signal };
+    const value = await request(`/projects/${projectId}/${endpoint}`, init, () => {
       rejected = true; if (!signal.aborted) unavailable();
     });
     if (signal.aborted || rejected) return fail();
-    return decodeReassessmentPreview(value, projectId);
+    return decodeReassessmentPreview(value, projectId, after);
   } catch { return fail(); }
   finally { active = false; }
 }

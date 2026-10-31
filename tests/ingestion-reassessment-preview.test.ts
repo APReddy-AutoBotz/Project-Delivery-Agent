@@ -59,3 +59,23 @@ it("reports an early denial and never accepts a later success for that read", as
   void pending.catch(() => {}); expect(notices).toBe(1); release(page([row(5)]));
   await expect(pending).rejects.toThrow("Reassessment status unavailable");
 });
+it("uses a body cursor for a strictly later live page and rejects cycles", async () => {
+  const first = Array.from({ length: 25 }, (_, index) => row(index + 10));
+  const preview = decodeReassessmentPreview(page(first, first[24]!.id), projectId);
+  expect(preview.next).toBe(first[24]!.id);
+  let called = false;
+  const request = async (path: string, init: RequestInit) => {
+    called = true;
+    expect(path).toBe(`/projects/${projectId}/ingestion-reassessment-pages`);
+    expect(path).not.toContain(preview.next);
+    expect(init.method).toBe("POST"); expect(JSON.parse(String(init.body))).toEqual({ cursor: preview.next });
+    return page([row(40), row(41)]);
+  };
+  const next = await loadReassessmentPreview(projectId, request, new AbortController().signal, () => {}, preview.next);
+  expect(called).toBe(true); expect(next).toMatchObject({ advanced: true, more: false });
+  expect(JSON.stringify(next)).not.toContain(first[24]!.id);
+  for (const invalid of [page([row(34)]), page([row(30)]), page([row(40), row(39)]),
+    page(Array.from({ length: 25 }, (_, index) => row(index + 40)), first[24]!.id)])
+    expect(() => decodeReassessmentPreview(invalid, projectId, preview.next)).toThrow("Reassessment status unavailable");
+  expect(decodeReassessmentPreview(page(), projectId, preview.next)).toEqual({ rows: [], more: false, advanced: true });
+});
