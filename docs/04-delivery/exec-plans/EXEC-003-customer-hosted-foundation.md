@@ -733,3 +733,20 @@ documentation validation. In the existing Chromium suite, five cases passed;
 the TLS fixture could not start because `openssl` was absent from PATH. Its
 single unchanged retry passed when the already-installed OpenSSL executable was
 specified explicitly. These local results do not replace packaged acceptance.
+
+## Restore backend-kind diagnostic candidate
+
+PR #151 Foundation run 41249318263 failed its external customer restore at the
+final other-sessions check. Its diagnostic recorded one non-client, non-null
+backend; it did not identify the type or cause, prove cleanup, or connect this
+failure to earlier ones. The proposed diagnostic adds only finite backend-kind
+labels to the same aggregate and only for a consistent single non-client row.
+Unknown, redacted, malformed, contradictory or multiple observations stay
+unknown; raw process data never enters this diagnostic. PostgreSQL documents
+the [backend type categories](https://www.postgresql.org/docs/17/monitoring-stats.html)
+and permits additional extension types. A reported category is a snapshot, not
+proof of ownership or cause. The zero-other-sessions guard, rollback and
+quarantine behavior are unchanged; a diagnostic query error still fails closed.
+Synthetic mocked and PostgreSQL VALUES cases do not establish the type of the
+earlier backend. Native validation for this candidate has not run locally; exact
+reviews and hosted/post-merge checks remain required. No acceptance changes.

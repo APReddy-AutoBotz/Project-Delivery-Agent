@@ -37,6 +37,36 @@ it("SEC-SECRET-001: session classes are fixed and restricted to the first sessio
     expect(restoreFailureDetails(Buffer.from(injected + "\n" + injected))).toEqual({ phase: "unavailable" });
   } finally { output.mockRestore(); }
 });
+it("SEC-SECRET-001: both diagnostic layers constrain backend kinds to consistent finite classifications", () => {
+  const output = vi.spyOn(console, "log").mockImplementation(() => {});
+  try {
+    const common = { count: "one", client: "no", nonclient: "yes", null_type: "no" };
+    for (const backend_kind of ["autovacuum_worker", "parallel_worker", "logical_replication_worker", "other_nonclient"]) {
+      const d = createRestoreDiagnostic(); d.observeSessions({ ...common, backend_kind });
+      d.enter("sessions_before_commit_other_sessions"); d.failed(); d.report();
+      const details = restoreFailureDetails(Buffer.from(output.mock.calls.at(-1)![0] as string));
+      expect(details.sessions.backend_kind).toBe(backend_kind);
+    }
+    for (const value of [
+      { ...common, count: "multiple", backend_kind: "parallel_worker" },
+      { ...common, client: "yes", backend_kind: "parallel_worker" },
+      { ...common, nonclient: "unknown", backend_kind: "parallel_worker" },
+      { ...common, backend_kind: "private-canary" },
+      { ...common, get backend_kind() { throw new Error("private-canary"); } },
+    ]) {
+      const d = createRestoreDiagnostic(); d.observeSessions(value);
+      d.enter("sessions_before_commit_other_sessions"); d.failed(); d.report();
+      const line = output.mock.calls.at(-1)![0] as string;
+      expect(line).not.toContain("private-canary");
+      expect(restoreFailureDetails(Buffer.from(line)).sessions.backend_kind).toBe("unknown");
+    }
+    const spoof = JSON.stringify({ event: "operations.restore.failed", phase: "sessions_before_commit_other_sessions",
+      sessions: { ...common, client: "yes", backend_kind: "autovacuum_worker" } });
+    expect(restoreFailureDetails(Buffer.from(spoof)).sessions.backend_kind).toBe("unknown");
+    const legacy = JSON.stringify({ event: "operations.restore.failed", phase: "sessions_before_commit_other_sessions", sessions: common });
+    expect(restoreFailureDetails(Buffer.from(legacy)).sessions).not.toHaveProperty("backend_kind");
+  } finally { output.mockRestore(); }
+});
 it.each(restorePhases)(
   "DEP-002 / SEC-SECRET-001: only a fixed first failing phase survives cleanup (%s)",
   (phase) => {
