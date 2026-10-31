@@ -374,6 +374,8 @@ it("observes unranked human milestone reports only while policy is absent and ev
   const noGrant: Actor = { customerId, subject: "unranked-no-grant-" + randomUUID(), roles: ["leadership"] };
   await expect(reader.readUnrankedLeadership(noGrant, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
   await expect(reader.readUnrankedLeadership(leader, randomUUID(), f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readUnrankedLeadership(leader, f.projectId, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
+  await expect(reader.readUnrankedLeadership({ ...leader, customerId: randomUUID() }, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "DENIED" });
   expect(await snapshot()).toEqual(before);
 
   const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: alternateVersion.entry.sourceId });
@@ -398,6 +400,24 @@ it("observes unranked human milestone reports only while policy is absent and ev
 
 it("withholds an unranked milestone when an applicable source has expired", async () => {
   const { f, leader, reader } = await stateDisagreementFixture(true, true);
+  const before = await unrankedReadSnapshot(f, leader);
+  await expect(reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
+}, 60000);
+
+it.each(["same-state", "missing-validity"] as const)("withholds unranked reports for %s human heads", async (kind) => {
+  const { f, leader, alternate, target, alternateVersion, reader } = await stateDisagreementFixture(true);
+  expect((await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).kind).toBe("UNRANKED_NO_POLICY");
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const value = kind === "same-state" ? "COMPLETE" : "OPEN";
+  const validUntil = kind === "missing-validity" ? null : new Date(now!.getTime() + 86_400_000).toISOString();
+  const appended = await facts.appendHumanStatement(alternate, { projectId: f.projectId, factType: target.factType,
+    expectedRevision: 2, idempotencyKey: randomUUID(), value: { type: "text", value },
+    effectiveAt: now!.toISOString(), validUntil,
+    originalStatement: "Synthetic updated report." }, context);
+  expect(appended.entry).toMatchObject({ revision: 3, sourceId: alternateVersion.entry.sourceId,
+    visibility: "available", content: { value: { type: "text", value }, validUntil } });
+  expect(await db.authorityPolicy.count({ where: { customerId, projectId: f.projectId, factType: target.factType } })).toBe(0);
   const before = await unrankedReadSnapshot(f, leader);
   await expect(reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
   expect(await unrankedReadSnapshot(f, leader)).toEqual(before);

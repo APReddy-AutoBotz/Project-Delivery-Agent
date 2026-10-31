@@ -91,6 +91,10 @@ effective-time scenario, not arbitrary writers or all temporal edge cases.
 Two sequential cases also passed for an existing disabled policy revision and
 an enabled revision scheduled in the future: neither aggregate was treated as
 absent, and selected scoped snapshots remained unchanged by the reads.
+Three additional Node 24 cases passed: agreeing human heads and a head with no
+validity were withheld, and the positive scenario denied an unknown milestone
+and a mismatched customer identifier. The latter uses an unprovisioned customer
+ID, not two populated tenants or an authenticated cross-tenant HTTP session.
 For FR-EVD-009/012 and FR-QA-007, an unregistered local controller boundary and
 an unused browser decoder now validate the separate unranked DTO. Direct tests
 cover scope, generic denial/unavailability and representative malformed and
