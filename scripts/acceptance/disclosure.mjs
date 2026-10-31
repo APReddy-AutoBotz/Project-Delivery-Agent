@@ -41,7 +41,7 @@ const requestDiagnosticAllowed = {
   method: new Set(["GET", "POST", "DELETE", "other"]),
   failure: new Set(["aborted", "other"]),
   response: new Set(["none", "204", "2xx", "3xx", "4xx", "5xx", "other"]),
-  phase: new Set(["response", "identity", "origin", "headers"]),
+  phase: new Set(["response", "identity", "eligibility", "origin", "headers"]),
 };
 const safeRequestDiagnostic = (value) => Object.fromEntries(
   Object.entries(requestDiagnosticAllowed).map(([key, allowed]) => {
@@ -355,6 +355,7 @@ export async function observeBrowserDisclosure(
         response = await request.response();
         diagnostic.phase = "identity";
         if (!response || response.request() !== request) throw new Error("Failed request capture incomplete");
+        diagnostic.phase = "eligibility";
         const method = request.method();
         const requestUrl = request.url();
         const parsedUrl = new URL(requestUrl);

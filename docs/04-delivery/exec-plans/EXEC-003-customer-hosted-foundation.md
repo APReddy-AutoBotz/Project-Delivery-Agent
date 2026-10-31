@@ -684,7 +684,8 @@ same coarse categories. The request and cause are unknown, and this does not
 establish a disclosure. The post-merge verify job was still running when this
 failure was recorded.
 
-The failure-only recorder diagnostic now additionally buckets GET, selected
+The failure-only recorder diagnostic now distinguishes its initial response
+identity check from the subsequent fallback eligibility checks, and buckets GET, selected
 same-product-origin path shapes and HTTP status classes into fixed labels. It
 does not emit URLs, identifiers, query strings, headers or exception text, and
 does not change the capture decision. The post-failure classifications are
@@ -693,7 +694,7 @@ failed request or establish the prior failure's cause. Focused synthetic tests
 are not a real-browser or packaged acceptance result. Exact-candidate review and
 fresh hosted checks remain required; no story acceptance changes.
 
-The focused local disclosure suite passed 41 synthetic unit cases, lint and
+The focused local disclosure suite passed 42 synthetic unit cases, lint and
 documentation validation. In the existing Chromium suite, five cases passed;
 the TLS fixture could not start because `openssl` was absent from PATH. Its
 single unchanged retry passed when the already-installed OpenSSL executable was

@@ -241,6 +241,20 @@ it("reports only allowlisted failed-request classes without relaxing capture", a
   expect(formatCaptureDiagnostic({ request: { resource: f.canary, method: f.canary, failure: f.canary, response: f.canary, phase: f.canary } })).not.toContain(f.canary);
 });
 
+it("distinguishes response identity from later fallback eligibility without accepting a failed GET", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  let identities = 0;
+  const request = { url: () => base + "/api/pm/action-queue", method: () => "GET",
+    failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => response };
+  const response = { request: () => { identities++; return request; }, status: () => 200 };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  expect(JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic())).request).toEqual({
+    resource: "pm_queue", method: "GET", failure: "aborted", response: "2xx", phase: "eligibility",
+  });
+  expect(identities).toBe(1);
+});
+
 it("does not read diagnostic getters before an otherwise successful capture decision", async () => {
   const f = await observer(); f.response(tokenPath, f.tokens);
   let methods = 0, failures = 0, urls = 0, statuses = 0;
