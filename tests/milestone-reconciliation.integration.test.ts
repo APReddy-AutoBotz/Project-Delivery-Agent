@@ -403,6 +403,19 @@ it("withholds an unranked milestone when an applicable source has expired", asyn
   expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
 }, 60000);
 
+it.each(["disabled", "future"] as const)("withholds unranked reports when the policy revision is %s", async (kind) => {
+  const { f, leader, target, reader } = await stateDisagreementFixture(true);
+  expect((await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).kind).toBe("UNRANKED_NO_POLICY");
+  const [{ now }] = await db.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+  const policy = await authority.appendPolicy(f.pmo, { projectId: f.projectId, factType: target.factType, expectedRevision: 0,
+    idempotencyKey: randomUUID(), effectiveAt: new Date(now!.getTime() + (kind === "future" ? 86_400_000 : -1000)).toISOString(),
+    definition: kind === "disabled" ? null : definition }, context);
+  expect(policy.event.state).toBe(kind === "disabled" ? "DISABLED" : "ENABLED");
+  const before = await unrankedReadSnapshot(f, leader);
+  await expect(reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await unrankedReadSnapshot(f, leader)).toEqual(before);
+}, 60000);
+
 it.each(["reader", "writer"] as const)("serializes unranked milestone reads with first policy creation when %s starts first", async (firstKind) => {
   const { f, leader, target, alternateVersion, reader } = await stateDisagreementFixture(true);
   const baseline = await reader.readUnrankedLeadership(leader, f.projectId, f.milestone.id);

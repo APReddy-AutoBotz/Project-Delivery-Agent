@@ -87,6 +87,9 @@ Two additional cases passed for a repository-mediated human fact append,
 observing the project-lock blocker in both orders and checking the exact old
 or new version, evidence and source as appropriate. This covers one source and
 effective-time scenario, not arbitrary writers or all temporal edge cases.
+Two sequential cases also passed for an existing disabled policy revision and
+an enabled revision scheduled in the future: neither aggregate was treated as
+absent, and selected scoped snapshots remained unchanged by the reads.
 Further native and independent review is required; there is no HTTP route or
 user-facing view.
 An internal fact-prefix admission helper checks bounded metadata,
