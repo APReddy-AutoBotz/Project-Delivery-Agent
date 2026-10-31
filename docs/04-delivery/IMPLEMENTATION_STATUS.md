@@ -39,8 +39,9 @@ as `374f2ee950599c62bf12d351459acbfa0ff3bf24`, with reviewed head
 `a78b8b93cbcc088d1ae7449ec38cd43b7d02ef41` and the reviewed head. Candidate
 Foundation `41210493680` and Documentation `41210493670` passed. Actual
 post-merge Foundation `41212711134` and Documentation `41212711110` passed.
-The observation is an as-of view requiring both leadership and
-manage access; refresh before reliance. It assigns or delivers no request,
+The observation is an as-of view requiring both leadership and manage access,
+plus access to the complete relevant human-origin history; refresh before
+reliance. It exposes no request or recipient identifier and assigns or delivers no request,
 publishes no source fact and does not complete GOLDEN-003 or accept a story,
 criterion or release hold.
 
