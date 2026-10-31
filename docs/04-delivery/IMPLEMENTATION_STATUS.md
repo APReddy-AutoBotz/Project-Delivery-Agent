@@ -31,6 +31,28 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+Read-only human milestone state disagreement merged in [PR #139](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/139)
+as `a78b8b93cbcc088d1ae7449ec38cd43b7d02ef41`, with reviewed head
+`6b22b50c4caeaaa0636b04fdcc6641f6f62fa737` and verified tree
+`f97a370bfb0ee89bd4d6c3ea82d14c3a1855a4c2`. Its ordered parents are
+`4e10940882c7fd84cd403ac200b6aa9dca1e56ba` and the reviewed head. Candidate
+Foundation `41206981636` and Documentation `41206981702`, and actual post-merge
+Foundation `41208981622` and Documentation `41208981614`, passed. Earlier
+external restore run `41204397697` failed at `sessions_before_commit`; that
+phase did not identify the cause, and a later successful run does not establish
+it. This human-origin observation selects no winner, creates no reconciliation
+request and does not publish source facts or complete GOLDEN-003. No story,
+criterion or release hold is accepted by this partial work.
+
+The evidence ledger [PR #140](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/140)
+merged as `4e10940882c7fd84cd403ac200b6aa9dca1e56ba`, tree
+`7050a6a44b3fbee458ef7935fd7217e47af19d4c`, with ordered parents
+`de8a2e3f6c13a18fd77a4c2ba28d04203a4c2e20` and reviewed head
+`f90a45fe71eebec3324dbe2519fbc64b1269a82e`. Candidate Foundation
+`41204605765` and Documentation `41204605778`, and actual post-merge Foundation
+`41206862741` and Documentation `41206862680`, passed. The ledger adds no
+acceptance credit. Original19/20 capture remains stopped.
+
 Source reconfiguration authorization merged in [PR #138](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/138)
 as `de8a2e3f6c13a18fd77a4c2ba28d04203a4c2e20`. The verified merge tree is
 `5c991c3a187320361f542c0c87a443ec29e68f02` and ordered parents are
