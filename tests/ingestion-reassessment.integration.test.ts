@@ -330,8 +330,17 @@ it("serves only currently readable reassessment status over role-switched synthe
   const hidden = { ...f.configuration, binding: { ...f.configuration.binding, sourceId: randomUUID() },
     projects: [{ projectId: f.projectId, readers: ["another-reader"] }] };
   await f.ingestion.configure(f.admin, hidden as never, randomUUID()); await manualPage(f, hidden, 1);
-  const privateRows = await db.ingestionProjectReassessment.findMany({ where: { customerId: f.customerId, sourceId: hidden.binding.sourceId } });
-  expect(privateRows).toHaveLength(1);
+  for (let index = 1; index < 27; index++) await f.ingest();
+  const visibleRows = await db.ingestionProjectReassessment.findMany({ where: { sourceId: f.sourceId }, orderBy: { id: "asc" } });
+  expect(visibleRows).toHaveLength(27);
+  let privateRows = await db.ingestionProjectReassessment.findMany({ where: { customerId: f.customerId, sourceId: hidden.binding.sourceId } });
+  // Prove at least one hidden row would displace a visible row if filtering
+  // occurred after LIMIT; randomized UUIDs alone do not establish that order.
+  for (let index = 2; !privateRows.some((row) => row.id < visibleRows[24]!.id) && index <= 16; index++) {
+    await manualPage(f, hidden, index);
+    privateRows = await db.ingestionProjectReassessment.findMany({ where: { customerId: f.customerId, sourceId: hidden.binding.sourceId } });
+  }
+  expect(privateRows.some((row) => row.id < visibleRows[24]!.id)).toBe(true);
   const otherCustomer = randomUUID(), otherPortfolio = randomUUID(), otherProject = randomUUID();
   await db.customer.create({ data: { id: otherCustomer, name: "Synthetic other customer" } });
   await db.portfolio.create({ data: { id: otherPortfolio, customerId: otherCustomer, name: "Synthetic other portfolio" } });
@@ -350,12 +359,15 @@ it("serves only currently readable reassessment status over role-switched synthe
   const tables = ["IngestionProjectReassessment", "IngestionOperationReceipt", "ProjectUpdateAssessment", "AuditEvent"];
   const snapshot = () => Promise.all(tables.map((table) => db.$queryRawUnsafe(
     `SELECT to_jsonb(t)::text AS row FROM public."${table}" t WHERE "customerId"=$1::uuid ORDER BY to_jsonb(t)::text COLLATE "C"`, f.customerId)));
-  async function get(actor: Actor, projectId = f.projectId) {
+  async function get(actor: Actor, projectId = f.projectId, cursor?: string, bodyOverride?: unknown) {
     const token = await new SignJWT({ roles: actor.roles }).setProtectedHeader({ alg: "HS256" }).setSubject(actor.subject)
       .setIssuer("pdaa:local").setAudience("pdaa:api").setIssuedAt().setExpirationTime("5m")
       .sign(new TextEncoder().encode(config.SESSION_SECRET));
-    const response = await fetch(`${await app.getUrl()}/api/projects/${projectId}/ingestion-reassessments`,
-      { headers: { Authorization: `Bearer ${token}` } });
+    const endpoint = cursor === undefined && bodyOverride === undefined ? "ingestion-reassessments" : "ingestion-reassessment-pages";
+    const response = await fetch(`${await app.getUrl()}/api/projects/${projectId}/${endpoint}`,
+      cursor === undefined && bodyOverride === undefined ? { headers: { Authorization: `Bearer ${token}` } } :
+        { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(bodyOverride ?? { cursor }) });
     expect(response.headers.get("cache-control")).toBe("no-store");
     return { status: response.status, body: await response.text() };
   }
@@ -363,19 +375,39 @@ it("serves only currently readable reassessment status over role-switched synthe
     await app.listen(0, "127.0.0.1"); const before = await snapshot();
     const allowed = await get(f.admin); expect(allowed.status).toBe(200);
     const parsed = ingestionReassessmentPageSchema.parse(JSON.parse(allowed.body));
-    expect(parsed.items).toHaveLength(1); expect(parsed.items[0]!.id).toBe(visible[0]!.id);
-    expect(parsed.items[0]!.sourceId).toBe(f.sourceId);
-    for (const privateId of [privateRows[0]!.id, privateRows[0]!.sourceId, privateRows[0]!.receiptId]) expect(allowed.body).not.toContain(privateId);
+    expect(parsed.items).toHaveLength(25); expect(parsed.nextCursor).toBe(parsed.items[24]!.id);
+    const secondResponse = await get(f.admin, f.projectId, parsed.nextCursor!); expect(secondResponse.status).toBe(200);
+    const second = ingestionReassessmentPageSchema.parse(JSON.parse(secondResponse.body));
+    expect(second.items).toHaveLength(2); expect(second.nextCursor).toBeNull();
+    expect([...parsed.items, ...second.items].map((item) => item.id)).toEqual(visibleRows.map((item) => item.id));
+    expect([...parsed.items, ...second.items].every((item) => item.sourceId === f.sourceId)).toBe(true);
+    for (const position of [privateRows[0]!.id, otherProject]) {
+      const arbitrary = await get(f.admin, f.projectId, position); expect(arbitrary.status).toBe(200);
+      const page = ingestionReassessmentPageSchema.parse(JSON.parse(arbitrary.body));
+      const expected = visibleRows.filter((item) => item.id > position);
+      expect(page.items.map((item) => item.id)).toEqual(expected.slice(0, 25).map((item) => item.id));
+      expect(page.nextCursor).toBe(expected.length > 25 ? expected[24]!.id : null);
+      for (const hiddenRow of privateRows) expect(arbitrary.body).not.toContain(hiddenRow.id);
+    }
+    for (const row of privateRows) for (const privateId of [row.id, row.sourceId, row.receiptId]) {
+      expect(allowed.body).not.toContain(privateId); expect(secondResponse.body).not.toContain(privateId);
+    }
     expect(allowed.body).not.toContain("PRIVATE PROPOSAL VALUE"); expect(allowed.body).not.toContain("Private pagination proposal");
     expect((await get({ ...f.admin, roles: ["leadership"] })).status).toBe(403);
     expect((await get({ ...f.admin, subject: `outsider-${randomUUID()}` })).status).toBe(404);
     expect((await get(f.admin, randomUUID())).status).toBe(404);
     expect((await get(f.admin, otherProject)).status).toBe(404);
+    expect((await get({ ...f.admin, roles: ["leadership"] }, f.projectId, parsed.nextCursor!)).status).toBe(403);
+    expect((await get(f.admin, otherProject, parsed.nextCursor!)).status).toBe(404);
+    expect((await get(f.admin, f.projectId, undefined, { cursor: parsed.nextCursor, extra: true })).status).toBe(400);
+    expect((await get(f.admin, f.projectId, undefined, { cursor: "invalid" })).status).toBe(400);
     expect(await snapshot()).toEqual(before);
     await f.ingestion.configure(f.admin, { ...f.configuration,
       projects: [{ projectId: f.projectId, readers: ["another-reader"] }] } as never, randomUUID());
     const afterRevoke = await snapshot(), revoked = await get(f.admin);
     expect(revoked.status).toBe(200); expect(JSON.parse(revoked.body)).toEqual({ items: [], nextCursor: null });
+    const revokedPage = await get(f.admin, f.projectId, parsed.nextCursor!);
+    expect(revokedPage.status).toBe(200); expect(JSON.parse(revokedPage.body)).toEqual({ items: [], nextCursor: null });
     expect(await snapshot()).toEqual(afterRevoke);
   } finally { await app.close(); }
 }, 120000);
