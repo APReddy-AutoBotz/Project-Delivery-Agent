@@ -83,6 +83,10 @@ removal and leadership-grant revocation, in both transaction orders and for
 both unranked and existing equal-tier reads. They observed the expected lock
 blockers and subsequent withholding or denial. They do not prove direct SQL
 mutation behavior, complete no-write behavior or global deadlock freedom.
+Two additional cases passed for a repository-mediated human fact append,
+observing the project-lock blocker in both orders and checking the exact old
+or new version, evidence and source as appropriate. This covers one source and
+effective-time scenario, not arbitrary writers or all temporal edge cases.
 Further native and independent review is required; there is no HTTP route or
 user-facing view.
 An internal fact-prefix admission helper checks bounded metadata,
