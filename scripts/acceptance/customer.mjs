@@ -532,7 +532,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 25);
+    assert.equal(migrations.length, 26);
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
     validateHistory(
@@ -799,7 +799,7 @@ try {
       scalarReconciliationTables,
       businessTableCount: 85,
       engagementStorageTables,
-      migrationCount: 25,
+      migrationCount: 26,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({

@@ -1014,3 +1014,154 @@ describe.sequential("durable ingestion persistence", () => {
     });
   }
 });
+
+it.each(["CONNECTOR", "CSV"] as const)(
+  "requires authority over the previous and replacement %s source scopes",
+  async (kind) => {
+    const portfolioId = randomUUID(), projectA = randomUUID(), projectB = randomUUID();
+    const sourceId = randomUUID();
+    const adminA = actor("pmo_admin", "scope-a"), adminB = actor("pmo_admin", "scope-b");
+    await db.portfolio.create({ data: { id: portfolioId, customerId, name: "Source scope fixture" } });
+    await db.project.createMany({ data: [projectA, projectB].map((id) => ({
+      id, customerId, portfolioId, code: "SCOPE-" + id, name: "Source scope fixture",
+      description: "Synthetic reconfiguration authorization", reportedStatus: "UNKNOWN",
+    })) });
+    await db.accessGrant.createMany({ data: [
+      { customerId, subject: adminA.subject, scopeType: "project", scopeId: projectA, role: "pmo_admin" },
+      { customerId, subject: adminB.subject, scopeType: "project", scopeId: projectB, role: "pmo_admin" },
+    ] });
+    const configuration = {
+      binding: { customerId, sourceId, sourceType: "test.tracker", origin: "https://tracker.example" },
+      projects: [{ projectId: projectA, readers: [adminA.subject] }],
+      mapping: kind === "CSV"
+        ? { kind: "CSV" as const, sheet: "Milestones", identityColumn: "Key", projectColumn: "Project",
+            fields: [{ column: "Forecast", factType: "project.forecast", type: "date" as const, required: false }] }
+        : { kind: "CONNECTOR" as const, factTypes: ["project.forecast"] },
+    };
+    await repository.configure(adminA, configuration, "scope-create");
+    const snapshot = async () => ({
+      source: await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } }),
+      configurations: await db.ingestionConfigurationRevision.findMany({ where: { sourceId }, orderBy: { revision: "asc" } }),
+      projects: await db.ingestionConfigurationProject.findMany({ where: { sourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }] }),
+      readers: await db.ingestionConfigurationReader.findMany({ where: { sourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }, { subject: "asc" }] }),
+      jobs: await db.connectorSyncJob.findMany({ where: { sourceId }, orderBy: { id: "asc" } }),
+      grants: await db.connectorSyncGrant.findMany({ where: { sourceId }, orderBy: { id: "asc" } }),
+    });
+    const before = await snapshot();
+    const replacement = { ...configuration, projects: [{ projectId: projectB, readers: [adminB.subject] }] };
+    await expect(repository.configure(adminB, replacement, "scope-takeover")).rejects.toMatchObject({ code: "DENIED" });
+    await expect(repository.configure(adminB, { ...replacement, binding: { ...replacement.binding, origin: "https://other.example" } }, "scope-oracle"))
+      .rejects.toMatchObject({ code: "DENIED" });
+    await expect(repository.configure(adminA, { ...configuration, projects: [...configuration.projects, ...replacement.projects] }, "scope-expansion"))
+      .rejects.toMatchObject({ code: "DENIED" });
+    expect(await snapshot()).toEqual(before);
+    await db.accessGrant.create({ data: {
+      customerId, subject: adminA.subject, scopeType: "project", scopeId: projectB, role: "pmo_admin",
+    } });
+    const downgraded: Actor = { ...adminA, roles: ["project_manager"] };
+    const tokenCorrelation = randomUUID(), databaseRoleCorrelation = randomUUID();
+    await expect(repository.configure(downgraded, replacement, tokenCorrelation))
+      .rejects.toMatchObject({ code: "DENIED" });
+    expect(await snapshot()).toEqual(before);
+    const tokenDenials = await db.auditEvent.findMany({ where: { customerId, correlationId: tokenCorrelation } });
+    expect(tokenDenials).toHaveLength(1);
+    expect(tokenDenials[0]).toMatchObject({ actor: adminA.subject, event: "ingestion.operation.denied" });
+    expect(tokenDenials[0]!.detail).toEqual({ operation: "configure", reason: "DENIED" });
+    await db.accessGrant.updateMany({ where: { customerId, subject: adminA.subject, scopeType: "project", scopeId: projectB },
+      data: { role: "project_manager" } });
+    await expect(repository.configure(adminA, replacement, databaseRoleCorrelation))
+      .rejects.toMatchObject({ code: "DENIED" });
+    expect(await snapshot()).toEqual(before);
+    const databaseRoleDenials = await db.auditEvent.findMany({ where: { customerId, correlationId: databaseRoleCorrelation } });
+    expect(databaseRoleDenials).toHaveLength(1);
+    expect(databaseRoleDenials[0]).toMatchObject({ actor: adminA.subject, event: "ingestion.operation.denied" });
+    expect(databaseRoleDenials[0]!.detail).toEqual({ operation: "configure", reason: "DENIED" });
+    await db.accessGrant.updateMany({ where: { customerId, subject: adminA.subject, scopeType: "project", scopeId: projectB },
+      data: { role: "pmo_admin" } });
+    await expect(repository.configure(adminA, replacement, "scope-authorized-replacement"))
+      .resolves.toMatchObject({ sourceId, configRevision: 2 });
+  }, 120_000,
+);
+
+it("authorizes a replacement across two disjoint 100-project scopes", async () => {
+  const portfolioId = randomUUID(), replacementPortfolioId = randomUUID(), sourceId = randomUUID(), admin = actor("pmo_admin", "scope-large");
+  const ids = Array.from({ length: 200 }, () => randomUUID());
+  await db.portfolio.createMany({ data: [portfolioId, replacementPortfolioId].map((id) => ({ id, customerId, name: "Large source scope" })) });
+  await db.project.createMany({ data: ids.map((id, index) => ({ id, customerId, portfolioId: index < 100 ? portfolioId : replacementPortfolioId, code: "LARGE-" + id,
+    name: "Large source scope", description: "Synthetic reconfiguration scope", reportedStatus: "UNKNOWN" })) });
+  await db.accessGrant.create({ data: { customerId, subject: admin.subject, scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin" } });
+  const configuration = { binding: { customerId, sourceId, sourceType: "test.tracker", origin: "https://tracker.example" },
+    projects: ids.slice(0, 100).map((projectId) => ({ projectId, readers: [] })),
+    mapping: { kind: "CONNECTOR" as const, factTypes: ["project.forecast"] } };
+  await repository.configure(admin, configuration, "large-scope-create");
+  const replacement = { ...configuration, projects: ids.slice(100).map((projectId) => ({ projectId, readers: [] })) };
+  await db.accessGrant.createMany({ data: ids.slice(100, 199).map((scopeId) => ({
+    customerId, subject: admin.subject, scopeType: "project", scopeId, role: "pmo_admin",
+  })) });
+  await expect(repository.configure(admin, replacement, "large-scope-denied"))
+    .rejects.toMatchObject({ code: "DENIED" });
+  expect(await db.ingestionConfigurationRevision.count({ where: { sourceId } })).toBe(1);
+  await db.accessGrant.create({ data: { customerId, subject: admin.subject, scopeType: "project", scopeId: ids[199]!, role: "pmo_admin" } });
+  await expect(repository.configure(admin, replacement, "large-scope-replace"))
+    .resolves.toMatchObject({ sourceId, configRevision: 2 });
+  expect(await db.ingestionConfigurationProject.count({ where: { sourceId, configRevision: 2 } })).toBe(100);
+}, 120_000);
+
+it("retains authorization over inactive Jira sync-grant history during reconfiguration", async () => {
+  const portfolioId = randomUUID(), projectA = randomUUID(), projectB = randomUUID(), sourceId = randomUUID();
+  const admin = actor("pmo_admin", "historical-scope");
+  await db.portfolio.create({ data: { id: portfolioId, customerId, name: "Historical Jira scope" } });
+  await db.project.createMany({ data: [projectA, projectB].map((id) => ({ id, customerId, portfolioId, code: "HISTORY-" + id,
+    name: "Historical Jira scope", description: "Synthetic retained grant history", reportedStatus: "UNKNOWN" })) });
+  await db.accessGrant.createMany({ data: [projectA, projectB].map((scopeId) => ({
+    customerId, subject: admin.subject, scopeType: "project", scopeId, role: "pmo_admin",
+  })) });
+  const config = { binding: { customerId, sourceId, sourceType: "jira", origin: "https://synthetic.atlassian.net" },
+    projects: [projectA, projectB].map((projectId) => ({ projectId, readers: [admin.subject] })),
+    mapping: { kind: "CONNECTOR" as const, factTypes: ["jira.status"] } };
+  await repository.configure(admin, config, "history-create");
+  const narrowed = { ...config, projects: [config.projects[0]!] };
+  await repository.configure(admin, narrowed, "history-narrow");
+  const inactive = await db.connectorSyncGrant.findFirstOrThrow({ where: { sourceId, projectId: projectB } });
+  expect(inactive.active).toBe(false);
+  const sourceBefore = await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } });
+  await db.accessGrant.deleteMany({ where: { customerId, subject: admin.subject, scopeType: "project", scopeId: projectB, role: "pmo_admin" } });
+  await expect(repository.configure(admin, narrowed, "history-denied")).rejects.toMatchObject({ code: "DENIED" });
+  expect(await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } })).toEqual(sourceBefore);
+  expect(await db.connectorSyncGrant.findUniqueOrThrow({ where: { id: inactive.id } })).toEqual(inactive);
+  await db.accessGrant.create({ data: { customerId, subject: admin.subject, scopeType: "project", scopeId: projectB, role: "pmo_admin" } });
+  await expect(repository.configure(admin, narrowed, "history-authorized")).resolves.toMatchObject({ configRevision: 3 });
+  expect(await db.connectorSyncGrant.findUniqueOrThrow({ where: { id: inactive.id } })).toEqual(inactive);
+}, 120_000);
+
+it("checks a missing project in a Jira history larger than 200 grants", async () => {
+  const portfolioId = randomUUID(), sourceId = randomUUID(), admin = actor("pmo_admin", "large-history");
+  const sorted = Array.from({ length: 300 }, () => randomUUID()).sort();
+  // Put the largest ID in retained history to catch a silently truncated prefix.
+  const ids = [sorted[299]!, ...sorted.slice(0, 299)];
+  const missing = ids[0]!;
+  await db.portfolio.create({ data: { id: portfolioId, customerId, name: "Large historical Jira scope" } });
+  await db.project.createMany({ data: ids.map((id) => ({ id, customerId, portfolioId, code: "HIST-LARGE-" + id,
+    name: "Large historical Jira scope", description: "Synthetic retained grants", reportedStatus: "UNKNOWN" })) });
+  await db.accessGrant.create({ data: { customerId, subject: admin.subject, scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin" } });
+  const config = { binding: { customerId, sourceId, sourceType: "jira", origin: "https://synthetic.atlassian.net" },
+    projects: ids.slice(0, 100).map((projectId) => ({ projectId, readers: [] })),
+    mapping: { kind: "CONNECTOR" as const, factTypes: ["jira.status"] } };
+  await repository.configure(admin, config, "large-history-first");
+  await repository.configure(admin, { ...config, projects: ids.slice(100, 200).map((projectId) => ({ projectId, readers: [] })) }, "large-history-second");
+  const current = { ...config, projects: ids.slice(200).map((projectId) => ({ projectId, readers: [] })) };
+  await repository.configure(admin, current, "large-history-third");
+  expect(await db.connectorSyncGrant.count({ where: { sourceId } })).toBe(300);
+  expect(await db.connectorSyncGrant.count({ where: { sourceId, active: false } })).toBe(200);
+  await db.accessGrant.deleteMany({ where: { customerId, subject: admin.subject, scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin" } });
+  await db.accessGrant.createMany({ data: ids.filter((id) => id !== missing).map((scopeId) => ({
+    customerId, subject: admin.subject, scopeType: "project", scopeId, role: "pmo_admin",
+  })) });
+  const before = await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } });
+  await expect(repository.configure(admin, current, "large-history-denied")).rejects.toMatchObject({ code: "DENIED" });
+  expect(await db.ingestionSource.findUniqueOrThrow({ where: { id: sourceId } })).toEqual(before);
+  await db.accessGrant.create({ data: { customerId, subject: admin.subject, scopeType: "project", scopeId: missing, role: "pmo_admin" } });
+  await expect(repository.configure(admin, current, "large-history-authorized")).resolves.toMatchObject({ configRevision: 4 });
+  expect(await db.connectorSyncGrant.count({ where: { sourceId } })).toBe(300);
+  expect(await db.connectorSyncGrant.count({ where: { sourceId, active: false } })).toBe(200);
+}, 240_000);

@@ -129,7 +129,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
   ];
   const reassessmentGuards = ["public.guard_ingestion_project_reassessment()", "public.require_ingestion_reassessment_complete()",
     "public.lock_ingestion_reassessment_preview()", "public.reject_ingestion_reassessment_history()"];
-  expect(revoked).toHaveLength(8);
+  expect(revoked).toHaveLength(9);
   expect(
     revoked
       .flatMap((match) => splitFunctionSignatures(match[1]!))
@@ -141,6 +141,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...scalarSignatures,
       ...connectorGuardSignatures,
       ...ingestionSignatures,
+      "public.guard_ingestion_reconfiguration_scope()",
       ...updateValidators,
       ...updateGuards,
       ...captureGuards,
@@ -179,7 +180,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(15);
+  ]).toHaveLength(16);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {
