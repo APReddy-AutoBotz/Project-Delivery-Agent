@@ -31,6 +31,20 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+The evidence ledger merged in [PR #135](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/135)
+as `c02df04dba58dbdc38c38941d689c00451fccf8b`, with reviewed head
+`585cfdb7f53bd3b3ad14fabec13ec6bdc475322e`, tree
+`8f37bc8250e95f82dc8d982b398cda17cbe009f5` and ordered parents the prior
+main `a59b2d22d76be614b287b03d186e8d922b4c8f06` and the reviewed head.
+Candidate Foundation 41004327254 and Documentation 41004327214 passed.
+Post-merge Documentation 41189098403 passed; Foundation 41189098409's verify
+job failed in Browser workflows with 77 passing tests and one failing preview
+test. Its production-boundary job was still running at this checkpoint. The
+failed preview test's mocked route handles the milestone endpoint but returns
+404 for the scalar endpoint, which can withhold both previews; the proposed
+test correction and a complete post-merge verification remain pending. This
+documentation-only merge adds no acceptance credit.
+
 The read-only PMO ingestion reassessment status panel merged in
 [PR #134](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/134)
 as `a59b2d22d76be614b287b03d186e8d922b4c8f06`, reviewed head
