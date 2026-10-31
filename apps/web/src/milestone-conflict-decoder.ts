@@ -1,4 +1,4 @@
-import type { MilestoneConflictObservation } from "@pdaa/domain";
+import type { MilestoneConflictObservation, MilestoneRequestObservation } from "@pdaa/domain";
 
 // Presentation-only decoding; the server remains the authorization boundary.
 const fail = (): never => { throw new Error("Invalid milestone conflict observation"); };
@@ -51,4 +51,18 @@ export function decodeMilestoneConflict(value: unknown, projectId: string, miles
   }
   if (milestones !== 1) fail();
   return v as MilestoneConflictObservation;
+}
+
+export function decodeMilestoneRequestObservation(value: unknown, projectId: string, milestoneId: string): MilestoneRequestObservation {
+  const wrapper = object(value);
+  keys(wrapper, ["observation", "requestStatus"]);
+  if (new TextEncoder().encode(JSON.stringify(wrapper)).length > 262144) fail();
+  const observation = decodeMilestoneConflict(wrapper.observation, projectId, milestoneId);
+  if (observation.outcome === "NOT_DETECTED") {
+    if (wrapper.requestStatus !== null) fail();
+    return { observation, requestStatus: null };
+  }
+  if (wrapper.requestStatus !== "MATCHING_REQUEST_RECORDED" && wrapper.requestStatus !== "NO_MATCHING_REQUEST_RECORDED") return fail();
+  if (observation.positions.some((position) => position.supports.some((support) => support.provenance !== "HUMAN_CONFIRMED"))) fail();
+  return { observation, requestStatus: wrapper.requestStatus };
 }

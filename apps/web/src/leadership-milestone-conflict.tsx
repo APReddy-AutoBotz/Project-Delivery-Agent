@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { MilestoneConflictObservation, MilestoneStateDisagreement } from "@pdaa/domain";
-import { decodeMilestoneConflict } from "./milestone-conflict-decoder.js";
+import { decodeMilestoneConflict, decodeMilestoneRequestObservation } from "./milestone-conflict-decoder.js";
 import { decodeMilestoneStateDisagreement } from "./milestone-state-disagreement-decoder.js";
 import type { RequestFn } from "./request-types.js";
 import { milestoneQuestionExample, supportsMilestoneQuestion } from "./milestone-question.js";
@@ -8,8 +8,8 @@ import { Button, Message } from "./components.js";
 import { createPmQueueResource, type PmQueueResourceState } from "./pm-queue-resource.js";
 
 type Item = { id: string; key: string; name?: string; title?: string };
-export function LeadershipMilestoneConflict({ projectId, scope, milestones, workItems, request }: {
-  projectId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn;
+export function LeadershipMilestoneConflict({ projectId, scope, milestones, workItems, request, canInspectRequest = false }: {
+  projectId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn; canInspectRequest?: boolean;
 }) {
   const [selected, setSelected] = useState("");
   const [question, setQuestion] = useState("");
@@ -51,10 +51,9 @@ export function LeadershipMilestoneConflict({ projectId, scope, milestones, work
     {selectedItem && <StateDisagreement key={`${scope}:${selectedItem.id}`} projectId={projectId} milestoneId={selectedItem.id}
       scope={`${scope}:${selectedItem.id}`} request={request} />}
     {selectedItem && submitted !== null && <Observation key={`${scope}:${selectedItem.id}:${submitted}`} projectId={projectId} milestoneId={selectedItem.id}
-      scope={`${scope}:${selectedItem.id}:${submitted}`} milestones={milestones} workItems={workItems} request={request} />}
+      scope={`${scope}:${selectedItem.id}:${submitted}`} milestones={milestones} workItems={workItems} request={request} canInspectRequest={canInspectRequest} />}
   </section>;
 }
-
 function StateDisagreement({ projectId, milestoneId, scope, request }: {
   projectId: string; milestoneId: string; scope: string; request: RequestFn;
 }) {
@@ -115,38 +114,69 @@ function StateDisagreement({ projectId, milestoneId, scope, request }: {
     </div>}
   </div>;
 }
-function Observation({ projectId, milestoneId, scope, milestones, workItems, request }: {
-  projectId: string; milestoneId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn;
+type View = { observation: MilestoneConflictObservation; requestStatus: "MATCHING_REQUEST_RECORDED" | "NO_MATCHING_REQUEST_RECORDED" | null; expiresAt: number | null };
+function Observation({ projectId, milestoneId, scope, milestones, workItems, request, canInspectRequest }: {
+  projectId: string; milestoneId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn; canInspectRequest: boolean;
 }) {
-  const loader = useRef(request), resource = useRef<ReturnType<typeof createPmQueueResource<MilestoneConflictObservation>> | null>(null);
-  const [state, setState] = useState<{ scope: string; value: PmQueueResourceState<MilestoneConflictObservation> }>({ scope, value: { phase: "loading" } });
+  const [showRequest, setShowRequest] = useState(false);
+  const mode = canInspectRequest && showRequest ? "request" : "conflict", viewScope = `${scope}:${mode}`;
+  const loader = useRef(request), resource = useRef<ReturnType<typeof createPmQueueResource<View>> | null>(null);
+  const [state, setState] = useState<{ scope: string; value: PmQueueResourceState<View> }>({ scope: viewScope, value: { phase: "loading" } });
   useEffect(() => { loader.current = request; }, [request]);
   useEffect(() => {
-    const driver = createPmQueueResource<MilestoneConflictObservation>({
+    let live = true;
+    const driver = createPmQueueResource<View>({
       load: async (signal) => {
-        return decodeMilestoneConflict(await loader.current<unknown>(
-          `/projects/${projectId}/milestones/${milestoneId}/leadership-conflict-observation`, { signal }), projectId, milestoneId);
-      }, publish: (value) => setState({ scope, value }), visible: () => document.visibilityState === "visible",
+        const started = performance.now();
+        const path = `/projects/${projectId}/milestones/${milestoneId}/`;
+        const unavailable = () => { if (live && !signal.aborted) setState({ scope: viewScope, value: { phase: "error" } }); };
+        const result = mode === "request" ? decodeMilestoneRequestObservation(await loader.current<unknown>(
+          path + "leadership-manager-request-observation", { signal }, 262144, unavailable), projectId, milestoneId)
+          : { observation: decodeMilestoneConflict(await loader.current<unknown>(
+            path + "leadership-conflict-observation", { signal }, 262144, unavailable), projectId, milestoneId), requestStatus: null };
+        if (result.observation.outcome === "NOT_DETECTED") return { ...result, expiresAt: null };
+        const deadline = Math.min(...result.observation.positions.flatMap((position) => position.supports.map((support) => Date.parse(support.assessedValidUntil))));
+        // The server's as-of is no earlier than request start. Subtract the
+        // full client-observed transit and processing interval conservatively.
+        const expiresAt = started + deadline - Date.parse(result.observation.asOf);
+        if (!Number.isFinite(expiresAt) || expiresAt <= performance.now()) throw new Error("Observation expired");
+        return { ...result, expiresAt };
+      }, publish: (value) => setState({ scope: viewScope, value }), visible: () => document.visibilityState === "visible",
     });
     resource.current = driver; driver.refresh();
     const revalidate = () => { if (document.visibilityState === "visible") driver.refresh(); };
     window.addEventListener("focus", revalidate); document.addEventListener("visibilitychange", revalidate);
-    return () => { driver.dispose(); if (resource.current === driver) resource.current = null;
+    return () => { live = false; driver.dispose(); if (resource.current === driver) resource.current = null;
       window.removeEventListener("focus", revalidate); document.removeEventListener("visibilitychange", revalidate); };
-  }, [scope, projectId, milestoneId]);
-  const current = state.scope === scope ? state.value : { phase: "loading" as const };
+  }, [viewScope, mode, projectId, milestoneId]);
+  useEffect(() => {
+    if (state.scope !== viewScope || state.value.phase !== "ready" || state.value.data.expiresAt === null) return;
+    const remaining = state.value.data.expiresAt - performance.now();
+    const timer = setTimeout(() => resource.current?.refresh(), Math.max(0, Math.min(remaining, 2147483647)));
+    return () => clearTimeout(timer);
+  }, [viewScope, state]);
+  const current = state.scope === viewScope ? state.value : { phase: "loading" as const };
+  const display = current.phase === "ready" && current.data.expiresAt !== null && current.data.expiresAt <= performance.now()
+    ? { phase: "loading" as const } : current;
   return <div className="space-y-3">
+    {canInspectRequest && <Button className="secondary" onClick={() => setShowRequest((value) => !value)}>
+      {mode === "request" ? "Show completion check only" : "Check for a recorded request"}
+    </Button>}
     <Button className="secondary" onClick={() => resource.current?.refresh()}>Refresh completion check</Button>
     <div aria-live="polite" aria-atomic="true">
-    {current.phase === "loading" && <p role="status">Checking current evidence and access…</p>}
-    {current.phase === "error" && <Message error>Completion check is unavailable. Refresh to check current access and evidence.</Message>}
-    {current.phase === "ready" && current.data.outcome === "NOT_DETECTED" &&
-      <p>This completion rule found no contradiction for the selected milestone at {current.data.asOf}. This does not assess other project conflicts.</p>}
-    {current.phase === "ready" && current.data.outcome === "CONFLICTING" && <>
-      <p>The milestone is recorded complete while required work remains open. Completion is not established; the project manager should reconcile the positions.</p>
-      <p className="muted">Checked at {current.data.asOf}. This result does not create a reconciliation request.</p>
+    {display.phase === "loading" && <p role="status">Checking current evidence and access…</p>}
+    {display.phase === "error" && <Message error>Completion check is unavailable. Refresh to check current access and evidence.</Message>}
+    {display.phase === "ready" && display.data.observation.outcome === "NOT_DETECTED" &&
+      <p>This completion rule found no contradiction for the selected milestone at {display.data.observation.asOf}. This does not assess other project conflicts. Evidence may have changed; refresh before relying on this check.</p>}
+    {display.phase === "ready" && display.data.observation.outcome === "CONFLICTING" && <>
+      <p>At this check, the milestone was recorded complete while required work was open. Completion is not established; the project manager should reconcile the positions.</p>
+      <p className="muted">Checked at {display.data.observation.asOf}. Evidence and request status may have changed; refresh before relying on this check. This result does not create a reconciliation request.</p>
+      {mode === "request" && display.data.requestStatus === "MATCHING_REQUEST_RECORDED" &&
+        <p>At this check, a request was recorded for these contributing positions. This does not confirm a current assignment or delivery.</p>}
+      {mode === "request" && display.data.requestStatus === "NO_MATCHING_REQUEST_RECORDED" &&
+        <p>At this check, no request was recorded for these contributing positions. An older request may exist.</p>}
       <p className="muted">Provenance labels are stored with the evidence; this check does not independently verify a source or a person's confirmation.</p>
-      {current.data.positions.map((position) => {
+      {display.data.observation.positions.map((position) => {
         const target = (position.targetKind === "MILESTONE" ? milestones : workItems).find((item) => item.id === position.targetId);
         return <div className="canonical-review-row" key={position.bindingId}>
           <p><strong>{target?.key ?? "Authorized item"}</strong> · {position.targetKind === "MILESTONE" ? "Milestone" : "Required work item"} · {position.state.replaceAll("_", " ")}</p>

@@ -140,6 +140,7 @@ test("milestone observation hides old details when selection, access and session
   await ask(); await expect(page.getByText("Completion is not established", { exact: false })).toBeVisible();
   await expect(page.getByText(/Evidence .*version .*source/).first()).toBeVisible();
   const panel = page.getByRole("region", { name: "Ask about milestone completion" });
+  await expect(panel.getByRole("button", { name: "Check for a recorded request" })).toHaveCount(0);
   for (const [index, position] of conflict.positions.entries()) {
     const row = panel.locator(".canonical-review-row").filter({ hasText: index === 0 ? "MS-1" : "WI-1" });
     await expect(row).toContainText(position.state);
@@ -219,4 +220,173 @@ test("milestone observation hides old details when selection, access and session
   await page.getByRole("button", { name: "Sign out" }).click(); await page.getByRole("button", { name: /^Project manager / }).click();
   await page.getByRole("button", { name: /Synthetic conflict project/ }).click();
   await expect(page.getByLabel("Milestone", { exact: true })).toHaveCount(0);
+});
+
+test("dual-role request status uses its own conflict snapshot and hides stale results", async ({ page }) => {
+  test.setTimeout(60000);
+  let denied = false, hold = false, holdSelection = false, holdSignout = false, oversized = false, expiresSoon = false, requestStatus = "MATCHING_REQUEST_RECORDED", reads = 0;
+  const requestConflict = { ...conflict, positions: conflict.positions.map((position, index) => ({ ...position, supports: [support(300 + index * 100)] })) };
+  const heldConflict = { ...conflict, positions: conflict.positions.map((position, index) => ({ ...position, supports: [support(500 + index * 100)] })) };
+  let arrived!: () => void, release!: () => void, delivered!: () => void;
+  const entered = new Promise<void>((resolve) => { arrived = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const finished = new Promise<void>((resolve) => { delivered = resolve; });
+  let arrivedSignout!: () => void, releaseSignout!: () => void, deliveredSignout!: () => void;
+  const enteredSignout = new Promise<void>((resolve) => { arrivedSignout = resolve; });
+  const gateSignout = new Promise<void>((resolve) => { releaseSignout = resolve; });
+  const finishedSignout = new Promise<void>((resolve) => { deliveredSignout = resolve; });
+  let arrivedSelection!: () => void, releaseSelection!: () => void, deliveredSelection!: () => void;
+  const enteredSelection = new Promise<void>((resolve) => { arrivedSelection = resolve; });
+  const gateSelection = new Promise<void>((resolve) => { releaseSelection = resolve; });
+  const finishedSelection = new Promise<void>((resolve) => { deliveredSelection = resolve; });
+  await page.addInitScript(() => {
+    const original = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("leadership-manager-request-observation") && init) {
+        const { signal: _signal, ...rest } = init;
+        return original(input, rest).then((response) => {
+          const tag = response.headers.get("x-synthetic-held");
+          if (tag && response.body) {
+            const stream = response.body, getReader = stream.getReader.bind(stream);
+            stream.getReader = (() => {
+              const reader = getReader(), read = reader.read.bind(reader), cancel = reader.cancel.bind(reader);
+              const chunks: Uint8Array[] = []; let total = 0;
+              reader.read = async () => {
+                const part = await read();
+                if (!part.done) { total += part.value.byteLength; if (tag !== "oversized" && total <= 262144) chunks.push(part.value); }
+                if (part.done && tag !== "oversized") {
+                  const bytes = new Uint8Array(total); let offset = 0;
+                  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+                  const text = new TextDecoder().decode(bytes);
+                  if (text.includes("30000000-0000-4000-8000-000000000510")) {
+                    const state = window as unknown as { consumedRequestResponses?: string[] };
+                    state.consumedRequestResponses = [...(state.consumedRequestResponses ?? []), tag];
+                  }
+                }
+                return part;
+              };
+              reader.cancel = async (reason) => {
+                const state = window as unknown as { cancelledRequestResponses?: { tag: string; bytes: number }[] };
+                state.cancelledRequestResponses = [...(state.cancelledRequestResponses ?? []), { tag, bytes: total }];
+                return cancel(reason);
+              };
+              return reader;
+            }) as typeof stream.getReader;
+          }
+          return response;
+        });
+      }
+      return original(input, init);
+    };
+  });
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
+    if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
+    if (path === "/auth/development") return route.fulfill({ json: { token: "synthetic-dual" } });
+    if (path === "/me") return route.fulfill({ json: { subject: "synthetic-dual", customerId, roles: ["leadership", "pmo_admin"] } });
+    if (path === "/projects") return route.fulfill({ json: [project] });
+    if (path === `/projects/${project.id}`) return route.fulfill({ json: project });
+    if (path === `/projects/${project.id}/canonical`) return route.fulfill({ json: detail });
+    if (path.endsWith("/leadership-conflict-observation")) return route.fulfill({ json: conflict });
+    if (path.endsWith("/leadership-manager-request-observation")) {
+      reads++;
+      if (denied) return route.fulfill({ status: 503, json: { message: "Unavailable" } });
+      if (oversized) return route.fulfill({ status: 200, contentType: "application/json", headers: { "x-synthetic-held": "oversized" },
+        body: JSON.stringify({ observation: requestConflict, requestStatus }) + " ".repeat(262145) });
+      if (hold) {
+        arrived(); await gate;
+        try { await route.fulfill({ json: { observation: heldConflict, requestStatus: "MATCHING_REQUEST_RECORDED" }, headers: { "x-synthetic-held": "mode" } }); } finally { delivered(); }
+        return;
+      }
+      if (holdSignout) {
+        arrivedSignout(); await gateSignout;
+        try { await route.fulfill({ json: { observation: heldConflict, requestStatus: "MATCHING_REQUEST_RECORDED" }, headers: { "x-synthetic-held": "signout" } }); } finally { deliveredSignout(); }
+        return;
+      }
+      if (holdSelection) {
+        arrivedSelection(); await gateSelection;
+        try { await route.fulfill({ json: { observation: heldConflict, requestStatus: "MATCHING_REQUEST_RECORDED" }, headers: { "x-synthetic-held": "selection" } }); } finally { deliveredSelection(); }
+        return;
+      }
+      const observation = expiresSoon ? { ...requestConflict, positions: requestConflict.positions.map((position) => ({ ...position,
+        supports: position.supports.map((row) => ({ ...row, assessedValidUntil: new Date(Date.parse(requestConflict.asOf) + 1500).toISOString() })) })) } : requestConflict;
+      return route.fulfill({ json: { observation, requestStatus } });
+    }
+    if (path === "/pm/action-queue") return route.fulfill({ json: { projects: [] } });
+    return route.fulfill({ status: 404, json: { message: "Not found" } });
+  });
+  await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();
+  await page.getByRole("button", { name: /Synthetic conflict project/ }).click();
+  await page.getByLabel("Milestone", { exact: true }).selectOption(id(2));
+  await page.getByLabel("Question", { exact: true }).fill("Does the selected milestone's recorded completion conflict with required work?");
+  await page.getByRole("button", { name: "Check question" }).click();
+  await expect(page.getByText("Completion is not established", { exact: false })).toBeVisible();
+  expect(reads).toBe(0);
+  await page.getByRole("button", { name: "Check for a recorded request" }).click();
+  await expect(page.getByText("a request was recorded for these contributing positions", { exact: false })).toBeVisible();
+  await expect(page.getByText(`Evidence ${id(310)}`, { exact: false })).toBeVisible();
+  await expect(page.getByText(`Evidence ${id(110)}`, { exact: false })).toHaveCount(0);
+  await expect(page.getByText("This does not confirm a current assignment or delivery", { exact: false })).toBeVisible();
+  oversized = true; await page.getByRole("button", { name: "Refresh completion check" }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { cancelledRequestResponses?: { tag: string; bytes: number }[] })
+    .cancelledRequestResponses?.some((item) => item.tag === "oversized" && item.bytes > 262144) ?? false)).toBe(true);
+  await expect(page.getByText("Completion check is unavailable", { exact: false })).toBeVisible(); oversized = false;
+  expiresSoon = true; await page.getByRole("button", { name: "Refresh completion check" }).click();
+  await expect(page.getByText("a request was recorded for these contributing positions", { exact: false })).toBeVisible();
+  expiresSoon = false; denied = true;
+  await expect(page.getByText("Completion check is unavailable", { exact: false })).toBeVisible({ timeout: 12000 });
+  await expect(page.getByText("a request was recorded for these contributing positions", { exact: false })).toHaveCount(0);
+  denied = false; await page.getByRole("button", { name: "Refresh completion check" }).click();
+  await expect(page.getByText("a request was recorded for these contributing positions", { exact: false })).toBeVisible();
+  denied = true; await page.getByRole("button", { name: "Refresh completion check" }).click();
+  await expect(page.getByText("Completion check is unavailable", { exact: false })).toBeVisible();
+  await expect(page.getByText("a request was recorded for these contributing positions", { exact: false })).toHaveCount(0);
+  denied = false; hold = true; await page.getByRole("button", { name: "Refresh completion check" }).click(); await entered;
+  await page.evaluate(() => {
+    const state = window as unknown as { staleRequestSeen?: boolean }; state.staleRequestSeen = false;
+    const marker = "30000000-0000-4000-8000-000000000510";
+    const check = () => { if (document.body.textContent?.includes(marker)) state.staleRequestSeen = true; };
+    new MutationObserver((records) => { for (const record of records) if (record.oldValue?.includes(marker) ||
+      [...record.addedNodes, ...record.removedNodes].some((node) => node.textContent?.includes(marker))) state.staleRequestSeen = true; check(); })
+      .observe(document.body, { subtree: true, childList: true, characterData: true, characterDataOldValue: true });
+  });
+  await page.evaluate(() => {
+    const canary = document.createElement("span"); canary.textContent = "30000000-0000-4000-8000-000000000510";
+    document.body.append(canary); canary.remove();
+  });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { staleRequestSeen?: boolean }).staleRequestSeen)).toBe(true);
+  await page.evaluate(() => { (window as unknown as { staleRequestSeen?: boolean }).staleRequestSeen = false; });
+  try {
+    await page.getByRole("button", { name: "Show completion check only" }).click();
+    await expect(page.getByText("Completion is not established", { exact: false })).toBeVisible();
+    await expect(page.getByText("a request was recorded for these contributing positions", { exact: false })).toHaveCount(0);
+  } finally { release(); }
+  await finished; hold = false;
+  await expect.poll(() => page.evaluate(() => (window as unknown as { consumedRequestResponses?: string[] }).consumedRequestResponses ?? [])).toContain("mode");
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect(await page.evaluate(() => (window as unknown as { staleRequestSeen?: boolean }).staleRequestSeen)).toBe(false);
+  await expect(page.getByText("a request was recorded for these contributing positions", { exact: false })).toHaveCount(0);
+  requestStatus = "NO_MATCHING_REQUEST_RECORDED";
+  await page.getByRole("button", { name: "Check for a recorded request" }).click();
+  await expect(page.getByText("no request was recorded for these contributing positions", { exact: false })).toBeVisible();
+  holdSelection = true; await page.getByRole("button", { name: "Refresh completion check" }).click(); await enteredSelection;
+  try { await page.getByLabel("Milestone", { exact: true }).selectOption(id(3)); } finally { releaseSelection(); }
+  await finishedSelection; holdSelection = false;
+  await expect.poll(() => page.evaluate(() => (window as unknown as { consumedRequestResponses?: string[] }).consumedRequestResponses ?? [])).toContain("selection");
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect(await page.evaluate(() => (window as unknown as { staleRequestSeen?: boolean }).staleRequestSeen)).toBe(false);
+  await page.getByLabel("Milestone", { exact: true }).selectOption(id(2));
+  await page.getByLabel("Question", { exact: true }).fill("Does the selected milestone's recorded completion conflict with required work?");
+  await page.getByRole("button", { name: "Check question" }).click();
+  await expect(page.getByText("Completion is not established", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Check for a recorded request" }).click();
+  await expect(page.getByText("no request was recorded for these contributing positions", { exact: false })).toBeVisible();
+  holdSignout = true; await page.getByRole("button", { name: "Refresh completion check" }).click(); await enteredSignout;
+  try { await page.getByRole("button", { name: "Sign out" }).click(); } finally { releaseSignout(); }
+  await finishedSignout;
+  await expect.poll(() => page.evaluate(() => (window as unknown as { consumedRequestResponses?: string[] }).consumedRequestResponses ?? [])).toContain("signout");
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect(await page.evaluate(() => (window as unknown as { staleRequestSeen?: boolean }).staleRequestSeen)).toBe(false);
+  await expect(page.getByText("no request was recorded for these contributing positions", { exact: false })).toHaveCount(0);
 });

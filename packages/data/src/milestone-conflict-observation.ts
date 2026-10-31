@@ -1,11 +1,14 @@
 import {
   MilestoneConflictObservationError, evaluateMilestoneConsistency, milestoneConflictObservationSchema,
-  projectFactIdSchema, type Actor, type MilestoneConflictObservation, type MilestoneConflictObservationRepository,
+  milestoneRequestObservationSchema, projectFactIdSchema, type Actor, type MilestoneConflictObservation,
+  type MilestoneConflictObservationRepository, type MilestoneRequestObservation,
+  type MilestoneRequestObservationRepository,
 } from "@pdaa/domain";
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
 import { actorInput } from "./fact-authorization.js";
 import { DatabaseCanonicalProjectRepository } from "./canonical-project.js";
 import { DatabaseAuthorityRepository } from "./authority-persistence.js";
+import { findMatchingMilestoneRequest } from "./milestone-request-proof.js";
 
 type Tx = Prisma.TransactionClient;
 const denied = (): never => { throw new MilestoneConflictObservationError("DENIED"); };
@@ -13,10 +16,18 @@ const unavailable = (): never => { throw new MilestoneConflictObservationError("
 
 // Project and grant locks are retained until the complete response is validated.
 // Supported fact, source and graph writers coordinate on Project before mutation.
-export class DatabaseMilestoneConflictObservationRepository implements MilestoneConflictObservationRepository {
+export class DatabaseMilestoneConflictObservationRepository implements MilestoneConflictObservationRepository, MilestoneRequestObservationRepository {
   constructor(private readonly db: Database) {}
 
   async readLeadership(actorValue: Actor, projectValue: string, milestoneValue: string): Promise<MilestoneConflictObservation> {
+    return (await this.authorizedRead(actorValue, projectValue, milestoneValue, false)).observation;
+  }
+
+  async readForLeaderManager(actorValue: Actor, projectValue: string, milestoneValue: string): Promise<MilestoneRequestObservation> {
+    return this.authorizedRead(actorValue, projectValue, milestoneValue, true);
+  }
+
+  private async authorizedRead(actorValue: Actor, projectValue: string, milestoneValue: string, includeRequest: boolean) {
     let actor: Actor, projectId: string, milestoneId: string;
     try {
       actor = actorInput(actorValue);
@@ -37,7 +48,8 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
             AND (("scopeType"='project' AND "scopeId"=${projectId}::uuid)
               OR ("scopeType"='portfolio' AND "scopeId"=${projects[0].portfolioId}::uuid)) ORDER BY id FOR SHARE`;
         const roles = grants.filter((row) => actor.roles.some((role) => role === row.role)).map((row) => row.role);
-        if (!roles.includes("leadership")) return denied();
+        if (!roles.includes("leadership") || (includeRequest && !roles.some((role) =>
+          ["project_manager", "portfolio_manager", "pmo_admin"].includes(role)))) return denied();
         let detail;
         try {
           detail = await new DatabaseCanonicalProjectRepository(this.db).detailInTransaction(tx, actor, projectId,
@@ -45,7 +57,17 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
         } catch { return denied(); }
         if (!detail.configured || !detail.milestones.some((row) => row.id === milestoneId)) return denied();
         visible = true;
-        return await this.observe(tx, actor, projectId, milestoneId);
+        if (includeRequest) {
+          const configured = await tx.projectResponsibility.findMany({ where: { customerId: actor.customerId, projectId, role: "PROJECT_MANAGER" },
+            select: { id: true }, take: 51 });
+          if (configured.length > 50) return unavailable();
+        }
+        const evaluated = await this.observe(tx, actor, projectId, milestoneId, includeRequest);
+        const requestStatus = includeRequest && evaluated.contributorIdentity !== null
+          ? await findMatchingMilestoneRequest(tx, actor, evaluated.observation, evaluated.contributorIdentity)
+          : null;
+        const result = { observation: evaluated.observation, requestStatus };
+        return includeRequest ? milestoneRequestObservationSchema.parse(result) : result;
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 20000 });
     } catch (error) {
       if (error instanceof MilestoneConflictObservationError) throw error;
@@ -53,7 +75,9 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
     }
   }
 
-  private async observe(tx: Tx, actor: Actor, projectId: string, milestoneId: string): Promise<MilestoneConflictObservation> {
+  private async observe(tx: Tx, actor: Actor, projectId: string, milestoneId: string, requireHuman: boolean): Promise<{
+    observation: MilestoneConflictObservation; contributorIdentity: string | null;
+  }> {
     const scope = { customerId: actor.customerId, projectId };
     const canonical = await tx.canonicalProject.findFirst({ where: { customerId: actor.customerId, id: projectId, sealed: true },
       include: { canonicalCreationReceipt_project: true } });
@@ -104,13 +128,62 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
     const asOf = clock[0]?.now;
     if (!asOf) return unavailable();
     const authority = new DatabaseAuthorityRepository(this.db);
+    if (requireHuman) {
+      // Bound all stored policy definitions before the shared loader reads the
+      // active definition for each fact; the limit includes future revisions.
+      const policyBudget = await tx.$queryRaw<{ count: number; bytes: bigint }[]>`
+        SELECT count(*)::int AS count,COALESCE(sum(octet_length(COALESCE(definition::text,''))),0)::bigint AS bytes
+        FROM (SELECT r.definition FROM public."AuthorityPolicy" p JOIN public."AuthorityPolicyRevision" r
+          ON r."customerId"=p."customerId" AND r."projectId"=p."projectId" AND r."policyId"=p.id
+          WHERE p."customerId"=${actor.customerId}::uuid AND p."projectId"=${projectId}::uuid
+            AND p."factType"=ANY(${bindings.map((row) => row.factType)}::text[])
+          ORDER BY p.id,r.revision LIMIT 1001) bounded`;
+      if (!policyBudget[0] || policyBudget[0].count > 1000 || policyBudget[0].bytes < 0n ||
+          policyBudget[0].bytes > 4194304n) return unavailable();
+    }
     const prefixes = await authority.loadAssessmentPrefixesInTransaction(tx, actor, projectId, facts, asOf);
     if (!prefixes) return unavailable();
     const prepared = new Map<string, Awaited<ReturnType<DatabaseAuthorityRepository["prepareAssessmentInTransaction"]>>>();
+    let policyRevisions = 0, policyBytes = 0;
     for (const binding of bindings) {
       const fact = byFact.get(binding.factId), prefix = prefixes.get(binding.factId);
       if (!fact || !prefix) return unavailable();
+      if (requireHuman) {
+        if (fact.revision < 1 || fact.revision > 1000 || !prefix.aggregate || !prefix.event ||
+            prefix.aggregate.revision < 1 || prefix.aggregate.revision > 1000 || prefix.versions.length !== fact.revision ||
+            prefix.versions.some((row, index) => row.revision !== index + 1 || row.provenance !== "HUMAN_CONFIRMED" ||
+              row.evidence.source.sourceType !== "human_statement") ||
+            4 * prefix.versions.length + 4 * prefix.conflicts.length > 64000) return unavailable();
+        const policies = await tx.authorityPolicyRevision.findMany({ where: { policyId: prefix.aggregate.id },
+          select: { id: true, revision: true }, orderBy: { revision: "asc" }, take: 1001 });
+        if (policies.length !== prefix.aggregate.revision || policies.some((row, index) => row.revision !== index + 1) ||
+            !policies.some((row) => row.id === prefix.event!.id)) return unavailable();
+        policyRevisions += policies.length;
+        if (policyRevisions > 1000) return unavailable();
+        const sizes = await tx.$queryRaw<{ count: number; bytes: bigint }[]>`
+          SELECT count(*)::int AS count,COALESCE(sum(octet_length(COALESCE(definition::text,''))),0)::bigint AS bytes
+          FROM (SELECT definition FROM public."AuthorityPolicyRevision" WHERE "policyId"=${prefix.aggregate.id}::uuid
+            ORDER BY revision LIMIT 1001) bounded`;
+        if (!sizes[0] || sizes[0].count !== policies.length || sizes[0].bytes < 0n || sizes[0].bytes > 4194304n) return unavailable();
+        policyBytes += Number(sizes[0].bytes);
+        if (policyBytes > 4194304) return unavailable();
+        const policyValid = await tx.$queryRaw<{ valid: boolean }[]>`SELECT public.valid_authority_history(${prefix.aggregate.id}::uuid) AS valid`;
+        if (policyValid[0]?.valid !== true) return unavailable();
+        const revisions = prefix.conflicts.map((row) => row.revision).sort((a, b) => a - b);
+        if (revisions.some((revision, index) => revision !== index + 1)) return unavailable();
+        if (prefix.conflicts.length) {
+          const valid = await tx.$queryRaw<{ valid: boolean }[]>`
+            SELECT bool_and(public.valid_authority_conflict(id)) AS valid FROM public."FactAuthorityConflict"
+            WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${projectId}::uuid AND "factId"=${fact.id}::uuid`;
+          if (valid[0]?.valid !== true) return unavailable();
+        }
+      }
       const result = await authority.prepareAssessmentInTransaction(tx, actor, { projectId, fact, asOf, prefix });
+      if (requireHuman && result.versions.some((version) => version.provenance !== "HUMAN_CONFIRMED" ||
+          version.evidence.source.sourceType !== "human_statement")) return unavailable();
+      if (requireHuman && result.result.versions.some((version) => version.visibility !== "available" ||
+          version.temporalApplicability === "AMBIGUOUS" ||
+          (version.temporalApplicability === "APPLICABLE" && version.assessment.freshness !== "CURRENT"))) return unavailable();
       if (!result.complete || result.newConflicts.length || result.versions.some((version) => {
         const matches = result.access.filter((access) => access.factId === version.factId && access.sourceId === version.sourceId);
         return matches.length !== 1 || matches[0]!.state !== "AVAILABLE" || matches[0]!.readers.length !== 1;
@@ -129,7 +202,7 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
           field: "state", factId: binding.factId, factType: binding.factType }, snapshot: prepared.get(binding.id)!.snapshot };
       }) });
     const envelope = { projectId, milestoneId, asOf: asOf.toISOString(), ruleRevision: "milestone-required-state/v1" as const };
-    if (result.status === "NOT_DETECTED") return milestoneConflictObservationSchema.parse({ ...envelope, outcome: "NOT_DETECTED" });
+    if (result.status === "NOT_DETECTED") return { observation: milestoneConflictObservationSchema.parse({ ...envelope, outcome: "NOT_DETECTED" }), contributorIdentity: null };
     if (result.status !== "CONFLICTING") return unavailable();
     if (result.contributors.reduce((n, row) => n + row.supportingVersionIds.length, 0) > 1000) return unavailable();
     const positions = result.contributors.map((contributor) => {
@@ -154,6 +227,6 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
         factId: contributor.factId, factType: contributor.factType, policyRevisionId: assessment.policy.revisionId,
         state: assessment.resolvedValue.value, supports };
     });
-    return milestoneConflictObservationSchema.parse({ ...envelope, outcome: "CONFLICTING", positions });
+    return { observation: milestoneConflictObservationSchema.parse({ ...envelope, outcome: "CONFLICTING", positions }), contributorIdentity: result.contributorIdentity };
   }
 }

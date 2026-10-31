@@ -57,6 +57,7 @@ try {
     new DatabaseMilestoneConflictObservationRepository(db),
     new DatabaseScalarConflictObservationRepository(db),
     new DatabaseMilestoneStateDisagreementRepository(db),
+    new DatabaseMilestoneConflictObservationRepository(db),
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

@@ -490,6 +490,8 @@ beforeAll(async () => {
         state: n === 10 ? "OPEN" as const : "COMPLETE" as const, supports: [{ versionId: scalarId(n), evidenceId: scalarId(n + 20),
           sourceId: scalarId(n + 40), provenance: "HUMAN_CONFIRMED" as const, effectiveAt: "2026-10-20T00:00:00.000Z",
           observedAt: "2026-10-20T00:00:00.000Z", versionValidUntil: "2026-10-23T00:00:00.000Z", assessedValidUntil: "2026-10-22T00:00:00.000Z" }] })) })) },
+    { readForLeaderManager: vi.fn(async (_actor, projectId, selectedMilestone) => ({ observation: { projectId, milestoneId: selectedMilestone,
+      asOf: "2026-10-21T11:00:00.000Z", ruleRevision: "milestone-required-state/v1" as const, outcome: "NOT_DETECTED" as const }, requestStatus: null })) },
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -730,6 +732,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request("/api/pm/action-queue", 200, manager);
   await request(`/api/projects/${project.id}/leadership-blocker-age-suggestions`, 200, leader);
   await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-conflict-observation`, 200, leader);
+  await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-manager-request-observation`, 200, leader);
   await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-state-disagreement`, 200, leader);
   await request(`/api/projects/${project.id}/fact-observations/${scalarScope.factId}/leadership-conflict`, 200, leader);
   await request(
@@ -925,7 +928,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(70);
+  expect(covered.size).toBe(71);
   assertContractSnapshot(
     spec,
     JSON.parse(
