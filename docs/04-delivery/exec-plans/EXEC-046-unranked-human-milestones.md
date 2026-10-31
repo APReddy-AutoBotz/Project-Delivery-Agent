@@ -34,6 +34,19 @@ snapshot, rejecting unsupported approvals and inconsistent source/evidence
 associations. Snapshot completeness, source access, actual absent policy and
 stored graph integrity remain caller proof obligations, not conclusions of this
 transformation. Its output bound is not an input, SQL or transport bound.
+A local, currently unused canonical-project preflight checks scoped receipt
+metadata and the seven declared and actual collection counts. Focused mocked
+metadata tests passed, as did a read-only API-role PostgreSQL smoke on one
+previously created synthetic project using a `pg` query adapter. This does not
+test Prisma transport, authorization ordering, programme and size boundaries,
+concurrent changes or native proof validation after preflight. It does not
+establish that the forthcoming read is safe to expose.
+An additional unused fact-prefix admission helper checks bounded metadata,
+contiguous revision identities, the absence of a policy aggregate and absence
+of stored conflicts. Mocked metadata tests and one read-only API-role PostgreSQL
+smoke cover rejection of an existing synthetic fact with a policy, via a `pg`
+adapter. The no-policy and conflict paths, Prisma transport, subsequent exact
+comparison, source access and race behavior require further native tests.
 
 ## Remaining proof and integration
 

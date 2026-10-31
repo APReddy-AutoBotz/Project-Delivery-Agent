@@ -1,0 +1,81 @@
+import { describe, expect, it } from "vitest";
+import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
+import { preflightMilestoneCanonicalProject as preflight, preflightUnrankedFactPrefix } from "../packages/data/src/milestone-observation-preflight.js";
+
+const customer = "10000000-0000-4000-8000-000000000002";
+const project = "10000000-0000-4000-8000-000000000003";
+const row = () => ({ sealed: true, projectReceipt: true, programmeReceipt: true,
+  responsibilitiesCount: 0, sprintsCount: 0, milestonesCount: 1, workItemsCount: 0,
+  requiredWorkItemsCount: 0, raidItemsCount: 0, sourceMappingsCount: 0,
+  responsibilitiesActual: 0, sprintsActual: 0, milestonesActual: 1, workItemsActual: 0,
+  requiredWorkItemsActual: 0, raidItemsActual: 0, sourceMappingsActual: 0 });
+const tx = (rows: unknown[]) => ({ $queryRaw: async () => rows }) as unknown as Prisma.TransactionClient;
+
+describe("canonical milestone preflight metadata", () => {
+  it("accepts consistent bounded counts and rejects missing or unsealed project proofs", async () => {
+    expect(await preflight(tx([row()]), customer, project)).toBe(true);
+    for (const change of [{ sealed: false }, { projectReceipt: false }, { programmeReceipt: false },
+      { sealed: null }, { projectReceipt: null }, { programmeReceipt: null }])
+      expect(await preflight(tx([{ ...row(), ...change }]), customer, project)).toBe(false);
+    expect(await preflight(tx([]), customer, project)).toBe(false);
+  });
+  it("rejects a changed count, sentinel overflow, invalid count and aggregate overflow", async () => {
+    for (const change of [{ milestonesActual: 2 }, { milestonesActual: 51 },
+      { milestonesCount: -1 }, { milestonesCount: 1.5 }])
+      expect(await preflight(tx([{ ...row(), ...change }]), customer, project)).toBe(false);
+    const large = { ...row(), responsibilitiesCount: 50, responsibilitiesActual: 50,
+      sprintsCount: 50, sprintsActual: 50, milestonesCount: 50, milestonesActual: 50,
+      workItemsCount: 50, workItemsActual: 50, raidItemsCount: 1, raidItemsActual: 1 };
+    expect(await preflight(tx([large]), customer, project)).toBe(false);
+    large.raidItemsCount = 0; large.raidItemsActual = 0;
+    expect(await preflight(tx([large]), customer, project)).toBe(true);
+  });
+  it("propagates database failure to the authorized caller's error boundary", async () => {
+    const failed = { $queryRaw: async () => { throw new Error("database failed"); } } as unknown as Prisma.TransactionClient;
+    await expect(preflight(failed, customer, project)).rejects.toThrow("database failed");
+  });
+});
+
+describe("unranked fact-prefix metadata admission", () => {
+  const scope = { customerId: customer, projectId: project,
+    factId: "10000000-0000-4000-8000-000000000004", factType: "canonical.state.00000000000040008000000000000002", revision: 2 };
+  const version = (revision: number) => ({ id: `version-${revision}`, customerId: customer, projectId: project,
+    factId: scope.factId, revision, evidenceId: `evidence-${revision}`, sourceId: `source-${revision}`, valueBytes: 10 });
+  const queryResults = (results: unknown[][]) => {
+    let index = 0;
+    return { $queryRaw: async () => results[index++] } as unknown as Prisma.TransactionClient;
+  };
+  it("returns the exact complete prefix only with no policy or conflicts", async () => {
+    const rows = [version(1), version(2)];
+    expect(await preflightUnrankedFactPrefix(queryResults([rows, [], []]), scope)).toEqual(rows);
+    expect(await preflightUnrankedFactPrefix(queryResults([rows, [{ id: "policy" }]]), scope)).toBeNull();
+    expect(await preflightUnrankedFactPrefix(queryResults([rows, [], [{ id: "conflict" }]]), scope)).toBeNull();
+  });
+  it("rejects missing, noncontiguous, duplicated and foreign-scope metadata", async () => {
+    const cases = [[version(1)], [version(1), version(3)], [version(1), version(1)],
+      [version(1), { ...version(2), id: version(1).id }],
+      [version(1), { ...version(2), evidenceId: version(1).evidenceId }],
+      [version(1), { ...version(2), customerId: "other" }],
+      [version(1), { ...version(2), projectId: "other" }],
+      [version(1), { ...version(2), factId: "other" }],
+      [version(1), { ...version(2), sourceId: "" }]];
+    for (const rows of cases) expect(await preflightUnrankedFactPrefix(queryResults([rows]), scope)).toBeNull();
+  });
+  it("enforces the revision and aggregate byte admission limits with synthetic metadata", async () => {
+    expect(await preflightUnrankedFactPrefix(queryResults([]), { ...scope, revision: 0 })).toBeNull();
+    expect(await preflightUnrankedFactPrefix(queryResults([]), { ...scope, revision: 1001 })).toBeNull();
+    const rows = [version(1), { ...version(2), valueBytes: 1_048_566 }];
+    expect(await preflightUnrankedFactPrefix(queryResults([rows, [], []]), scope)).toEqual(rows);
+    rows[1]!.valueBytes++;
+    expect(await preflightUnrankedFactPrefix(queryResults([rows]), scope)).toBeNull();
+    rows[1]!.valueBytes = -1;
+    expect(await preflightUnrankedFactPrefix(queryResults([rows]), scope)).toBeNull();
+    rows[1]!.valueBytes = 0;
+    expect(await preflightUnrankedFactPrefix(queryResults([rows]), scope)).toBeNull();
+    rows[1]!.valueBytes = Number.NaN;
+    expect(await preflightUnrankedFactPrefix(queryResults([rows]), scope)).toBeNull();
+    const thousand = Array.from({ length: 1000 }, (_, i) => version(i + 1));
+    expect((await preflightUnrankedFactPrefix(queryResults([thousand, [], []]), { ...scope, revision: 1000 }))?.length).toBe(1000);
+    expect(await preflightUnrankedFactPrefix(queryResults([[...thousand, version(1001)]]), { ...scope, revision: 1000 })).toBeNull();
+  });
+});
