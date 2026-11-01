@@ -5,6 +5,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:http";
 import { canonicalFixture } from "../../scripts/acceptance/canonical-projects.mjs";
 
 test.setTimeout(90000); // Real multi-actor review/retry/source-revalidation journeys.
@@ -422,6 +423,117 @@ test("GOLDEN-003 / AC-HLT-005: assigned PM opens retained Complete/Open proof, t
     200,
   );
 });
+type PositiveCapture = { done: boolean; failed: boolean; bytes: number[]; status: number; readers: number; afterClick: boolean };
+type PositiveState = { __positiveCapture: Record<string, PositiveCapture>; __restorePositiveFetch: () => void; __originalPositiveFetch: typeof fetch };
+
+async function installPositiveCapture(page: Page, targetPath: string) {
+  await page.evaluate((pathname) => {
+    type Capture = { done: boolean; failed: boolean; bytes: number[]; status: number; readers: number; afterClick: boolean };
+    const state = window as unknown as { __positiveCapture: Record<string, Capture>; __restorePositiveFetch: () => void };
+    const records: Record<string, Capture> = Object.create(null);
+    state.__positiveCapture = records;
+    const original = window.fetch;
+    let active = true, clicked = false;
+    const markClick = (event: Event) => {
+      if (event.composedPath().some((element) => element instanceof HTMLButtonElement && element.textContent?.trim() === "Check question")) clicked = true;
+    };
+    document.addEventListener("click", markClick, true);
+    window.fetch = async (...args) => {
+      const method = (args[1]?.method ?? (args[0] instanceof Request ? args[0].method : "GET")).toUpperCase();
+      const afterClick = clicked;
+      const response = await original(...args);
+      let url: URL;
+      try { url = new URL(response.url); } catch { return response; }
+      if (active && method === "GET" && url.origin === location.origin && url.pathname === pathname && response.status === 200 && response.body) {
+        const requestId = response.headers.get("x-request-id") ?? "";
+        const existing = records[requestId];
+        if (!existing && Object.keys(records).length >= 16) return response;
+        const capture = existing ?? { done: false, failed: !requestId, bytes: [], status: response.status, readers: 0, afterClick };
+        if (existing) capture.failed = true;
+        records[requestId] = capture;
+        const stream = response.body, getReader = stream.getReader.bind(stream);
+        stream.getReader = (() => {
+          if (++capture.readers !== 1) capture.failed = true;
+          const reader = getReader(), read = reader.read.bind(reader);
+          reader.read = async () => {
+            try {
+              const part = await read();
+              if (part.done) capture.done = true;
+              else if (capture.bytes.length + part.value.length > 262144) capture.failed = true;
+              else for (const byte of part.value) capture.bytes.push(byte);
+              return part;
+            } catch (error) { capture.failed = true; throw error; }
+          };
+          return reader;
+        }) as typeof stream.getReader;
+      }
+      return response;
+    };
+    state.__restorePositiveFetch = () => { active = false; document.removeEventListener("click", markClick, true); window.fetch = original; };
+  }, targetPath);
+}
+
+test("synthetic positive stream observer follows the page reader and fails closed on overflow", async ({ page }) => {
+  const requestId = "10000000-0000-4000-8000-000000000097";
+  const overflowId = "10000000-0000-4000-8000-000000000096";
+  const value = JSON.stringify({ value: "synthetic-stream-canary" });
+  const server = createServer((request, response) => {
+    if (request.url === "/") {
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end(`<button>Check question</button><output></output><script>
+        document.querySelector('button').onclick = async () => {
+          const response = await fetch('/observation'), reader = response.body.getReader(), chunks = [];
+          try { for (;;) { const part = await reader.read(); if (part.done) break; chunks.push(...part.value); } }
+          finally { reader.releaseLock(); }
+          document.querySelector('output').textContent = new TextDecoder().decode(Uint8Array.from(chunks));
+        };
+      </script>`);
+    } else if (request.url === "/observation" || request.url === "/observation?overflow=1") {
+      const overflow = request.url.includes("overflow=1");
+      response.writeHead(200, { "content-type": "application/json", "x-request-id": overflow ? overflowId : requestId });
+      if (overflow) response.end("x".repeat(262145));
+      else { response.write(value.slice(0, 8)); response.end(value.slice(8)); }
+    } else { response.writeHead(404); response.end(); }
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Loopback fixture unavailable");
+  try {
+    await page.goto(`http://127.0.0.1:${address.port}/`);
+    await page.evaluate(() => { (window as unknown as PositiveState).__originalPositiveFetch = window.fetch; });
+    await installPositiveCapture(page, "/observation");
+    try {
+      const observed = page.waitForResponse((response) => response.url() === `http://127.0.0.1:${address.port}/observation`);
+      void observed.catch(() => {});
+      await page.getByRole("button", { name: "Check question" }).click();
+      const response = await observed;
+      expect(response.status()).toBe(200);
+      expect(await response.headerValue("x-request-id")).toBe(requestId);
+      await expect.poll(() => page.evaluate((id) => (window as unknown as PositiveState).__positiveCapture[id]?.done === true, requestId)).toBe(true);
+      const capture = await page.evaluate((id) => (window as unknown as PositiveState).__positiveCapture[id], requestId) as
+        { done: boolean; failed: boolean; bytes: number[]; status: number; readers: number; afterClick: boolean };
+      expect(capture).toMatchObject({ done: true, failed: false, status: 200, readers: 1, afterClick: true });
+      expect(new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(capture.bytes))).toBe(value);
+      await expect(page.locator("output")).toHaveText(value);
+      await page.evaluate(async () => {
+        const response = await fetch("/observation?overflow=1"), reader = response.body!.getReader();
+        try { while (!(await reader.read()).done) { /* Exercise the bounded observer. */ } }
+        finally { reader.releaseLock(); }
+      });
+      const overflow = await page.evaluate((id) => (window as unknown as PositiveState).__positiveCapture[id], overflowId) as
+        { done: boolean; failed: boolean; bytes: number[]; readers: number };
+      expect(overflow).toMatchObject({ done: true, failed: true, readers: 1 });
+      expect(overflow.bytes.length).toBeLessThanOrEqual(262144);
+    } finally {
+      await page.evaluate(() => { const state = window as unknown as Partial<PositiveState>; state.__restorePositiveFetch!(); delete state.__restorePositiveFetch; delete state.__positiveCapture; });
+    }
+    expect(await page.evaluate(() => window.fetch === (window as unknown as PositiveState).__originalPositiveFetch)).toBe(true);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test("FR-QA-007 / FR-HLT-009: leadership sees the PM's synthetic positions until its source-reader access is removed", async ({
   page,
   request,
@@ -451,17 +563,53 @@ test("FR-QA-007 / FR-HLT-009: leadership sees the PM's synthetic positions until
   const answer = page.getByRole("region", { name: "Ask about milestone completion" });
   await answer.getByLabel("Milestone", { exact: true }).selectOption(f.milestoneId);
   await answer.getByLabel("Question", { exact: true }).fill("Does the selected milestone's recorded completion conflict with required work?");
-  const observed = page.waitForResponse((response) =>
-    response.url().endsWith(`/milestones/${f.milestoneId}/leadership-conflict-observation`) && response.request().method() === "GET");
-  await answer.getByRole("button", { name: "Check question", exact: true }).click();
-  const response = await observed;
-  expect(response.status()).toBe(200);
-  const body = await response.json();
+  // Observe the bounded stream actually consumed by the page, rather than relying
+  // on Chromium retaining a second copy in its DevTools network buffer.
+  await installPositiveCapture(page, `/api${f.prefix}/milestones/${f.milestoneId}/leadership-conflict-observation`);
+  let body!: { outcome: string; positions: Array<{ bindingId: string; state: string; supports: unknown }> };
+  try {
+    const canaryId = "10000000-0000-4000-8000-000000000098", canary = "synthetic-positive-stream-canary";
+    const canaryPath = `/api${f.prefix}/milestones/${f.milestoneId}/leadership-conflict-observation?positive-capture-canary=1`;
+    const canaryUrl = `**${canaryPath}`;
+    await page.route(canaryUrl, (route) => route.fulfill({ status: 200,
+      headers: { "content-type": "text/plain", "x-request-id": canaryId }, body: canary }));
+    try {
+      await page.evaluate(async (path) => {
+        const response = await fetch(path), reader = response.body!.getReader();
+        try { while (!(await reader.read()).done) { /* Exercise the same observer. */ } }
+        finally { reader.releaseLock(); }
+      }, canaryPath);
+      const probe = await page.evaluate((id) => (window as unknown as PositiveState).__positiveCapture[id], canaryId) as
+        { done: boolean; failed: boolean; bytes: number[]; status: number; readers: number; afterClick: boolean };
+      expect(probe).toMatchObject({ done: true, failed: false, status: 200, readers: 1, afterClick: false });
+      expect(new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(probe.bytes))).toBe(canary);
+    } finally { await page.unroute(canaryUrl); }
+    const expectedUrl = new URL(`/api${f.prefix}/milestones/${f.milestoneId}/leadership-conflict-observation`, page.url());
+    const observed = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.origin === expectedUrl.origin && url.pathname === expectedUrl.pathname && !url.search && response.request().method() === "GET";
+    });
+    void observed.catch(() => {});
+    await answer.getByRole("button", { name: "Check question", exact: true }).click();
+    const response = await observed;
+    expect(response.status()).toBe(200);
+    const requestId = await response.headerValue("x-request-id");
+    expect(requestId).toMatch(/^[a-f0-9-]{36}$/);
+    expect(requestId).not.toBe(canaryId);
+    await expect.poll(() => page.evaluate((id) => (window as unknown as PositiveState).__positiveCapture[id!]?.done === true, requestId)).toBe(true);
+    const captured = await page.evaluate((id) => (window as unknown as PositiveState).__positiveCapture[id!], requestId) as
+      { done: boolean; failed: boolean; bytes: number[]; status: number; readers: number; afterClick: boolean };
+    expect(captured).toMatchObject({ done: true, failed: false, status: 200, readers: 1, afterClick: true });
+    body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(captured.bytes)));
+  } finally {
+    await page.evaluate(() => { const state = window as unknown as Partial<PositiveState>; state.__restorePositiveFetch!(); delete state.__restorePositiveFetch; delete state.__positiveCapture; });
+  }
   expect(body.outcome).toBe("CONFLICTING"); expect(body.positions).toHaveLength(4);
   expect(body.positions.filter((position: { state: string }) => position.state === "COMPLETE")).toHaveLength(1);
   expect(body.positions.filter((position: { state: string }) => position.state === "OPEN")).toHaveLength(3);
   for (const binding of f.bindings) {
     const position = body.positions.find((item: { bindingId: string }) => item.bindingId === binding.id);
+    if (!position) throw new Error("Expected milestone observation position is missing");
     expect(position).toMatchObject({ targetKind: binding.targetKind, targetId: binding.targetId,
       factId: binding.factId, factType: binding.factType,
       state: binding.targetKind === "MILESTONE" ? "COMPLETE" : "OPEN" });
