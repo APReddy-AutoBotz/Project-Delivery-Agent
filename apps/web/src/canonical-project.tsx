@@ -1,7 +1,9 @@
 import { LeadershipMilestoneConflict } from "./leadership-milestone-conflict.js";
+import { useHealthScope } from "./health-scope-context.js";
+import type { HealthWriteLease } from "./health-scope-fence.js";
 import { LeadershipScalarConflict } from "./leadership-scalar-conflict.js";
-import React, { useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import React, { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, TextField, SelectField, Message } from "./components.js";
 import type { RequestFn } from "./request-types.js";
 export type { RequestFn } from "./request-types.js";
@@ -826,32 +828,36 @@ type HealthResult = {
     sourceFacts: { field: string; value: unknown }[];
   }[];
 };
-function HealthAssessmentPanel({ id, request }: { id: string; request: RequestFn }) {
-  const queryClient = useQueryClient();
-  const commandKey = useRef<string | null>(null);
+function HealthAssessmentPanel({ id }: { id: string }) {
+  const scope = useHealthScope();
   const latest = useQuery({
-    queryKey: ["health-assessment", id],
-    queryFn: () => request<HealthAssessmentView | null>("/projects/" + id + "/health-assessments/latest"),
+    queryKey: ["health-assessment-latest", ...scope.key],
+    queryFn: ({ signal }) => scope.read<HealthAssessmentView | null>("/projects/" + id + "/health-assessments/latest", signal),
+    enabled: scope.ready, staleTime: Infinity, gcTime: 0, refetchOnMount: false, refetchOnWindowFocus: false,
   });
   const assessment = useMutation({
-    mutationFn: (key: string) => request<HealthAssessmentView>("/projects/" + id + "/health-assessments", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ commandKey: key }),
-    }),
-    onSuccess: (value) => {
-      commandKey.current = null;
-      queryClient.setQueryData(["health-assessment", id], value);
+    retry: false,
+    mutationFn: async ({ key, lease }: { key: string; lease: HealthWriteLease }) => {
+      try {
+        await scope.write(lease, "/projects/" + id + "/health-assessments", {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ commandKey: key }),
+        });
+        scope.completeAssessment(lease, key);
+      } catch { /* The shared owner retains any uncertain sent outcome. */ }
+      finally { scope.finishWrite(lease); }
     },
   });
   const run = () => {
-    commandKey.current ??= crypto.randomUUID();
-    assessment.mutate(commandKey.current);
+    if (!latest.isSuccess || latest.isFetching) return;
+    const key = scope.assessmentCommand(); if (!key) return;
+    const lease = scope.beginWrite(); if (!lease) return;
+    try { assessment.mutate({ key, lease }); } catch { scope.finishWrite(lease); }
   };
-  const value = assessment.data ?? latest.data;
+  const value = latest.isFetching || latest.isError ? undefined : latest.data;
   const result = value?.contentAvailable && value.result
     ? (value.result as unknown as HealthResult)
     : null;
+  if (!scope.ready || !scope.current()) return <section className="canonical-section"><p role="status">Checking current health access…</p></section>;
   return (
     <section className="canonical-section" aria-labelledby="health-assessment-title">
       <h3 id="health-assessment-title">Schedule health assessment</h3>
@@ -860,13 +866,13 @@ function HealthAssessmentPanel({ id, request }: { id: string; request: RequestFn
         The reported status is preserved separately from the schedule calculation. Any blocker-age coverage is stored
         separately and does not change the schedule result.
       </p>
-      <Button onClick={run} disabled={assessment.isPending}>
-        {assessment.isPending ? "Assessing…" : "Assess schedule"}
+      <Button onClick={run} disabled={!latest.isSuccess || latest.isFetching || assessment.isPending || scope.reading || scope.atCapacity || scope.assessmentCapacity}>
+        {assessment.isPending ? "Assessing…" : scope.pendingAssessment ? "Retry previous assessment" : "Assess schedule"}
       </Button>
-      {assessment.error && <p role="alert" className="error">{assessment.error.message}</p>}
-      {latest.isPending && !value && <p role="status">Loading latest assessment…</p>}
+      {scope.uncertain && <p role="alert" className="error">A previous health write may still have an unknown outcome. Refreshed information is a separate as-of check.</p>}
+      {(latest.isPending || latest.isFetching) && !value && <p role="status">Loading latest assessment…</p>}
       {latest.error && !value && <p role="alert" className="error">{latest.error.message}</p>}
-      {!latest.isPending && !latest.error && !value && <p className="muted">No assessment has been saved.</p>}
+      {!latest.isPending && !latest.isFetching && !latest.error && latest.data === null && <p className="muted">No assessment has been saved.</p>}
       {value && (
         <div className="canonical-records">
           <div className="canonical-review-row">
@@ -880,7 +886,7 @@ function HealthAssessmentPanel({ id, request }: { id: string; request: RequestFn
             <p><strong>Envelope SHA-256:</strong> <code>{value.envelopeHash}</code></p>
           </div>
           {!value.contentAvailable || !result ? (
-            <p className="muted">Assessment content has expired under the configured retention policy.</p>
+              <p className="muted">Assessment content is unavailable under current source access or retention.</p>
           ) : (
             <>
               <div className="canonical-review-row">
@@ -949,10 +955,17 @@ export function CanonicalProjectDetails({
   leadershipScope?: string;
   canInspectMilestoneRequest?: boolean;
 }) {
+  const scope = useHealthScope();
+  const [milestoneDraft, setMilestoneDraft] = useState({ selected: "", question: "" });
   const result = useQuery({
-    queryKey: ["canonical-project", id, leadershipScope],
-    queryFn: () => request<Detail>("/projects/" + id + "/canonical"),
+    queryKey: ["canonical-project", ...scope.key],
+    // Preserve the existing canonical response contract; this endpoint has no
+    // established encoded-size bound. Health responses retain their own cap.
+    queryFn: ({ signal }) => scope.read<Detail>("/projects/" + id + "/canonical", signal, null),
+    enabled: scope.ready, staleTime: Infinity, gcTime: 0, refetchOnMount: false, refetchOnWindowFocus: false,
   });
+  if (!scope.ready || !scope.current()) return <p role="status">Checking delivery structure access…</p>;
+  if (result.isFetching) return <p role="status">Loading delivery structure…</p>;
   if (result.isError)
     return (
       <section className="panel">
@@ -961,6 +974,12 @@ export function CanonicalProjectDetails({
     );
   const detail = result.data;
   if (!detail) return <p role="status">Loading delivery structure…</p>;
+  const guardedRequest: RequestFn = async <T,>(path: string, init?: RequestInit, maxResponseBytes?: number, onUnavailable?: (denied?: boolean) => void): Promise<T> => {
+    if (!scope.current()) throw new Error("Current access could not be established.");
+    const value = await request<T>(path, init, maxResponseBytes, (denied) => { if (scope.current()) onUnavailable?.(denied); });
+    if (!scope.current()) throw new Error("Current access could not be established.");
+    return value;
+  };
   return (
     <section className="panel canonical-detail">
       <h2>Delivery structure</h2>
@@ -976,12 +995,13 @@ export function CanonicalProjectDetails({
         <>
           <DateDisplay dates={detail.dates} />
           {leadershipScope && !result.isFetching && !result.isError && <LeadershipMilestoneConflict
-            key={leadershipScope} projectId={id} scope={leadershipScope} request={request}
+            key={leadershipScope} projectId={id} scope={leadershipScope} request={guardedRequest}
+            selected={milestoneDraft.selected} question={milestoneDraft.question} onDraftChange={setMilestoneDraft}
             canInspectRequest={canInspectMilestoneRequest}
             milestones={detail.milestones as { id: string; key: string; name: string }[]}
             workItems={detail.workItems as { id: string; key: string; title: string }[]} />}
           {leadershipScope && !result.isFetching && !result.isError && <LeadershipScalarConflict
-            key={leadershipScope} projectId={id} scope={leadershipScope} request={request} />}
+            key={leadershipScope} projectId={id} scope={leadershipScope} request={guardedRequest} />}
           {sections.map((section) => {
             const rows = detail[section.key] as DetailRow[];
             return (
@@ -1045,7 +1065,7 @@ export function CanonicalProjectDetails({
           })}
         </>
       )}
-      <HealthAssessmentPanel id={id} request={request} />
+      <HealthAssessmentPanel id={id} />
     </section>
   );
 }

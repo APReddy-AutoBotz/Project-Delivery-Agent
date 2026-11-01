@@ -8,11 +8,10 @@ import { Button, Message } from "./components.js";
 import { createPmQueueResource, type PmQueueResourceState } from "./pm-queue-resource.js";
 
 type Item = { id: string; key: string; name?: string; title?: string };
-export function LeadershipMilestoneConflict({ projectId, scope, milestones, workItems, request, canInspectRequest = false }: {
+export function LeadershipMilestoneConflict({ projectId, scope, milestones, workItems, request, selected, question, onDraftChange, canInspectRequest = false }: {
   projectId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn; canInspectRequest?: boolean;
+  selected: string; question: string; onDraftChange: (value: { selected: string; question: string }) => void;
 }) {
-  const [selected, setSelected] = useState("");
-  const [question, setQuestion] = useState("");
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState<number | null>(null);
   const generation = useRef(0);
@@ -20,8 +19,8 @@ export function LeadershipMilestoneConflict({ projectId, scope, milestones, work
   function invalidate() { generation.current++; setSubmitted(null); }
   function changeQuestion(value: string) {
     invalidate();
-    if (value.length > 200) { setQuestion(""); setError("The question must be 200 characters or fewer."); return; }
-    setQuestion(value); setError("");
+    if (value.length > 200) { onDraftChange({ selected, question: "" }); setError("The question must be 200 characters or fewer."); return; }
+    onDraftChange({ selected, question: value }); setError("");
   }
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); invalidate();
@@ -35,7 +34,7 @@ export function LeadershipMilestoneConflict({ projectId, scope, milestones, work
     <p className="muted">This check compares a milestone recorded complete with required work still open or in progress. It cannot establish completion.</p>
     <label htmlFor="milestone-conflict-select">Milestone</label>{" "}
     <select id="milestone-conflict-select" value={selectedItem?.id ?? ""} onChange={(event) => {
-      invalidate(); setSelected(event.target.value); setQuestion(""); setError("");
+      invalidate(); onDraftChange({ selected: event.target.value, question: "" }); setError("");
     }}>
       <option value="">Select a milestone</option>
       {milestones.map((item) => <option key={item.id} value={item.id}>{item.key} · {item.name}</option>)}

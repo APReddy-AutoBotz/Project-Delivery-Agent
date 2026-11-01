@@ -144,3 +144,60 @@ exposed in the interface. Include clean, upgrade/recovery and packaged checks
 as applicable, independent exact-candidate review, hosted checks, expected-head
 merge and actual post-merge verification. Do not accept a story or release hold
 from this partial human-origin path.
+
+## Health-adjacent access and scope work in progress
+
+The local candidate links the existing leadership milestone question from the
+health area without adding its result to a saved health assessment or changing
+reported or calculated status. The destination remains a separately authorized
+check with its own `asOf`; the saved assessment retains its own `assessedAt`.
+The standard leadership observation can disclose stored `SYSTEM_VERIFIED` or
+`HUMAN_CONFIRMED` provenance when authorized. It does not independently prove a
+person's confirmation, Jira/sheet origin, a project-wide absence of conflict or
+PM request delivery. The separate manager-status read retains its dual-role gate.
+The disabled unranked endpoint remains disabled.
+
+Both health panels share a browser-tab-local scope fence and latest-assessment
+query key. A session, project, known identity/project revalidation or page
+visibility transition invalidates old health reads and fences actions before
+React's next commit; already rendered DOM is not claimed to disappear within
+the same JavaScript task. A fresh direct identity check is followed by a fresh
+project check before delivery. Every health and milestone endpoint still applies
+its own server-side grant and source authorization. The browser cannot detect a
+remote revocation continuously while idle; a later independently authorized
+read is an as-of check, not an atomic snapshot with the two scope checks.
+
+One App-lifetime in-memory health-write lease is shared across both panels and
+policy editors. It is not a cross-tab, reload or server lock. A local write
+remains leased until its promise settles; an abort or network error cannot prove
+that a remote write stopped or that a later GET is its final outcome. Unknown
+outcomes are disclosed without automatically retrying. An assessment command
+key is retained for the same customer, subject and project across local panel,
+visibility and same-principal session changes, and is reused only on explicit
+retry. This continuity does not survive a page reload or another tab. Unresolved
+outcomes and command keys are bounded to 64 entries per registry; reaching the
+limit withholds further affected actions for the tab and reports that limit.
+`contentAvailable=false` is described neutrally because retention or current
+source access may withhold content. No token, question or source content is
+placed in the new query keys or browser storage.
+
+The current local synthetic browser suite exercises keyboard focus, nonleader
+visibility, held old success/denial responses delivered to a test wrapper, a same-task project
+switch, pagehide/focus and explicit same-key retry after uncertain or held writes.
+The first cold-start run timed out during local Vite page loading; it did not
+reach the app. A subsequent run of the initial three synthetic cases passed;
+six expanded cases and three existing milestone regressions passed before the
+latest streamed-response test. A later seven-case run passed six cases, including
+the first streamed-response case, but the nonleader case timed out waiting for
+the development sign-in button; the cause is not established. A subsequent
+seven-case run passed, including application-reader EOF on the held success
+stream; that pass does not explain the timeout. A further seven-case run passed
+after adding a held canonical-response remount barrier, a positive-controlled
+transient DOM observer and cleanup for the held gates. The old success/denial wrapper reads a clone and does not prove the
+application's original reader consumed the body. The separate success-stream
+case holds a synthetic prebuffered body after application reading begins; a
+subsequent focused rerun also observed that reader release its lock. It
+does not prove network drain after a denial. These mocked cases do not establish native source-reader
+revocation, continuous authorization, remote write completion or real workbook
+provenance. Fresh hosted checks and any appropriate native/browser race evidence
+remain required. No story, shared GOLDEN-003 criterion or release hold is accepted.
