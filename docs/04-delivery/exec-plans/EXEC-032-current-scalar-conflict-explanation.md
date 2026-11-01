@@ -10,6 +10,26 @@ its actual post-merge Foundation and Documentation checks passed. It does not co
 GOLDEN-003, general Q&A, AC-QA-005, AC-EVD-004, STORY-012/027/028/029 or any
 issue or release hold. OD-013/014 and the stop on Original19/20 capture remain.
 
+## Version admission candidate
+
+The version-admission candidate adds a scoped metadata check after the existing
+project/grant and selected-page visibility checks, before loading the full fact
+version prefix. It admits at most 1,000 contiguous versions and 1 MiB of
+aggregate stored value JSON, checks scoped identities, then compares those
+identities with the loaded prefix. Invalid, inconsistent or over-budget data
+maps to the existing generic unavailable result. This is a fail-closed
+materialization limit; the SQL still may scan or decompress stored values, and
+policy/conflict budgets and native graph integrity remain separate questions.
+The identity comparison relies on supported immutable version rows and project
+fencing; it does not compare value contents after admission or establish behavior
+against privileged trigger-bypassing writes. Existing date-only results and
+source-access/provenance checks are retained. A large valid text fixture tests
+the budget but would already be unavailable to this date-only view, so it does
+not demonstrate an availability regression for a previously visible response.
+The new role-switched native test has not run locally; hosted candidate and
+post-merge validation are required. This does not report request status or
+accept a story, criterion or release hold.
+
 ## Catalogue-page extension candidate
 
 The original first-page-only restriction below describes PR #126. This candidate

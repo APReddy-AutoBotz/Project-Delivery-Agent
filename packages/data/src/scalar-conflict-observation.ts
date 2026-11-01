@@ -5,6 +5,7 @@ import {
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
 import { actorInput } from "./fact-authorization.js";
 import { DatabaseAuthorityRepository, resolveStoredAuthorityPrefix } from "./authority-persistence.js";
+import { matchesUnrankedFactPrefix, preflightMilestoneFactVersions } from "./milestone-observation-preflight.js";
 
 type Tx = Prisma.TransactionClient;
 const denied = (): never => { throw new ScalarConflictObservationError("DENIED"); };
@@ -53,10 +54,15 @@ export class DatabaseScalarConflictObservationRepository implements ScalarConfli
     const clock = await tx.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
     const asOf = clock[0]?.now;
     if (!asOf || fact.revision > 1000) return unavailable();
+    // Admit the complete bounded value prefix only after project, grant and page
+    // visibility checks. This does not bound SQL scan/decompression or policies.
+    const admitted = await preflightMilestoneFactVersions(tx, { customerId: actor.customerId, projectId,
+      factId: fact.id, revision: fact.revision });
+    if (!admitted) return unavailable();
     const authority = new DatabaseAuthorityRepository(this.db);
     const prefixes = await authority.loadAssessmentPrefixesInTransaction(tx, actor, projectId, [fact], asOf);
     const prefix = prefixes?.get(fact.id);
-    if (!prefix || !prefix.event || prefix.versions.length !== fact.revision ||
+    if (!prefix || !prefix.event || !matchesUnrankedFactPrefix(admitted, prefix.versions) || prefix.versions.length !== fact.revision ||
       prefix.versions.some((v, i) => v.revision !== i + 1) ||
       4 * prefix.versions.length + 4 * prefix.conflicts.length > 64000) return unavailable();
     const accessBySource = new Map(prefix.access.map((row) => [row.sourceId, row]));
