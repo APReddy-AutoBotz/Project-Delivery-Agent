@@ -61,6 +61,7 @@ export class SyntheticXlsxSlot {
   private generation = this.nextId();
   private readonly queue: Job[] = [];
   private active?: Job;
+  private quiescent = false;
   private reserved = 0;
   private state: "IDLE" | "LEASED" | "QUARANTINED" | "RESETTING" | "CLOSED" = "IDLE";
 
@@ -82,6 +83,7 @@ export class SyntheticXlsxSlot {
     if (this.active === job) {
       this.active = undefined;
       this.reserved -= job.input.length;
+      this.quiescent = false;
     }
   }
 
@@ -161,7 +163,7 @@ export class SyntheticXlsxSlot {
       const job = this.queue.shift()!;
       if (job.settled) continue;
       if (performance.now() >= job.deadline) { this.reserved -= job.input.length; this.settle(job); continue; }
-      this.active = job; job.active = true; this.state = "LEASED";
+      this.active = job; job.active = true; this.quiescent = false; this.state = "LEASED";
       void this.run(job);
       return;
     }
@@ -211,14 +213,19 @@ export class SyntheticXlsxSlot {
       this.state = "IDLE";
       this.pump();
     } catch {
-      if (this.closed()) this.releaseClosed(job); else this.state = "QUARANTINED";
+      if (this.closed()) this.releaseClosed(job);
+      else { this.quiescent = true; this.state = "QUARANTINED"; }
     }
   }
 
   close(): void {
     if (this.state === "CLOSED") return;
     this.state = "CLOSED";
-    if (this.active) this.cancel(this.active);
+    if (this.active) {
+      const job = this.active;
+      this.cancel(job);
+      if (this.quiescent) this.releaseClosed(job);
+    }
     for (const job of [...this.queue]) this.cancel(job);
   }
 }

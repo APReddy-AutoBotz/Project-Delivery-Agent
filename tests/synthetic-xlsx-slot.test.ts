@@ -114,13 +114,23 @@ it("fails closed on wrong reset acknowledgement and fences a late reset after cl
   await slot.submit(request()); await flush();
   expect(slot.snapshot()).toEqual({ state: "QUARANTINED", jobs: 1, reserved: 2 });
   slot.close();
+  expect(slot.snapshot()).toEqual({ state: "CLOSED", jobs: 0, reserved: 0 });
   await expect(slot.submit(request())).rejects.toThrow("XLSX_SLOT_UNAVAILABLE");
   const gate = pending<string>();
   const other = new SyntheticXlsxSlot(codec, { ...successPort(), reset: () => gate.promise }, 2, 10);
   await other.submit(request()); await flush();
   expect(other.snapshot().state).toBe("RESETTING");
-  other.close(); gate.resolve("0".repeat(32)); await flush();
+  other.close();
+  expect(other.snapshot()).toEqual({ state: "CLOSED", jobs: 1, reserved: 2 });
+  gate.resolve("0".repeat(32)); await flush();
   expect(other.snapshot()).toEqual({ state: "CLOSED", jobs: 0, reserved: 0 });
+});
+
+it("releases a settled rejected reset only after close", async () => {
+  const slot = new SyntheticXlsxSlot(codec, { ...successPort(), reset: async () => { throw new Error("private reset"); } }, 1, 2);
+  expect(await slot.submit(request())).toEqual(Uint8Array.of(9)); await flush();
+  expect(slot.snapshot()).toEqual({ state: "QUARANTINED", jobs: 1, reserved: 2 });
+  slot.close(); expect(slot.snapshot()).toEqual({ state: "CLOSED", jobs: 0, reserved: 0 });
 });
 
 it("rejects malformed, trailing and wrong-generation frames with generic errors", async () => {
@@ -169,7 +179,9 @@ it("closes a pending lease without reopening after late input completion", async
   const slot = new SyntheticXlsxSlot(codec, { ...successPort(), reset }, 1, 2);
   const result = expect(slot.submit(request((async function* () { await gate.promise; yield Uint8Array.of(5, 6); })())))
     .rejects.toThrow(/^XLSX_SLOT_UNAVAILABLE$/);
-  slot.close(); await result; gate.resolve(); await flush();
+  slot.close(); await result;
+  expect(slot.snapshot()).toEqual({ state: "CLOSED", jobs: 1, reserved: 2 });
+  gate.resolve(); await flush();
   expect(reset).not.toHaveBeenCalled();
   expect(slot.snapshot()).toEqual({ state: "CLOSED", jobs: 0, reserved: 0 });
 });
