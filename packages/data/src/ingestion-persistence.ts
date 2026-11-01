@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
+import { z } from "zod";
 import {
+  connectorBindingSchema,
   connectorChangePageSchema,
   ingestionCommandKeySchema,
   ingestionConfigurationSchema,
@@ -24,6 +26,7 @@ import {
   persistedSpreadsheetConfigSchema,
   previewSpreadsheetCsv,
   projectFactIdSchema,
+  projectFactSubjectSchema,
   spreadsheetBaselineSchema,
   validateConnectorPage,
   validateConnectorRecord,
@@ -99,6 +102,16 @@ type ReceiptRow = {
 };
 
 const idSchema = projectFactIdSchema;
+const spreadsheetPreparseSnapshotSchema = z.strictObject({
+  binding: connectorBindingSchema,
+  subject: projectFactSubjectSchema,
+  mappingKind: z.literal("CSV"),
+  projectIds: z.array(projectFactIdSchema).min(1).max(100).refine((ids) =>
+    ids.every((id, index) => index === 0 || ids[index - 1]! < id)),
+  configRevision: z.number().int().min(1).max(2147483647),
+  mappingRevision: z.number().int().min(1).max(2147483647),
+});
+type SpreadsheetPreparseSnapshot = z.infer<typeof spreadsheetPreparseSnapshotSchema>;
 const contextSchema = (value: unknown) => {
   if (
     typeof value !== "string" ||
@@ -398,6 +411,51 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       configRevision: locked.source.currentConfigRevision!,
       mappingRevision: locked.source.mappingRevision,
     };
+  }
+
+  private spreadsheetPreparseView(snapshot: ConfigSnapshot, actor: Actor) {
+    if (snapshot.configuration.mapping.kind !== "CSV")
+      throw new IngestionPersistenceError("INVALID_REQUEST");
+    const value = parseIngestion(spreadsheetPreparseSnapshotSchema, {
+      binding: snapshot.configuration.binding,
+      subject: actor.subject,
+      mappingKind: "CSV",
+      projectIds: snapshot.configuration.projects.map(({ projectId }) => projectId).sort(exactCompare),
+      configRevision: snapshot.configRevision,
+      mappingRevision: snapshot.mappingRevision,
+    });
+    return Object.freeze({ ...value, binding: Object.freeze({ ...value.binding }),
+      projectIds: Object.freeze([...value.projectIds]) });
+  }
+
+  // Internal groundwork only. A trusted caller must authenticate the actor on
+  // each call and bind this observation to its own job; it is not a capability.
+  async prepareSpreadsheetParse(actorInputValue: Actor, sourceIdInput: string, correlationInput: string) {
+    const actor = parseActor(actorInputValue);
+    const sourceId = uuid(sourceIdInput);
+    const correlationId = contextSchema(correlationInput);
+    return this.run(actor, "spreadsheet_preparse", correlationId, "PERSISTENCE_FAILED", async () =>
+      this.spreadsheetPreparseView(await this.preflight(sourceId, actor), actor));
+  }
+
+  // A current match does not establish prior authorization or authorize a write.
+  async revalidateSpreadsheetParse(actorInputValue: Actor, sourceIdInput: string, expectedInput: unknown, correlationInput: string): Promise<void> {
+    const actor = parseActor(actorInputValue);
+    const sourceId = uuid(sourceIdInput);
+    const correlationId = contextSchema(correlationInput);
+    return this.run(actor, "spreadsheet_preparse_revalidate", correlationId, "PERSISTENCE_FAILED", async () => {
+      if (!expectedInput || typeof expectedInput !== "object" || Array.isArray(expectedInput))
+        throw new IngestionPersistenceError("INVALID_REQUEST");
+      const projects = Object.getOwnPropertyDescriptor(expectedInput, "projectIds");
+      if (!projects || !("value" in projects) || !Array.isArray(projects.value) || projects.value.length > 100)
+        throw new IngestionPersistenceError("INVALID_REQUEST");
+      const expected: SpreadsheetPreparseSnapshot = parseIngestion(spreadsheetPreparseSnapshotSchema, expectedInput);
+      if (expected.binding.customerId !== actor.customerId || expected.subject !== actor.subject || expected.binding.sourceId !== sourceId)
+        throw new IngestionPersistenceError("DENIED");
+      const current = this.spreadsheetPreparseView(await this.preflight(sourceId, actor), actor);
+      if (canonical(expected) !== canonical(current))
+        throw new IngestionPersistenceError("STALE_CONFIGURATION");
+    });
   }
 
   private async sourceReaders(
