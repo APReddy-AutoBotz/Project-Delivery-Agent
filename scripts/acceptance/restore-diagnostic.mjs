@@ -29,8 +29,13 @@ const unavailable = () => ({ phase: "unavailable" });
 function safeSessions(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const read = (key, allowed) => allowed.includes(value[key]) ? value[key] : "unknown";
-  return { count: read("count", ["one", "multiple"]), client: read("client", ["yes", "no"]),
+  const safe = { count: read("count", ["one", "multiple"]), client: read("client", ["yes", "no"]),
     nonclient: read("nonclient", ["yes", "no"]), null_type: read("null_type", ["yes", "no"]) };
+  if (Object.hasOwn(value, "backend_kind")) {
+    const kind = read("backend_kind", ["autovacuum_worker", "parallel_worker", "logical_replication_worker", "other_nonclient"]);
+    safe.backend_kind = safe.count === "one" && safe.client === "no" && safe.nonclient === "yes" && safe.null_type === "no" ? kind : "unknown";
+  }
+  return safe;
 }
 export function restoreFailureDetails(bytes) {
   if (!Buffer.isBuffer(bytes) || bytes.length > maximum) return unavailable();
