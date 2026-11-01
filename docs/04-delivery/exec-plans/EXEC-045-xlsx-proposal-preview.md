@@ -62,10 +62,11 @@ An unregistered local slot model exercises admission around the synthetic frame
 codec. It reserves declared input bytes before pulling a queued stream, limits
 one local lease, checks an absolute monotonic deadline, correlates a response
 to the job and generation, and quarantines every leased attempt until the
-underlying asynchronous operations have settled and an injected trusted reset
+broker-observed pulls, exchange and iterator cleanup have settled and an injected trusted reset
 acknowledges the broker-selected next generation. A timed-out caller can return
 while ignored cancellation leaves the slot and reservation quarantined. Close
-permanently prevents further leases; it does not prove physical cleanup. The
+permanently prevents further leases; once observed work settles it releases its
+own job references. It does not prove physical cleanup. The
 bounded process-local counter prevents reuse within one slot instance, not across
 process restarts or replicas. Up to 65,536 yielded input chunks, including empty
 ones, are permitted; an additional iterator call is needed to observe EOF.

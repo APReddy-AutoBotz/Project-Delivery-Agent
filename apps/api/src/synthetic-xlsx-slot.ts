@@ -42,6 +42,9 @@ const getBuffer = Object.getOwnPropertyDescriptor(arrayProto, "buffer")!.get!;
 const getOffset = Object.getOwnPropertyDescriptor(arrayProto, "byteOffset")!.get!;
 const getLength = Object.getOwnPropertyDescriptor(arrayProto, "byteLength")!.get!;
 const getArrayBufferLength = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "byteLength")!.get!;
+const getAborted = Object.getOwnPropertyDescriptor(AbortSignal.prototype, "aborted")!.get!;
+const addListener = EventTarget.prototype.addEventListener;
+const removeListener = EventTarget.prototype.removeEventListener;
 
 function view(input: unknown): Uint8Array {
   try {
@@ -75,6 +78,13 @@ export class SyntheticXlsxSlot {
 
   private closed(): boolean { return this.state === "CLOSED"; }
 
+  private releaseClosed(job: Job): void {
+    if (this.active === job) {
+      this.active = undefined;
+      this.reserved -= job.input.length;
+    }
+  }
+
   // Diagnostic counts expose no workbook, sheet, job or generation values.
   snapshot(): { state: string; jobs: number; reserved: number } {
     return { state: this.state, jobs: this.queue.length + (this.active ? 1 : 0), reserved: this.reserved };
@@ -87,21 +97,33 @@ export class SyntheticXlsxSlot {
         sheet: input.sheet, chunks: input.chunks, signal: input.signal };
       if (this.state === "CLOSED" || !Number.isSafeInteger(request.length) || request.length < 1 || request.length > INPUT_LIMIT ||
           !Number.isSafeInteger(request.timeoutMs) || request.timeoutMs < 1 || request.timeoutMs > 120_000 ||
-          request.signal?.aborted || this.queue.length + (this.active ? 1 : 0) >= this.maxJobs ||
+          (request.signal !== undefined && getAborted.call(request.signal)) || this.queue.length + (this.active ? 1 : 0) >= this.maxJobs ||
           request.length > this.maxReserved - this.reserved) throw failure();
       // The injected codec validates the parser token and exact sheet before admission.
       this.codec.encode({ job: "0".repeat(32), generation: "0".repeat(32), parser: request.parser, sheet: request.sheet }, Uint8Array.of(1));
       const deadline = performance.now() + request.timeoutMs;
-      this.reserved += request.length;
       return new Promise((resolve, reject) => {
         const job: Job = { input: request, deadline, controller: new AbortController(), resolve, reject,
           timer: setTimeout(() => this.cancel(job), request.timeoutMs), settled: false, active: false };
-        if (request.signal) {
-          job.abort = () => this.cancel(job);
-          request.signal.addEventListener("abort", job.abort, { once: true });
+        let admitted = false;
+        try {
+          if (request.signal) {
+            job.abort = () => this.cancel(job);
+            addListener.call(request.signal, "abort", job.abort, { once: true });
+          }
+          this.reserved += request.length; admitted = true;
+          this.queue.push(job);
+          if (request.signal && getAborted.call(request.signal)) this.cancel(job); else this.pump();
+        } catch {
+          clearTimeout(job.timer);
+          if (job.abort && request.signal) {
+            try { removeListener.call(request.signal, "abort", job.abort); } catch { /* Generic failure below. */ }
+          }
+          const index = this.queue.indexOf(job);
+          if (index !== -1) this.queue.splice(index, 1);
+          if (admitted && !job.active) this.reserved -= request.length;
+          reject(failure());
         }
-        this.queue.push(job);
-        if (request.signal?.aborted) this.cancel(job); else this.pump();
       });
     } catch { return Promise.reject(failure()); }
   }
@@ -110,7 +132,9 @@ export class SyntheticXlsxSlot {
     if (job.settled) return;
     job.settled = true;
     clearTimeout(job.timer);
-    if (job.abort) job.input.signal?.removeEventListener("abort", job.abort);
+    if (job.abort && job.input.signal) {
+      try { removeListener.call(job.input.signal, "abort", job.abort); } catch { /* Always settle generically. */ }
+    }
     if (value) job.resolve(value); else job.reject(failure());
   }
 
@@ -159,7 +183,9 @@ export class SyntheticXlsxSlot {
       this.check(job);
       if (length !== bytes.length) throw failure();
       const frame = this.codec.encode({ job: id, generation, parser: job.input.parser, sheet: job.input.sheet }, bytes);
+      this.check(job);
       const decoder = this.codec.response({ job: id, generation });
+      this.check(job);
       for await (const chunk of this.port.exchange(frame, job.controller.signal)) {
         this.check(job);
         decoder.push(chunk);
@@ -171,13 +197,13 @@ export class SyntheticXlsxSlot {
       this.settle(job, result.payload);
     } catch { this.settle(job); }
     // No reuse while any awaited producer, exchange, iterator cleanup or reset is pending.
-    if (this.state === "CLOSED") return;
+    if (this.closed()) { this.releaseClosed(job); return; }
     this.state = "QUARANTINED";
     try {
       const next = this.nextId();
       this.state = "RESETTING";
       const acknowledged = await this.port.reset(generation, next);
-      if (this.closed()) return;
+      if (this.closed()) { this.releaseClosed(job); return; }
       if (acknowledged !== next) throw failure();
       this.generation = next;
       this.reserved -= job.input.length;
@@ -185,7 +211,7 @@ export class SyntheticXlsxSlot {
       this.state = "IDLE";
       this.pump();
     } catch {
-      if (!this.closed()) this.state = "QUARANTINED";
+      if (this.closed()) this.releaseClosed(job); else this.state = "QUARANTINED";
     }
   }
 

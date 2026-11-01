@@ -33,7 +33,7 @@ const successPort = () => ({
   reset: async (_previous: string, next: string) => next,
 });
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
 it("returns a correlated opaque response and resets every successful lease", async () => {
   const port = successPort(), reset = vi.spyOn(port, "reset");
@@ -120,7 +120,7 @@ it("fails closed on wrong reset acknowledgement and fences a late reset after cl
   await other.submit(request()); await flush();
   expect(other.snapshot().state).toBe("RESETTING");
   other.close(); gate.resolve("0".repeat(32)); await flush();
-  expect(other.snapshot().state).toBe("CLOSED");
+  expect(other.snapshot()).toEqual({ state: "CLOSED", jobs: 0, reserved: 0 });
 });
 
 it("rejects malformed, trailing and wrong-generation frames with generic errors", async () => {
@@ -171,7 +171,42 @@ it("closes a pending lease without reopening after late input completion", async
     .rejects.toThrow(/^XLSX_SLOT_UNAVAILABLE$/);
   slot.close(); await result; gate.resolve(); await flush();
   expect(reset).not.toHaveBeenCalled();
-  expect(slot.snapshot()).toEqual({ state: "CLOSED", jobs: 1, reserved: 2 });
+  expect(slot.snapshot()).toEqual({ state: "CLOSED", jobs: 0, reserved: 0 });
+});
+
+it("rejects forged signals generically without leaking a timer or reservation", async () => {
+  vi.useFakeTimers();
+  const slot = new SyntheticXlsxSlot(codec, successPort(), 1, 2);
+  const forged = { aborted: false, addEventListener() { throw new Error("private signal"); } } as unknown as AbortSignal;
+  await expect(slot.submit({ ...request(), signal: forged })).rejects.toThrow(/^XLSX_SLOT_UNAVAILABLE$/);
+  expect(slot.snapshot()).toEqual({ state: "IDLE", jobs: 0, reserved: 0 });
+  expect(vi.getTimerCount()).toBe(0);
+  expect(await slot.submit(request())).toEqual(Uint8Array.of(9));
+  await flush(); expect(slot.snapshot().reserved).toBe(0);
+});
+
+it("does not call overridden signal methods or leave a completed caller pending", async () => {
+  const signal = new AbortController().signal;
+  Object.defineProperty(signal, "addEventListener", { value: () => { throw new Error("private add"); } });
+  Object.defineProperty(signal, "removeEventListener", { value: () => { throw new Error("private remove"); } });
+  const slot = new SyntheticXlsxSlot(codec, successPort(), 1, 2);
+  expect(await slot.submit({ ...request(), signal })).toEqual(Uint8Array.of(9));
+  await flush(); expect(slot.snapshot().reserved).toBe(0);
+});
+
+it("does not start transport if the deadline passes during frame encoding", async () => {
+  vi.useFakeTimers();
+  const now = vi.spyOn(performance, "now").mockReturnValue(0);
+  let encodes = 0;
+  const delayedCodec = { ...codec, encode: (...args: Parameters<typeof codec.encode>) => {
+    const result = codec.encode(...args);
+    if (++encodes === 2) now.mockReturnValue(11);
+    return result;
+  } };
+  const exchange = vi.fn(successPort().exchange);
+  const slot = new SyntheticXlsxSlot(delayedCodec, { ...successPort(), exchange }, 1, 2);
+  await expect(slot.submit(request(undefined, 2, 10))).rejects.toThrow(/^XLSX_SLOT_UNAVAILABLE$/);
+  await flush(); expect(exchange).not.toHaveBeenCalled(); expect(slot.snapshot().state).toBe("IDLE");
 });
 
 it("captures queue metadata and cancels queued jobs without reading them", async () => {
