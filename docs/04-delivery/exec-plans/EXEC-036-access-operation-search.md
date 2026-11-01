@@ -55,6 +55,32 @@ four ordinary failures can disable search. Recovery, nonsensitive monitoring,
 backend termination and old/new process overlap need verification before exposure.
 The default admission object must be shared by every search path in each process.
 The existing mock tests do not establish server-side lock or cancellation behavior.
+The unwired repository orders by the qualified stored timestamp and UUID, matching
+its native tuple cursor predicate. Previously the unqualified timestamp name in
+ORDER BY resolved to the formatted output label; ordering formatted text depends
+on collation. Supported filters bound queries to finite, four-digit AD recorded
+wall times, excluding BC, year-10000 and infinity values. This alignment does not
+establish equivalence for all database collations or historical data.
+
+Private synthetic PostgreSQL 17.11 research compared the two expressions over
+200,005 generated rows and 64 sampled plans, using one libc collation. The indexed
+dense sample avoided a Sort with the qualified timestamp, while a generic missing
+actor sample still filtered 10,000 entries. Fixed-order single samples do not
+prove latency, bounded scanning, production plans or index readiness. A first
+environment-inspection attempt failed before collecting plans; a corrected run
+was retained separately. No production index or migration follows from these
+observations. The newly added repository ordering and boundary native test had
+not run locally when this candidate was prepared; candidate hosted validation is
+required before merge.
+
+PR #155 Foundation run [41262218947](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41262218947)
+passed verification but failed the external customer restore at
+`sessions_before_commit_other_sessions`. Its finite diagnostic reported one
+other same-database backend, classified non-client with a non-null type. The
+backend identity and cause remain unknown; cleanup was not independently proven.
+The zero-session guard was not weakened. This failure remains part of the record;
+a fresh complete candidate run is required before merge.
+
 Before integration, independently review and add an appropriate forward-only
 partial access-event index, demonstrate prepared-query plans and sparse filters on
 qualified synthetic data, bound tenant/global concurrency and failed cursor

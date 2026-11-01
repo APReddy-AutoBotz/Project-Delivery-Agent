@@ -23,7 +23,7 @@ it("uses bounded server-side timeouts and parameterized wall-time keyset filters
   expect(f.query.mock.calls.slice(0, 2).map((call) => call[1])).toEqual([actor.customerId, 0]);
   const call = f.query.mock.calls.at(-1) as unknown as unknown[];
   expect(String(call[0])).toContain("event COLLATE \"C\" IN ('access.granted','access.revoked')");
-  expect(String(call[0])).toContain('ORDER BY "occurredAt" DESC, id DESC LIMIT 31');
+  expect(String(call[0])).toContain('ORDER BY "AuditEvent"."occurredAt" DESC, "AuditEvent".id DESC LIMIT 31');
   expect(String(call[0])).toContain('actor COLLATE "C"=$5::text COLLATE "C"');
   expect(String(call[0])).not.toContain(filters.actor);
   expect(call.slice(1)).toEqual([actor.customerId, "2026-10-01T00:00:00.000", "2026-11-01T00:00:00.000",
