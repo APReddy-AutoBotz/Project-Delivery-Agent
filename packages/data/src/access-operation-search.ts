@@ -49,7 +49,7 @@ export class DatabaseAccessOperationSearchRepository implements AccessOperationS
              AND "occurredAt">=$2::timestamp AND "occurredAt"<$3::timestamp
              AND ($4::text IS NULL OR event COLLATE "C"=$4::text COLLATE "C") AND ($5::text IS NULL OR actor COLLATE "C"=$5::text COLLATE "C")
              AND ($6::timestamp IS NULL OR ("occurredAt",id)<($6::timestamp,$7::uuid))
-           ORDER BY "occurredAt" DESC, id DESC LIMIT 31`,
+           ORDER BY "AuditEvent"."occurredAt" DESC, "AuditEvent".id DESC LIMIT 31`,
           customerId, filters.from.slice(0, -1), filters.until.slice(0, -1), filters.action ?? null,
           filters.actor ?? null, position?.occurredAt.slice(0, -1) ?? null, position?.id ?? null,
         );
