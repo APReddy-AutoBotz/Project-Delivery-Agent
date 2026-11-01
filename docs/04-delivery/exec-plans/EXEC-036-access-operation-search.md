@@ -72,6 +72,15 @@ was retained separately. No production index or migration follows from these
 observations. The newly added repository ordering and boundary native test had
 not run locally when this candidate was prepared; candidate hosted validation is
 required before merge.
+
+PR #155 Foundation run [41262218947](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41262218947)
+passed verification but failed the external customer restore at
+`sessions_before_commit_other_sessions`. Its finite diagnostic reported one
+other same-database backend, classified non-client with a non-null type. The
+backend identity and cause remain unknown; cleanup was not independently proven.
+The zero-session guard was not weakened. This failure remains part of the record;
+a fresh complete candidate run is required before merge.
+
 Before integration, independently review and add an appropriate forward-only
 partial access-event index, demonstrate prepared-query plans and sparse filters on
 qualified synthetic data, bound tenant/global concurrency and failed cursor
