@@ -240,8 +240,10 @@ other same-database backend, classified non-client with a non-null type. The
 backend identity and cause remain unknown; cleanup was not independently proven.
 The zero-session guard was not weakened. The run tested synthetic merge
 `3e0777f729a4a52a1075bf05f5a5e9b25cf1ddc5` against the former stacked base,
-with the same tree as the retargeted current-base merge but different parents.
-It is a failed run, not current-base acceptance; a fresh complete run is required.
+with the same tree as the then-retargeted merge
+`ab9347cdb08ea8277ce64beb8405ee1fceff92f4` but different parents. Later
+documentation and base updates changed the tree. It is a failed run, not
+current-base acceptance; a fresh complete run is required.
 
 The earlier PR #145 candidate `228880f43c0fdb640e3f83537d7feaf038dd6e82`
 had a successful verify job but failed its synthetic customer external restore
