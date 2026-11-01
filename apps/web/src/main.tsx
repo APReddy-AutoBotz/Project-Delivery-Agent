@@ -16,6 +16,8 @@ import {
 import "./style.css";
 import { ProjectEvidence } from "./project-evidence.js";
 import { HealthAssessmentPanel } from "./health-assessment.js";
+import { HealthScopeFence } from "./health-scope-fence.js";
+import { HealthScopeProvider } from "./health-scope-context.js";
 import { DeliverySuggestions } from "./delivery-suggestions.js";
 import { UpdateSuggestions } from "./update-suggestions.js";
 import { LeadershipBlockerAge } from "./leadership-blocker-age.js";
@@ -62,6 +64,7 @@ type AuthConfig = {
   resource?: string;
 };
 type Actor = { subject: string; roles: string[]; customerId: string };
+const emptyHealthActor: Actor = { subject: "", roles: [], customerId: "" };
 type Project = {
   id: string;
   code: string;
@@ -105,6 +108,10 @@ const client = new QueryClient({
     queries: { retry: false, staleTime: 15000, refetchOnWindowFocus: true },
   },
 });
+// App-lifetime owner: a pending local health write survives panel, project and
+// session remounts. It is not a cross-tab/server write lock.
+const healthFence = new HealthScopeFence();
+let healthPageHidden = false;
 function clearProtectedData() {
   // TR-AUTH-003 / NFR-SEC-005: keep only public bootstrap configuration. Removing
   // it starts an unnecessary refetch immediately before the logout redirect.
@@ -223,14 +230,16 @@ function App() {
   const renderedSessionGeneration = sessionGeneration, renderedSessionToken = accessToken;
   const isCurrentPreviewSession = () => Boolean(renderedSessionToken && accessToken === renderedSessionToken &&
     sessionGeneration === renderedSessionGeneration);
-  const advanceSession = () => { sessionGeneration++; pmPreviewInvalidate.current?.(); invalidateReassessment(); };
+  const healthTransition = () => healthFence.transition(Boolean(accessToken && !healthPageHidden && document.visibilityState === "visible"));
+  const advanceSession = () => { sessionGeneration++; healthTransition(); pmPreviewInvalidate.current?.(); invalidateReassessment(); };
   const [signedIn, setSignedIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [view, setView] = useState<"projects" | "platform" | "ingestion">("projects");
   const [selected, setSelected] = useState<string | null>(null);
-  const changeSelected = (value: string | null) => { invalidateReassessment(); setSelected(value); };
-  const changeView = (value: "projects" | "platform" | "ingestion") => { invalidateReassessment(); setView(value); };
+  const selectedRef = React.useRef<string | null>(null);
+  const changeSelected = (value: string | null) => { selectedRef.current = value; healthTransition(); invalidateReassessment(); setSelected(value); };
+  const changeView = (value: "projects" | "platform" | "ingestion") => { healthTransition(); invalidateReassessment(); setView(value); };
   const [creating, setCreating] = useState(false);
   const [updateLocator, setUpdateLocator] = useState<string | null>(updateRequestLocation);
   const [linkedAssessment, setLinkedAssessment] = useState<string | null>(null);
@@ -263,7 +272,7 @@ function App() {
   });
   const me = useProtectedQuery({
     queryKey: ["me"],
-    queryFn: () => request<Actor>("/me"),
+    queryFn: () => { healthTransition(); return request<Actor>("/me"); },
     enabled: signedIn,
   });
   const projects = useProtectedQuery({
@@ -273,10 +282,37 @@ function App() {
   });
   const project = useProtectedQuery({
     queryKey: ["project", selected],
-    queryFn: () => request<Project>("/projects/" + selected),
+    queryFn: () => { healthTransition(); return request<Project>("/projects/" + selected); },
     enabled: signedIn && !!selected,
   });
   const renderedActor = me.data, renderedProject = selected;
+  const renderedHealthToken = accessToken, renderedHealthSession = sessionGeneration;
+  const isCurrentHealthScope = () => {
+    const identity = client.getQueryState<Actor>(["me"]), currentProject = client.getQueryState<Project>(["project", renderedProject]);
+    return Boolean(renderedHealthToken && accessToken === renderedHealthToken && sessionGeneration === renderedHealthSession &&
+      !healthPageHidden && document.visibilityState === "visible" && renderedActor && renderedProject && selectedRef.current === renderedProject &&
+      identity?.status === "success" && identity.fetchStatus === "idle" &&
+      identity.data?.customerId === renderedActor.customerId && identity.data.subject === renderedActor.subject &&
+      [...identity.data.roles].sort().join("\0") === [...renderedActor.roles].sort().join("\0") &&
+      currentProject?.status === "success" && currentProject.fetchStatus === "idle" && currentProject.data?.id === renderedProject);
+  };
+  React.useEffect(() => {
+    const revalidate = () => {
+      healthTransition();
+      if (accessToken && !healthPageHidden && document.visibilityState === "visible") {
+        void client.invalidateQueries({ queryKey: ["me"], exact: true });
+        if (selectedRef.current) void client.invalidateQueries({ queryKey: ["project", selectedRef.current], exact: true });
+      }
+    };
+    const hide = () => { healthPageHidden = true; healthFence.transition(false); };
+    const show = () => { healthPageHidden = false; revalidate(); };
+    window.addEventListener("focus", revalidate);
+    window.addEventListener("pageshow", show);
+    document.addEventListener("visibilitychange", revalidate);
+    window.addEventListener("pagehide", hide);
+    return () => { window.removeEventListener("focus", revalidate); window.removeEventListener("pageshow", show);
+      document.removeEventListener("visibilitychange", revalidate); window.removeEventListener("pagehide", hide); };
+  }, []);
   const renderedActorUpdatedAt = client.getQueryState(["me"])?.dataUpdatedAt;
   const renderedProjectUpdatedAt = client.getQueryState(["project", renderedProject])?.dataUpdatedAt;
   const isCurrentReassessmentScope = () => {
@@ -689,7 +725,9 @@ function App() {
                 </p>
               )}
               {retainedProject ? (
-                <>
+                <HealthScopeProvider fence={healthFence} actor={me.data ?? emptyHealthActor} projectId={retainedProject.id}
+                  session={renderedHealthSession} request={request} isCurrent={isCurrentHealthScope}
+                  visible={Boolean(me.data && project.data && !me.isFetching && !me.isError && !project.isFetching && !project.isError)}>
                   {project.data && <ProjectDetail project={project.data} />}
                   {project.data && (
                     <ProjectUpdates
@@ -703,12 +741,12 @@ function App() {
                   )}
                   {project.data && (
                     <HealthAssessmentPanel
-                      key={project.data.id}
+                      key={JSON.stringify([sessionGeneration, me.data?.customerId, me.data?.subject, [...(me.data?.roles ?? [])].sort(), project.data.id])}
                       projectId={project.data.id}
                       reportedStatus={project.data.reportedStatus}
-                      request={request}
                       pmoAdmin={pmoAdmin ?? false}
-                      visible={!project.isFetching && !project.isError}
+                      canInspectMilestone={Boolean(me.data?.roles.includes("leadership"))}
+                      visible={!me.isFetching && !me.isError && !project.isFetching && !project.isError}
                     />
                   )}
                   {project.data && me.data && !project.isFetching && !project.isError && (
@@ -759,16 +797,19 @@ function App() {
                     initialScalarRequestId={linkedScalarRequest}
                     visible={!project.isFetching && !project.isError}
                   />
+                  <div id="delivery-structure" tabIndex={-1}>
                   {project.data && (
                     <CanonicalProjectDetails
+                      key={JSON.stringify([sessionGeneration, me.data?.customerId, me.data?.subject, [...(me.data?.roles ?? [])].sort(), project.data.id])}
                       id={project.data.id}
                       request={request}
                       leadershipScope={me.data?.roles.includes("leadership") && !me.isFetching && !me.isError && !project.isFetching && !project.isError
-                        ? `${me.data.customerId}:${me.data.subject}:${project.data.id}` : undefined}
+                        ? JSON.stringify([sessionGeneration, me.data.customerId, me.data.subject, [...me.data.roles].sort(), project.data.id]) : undefined}
                       canInspectMilestoneRequest={Boolean(me.data?.roles.some((role) => ["project_manager", "portfolio_manager", "pmo_admin"].includes(role)))}
                     />
                   )}
-                </>
+                  </div>
+                </HealthScopeProvider>
               ) : (
                 !project.error && <p role="status">Loading project…</p>
               )}
