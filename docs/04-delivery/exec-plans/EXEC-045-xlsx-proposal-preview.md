@@ -58,6 +58,31 @@ equate the two.
 
 ## Required workbook and persistence work
 
+A further unconnected synthetic selection simulation hashes a separately
+domain-tagged full manifest, distinct from the synthetic preview-request
+identity. The manifest contains asserted customer/source/sheet, configuration
+and mapping revisions, parser token, parent ID, workbook digest, baseline tag and
+digest, project list, and every contiguous receipt ordinal with its state,
+operation, safe error codes, project/key, content-availability assertion and
+typed proposals. Exact ordered JSON/UTF-8 bytes are bounded to 1 MiB. The
+simulator deep-copies both manifest and selection before awaiting WebCrypto,
+computes the manifest SHA-256 from its private bytes, requires exact asserted
+scope/parent/digest and sorted unique nonempty ordinals, and returns detached
+synthetic CREATE/UPDATE/UNCHANGED plans only if every selected row is ACCEPTED,
+error-free and asserted available. Unavailable rows cannot carry proposal
+content; an UNCHANGED row may have no proposals. A mixed selection fails whole.
+
+This simulation checks only its narrowly specified caller assertions. It does
+not establish an authorized actor, a sealed parent or real retention, native
+proposal hashes, source revision/projection links, mapping compatibility,
+workbook identity or source truth. Workbook and baseline digests are asserted,
+not recomputed from real data. The asserted project list is not authorization.
+It is not a production receipt/replay contract or a sandbox for Proxy traps or
+already allocated input. No API, parser, persistence, fact publication or story
+acceptance follows. The focused Node 24 CSV, grid, descriptor, identity,
+baseline and simulation suites passed 105 synthetic tests; exact-candidate
+review, parent merges and hosted validation remain required.
+
 An additional unconnected synthetic baseline codec encodes an ordered JSON-array
 tuple in ECMAScript UTF-8 with domain `pdaa.synthetic.xlsx.baseline.v1`, exact
 customer/source/sheet and a positive 32-bit mapping revision. It distinguishes
