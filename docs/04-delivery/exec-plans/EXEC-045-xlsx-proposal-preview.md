@@ -208,6 +208,22 @@ memory and cancellation behavior in the actual customer deployment; a worker
 thread or declared ZIP size alone is not proof of those properties. Preserve
 generic errors without untrusted workbook content in logs.
 
+An unwired repository preparation seam checks every configured project's current
+write grant and source-reader membership, and returns a detached, bounded CSV
+fixture snapshot. A separate call rechecks current permissions and revisions
+after simulated work. The caller must supply a freshly authenticated actor and
+retain the snapshot and source binding in trusted server memory. A matching
+snapshot is forgeable and does not establish that earlier authorization or a
+parse occurred; revoke/regrant between checks can be missed. Any eventual write
+must reauthorize under its own transaction locks. Success is read-only; a
+`DENIED` inside the existing wrapper writes a sanitized denial audit, and audit
+failure fails closed. Existing preflight reads the source row internally and can
+load corrupt persisted scopes before schema bounds; no physical read bound or
+deadlock-freedom claim follows. Origin must not enter worker/client payloads or
+logs. Native tests for this new seam have not yet run locally and hosted
+validation is required before merge. It does not accept workbooks, parse files,
+create receipts or publish facts.
+
 No parser or dependency is approved by this increment. The upstream
 [yauzl documentation](https://github.com/thejoshwolfe/yauzl/blob/master/README.md)
 describes streaming entry-size verification but requires caller-provided
@@ -243,6 +259,18 @@ verification of the workbook's upstream origin.
 
 ## Required validation
 
+PR #153 Foundation run [41262214531](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41262214531)
+passed verification but failed the external customer restore at
+`sessions_before_commit_other_sessions`. Its finite diagnostic reported one
+other same-database backend, classified non-client with a non-null type. The
+backend identity and cause remain unknown; cleanup was not independently proven.
+The zero-session guard was not weakened. The run tested synthetic merge
+`3e0777f729a4a52a1075bf05f5a5e9b25cf1ddc5` against the former stacked base,
+with the same tree as the then-retargeted merge
+`ab9347cdb08ea8277ce64beb8405ee1fceff92f4` but different parents. Later
+documentation and base updates changed the tree. It is a failed run, not
+current-base acceptance; a fresh complete run is required.
+
 The earlier PR #145 candidate `228880f43c0fdb640e3f83537d7feaf038dd6e82`
 had a successful verify job but failed its synthetic customer external restore
 in Foundation run [41233262839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41233262839),
@@ -272,6 +300,18 @@ run tested synthetic merge `056e77ab0eeb74b25767a73f23b7e26a49c89e6f` before the
 PR was retargeted to main, with the same then-reviewed tree. A fresh full run
 against the current-base candidate is required; a later pass cannot explain this
 failure.
+
+PR #156 candidate `ba2f52f5383e2969c6520024b74f5493e0729d5d` failed its
+production-boundary job `124688225333` in Foundation run
+[41252329821](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41252329821)
+at SEC-AUTH-001 `scalar-proof-disclosure`, before restore. The finite diagnostic
+reported `settle_health`, one request, `pm_queue`, `GET` and `eligibility`, with
+best-effort post-failure classifications of `aborted` and `2xx`. The expected
+identity-provider token response had been observed for scanning; this is not a
+token-disclosure finding. Capture was incomplete, so neither disclosure nor its
+absence is established. The cause is unknown, and matching diagnostic categories
+do not prove the same cause as other runs. The separate verify job was still
+running when recorded. A later passing run does not erase this failure.
 
 Retain CSV regression and grid equivalence tests. Add genuine and adversarial
 workbooks covering archive expansion, malformed XML/relationships, formulas,
