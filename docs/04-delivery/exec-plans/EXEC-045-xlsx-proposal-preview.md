@@ -58,6 +58,39 @@ equate the two.
 
 ## Required workbook and persistence work
 
+An unregistered local slot model exercises admission around the synthetic frame
+codec. It reserves declared input bytes before pulling a queued stream, limits
+one local lease, checks an absolute monotonic deadline, correlates a response
+to the job and generation, and quarantines every leased attempt until the
+broker-observed pulls, exchange and iterator cleanup have settled and an injected trusted reset
+acknowledges the broker-selected next generation. A timed-out caller can return
+while ignored cancellation leaves the slot and reservation quarantined. Close
+permanently prevents further leases; once observed work settles it releases its
+own job references. It does not prove physical cleanup. The
+bounded process-local counter prevents reuse within one slot instance, not across
+process restarts or replicas. Up to 65,536 yielded input chunks, including empty
+ones, are permitted; an additional iterator call is needed to observe EOF.
+
+This model trusts its in-process codec, stream, port and reset adapters to return
+control. It cannot interrupt synchronous JavaScript, certify a reset, identify a
+peer, constrain other replicas or account for caller/transport-owned allocations.
+For a single active job, the broker owns up to 1 MiB for accumulated input; the
+experimental request encoder also makes bounded payload and frame copies of up to
+1 MiB each plus its header, while the response decoder may allocate up to 4 MiB.
+These figures do not include runtime overhead, incoming chunks, transport buffers,
+or the opaque response after it is handed to the caller. Reservation is a limit
+on declared queued and active input, not a total process-memory guarantee. The
+slot has no production transport, process supervisor, upload route, authorization,
+parser, provenance or receipt. Sheet names and workbook bytes are sensitive even
+when the worker receives no actor or customer ID. Real customer inputs remain
+disabled until the separately reviewed deployment and semantic gates below pass.
+
+The framing dependency merged as `bd5da79e61864263a37041089c68b67a30812d7a`.
+Its actual post-merge Foundation run `41267998578` and Documentation run
+`41267998589` passed. This slot model still requires independent final review
+and fresh current-base hosted validation; those results do not approve workbook
+input or close any release hold.
+
 An additional unconnected synthetic framing codec models one frame per
 half-closed stream. A four-byte big-endian length precedes a canonical
 ECMAScript JSON/UTF-8 array header and a binary payload. Request and response
