@@ -106,7 +106,8 @@ export async function assertEmptyTarget(client: Client) {
     throw new Error("Target contains existing objects or extensions");
 }
 type SessionCheckFailure = "other_sessions" | "query_failed" | "invalid_result";
-export type SessionObservation = { count: "one" | "multiple"; client: "yes" | "no" | "unknown"; nonclient: "yes" | "no" | "unknown"; null_type: "yes" | "no" | "unknown" };
+type BackendKind = "autovacuum_worker" | "parallel_worker" | "logical_replication_worker" | "other_nonclient" | "unknown";
+export type SessionObservation = { count: "one" | "multiple"; client: "yes" | "no" | "unknown"; nonclient: "yes" | "no" | "unknown"; null_type: "yes" | "no" | "unknown"; backend_kind: BackendKind };
 export async function assertNoOtherSessions(client: Client, onFailure?: (category: SessionCheckFailure, observation?: SessionObservation) => void) {
   const report = (category: SessionCheckFailure, observation?: SessionObservation) => {
     try {
@@ -121,7 +122,13 @@ export async function assertNoOtherSessions(client: Client, onFailure?: (categor
         ? `SELECT count(*)::int AS n,
              bool_or(backend_type = 'client backend') AS client,
              bool_or(backend_type <> 'client backend' AND backend_type IS NOT NULL) AS nonclient,
-             bool_or(backend_type IS NULL) AS null_type
+             bool_or(backend_type IS NULL) AS null_type,
+             CASE WHEN count(*) = 1 THEN max(CASE
+               WHEN backend_type COLLATE "C" = 'autovacuum worker' THEN 'autovacuum_worker'
+               WHEN backend_type COLLATE "C" = 'parallel worker' THEN 'parallel_worker'
+               WHEN backend_type COLLATE "C" = 'logical replication worker' THEN 'logical_replication_worker'
+               WHEN backend_type IS NOT NULL AND backend_type COLLATE "C" <> 'client backend' THEN 'other_nonclient'
+               ELSE 'unknown' END) ELSE 'unknown' END AS backend_kind
            FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()`
         : "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()",
     );
@@ -152,7 +159,15 @@ export async function assertNoOtherSessions(client: Client, onFailure?: (categor
         (count === 1 && flags.filter((value) => value === true).length > 1);
       const classify = (seen: boolean | undefined): "yes" | "no" | "unknown" =>
         contradiction ? "unknown" : seen === true ? "yes" : seen === false && nullTypeSeen === false ? "no" : "unknown";
-      report("other_sessions", { count: count === 1 ? "one" : "multiple", client: classify(clientSeen), nonclient: classify(nonclientSeen), null_type: contradiction ? "unknown" : nullTypeSeen === true ? "yes" : nullTypeSeen === false ? "no" : "unknown" });
+      let backendKind: BackendKind = "unknown";
+      if (count === 1 && clientSeen === false && nonclientSeen === true && nullTypeSeen === false && !contradiction) {
+        try {
+          const value = (result as { rows: Record<string, unknown>[] }).rows[0]!.backend_kind;
+          if (typeof value === "string" && ["autovacuum_worker", "parallel_worker", "logical_replication_worker", "other_nonclient"].includes(value))
+            backendKind = value as BackendKind;
+        } catch { /* A diagnostic getter cannot change the guard. */ }
+      }
+      report("other_sessions", { count: count === 1 ? "one" : "multiple", client: classify(clientSeen), nonclient: classify(nonclientSeen), null_type: contradiction ? "unknown" : nullTypeSeen === true ? "yes" : nullTypeSeen === false ? "no" : "unknown", backend_kind: backendKind });
     } else report("invalid_result");
     throw new Error("Target has another database session");
   }

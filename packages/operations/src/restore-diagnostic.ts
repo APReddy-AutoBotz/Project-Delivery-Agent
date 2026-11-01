@@ -24,7 +24,7 @@ export const restorePhases = Object.freeze([
   "plaintext_cleanup",
 ] as const);
 type RestorePhase = (typeof restorePhases)[number];
-type SafeSessions = { count: "one" | "multiple" | "unknown"; client: "yes" | "no" | "unknown"; nonclient: "yes" | "no" | "unknown"; null_type: "yes" | "no" | "unknown" };
+type SafeSessions = { count: "one" | "multiple" | "unknown"; client: "yes" | "no" | "unknown"; nonclient: "yes" | "no" | "unknown"; null_type: "yes" | "no" | "unknown"; backend_kind?: "autovacuum_worker" | "parallel_worker" | "logical_replication_worker" | "other_nonclient" | "unknown" };
 function safeSessions(value: unknown): SafeSessions {
   const read = (key: keyof SafeSessions, allowed: readonly string[]) => {
     try {
@@ -32,12 +32,20 @@ function safeSessions(value: unknown): SafeSessions {
       return typeof candidate === "string" && allowed.includes(candidate) ? candidate : "unknown";
     } catch { return "unknown"; }
   };
-  return {
+  const safe: SafeSessions = {
     count: read("count", ["one", "multiple"]) as SafeSessions["count"],
     client: read("client", ["yes", "no"]) as SafeSessions["client"],
     nonclient: read("nonclient", ["yes", "no"]) as SafeSessions["nonclient"],
     null_type: read("null_type", ["yes", "no"]) as SafeSessions["null_type"],
   };
+  try {
+    if (value !== null && typeof value === "object" && Object.hasOwn(value, "backend_kind")) {
+      const kind = read("backend_kind", ["autovacuum_worker", "parallel_worker", "logical_replication_worker", "other_nonclient"]);
+      safe.backend_kind = safe.count === "one" && safe.client === "no" && safe.nonclient === "yes" && safe.null_type === "no"
+        ? kind as SafeSessions["backend_kind"] : "unknown";
+    }
+  } catch { safe.backend_kind = "unknown"; }
+  return safe;
 }
 export function createRestoreDiagnostic() {
   let phase: RestorePhase | "unknown" = "preflight";

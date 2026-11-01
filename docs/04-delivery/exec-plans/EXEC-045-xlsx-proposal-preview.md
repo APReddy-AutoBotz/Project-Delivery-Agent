@@ -272,6 +272,17 @@ with the same tree as the then-retargeted merge
 documentation and base updates changed the tree. It is a failed run, not
 current-base acceptance; a fresh complete run is required.
 
+Later superseded PR #153 Foundation run [41263826625](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41263826625)
+passed verification but failed the bundled customer restore at
+`sessions_before_commit_other_sessions`. Its finite diagnostic reported one
+other same-database backend, classified non-client with a non-null type. The
+backend identity and cause remain unknown; cleanup was not independently proven.
+It tested synthetic merge `1a46124a341dc8739b160b0076d11a5bd48cc92f` of
+head `e699088246f59e003592f2c3ce08a1b2f4081583` against the then-main base
+`eb7ffc570fa565aec8727ad4563811696531841e`. This separate failure does not
+establish a common cause with other restore failures, and a later pass cannot
+explain it or replace current-candidate checks.
+
 The earlier PR #145 candidate `228880f43c0fdb640e3f83537d7feaf038dd6e82`
 had a successful verify job but failed its synthetic customer external restore
 in Foundation run [41233262839](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41233262839),
