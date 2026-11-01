@@ -695,6 +695,7 @@ node([
   "tests/milestone-reconciliation.integration.test.ts",
   "tests/scalar-reconciliation.integration.test.ts",
   "tests/ingestion-persistence.integration.test.ts",
+  "tests/spreadsheet-preparse.integration.test.ts",
   "tests/connector-runtime.integration.test.ts",
   "tests/ingestion-reassessment.integration.test.ts",
   "tests/project-evidence.integration.test.ts",
