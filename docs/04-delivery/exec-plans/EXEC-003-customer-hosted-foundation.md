@@ -790,3 +790,25 @@ on the unchanged base. These
 checks do not establish why Chromium's buffer was
 unavailable or replace the full customer and browser acceptance run. Exact review
 and hosted checks remain required.
+
+## Restore backend-kind diagnostic candidate
+
+PR #151 Foundation run 41249318263 failed its external customer restore at the
+final other-sessions check. Its diagnostic recorded one non-client, non-null
+backend; it did not identify the type or cause, prove cleanup, or connect this
+failure to earlier ones. The proposed diagnostic adds only finite backend-kind
+labels to the same aggregate and only for a consistent single non-client row.
+Unknown, redacted, malformed, contradictory or multiple observations stay
+unknown; raw process data never enters this diagnostic. PostgreSQL documents
+the [backend type categories](https://www.postgresql.org/docs/17/monitoring-stats.html)
+and permits additional extension types. A reported category is a snapshot, not
+proof of ownership or cause. The zero-other-sessions guard, rollback and
+quarantine behavior are unchanged; a diagnostic query error still fails closed.
+Synthetic mocked and PostgreSQL VALUES cases do not establish the type of the
+earlier backend. On an isolated synthetic PostgreSQL 17.11 container, the native
+VALUES classification and held-client cases passed; the separate restricted-login
+case was initially skipped because its test credential was unavailable. A later
+run in a new isolated synthetic PostgreSQL 17.11 container passed all three cases,
+including a login without monitoring grants. Both containers were stopped after
+testing. These tests do not establish the earlier backend's type. Exact reviews
+and hosted/post-merge checks remain required. No acceptance changes.
