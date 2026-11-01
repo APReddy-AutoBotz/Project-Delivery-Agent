@@ -85,6 +85,12 @@ parser, provenance or receipt. Sheet names and workbook bytes are sensitive even
 when the worker receives no actor or customer ID. Real customer inputs remain
 disabled until the separately reviewed deployment and semantic gates below pass.
 
+The framing dependency merged as `bd5da79e61864263a37041089c68b67a30812d7a`.
+Its actual post-merge Foundation run `41267998578` and Documentation run
+`41267998589` passed. This slot model still requires independent final review
+and fresh current-base hosted validation; those results do not approve workbook
+input or close any release hold.
+
 An additional unconnected synthetic framing codec models one frame per
 half-closed stream. A four-byte big-endian length precedes a canonical
 ECMAScript JSON/UTF-8 array header and a binary payload. Request and response
