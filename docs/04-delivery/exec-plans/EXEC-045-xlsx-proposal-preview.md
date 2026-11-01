@@ -182,6 +182,22 @@ memory and cancellation behavior in the actual customer deployment; a worker
 thread or declared ZIP size alone is not proof of those properties. Preserve
 generic errors without untrusted workbook content in logs.
 
+An unwired repository preparation seam checks every configured project's current
+write grant and source-reader membership, and returns a detached, bounded CSV
+fixture snapshot. A separate call rechecks current permissions and revisions
+after simulated work. The caller must supply a freshly authenticated actor and
+retain the snapshot and source binding in trusted server memory. A matching
+snapshot is forgeable and does not establish that earlier authorization or a
+parse occurred; revoke/regrant between checks can be missed. Any eventual write
+must reauthorize under its own transaction locks. Success is read-only; a
+`DENIED` inside the existing wrapper writes a sanitized denial audit, and audit
+failure fails closed. Existing preflight reads the source row internally and can
+load corrupt persisted scopes before schema bounds; no physical read bound or
+deadlock-freedom claim follows. Origin must not enter worker/client payloads or
+logs. Native tests for this new seam have not yet run locally and hosted
+validation is required before merge. It does not accept workbooks, parse files,
+create receipts or publish facts.
+
 No parser or dependency is approved by this increment. The upstream
 [yauzl documentation](https://github.com/thejoshwolfe/yauzl/blob/master/README.md)
 describes streaming entry-size verification but requires caller-provided
@@ -256,6 +272,18 @@ run tested synthetic merge `056e77ab0eeb74b25767a73f23b7e26a49c89e6f` before the
 PR was retargeted to main, with the same then-reviewed tree. A fresh full run
 against the current-base candidate is required; a later pass cannot explain this
 failure.
+
+PR #156 candidate `ba2f52f5383e2969c6520024b74f5493e0729d5d` failed its
+production-boundary job `124688225333` in Foundation run
+[41252329821](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41252329821)
+at SEC-AUTH-001 `scalar-proof-disclosure`, before restore. The finite diagnostic
+reported `settle_health`, one request, `pm_queue`, `GET` and `eligibility`, with
+best-effort post-failure classifications of `aborted` and `2xx`. The expected
+identity-provider token response had been observed for scanning; this is not a
+token-disclosure finding. Capture was incomplete, so neither disclosure nor its
+absence is established. The cause is unknown, and matching diagnostic categories
+do not prove the same cause as other runs. The separate verify job was still
+running when recorded. A later passing run does not erase this failure.
 
 Retain CSV regression and grid equivalence tests. Add genuine and adversarial
 workbooks covering archive expansion, malformed XML/relationships, formulas,
