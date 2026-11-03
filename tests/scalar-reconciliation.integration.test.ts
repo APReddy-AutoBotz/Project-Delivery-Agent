@@ -1,4 +1,4 @@
-import { afterAll, expect, it } from "vitest";
+import { afterAll, expect, it, vi } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { SignJWT } from "jose";
@@ -30,7 +30,7 @@ import {
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 import { verifyImmutableHistoryMutation } from "../scripts/acceptance/immutable-history.mjs";
 import { possibleMutation, rawSqlText } from "./fixtures/read-only-sql.js";
-import { loadConfig } from "../packages/platform/dist/index.js";
+import { assertSyntheticDatabaseUrl, loadConfig } from "../packages/platform/dist/index.js";
 import { createApp } from "../apps/api/dist/app.js";
 import { compileContract } from "../scripts/validate-openapi.mjs";
 
@@ -357,6 +357,66 @@ it("reads the same authorized current disagreement before and after separate rec
     expectedRevision: access!.revision, state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
   await expect(reader.readLeadership(f.leader, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
 });
+it("admits bounded scalar version metadata before loading the full prefix", async () => {
+  const target = assertSyntheticDatabaseUrl(url);
+  if (!/^\/pdaa_test_\d+$/.test(target.pathname) || process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "synthetic")
+    throw new Error("Scalar admission requires an isolated synthetic test database");
+  const f = await fixture(false);
+  let metadataReads = 0;
+  const completedMetadata: { factId: string; valueBytes: number }[][] = [];
+  const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      expect((await tx.$queryRawUnsafe<{ role: string }[]>("SELECT current_user AS role"))[0]?.role).toBe("pdaa_api");
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+          const result = await Reflect.apply(value, target, args);
+          if (rawSqlText(args[0]).includes('FROM public."ProjectFactVersion"')) {
+            metadataReads++;
+            completedMetadata.push(result as { factId: string; valueBytes: number }[]);
+          }
+          return result;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const reader = new DatabaseScalarConflictObservationRepository(roleDb as never);
+  const load = vi.spyOn(DatabaseAuthorityRepository.prototype, "loadAssessmentPrefixesInTransaction");
+  try {
+    expect((await reader.readLeadership(f.leader, f.projectId, f.input.factId)).positions).toHaveLength(2);
+    expect(metadataReads).toBe(1); expect(load).toHaveBeenCalledTimes(1);
+    load.mockClear(); metadataReads = 0; completedMetadata.length = 0;
+    for (let index = 0; index < 86; index++) await facts.appendHumanStatement(f.pmo, {
+      projectId: f.projectId, factType: "project.forecast", expectedRevision: index + 2, idempotencyKey: randomUUID(),
+      effectiveAt: new Date(Date.now() - 1000).toISOString(), validUntil: new Date(Date.now() + 3600000).toISOString(),
+      originalStatement: "Synthetic bounded admission fixture", value: { type: "text", value: "界".repeat(4096) },
+    }, context);
+    const stats = await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      return tx.$queryRaw<{ count: number; bytes: bigint }[]>`
+        SELECT count(*)::int AS count, sum(octet_length(value::text))::bigint AS bytes
+        FROM public."ProjectFactVersion" WHERE "factId"=${f.input.factId}::uuid`;
+    });
+    expect(stats[0]?.count).toBe(88);
+    expect(stats[0]!.bytes > 1048576n).toBe(true);
+    const snapshot = async () => Promise.all([
+      db.projectFact.findFirst({ where: { customerId, projectId: f.projectId, id: f.input.factId } }),
+      db.projectFactVersion.count({ where: { customerId, projectId: f.projectId, factId: f.input.factId } }),
+      db.auditEvent.count({ where: { customerId } }),
+      db.factAssessment.count({ where: { customerId, projectId: f.projectId } }),
+      db.scalarReconciliationRequest.count({ where: { customerId, projectId: f.projectId } }),
+    ]);
+    const before = await snapshot();
+    await expect(reader.readLeadership(f.leader, f.projectId, f.input.factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    expect(metadataReads).toBe(1);
+    expect(completedMetadata[0]).toHaveLength(88);
+    expect(completedMetadata[0]!.every((row) => row.factId === f.input.factId)).toBe(true);
+    expect(completedMetadata[0]!.reduce((total, row) => total + row.valueBytes, 0)).toBeGreaterThan(1_048_576);
+    expect(load).not.toHaveBeenCalled();
+    expect(await snapshot()).toEqual(before);
+  } finally { load.mockRestore(); }
+}, 120000);
 it("serves only authorized role-switched scalar observations over the authenticated HTTP boundary", async () => {
   const f = await fixture(false), config = loadConfig(process.env);
   const roleDb = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
