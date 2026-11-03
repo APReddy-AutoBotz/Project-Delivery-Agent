@@ -33,6 +33,7 @@ import { possibleMutation, rawSqlText } from "./fixtures/read-only-sql.js";
 import { assertSyntheticDatabaseUrl, loadConfig } from "../packages/platform/dist/index.js";
 import { createApp } from "../apps/api/dist/app.js";
 import { compileContract } from "../scripts/validate-openapi.mjs";
+import { verifyScalarOriginalRequestProof } from "../packages/data/dist/scalar-request-proof.js";
 
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_\d+$/.test(new URL(url).pathname))
@@ -1056,6 +1057,77 @@ it("coordinates real health conflict capture with a role-switched scalar observa
     expect(await db.healthAssessment.count({ where: { customerId: tenant, projectId } })).toBe(1);
     expect((await reader.readLeadership(leader, projectId, factId)).positions.map((row) => row.value)).toEqual(dates);
   }
+}, 120000);
+it("verifies a bounded original scalar request proof with current source access", async () => {
+  const target = assertSyntheticDatabaseUrl(url);
+  if (!/^\/pdaa_test_\d+$/.test(target.pathname) || process.env.NODE_ENV === "production" || process.env.DATA_MODE !== "synthetic")
+    throw new Error("Scalar proof fixture requires an isolated synthetic test database");
+  const f = await fixture();
+  const created = await reconciliation.check(f.pmo, f.input, context);
+  expect(created.outcome).toBe("CREATED");
+  const request = await db.scalarReconciliationRequest.findUniqueOrThrow({ where: { id: created.request!.id } });
+  const actor: Actor = { ...f.leader, roles: ["leadership", "project_manager"] };
+  await db.accessGrant.create({ data: { customerId, subject: actor.subject, scopeType: "project", scopeId: f.projectId, role: "project_manager" } });
+  const scope = { customerId, projectId: f.projectId, factId: f.input.factId, factType: f.factType };
+  let validatorCalls = 0;
+  const verify = () => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    expect((await tx.$queryRaw<{ role: string }[]>`SELECT current_user AS role`)[0]?.role).toBe("pdaa_api");
+    await tx.$executeRawUnsafe("SET LOCAL statement_timeout='8s'");
+    await tx.$executeRawUnsafe("SET LOCAL lock_timeout='3s'");
+    const project = await tx.$queryRaw<{ portfolioId: string }[]>`
+      SELECT "portfolioId" FROM public."Project" WHERE "customerId"=${customerId}::uuid AND id=${f.projectId}::uuid FOR SHARE`;
+    const grants = await tx.$queryRaw<{ role: string }[]>`
+      SELECT role FROM public."AccessGrant" WHERE "customerId"=${customerId}::uuid AND subject=${actor.subject}
+        AND (("scopeType"='project' AND "scopeId"=${f.projectId}::uuid)
+          OR ("scopeType"='portfolio' AND "scopeId"=${project[0]!.portfolioId}::uuid)) ORDER BY id FOR SHARE`;
+    expect(grants.map((row) => row.role)).toEqual(expect.arrayContaining(["leadership", "project_manager"]));
+    const [clock] = await tx.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+    const tracked = new Proxy(tx, { get(target, key) {
+      const value = Reflect.get(target, key);
+      if (key === "$queryRaw" && typeof value === "function") return async (...args: unknown[]) => {
+        const result = await Reflect.apply(value, target, args);
+        if (rawSqlText(args[0]).includes("valid_scalar_reconciliation_request")) validatorCalls++;
+        return result;
+      };
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+    await verifyScalarOriginalRequestProof(tracked, actor, scope, request.id, request.contributorIdentity, clock!.now);
+  }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 20000 });
+  const snapshot = () => Promise.all([...["ProjectFact", "ProjectFactVersion", "FactEvidence", "FactSource", "FactSourceAccess", "FactSourceReader",
+    "AuthorityPolicy", "AuthorityPolicyRevision", "FactAuthorityConflict", "FactAssessment", "FactAssessmentVersion", "FactAssessmentConflict",
+    "ScalarReconciliationRequest", "ScalarReconciliationCheck", "ScalarReconciliationAssignment"].map((table) => db.$queryRawUnsafe(
+      `SELECT to_jsonb(t)::text AS row FROM public."${table}" t WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY to_jsonb(t)::text COLLATE "C"`, customerId, f.projectId)),
+    db.$queryRawUnsafe(`SELECT to_jsonb(t)::text AS row FROM public."AuditEvent" t WHERE "customerId"=$1::uuid AND detail->>'projectId'=$2 ORDER BY to_jsonb(t)::text COLLATE "C"`, customerId, f.projectId)]);
+  let before = await snapshot();
+  await expect(verify()).resolves.toBeUndefined();
+  expect(validatorCalls).toBe(1); expect(await snapshot()).toEqual(before);
+
+  const later = await facts.appendHumanStatement(f.pmo, { projectId: f.projectId, factType: f.factType, expectedRevision: 2,
+    idempotencyKey: randomUUID(), effectiveAt: new Date().toISOString(), validUntil: new Date(Date.now() + 3600000).toISOString(),
+    originalStatement: "Synthetic later forecast", value: { type: "date", value: "2026-10-03" } }, context);
+  await authority.appendPolicy(f.pmo, { projectId: f.projectId, factType: f.factType, expectedRevision: 1,
+    idempotencyKey: randomUUID(), effectiveAt: new Date().toISOString(), definition: { tiers: [{ selectors: [{
+      sourceType: "human_statement", instanceId: null, requiredApproval: "NOT_REQUIRED", validity: null }] }],
+      conflictBehavior: "REQUEST_RECONCILIATION" } }, context);
+  expect(later.entry.sourceId).toBe(f.versions[0]!.sourceId);
+  const current = await db.$transaction(async (tx) => {
+    const [fact] = await tx.$queryRaw<{ id: string; factType: string; revision: number }[]>`
+      SELECT id,"factType",revision FROM public."ProjectFact" WHERE id=${f.input.factId}::uuid`;
+    const [clock] = await tx.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
+    return authority.prepareAssessmentInTransaction(tx, f.pmo, { projectId: f.projectId, fact: fact!, asOf: clock!.now });
+  });
+  expect(current.result.candidateVersionIds).not.toContain(f.versions[0]!.id);
+  expect(current.result.candidateVersionIds).toContain(later.entry.id);
+  before = await snapshot();
+  await expect(verify()).resolves.toBeUndefined();
+  expect(validatorCalls).toBe(2); expect(await snapshot()).toEqual(before);
+  const access = await facts.getSourceAccess(f.pmo, { projectId: f.projectId, sourceId: f.versions[0]!.sourceId });
+  await facts.setSourceAccess(f.pmo, { projectId: f.projectId, sourceId: f.versions[0]!.sourceId, expectedRevision: access!.revision,
+    state: "AVAILABLE", readers: [f.pmo.subject, f.pm.subject] }, context);
+  before = await snapshot();
+  await expect(verify()).rejects.toThrowError(/^Scalar request proof unavailable$/);
+  expect(validatorCalls).toBe(2); expect(await snapshot()).toEqual(before);
 }, 120000);
 it("FR-EVD-007/012: commits owned scalar proof, byte-identical SQL identity and distinct retry/business reuse", async () => {
   const f = await fixture();
