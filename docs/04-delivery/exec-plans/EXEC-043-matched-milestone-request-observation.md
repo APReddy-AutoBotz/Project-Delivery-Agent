@@ -201,3 +201,17 @@ does not prove network drain after a denial. These mocked cases do not establish
 revocation, continuous authorization, remote write completion or real workbook
 provenance. Fresh hosted checks and any appropriate native/browser race evidence
 remain required. No story, shared GOLDEN-003 criterion or release hold is accepted.
+
+Hosted Foundation run `41270591605` failed on the original candidate in two
+independent jobs. The browser suite passed 112 cases and failed E2E-HLT-007
+when Playwright could not retrieve the successful policy POST response body;
+the cause is not established. The production disclosure check reported an
+aborted GET with 2xx response during capture eligibility and incomplete capture.
+Its finite resource class does not identify the endpoint; neither disclosure nor
+its absence is established. The E2E now starts reading each matching original
+policy and assessment response as soon as Playwright observes it, preserving
+the status, response-body, UI and persisted-assessment assertions. This test
+change does not itself prove a cause or a passing native browser journey. A
+focused mocked-browser case passed with a held policy response, the editor
+hidden during the write, an observed original response body, no main-frame navigation, one save, refreshed policy
+and one subsequent assessment request; it does not replace the native test.

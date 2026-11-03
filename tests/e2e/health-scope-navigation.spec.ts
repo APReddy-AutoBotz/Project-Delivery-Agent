@@ -124,6 +124,60 @@ test("withheld assessment content clears previously displayed synthetic evidence
   await expect(page.getByText(/content is unavailable under current source access or retention/i).first()).toBeVisible();
 });
 
+test("a held policy save retains its original response through health revalidation", async ({ page }) => {
+  test.setTimeout(90000);
+  let persona = "", arrived!: () => void, release!: () => void, saves = 0, assessments = 0, navigations = 0;
+  const entered = new Promise<void>((resolve) => { arrived = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let policy = { revision: 1, timeZone: "UTC", defaultMinimumOverdueDays: 1, targetOverrides: [], changedBy: null as string | null };
+  page.on("framenavigated", (frame) => { if (frame === page.mainFrame()) navigations++; });
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
+    if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
+    if (path === "/auth/development") { persona = route.request().postDataJSON().persona; return route.fulfill({ json: { token: `synthetic-${persona}` } }); }
+    if (path === "/me") return route.fulfill({ json: { subject: persona, customerId, roles: ["pmo_admin"] } });
+    if (path === "/projects") return route.fulfill({ json: projects });
+    if (path === `/projects/${projects[0]!.id}`) return route.fulfill({ json: projects[0] });
+    if (path === `/projects/${projects[0]!.id}/canonical`) return route.fulfill({ json: canonical(projects[0]!) });
+    if (path === "/admin/blocker-age-threshold-policy") return route.fulfill({ json: null });
+    if (path === `/projects/${projects[0]!.id}/schedule-health-policy`) {
+      if (route.request().method() === "POST") {
+        saves++; const change = route.request().postDataJSON();
+        expect(change).toMatchObject({ expectedRevision: 1, timeZone: "America/Los_Angeles", defaultMinimumOverdueDays: 2, targetOverrides: [] });
+        arrived(); await gate;
+        policy = { revision: 2, timeZone: change.timeZone, defaultMinimumOverdueDays: change.defaultMinimumOverdueDays, targetOverrides: change.targetOverrides, changedBy: "synthetic-pmo" };
+        return route.fulfill({ status: 200, json: policy });
+      }
+      return route.fulfill({ json: policy });
+    }
+    if (path === `/projects/${projects[0]!.id}/health-assessments/latest`) return route.fulfill({ json: assessment(projects[0]!) });
+    if (path === `/projects/${projects[0]!.id}/health-assessments` && route.request().method() === "POST") {
+      assessments++; return route.fulfill({ status: 201, json: assessment(projects[0]!) });
+    }
+    return route.fulfill({ status: 404, json: { message: "Unavailable" } });
+  });
+  try {
+    await page.goto("/"); await page.getByRole("button", { name: /^PMO administrator/ }).click();
+    await page.getByRole("button", { name: /Health scope project 1/ }).click();
+    const panel = page.getByRole("region", { name: "Project schedule overdue policy", exact: true });
+    await panel.getByLabel("Schedule health time zone (IANA)").fill("America/Los_Angeles");
+    await panel.getByLabel("Default overdue threshold (local calendar days)").fill("2");
+    const before = navigations;
+    const saved = page.waitForResponse((response) => response.url().endsWith(`/projects/${projects[0]!.id}/schedule-health-policy`) && response.request().method() === "POST")
+      .then(async (response) => ({ status: response.status(), body: await response.json() }));
+    void saved.catch(() => {});
+    const click = panel.getByRole("button", { name: "Save project schedule policy" }).click();
+    await entered; await expect(panel).toHaveCount(0); release(); await click;
+    const response = await saved;
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ revision: 2, timeZone: "America/Los_Angeles", defaultMinimumOverdueDays: 2, targetOverrides: [] });
+    await expect(panel).toContainText("Schedule health policy revision 2: America/Los_Angeles");
+    expect(saves).toBe(1); expect(navigations).toBe(before);
+    await page.getByRole("button", { name: "Run assessment" }).click();
+    await expect.poll(() => assessments).toBe(1);
+  } finally { release(); }
+});
+
 test("a nonleader receives no milestone entry point or observation request", async ({ page }) => {
   test.setTimeout(90000);
   let observations = 0, persona = "";
@@ -160,7 +214,7 @@ test("an old assessment body already being read cannot repopulate the new projec
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (!state.armBody || !url.includes("/health-assessments/latest") || !init) return original(input, init);
       state.armBody = false;
-      const { signal: _signal, ...rest } = init;
+      const rest = { ...init }; delete rest.signal;
       return original(input, rest).then(async (response) => {
         const bytes = new Uint8Array(await response.arrayBuffer());
         const gate = new Promise<void>((resolve) => { state.releaseBody = resolve; });
@@ -234,7 +288,7 @@ test("late old health bodies cannot restore either panel after a project switch"
     window.fetch = (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/health-assessments/latest") && init) {
-        const { signal: _signal, ...rest } = init;
+        const rest = { ...init }; delete rest.signal;
         return original(input, rest).then(async (response) => {
           await response.clone().text();
           const tag = response.headers.get("x-health-test");
