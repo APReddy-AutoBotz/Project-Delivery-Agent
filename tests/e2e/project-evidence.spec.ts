@@ -597,13 +597,16 @@ test("E2E-HLT-007: PMO saves a project-local overdue policy and sees its canonic
     (response) =>
       response.url().endsWith(f.prefix + "/schedule-health-policy") &&
       response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  // Start consuming the original response as soon as it is observed, even if
+  // the click is still settling while the editor unmounts and revalidates.
+  void savedWait.catch(() => {});
   await policyPanel
     .getByRole("button", { name: "Save project schedule policy", exact: true })
     .click();
   const savedResponse = await savedWait;
-  expect(savedResponse.status()).toBe(200);
-  const savedPolicy = await savedResponse.json();
+  expect(savedResponse.status).toBe(200);
+  const savedPolicy = savedResponse.body;
   expect(savedPolicy).toMatchObject({
     revision: initialPolicy.revision + 1,
     timeZone: "America/Los_Angeles",
@@ -618,11 +621,12 @@ test("E2E-HLT-007: PMO saves a project-local overdue policy and sees its canonic
     (response) =>
       response.url().endsWith(f.prefix + "/health-assessments") &&
       response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void assessmentWait.catch(() => {});
   await panel.getByRole("button", { name: "Run assessment", exact: true }).click();
   const assessmentResponse = await assessmentWait;
-  expect(assessmentResponse.status()).toBe(201);
-  const assessment = await assessmentResponse.json();
+  expect(assessmentResponse.status).toBe(201);
+  const assessment = assessmentResponse.body;
   expect(assessment.ruleRevision).toBe("schedule-health@2+blocker-age@1");
   expect(assessment.input.scheduleHealthPolicy).toMatchObject({
     revision: savedPolicy.revision,

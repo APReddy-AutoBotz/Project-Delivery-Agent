@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
   BlockerAgeThresholdPolicyView,
   ScheduleHealthPolicyChange,
@@ -8,7 +8,8 @@ import type {
   HealthAssessmentView,
 } from "@pdaa/domain";
 import { Button, Message, TextField } from "./components.js";
-import type { RequestFn } from "./canonical-project.js";
+import { useHealthScope } from "./health-scope-context.js";
+import type { HealthWriteLease } from "./health-scope-fence.js";
 
 type Candidate = {
   key: string;
@@ -92,30 +93,29 @@ function reasonText(reason: string | null | undefined) {
 }
 
 function ThresholdEditor({
-  request,
   policy,
   refresh,
 }: {
-  request: RequestFn;
   policy: BlockerAgeThresholdPolicyView | null;
   refresh: () => void;
 }) {
-  const queryClient = useQueryClient();
+  const scope = useHealthScope();
+  const [saveError, setSaveError] = useState(false);
   const [minimumAge, setMinimumAge] = useState(
     policy ? String(policy.minimumBlockerAgeDays) : "",
   );
   const [auditHours, setAuditHours] = useState(
     policy ? String(policy.auditRetentionHours) : "",
   );
-  const key = ["blocker-age-threshold-policy"] as const;
   const save = useMutation({
-    mutationFn: (change: ThresholdChange) =>
-      request<BlockerAgeThresholdPolicyView>(
-        "/admin/blocker-age-threshold-policy",
-        { method: "POST", body: JSON.stringify(change) },
-      ),
-    onSuccess: (value) => {
-      queryClient.setQueryData(key, value);
+    retry: false,
+    mutationFn: async ({ change, lease }: { change: ThresholdChange; lease: HealthWriteLease }) => {
+      try {
+        await scope.write(lease, "/admin/blocker-age-threshold-policy", { method: "POST", body: JSON.stringify(change) });
+        setSaveError(false);
+      } catch {
+        if (scope.writeCurrent(lease)) setSaveError(true);
+      } finally { scope.finishWrite(lease); }
     },
   });
   return (
@@ -135,11 +135,13 @@ function ThresholdEditor({
         className="grid gap-3 md:grid-cols-3 md:items-end"
         onSubmit={(event) => {
           event.preventDefault();
-          save.mutate({
+          const lease = scope.beginWrite();
+          if (!lease) return;
+          try { save.mutate({ lease, change: {
             expectedRevision: policy?.revision ?? 0,
             minimumBlockerAgeDays: Number(minimumAge),
             auditRetentionHours: Number(auditHours),
-          });
+          } }); } catch { scope.finishWrite(lease); }
         }}
       >
         <TextField
@@ -165,7 +167,7 @@ function ThresholdEditor({
         <Button
           type="submit"
           className="primary"
-          disabled={save.isPending}
+          disabled={save.isPending || scope.reading || scope.atCapacity}
         >
           {save.isPending ? "Saving…" : "Save customer threshold"}
         </Button>
@@ -173,9 +175,9 @@ function ThresholdEditor({
       <p className="muted">
         A saved threshold applies to new assessments. Replays retain the threshold and revision already recorded.
       </p>
-      {save.isError && (
+      {saveError && (
         <>
-          <Message error>{errorText(save.error)}</Message>
+          <Message error>The save outcome could not be confirmed. Reload to check the current policy.</Message>
           <Button className="secondary" onClick={refresh}>
             Reload current threshold
           </Button>
@@ -187,17 +189,16 @@ function ThresholdEditor({
 
 
 function ScheduleHealthPolicyEditor({
-  request,
   projectId,
   policy,
   refresh,
 }: {
-  request: RequestFn;
   projectId: string;
   policy: ScheduleHealthPolicyView;
   refresh: () => void;
 }) {
-  const queryClient = useQueryClient();
+  const scope = useHealthScope();
+  const [saveError, setSaveError] = useState(false);
   const [timeZone, setTimeZone] = useState(policy.timeZone);
   const [defaultDays, setDefaultDays] = useState(
     String(policy.defaultMinimumOverdueDays),
@@ -206,18 +207,17 @@ function ScheduleHealthPolicyEditor({
     JSON.stringify(policy.targetOverrides, null, 2),
   );
   const [formError, setFormError] = useState<string | null>(null);
-  const key = ["schedule-health-policy", projectId] as const;
   const overridesId = "schedule-health-overrides-" + projectId;
   const overridesHelpId = overridesId + "-help";
   const save = useMutation({
-    mutationFn: (change: ScheduleHealthPolicyChange) =>
-      request<ScheduleHealthPolicyView>(
-        "/projects/" + projectId + "/schedule-health-policy",
-        { method: "POST", body: JSON.stringify(change) },
-      ),
-    onSuccess: (value) => {
-      queryClient.setQueryData(key, value);
-      setFormError(null);
+    retry: false,
+    mutationFn: async ({ change, lease }: { change: ScheduleHealthPolicyChange; lease: HealthWriteLease }) => {
+      try {
+        await scope.write(lease, "/projects/" + projectId + "/schedule-health-policy", { method: "POST", body: JSON.stringify(change) });
+        setSaveError(false); setFormError(null);
+      } catch {
+        if (scope.writeCurrent(lease)) setSaveError(true);
+      } finally { scope.finishWrite(lease); }
     },
   });
   return (
@@ -240,12 +240,14 @@ function ScheduleHealthPolicyEditor({
             setFormError("Enter target overrides as a valid JSON array.");
             return;
           }
-          save.mutate({
+          const lease = scope.beginWrite();
+          if (!lease) return;
+          try { save.mutate({ lease, change: {
             expectedRevision: policy.revision,
             timeZone,
             defaultMinimumOverdueDays: Number(defaultDays),
             targetOverrides,
-          });
+          } }); } catch { scope.finishWrite(lease); }
         }}
       >
         <TextField
@@ -276,15 +278,15 @@ function ScheduleHealthPolicyEditor({
           Each entry uses targetType, targetKey, and minimumOverdueDays. Example: {"[{\"targetType\":\"MILESTONE\",\"targetKey\":\"MS-1\",\"minimumOverdueDays\":2}]"}
         </span>
         <div className="flex items-center gap-3 md:col-span-2">
-          <Button type="submit" className="primary" disabled={save.isPending}>
+          <Button type="submit" className="primary" disabled={save.isPending || scope.reading || scope.atCapacity}>
             {save.isPending ? "Saving…" : "Save project schedule policy"}
           </Button>
           <span className="muted">Saved changes apply to new assessments. Existing evidence keeps its recorded revision.</span>
         </div>
       </form>
-      {(formError || save.isError) && (
+      {(formError || saveError) && (
         <>
-          <Message error>{formError ?? errorText(save.error)}</Message>
+          <Message error>{formError ?? "The save outcome could not be confirmed. Reload to check the current policy."}</Message>
           <Button className="secondary" onClick={refresh}>
             Reload current policy
           </Button>
@@ -297,62 +299,61 @@ function ScheduleHealthPolicyEditor({
 export function HealthAssessmentPanel({
   projectId,
   reportedStatus,
-  request,
   pmoAdmin,
+  canInspectMilestone,
   visible = true,
 }: {
   projectId: string;
   reportedStatus: string;
-  request: RequestFn;
   pmoAdmin: boolean;
+  canInspectMilestone: boolean;
   visible?: boolean;
 }) {
-  const queryClient = useQueryClient();
-  const assessmentKey = ["health-assessment-latest", projectId] as const;
-  const thresholdKey = ["blocker-age-threshold-policy"] as const;
-  const schedulePolicyKey = ["schedule-health-policy", projectId] as const;
+  const scope = useHealthScope();
+  const assessmentKey = ["health-assessment-latest", ...scope.key] as const;
+  const thresholdKey = ["blocker-age-threshold-policy", ...scope.key] as const;
+  const schedulePolicyKey = ["schedule-health-policy", ...scope.key] as const;
   const latest = useQuery({
     queryKey: assessmentKey,
-    queryFn: () =>
-      request<HealthAssessmentView | null>(
-        "/projects/" + projectId + "/health-assessments/latest",
-      ),
-    enabled: visible,
+    queryFn: ({ signal }) => scope.read<HealthAssessmentView | null>("/projects/" + projectId + "/health-assessments/latest", signal),
+    enabled: visible && scope.ready,
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
   const threshold = useQuery({
     queryKey: thresholdKey,
-    queryFn: () =>
-      request<BlockerAgeThresholdPolicyView | null>(
-        "/admin/blocker-age-threshold-policy",
-      ),
-    enabled: visible && pmoAdmin,
+    queryFn: ({ signal }) => scope.read<BlockerAgeThresholdPolicyView | null>("/admin/blocker-age-threshold-policy", signal),
+    enabled: visible && scope.ready && pmoAdmin,
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
   const schedulePolicy = useQuery({
     queryKey: schedulePolicyKey,
-    queryFn: () =>
-      request<ScheduleHealthPolicyView>(
-        "/projects/" + projectId + "/schedule-health-policy",
-      ),
-    enabled: visible && pmoAdmin,
+    queryFn: ({ signal }) => scope.read<ScheduleHealthPolicyView>("/projects/" + projectId + "/schedule-health-policy", signal),
+    enabled: visible && scope.ready && pmoAdmin,
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
   const create = useMutation({
-    mutationFn: () =>
-      request<HealthAssessmentView>(
-        "/projects/" + projectId + "/health-assessments",
-        {
-          method: "POST",
-          body: JSON.stringify({ commandKey: globalThis.crypto.randomUUID() }),
-        },
-      ),
-    onSuccess: (value) => {
-      queryClient.setQueryData(assessmentKey, value);
+    retry: false,
+    mutationFn: async ({ lease, key }: { lease: HealthWriteLease; key: string }) => {
+      try {
+        await scope.write(lease, "/projects/" + projectId + "/health-assessments", {
+          method: "POST", body: JSON.stringify({ commandKey: key }),
+        });
+        scope.completeAssessment(lease, key);
+      } catch { /* The shared owner retains any uncertain sent outcome. */ }
+      finally { scope.finishWrite(lease); }
     },
   });
 
-  const assessment = latest.data;
+  const assessment = latest.isFetching || latest.isError ? undefined : latest.data;
   const result = assessment?.result as AssessmentResult | null | undefined;
   const input = assessment?.input as AssessmentInput | null | undefined;
   const scheduleSignals =
@@ -366,6 +367,12 @@ export function HealthAssessmentPanel({
     age?.assessments.map((signal) => [signal.targetKey, signal]) ?? [],
   );
 
+  if (!visible || !scope.ready || !scope.current()) return <section className="panel">
+    {scope.failed && visible ? <><p role="alert">Current health access could not be established.</p>
+      <Button className="secondary" onClick={() => scope.recheck()}>Check access again</Button></>
+      : <p role="status">{scope.writing ? "Updating health information…" : "Checking current health access…"}</p>}
+  </section>;
+
   return (
     <section className="panel space-y-5" aria-labelledby="delivery-assessment-heading">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -375,34 +382,46 @@ export function HealthAssessmentPanel({
           <p className="muted">
             The reported project status remains separate from the saved schedule calculation and blocker-age coverage.
           </p>
+          {canInspectMilestone && <p className="muted">
+            <a href="#delivery-structure" onClick={(event) => { event.preventDefault(); if (scope.current()) document.getElementById("delivery-structure")?.focus(); }}>
+              View the separate milestone completion check in delivery structure
+            </a>. It has its own access checks and observation time; it is not part of this saved assessment.
+          </p>}
         </div>
         <Button
           className="primary"
-          disabled={!visible || create.isPending}
-          onClick={() => create.mutate()}
+          disabled={!visible || !latest.isSuccess || latest.isFetching || create.isPending || scope.reading || scope.atCapacity || scope.assessmentCapacity}
+          onClick={() => {
+            if (!latest.isSuccess || latest.isFetching) return;
+            const key = scope.assessmentCommand(); if (!key) return;
+            const lease = scope.beginWrite(); if (!lease) return;
+            try { create.mutate({ lease, key }); } catch { scope.finishWrite(lease); }
+          }}
         >
-          {create.isPending ? "Assessing…" : "Run assessment"}
+          {create.isPending ? "Assessing…" : scope.pendingAssessment ? "Retry previous assessment" : "Run assessment"}
         </Button>
       </div>
+
+      {scope.uncertain && <Message error>A previous health write may still have an unknown outcome. The refreshed information is a separate as-of check.</Message>}
+      {(scope.atCapacity || scope.assessmentCapacity) && <Message error>Health actions are unavailable in this browser session; previously sent writes may still complete.</Message>}
 
       {pmoAdmin && (
         <section className="rounded-lg border border-slate-200 p-4" aria-labelledby="threshold-heading">
           <h3 id="threshold-heading">Customer-wide blocker-age threshold</h3>
-          {threshold.isPending ? (
+          {threshold.isPending || threshold.isFetching ? (
             <p role="status">Loading the current customer threshold…</p>
           ) : threshold.isError ? (
             <>
               <Message error>{errorText(threshold.error)}</Message>
-              <Button className="secondary" onClick={() => void threshold.refetch()}>
+              <Button className="secondary" onClick={() => scope.refresh()}>
                 Retry threshold access
               </Button>
             </>
           ) : (
             <ThresholdEditor
               key={threshold.data?.revision ?? "unconfigured"}
-              request={request}
               policy={threshold.data ?? null}
-              refresh={() => void threshold.refetch()}
+              refresh={() => scope.refresh()}
             />
           )}
         </section>
@@ -411,37 +430,35 @@ export function HealthAssessmentPanel({
           {pmoAdmin && (
             <section className="rounded-lg border border-slate-200 p-4 space-y-3" aria-labelledby="schedule-policy-heading">
               <h3 id="schedule-policy-heading">Project schedule overdue policy</h3>
-              {schedulePolicy.isPending ? (
+              {schedulePolicy.isPending || schedulePolicy.isFetching ? (
                 <p role="status">Loading the project schedule policy…</p>
               ) : schedulePolicy.isError ? (
                 <>
                   <Message error>{errorText(schedulePolicy.error)}</Message>
-                  <Button className="secondary" onClick={() => void schedulePolicy.refetch()}>
+                    <Button className="secondary" onClick={() => scope.refresh()}>
                     Retry policy access
                   </Button>
                 </>
               ) : schedulePolicy.data ? (
                 <ScheduleHealthPolicyEditor
                   key={schedulePolicy.data.revision}
-                  request={request}
                   projectId={projectId}
                   policy={schedulePolicy.data}
-                  refresh={() => void schedulePolicy.refetch()}
+                  refresh={() => scope.refresh()}
                 />
               ) : null}
             </section>
           )}
 
-      {create.isError && <Message error>{errorText(create.error)}</Message>}
       {latest.isError && (
         <>
           <Message error>{errorText(latest.error)}</Message>
-          <Button className="secondary" onClick={() => void latest.refetch()}>
+          <Button className="secondary" onClick={() => scope.refresh()}>
             Retry assessment access
           </Button>
         </>
       )}
-      {latest.isPending ? (
+      {latest.isPending || latest.isFetching ? (
         <p role="status">Checking the latest assessment…</p>
       ) : !assessment ? (
         !latest.isError && (
