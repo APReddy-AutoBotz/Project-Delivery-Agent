@@ -51,6 +51,7 @@ test("scalar observation clears on selection, focus revalidation and late replie
     if (path === `/projects/${projectId}`) return route.fulfill({ json: project });
     if (path === `/projects/${secondProject.id}`) return route.fulfill({ json: secondProject });
     if (path === `/projects/${projectId}/canonical`) return route.fulfill({ json: detail });
+    if (path.endsWith("/health-assessments/latest")) return route.fulfill({ status: 200, contentType: "application/json", body: "null" });
     if (path === `/projects/${secondProject.id}/canonical`) return route.fulfill({ json: { ...detail, id: secondProject.id } });
     if (path === `/projects/${projectId}/facts`) return denyCatalogue ? route.fulfill({ status: 404 }) : route.fulfill({ json: {
       canAppend: false, canConfigure: false, next: null, facts: [
@@ -67,7 +68,19 @@ test("scalar observation clears on selection, focus revalidation and late replie
   await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();
   await page.getByRole("button", { name: /Synthetic scalar project/ }).click();
   const select = page.getByLabel("Project fact"), check = page.getByRole("button", { name: "Check disagreement" });
-  await select.selectOption(factId); expect(reads).toBe(0); await check.click();
+  await select.selectOption(factId); expect(reads).toBe(0);
+  await page.evaluate((next) => {
+    const select = document.querySelector("#scalar-conflict-select"), button = [...document.querySelectorAll("button")].find((item) => item.textContent?.trim() === "Check disagreement");
+    if (!select || !button) throw new Error("Scalar controls unavailable");
+    const props = (element: Element) => { const key = Object.keys(element).find((name) => name.startsWith("__reactProps$")); if (!key) throw new Error("React props unavailable"); return (element as unknown as Record<string, { onChange?: (event: { target: { value: string } }) => void; onClick?: () => void }>)[key]!; };
+    const change = props(select).onChange, oldCheck = props(button).onClick; if (!change || !oldCheck) throw new Error("Scalar callbacks unavailable");
+    change({ target: { value: next } }); oldCheck();
+  }, otherFact);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect(reads).toBe(0); await expect(select).toHaveValue(otherFact);
+  await check.click(); await expect.poll(() => reads).toBe(1);
+  await expect(page.getByText("This disagreement is unavailable.", { exact: false })).toBeVisible();
+  await select.selectOption(factId); reads = 0; await check.click();
   await expect(page.getByText("Sources currently disagree.", { exact: false })).toBeVisible();
   await expect(page.getByText("2026-11-01", { exact: true })).toBeVisible();
   await expect(page.getByText(`Evidence ${id(110)}`, { exact: false })).toBeVisible();
@@ -79,8 +92,8 @@ test("scalar observation clears on selection, focus revalidation and late replie
   await expect(page.getByText("Sources currently disagree.", { exact: false })).toBeVisible();
   denyCatalogue = true; await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page.getByText("Sources currently disagree.", { exact: false })).toHaveCount(0);
-  await expect(page.getByText("The fact list is unavailable.", { exact: false })).toBeVisible();
-  denyCatalogue = false; await page.getByRole("button", { name: "Refresh fact list" }).click();
+  await expect(page.getByText("Current delivery structure access could not be established.")).toBeVisible();
+  denyCatalogue = false; await page.getByRole("button", { name: "Check delivery structure access again" }).click();
   await select.selectOption(factId); await check.click();
   await expect(page.getByText("Sources currently disagree.", { exact: false })).toBeVisible();
   entered = new Promise<void>((resolve) => { arrived = resolve; }); gate = new Promise<void>((resolve) => { release = resolve; });
@@ -132,6 +145,7 @@ test("pages facts and withholds a late answer from the previous page", async ({ 
     if (path === "/projects") return route.fulfill({ json: [project] });
     if (path === `/projects/${projectId}`) return route.fulfill({ json: project });
     if (path === `/projects/${projectId}/canonical`) return route.fulfill({ json: detail });
+    if (path.endsWith("/health-assessments/latest")) return route.fulfill({ status: 200, contentType: "application/json", body: "null" });
     if (path === `/projects/${projectId}/facts`) return route.fulfill({ json: url.searchParams.get("afterFactType") === next
       ? { canAppend: false, canConfigure: false, facts: [later], next: null }
       : { canAppend: false, canConfigure: false, facts: first, next } });
@@ -177,6 +191,7 @@ test("rejects a repeated catalogue cursor and can restart from the first page", 
     if (path === "/projects") return route.fulfill({ json: [project] });
     if (path === `/projects/${projectId}`) return route.fulfill({ json: project });
     if (path === `/projects/${projectId}/canonical`) return route.fulfill({ json: detail });
+    if (path.endsWith("/health-assessments/latest")) return route.fulfill({ status: 200, contentType: "application/json", body: "null" });
     if (path === `/projects/${projectId}/facts`) {
       const after = url.searchParams.get("afterFactType");
       const facts = after === null ? first : after === "project.cursor_a" ? second : third;

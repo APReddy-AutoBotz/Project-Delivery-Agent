@@ -100,10 +100,11 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
-  const operation = useRef(false), draftEpoch = useRef(0);
+  const operation = useRef(false), operationEpoch = useRef(0), draftEpoch = useRef(0);
   const submission = useRef<{ key: string; text: string; correction: string | null; payload: string; fingerprint?: string } | null>(null);
   const writeOwner = canonicalCreationOwner(customerId, locator);
-  useSyncExternalStore(invitationWrites.subscribe, invitationWrites.snapshot, invitationWrites.snapshot);
+  const writeVersion = useSyncExternalStore(invitationWrites.subscribe, invitationWrites.snapshot, invitationWrites.snapshot);
+  const renderedDraftEpoch = draftEpoch.current, renderedOperationEpoch = operationEpoch.current;
   const command = submission.current;
   const writeState = invitationWrites.state(writeOwner, command?.fingerprint && command.text === text && command.correction === correction
     ? { key: command.key, fingerprint: command.fingerprint } : null);
@@ -114,8 +115,12 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
       issuance.current === rendered.issuance && lifecycle.current === rendered.lifecycle && state?.data === rendered && state.status === "success" && state.fetchStatus === "idle" &&
       deadline.current !== null && Date.now() < deadline.current && Date.now() < Date.parse(rendered.value.expiresAt));
   };
+  const retryIssuance = issuance.current, retryLifecycle = lifecycle.current;
   const retry = () => {
-    if (!isCurrentScope() || expiredRef.current || (deadline.current !== null && Date.now() >= deadline.current)) return;
+    const sameError = query.isError && !deniedRef.current && queryClient.getQueryState(key)?.status === "error";
+    if (!isCurrentScope() || !active.current || expiredRef.current || (deadline.current !== null && Date.now() >= deadline.current) ||
+        attemptRef.current !== attempt || issuance.current !== retryIssuance || lifecycle.current !== retryLifecycle ||
+        !(denied && deniedRef.current) && !sameError) return;
     deniedRef.current = false; setDenied(false); attemptRef.current++; setAttempt(attemptRef.current);
   };
   useEffect(() => { active.current = true;
@@ -146,7 +151,9 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (operation.current || busy || !currentInvitation() || !rendered || !text.trim() || new TextEncoder().encode(text).length > 16384) return;
+    if (operation.current || busy || operationEpoch.current !== renderedOperationEpoch || draftEpoch.current !== renderedDraftEpoch ||
+        invitationWrites.snapshot() !== writeVersion || (writeState !== "available" && writeState !== "retryable") ||
+        !currentInvitation() || !rendered || !text.trim() || new TextEncoder().encode(text).length > 16384) return;
     const snapshotEpoch = draftEpoch.current, snapshotText = text, snapshotCorrection = correction, requestId = rendered.value.requestId;
     let prepared = submission.current;
     if (!prepared || prepared.text !== snapshotText || prepared.correction !== snapshotCorrection) {
@@ -157,11 +164,14 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
       submission.current = prepared;
     }
     const pending = prepared;
-    operation.current = true; setBusy(true); setMessage(""); setFailed(false);
+    operation.current = true; operationEpoch.current++; setBusy(true); setMessage(""); setFailed(false);
     let lease: symbol | null = null;
     try {
       pending.fingerprint = await canonicalCommandFingerprint(subject, pending.payload);
-      if (!currentInvitation() || draftEpoch.current !== snapshotEpoch) return;
+      if (!currentInvitation() || draftEpoch.current !== snapshotEpoch || invitationWrites.snapshot() !== writeVersion) {
+        if (isCurrentScope() && active.current) { setFailed(true); setMessage("Response activity changed. Review your update and try again."); }
+        return;
+      }
       lease = invitationWrites.begin(writeOwner, { key: pending.key, fingerprint: pending.fingerprint });
       if (!lease) { setFailed(true); setMessage("An earlier response could not be confirmed. Retry the same response or check its history."); return; }
       const raw = await request<unknown>(`/project-update-invitations/${locator}/responses`, { method: "POST", body: pending.payload },

@@ -258,13 +258,15 @@ export function CreateProject({
   customerId: string;
   subject: string;
 }) {
-  const alive = useRef(true), operation = useRef(false);
+  const alive = useRef(true), operation = useRef(false), operationEpoch = useRef(0);
   const selectionEpoch = useRef(0), reviewedSelectionEpoch = useRef(-1);
-  const draftEpoch = useRef(0), reviewedDraftEpoch = useRef(-1), programmeEditEpoch = useRef(0);
+  const draftEpoch = useRef(0), reviewedDraftEpoch = useRef(-1), programmeEditEpoch = useRef(0), reviewEpoch = useRef(0);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [portfolioId, setPortfolio] = useState(setup.portfolios[0]?.id ?? "");
-  useSyncExternalStore(projectCreationWrites.subscribe, projectCreationWrites.snapshot, projectCreationWrites.snapshot);
-  useSyncExternalStore(programmeCreationWrites.subscribe, programmeCreationWrites.snapshot, programmeCreationWrites.snapshot);
+  const projectWriteVersion = useSyncExternalStore(projectCreationWrites.subscribe, projectCreationWrites.snapshot, projectCreationWrites.snapshot);
+  const programmeWriteVersion = useSyncExternalStore(programmeCreationWrites.subscribe, programmeCreationWrites.snapshot, programmeCreationWrites.snapshot);
+  const renderedOperationEpoch = operationEpoch.current, renderedSelectionEpoch = selectionEpoch.current;
+  const renderedDraftEpoch = draftEpoch.current, renderedProgrammeEditEpoch = programmeEditEpoch.current, renderedReviewEpoch = reviewEpoch.current;
   const creationOwner = canonicalCreationOwner(customerId, portfolioId);
   const [programmeId, setProgramme] = useState("");
   const [createdProgramme, setCreatedProgramme] = useState<{
@@ -378,7 +380,8 @@ export function CreateProject({
   }
   function review(event: React.FormEvent) {
     event.preventDefault();
-    if (!isCurrentScope() || operation.current) return;
+    if (!alive.current || !isCurrentScope() || busy || operation.current || operationEpoch.current !== renderedOperationEpoch ||
+        selectionEpoch.current !== renderedSelectionEpoch || draftEpoch.current !== renderedDraftEpoch || reviewEpoch.current !== renderedReviewEpoch) return;
     setError("");
     if (!selectionCurrent) { setError("Choose a portfolio and programme available in the current setup."); return; }
     const allDates = [
@@ -423,6 +426,7 @@ export function CreateProject({
         }
       }
     const payload = draftPayload();
+    reviewEpoch.current++;
     reviewedSelectionEpoch.current = selectionEpoch.current;
     reviewedDraftEpoch.current = draftEpoch.current;
     setPending({
@@ -435,10 +439,13 @@ export function CreateProject({
   }
   async function create() {
     if (!pending || !projectCommand || !pendingMatchesDraft || reviewedSelectionEpoch.current !== selectionEpoch.current || reviewedDraftEpoch.current !== draftEpoch.current ||
-        !isCurrentScope() || !selectionCurrent || operation.current) return;
+        selectionEpoch.current !== renderedSelectionEpoch || draftEpoch.current !== renderedDraftEpoch || reviewEpoch.current !== renderedReviewEpoch ||
+        operationEpoch.current !== renderedOperationEpoch || projectCreationWrites.snapshot() !== projectWriteVersion ||
+        !alive.current || !isCurrentScope() || !selectionCurrent || busy || operation.current ||
+        (projectWriteState !== "available" && projectWriteState !== "retryable")) return;
     const lease = projectCreationWrites.begin(creationOwner, projectCommand);
     if (!lease) return;
-    operation.current = true;
+    operation.current = true; operationEpoch.current++;
     setBusy(true);
     setError("");
     const { idempotencyKey, ...payload } = pending;
@@ -466,14 +473,17 @@ export function CreateProject({
     }
   }
   async function createProgramme() {
-    if (!isCurrentScope() || !portfolio || !programme.code || !programme.name || operation.current) return;
+    if (!alive.current || !isCurrentScope() || !portfolio || !programme.code || !programme.name || busy || operation.current ||
+        (programmeWriteState !== "available" && programmeWriteState !== "retryable") ||
+        selectionEpoch.current !== renderedSelectionEpoch || programmeEditEpoch.current !== renderedProgrammeEditEpoch ||
+        operationEpoch.current !== renderedOperationEpoch || programmeCreationWrites.snapshot() !== programmeWriteVersion) return;
     const command = programmeRetry ?? {
       portfolioId,
       ...programme,
       idempotencyKey: crypto.randomUUID(),
     };
     const issuedSelectionEpoch = selectionEpoch.current, issuedProgrammeEditEpoch = programmeEditEpoch.current;
-    operation.current = true;
+    operation.current = true; operationEpoch.current++;
     setBusy(true);
     setError("");
     setProgrammeRequest(command);
@@ -481,8 +491,9 @@ export function CreateProject({
     try {
       const { portfolioId: targetPortfolio, ...payload } = command;
       const fingerprint = await canonicalCommandFingerprint(subject, JSON.stringify(payload));
-      if (!alive.current || !isCurrentScope() || selectionEpoch.current !== issuedSelectionEpoch || programmeEditEpoch.current !== issuedProgrammeEditEpoch)
-        throw new Error("The programme details or setup changed before the request started.");
+      if (!alive.current || !isCurrentScope() || selectionEpoch.current !== issuedSelectionEpoch || programmeEditEpoch.current !== issuedProgrammeEditEpoch ||
+          programmeCreationWrites.snapshot() !== programmeWriteVersion)
+        throw new Error("Programme activity or details changed. Review them and try again.");
       setProgrammeDigest({ command, digest: fingerprint });
       lease = programmeCreationWrites.begin(creationOwner, { key: command.idempotencyKey, fingerprint });
       if (!lease) throw new Error("A previous programme creation must be checked before another request.");
@@ -594,7 +605,7 @@ export function CreateProject({
               disabled={busy}
               onClick={() => {
                 if (!isCurrentScope()) return;
-                reviewedDraftEpoch.current = -1;
+                reviewEpoch.current++; reviewedDraftEpoch.current = -1;
                 setPending(null);
                 setError("");
               }}
@@ -1129,7 +1140,7 @@ export function CanonicalProjectDetails({
             milestones={detail.milestones as { id: string; key: string; name: string }[]}
             workItems={detail.workItems as { id: string; key: string; title: string }[]} />}
           {leadershipScope && !result.isFetching && !result.isError && <LeadershipScalarConflict
-            key={leadershipViewScope} projectId={id} scope={leadershipViewScope} request={guardedRequest} reserveRead={scope.reserveRead} />}
+            key={leadershipViewScope} projectId={id} scope={leadershipViewScope} request={guardedRequest} reserveRead={scope.reserveRead} isCurrentScope={scope.current} />}
           {sections.map((section) => {
             const rows = detail[section.key] as DetailRow[];
             return (

@@ -131,10 +131,11 @@ export function ProjectUpdates({
   const [quietEnd, setQuietEnd] = useState("");
   const [schedulePreview, setSchedulePreview] = useState<SchedulePreview | null>(null);
   const [busy, setBusy] = useState(false);
-  const operation = useRef(false);
+  const operation = useRef(false), operationEpoch = useRef(0), draftEpoch = useRef(0);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
-  React.useSyncExternalStore(projectPolicyWrites.subscribe, projectPolicyWrites.snapshot, projectPolicyWrites.snapshot);
+  const writeVersion = React.useSyncExternalStore(projectPolicyWrites.subscribe, projectPolicyWrites.snapshot, projectPolicyWrites.snapshot);
+  const renderedDraftEpoch = draftEpoch.current, renderedOperationEpoch = operationEpoch.current;
   const writeState = projectPolicyWrites.state(writeOwner);
   const [draftRevision, setDraftRevision] = useState<number | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
@@ -156,7 +157,7 @@ export function ProjectUpdates({
 
   useEffect(() => {
     if (!visible || policyQuery.isPending || policyQuery.isFetching || policyQuery.isError || draftDirty || draftRevision === policyRevision) return;
-    setDraftRevision(policyRevision);
+    draftEpoch.current++; setDraftRevision(policyRevision);
     const policy = policyQuery.data;
     if (!policy) {
       setWindowSeconds("");
@@ -197,11 +198,12 @@ export function ProjectUpdates({
 
   async function savePolicy(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (operation.current || !current() || draftRevision === null || currentRevision() !== draftRevision || !isCurrentScope()) return;
+    if (busy || operation.current || writeState !== "available" || operationEpoch.current !== renderedOperationEpoch || draftEpoch.current !== renderedDraftEpoch ||
+        projectPolicyWrites.snapshot() !== writeVersion || !current() || draftRevision === null || currentRevision() !== draftRevision || !isCurrentScope()) return;
     const write = projectPolicyWrites.begin(writeOwner);
     if (!write) return;
     let confirmed = false;
-    operation.current = true;
+    operation.current = true; operationEpoch.current++;
     setBusy(true);
     setMessage("");
     setIsError(false);
@@ -262,8 +264,8 @@ export function ProjectUpdates({
   }
 
   async function assess() {
-    if (operation.current || !current()) return;
-    operation.current = true;
+    if (busy || operation.current || operationEpoch.current !== renderedOperationEpoch || !current()) return;
+    operation.current = true; operationEpoch.current++;
     setBusy(true);
     setMessage("");
     setIsError(false);
@@ -290,8 +292,8 @@ export function ProjectUpdates({
   }
 
   async function previewSchedule() {
-    if (operation.current || !current()) return;
-    operation.current = true;
+    if (busy || operation.current || operationEpoch.current !== renderedOperationEpoch || !current()) return;
+    operation.current = true; operationEpoch.current++;
     setBusy(true);
     setMessage("");
     setIsError(false);
@@ -447,7 +449,7 @@ export function ProjectUpdates({
           <p className="muted">
             Choose the complete required-fact set and a current RESPONSIBLE_OWNER. Leave scheduled scanning off unless the separately configured service identity and signing key are deployed.
           </p>
-          <form onSubmit={savePolicy}>
+          <form onSubmit={savePolicy} onChangeCapture={() => { draftEpoch.current++; }}>
             <fieldset disabled={busy}>
             <div className="form-row">
               <TextField
@@ -457,13 +459,13 @@ export function ProjectUpdates({
                 max={315360000}
                 required
                 value={windowSeconds}
-                onChange={(event) => { setDraftDirty(true); setWindowSeconds(event.target.value); }}
+                onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setWindowSeconds(event.target.value); } }}
               />
               <TextField
                 label="Project time zone (IANA)"
                 required
                 value={timeZone}
-                onChange={(event) => { setDraftDirty(true); setTimeZone(event.target.value); }}
+                onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setTimeZone(event.target.value); } }}
                 placeholder="e.g. Asia/Kolkata"
               />
             </div>
@@ -472,7 +474,7 @@ export function ProjectUpdates({
               required
               maxLength={256}
               value={owner}
-              onChange={(event) => { setDraftDirty(true); setOwner(event.target.value); }}
+              onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setOwner(event.target.value); } }}
               placeholder="Must match the canonical RESPONSIBLE_OWNER"
             />
             <label className="field">
@@ -482,7 +484,7 @@ export function ProjectUpdates({
                 rows={5}
                 maxLength={20000}
                 value={requiredFactsText}
-                onChange={(event) => { setDraftDirty(true); setRequiredFactsText(event.target.value); }}
+                onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setRequiredFactsText(event.target.value); } }}
                 placeholder={"project.status | Current status\nproject.forecast_end | Forecast finish"}
               />
             </label>
@@ -490,7 +492,7 @@ export function ProjectUpdates({
               <TextField
                 label="Reminder offsets (business days, comma separated)"
                 value={reminderOffsets}
-                onChange={(event) => { setDraftDirty(true); setReminderOffsets(event.target.value); }}
+                onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setReminderOffsets(event.target.value); } }}
                 placeholder="1, 2"
               />
               <TextField
@@ -500,7 +502,7 @@ export function ProjectUpdates({
                 max={90}
                 step={1}
                 value={escalationAfter}
-                onChange={(event) => { setDraftDirty(true); setEscalationAfter(event.target.value); }}
+                onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setEscalationAfter(event.target.value); } }}
               />
             </div>
             <TextField
@@ -508,7 +510,7 @@ export function ProjectUpdates({
               maxLength={200}
               required={Number(escalationAfter) > 0}
               value={escalationRecipient}
-              onChange={(event) => { setDraftDirty(true); setEscalationRecipient(event.target.value); }}
+              onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setEscalationRecipient(event.target.value); } }}
               placeholder="Must be a current PROJECT_MANAGER with project access"
             />
             <div className="form-row">
@@ -517,21 +519,21 @@ export function ProjectUpdates({
                 type="time"
                 required={Boolean(quietEnd)}
                 value={quietStart}
-                onChange={(event) => { setDraftDirty(true); setQuietStart(event.target.value); }}
+                onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setQuietStart(event.target.value); } }}
               />
               <TextField
                 label="Quiet hours end (project local time)"
                 type="time"
                 required={Boolean(quietStart)}
                 value={quietEnd}
-                onChange={(event) => { setDraftDirty(true); setQuietEnd(event.target.value); }}
+                onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setQuietEnd(event.target.value); } }}
               />
             </div>
             <label className="checkbox-field">
               <input
                 type="checkbox"
                 checked={scheduledScanEnabled}
-                onChange={(event) => { setDraftDirty(true); setScheduledScanEnabled(event.target.checked); }}
+                onChange={(event) => { if (!busy && !operation.current && isCurrentScope()) { setDraftDirty(true); setScheduledScanEnabled(event.target.checked); } }}
               />
               Enable scheduled assessments for this project
             </label>
@@ -541,7 +543,7 @@ export function ProjectUpdates({
               </Button>
             </div>
             {draftConflict && <Message error>The saved reporting policy changed. Review the current revision before saving this draft.</Message>}
-            {draftConflict && <Button className="secondary" onClick={() => setDraftDirty(false)}>Discard draft and use current policy</Button>}
+            {draftConflict && <Button className="secondary" onClick={() => { if (busy || operation.current || operationEpoch.current !== renderedOperationEpoch || draftEpoch.current !== renderedDraftEpoch || !draftConflict || !current() || currentRevision() !== policyRevision || currentRevision() === draftRevision) return; draftEpoch.current++; setDraftDirty(false); }}>Discard draft and use current policy</Button>}
             {writeState === "pending" && <Message>A policy save is still awaiting confirmation.</Message>}
             {writeState === "uncertain" && <Message error>The earlier policy save could not be confirmed. Another policy save is blocked while this page remains loaded.</Message>}
             {writeState === "capacity" && <Message error>Policy saving is unavailable while earlier outcomes remain unconfirmed.</Message>}

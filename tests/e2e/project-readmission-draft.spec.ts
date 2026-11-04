@@ -16,7 +16,8 @@ for (const scenario of [{ revision: 1, malformed: false, transient: false }, { r
       quietHoursStartLocal: null, quietHoursEndLocal: null, changedBy: "synthetic-actor", changedAt: "2026-10-20T00:00:00.000Z" });
     const facts = (name: string) => ({ canAppend: true, canConfigure: false,
       facts: [{ factId: "40000000-0000-4000-8000-000000000001", factType: name, revision: 1 }], next: null });
-    let phase = 0, detailReads = 0, identityReads = 0, reassessmentReads = 0, policyReads = 0, factReads = 0, saveRequests = 0, logins = 0, savedBody: Record<string, unknown> | undefined;
+    let phase = 0, detailReads = 0, identityReads = 0, reassessmentReads = 0, policyReads = 0, factReads = 0, historyReads = 0, saveRequests = 0, logins = 0, savedBody: Record<string, unknown> | undefined;
+    const assessmentWrites: Array<{ idempotencyKey: string }> = [];
     const fastReads = { identity: 0, detail: 0, reassessment: 0, wrongRequest: false };
     let projectHold: ServerResponse | undefined, policyHold: ServerResponse | undefined, factHold: ServerResponse | undefined;
     let projectArrived!: () => void, policyArrived!: () => void, factArrived!: () => void;
@@ -46,10 +47,15 @@ for (const scenario of [{ revision: 1, malformed: false, transient: false }, { r
         if (phase === 2 && !factHold) { factHold = res; res.writeHead(200, { "Content-Type": "application/json", "x-synthetic-case": "fresh-facts" }); res.flushHeaders(); factArrived(); return; }
         return json(200, facts(phase >= 2 ? "new.fact" : "old.fact"));
       }
+      if (path.startsWith(`/api/projects/${projectId}/facts/`) && path.endsWith("/history")) historyReads++;
       if (path === `/api/projects/${projectId}/facts/old.fact/history`) return json(200, {
         factId: "40000000-0000-4000-8000-000000000001", throughRevision: 1, entries: [], next: null,
       });
       if (path === `/api/projects/${projectId}/facts/old.fact/authority`) return json(200, { throughRevision: null, event: null });
+      if (path === `/api/projects/${projectId}/assessments` && req.method === "POST") {
+        let body = ""; req.setEncoding("utf8"); req.on("data", (chunk: string) => { body += chunk; });
+        req.on("end", () => { assessmentWrites.push(JSON.parse(body) as { idempotencyKey: string }); json(503, { message: "Synthetic assessment unavailable" }); }); return;
+      }
       if (path === `/api/projects/${projectId}/project-update-policy`) {
         if (req.method === "POST") {
           saveRequests++;
@@ -108,7 +114,37 @@ for (const scenario of [{ revision: 1, malformed: false, transient: false }, { r
       await page.getByRole("button", { name: /Synthetic project/ }).click();
       await expect(page.getByRole("heading", { name: "Current project", level: 1 })).toBeVisible();
       await expect(page.getByRole("button", { name: /old\.fact/ })).toBeVisible();
+      const beforeRefresh = factReads;
+      await page.evaluate(() => {
+        const buttons = [...document.querySelectorAll("button")], fact = buttons.find((button) => button.textContent?.includes("old.fact")), refresh = buttons.find((button) => button.textContent?.trim() === "Refresh evidence access");
+        if (!fact || !refresh) throw new Error("Evidence controls unavailable");
+        const key = Object.keys(fact).find((name) => name.startsWith("__reactProps$")); if (!key) throw new Error("Fact callback unavailable");
+        const oldFact = (fact as unknown as Record<string, { onClick: () => void }>)[key]!.onClick; refresh.click(); oldFact();
+      });
+      await expect.poll(() => factReads).toBeGreaterThan(beforeRefresh);
+      await expect(page.getByRole("button", { name: /old\.fact/ })).toBeVisible();
+      await page.evaluate(() => {
+        const form = document.querySelector(".evidence-target-form"), input = form?.querySelector("input"); if (!form || !input) throw new Error("Evidence form unavailable");
+        const props = (element: Element) => { const key = Object.keys(element).find((name) => name.startsWith("__reactProps$")); if (!key) throw new Error("Evidence callbacks unavailable"); return (element as unknown as Record<string, { onChange?: (event: { target: { value: string } }) => void; onSubmit?: (event: { preventDefault: () => void }) => void }>)[key]!; };
+        const change = props(input).onChange, oldSubmit = props(form).onSubmit; if (!change || !oldSubmit) throw new Error("Evidence handlers unavailable");
+        change({ target: { value: "new.fact" } }); oldSubmit({ preventDefault() {} });
+      });
+      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      expect(historyReads).toBe(0);
       await page.getByRole("button", { name: /old\.fact/ }).click();
+      const capture = page.getByRole("button", { name: "Capture new assessment" }); await expect(capture).toBeEnabled();
+      await capture.evaluate((button) => {
+        const key = Object.keys(button).find((name) => name.startsWith("__reactProps$")); if (!key) throw new Error("Assessment handler unavailable");
+        const old = (button as unknown as Record<string, { onClick: () => void }>)[key]!.onClick;
+        (window as unknown as { oldAssessment: () => void }).oldAssessment = old; old(); old();
+      });
+      await expect.poll(() => assessmentWrites.length).toBe(1);
+      await expect(page.getByRole("button", { name: "Retry assessment capture" })).toBeEnabled();
+      await page.evaluate(() => (window as unknown as { oldAssessment: () => void }).oldAssessment());
+      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      expect(assessmentWrites).toHaveLength(1);
+      await page.getByRole("button", { name: "Retry assessment capture" }).click(); await expect.poll(() => assessmentWrites.length).toBe(2);
+      expect(assessmentWrites[0]?.idempotencyKey).toBeTruthy(); expect(assessmentWrites[1]?.idempotencyKey).toBe(assessmentWrites[0]?.idempotencyKey);
       const statementDraft = page.getByLabel("Original statement");
       await expect(statementDraft).toBeVisible(); await statementDraft.fill("Retained synthetic evidence draft");
       await page.getByText("Reporting policy · PMO administration").click();
@@ -116,6 +152,14 @@ for (const scenario of [{ revision: 1, malformed: false, transient: false }, { r
       await draft.fill("9876"); await expect.poll(() => detailReads).toBeGreaterThanOrEqual(2);
       expect(policyReads).toBeGreaterThan(0); expect(factReads).toBeGreaterThan(0);
       const form = page.locator(".project-updates form");
+      await form.evaluate((element) => {
+        const key = Object.keys(element).find((name) => name.startsWith("__reactProps$")); if (!key) throw new Error("Policy handler unavailable");
+        (window as unknown as { oldPolicySubmit: (event: { preventDefault: () => void }) => void }).oldPolicySubmit = (element as unknown as Record<string, { onSubmit: (event: { preventDefault: () => void }) => void }>)[key]!.onSubmit;
+      });
+      await draft.fill("9877");
+      await page.evaluate(() => (window as unknown as { oldPolicySubmit: (event: { preventDefault: () => void }) => void }).oldPolicySubmit({ preventDefault() {} }));
+      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      expect(saveRequests).toBe(0); await draft.fill("9876");
       await form.evaluate((element) => {
         const state = window as unknown as { oldPolicyForm: HTMLFormElement; attemptedSubmissions: number };
         state.oldPolicyForm = element as HTMLFormElement; state.attemptedSubmissions = 0;
