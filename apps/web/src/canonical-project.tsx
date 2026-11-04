@@ -491,9 +491,10 @@ export function CreateProject({
     try {
       const { portfolioId: targetPortfolio, ...payload } = command;
       const fingerprint = await canonicalCommandFingerprint(subject, JSON.stringify(payload));
-      if (!alive.current || !isCurrentScope() || selectionEpoch.current !== issuedSelectionEpoch || programmeEditEpoch.current !== issuedProgrammeEditEpoch ||
-          programmeCreationWrites.snapshot() !== programmeWriteVersion)
-        throw new Error("Programme activity or details changed. Review them and try again.");
+      if (!alive.current || !isCurrentScope() || selectionEpoch.current !== issuedSelectionEpoch || programmeEditEpoch.current !== issuedProgrammeEditEpoch)
+        throw new Error("The programme details or setup changed before the request started.");
+      if (programmeCreationWrites.snapshot() !== programmeWriteVersion)
+        throw new Error("Programme activity changed. Review the details and try again.");
       setProgrammeDigest({ command, digest: fingerprint });
       lease = programmeCreationWrites.begin(creationOwner, { key: command.idempotencyKey, fingerprint });
       if (!lease) throw new Error("A previous programme creation must be checked before another request.");

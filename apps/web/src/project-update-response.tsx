@@ -152,8 +152,11 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (operation.current || busy || operationEpoch.current !== renderedOperationEpoch || draftEpoch.current !== renderedDraftEpoch ||
-        invitationWrites.snapshot() !== writeVersion || (writeState !== "available" && writeState !== "retryable") ||
+        invitationWrites.snapshot() !== writeVersion ||
         !currentInvitation() || !rendered || !text.trim() || new TextEncoder().encode(text).length > 16384) return;
+    if (writeState !== "available" && writeState !== "retryable") {
+      setFailed(true); setMessage("An earlier response could not be confirmed. Retry the same response or check its history."); return;
+    }
     const snapshotEpoch = draftEpoch.current, snapshotText = text, snapshotCorrection = correction, requestId = rendered.value.requestId;
     let prepared = submission.current;
     if (!prepared || prepared.text !== snapshotText || prepared.correction !== snapshotCorrection) {
