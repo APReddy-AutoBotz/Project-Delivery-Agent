@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { decodeSchedule, decodeScheduleChange, decodeThreshold, decodeThresholdChange } from "./health-policy-decoder.js";
+import { decodeAssessmentConfirmation } from "./health-assessment-decoder.js";
 import type {
   BlockerAgeThresholdPolicyView,
   ScheduleHealthPolicyChange,
@@ -66,6 +68,18 @@ type ThresholdChange = {
   minimumBlockerAgeDays: number;
   auditRetentionHours: number;
 };
+type PolicyDraft<T> = { baseRevision: number; values: T; version: number; uncertain: boolean; attempt?: symbol };
+type ThresholdValues = { minimumAge: string; auditHours: string };
+type ScheduleValues = { timeZone: string; defaultDays: string; overridesText: string };
+type UpdateDraft<T> = (change: (draft: PolicyDraft<T> | null) => PolicyDraft<T> | null) => void;
+function usePolicyDraft<T>(): [PolicyDraft<T> | null, UpdateDraft<T>, () => PolicyDraft<T> | null] {
+  const [draft, setDraft] = useState<PolicyDraft<T> | null>(null);
+  const current = useRef(draft);
+  const update: UpdateDraft<T> = (change) => {
+    const next = change(current.current); current.current = next; setDraft(next);
+  };
+  return [draft, update, () => current.current];
+}
 
 function errorText(error: unknown) {
   return error instanceof Error
@@ -95,26 +109,44 @@ function reasonText(reason: string | null | undefined) {
 function ThresholdEditor({
   policy,
   refresh,
+  draft,
+  updateDraft,
+  readDraft,
 }: {
   policy: BlockerAgeThresholdPolicyView | null;
   refresh: () => void;
+  draft: PolicyDraft<ThresholdValues> | null;
+  updateDraft: UpdateDraft<ThresholdValues>;
+  readDraft: () => PolicyDraft<ThresholdValues> | null;
 }) {
   const scope = useHealthScope();
-  const [saveError, setSaveError] = useState(false);
-  const [minimumAge, setMinimumAge] = useState(
-    policy ? String(policy.minimumBlockerAgeDays) : "",
-  );
-  const [auditHours, setAuditHours] = useState(
-    policy ? String(policy.auditRetentionHours) : "",
-  );
+  const [inputError, setInputError] = useState(false);
+  const initial = (): PolicyDraft<ThresholdValues> => ({ baseRevision: policy?.revision ?? 0,
+    values: { minimumAge: policy ? String(policy.minimumBlockerAgeDays) : "", auditHours: policy ? String(policy.auditRetentionHours) : "" },
+    version: 0, uncertain: false });
+  const visibleDraft = draft ?? initial();
+  const changedRevision = visibleDraft.baseRevision !== (policy?.revision ?? 0);
+  const edit = (field: keyof ThresholdValues, value: string) => {
+    if (!scope.current()) return;
+    if (value.length > 20) { setInputError(true); return; }
+    setInputError(false);
+    updateDraft((old) => { const prior = old ?? initial(); return { ...prior, values: { ...prior.values, [field]: value }, version: prior.version + 1 }; });
+  };
   const save = useMutation({
     retry: false,
-    mutationFn: async ({ change, lease }: { change: ThresholdChange; lease: HealthWriteLease }) => {
+    mutationFn: async ({ change, lease, attempt, version, wasUncertain }: { change: ThresholdChange; lease: HealthWriteLease; attempt: symbol; version: number; wasUncertain: boolean }) => {
       try {
-        await scope.write(lease, "/admin/blocker-age-threshold-policy", { method: "POST", body: JSON.stringify(change) });
-        setSaveError(false);
+        if (!scope.writeCurrent(lease)) {
+          updateDraft((old) => old?.attempt === attempt ? { ...old, attempt: undefined, uncertain: wasUncertain } : old); return;
+        }
+        const result = await scope.write<unknown>(lease, "/admin/blocker-age-threshold-policy", { method: "POST", body: JSON.stringify(change) });
+        const parsed = decodeThreshold(result);
+        if (!parsed || parsed.revision !== change.expectedRevision + 1 ||
+          parsed.minimumBlockerAgeDays !== change.minimumBlockerAgeDays || parsed.auditRetentionHours !== change.auditRetentionHours || !scope.writeCurrent(lease))
+          throw new Error("Save confirmation unavailable");
+        updateDraft((old) => old?.attempt === attempt && old.version === version ? null : old);
       } catch {
-        if (scope.writeCurrent(lease)) setSaveError(true);
+        scope.markWriteUncertain(lease);
       } finally { scope.finishWrite(lease); }
     },
   });
@@ -135,13 +167,19 @@ function ThresholdEditor({
         className="grid gap-3 md:grid-cols-3 md:items-end"
         onSubmit={(event) => {
           event.preventDefault();
-          const lease = scope.beginWrite();
+          if (!scope.current()) return;
+          const submitted = readDraft() ?? initial();
+          if (submitted.baseRevision !== (policy?.revision ?? 0)) return;
+          let change: ThresholdChange;
+          try { change = decodeThresholdChange({ expectedRevision: submitted.baseRevision,
+            minimumBlockerAgeDays: Number(submitted.values.minimumAge), auditRetentionHours: Number(submitted.values.auditHours) }); }
+          catch { setInputError(true); return; }
+          const lease = scope.beginWrite({ kind: "threshold", revision: change.expectedRevision });
           if (!lease) return;
-          try { save.mutate({ lease, change: {
-            expectedRevision: policy?.revision ?? 0,
-            minimumBlockerAgeDays: Number(minimumAge),
-            auditRetentionHours: Number(auditHours),
-          } }); } catch { scope.finishWrite(lease); }
+          const attempt = Symbol("threshold-attempt");
+          updateDraft(() => ({ ...submitted, attempt, uncertain: true }));
+          try { save.mutate({ lease, attempt, version: submitted.version, wasUncertain: submitted.uncertain, change }); }
+          catch { updateDraft((old) => old?.attempt === attempt ? { ...old, attempt: undefined, uncertain: submitted.uncertain } : old); scope.finishWrite(lease); }
         }}
       >
         <TextField
@@ -151,8 +189,8 @@ function ThresholdEditor({
           max={3650}
           step={1}
           required
-          value={minimumAge}
-          onChange={(event) => setMinimumAge(event.currentTarget.value)}
+          value={visibleDraft.values.minimumAge}
+          onChange={(event) => edit("minimumAge", event.currentTarget.value)}
         />
         <TextField
           label="Threshold audit retention (hours)"
@@ -161,13 +199,13 @@ function ThresholdEditor({
           max={87600}
           step={1}
           required
-          value={auditHours}
-          onChange={(event) => setAuditHours(event.currentTarget.value)}
+          value={visibleDraft.values.auditHours}
+          onChange={(event) => edit("auditHours", event.currentTarget.value)}
         />
         <Button
           type="submit"
           className="primary"
-          disabled={save.isPending || scope.reading || scope.atCapacity}
+          disabled={save.isPending || !scope.canWrite || scope.atCapacity || changedRevision}
         >
           {save.isPending ? "Saving…" : "Save customer threshold"}
         </Button>
@@ -175,10 +213,13 @@ function ThresholdEditor({
       <p className="muted">
         A saved threshold applies to new assessments. Replays retain the threshold and revision already recorded.
       </p>
-      {saveError && (
+      {changedRevision && <><Message error>This draft was based on revision {visibleDraft.baseRevision}. Review the current revision before using these values.</Message>
+        <Button className="secondary" onClick={() => { if (scope.current()) updateDraft((old) => old ? { ...old, baseRevision: policy?.revision ?? 0, version: old.version + 1 } : old); }}>Use current revision for this draft</Button></>}
+      {inputError && <Message error>Check the threshold values and their allowed ranges.</Message>}
+      {visibleDraft.uncertain && (
         <>
           <Message error>The save outcome could not be confirmed. Reload to check the current policy.</Message>
-          <Button className="secondary" onClick={refresh}>
+          <Button className="secondary" disabled={scope.networkLimited} onClick={refresh}>
             Reload current threshold
           </Button>
         </>
@@ -192,31 +233,51 @@ function ScheduleHealthPolicyEditor({
   projectId,
   policy,
   refresh,
+  draft,
+  updateDraft,
+  readDraft,
 }: {
   projectId: string;
   policy: ScheduleHealthPolicyView;
   refresh: () => void;
+  draft: PolicyDraft<ScheduleValues> | null;
+  updateDraft: UpdateDraft<ScheduleValues>;
+  readDraft: () => PolicyDraft<ScheduleValues> | null;
 }) {
   const scope = useHealthScope();
-  const [saveError, setSaveError] = useState(false);
-  const [timeZone, setTimeZone] = useState(policy.timeZone);
-  const [defaultDays, setDefaultDays] = useState(
-    String(policy.defaultMinimumOverdueDays),
-  );
-  const [overridesText, setOverridesText] = useState(
-    JSON.stringify(policy.targetOverrides, null, 2),
-  );
   const [formError, setFormError] = useState<string | null>(null);
+  const initial = (): PolicyDraft<ScheduleValues> => ({ baseRevision: policy.revision,
+    values: { timeZone: policy.timeZone, defaultDays: String(policy.defaultMinimumOverdueDays), overridesText: JSON.stringify(policy.targetOverrides, null, 2) },
+    version: 0, uncertain: false });
+  const visibleDraft = draft ?? initial();
+  const changedRevision = visibleDraft.baseRevision !== policy.revision;
+  const edit = (field: keyof ScheduleValues, value: string) => {
+    if (!scope.current()) return;
+    const limit = field === "overridesText" ? 65536 : field === "timeZone" ? 64 : 20;
+    if (value.length > limit) { setFormError("This value is too long. Shorten it and try again."); return; }
+    setFormError(null);
+    updateDraft((old) => { const prior = old ?? initial(); return { ...prior, values: { ...prior.values, [field]: value }, version: prior.version + 1 }; });
+  };
   const overridesId = "schedule-health-overrides-" + projectId;
   const overridesHelpId = overridesId + "-help";
   const save = useMutation({
     retry: false,
-    mutationFn: async ({ change, lease }: { change: ScheduleHealthPolicyChange; lease: HealthWriteLease }) => {
+    mutationFn: async ({ change, lease, attempt, version, wasUncertain }: { change: ScheduleHealthPolicyChange; lease: HealthWriteLease; attempt: symbol; version: number; wasUncertain: boolean }) => {
       try {
-        await scope.write(lease, "/projects/" + projectId + "/schedule-health-policy", { method: "POST", body: JSON.stringify(change) });
-        setSaveError(false); setFormError(null);
+        if (!scope.writeCurrent(lease)) {
+          updateDraft((old) => old?.attempt === attempt ? { ...old, attempt: undefined, uncertain: wasUncertain } : old); return;
+        }
+        const result = await scope.write<unknown>(lease, "/projects/" + projectId + "/schedule-health-policy", { method: "POST", body: JSON.stringify(change) });
+        const parsed = decodeSchedule(result), submitted = decodeScheduleChange(change);
+        const overridesMatch = parsed.targetOverrides.length === submitted.targetOverrides.length &&
+          parsed.targetOverrides.every((row) => submitted.targetOverrides.some((other) =>
+            row.targetType === other.targetType && row.targetKey === other.targetKey && row.minimumOverdueDays === other.minimumOverdueDays));
+        if (parsed.revision !== submitted.expectedRevision + 1 || parsed.timeZone !== submitted.timeZone ||
+          parsed.defaultMinimumOverdueDays !== submitted.defaultMinimumOverdueDays || !overridesMatch || !scope.writeCurrent(lease))
+          throw new Error("Save confirmation unavailable");
+        updateDraft((old) => old?.attempt === attempt && old.version === version ? null : old);
       } catch {
-        if (scope.writeCurrent(lease)) setSaveError(true);
+        scope.markWriteUncertain(lease);
       } finally { scope.finishWrite(lease); }
     },
   });
@@ -231,37 +292,42 @@ function ScheduleHealthPolicyEditor({
         className="grid gap-3 md:grid-cols-2"
         onSubmit={(event) => {
           event.preventDefault();
+          if (!scope.current()) return;
+          const submitted = readDraft() ?? initial();
+          if (submitted.baseRevision !== policy.revision) return;
           let targetOverrides: ScheduleHealthPolicyChange["targetOverrides"];
           try {
-            const parsed: unknown = JSON.parse(overridesText);
+            const parsed: unknown = JSON.parse(submitted.values.overridesText);
             if (!Array.isArray(parsed)) throw new Error("Overrides must be a JSON array.");
             targetOverrides = parsed as ScheduleHealthPolicyChange["targetOverrides"];
           } catch {
             setFormError("Enter target overrides as a valid JSON array.");
             return;
           }
-          const lease = scope.beginWrite();
+          let change: ScheduleHealthPolicyChange;
+          try { change = decodeScheduleChange({ expectedRevision: submitted.baseRevision,
+            timeZone: submitted.values.timeZone, defaultMinimumOverdueDays: Number(submitted.values.defaultDays), targetOverrides }); }
+          catch { setFormError("Check the time zone, threshold and target overrides."); return; }
+          const lease = scope.beginWrite({ kind: "schedule", revision: change.expectedRevision });
           if (!lease) return;
-          try { save.mutate({ lease, change: {
-            expectedRevision: policy.revision,
-            timeZone,
-            defaultMinimumOverdueDays: Number(defaultDays),
-            targetOverrides,
-          } }); } catch { scope.finishWrite(lease); }
+          const attempt = Symbol("schedule-policy-attempt");
+          updateDraft(() => ({ ...submitted, attempt, uncertain: true }));
+          try { save.mutate({ lease, attempt, version: submitted.version, wasUncertain: submitted.uncertain, change }); }
+          catch { updateDraft((old) => old?.attempt === attempt ? { ...old, attempt: undefined, uncertain: submitted.uncertain } : old); scope.finishWrite(lease); }
         }}
       >
         <TextField
           label="Schedule health time zone (IANA)"
-          value={timeZone}
-          onChange={(event) => setTimeZone(event.target.value)}
+          value={visibleDraft.values.timeZone}
+          onChange={(event) => edit("timeZone", event.target.value)}
         />
         <TextField
           label="Default overdue threshold (local calendar days)"
           type="number"
           min={1}
           max={3650}
-          value={defaultDays}
-          onChange={(event) => setDefaultDays(event.target.value)}
+          value={visibleDraft.values.defaultDays}
+          onChange={(event) => edit("defaultDays", event.target.value)}
         />
         <label className="grid gap-1 md:col-span-2" htmlFor={overridesId}>
           <span className="text-sm font-medium">Per-target threshold overrides (JSON)</span>
@@ -270,24 +336,29 @@ function ScheduleHealthPolicyEditor({
           id={overridesId}
           aria-describedby={overridesHelpId}
           className="min-h-28 rounded-md border border-slate-300 p-2 font-mono text-sm md:col-span-2"
-          value={overridesText}
-          onChange={(event) => setOverridesText(event.target.value)}
+          value={visibleDraft.values.overridesText}
+          onChange={(event) => edit("overridesText", event.target.value)}
           spellCheck={false}
         />
         <span id={overridesHelpId} className="muted md:col-span-2 min-w-0 break-words">
           Each entry uses targetType, targetKey, and minimumOverdueDays. Example: {"[{\"targetType\":\"MILESTONE\",\"targetKey\":\"MS-1\",\"minimumOverdueDays\":2}]"}
         </span>
         <div className="flex items-center gap-3 md:col-span-2">
-          <Button type="submit" className="primary" disabled={save.isPending || scope.reading || scope.atCapacity}>
+          <Button type="submit" className="primary" disabled={save.isPending || !scope.canWrite || scope.atCapacity || changedRevision}>
             {save.isPending ? "Saving…" : "Save project schedule policy"}
           </Button>
           <span className="muted">Saved changes apply to new assessments. Existing evidence keeps its recorded revision.</span>
         </div>
       </form>
-      {(formError || saveError) && (
+      {changedRevision && <><Message error>This draft was based on revision {visibleDraft.baseRevision}. Review the current revision before using these values.</Message>
+        <p>Current revision overrides:</p>
+        {policy.targetOverrides.length === 0 ? <p>None.</p> : <ul>{policy.targetOverrides.map((row) =>
+          <li key={`${row.targetType}:${row.targetKey}`}>{row.targetType} {row.targetKey}: {row.minimumOverdueDays} days</li>)}</ul>}
+        <Button className="secondary" onClick={() => { if (scope.current()) updateDraft((old) => old ? { ...old, baseRevision: policy.revision, version: old.version + 1 } : old); }}>Use current revision for this draft</Button></>}
+      {(formError || visibleDraft.uncertain) && (
         <>
           <Message error>{formError ?? "The save outcome could not be confirmed. Reload to check the current policy."}</Message>
-          <Button className="secondary" onClick={refresh}>
+          <Button className="secondary" disabled={scope.networkLimited} onClick={refresh}>
             Reload current policy
           </Button>
         </>
@@ -310,6 +381,8 @@ export function HealthAssessmentPanel({
   visible?: boolean;
 }) {
   const scope = useHealthScope();
+  const [thresholdDraft, updateThresholdDraft, readThresholdDraft] = usePolicyDraft<ThresholdValues>();
+  const [scheduleDraft, updateScheduleDraft, readScheduleDraft] = usePolicyDraft<ScheduleValues>();
   const assessmentKey = ["health-assessment-latest", ...scope.key] as const;
   const thresholdKey = ["blocker-age-threshold-policy", ...scope.key] as const;
   const schedulePolicyKey = ["schedule-health-policy", ...scope.key] as const;
@@ -324,7 +397,10 @@ export function HealthAssessmentPanel({
   });
   const threshold = useQuery({
     queryKey: thresholdKey,
-    queryFn: ({ signal }) => scope.read<BlockerAgeThresholdPolicyView | null>("/admin/blocker-age-threshold-policy", signal),
+    queryFn: async ({ signal }) => {
+      const value = await scope.read<unknown>("/admin/blocker-age-threshold-policy", signal);
+      return decodeThreshold(value);
+    },
     enabled: visible && scope.ready && pmoAdmin,
     staleTime: Infinity,
     gcTime: 0,
@@ -333,7 +409,13 @@ export function HealthAssessmentPanel({
   });
   const schedulePolicy = useQuery({
     queryKey: schedulePolicyKey,
-    queryFn: ({ signal }) => scope.read<ScheduleHealthPolicyView>("/projects/" + projectId + "/schedule-health-policy", signal),
+    queryFn: async ({ signal }) => {
+      const value = await scope.read<unknown>("/projects/" + projectId + "/schedule-health-policy", signal);
+      const parsed = decodeSchedule(value);
+      if (JSON.stringify(parsed.targetOverrides, null, 2).length > 65536)
+        throw new Error("Current schedule policy is unavailable.");
+      return parsed;
+    },
     enabled: visible && scope.ready && pmoAdmin,
     staleTime: Infinity,
     gcTime: 0,
@@ -343,12 +425,17 @@ export function HealthAssessmentPanel({
   const create = useMutation({
     retry: false,
     mutationFn: async ({ lease, key }: { lease: HealthWriteLease; key: string }) => {
+      let started = false;
       try {
-        await scope.write(lease, "/projects/" + projectId + "/health-assessments", {
+        if (!scope.startAssessment(lease, key)) { scope.abandonUnsentAssessment(lease); return; }
+        started = true;
+        const response = await scope.write<unknown>(lease, "/projects/" + projectId + "/health-assessments", {
           method: "POST", body: JSON.stringify({ commandKey: key }),
-        });
+        }, 201);
+        decodeAssessmentConfirmation(response, projectId);
+        if (!scope.writeCurrent(lease)) throw new Error("Assessment scope changed");
         scope.completeAssessment(lease, key);
-      } catch { /* The shared owner retains any uncertain sent outcome. */ }
+      } catch { if (started) scope.markWriteUncertain(lease); }
       finally { scope.finishWrite(lease); }
     },
   });
@@ -368,7 +455,9 @@ export function HealthAssessmentPanel({
   );
 
   if (!visible || !scope.ready || !scope.current()) return <section className="panel">
-    {scope.failed && visible ? <><p role="alert">Current health access could not be established.</p>
+    {scope.networkLimited && visible ? <><p role="alert">Health information is unavailable. Earlier requests may still be completing or their cleanup could not be confirmed.</p>
+      <Button className="secondary" disabled>Check access again</Button></>
+      : scope.failed && visible ? <><p role="alert">Current health access could not be established.</p>
       <Button className="secondary" onClick={() => scope.recheck()}>Check access again</Button></>
       : <p role="status">{scope.writing ? "Updating health information…" : "Checking current health access…"}</p>}
   </section>;
@@ -390,19 +479,21 @@ export function HealthAssessmentPanel({
         </div>
         <Button
           className="primary"
-          disabled={!visible || !latest.isSuccess || latest.isFetching || create.isPending || scope.reading || scope.atCapacity || scope.assessmentCapacity}
+          disabled={!visible || !latest.isSuccess || latest.isFetching || create.isPending || !scope.canWrite || scope.atCapacity || scope.assessmentCapacity || scope.pendingAssessment}
           onClick={() => {
             if (!latest.isSuccess || latest.isFetching) return;
-            const key = scope.assessmentCommand(); if (!key) return;
-            const lease = scope.beginWrite(); if (!lease) return;
-            try { create.mutate({ lease, key }); } catch { scope.finishWrite(lease); }
+            const admission = scope.beginAssessment(); if (!admission) return;
+            try { create.mutate(admission); } catch { scope.abandonUnsentAssessment(admission.lease); scope.finishWrite(admission.lease); }
           }}
         >
-          {create.isPending ? "Assessing…" : scope.pendingAssessment ? "Retry previous assessment" : "Run assessment"}
+          {create.isPending ? "Assessing…" : scope.pendingAssessment ? "Assessment outcome unknown" : "Run assessment"}
         </Button>
       </div>
 
       {scope.uncertain && <Message error>A previous health write may still have an unknown outcome. The refreshed information is a separate as-of check.</Message>}
+      {scope.pendingAssessment && !create.isPending && <Message error>The assessment may have been saved. Check the saved assessment information before taking further action. This browser-session safeguard does not persist after a reload or across tabs.</Message>}
+      {scope.networkLimited && <Message error>Some earlier requests may still be completing or their cleanup could not be confirmed. Retry access when capacity is available.</Message>}
+      {!scope.canWrite && !scope.networkLimited && <p className="muted">Complete the current information checks before making changes.</p>}
       {(scope.atCapacity || scope.assessmentCapacity) && <Message error>Health actions are unavailable in this browser session; previously sent writes may still complete.</Message>}
 
       {pmoAdmin && (
@@ -413,7 +504,7 @@ export function HealthAssessmentPanel({
           ) : threshold.isError ? (
             <>
               <Message error>{errorText(threshold.error)}</Message>
-              <Button className="secondary" onClick={() => scope.refresh()}>
+              <Button className="secondary" disabled={scope.networkLimited} onClick={() => scope.refresh()}>
                 Retry threshold access
               </Button>
             </>
@@ -422,6 +513,7 @@ export function HealthAssessmentPanel({
               key={threshold.data?.revision ?? "unconfigured"}
               policy={threshold.data ?? null}
               refresh={() => scope.refresh()}
+              draft={thresholdDraft} updateDraft={updateThresholdDraft} readDraft={readThresholdDraft}
             />
           )}
         </section>
@@ -435,7 +527,7 @@ export function HealthAssessmentPanel({
               ) : schedulePolicy.isError ? (
                 <>
                   <Message error>{errorText(schedulePolicy.error)}</Message>
-                    <Button className="secondary" onClick={() => scope.refresh()}>
+                    <Button className="secondary" disabled={scope.networkLimited} onClick={() => scope.refresh()}>
                     Retry policy access
                   </Button>
                 </>
@@ -445,6 +537,7 @@ export function HealthAssessmentPanel({
                   projectId={projectId}
                   policy={schedulePolicy.data}
                   refresh={() => scope.refresh()}
+                  draft={scheduleDraft} updateDraft={updateScheduleDraft} readDraft={readScheduleDraft}
                 />
               ) : null}
             </section>
@@ -453,7 +546,7 @@ export function HealthAssessmentPanel({
       {latest.isError && (
         <>
           <Message error>{errorText(latest.error)}</Message>
-          <Button className="secondary" onClick={() => scope.refresh()}>
+          <Button className="secondary" disabled={scope.networkLimited} onClick={() => scope.refresh()}>
             Retry assessment access
           </Button>
         </>
@@ -462,7 +555,9 @@ export function HealthAssessmentPanel({
         <p role="status">Checking the latest assessment…</p>
       ) : !assessment ? (
         !latest.isError && (
-          <p className="muted">No saved assessment yet. Run an assessment to capture the current schedule and blocker-age evidence.</p>
+          <p className="muted">{scope.pendingAssessment
+            ? "No saved assessment was available at the latest check; the earlier request may still complete."
+            : "No saved assessment yet. Run an assessment to capture the current schedule and blocker-age evidence."}</p>
         )
       ) : (
         <div className="space-y-4">

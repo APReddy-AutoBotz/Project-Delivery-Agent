@@ -41,3 +41,9 @@
   .csv-panel-heading,
   .csv-fields-heading { align-items: stretch; flex-direction: column; }
 }
+.csv-work-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}

@@ -5,11 +5,11 @@ import { decodeMilestoneStateDisagreement } from "./milestone-state-disagreement
 import type { RequestFn } from "./request-types.js";
 import { milestoneQuestionExample, supportsMilestoneQuestion } from "./milestone-question.js";
 import { Button, Message } from "./components.js";
-import { createPmQueueResource, type PmQueueResourceState } from "./pm-queue-resource.js";
+import { createPmQueueResource, type PmQueueResourceState, type ReadReserve } from "./pm-queue-resource.js";
 
 type Item = { id: string; key: string; name?: string; title?: string };
-export function LeadershipMilestoneConflict({ projectId, scope, milestones, workItems, request, selected, question, onDraftChange, canInspectRequest = false }: {
-  projectId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn; canInspectRequest?: boolean;
+export function LeadershipMilestoneConflict({ projectId, scope, milestones, workItems, request, reserveRead, selected, question, onDraftChange, canInspectRequest = false }: {
+  projectId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn; reserveRead: ReadReserve; canInspectRequest?: boolean;
   selected: string; question: string; onDraftChange: (value: { selected: string; question: string }) => void;
 }) {
   const [error, setError] = useState("");
@@ -48,28 +48,28 @@ export function LeadershipMilestoneConflict({ projectId, scope, milestones, work
     </form>
     {error && <Message error>{error}</Message>}
     {selectedItem && <StateDisagreement key={`${scope}:${selectedItem.id}`} projectId={projectId} milestoneId={selectedItem.id}
-      scope={`${scope}:${selectedItem.id}`} request={request} />}
+      scope={`${scope}:${selectedItem.id}`} request={request} reserveRead={reserveRead} />}
     {selectedItem && submitted !== null && <Observation key={`${scope}:${selectedItem.id}:${submitted}`} projectId={projectId} milestoneId={selectedItem.id}
-      scope={`${scope}:${selectedItem.id}:${submitted}`} milestones={milestones} workItems={workItems} request={request} canInspectRequest={canInspectRequest} />}
+      scope={`${scope}:${selectedItem.id}:${submitted}`} milestones={milestones} workItems={workItems} request={request} reserveRead={reserveRead} canInspectRequest={canInspectRequest} />}
   </section>;
 }
-function StateDisagreement({ projectId, milestoneId, scope, request }: {
-  projectId: string; milestoneId: string; scope: string; request: RequestFn;
+function StateDisagreement({ projectId, milestoneId, scope, request, reserveRead }: {
+  projectId: string; milestoneId: string; scope: string; request: RequestFn; reserveRead: ReadReserve;
 }) {
   type TimedResult = { observation: MilestoneStateDisagreement; expiresAt: number };
   const [requested, setRequested] = useState(false);
-  const loader = useRef(request), resource = useRef<ReturnType<typeof createPmQueueResource<TimedResult>> | null>(null);
+  const resource = useRef<ReturnType<typeof createPmQueueResource<TimedResult>> | null>(null);
   const [state, setState] = useState<{ scope: string; value: PmQueueResourceState<TimedResult> }>({ scope, value: { phase: "loading" } });
-  useEffect(() => { loader.current = request; }, [request]);
   useEffect(() => {
     if (!requested) return;
-    let live = true;
-    const driver = createPmQueueResource<TimedResult>({
+    const requestAtMount = request;
+    const driver: ReturnType<typeof createPmQueueResource<TimedResult>> = createPmQueueResource<TimedResult>({
+      reserve: reserveRead,
       load: async (signal) => {
         const started = performance.now();
-        const observation = decodeMilestoneStateDisagreement(await loader.current<unknown>(
+        const observation = decodeMilestoneStateDisagreement(await requestAtMount<unknown>(
           `/projects/${projectId}/milestones/${milestoneId}/leadership-state-disagreement`, { signal }, 262144,
-          () => { if (live && !signal.aborted) setState({ scope, value: { phase: "error" } }); }), projectId, milestoneId);
+          () => { if (driver.current(signal)) setState({ scope, value: { phase: "error" } }); }), projectId, milestoneId);
         const deadline = Math.min(...observation.positions.flatMap((position) => position.supports.map((support) => Date.parse(support.assessedValidUntil))));
         // The server evaluates at asOf after this request starts; measuring from
         // the client start is conservative about transit and processing delay.
@@ -82,7 +82,7 @@ function StateDisagreement({ projectId, milestoneId, scope, request }: {
     resource.current = driver; driver.refresh();
     const revalidate = () => { if (document.visibilityState === "visible") driver.refresh(); };
     window.addEventListener("focus", revalidate); document.addEventListener("visibilitychange", revalidate);
-    return () => { live = false; driver.dispose(); if (resource.current === driver) resource.current = null;
+    return () => { driver.dispose(); if (resource.current === driver) resource.current = null;
       window.removeEventListener("focus", revalidate); document.removeEventListener("visibilitychange", revalidate); };
   }, [requested, scope, projectId, milestoneId]);
   useEffect(() => {
@@ -114,24 +114,24 @@ function StateDisagreement({ projectId, milestoneId, scope, request }: {
   </div>;
 }
 type View = { observation: MilestoneConflictObservation; requestStatus: "MATCHING_REQUEST_RECORDED" | "NO_MATCHING_REQUEST_RECORDED" | null; expiresAt: number | null };
-function Observation({ projectId, milestoneId, scope, milestones, workItems, request, canInspectRequest }: {
-  projectId: string; milestoneId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn; canInspectRequest: boolean;
+function Observation({ projectId, milestoneId, scope, milestones, workItems, request, reserveRead, canInspectRequest }: {
+  projectId: string; milestoneId: string; scope: string; milestones: Item[]; workItems: Item[]; request: RequestFn; reserveRead: ReadReserve; canInspectRequest: boolean;
 }) {
   const [showRequest, setShowRequest] = useState(false);
   const mode = canInspectRequest && showRequest ? "request" : "conflict", viewScope = `${scope}:${mode}`;
-  const loader = useRef(request), resource = useRef<ReturnType<typeof createPmQueueResource<View>> | null>(null);
+  const resource = useRef<ReturnType<typeof createPmQueueResource<View>> | null>(null);
   const [state, setState] = useState<{ scope: string; value: PmQueueResourceState<View> }>({ scope: viewScope, value: { phase: "loading" } });
-  useEffect(() => { loader.current = request; }, [request]);
   useEffect(() => {
-    let live = true;
-    const driver = createPmQueueResource<View>({
+    const requestAtMount = request;
+    const driver: ReturnType<typeof createPmQueueResource<View>> = createPmQueueResource<View>({
+      reserve: reserveRead,
       load: async (signal) => {
         const started = performance.now();
         const path = `/projects/${projectId}/milestones/${milestoneId}/`;
-        const unavailable = () => { if (live && !signal.aborted) setState({ scope: viewScope, value: { phase: "error" } }); };
-        const result = mode === "request" ? decodeMilestoneRequestObservation(await loader.current<unknown>(
+        const unavailable = () => { if (driver.current(signal)) setState({ scope: viewScope, value: { phase: "error" } }); };
+        const result = mode === "request" ? decodeMilestoneRequestObservation(await requestAtMount<unknown>(
           path + "leadership-manager-request-observation", { signal }, 262144, unavailable), projectId, milestoneId)
-          : { observation: decodeMilestoneConflict(await loader.current<unknown>(
+          : { observation: decodeMilestoneConflict(await requestAtMount<unknown>(
             path + "leadership-conflict-observation", { signal }, 262144, unavailable), projectId, milestoneId), requestStatus: null };
         if (result.observation.outcome === "NOT_DETECTED") return { ...result, expiresAt: null };
         const deadline = Math.min(...result.observation.positions.flatMap((position) => position.supports.map((support) => Date.parse(support.assessedValidUntil))));
@@ -145,7 +145,7 @@ function Observation({ projectId, milestoneId, scope, milestones, workItems, req
     resource.current = driver; driver.refresh();
     const revalidate = () => { if (document.visibilityState === "visible") driver.refresh(); };
     window.addEventListener("focus", revalidate); document.addEventListener("visibilitychange", revalidate);
-    return () => { live = false; driver.dispose(); if (resource.current === driver) resource.current = null;
+    return () => { driver.dispose(); if (resource.current === driver) resource.current = null;
       window.removeEventListener("focus", revalidate); document.removeEventListener("visibilitychange", revalidate); };
   }, [viewScope, mode, projectId, milestoneId]);
   useEffect(() => {

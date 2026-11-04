@@ -1,12 +1,19 @@
 import { expect, it } from "vitest";
 import { HealthScopeFence } from "../apps/web/src/health-scope-fence.js";
-import { establishHealthScope } from "../apps/web/src/health-scope-coordinator.js";
+import { establishHealthScope, sameHealthRoles } from "../apps/web/src/health-scope-coordinator.js";
 
 const pending = <T>() => {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => { resolve = done; });
   return { promise, resolve };
 };
+
+it("compares duplicate roles as multisets without changing inputs", () => {
+  const first = Array.from({ length: 4000 }, (_, index) => index % 2 ? "leadership" : "pmo_admin");
+  const second = [...first].reverse(), changed = [...second]; changed[0] = "contributor";
+  expect(sameHealthRoles(first, second)).toBe(true); expect(sameHealthRoles(first, changed)).toBe(false);
+  expect(sameHealthRoles(first, second.slice(1))).toBe(false); expect(first[0]).toBe("pmo_admin");
+});
 
 it("checks identity before project and opens only after both fresh checks", async () => {
   const fence = new HealthScopeFence(); fence.transition(true);
@@ -61,5 +68,20 @@ it("does not allow an older identity check to start a project check in the same 
     async () => true, async () => true);
   expect(await newer).toBe(true); oldIdentity.resolve(true);
   expect(await old).toBe(false); expect(oldProjectCalls).toBe(0);
+  expect(fence.capture(() => true)).not.toBeNull();
+});
+
+it("does not let an obsolete same-context check latch a later successful scope", async () => {
+  const fence = new HealthScopeFence(); fence.transition(true);
+  const oldIdentity = pending<boolean>(); let oldCurrent!: () => boolean;
+  const context = fence.contextSnapshot();
+  const old = establishHealthScope(fence, context, () => true, new AbortController().signal,
+    (_signal, checkCurrent) => { oldCurrent = checkCurrent; return oldIdentity.promise; }, async () => true);
+  const newer = establishHealthScope(fence, context, () => true, new AbortController().signal,
+    async () => true, async () => true);
+  expect(await newer).toBe(true); expect(oldCurrent()).toBe(false);
+  if (oldCurrent()) fence.denyContext(context, () => true);
+  expect(fence.denialLatched()).toBe(false);
+  oldIdentity.resolve(false); expect(await old).toBe(false);
   expect(fence.capture(() => true)).not.toBeNull();
 });

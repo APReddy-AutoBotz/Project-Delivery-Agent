@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const id = (n: number) => `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const project = { id: id(1), code: "REASSESS", name: "Synthetic reassessment project", description: "Synthetic", reportedStatus: "UNKNOWN" };
+const project = { id: id(1), portfolioId: id(50), code: "REASSESS", name: "Synthetic reassessment project", description: "Synthetic", reportedStatus: "UNKNOWN" };
 const customerId = "10000000-0000-4000-8000-000000000001", time = "2026-10-21T11:00:00.000Z";
 function row(n: number) {
   return { id: id(n), sourceId: id(700), receiptId: id(701), projectId: project.id, configRevision: 1, mappingRevision: 1,

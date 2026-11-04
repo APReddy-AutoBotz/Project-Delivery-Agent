@@ -32,6 +32,53 @@ it("rejects stale check completions and aborted prior reads across A-B-A", () =>
   read.release();
 });
 
+it("latches a current denial across visibility checks but rejects an old A denial after A-B-A", () => {
+  const fence = new HealthScopeFence(); fence.bindScope("A"); ready(fence);
+  const old = fence.contextSnapshot();
+  expect(fence.denyContext(old, current)).toBe(true);
+  fence.transition(false); fence.transition(true); fence.bindScope("A");
+  expect(fence.denialLatched()).toBe(true); expect(fence.begin("identity")).toBeNull();
+  fence.retryScope(); expect(fence.denialLatched()).toBe(false);
+  fence.bindScope("B"); fence.bindScope("A");
+  expect(fence.denyContext(old, current)).toBe(false);
+  expect(fence.denialLatched()).toBe(false);
+});
+
+it("admits an assessment and its command key atomically", () => {
+  const fence = new HealthScopeFence(), ticket = ready(fence), owner = "owner";
+  expect(fence.beginAssessment(ticket, current, owner, "p", () => "new", () => false)).toBeNull();
+  expect(fence.hasAssessmentCommand(owner, "p")).toBe(false); expect(fence.writing()).toBe(false);
+  expect(fence.beginAssessment(ticket, current, owner, "p", () => { throw new Error("synthetic UUID failure"); })).toBeNull();
+  expect(fence.hasAssessmentCommand(owner, "p")).toBe(false); expect(fence.writing()).toBe(false);
+  let allowed = true;
+  expect(fence.beginAssessment(ticket, current, owner, "p", () => { allowed = false; return "not-sent"; }, () => allowed)).toBeNull();
+  expect(fence.hasAssessmentCommand(owner, "p")).toBe(false); expect(fence.writing()).toBe(false);
+  const first = fence.beginAssessment(ticket, current, owner, "p", () => "original")!;
+  expect(fence.startAssessment(first.lease, current, "p", first.key)).toBe(true);
+  fence.markWriteUncertain(first.lease); fence.finishWrite(first.lease);
+  const retry = fence.capture(current)!;
+  expect(fence.beginAssessment(retry, current, owner, "p", () => "replacement", () => false)).toBeNull();
+  expect(fence.hasAssessmentCommand(owner, "p")).toBe(true);
+  expect(fence.beginAssessment(retry, current, owner, "p", () => "replacement")).toBeNull();
+  expect(fence.writing()).toBe(false);
+});
+
+it("removes only a newly allocated command when admission becomes stale before dispatch", () => {
+  const fence = new HealthScopeFence(), owner = "owner";
+  const first = fence.beginAssessment(ready(fence), current, owner, "new", () => "new-key")!;
+  fence.transition(false);
+  expect(fence.startAssessment(first.lease, current, "new", first.key)).toBe(false);
+  fence.finishWrite(first.lease);
+  expect(fence.hasAssessmentCommand(owner, "new")).toBe(false);
+
+  const sent = fence.beginAssessment(ready(fence), current, owner, "old", () => "old-key")!;
+  expect(fence.startAssessment(sent.lease, current, "old", sent.key)).toBe(true);
+  fence.markWriteUncertain(sent.lease); fence.finishWrite(sent.lease);
+  expect(fence.beginAssessment(fence.capture(current)!, current, owner, "old", () => "new-key")).toBeNull();
+  fence.transition(false);
+  expect(fence.hasAssessmentCommand(owner, "old")).toBe(true);
+});
+
 it("keeps one write lease across visibility and identity transitions", () => {
   const fence = new HealthScopeFence(), old = ready(fence), read = fence.trackRead(old, current)!;
   expect(fence.beginWrite(old, current, "owner")).toBeNull();
@@ -64,6 +111,19 @@ it("does not let an older completion make a newer failed check ready", () => {
   expect(fence.capture(current)).not.toBeNull();
 });
 
+it("clears a denial on actual A-to-B-to-A switches even when B never binds", () => {
+  const fence = new HealthScopeFence(); fence.transition(true); fence.bindScope("A");
+  const oldContext = fence.contextSnapshot();
+  expect(fence.denyContext(oldContext, current)).toBe(true); expect(fence.denialLatched()).toBe(true);
+  fence.switchScope(true); fence.switchScope(true);
+  expect(fence.denialLatched()).toBe(false);
+  expect(fence.denyContext(oldContext, current)).toBe(false);
+  expect(fence.bindScope("A")).toBe(true);
+  const identity = fence.begin("identity"); fence.finish(identity, true);
+  const project = fence.begin("project"); fence.finish(project, true);
+  expect(fence.capture(current)).not.toBeNull();
+});
+
 it("invalidates a prior project proof when identity is rechecked", () => {
   const fence = new HealthScopeFence(), old = ready(fence);
   const identity = fence.begin("identity"); fence.finish(identity, true);
@@ -79,25 +139,30 @@ it("invalidates old reads when a coordinated refresh starts", () => {
   expect(fence.capture(current)).not.toBeNull();
 });
 
-it("retains one assessment command across panels and same-principal scope changes", () => {
-  const fence = new HealthScopeFence(), first = ready(fence), owner = JSON.stringify(["customer", "subject"]);
-  const key = fence.assessmentCommand(first, current, owner, "project-a", () => "original-key");
-  expect(key).toBe("original-key");
-  const lease = fence.beginWrite(first, current, owner)!; fence.markWriteUncertain(lease);
-  fence.transition(false); fence.transition(true); fence.finishWrite(lease);
-  const identity = fence.begin("identity"); fence.finish(identity, true);
-  const project = fence.begin("project"); fence.finish(project, true);
-  const retry = fence.capture(current)!;
-  expect(fence.uncertain(owner)).toBe(true);
-  expect(fence.uncertain(JSON.stringify(["customer", "other"]))).toBe(false);
-  expect(fence.assessmentCommand(retry, current, owner, "project-a", () => "different-key")).toBe("original-key");
-  expect(fence.assessmentCommand(retry, current, owner, "project-b", () => "project-b-key")).toBe("project-b-key");
-  const nextLease = fence.beginWrite(retry, current, owner)!;
-  fence.completeAssessment(nextLease, current, "project-a", "different-key");
+it("blocks retained assessments across transitions and binds completion to the original dispatched lease", () => {
+  const fence = new HealthScopeFence(), owner = JSON.stringify(["customer", "subject"]);
+  const start = fence.beginAssessment(ready(fence), current, owner, "project-a", () => "original-key")!;
+  fence.completeAssessment(start.lease, current, "project-a", start.key);
+  expect(fence.hasAssessmentCommand(owner, "project-a")).toBe(true); // unsent is not confirmation
+  expect(fence.startAssessment(start.lease, current, "project-a", start.key)).toBe(true);
+  fence.completeAssessment(start.lease, current, "project-b", start.key);
+  fence.completeAssessment(start.lease, current, "project-a", "wrong-key");
   expect(fence.hasAssessmentCommand(owner, "project-a")).toBe(true);
-  fence.completeAssessment(nextLease, current, "project-a", "original-key");
-  fence.finishWrite(nextLease);
-  expect(fence.hasAssessmentCommand(owner, "project-a")).toBe(false);
+  fence.transition(false); fence.transition(true);
+  fence.completeAssessment(start.lease, current, "project-a", start.key); // stale response
+  fence.markWriteUncertain(start.lease); fence.finishWrite(start.lease);
+  const ticket = ready(fence);
+  expect(fence.uncertain(owner)).toBe(true);
+  expect(fence.beginAssessment(ticket, current, owner, "project-a", () => "different-key")).toBeNull();
+  const other = fence.beginAssessment(ticket, current, owner, "project-b", () => "project-b-key")!;
+  expect(fence.startAssessment(other.lease, current, "project-b", other.key)).toBe(true);
+  fence.completeAssessment(other.lease, current, "project-a", start.key);
+  expect(fence.hasAssessmentCommand(owner, "project-a")).toBe(true);
+  fence.completeAssessment(other.lease, current, "project-b", other.key); fence.finishWrite(other.lease);
+  expect(fence.hasAssessmentCommand(owner, "project-b")).toBe(false);
+  const next = fence.beginAssessment(fence.capture(current)!, current, owner, "project-b", () => "fresh-key")!;
+  expect(next.key).toBe("fresh-key"); fence.finishWrite(next.lease);
+  expect(fence.hasAssessmentCommand(owner, "project-a")).toBe(true);
 });
 
 it("reports a bounded uncertainty-capacity stop instead of silently forgetting outcomes", () => {

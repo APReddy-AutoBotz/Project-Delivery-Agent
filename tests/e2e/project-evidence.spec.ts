@@ -710,13 +710,14 @@ test("E2E-HLT-003 source-authorized case: visible age uses current human facts a
     (response) =>
       response.url().endsWith("/admin/blocker-age-threshold-policy") &&
       response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void thresholdSaved.catch(() => {});
   await panel
     .getByRole("button", { name: "Save customer threshold", exact: true })
     .click();
   const thresholdResponse = await thresholdSaved;
-  expect(thresholdResponse.status()).toBe(200);
-  const savedPolicy = await thresholdResponse.json();
+  expect(thresholdResponse.status).toBe(200);
+  const savedPolicy = thresholdResponse.body;
   expect(savedPolicy.minimumBlockerAgeDays).toBe(10);
   expect(savedPolicy.auditRetentionHours).toBe(720);
   expect(savedPolicy.revision).toBe((existingPolicy?.revision ?? 0) + 1);
@@ -850,13 +851,14 @@ test("E2E-HLT-003 source-authorized case: visible age uses current human facts a
       response.url().endsWith(
         "/projects/" + f.projectId + "/health-assessments",
       ) && response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void assessmentSaved.catch(() => {});
   await panel
     .getByRole("button", { name: "Run assessment", exact: true })
     .click();
   const assessmentResponse = await assessmentSaved;
-  expect(assessmentResponse.status()).toBe(201);
-  const assessment = await assessmentResponse.json();
+  expect(assessmentResponse.status).toBe(201);
+  const assessment = assessmentResponse.body;
   const blockerAge = assessment.result.blockerAge;
   expect(blockerAge).toMatchObject({
     coverage: "COMPLETE",
@@ -937,13 +939,14 @@ test("E2E-HLT-003 unresolved case: PMO reviews the threshold and incomplete inve
     (response) =>
       response.url().endsWith("/admin/blocker-age-threshold-policy") &&
       response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void thresholdSaved.catch(() => {});
   await panel
     .getByRole("button", { name: "Save customer threshold", exact: true })
     .click();
   const thresholdResponse = await thresholdSaved;
-  expect(thresholdResponse.status()).toBe(200);
-  const savedPolicy = await thresholdResponse.json();
+  expect(thresholdResponse.status).toBe(200);
+  const savedPolicy = thresholdResponse.body;
   expect(savedPolicy.minimumBlockerAgeDays).toBe(10);
   expect(savedPolicy.auditRetentionHours).toBe(720);
   expect(savedPolicy.revision).toBe((existingPolicy?.revision ?? 0) + 1);
@@ -956,13 +959,14 @@ test("E2E-HLT-003 unresolved case: PMO reviews the threshold and incomplete inve
       response.url().endsWith(
         `/projects/${f.projectId}/health-assessments`,
       ) && response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void assessmentSaved.catch(() => {});
   await panel
     .getByRole("button", { name: "Run assessment", exact: true })
     .click();
   const assessmentResponse = await assessmentSaved;
-  expect(assessmentResponse.status()).toBe(201);
-  const assessment = await assessmentResponse.json();
+  expect(assessmentResponse.status).toBe(201);
+  const assessment = assessmentResponse.body;
   expect(assessment.result.blockerAge.coverage).toBe("UNASSESSABLE");
   expect(assessment.result.blockerAge.noOpenBlockers).toBeNull();
   expect(assessment.result.blockerAge.unknownCandidateCount).toBeGreaterThan(0);

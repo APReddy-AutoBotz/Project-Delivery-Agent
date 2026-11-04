@@ -18,6 +18,7 @@ import {
   utcNow,
 } from "./evidence-state.js";
 import { FactValue } from "./evidence-display.js";
+import { ProjectPolicyWriteRegistry, projectPolicyOwner, sourceAccessWrites } from "./project-policy-write-registry.js";
 
 const openedAtFactTypePattern =
   /^raid_item\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.opened_at$/;
@@ -38,19 +39,24 @@ type WriteProps = {
   projectId: string;
   onSaved: () => void;
   onDenied: () => void;
+  isCurrent: () => boolean;
 };
 function useReviewedWrite<T>(
   request: RequestFn,
   path: string,
   onSaved: () => void,
   onDenied: () => void,
+  isCurrent: () => boolean,
   repeatable = true,
+  guard?: { key: string; registry: ProjectPolicyWriteRegistry; confirm: (submitted: T, result: unknown) => boolean },
 ) {
   const [review, setReview] = useState<T | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [blocked, setBlocked] = useState(false);
+    [blocked, setBlocked] = useState(false),
+    [uncertain, setUncertain] = useState(false);
   const alive = useRef(true);
+  const operation = useRef(false);
   useEffect(
     () => () => {
       alive.current = false;
@@ -58,34 +64,54 @@ function useReviewedWrite<T>(
     [],
   );
   function discard() {
+    if (uncertain) return;
     setReview(null);
     setError("");
     setBlocked(false);
   }
   async function save() {
-    if (review === null || busy || blocked) return;
+    if (review === null || busy || blocked || operation.current || !isCurrent()) return;
+    const receipt = guard?.registry.begin(guard.key);
+    if (guard && !receipt) return;
+    let confirmed = false;
+    operation.current = true;
     setBusy(true);
     setError("");
     try {
-      await request(path, { method: "POST", body: JSON.stringify(review) });
-      if (alive.current) {
+      const result = await request<unknown>(path, { method: "POST", body: JSON.stringify(review) },
+        guard ? 65_536 : undefined, undefined, undefined, undefined, guard ? 200 : undefined);
+      if (guard && (!receipt || !guard.confirm(review, result) || !guard.registry.confirm(guard.key, receipt)))
+        throw new Error("The earlier outcome could not be confirmed.");
+      confirmed = true;
+      if (alive.current && isCurrent()) {
         discard();
         onSaved();
+      } else if (alive.current) {
+        setUncertain(true); setBlocked(true); setError("The earlier outcome could not be confirmed. Review current access before making another change.");
       }
     } catch (cause) {
-      if (alive.current) {
+      if (alive.current && isCurrent()) {
         setError(evidenceError(cause));
         if (!repeatable || conflict(cause)) setBlocked(true);
+        const status = (cause as { status?: number })?.status;
+        if (!repeatable && ![400, 401, 403, 404, 409].includes(status ?? 0)) {
+          setUncertain(true);
+          setError("The earlier outcome could not be confirmed. Review current access before making another change.");
+        }
         if (denied(cause)) {
           discard();
           onDenied();
         }
+      } else if (alive.current) {
+        setUncertain(true); setBlocked(true); setError("The earlier outcome could not be confirmed. Review current access before making another change.");
       }
     } finally {
+      if (guard && receipt && !confirmed) guard.registry.uncertain(guard.key, receipt);
+      operation.current = false;
       if (alive.current) setBusy(false);
     }
   }
-  return { review, setReview, error, setError, busy, blocked, discard, save };
+  return { review, setReview, error, setError, busy, blocked, uncertain, discard, save };
 }
 function WriteActions({
   state,
@@ -95,6 +121,7 @@ function WriteActions({
   state: {
     busy: boolean;
     blocked: boolean;
+    uncertain: boolean;
     error: string;
     save: () => Promise<void>;
     discard: () => void;
@@ -115,7 +142,7 @@ function WriteActions({
             : label}
         </Button>
         <Button
-          disabled={state.busy}
+          disabled={state.busy || state.uncertain}
           className="secondary"
           onClick={() => {
             state.discard();
@@ -126,7 +153,7 @@ function WriteActions({
         </Button>
       </div>
       {state.error && <Message error>{state.error}</Message>}
-      {state.blocked && (
+      {state.blocked && !state.uncertain && (
         <p className="evidence-warning">
           Reload and compare the saved state before reviewing a new change.
         </p>
@@ -141,6 +168,7 @@ export function StatementForm({
   revision,
   onSaved,
   onDenied,
+  isCurrent,
 }: WriteProps & { factType: string; revision: number }) {
   const [type, setType] = useState<ProjectFactValue["type"]>("text"),
     [value, setValue] = useState(""),
@@ -156,9 +184,11 @@ export function StatementForm({
       onSaved();
     },
     onDenied,
+    isCurrent,
   );
   function review(event: React.FormEvent) {
     event.preventDefault();
+    if (!isCurrent()) return;
     state.setError("");
     try {
       utcInstant(effectiveAt);
@@ -312,6 +342,7 @@ export function PolicyForm({
   policy,
   onSaved,
   onDenied,
+  isCurrent,
 }: WriteProps & { factType: string; policy: ActiveAuthorityPolicy }) {
   const [mode, setMode] = useState("enable"),
     [approval, setApproval] = useState(""),
@@ -327,9 +358,11 @@ export function PolicyForm({
     `/projects/${projectId}/authority-policies`,
     onSaved,
     onDenied,
+    isCurrent,
   );
   function review(event: React.FormEvent) {
     event.preventDefault();
+    if (!isCurrent()) return;
     state.setError("");
     try {
       utcInstant(effectiveAt);
@@ -527,8 +560,12 @@ export function SourceAccessForm({
   onSaved,
   onDenied,
   onClose,
+  isCurrent,
 }: WriteProps & { source: SourceAccessView; onClose: () => void }) {
   const [baseline] = useState(source);
+  const writeKey = projectPolicyOwner(projectId, source.sourceId);
+  React.useSyncExternalStore(sourceAccessWrites.subscribe, sourceAccessWrites.snapshot, sourceAccessWrites.snapshot);
+  const writeState = sourceAccessWrites.state(writeKey);
   const [readers, setReaders] = useState(() => source.readers.join("\n")),
     [sourceState, setSourceState] = useState(source.state);
   const state = useReviewedWrite<SourceAccessChange>(
@@ -536,7 +573,15 @@ export function SourceAccessForm({
     `/projects/${projectId}/fact-sources/${source.sourceId}/access`,
     onSaved,
     onDenied,
+    isCurrent,
     false,
+    { key: writeKey, registry: sourceAccessWrites, confirm: (submitted, result) => {
+      if (!result || typeof result !== "object" || Array.isArray(result)) return false;
+      const saved = result as Record<string, unknown>;
+      return Object.keys(saved).sort().join(",") === "revision,sourceId" && typeof saved.sourceId === "string" &&
+        saved.sourceId.toLowerCase() === source.sourceId.toLowerCase() && Number.isSafeInteger(saved.revision) &&
+        saved.revision === submitted.expectedRevision + 1 && (saved.revision as number) <= 2147483647;
+    } },
   );
   return (
     <section className="evidence-editor" aria-label="Source reader management">
@@ -564,11 +609,14 @@ export function SourceAccessForm({
           </p>
           <p>Reader subjects: {state.review.readers.join(", ") || "None"}.</p>
           <WriteActions
-            state={state}
+            state={{ ...state, blocked: state.blocked || writeState !== "available", uncertain: state.uncertain || writeState === "uncertain" }}
             label="Save source access"
             onDiscard={onClose}
           />
-          {state.blocked && (
+          {writeState === "pending" && <Message>A source access change is still awaiting confirmation.</Message>}
+          {writeState === "uncertain" && <Message error>The earlier source access change could not be confirmed. Another change is blocked while this page remains loaded.</Message>}
+          {(writeState === "capacity" || writeState === "invalid") && <Message error>Source access changes are currently unavailable.</Message>}
+          {state.blocked && !state.uncertain && writeState !== "uncertain" && (
             <Button onClick={onClose}>Close and reload saved access</Button>
           )}
         </div>
@@ -576,6 +624,7 @@ export function SourceAccessForm({
         <form
           onSubmit={(event) => {
             event.preventDefault();
+            if (!isCurrent()) return;
             state.setError("");
             const subjects = readers
               .split("\n")

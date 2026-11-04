@@ -1,8 +1,11 @@
 import { LeadershipMilestoneConflict } from "./leadership-milestone-conflict.js";
 import { useHealthScope } from "./health-scope-context.js";
+import { decodeAssessmentConfirmation } from "./health-assessment-decoder.js";
 import type { HealthWriteLease } from "./health-scope-fence.js";
 import { LeadershipScalarConflict } from "./leadership-scalar-conflict.js";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { decodeCreatedProgramme, decodeCreatedProject } from "./canonical-creation-decoder.js";
+import { canonicalCommandFingerprint, canonicalCreationOwner, programmeCreationWrites, projectCreationWrites } from "./canonical-creation-write-registry.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, TextField, SelectField, Message } from "./components.js";
 import type { RequestFn } from "./request-types.js";
@@ -240,20 +243,36 @@ export function CreateProject({
   onCreated,
   onCancel,
   onSetupChanged,
+  isCurrentScope,
+  isCurrentIdentity,
+  customerId,
+  subject,
 }: {
   setup: ProjectSetup;
   request: RequestFn;
   onCreated: (id: string) => void;
   onCancel: () => void;
-  onSetupChanged: () => Promise<void>;
+  onSetupChanged: () => Promise<ProjectSetup>;
+  isCurrentScope: () => boolean;
+  isCurrentIdentity: () => boolean;
+  customerId: string;
+  subject: string;
 }) {
+  const alive = useRef(true), operation = useRef(false);
+  const selectionEpoch = useRef(0), reviewedSelectionEpoch = useRef(-1);
+  const draftEpoch = useRef(0), reviewedDraftEpoch = useRef(-1), programmeEditEpoch = useRef(0);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [portfolioId, setPortfolio] = useState(setup.portfolios[0]?.id ?? "");
+  useSyncExternalStore(projectCreationWrites.subscribe, projectCreationWrites.snapshot, projectCreationWrites.snapshot);
+  useSyncExternalStore(programmeCreationWrites.subscribe, programmeCreationWrites.snapshot, programmeCreationWrites.snapshot);
+  const creationOwner = canonicalCreationOwner(customerId, portfolioId);
   const [programmeId, setProgramme] = useState("");
   const [createdProgramme, setCreatedProgramme] = useState<{
     id: string;
     code: string;
     name: string;
   } | null>(null);
+  const [programmeReceipt, setProgrammeReceipt] = useState<{ id: string; portfolioId: string } | null>(null);
   const [fields, setFields] = useState({
     code: "",
     name: "",
@@ -265,6 +284,16 @@ export function CreateProject({
     Object.fromEntries(sections.map((section) => [section.key, []])),
   );
   const [pending, setPending] = useState<Record<string, unknown> | null>(null);
+  const [projectDigest, setProjectDigest] = useState<{ pending: Record<string, unknown>; digest: string } | null>(null);
+  const [projectDigestError, setProjectDigestError] = useState(false);
+  useEffect(() => {
+    let current = true;
+    setProjectDigest(null); setProjectDigestError(false);
+    if (pending) void canonicalCommandFingerprint(subject, JSON.stringify(pending)).then((digest) => {
+      if (current) setProjectDigest({ pending, digest });
+    }, () => { if (current) setProjectDigestError(true); });
+    return () => { current = false; };
+  }, [pending, subject]);
   const [projectRequest, setProjectRequest] = useState<{
     fingerprint: string;
     key: string;
@@ -273,10 +302,20 @@ export function CreateProject({
     [error, setError] = useState("");
   const [programme, setProgrammeDraft] = useState({ code: "", name: "" });
   const [programmeRequest, setProgrammeRequest] = useState<{
+    portfolioId: string;
     code: string;
     name: string;
     idempotencyKey: string;
   } | null>(null);
+  const [programmeDigest, setProgrammeDigest] = useState<{ command: NonNullable<typeof programmeRequest>; digest: string } | null>(null);
+  const projectCommand = pending && projectDigest?.pending === pending && typeof pending.idempotencyKey === "string"
+    ? { key: pending.idempotencyKey, fingerprint: projectDigest.digest } : null;
+  const programmeRetry = programmeRequest?.portfolioId === portfolioId && programmeRequest.code === programme.code && programmeRequest.name === programme.name
+    ? programmeRequest : null;
+  const programmeCommand = programmeRetry && programmeDigest?.command === programmeRetry
+    ? { key: programmeRetry.idempotencyKey, fingerprint: programmeDigest.digest } : null;
+  const projectWriteState = projectCreationWrites.state(creationOwner, projectCommand);
+  const programmeWriteState = programmeCreationWrites.state(creationOwner, programmeCommand);
   const portfolio = setup.portfolios.find((p) => p.id === portfolioId);
   const programmes = [...(portfolio?.programmes ?? [])];
   if (
@@ -285,12 +324,24 @@ export function CreateProject({
     !programmes.some((p) => p.id === createdProgramme.id)
   )
     programmes.push(createdProgramme);
+  const selectionCurrent = Boolean(portfolio && (!programmeId || portfolio.programmes.some((p) => p.id === programmeId) ||
+    (portfolio.programmesTruncated && programmeReceipt?.id === programmeId && programmeReceipt.portfolioId === portfolioId)));
   const total = Object.values(rows).reduce(
     (sum, value) => sum + value.length,
     0,
   );
   const references = (collection: string) =>
     rows[collection]?.map((row) => row.fields.key!).filter(Boolean) ?? [];
+  const draftPayload = () => ({
+    portfolioId, programmeId: programmeId || null, ...fields, dates,
+    ...Object.fromEntries(sections.map((section) => [section.key, rows[section.key]!.map((row) => rowPayload(section, row))])),
+  });
+  const pendingMatchesDraft = (() => {
+    if (!pending) return false;
+    const reviewed = { ...pending }; delete reviewed.idempotencyKey;
+    return reviewedSelectionEpoch.current === selectionEpoch.current && reviewedDraftEpoch.current === draftEpoch.current &&
+      JSON.stringify(reviewed) === JSON.stringify(draftPayload());
+  })();
   function choices(
     section: Section,
     field: Field,
@@ -327,7 +378,9 @@ export function CreateProject({
   }
   function review(event: React.FormEvent) {
     event.preventDefault();
+    if (!isCurrentScope() || operation.current) return;
     setError("");
+    if (!selectionCurrent) { setError("Choose a portfolio and programme available in the current setup."); return; }
     const allDates = [
       dates,
       ...sections
@@ -369,18 +422,9 @@ export function CreateProject({
           }
         }
       }
-    const payload = {
-      portfolioId,
-      programmeId: programmeId || null,
-      ...fields,
-      dates,
-      ...Object.fromEntries(
-        sections.map((section) => [
-          section.key,
-          rows[section.key]!.map((row) => rowPayload(section, row)),
-        ]),
-      ),
-    };
+    const payload = draftPayload();
+    reviewedSelectionEpoch.current = selectionEpoch.current;
+    reviewedDraftEpoch.current = draftEpoch.current;
     setPending({
       ...payload,
       idempotencyKey:
@@ -390,7 +434,11 @@ export function CreateProject({
     });
   }
   async function create() {
-    if (!pending) return;
+    if (!pending || !projectCommand || !pendingMatchesDraft || reviewedSelectionEpoch.current !== selectionEpoch.current || reviewedDraftEpoch.current !== draftEpoch.current ||
+        !isCurrentScope() || !selectionCurrent || operation.current) return;
+    const lease = projectCreationWrites.begin(creationOwner, projectCommand);
+    if (!lease) return;
+    operation.current = true;
     setBusy(true);
     setError("");
     const { idempotencyKey, ...payload } = pending;
@@ -399,43 +447,77 @@ export function CreateProject({
       key: String(idempotencyKey),
     });
     try {
-      const result = await request<{ id: string }>("/projects", {
+      const result = await request<unknown>("/projects", {
         method: "POST",
         body: JSON.stringify(pending),
-      });
-      onCreated(result.id);
+      }, 1_048_576, undefined, undefined, undefined, 201);
+      const value = decodeCreatedProject(result);
+      if (!value)
+        throw new Error("The project creation outcome could not be confirmed.");
+      if (!isCurrentScope() || reviewedSelectionEpoch.current !== selectionEpoch.current || reviewedDraftEpoch.current !== draftEpoch.current)
+        throw new Error("The project creation outcome could not be confirmed. Check access before retrying.");
+      if (!projectCreationWrites.confirm(creationOwner, lease)) throw new Error("The project creation outcome could not be confirmed.");
+      onCreated(value.id);
     } catch (e) {
-      setError((e as Error).message);
+      projectCreationWrites.uncertain(creationOwner, lease);
+      if (alive.current) setError(isCurrentIdentity() ? (e as Error).message : "The project creation outcome could not be confirmed. Check access before retrying.");
     } finally {
-      setBusy(false);
+      operation.current = false; if (alive.current) setBusy(false);
     }
   }
   async function createProgramme() {
-    if (!programme.code || !programme.name) return;
-    setBusy(true);
-    setError("");
-    const payload = (programmeRequest?.code === programme.code &&
-    programmeRequest?.name === programme.name
-      ? programmeRequest
-      : null) ?? {
+    if (!isCurrentScope() || !portfolio || !programme.code || !programme.name || operation.current) return;
+    const command = programmeRetry ?? {
+      portfolioId,
       ...programme,
       idempotencyKey: crypto.randomUUID(),
     };
-    setProgrammeRequest(payload);
+    const issuedSelectionEpoch = selectionEpoch.current, issuedProgrammeEditEpoch = programmeEditEpoch.current;
+    operation.current = true;
+    setBusy(true);
+    setError("");
+    setProgrammeRequest(command);
+    let confirmed = false, lease: symbol | null = null;
     try {
-      const created = await request<{ id: string; code: string; name: string }>(
-        "/portfolios/" + portfolioId + "/programmes",
+      const { portfolioId: targetPortfolio, ...payload } = command;
+      const fingerprint = await canonicalCommandFingerprint(subject, JSON.stringify(payload));
+      if (!alive.current || !isCurrentScope() || selectionEpoch.current !== issuedSelectionEpoch || programmeEditEpoch.current !== issuedProgrammeEditEpoch)
+        throw new Error("The programme details or setup changed before the request started.");
+      setProgrammeDigest({ command, digest: fingerprint });
+      lease = programmeCreationWrites.begin(creationOwner, { key: command.idempotencyKey, fingerprint });
+      if (!lease) throw new Error("A previous programme creation must be checked before another request.");
+      const response = await request<unknown>(
+        "/portfolios/" + targetPortfolio + "/programmes",
         { method: "POST", body: JSON.stringify(payload) },
+        1_048_576, undefined, undefined, undefined, 201,
       );
+      const created = decodeCreatedProgramme(response);
+      if (!created || created.code !== payload.code || created.name !== payload.name || !isCurrentScope() ||
+          selectionEpoch.current !== issuedSelectionEpoch || programmeEditEpoch.current !== issuedProgrammeEditEpoch)
+        throw new Error("The programme creation outcome could not be confirmed.");
+      if (!programmeCreationWrites.confirm(creationOwner, lease)) throw new Error("The programme creation outcome could not be confirmed.");
+      confirmed = true;
       setCreatedProgramme(created);
-      await onSetupChanged();
+      setProgrammeReceipt({ id: created.id, portfolioId: targetPortfolio });
       setProgramme(created.id);
+      const refreshed = await onSetupChanged();
+      if (!isCurrentIdentity() || selectionEpoch.current !== issuedSelectionEpoch || programmeEditEpoch.current !== issuedProgrammeEditEpoch)
+        throw new Error("Project setup access changed.");
+      const refreshedPortfolio = refreshed.portfolios.find((p) => p.id === targetPortfolio);
+      if (!refreshedPortfolio || (!refreshedPortfolio.programmesTruncated && !refreshedPortfolio.programmes.some((p) => p.id === created.id))) {
+        setError("The programme was created, but is not in the current setup. Refresh or choose an available programme.");
+        return;
+      }
       setProgrammeDraft({ code: "", name: "" });
       setProgrammeRequest(null);
     } catch (e) {
-      setError((e as Error).message);
+      if (!confirmed && lease) programmeCreationWrites.uncertain(creationOwner, lease);
+      if (alive.current) setError(confirmed
+        ? "The programme was created, but project setup could not be refreshed. Check setup before continuing."
+        : !lease ? (isCurrentIdentity() ? (e as Error).message : "No programme request was sent. Check access before retrying.")
+          : isCurrentIdentity() ? (e as Error).message : "The programme creation outcome could not be confirmed. Check access before retrying.");
     } finally {
-      setBusy(false);
+      operation.current = false; if (alive.current) setBusy(false);
     }
   }
   return (
@@ -452,8 +534,17 @@ export function CreateProject({
         available.
       </p>
       {error ? <Message error>{error}</Message> : null}
+      {projectWriteState !== "available" && <Message error>A project creation is pending or could not be confirmed in this page. Check current records before reloading.</Message>}
+      {programmeWriteState !== "available" && <Message error>A programme creation is pending or could not be confirmed in this page. Check current records before reloading.</Message>}
+      {projectWriteState === "retryable" && <p>The same project request can be retried with its original key.</p>}
+      {programmeWriteState === "retryable" && <p>The same programme request can be retried with its original key.</p>}
+      {pending && !projectCommand && !projectDigestError && <p role="status">Preparing the reviewed project request…</p>}
+      {pending && projectDigestError && <Message error>The reviewed project request could not be prepared. Edit the draft and try again.</Message>}
       {pending ? (
         <>
+          {!pendingMatchesDraft && <Message error>Project details changed after review. Edit and review them again.</Message>}
+          {!selectionCurrent && <Message error>The reviewed portfolio or programme is unavailable in the current setup. Edit the selection and review again.</Message>}
+          <div hidden={!pendingMatchesDraft || !selectionCurrent}>
           <h3>
             {fields.name} · {fields.code}
           </h3>
@@ -496,11 +587,14 @@ export function CreateProject({
             Source references are configuration supplied by you. No source
             content has been retrieved or verified.
           </p>
+          </div>
           <div className="actions">
             <Button
               className="secondary"
               disabled={busy}
               onClick={() => {
+                if (!isCurrentScope()) return;
+                reviewedDraftEpoch.current = -1;
                 setPending(null);
                 setError("");
               }}
@@ -509,7 +603,7 @@ export function CreateProject({
             </Button>
             <Button
               className="primary"
-              disabled={busy || !portfolio}
+              disabled={busy || !projectCommand || !["available", "retryable"].includes(projectWriteState) || !pendingMatchesDraft || !selectionCurrent || !isCurrentScope()}
               onClick={() => void create()}
             >
               {busy ? "Creating…" : "Create project"}
@@ -517,8 +611,8 @@ export function CreateProject({
           </div>
         </>
       ) : (
-        <form onSubmit={review}>
-          <fieldset disabled={busy}>
+          <form onSubmit={review} onChangeCapture={() => { draftEpoch.current++; }}>
+          <fieldset disabled={busy || !isCurrentScope()}>
             <legend>Project overview</legend>
             <div className="form-row">
               <SelectField
@@ -526,12 +620,15 @@ export function CreateProject({
                 value={portfolioId}
                 required
                 onChange={(event) => {
+                  selectionEpoch.current++;
                   setPortfolio(event.target.value);
                   setProgramme("");
                   setCreatedProgramme(null);
+                  setProgrammeReceipt(null);
                   setProgrammeRequest(null);
                 }}
               >
+                {portfolioId && !portfolio && <option value={portfolioId}>Unavailable portfolio: {portfolioId}</option>}
                 {setup.portfolios.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -542,6 +639,7 @@ export function CreateProject({
                 label="Programme"
                 value={programmeId}
                 onChange={(event) => {
+                  selectionEpoch.current++;
                   setProgramme(event.target.value);
                   setCreatedProgramme(
                     programmes.find((p) => p.id === event.target.value) ?? null,
@@ -549,6 +647,7 @@ export function CreateProject({
                 }}
               >
                 <option value="">No programme</option>
+                {programmeId && !programmes.some((p) => p.id === programmeId) && <option value={programmeId}>Unavailable programme: {programmeId}</option>}
                 {programmes.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} ({p.code})
@@ -571,6 +670,7 @@ export function CreateProject({
                   pattern="[A-Za-z0-9][A-Za-z0-9._-]*"
                   value={programme.code}
                   onChange={(event) => {
+                    programmeEditEpoch.current++;
                     setProgrammeDraft({
                       ...programme,
                       code: event.target.value,
@@ -582,6 +682,7 @@ export function CreateProject({
                   maxLength={160}
                   value={programme.name}
                   onChange={(event) => {
+                    programmeEditEpoch.current++;
                     setProgrammeDraft({
                       ...programme,
                       name: event.target.value,
@@ -591,7 +692,7 @@ export function CreateProject({
               </div>
               <Button
                 disabled={
-                  busy || !programme.code || !programme.name || !portfolio
+                  busy || !["available", "retryable"].includes(programmeWriteState) || !programme.code || !programme.name || !portfolio
                 }
                 className="secondary"
                 onClick={() => void createProgramme()}
@@ -743,14 +844,16 @@ export function CreateProject({
                     ) : null}
                     <Button
                       className="text-button"
-                      onClick={() =>
+                      onClick={() => {
+                        if (!isCurrentScope() || operation.current) return;
+                        draftEpoch.current++;
                         setRows((current) => ({
                           ...current,
                           [section.key]: current[section.key]!.filter(
                             (_, i) => i !== index,
                           ),
-                        }))
-                      }
+                        }));
+                      }}
                     >
                       Remove {section.singular} {index + 1}
                     </Button>
@@ -759,7 +862,9 @@ export function CreateProject({
                 <Button
                   className="secondary"
                   disabled={rows[section.key]!.length >= 50 || total >= 200}
-                  onClick={() =>
+                  onClick={() => {
+                    if (!isCurrentScope() || operation.current) return;
+                    draftEpoch.current++;
                     setRows((current) => ({
                       ...current,
                       [section.key]: [
@@ -775,8 +880,8 @@ export function CreateProject({
                           dates: emptyDates(),
                         },
                       ],
-                    }))
-                  }
+                    }));
+                  }}
                 >
                   Add {section.singular}
                 </Button>
@@ -838,26 +943,35 @@ function HealthAssessmentPanel({ id }: { id: string }) {
   const assessment = useMutation({
     retry: false,
     mutationFn: async ({ key, lease }: { key: string; lease: HealthWriteLease }) => {
+      let started = false;
       try {
-        await scope.write(lease, "/projects/" + id + "/health-assessments", {
+        if (!scope.startAssessment(lease, key)) { scope.abandonUnsentAssessment(lease); return; }
+        started = true;
+        const response = await scope.write<unknown>(lease, "/projects/" + id + "/health-assessments", {
           method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ commandKey: key }),
-        });
+        }, 201);
+        decodeAssessmentConfirmation(response, id);
+        if (!scope.writeCurrent(lease)) throw new Error("Assessment scope changed");
         scope.completeAssessment(lease, key);
-      } catch { /* The shared owner retains any uncertain sent outcome. */ }
+      } catch { if (started) scope.markWriteUncertain(lease); }
       finally { scope.finishWrite(lease); }
     },
   });
   const run = () => {
     if (!latest.isSuccess || latest.isFetching) return;
-    const key = scope.assessmentCommand(); if (!key) return;
-    const lease = scope.beginWrite(); if (!lease) return;
-    try { assessment.mutate({ key, lease }); } catch { scope.finishWrite(lease); }
+    const admission = scope.beginAssessment(); if (!admission) return;
+    try { assessment.mutate(admission); } catch { scope.abandonUnsentAssessment(admission.lease); scope.finishWrite(admission.lease); }
   };
   const value = latest.isFetching || latest.isError ? undefined : latest.data;
   const result = value?.contentAvailable && value.result
     ? (value.result as unknown as HealthResult)
     : null;
-  if (!scope.ready || !scope.current()) return <section className="canonical-section"><p role="status">Checking current health access…</p></section>;
+  if (!scope.ready || !scope.current()) return <section className="canonical-section">
+    {scope.networkLimited ? <p role="alert">Health information is unavailable while earlier requests are pending or their cleanup is unconfirmed.</p>
+      : scope.failed ? <><p role="alert">Current health access could not be established.</p>
+        <Button className="secondary" onClick={() => scope.recheck()}>Check health access again</Button></>
+        : <p role="status">Checking current health access…</p>}
+  </section>;
   return (
     <section className="canonical-section" aria-labelledby="health-assessment-title">
       <h3 id="health-assessment-title">Schedule health assessment</h3>
@@ -866,13 +980,17 @@ function HealthAssessmentPanel({ id }: { id: string }) {
         The reported status is preserved separately from the schedule calculation. Any blocker-age coverage is stored
         separately and does not change the schedule result.
       </p>
-      <Button onClick={run} disabled={!latest.isSuccess || latest.isFetching || assessment.isPending || scope.reading || scope.atCapacity || scope.assessmentCapacity}>
-        {assessment.isPending ? "Assessing…" : scope.pendingAssessment ? "Retry previous assessment" : "Assess schedule"}
+      <Button onClick={run} disabled={!latest.isSuccess || latest.isFetching || assessment.isPending || !scope.canWrite || scope.atCapacity || scope.assessmentCapacity || scope.pendingAssessment}>
+        {assessment.isPending ? "Assessing…" : scope.pendingAssessment ? "Assessment outcome unknown" : "Assess schedule"}
       </Button>
       {scope.uncertain && <p role="alert" className="error">A previous health write may still have an unknown outcome. Refreshed information is a separate as-of check.</p>}
+      {scope.pendingAssessment && !assessment.isPending && <p role="alert" className="error">The assessment may have been saved. Check the saved assessment information before taking further action. This browser-session safeguard does not persist after a reload or across tabs.</p>}
+      {!scope.canWrite && <p className="muted">Complete the current information checks before making changes.</p>}
       {(latest.isPending || latest.isFetching) && !value && <p role="status">Loading latest assessment…</p>}
       {latest.error && !value && <p role="alert" className="error">{latest.error.message}</p>}
-      {!latest.isPending && !latest.isFetching && !latest.error && latest.data === null && <p className="muted">No assessment has been saved.</p>}
+      {!latest.isPending && !latest.isFetching && !latest.error && latest.data === null && <p className="muted">
+        {scope.pendingAssessment ? "No saved assessment was available at the latest check; the earlier request may still complete." : "No assessment has been saved."}
+      </p>}
       {value && (
         <div className="canonical-records">
           <div className="canonical-review-row">
@@ -946,12 +1064,10 @@ type Detail = {
 };
 export function CanonicalProjectDetails({
   id,
-  request,
   leadershipScope,
   canInspectMilestoneRequest = false,
 }: {
   id: string;
-  request: RequestFn;
   leadershipScope?: string;
   canInspectMilestoneRequest?: boolean;
 }) {
@@ -964,19 +1080,31 @@ export function CanonicalProjectDetails({
     queryFn: ({ signal }) => scope.read<Detail>("/projects/" + id + "/canonical", signal, null),
     enabled: scope.ready, staleTime: Infinity, gcTime: 0, refetchOnMount: false, refetchOnWindowFocus: false,
   });
-  if (!scope.ready || !scope.current()) return <p role="status">Checking delivery structure access…</p>;
+  if (!scope.ready || !scope.current()) return scope.networkLimited
+    ? <p role="alert">Delivery structure is unavailable while earlier requests are pending or their cleanup is unconfirmed.</p>
+    : scope.failed ? <section className="panel"><Message error>Current delivery structure access could not be established.</Message>
+      <Button className="secondary" onClick={() => scope.recheck()}>Check delivery structure access again</Button></section>
+      : <p role="status">Checking delivery structure access…</p>;
   if (result.isFetching) return <p role="status">Loading delivery structure…</p>;
   if (result.isError)
     return (
       <section className="panel">
         <Message error>{result.error.message}</Message>
+        <Button className="secondary" disabled={scope.networkLimited} onClick={() => scope.refresh()}>Retry delivery structure</Button>
       </section>
     );
   const detail = result.data;
   if (!detail) return <p role="status">Loading delivery structure…</p>;
+  // Leadership drivers capture one ticket-bound capability at mount. A new
+  // health view must replace those drivers even when the project is unchanged.
+  const leadershipViewScope = JSON.stringify([leadershipScope, ...scope.key]);
   const guardedRequest: RequestFn = async <T,>(path: string, init?: RequestInit, maxResponseBytes?: number, onUnavailable?: (denied?: boolean) => void): Promise<T> => {
     if (!scope.current()) throw new Error("Current access could not be established.");
-    const value = await request<T>(path, init, maxResponseBytes, (denied) => { if (scope.current()) onUnavailable?.(denied); });
+    if ((init?.method ?? "GET").toUpperCase() !== "GET" || init?.body != null ||
+      Object.keys(init ?? {}).some((key) => key !== "signal" && key !== "method"))
+      throw new Error("Only scoped reads are supported.");
+    const signal = init?.signal ?? new AbortController().signal;
+    const value = await scope.read<T>(path, signal, maxResponseBytes ?? null, onUnavailable);
     if (!scope.current()) throw new Error("Current access could not be established.");
     return value;
   };
@@ -995,13 +1123,13 @@ export function CanonicalProjectDetails({
         <>
           <DateDisplay dates={detail.dates} />
           {leadershipScope && !result.isFetching && !result.isError && <LeadershipMilestoneConflict
-            key={leadershipScope} projectId={id} scope={leadershipScope} request={guardedRequest}
+            key={leadershipViewScope} projectId={id} scope={leadershipViewScope} request={guardedRequest} reserveRead={scope.reserveRead}
             selected={milestoneDraft.selected} question={milestoneDraft.question} onDraftChange={setMilestoneDraft}
             canInspectRequest={canInspectMilestoneRequest}
             milestones={detail.milestones as { id: string; key: string; name: string }[]}
             workItems={detail.workItems as { id: string; key: string; title: string }[]} />}
           {leadershipScope && !result.isFetching && !result.isError && <LeadershipScalarConflict
-            key={leadershipScope} projectId={id} scope={leadershipScope} request={guardedRequest} />}
+            key={leadershipViewScope} projectId={id} scope={leadershipViewScope} request={guardedRequest} reserveRead={scope.reserveRead} />}
           {sections.map((section) => {
             const rows = detail[section.key] as DetailRow[];
             return (

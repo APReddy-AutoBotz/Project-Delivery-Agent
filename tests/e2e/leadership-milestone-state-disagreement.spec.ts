@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 const customerId = "10000000-0000-4000-8000-000000000001";
 const id = (n: number) => `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const project = { id: id(1), code: "CX", name: "Synthetic state project", description: "Fixture", reportedStatus: "UNKNOWN" };
+const project = { id: id(1), portfolioId: id(50), code: "CX", name: "Synthetic state project", description: "Fixture", reportedStatus: "UNKNOWN" };
 const dates = { plannedStart: null, plannedEnd: null, actualStart: null, actualEnd: null };
 const milestones = [{ id: id(2), key: "MS-1", name: "First milestone", state: "COMPLETE", dates },
   { id: id(3), key: "MS-2", name: "Second milestone", state: "OPEN", dates }];
@@ -36,7 +36,7 @@ test("state evidence is scoped to the selected milestone and clears on denial an
     window.fetch = (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("leadership-state-disagreement") && init) {
-        const { signal: _signal, ...rest } = init;
+        const rest = { ...init }; delete rest.signal;
         return original(input, rest).then((response) => {
           const tag = response.headers.get("x-synthetic-held");
           if (tag && response.body) {
@@ -97,6 +97,8 @@ test("state evidence is scoped to the selected milestone and clears on denial an
       return route.fulfill({ json: path.includes(id(2)) ? disagreement(id(2), 100, ttl) : disagreement(id(3), 200, ttl) });
     }
     if (path === "/pm/action-queue") return route.fulfill({ json: { projects: [] } });
+    if (path.endsWith("/health-assessments/latest")) return route.fulfill({ json: null });
+    if (path.endsWith("/facts")) return route.fulfill({ json: { canAppend: false, canConfigure: false, facts: [], next: null } });
     return route.fulfill({ status: 404, json: { message: "Not found" } });
   });
   let selectionStarted = false, sessionStarted = false;
@@ -171,4 +173,64 @@ test("state evidence is scoped to the selected milestone and clears on denial an
     const pending = [selectionStarted ? selectionGate.finished : Promise.resolve(), sessionStarted ? sessionGate.finished : Promise.resolve()];
     await Promise.race([Promise.allSettled(pending), new Promise((resolve) => setTimeout(resolve, 5000))]);
   }
+});
+
+
+test("a superseded unavailable state read cannot replace the next loading state", async ({ page }) => {
+  test.setTimeout(90000);
+  let persona = "", reads = 0, firstEntered!: () => void, firstRelease!: () => void, secondEntered!: () => void, secondRelease!: () => void;
+  const firstArrival = new Promise<void>((resolve) => { firstEntered = resolve; });
+  const firstGate = new Promise<void>((resolve) => { firstRelease = resolve; });
+  const secondArrival = new Promise<void>((resolve) => { secondEntered = resolve; });
+  const secondGate = new Promise<void>((resolve) => { secondRelease = resolve; });
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
+    if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
+    if (path === "/auth/development") { persona = route.request().postDataJSON().persona; return route.fulfill({ json: { token: `synthetic-${persona}` } }); }
+    if (path === "/me") return route.fulfill({ json: { subject: persona, customerId, roles: ["leadership"] } });
+    if (path === "/projects") return route.fulfill({ json: [project] });
+    if (path === `/projects/${project.id}`) return route.fulfill({ json: project });
+    if (path === `/projects/${project.id}/canonical`) return route.fulfill({ json: detail });
+    if (path.endsWith("/leadership-state-disagreement")) {
+      reads++;
+      if (reads === 1) { firstEntered(); await firstGate; return route.fulfill({ status: 503, json: { message: "Unavailable" } }); }
+      if (reads === 2) { secondEntered(); await secondGate; return route.fulfill({ json: disagreement(id(2), 100) }); }
+      return route.fulfill({ json: disagreement(id(2), 100) });
+    }
+    if (path === "/pm/action-queue") return route.fulfill({ json: { projects: [] } });
+    if (path.endsWith("/health-assessments/latest")) return route.fulfill({ json: null });
+    if (path.endsWith("/facts")) return route.fulfill({ json: { canAppend: false, canConfigure: false, facts: [], next: null } });
+    return route.fulfill({ status: 404, json: { message: "Not found" } });
+  });
+  try {
+    await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();
+    await page.getByRole("button", { name: /Synthetic state project/ }).click();
+    await page.getByLabel("Milestone", { exact: true }).selectOption(id(2));
+    await page.getByRole("button", { name: "Check for conflicting milestone states" }).click(); await firstArrival;
+    await page.getByRole("button", { name: "Refresh milestone state evidence" }).click();
+    await page.evaluate(async () => {
+      const state = window as unknown as { staleErrorObserved?: boolean; staleErrorObserver?: MutationObserver };
+      state.staleErrorObserved = false;
+      const marker = "Current conflicting state evidence could not be established";
+      state.staleErrorObserver = new MutationObserver((records) => {
+        if (records.some((record) => record.oldValue?.includes(marker) || record.target.textContent?.includes(marker) ||
+          [...record.addedNodes, ...record.removedNodes].some((node) => node.textContent?.includes(marker)))) state.staleErrorObserved = true;
+      });
+      state.staleErrorObserver.observe(document.body, { childList: true, subtree: true, characterData: true, characterDataOldValue: true });
+      const canary = document.createElement("span");
+      canary.textContent = "initial"; document.body.append(canary); await Promise.resolve();
+      canary.firstChild!.textContent = marker; canary.firstChild!.textContent = "cleared"; canary.remove(); await Promise.resolve();
+    });
+    expect(await page.evaluate(() => (window as unknown as { staleErrorObserved?: boolean }).staleErrorObserved)).toBe(true);
+    await page.evaluate(() => { (window as unknown as { staleErrorObserved?: boolean }).staleErrorObserved = false; });
+    firstRelease(); await secondArrival;
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await expect(page.getByText("Checking current milestone state evidence…")).toBeVisible();
+    await expect(page.getByText("Current conflicting state evidence could not be established", { exact: false })).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { staleErrorObserved?: boolean }).staleErrorObserved)).toBe(false);
+    secondRelease(); await expect(page.getByText(`Evidence ${id(120)}`, { exact: false })).toBeVisible();
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    expect(await page.evaluate(() => (window as unknown as { staleErrorObserved?: boolean }).staleErrorObserved)).toBe(false);
+    expect(reads).toBe(2);
+  } finally { firstRelease(); secondRelease(); await page.evaluate(() => (window as unknown as { staleErrorObserver?: MutationObserver }).staleErrorObserver?.disconnect()).catch(() => {}); }
 });

@@ -14,11 +14,13 @@ import type { RequestFn } from "./canonical-project.js";
 import { Button, TextField, Message } from "./components.js";
 import {
   useEvidenceResource,
+  EvidenceAdmissionContext,
   useEvidenceDenial,
   denied,
   evidenceError,
   savedEvidenceLink,
 } from "./evidence-state.js";
+import { bindSessionRequest } from "./session-bound-request.js";
 import {
   HistoryEntry,
   AssessmentView,
@@ -83,6 +85,10 @@ export function ProjectEvidence({
       ),
     `catalogue:${projectId}`,
   );
+  const parentAdmission = React.useContext(EvidenceAdmissionContext);
+  const nestedAdmission = React.useMemo(() => parentAdmission && catalogue.data ? Object.freeze({}) : null,
+    [parentAdmission, catalogue.data]);
+  const evidenceRequest = bindSessionRequest(request, catalogue.isCurrent);
   const canAppend = catalogue.last?.canAppend ?? false,
     canConfigure = catalogue.last?.canConfigure ?? false;
   useEffect(() => {
@@ -104,6 +110,7 @@ export function ProjectEvidence({
     void catalogue.refresh();
   }
   function captured(id: string) {
+    if (!catalogue.isCurrent()) return;
     setAssessmentId(id);
     window.history.replaceState({}, "", savedEvidenceLink(projectId, id));
   }
@@ -184,12 +191,13 @@ export function ProjectEvidence({
           </form>
         </>
       )}
+      <EvidenceAdmissionContext.Provider value={nestedAdmission}>
       {catalogue.last && target && (
         <EvidenceTarget
           key={`${target}:${generation}`}
           projectId={projectId}
           factType={target}
-          request={request}
+          request={evidenceRequest}
           canAppend={canAppend}
           canConfigure={canConfigure}
           visible={visible && catalogue.phase === "ready"}
@@ -203,7 +211,7 @@ export function ProjectEvidence({
         <SavedAssessment
           key={assessmentId}
           projectId={projectId}
-          request={request}
+          request={evidenceRequest}
           assessmentId={assessmentId}
           visible={visible && catalogue.phase === "ready"}
           onRestricted={clearDrafts}
@@ -214,13 +222,14 @@ export function ProjectEvidence({
         <ScalarReconciliationQueue
           key={`scalar-queue:${generation}`}
           projectId={projectId}
-          request={request}
+          request={evidenceRequest}
           visible={visible && catalogue.phase === "ready"}
           canAppend={canAppend}
           generation={scalarGeneration}
           initialRequestId={initialScalarRequestId}
         />
       ) : null}
+      </EvidenceAdmissionContext.Provider>
     </section>
   );
 }
@@ -338,6 +347,10 @@ function EvidenceTarget({
     },
     `target:${projectId}:${factType}`,
   );
+  const parentAdmission = React.useContext(EvidenceAdmissionContext);
+  const nestedAdmission = React.useMemo(() => parentAdmission && resource.data ? Object.freeze({}) : null,
+    [parentAdmission, resource.data]);
+  const targetRequest = bindSessionRequest(request, resource.isCurrent);
   const priorAccess = useRef(new Map<string, string>());
   useEvidenceDenial(resource.phase, resource.error, onDenied);
   useEffect(() => {
@@ -359,20 +372,20 @@ function EvidenceTarget({
   const shown = visible && resource.phase === "ready",
     last = resource.last;
   async function capture() {
-    if (!shown || captureBusy) return;
+    if (!shown || captureBusy || !resource.isCurrent()) return;
     const idempotencyKey = captureKey ?? crypto.randomUUID();
     setCaptureKey(idempotencyKey);
     setCaptureBusy(true);
     setCaptureError("");
     try {
-      const value = await request<AssessmentDelivery>(
+      const value = await targetRequest<AssessmentDelivery>(
         `/projects/${projectId}/assessments`,
         {
           method: "POST",
           body: JSON.stringify({ projectId, factType, idempotencyKey }),
         },
       );
-      if (alive.current) {
+      if (alive.current && resource.isCurrent()) {
         setCaptureKey(null);
         onCapture(value.assessmentId);
       }
@@ -391,6 +404,7 @@ function EvidenceTarget({
     onSavedCatalogue();
   }
   return (
+    <EvidenceAdmissionContext.Provider value={nestedAdmission}>
     <div className="evidence-target">
       <h3>{shown ? `Fact: ${factType}` : "Fact history"}</h3>
       <ResourceStatus
@@ -462,7 +476,7 @@ function EvidenceTarget({
                 key={`scalar:${last.history.factId}:${generation}`}
                 projectId={projectId}
                 factId={last.history.factId}
-                request={request}
+                request={targetRequest}
                 visible={shown}
                 onCapture={onCapture}
                 onDenied={onDenied}
@@ -475,7 +489,8 @@ function EvidenceTarget({
                 projectId={projectId}
                 factType={factType}
                 revision={last.history.throughRevision}
-                request={request}
+                request={targetRequest}
+                isCurrent={resource.isCurrent}
                 onSaved={saved}
                 onDenied={onDenied}
               />
@@ -486,7 +501,8 @@ function EvidenceTarget({
                 projectId={projectId}
                 factType={factType}
                 policy={last.policy}
-                request={request}
+                request={targetRequest}
+                isCurrent={resource.isCurrent}
                 onSaved={saved}
                 onDenied={onDenied}
               />
@@ -498,7 +514,7 @@ function EvidenceTarget({
         <SourceEditor
           key={sourceId}
           projectId={projectId}
-          request={request}
+          request={targetRequest}
           sourceId={sourceId}
           visible={shown}
           onDenied={onDenied}
@@ -509,6 +525,7 @@ function EvidenceTarget({
         />
       )}
     </div>
+    </EvidenceAdmissionContext.Provider>
   );
 }
 function SourceEditor({
@@ -529,6 +546,7 @@ function SourceEditor({
       `/projects/${projectId}/fact-sources/${sourceId}/access`,
     ),
   );
+  const sourceRequest = bindSessionRequest(request, resource.isCurrent);
   useEvidenceDenial(resource.phase, resource.error, onDenied);
   return (
     <>
@@ -547,7 +565,8 @@ function SourceEditor({
             <SourceAccessForm
               projectId={projectId}
               source={resource.last}
-              request={request}
+              request={sourceRequest}
+              isCurrent={resource.isCurrent}
               onSaved={onClose}
               onDenied={onDenied}
               onClose={onClose}

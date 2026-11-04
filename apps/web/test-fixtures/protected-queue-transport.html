@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Synthetic queue transport fixture</title></head>
+<body>
+  <button id="start">Load queue</button>
+  <button id="hide">Leave queue</button>
+  <button id="show">Return to queue</button>
+  <button id="new-session">New session</button>
+  <button id="driver-start">Start queue driver</button>
+  <button id="driver-refresh">Refresh queue driver</button>
+  <output id="state" aria-live="polite">idle</output>
+  <output id="driver-state" aria-live="polite">idle</output>
+  <output id="settled">0</output>
+  <script type="module" src="./protected-queue-transport.ts"></script>
+</body>
+</html>

@@ -466,6 +466,14 @@ describe.sequential("durable ingestion persistence", () => {
     expect(JSON.stringify(csvReceipt)).not.toContain("CASE-CSV");
     expect(JSON.stringify(csvReceipt)).not.toContain("private-cell-value");
     expect(JSON.stringify(csvReceipt)).not.toContain("private-upload-name.csv");
+    const invalidPreview = await repository.persistCsvPreview(manager, {
+      sourceId, configRevision: csvConfig.configRevision, mappingRevision: csvConfig.mappingRevision,
+      commandKey: "csv-preview-invalid-date", fileName: "invalid.csv",
+      csv: `Issue ID,Project,Forecast\nCASE-INVALID,${projectId},2026-02-30`,
+    }, "ingestion-test-csv-invalid-date");
+    const invalidReceipt = await repository.readReceipt(manager, { sourceId, receiptId: invalidPreview.receiptId });
+    expect(invalidReceipt.outcomes).toHaveLength(1);
+    expect(invalidReceipt.outcomes[0]).toMatchObject({ ordinal: 1, state: "INVALID", identity: null, contentAvailable: false, proposals: null });
     const persistedCsv = await db.$queryRaw<
       { recordType: string; recordKey: string; proposals: unknown; proposalHash: string; computedProposalHash: string }[]
     >`
