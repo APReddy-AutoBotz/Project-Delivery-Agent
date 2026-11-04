@@ -8,7 +8,7 @@ const customerId = id(1), projectId = id(2), factId = id(3), factType = "project
 const leader = { customerId, subject: "synthetic-leader", roles: ["leadership"] as ("leadership")[] };
 function fake() {
   const fact = { id: factId, factType, revision: 3 };
-  const versions = [0, 1, 2].map((index) => ({ id: id(index + 10), factId, revision: index + 1,
+  const versions = [0, 1, 2].map((index) => ({ id: id(index + 10), customerId, projectId, factId, revision: index + 1,
     sourceId: id(index + 20), evidenceId: id(index + 30), value: { type: "date", value: index === 1 ? "2026-11-02" : "2026-11-01" },
     provenance: "HUMAN_CONFIRMED", effectiveAtValidated: false, effectiveAt: new Date("2026-10-01T00:00:00.000Z"),
     validUntil: new Date("2026-12-01T00:00:00.000Z"), evidence: { observedAt: new Date("2026-10-02T00:00:00.000Z"), source: { sourceType: "human_statement" } } }));
@@ -17,11 +17,17 @@ function fake() {
     effectiveAt: new Date("2026-10-01T00:00:00.000Z"), definition: { tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null,
       requiredApproval: "NOT_REQUIRED", validity: null }] }], conflictBehavior: "REQUEST_RECONCILIATION" } };
   const prefix = { event, aggregate: null, versions, conflicts: [] as { id: string; leftVersionId: string; rightVersionId: string; detectedAt: Date }[], access, conflictThroughRevision: 0 };
-  const state = { grants: ["leadership"], page: [fact], projectError: false };
+  const state = { grants: ["leadership"], page: [fact], projectError: false,
+    metadata: null as null | { id: string; customerId: string; projectId: string; factId: string; revision: number;
+      evidenceId: string; sourceId: string; valueBytes: number }[] };
   const tx = { $executeRaw: vi.fn(async () => 0), $queryRaw: vi.fn(async (arg: unknown) => {
     const sql = rawSqlText(arg);
     if (sql.includes('FROM public."Project"')) { if (state.projectError) throw new Error("private"); return [{ portfolioId: id(4) }]; }
     if (sql.includes('FROM public."AccessGrant"')) return state.grants.map((role) => ({ role }));
+    if (sql.includes('FROM public."ProjectFactVersion"')) return state.metadata ?? prefix.versions.map((row) => ({
+      id: row.id, customerId: row.customerId, projectId: row.projectId, factId: row.factId, revision: row.revision,
+      evidenceId: row.evidenceId, sourceId: row.sourceId, valueBytes: Buffer.byteLength(JSON.stringify(row.value), "utf8"),
+    }));
     if (sql.includes("clock_timestamp()")) return [{ now: asOf }];
     throw new Error("Unexpected query");
   }), projectFact: { findMany: vi.fn(async () => state.page) } };
@@ -53,10 +59,27 @@ it("withholds source revocation, mixed values and expiration of a disputed posit
 it("conceals missing grants, hidden catalogue IDs and pre-visibility failures", async () => {
   const f = fake(); f.state.grants = [];
   await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "DENIED" });
+  expect(f.tx.$queryRaw.mock.calls.some(([arg]) => rawSqlText(arg).includes('FROM public."ProjectFactVersion"'))).toBe(false);
   f.state.grants = ["leadership"]; f.state.page = [];
   await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "DENIED" });
+  expect(f.tx.$queryRaw.mock.calls.some(([arg]) => rawSqlText(arg).includes('FROM public."ProjectFactVersion"'))).toBe(false);
   f.state.projectError = true;
   await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "DENIED" });
+});
+it("admits bounded version metadata before loading and rejects changed identities", async () => {
+  const f = fake();
+  const metadata = f.prefix.versions.map((row) => ({ id: row.id, customerId, projectId, factId,
+    revision: row.revision, evidenceId: row.evidenceId, sourceId: row.sourceId, valueBytes: 64 }));
+  f.state.metadata = metadata.map((row, index) => ({ ...row, valueBytes: index === 0 ? 1_048_577 : 1 }));
+  await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(DatabaseAuthorityRepository.prototype.loadAssessmentPrefixesInTransaction).not.toHaveBeenCalled();
+  f.state.metadata = metadata.map((row, index) => ({ ...row, customerId: index === 0 ? id(999) : row.customerId }));
+  await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(DatabaseAuthorityRepository.prototype.loadAssessmentPrefixesInTransaction).not.toHaveBeenCalled();
+  f.state.metadata = metadata;
+  f.prefix.versions[0]!.evidenceId = id(999);
+  await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(DatabaseAuthorityRepository.prototype.loadAssessmentPrefixesInTransaction).toHaveBeenCalledTimes(1);
 });
 it("reconstructs the selected bounded page and excludes its 51st sentinel", async () => {
   const f = fake();

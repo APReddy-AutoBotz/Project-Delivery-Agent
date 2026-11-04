@@ -8,6 +8,33 @@ GitHub issue: #6; STORY-012, AC-EVD-004, FAIL-009 and INT-EVD-004.
 Target release: R1. Last updated: 2026-09-22.
 Applicable ADRs: 001-014; no new infrastructure, dependency or autonomous action.
 
+## Internal original-proof verifier candidate
+
+An unregistered helper checks one caller-selected scalar request's original
+sealed proof and current access to every original human source. It requires a
+trusted caller to authenticate the actor, establish the selected fact and current
+identity, and hold the project/grant fence and database clock in the same
+transaction. It returns only success or a generic unavailable error. It is not
+an endpoint, lookup, authorization decision, request-status response or proof
+that no request exists. An error does not promise constant-time behavior.
+
+The helper checks identity bytes and hash, historical version/conflict/policy
+prefixes and associations, current reader access, result and audit size budgets,
+then invokes the existing native request validator. Its 64,000-item structural
+budget counts containers and selectors as well as IDs, so it is conservative.
+Limits bound application materialization, not PostgreSQL scan or decompression
+work. The helper relies on the caller's supported-writer fence and deadlines;
+it does not validate every later assignment or support non-human original
+sources. Existing malformed-proof unit tests are synthetic mocks. The new native
+fixture uses a real writer-created request and tests a later version/policy and
+removal of a reader from an original superseded source; it has not run locally.
+That source remains in the complete current prefix, so the test is not evidence
+of a separate historical-only full-path denial. The test supplies a retained
+identity directly and does not establish current identity equivalence or public
+authorization. Source/grant and request-creation races in both lock orders,
+clean/upgrade/restore role parity and full information-flow review remain open
+before any matched-request response. No story or release hold is accepted.
+
 ## Final merge checkpoint, 2026-09-22
 
 Candidate `2929a14e83f95f75602d8602d89e9a2642f87442` merged as

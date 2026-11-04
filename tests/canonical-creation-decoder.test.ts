@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
-import { z } from "zod";
+import { createRequire } from "node:module";
+const { z } = createRequire(new URL("../packages/domain/package.json", import.meta.url))("zod");
 import { canonicalProgrammeSchema, canonicalSetupSchema } from "../packages/domain/src/index.js";
 import { decodeCreatedProgramme, decodeCreatedProject, decodeProjectList, decodeProjectSetup } from "../apps/web/src/canonical-creation-decoder.js";
 

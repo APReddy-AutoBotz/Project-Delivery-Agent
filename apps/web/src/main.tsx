@@ -14,6 +14,7 @@ import {
   type ProjectSetup,
 } from "./canonical-project.js";
 import "./style.css";
+import "./access-grant.css";
 import { ProjectEvidence } from "./project-evidence.js";
 import { HealthAssessmentPanel } from "./health-assessment.js";
 import { HealthScopeFence } from "./health-scope-fence.js";
