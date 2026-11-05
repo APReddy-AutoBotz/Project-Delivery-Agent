@@ -25,7 +25,7 @@ function oldPage(projectId: string, scalar: boolean, number: number) {
 async function installPreviewProbe(page: Page) {
   await page.addInitScript(() => {
     const original = window.fetch; let firstCalls = 0, readersReleased = 0, completeBodies = 0, staleRendered = false;
-    const initialSignals: (AbortSignal | null | undefined)[] = [];
+    const initialOptions: { signal: boolean; redirect: RequestRedirect | undefined }[] = [];
     const marker = "2098-01-02T03:04:05.000Z";
     new MutationObserver((records) => {
       for (const record of records) {
@@ -33,14 +33,14 @@ async function installPreviewProbe(page: Page) {
           staleRendered = true;
       }
     }).observe(document, { subtree: true, childList: true, characterData: true, characterDataOldValue: true });
-    (window as Window & { previewProbe?: () => { readersReleased: number; completeBodies: number; staleRendered: boolean; started: number; initialAborted: boolean } }).previewProbe =
+    (window as Window & { previewProbe?: () => { readersReleased: number; completeBodies: number; staleRendered: boolean; started: number; initialOptionsValid: boolean } }).previewProbe =
       () => ({ readersReleased, completeBodies, staleRendered, started: firstCalls,
-        initialAborted: initialSignals.every((signal) => signal?.aborted === true) });
+        initialOptionsValid: initialOptions.every(({ signal, redirect }) => !signal && redirect === "error") });
     window.fetch = (input, init) => {
       if (!String(input).includes("reconciliation-requests")) return original(input, init);
       const first = ++firstCalls <= 2;
-      if (first) initialSignals.push(init?.signal);
-      return original(input, { ...init, signal: undefined }).then((response) => {
+      if (first) initialOptions.push({ signal: Boolean(init?.signal), redirect: init?.redirect });
+      return original(input, init).then((response) => {
         if (first && response.body) {
           const getReader = response.body.getReader.bind(response.body);
           Object.defineProperty(response.body, "getReader", { value: () => {
@@ -100,6 +100,9 @@ test("StrictMode mount replay permits an explicit preview load", async ({ page }
   const panel = page.getByRole("region", { name: "Recorded reconciliation requests" });
   await panel.getByRole("button", { name: "Load reconciliation previews" }).click();
   await expect(panel.getByText("No recorded open requests on this page.")).toHaveCount(2);
+  expect((await page.evaluate(() => (window as Window & { previewPaths: string[] }).previewPaths)).sort()).toEqual([
+    `/projects/${id(1)}/reconciliation-requests`, `/projects/${id(1)}/scalar-reconciliation-requests`,
+  ].sort());
 });
 
 test("explicit previews limit concurrency and distinguish denied and truncated pages", async ({ page }) => {
@@ -380,6 +383,7 @@ test("refresh hides old previews and retains the lease until both late calls set
   const held = [new Promise<void>((resolve) => { releaseFirst = resolve; }),
     new Promise<void>((resolve) => { releaseSecond = resolve; })];
   const delivered: number[] = [], fresh = new Map<string, number>(), handlers = trackPreviewHandlers();
+  let primaryFailure: unknown, snapshot: { started: number; initialOptionsValid: boolean } | undefined;
   await installPreviewProbe(page);
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
@@ -425,18 +429,22 @@ test("refresh hides old previews and retains the lease until both late calls set
     expect([...fresh.values()].every((count) => count === 1)).toBe(true);
     await expectEmptyPreviewBatch(panel);
     expect(await page.evaluate(() => (window as Window & { previewProbe: () => { staleRendered: boolean } }).previewProbe().staleRendered)).toBe(false);
-  } finally {
-    let snapshot: { started: number; initialAborted: boolean } | undefined;
+  } catch (error) { primaryFailure = error; throw error; }
+  finally {
     try { snapshot = await page.evaluate(() => { window.dispatchEvent(new Event("focus"));
-      return (window as Window & { previewProbe?: () => { started: number; initialAborted: boolean } }).previewProbe?.(); }); }
-    finally { releaseFirst(); releaseSecond();
-      try { if (snapshot) await expect.poll(() => calls, { timeout: 5000 }).toBe(snapshot.started); }
-      finally { await handlers.settle(); } }
-    if (snapshot?.started) {
-      expect(snapshot.initialAborted).toBe(true);
-      await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased),
-        { timeout: 5000 }).toBe(Math.min(snapshot.started, 2));
+      return (window as Window & { previewProbe?: () => { started: number; initialOptionsValid: boolean } }).previewProbe?.(); }); }
+    catch (error) { if (!primaryFailure) throw error; }
+    finally {
+      releaseFirst(); releaseSecond();
+      try { await handlers.settle(); } catch (error) { if (!primaryFailure) throw error; }
     }
+  }
+  expect(snapshot).toBeDefined();
+  if (snapshot?.started) {
+    await expect.poll(() => calls, { timeout: 5000 }).toBe(snapshot.started);
+    expect(snapshot.initialOptionsValid).toBe(true);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased),
+      { timeout: 5000 }).toBe(Math.min(snapshot.started, 2));
   }
 });
 
@@ -445,6 +453,7 @@ test("a stalled batch times out visibly but cannot overlap later browser request
   const held = [new Promise<void>((resolve) => { releaseFirst = resolve; }),
     new Promise<void>((resolve) => { releaseSecond = resolve; })];
   const delivered: number[] = [], fresh = new Map<string, number>(), handlers = trackPreviewHandlers();
+  let primaryFailure: unknown, snapshot: { started: number; initialOptionsValid: boolean } | undefined;
   await installPreviewProbe(page);
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
@@ -489,18 +498,22 @@ test("a stalled batch times out visibly but cannot overlap later browser request
     expect([...fresh.values()].every((count) => count === 1)).toBe(true);
     await expectEmptyPreviewBatch(panel);
     expect(await page.evaluate(() => (window as Window & { previewProbe: () => { staleRendered: boolean } }).previewProbe().staleRendered)).toBe(false);
-  } finally {
-    let snapshot: { started: number; initialAborted: boolean } | undefined;
+  } catch (error) { primaryFailure = error; throw error; }
+  finally {
     try { snapshot = await page.evaluate(() => { window.dispatchEvent(new Event("focus"));
-      return (window as Window & { previewProbe?: () => { started: number; initialAborted: boolean } }).previewProbe?.(); }); }
-    finally { releaseFirst(); releaseSecond();
-      try { if (snapshot) await expect.poll(() => calls, { timeout: 5000 }).toBe(snapshot.started); }
-      finally { await handlers.settle(); } }
-    if (snapshot?.started) {
-      expect(snapshot.initialAborted).toBe(true);
-      await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased),
-        { timeout: 5000 }).toBe(Math.min(snapshot.started, 2));
+      return (window as Window & { previewProbe?: () => { started: number; initialOptionsValid: boolean } }).previewProbe?.(); }); }
+    catch (error) { if (!primaryFailure) throw error; }
+    finally {
+      releaseFirst(); releaseSecond();
+      try { await handlers.settle(); } catch (error) { if (!primaryFailure) throw error; }
     }
+  }
+  expect(snapshot).toBeDefined();
+  if (snapshot?.started) {
+    await expect.poll(() => calls, { timeout: 5000 }).toBe(snapshot.started);
+    expect(snapshot.initialOptionsValid).toBe(true);
+    await expect.poll(() => page.evaluate(() => (window as Window & { previewProbe: () => { readersReleased: number } }).previewProbe().readersReleased),
+      { timeout: 5000 }).toBe(Math.min(snapshot.started, 2));
   }
 });
 

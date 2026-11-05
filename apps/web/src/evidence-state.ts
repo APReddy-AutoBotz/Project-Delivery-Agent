@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+
+// SEC-AUTH-001: selected-project evidence keeps local draft state while its
+// parent closes admission, then obtains fresh evidence on readmission.
+const unrestrictedAdmission = Object.freeze({});
+export const EvidenceAdmissionContext = createContext<object | null>(unrestrictedAdmission);
 
 export const denied = (error: unknown) =>
   [401, 403, 404].includes((error as { status?: number })?.status ?? 0);
@@ -32,6 +37,16 @@ export function useEvidenceResource<T>(
   load: () => Promise<T>,
   scope = key,
 ) {
+  const admission = useContext(EvidenceAdmissionContext);
+  const admissionRef = useRef(admission); admissionRef.current = admission;
+  const keyRef = useRef(key), scopeRef = useRef(scope); keyRef.current = key; scopeRef.current = scope;
+  const ownerRef = useRef({ key, scope, admission, id: Symbol("evidence-owner") });
+  if (ownerRef.current.key !== key || ownerRef.current.scope !== scope || ownerRef.current.admission !== admission)
+    ownerRef.current = { key, scope, admission, id: Symbol("evidence-owner") };
+  const owner = ownerRef.current.id;
+  const retentionRef = useRef({ scope, id: Symbol("evidence-retention") });
+  if (retentionRef.current.scope !== scope) retentionRef.current = { scope, id: Symbol("evidence-retention") };
+  const retention = retentionRef.current.id;
   const loader = useRef(load);
   useEffect(() => {
     loader.current = load;
@@ -41,40 +56,64 @@ export function useEvidenceResource<T>(
     key: string;
     scope: string;
     phase: "loading" | "ready" | "error";
+    admission: object | null;
+    sequence: number;
+    owner: symbol;
+    retention: symbol;
     last?: T;
     error?: unknown;
     checkedAt?: number;
-  }>({ key, scope, phase: "loading" });
+  }>({ key, scope, phase: "loading", admission: null, sequence: 0, owner, retention });
+  const stateRef = useRef(state); stateRef.current = state;
+  const renderedAdmission = admission, renderedSequence = state.sequence;
+  const isCurrent = () => Boolean(renderedAdmission && ownerRef.current.id === owner && admissionRef.current === renderedAdmission &&
+    keyRef.current === key && scopeRef.current === scope && stateRef.current.admission === renderedAdmission && stateRef.current.owner === owner &&
+    stateRef.current.key === key && stateRef.current.scope === scope &&
+    stateRef.current.phase === "ready" && stateRef.current.sequence === renderedSequence && sequence.current === renderedSequence);
   const refresh = useCallback(async () => {
+    const ticket = admission;
+    if (!ticket || ownerRef.current.id !== owner || admissionRef.current !== ticket || keyRef.current !== key || scopeRef.current !== scope) return;
     const current = ++sequence.current;
     setState((prior) => ({
       key,
       scope,
       phase: "loading",
-      ...(prior.scope === scope ? { last: prior.last } : {}),
+      admission: ticket,
+      sequence: current,
+      owner, retention,
+      // Same-owner retained values keep hidden draft owners mounted; only
+      // `data` from this admission is presented as current evidence.
+      ...(prior.retention === retention ? { last: prior.last } : {}),
     }));
     try {
       const value = await loader.current();
-      if (current === sequence.current)
+      if (current === sequence.current && ownerRef.current.id === owner && admissionRef.current === ticket && keyRef.current === key && scopeRef.current === scope)
         setState({
           key,
           scope,
           phase: "ready",
+          admission: ticket,
+          sequence: current,
+          owner, retention,
           last: value,
           checkedAt: Date.now(),
         });
     } catch (error) {
-      if (current === sequence.current)
+      if (current === sequence.current && ownerRef.current.id === owner && admissionRef.current === ticket && keyRef.current === key && scopeRef.current === scope)
         setState((prior) => ({
           key,
           scope,
           phase: "error",
+          admission: ticket,
+          sequence: current,
+          owner, retention,
           error,
-          ...(denied(error) ? {} : { last: prior.last }),
+          ...(denied(error) || prior.retention !== retention ? {} : { last: prior.last }),
         }));
     }
-  }, [key, scope]);
+  }, [key, scope, admission, owner, retention]);
   useEffect(() => {
+    if (!admission) return;
     void refresh();
     const revalidate = () => {
       if (document.visibilityState === "visible") void refresh();
@@ -88,20 +127,24 @@ export function useEvidenceResource<T>(
       window.removeEventListener("focus", revalidate);
       document.removeEventListener("visibilitychange", revalidate);
     };
-  }, [refresh]);
-  const current =
-    state.key === key
+  }, [refresh, admission]);
+  const current: typeof state =
+    admission && state.admission === admission && state.owner === owner && state.key === key && state.scope === scope
       ? state
       : {
           key,
           scope,
           phase: "loading" as const,
-          ...(state.scope === scope ? { last: state.last } : {}),
+          admission,
+          sequence: sequence.current,
+          owner, retention,
+          ...(state.retention === retention ? { last: state.last } : {}),
         };
   return {
     ...current,
     data: current.phase === "ready" ? current.last : undefined,
     refresh,
+    isCurrent,
   };
 }
 

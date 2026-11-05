@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const id = (n: number) => `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const project = { id: id(1), code: "REASSESS", name: "Synthetic reassessment project", description: "Synthetic", reportedStatus: "UNKNOWN" };
+const project = { id: id(1), portfolioId: id(50), code: "REASSESS", name: "Synthetic reassessment project", description: "Synthetic", reportedStatus: "UNKNOWN" };
 const customerId = "10000000-0000-4000-8000-000000000001", time = "2026-10-21T11:00:00.000Z";
 function row(n: number) {
   return { id: id(n), sourceId: id(700), receiptId: id(701), projectId: project.id, configRevision: 1, mappingRevision: 1,
@@ -188,12 +188,17 @@ test("a late next page cannot populate a newly selected project", async ({ page 
 
 test("PMO first-page status is explicit, bounded, scoped and expires", async ({ page }) => {
   let persona = "", reads = 0, writes = 0, state: "full" | "empty" | "invalid" | "error" | "oversize" = "full";
+  let holdIdentity = false, identityEntered = false, releaseIdentity!: () => void;
+  const identityGate = new Promise<void>((resolve) => { releaseIdentity = resolve; });
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
     if (route.request().method() !== "GET" && !path.startsWith("/auth/")) writes++;
     if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
     if (path === "/auth/development") { persona = route.request().postDataJSON().persona; return route.fulfill({ json: { token: "synthetic-same-token" } }); }
-    if (path === "/me") return route.fulfill({ json: { subject: persona, customerId, roles: persona === "pmo-portfolio" ? ["pmo_admin"] : ["leadership"] } });
+    if (path === "/me") {
+      if (holdIdentity) { identityEntered = true; await identityGate; }
+      return route.fulfill({ json: { subject: persona, customerId, roles: persona === "pmo-portfolio" ? ["pmo_admin"] : ["leadership"] } });
+    }
     if (path === "/projects") return route.fulfill({ json: [project] });
     if (path === `/projects/${project.id}`) return route.fulfill({ json: project });
     if (path === `/projects/${project.id}/ingestion-reassessments`) {
@@ -214,9 +219,18 @@ test("PMO first-page status is explicit, bounded, scoped and expires", async ({ 
   await panel.getByRole("button", { name: "Load reassessment status" }).click();
   await expect(panel).toContainText("More work was indicated by this read"); expect(reads).toBe(1);
   await expect(panel).not.toContainText(id(100)); await expect(panel).not.toContainText(id(700));
-  await page.evaluate(() => window.dispatchEvent(new Event("focus"))); await expect(panel).toContainText("Load this page");
+  const previousPanel = await panel.elementHandle(); expect(previousPanel).not.toBeNull();
+  try {
+    holdIdentity = true;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect.poll(() => identityEntered).toBe(true);
+    await expect.poll(() => previousPanel!.evaluate((element) => element.isConnected)).toBe(false);
+    expect(reads).toBe(1);
+  } finally { holdIdentity = false; releaseIdentity(); }
+  await expect(panel).toContainText("Load this page");
+  await expect(panel.getByRole("button", { name: "Load reassessment status" })).toBeEnabled();
   expect(reads).toBe(1); await panel.getByRole("button", { name: "Load reassessment status" }).click();
-  await expect(panel).toContainText("More work was indicated by this read");
+  await expect.poll(() => reads).toBe(2); await expect(panel).toContainText("More work was indicated by this read");
   await page.clock.fastForward(30001); await expect(panel).toContainText("Load this page");
   state = "empty"; await panel.getByRole("button", { name: "Load reassessment status" }).click();
   await expect(panel).toContainText("No reassessment work was visible to your account on this page.");

@@ -6,7 +6,10 @@ export type PreviewItem = { id: string; createdAt: string };
 export type PreviewPart = { phase: "idle" } | { phase: "loading" } | { phase: "unavailable" } |
   { phase: "ready"; items: PreviewItem[]; more: boolean; next?: PreviewItem; advanced?: true };
 export type PreviewRow = { project: PreviewProject; milestone: PreviewPart; scalar: PreviewPart };
-type PreviewRequest = (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void) => Promise<unknown>;
+export type PreviewRequest = (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void) => Promise<unknown>;
+export type PreviewOperation = { kind: "batch"; projectIds: readonly string[] } |
+  { kind: "page"; projectId: string; category: PreviewKind; after: PreviewItem | null };
+export type PreviewRequestFactory = (operation: PreviewOperation, signal: AbortSignal, current: () => boolean) => PreviewRequest;
 const fail = (): never => { throw new Error("Reconciliation preview unavailable"); };
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value)
   ? value as Record<string, unknown> : fail();
@@ -20,6 +23,18 @@ const instant = (value: unknown): string => {
     !Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) return fail();
   return value;
 };
+
+// Undefined is the batch's first page; null is an explicit first-page request.
+export function previewPath(projectId: string, kind: PreviewKind, after?: PreviewItem | null): string {
+  id(projectId);
+  if (kind !== "milestone" && kind !== "scalar") return fail();
+  const endpoint = kind === "milestone" ? "reconciliation-requests" : "scalar-reconciliation-requests";
+  const base = `/projects/${projectId}/${endpoint}`;
+  if (after === undefined) return base;
+  const params = new URLSearchParams({ limit: "20" });
+  if (after) { params.set("afterCreatedAt", instant(after.createdAt)); params.set("afterId", id(after.id)); }
+  return `${base}?${params.toString()}`;
+}
 
 export function decodeReconciliationPreview(value: unknown, projectId: string, subject: string, kind: PreviewKind, after?: PreviewItem): PreviewPart {
   if (after) { id(after.id); instant(after.createdAt); }
@@ -54,37 +69,35 @@ export function decodeReconciliationPreview(value: unknown, projectId: string, s
   return { phase: "ready", items, more: next !== undefined, ...(next ? { next } : {}), ...(after ? { advanced: true as const } : {}) };
 }
 
-let batchActive = false;
+let activeBatch: symbol | null = null;
 
 // One explicit live page shares the lease with initial batches. The caller
 // withholds prior rows while loading and clears on scope/lifecycle changes.
 export async function loadReconciliationPreviewPage(projectId: string, subject: string, kind: PreviewKind,
   after: PreviewItem | null, request: PreviewRequest, signal: AbortSignal,
   onUnavailable: (denied?: boolean) => void): Promise<PreviewPart> {
-  if (batchActive || signal.aborted || !subject || (kind !== "milestone" && kind !== "scalar")) return fail();
+  if (activeBatch || signal.aborted || !subject || (kind !== "milestone" && kind !== "scalar")) return fail();
   id(projectId);
   const cursor = after ? { id: id(after.id), createdAt: instant(after.createdAt) } : undefined;
-  const params = new URLSearchParams({ limit: "20" });
-  if (cursor) { params.set("afterCreatedAt", cursor.createdAt); params.set("afterId", cursor.id); }
-  const endpoint = kind === "milestone" ? "reconciliation-requests" : "scalar-reconciliation-requests";
-  batchActive = true;
+  const path = previewPath(projectId, kind, cursor ?? null);
+  const batch = Symbol("preview-page"); activeBatch = batch;
   try {
     let unavailable = false;
-    const page = await request(`/projects/${projectId}/${endpoint}?${params.toString()}`, { signal }, (denied) => {
+    const page = await request(path, { signal }, (denied) => {
       unavailable = true;
       if (!signal.aborted) onUnavailable(denied);
     });
     if (signal.aborted || unavailable) return fail();
     return decodeReconciliationPreview(page, projectId, subject, kind, cursor);
-  } finally { batchActive = false; }
+  } finally { if (activeBatch === batch) activeBatch = null; }
 }
 // A lease spans all requests, even after abort, until their promises settle.
 // Callers receive no previous-generation data when a lease cannot be acquired.
 export async function loadReconciliationPreview(projects: PreviewProject[], subject: string, request: PreviewRequest,
   signal: AbortSignal, publish: (rows: PreviewRow[]) => void): Promise<PreviewRow[]> {
-  if (batchActive || signal.aborted || !Array.isArray(projects) || projects.length > 5 || !subject ||
+  if (activeBatch || signal.aborted || !Array.isArray(projects) || projects.length > 5 || !subject ||
     new Set(projects.map((p) => id(p.projectId))).size !== projects.length) return fail();
-  batchActive = true;
+  const batch = Symbol("preview-batch"); activeBatch = batch;
   const rows: PreviewRow[] = projects.map((project) => ({ project, milestone: { phase: "loading" }, scalar: { phase: "loading" } }));
   let next = 0;
   const update = () => { if (!signal.aborted) publish(rows.map((row) => ({ ...row }))); };
@@ -97,7 +110,6 @@ export async function loadReconciliationPreview(projects: PreviewProject[], subj
         let projectDenied = false;
         for (const kind of ["milestone", "scalar"] as const) {
           if (signal.aborted) return;
-          const endpoint = kind === "milestone" ? "reconciliation-requests" : "scalar-reconciliation-requests";
           let unavailableLatched = false;
           const unavailable = (denied = false) => {
             unavailableLatched = true; projectDenied ||= denied;
@@ -108,7 +120,7 @@ export async function loadReconciliationPreview(projects: PreviewProject[], subj
             }
           };
           try {
-            const page = await request(`/projects/${row.project.projectId}/${endpoint}`, { signal }, unavailable);
+            const page = await request(previewPath(row.project.projectId, kind), { signal }, unavailable);
             if (signal.aborted) return;
             row[kind] = unavailableLatched ? { phase: "unavailable" } : decodeReconciliationPreview(page, row.project.projectId, subject, kind);
           } catch { if (signal.aborted) return; row[kind] = { phase: "unavailable" }; }
@@ -120,5 +132,5 @@ export async function loadReconciliationPreview(projects: PreviewProject[], subj
     const finished = await Promise.allSettled([worker(), worker()]);
     if (signal.aborted || finished.some((entry) => entry.status === "rejected")) return fail();
     return rows.map((row) => ({ ...row }));
-  } finally { batchActive = false; }
+  } finally { if (activeBatch === batch) activeBatch = null; }
 }

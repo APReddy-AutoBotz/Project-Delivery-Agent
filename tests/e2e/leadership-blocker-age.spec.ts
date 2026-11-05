@@ -3,7 +3,7 @@ import { buildBlockerAgeAdvice, buildPmActionQueue } from "../../packages/domain
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const id = (number: number) => `30000000-0000-4000-8000-${String(number).padStart(12, "0")}`;
-const projects = [1, 2].map((number) => ({ id: id(number), code: `BLK-${number}`, name: `Synthetic blocker ${number}`,
+const projects = [1, 2].map((number) => ({ id: id(number), portfolioId: id(50), code: `BLK-${number}`, name: `Synthetic blocker ${number}`,
   description: "Synthetic browser project", reportedStatus: "UNKNOWN" }));
 const asOf = "2026-10-21T11:00:00.000Z";
 function advice(projectId: string, audience: "leadership" | "project_manager") {

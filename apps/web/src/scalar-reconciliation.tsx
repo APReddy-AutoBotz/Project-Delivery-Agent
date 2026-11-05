@@ -14,6 +14,7 @@ import {
   useEvidenceResource,
 } from "./evidence-state.js";
 import "./scalar-reconciliation.css";
+import { bindSessionRequest } from "./session-bound-request.js";
 
 type Base = { projectId: string; request: RequestFn };
 export const savedScalarReconciliationLink = (
@@ -274,6 +275,7 @@ export function ScalarReconciliationQueue({
       ),
     `scalar-queue:${projectId}:${mode}`,
   );
+  const queueRequest = bindSessionRequest(request, queue.isCurrent);
   useEffect(() => {
     if (queue.phase === "error" && denied(queue.error)) {
       sequence.current++;
@@ -285,7 +287,7 @@ export function ScalarReconciliationQueue({
   }, [queue.phase, queue.error]);
   async function refreshAssignment(item: ScalarReconciliationRequestSummary) {
     if (
-      !visible ||
+      !visible || !queue.isCurrent() ||
       !canAppend ||
       busy ||
       (pending && pending.requestId !== item.id)
@@ -301,7 +303,7 @@ export function ScalarReconciliationQueue({
     setBusy(true);
     setError("");
     try {
-      await request(
+      await queueRequest(
         `/projects/${projectId}/scalar-reconciliation-requests/${command.requestId}/assignment`,
         {
           method: "POST",
@@ -311,7 +313,7 @@ export function ScalarReconciliationQueue({
           }),
         },
       );
-      if (turn === sequence.current) {
+      if (turn === sequence.current && queue.isCurrent()) {
         setPending(null);
         void queue.refresh();
       }
@@ -408,6 +410,7 @@ export function ScalarReconciliationQueue({
                   <Button
                     className="primary"
                     onClick={() => {
+                      if (!queue.isCurrent()) return;
                       setRequestId(item.id);
                       window.history.replaceState(
                         {},

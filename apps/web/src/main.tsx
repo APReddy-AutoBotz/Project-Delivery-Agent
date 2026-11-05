@@ -14,14 +14,19 @@ import {
   type ProjectSetup,
 } from "./canonical-project.js";
 import "./style.css";
+import "./access-grant.css";
 import { ProjectEvidence } from "./project-evidence.js";
 import { HealthAssessmentPanel } from "./health-assessment.js";
+import { HealthScopeFence } from "./health-scope-fence.js";
+import { HealthScopeProvider } from "./health-scope-context.js";
 import { DeliverySuggestions } from "./delivery-suggestions.js";
 import { UpdateSuggestions } from "./update-suggestions.js";
 import { LeadershipBlockerAge } from "./leadership-blocker-age.js";
 import { PmActionQueuePanel } from "./pm-action-queue.js";
-import { discardResponse, readBoundedJson } from "./bounded-json.js";
+import { discardResponse, readBoundedJson, readCompleteJson } from "./bounded-json.js";
 import { IngestionReassessmentPreview } from "./ingestion-reassessment-preview-panel.js";
+import { decodeWireIdentity } from "./identity-decoder.js";
+import { decodeProjectList, decodeProjectSetup } from "./canonical-creation-decoder.js";
 import { ProjectUpdates } from "./project-updates.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
 import { CsvIngestion } from "./csv-ingestion.js";
@@ -30,7 +35,13 @@ import {
   MilestoneReconciliation,
   savedReconciliationLink,
 } from "./milestone-reconciliation.js";
-import { uuid, savedEvidenceLink, denied } from "./evidence-state.js";
+import { uuid, savedEvidenceLink, denied, EvidenceAdmissionContext } from "./evidence-state.js";
+import { bindSessionRequest } from "./session-bound-request.js";
+import type { RequestFn } from "./request-types.js";
+import { projectPolicyOwner } from "./project-policy-write-registry.js";
+import { accessGrantOwner, accessGrantWrites } from "./access-grant-write-registry.js";
+import { ManagedReadRegistry } from "./managed-read-registry.js";
+import { managedRead } from "./managed-read.js";
 
 function evidenceLocation() {
   const query = new URLSearchParams(window.location.search);
@@ -62,6 +73,7 @@ type AuthConfig = {
   resource?: string;
 };
 type Actor = { subject: string; roles: string[]; customerId: string };
+const emptyHealthActor: Actor = { subject: "", roles: [], customerId: "" };
 type Project = {
   id: string;
   code: string;
@@ -105,6 +117,10 @@ const client = new QueryClient({
     queries: { retry: false, staleTime: 15000, refetchOnWindowFocus: true },
   },
 });
+// App-lifetime owner: a pending local health write survives panel, project and
+// session remounts. It is not a cross-tab/server write lock.
+const healthFence = new HealthScopeFence();
+let healthPageHidden = false;
 function clearProtectedData() {
   // TR-AUTH-003 / NFR-SEC-005: keep only public bootstrap configuration. Removing
   // it starts an unnecessary refetch immediately before the logout redirect.
@@ -119,7 +135,7 @@ let accessToken: string | undefined;
 let sessionGeneration = 0;
 let idToken: string | undefined;
 let oidc: UserManager | undefined;
-let expireSession: (() => void) | undefined;
+let expireSession: ((reason?: "identity-unavailable") => void) | undefined;
 function useProtectedQuery<T>(options: UseQueryOptions<T>) {
   const query = useQuery(options);
   return {
@@ -128,33 +144,72 @@ function useProtectedQuery<T>(options: UseQueryOptions<T>) {
     data: query.isError ? undefined : query.data,
   };
 }
-async function request<T>(path: string, init: RequestInit = {}, maxResponseBytes?: number, onUnavailable: (denied?: boolean) => void = () => {}): Promise<T> {
-  const requestToken = accessToken;
-  const requestGeneration = sessionGeneration;
-  const isMultipart = typeof FormData !== "undefined" && init.body instanceof FormData;
-  const response = await fetch("/api" + path, {
-    ...init,
-    headers: {
-      ...(init.body && !isMultipart ? { "Content-Type": "application/json" } : {}),
-      ...(requestToken ? { Authorization: "Bearer " + requestToken } : {}),
-    },
-  });
+async function rawRequest<T>(path: string, init: RequestInit = {}, maxResponseBytes?: number, onUnavailable: (denied?: boolean) => void = () => {}, managed?: import("./request-types.js").ManagedRequestPolicy, sideEffectCurrent?: () => boolean, expectedStatus?: number, expectedSession?: { token: string | undefined; generation: number }): Promise<T> {
+  const managedCurrent = () => {
+    if (!managed) return true;
+    try { return managed.current() === true; } catch { return false; }
+  };
+  const effectsCurrent = () => {
+    if (!sideEffectCurrent) return true;
+    try { return sideEffectCurrent() === true; } catch { return false; }
+  };
+  let requestToken: string | undefined, requestGeneration: number, options: RequestInit;
+  try {
+    if (!managedCurrent()) throw new Error("Request is no longer current.");
+    requestToken = expectedSession ? expectedSession.token : accessToken;
+    requestGeneration = expectedSession ? expectedSession.generation : sessionGeneration;
+    const isMultipart = typeof FormData !== "undefined" && init.body instanceof FormData;
+    options = {
+      ...init,
+      // Protected results are session-scoped; do not reuse an HTTP cache
+      // entry across sessions, including when token text is reused.
+      ...(requestToken ? { cache: "no-store" as const } : {}),
+      headers: {
+        ...(init.body && !isMultipart ? { "Content-Type": "application/json" } : {}),
+        ...(requestToken ? { Authorization: "Bearer " + requestToken } : {}),
+      },
+    };
+    // Request-init getters may revoke the read or change the session.
+    if (!managedCurrent() || !effectsCurrent()) throw new Error("Request is no longer current.");
+    if (expectedSession && (!requestToken || requestToken !== accessToken || requestGeneration !== sessionGeneration))
+      throw new Error("The session changed before this request started.");
+  } catch (error) {
+    // No fetch was invoked and no original response exists to drain.
+    try { managed?.completion("terminated"); } catch { /* Preserve the original failure. */ }
+    throw error;
+  }
+  const response = await fetch("/api" + path, options);
   // FR-EVD-009 / SEC-SECRET-001: consume discarded bodies on early exits, too.
   // Start the reader before throwing, but never delay a known denial/session
   // clear on body delivery. The recorder independently requires complete bytes.
-  const stale = Boolean(requestToken && (requestToken !== accessToken || requestGeneration !== sessionGeneration));
-  if (response.status === 401 && requestToken && !stale)
-    expireSession?.();
-  if (!stale && (response.status === 403 || response.status === 404) && path.startsWith("/projects/"))
-    void client.invalidateQueries({ queryKey: ["projects"] });
-  if (!response.ok || stale) {
-    if (maxResponseBytes !== undefined) {
-      try { onUnavailable(!stale && (response.status === 403 || response.status === 404)); } catch { /* A denial still clears the response. */ }
-      await discardResponse(response);
+  const sessionCurrent = () => !requestToken || (requestToken === accessToken && requestGeneration === sessionGeneration);
+  const stale = !sessionCurrent();
+  // The issuing session is checked before invoking any scoped predicate.
+  if (response.status === 401 && requestToken && sessionCurrent()) expireSession?.();
+  // Snapshot scoped eligibility before a denial callback or invalidation can
+  // synchronously advance the scope. Session expiry remains token/generation
+  // based even when a project-specific request has become obsolete.
+  const currentAtHeaders = !stale && managedCurrent() && effectsCurrent() && sessionCurrent();
+  const unexpectedStatus = response.ok && expectedStatus !== undefined && response.status !== expectedStatus;
+  if (!response.ok || stale || unexpectedStatus) {
+    const denied = currentAtHeaders && (response.status === 403 || response.status === 404);
+    if (managed && currentAtHeaders && response.status !== 401) {
+      try { onUnavailable(denied); } catch { /* An unavailable response still drains. */ }
+    }
+    if (!managed && maxResponseBytes !== undefined && currentAtHeaders) {
+      try { onUnavailable(denied); } catch { /* A denial still clears the response. */ }
+    }
+    // Denial deliberately invalidates the managed ticket. List admission is
+    // session-wide, so retain header eligibility while rechecking the session.
+    if (denied && path.startsWith("/projects/") && sessionCurrent())
+      void client.invalidateQueries({ queryKey: ["projects"] });
+    if (maxResponseBytes !== undefined || managed) {
+      await discardResponse(response, managed?.completion);
     } else void response.arrayBuffer().catch(() => {});
   }
   if (stale)
     throw new Error("The session changed before this request completed.");
+  if (unexpectedStatus) throw new Error("The request outcome could not be confirmed.");
   if (!response.ok)
     throw Object.assign(
       new Error(
@@ -172,14 +227,18 @@ async function request<T>(path: string, init: RequestInit = {}, maxResponseBytes
       ),
       { status: response.status },
     );
-  const data = response.status === 204 ? undefined : maxResponseBytes === undefined
-    ? await response.json() : await readBoundedJson(response, maxResponseBytes, onUnavailable);
+  let data: unknown;
+  if (response.status === 204) { managed?.completion("terminated"); data = undefined; }
+  else if (maxResponseBytes === undefined) {
+    data = managed ? await readCompleteJson(response, managed.completion) : await response.json();
+  } else {
+    data = await readBoundedJson(response, maxResponseBytes,
+      () => { if (managedCurrent() && effectsCurrent() && sessionCurrent()) onUnavailable(); }, managed?.completion);
+  }
   if (requestToken && (requestToken !== accessToken || requestGeneration !== sessionGeneration))
     throw new Error("The session changed before this request completed.");
   return data as T;
 }
-const previewRequest = (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void): Promise<unknown> =>
-  request(path, init, 65536, onUnavailable);
 function manager(config: AuthConfig) {
   if (oidc) return oidc;
   oidc = new UserManager({
@@ -221,25 +280,63 @@ function App() {
   const renderedReassessmentScope = reassessmentScope.current;
   const invalidateReassessment = () => { reassessmentScope.current++; reassessmentInvalidate.current?.(); refreshReassessmentScope(); };
   const renderedSessionGeneration = sessionGeneration, renderedSessionToken = accessToken;
-  const isCurrentPreviewSession = () => Boolean(renderedSessionToken && accessToken === renderedSessionToken &&
-    sessionGeneration === renderedSessionGeneration);
-  const advanceSession = () => { sessionGeneration++; pmPreviewInvalidate.current?.(); invalidateReassessment(); };
+  const request = React.useMemo(() => {
+    const boundRaw: RequestFn = <T,>(...args: Parameters<RequestFn>) => rawRequest<T>(...args,
+      { token: renderedSessionToken, generation: renderedSessionGeneration });
+    return bindSessionRequest(boundRaw, () => Boolean(renderedSessionToken &&
+      accessToken === renderedSessionToken && sessionGeneration === renderedSessionGeneration));
+  }, [renderedSessionToken, renderedSessionGeneration]);
+  const isCurrentPreviewSession = React.useCallback(() => Boolean(renderedSessionToken && accessToken === renderedSessionToken &&
+    sessionGeneration === renderedSessionGeneration), [renderedSessionToken, renderedSessionGeneration]);
+  const healthVisible = () => Boolean(accessToken && !healthPageHidden && document.visibilityState === "visible");
+  const healthTransition = () => healthFence.transition(healthVisible());
+  const advanceSession = () => { sessionGeneration++; healthFence.switchScope(healthVisible()); pmPreviewInvalidate.current?.(); invalidateReassessment(); };
   const [signedIn, setSignedIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const queueViewRevisionRef = React.useRef(0);
+  const [queueViewRevision, setQueueViewRevision] = useState(0);
+  const advanceQueueView = () => { queueViewRevisionRef.current++; setQueueViewRevision(queueViewRevisionRef.current); };
   const [view, setView] = useState<"projects" | "platform" | "ingestion">("projects");
+  const viewRef = React.useRef<"projects" | "platform" | "ingestion">("projects");
   const [selected, setSelected] = useState<string | null>(null);
-  const changeSelected = (value: string | null) => { invalidateReassessment(); setSelected(value); };
-  const changeView = (value: "projects" | "platform" | "ingestion") => { invalidateReassessment(); setView(value); };
-  const [creating, setCreating] = useState(false);
-  const [updateLocator, setUpdateLocator] = useState<string | null>(updateRequestLocation);
+  const selectedRef = React.useRef<string | null>(null);
+  const selectionEpochRef = React.useRef(0);
+  const [selectionEpoch, setSelectionEpoch] = useState(0);
+  const projectAttemptRef = React.useRef(0), [projectAttempt, setProjectAttempt] = useState(0);
+  const projectIssuance = React.useRef(0);
+  const projectDenial = React.useRef<{ session: number; selection: number; id: string } | null>(null);
+  const [, refreshProjectDenial] = React.useReducer((value: number) => value + 1, 0);
+  const changeSelected = (value: string | null) => {
+    if (selectedRef.current !== value) {
+      selectedRef.current = value; advanceQueueView(); selectionEpochRef.current++; setSelectionEpoch(selectionEpochRef.current); healthFence.switchScope(healthVisible());
+    } else healthTransition();
+    invalidateReassessment(); setSelected(value);
+  };
+  const changeView = (value: "projects" | "platform" | "ingestion") => {
+    if (viewRef.current !== value) { viewRef.current = value; advanceQueueView(); }
+    healthTransition(); invalidateReassessment(); setView(value);
+  };
+  const [creating, setCreatingState] = useState(false);
+  const creatingRef = React.useRef(false), creationEpoch = React.useRef(0);
+  const renderedCreationEpoch = creationEpoch.current;
+  const setCreating = (value: boolean) => {
+    if (creatingRef.current !== value) { creatingRef.current = value; creationEpoch.current++; advanceQueueView(); }
+    setCreatingState(value);
+  };
+  const [updateLocator, setUpdateLocatorState] = useState<string | null>(updateRequestLocation);
+  const updateLocatorRef = React.useRef(updateLocator);
+  const setUpdateLocator = (value: string | null) => {
+    if (updateLocatorRef.current !== value) { updateLocatorRef.current = value; advanceQueueView(); }
+    setUpdateLocatorState(value);
+  };
   const [linkedAssessment, setLinkedAssessment] = useState<string | null>(null);
   const [linkedRequest, setLinkedRequest] = useState<string | null>(null);
   const [linkedScalarRequest, setLinkedScalarRequest] = useState<string | null>(
     null,
   );
   React.useEffect(() => {
-    expireSession = () => {
+    expireSession = (reason) => {
       accessToken = undefined;
       advanceSession();
       idToken = undefined;
@@ -250,7 +347,7 @@ function App() {
       setLinkedRequest(null);
       setLinkedScalarRequest(null);
       changeView("projects");
-      setError("Your session has ended. Please sign in again.");
+      setError(reason === "identity-unavailable" ? "Your access could not be established. Please sign in again." : "Your session has ended. Please sign in again.");
       clearProtectedData();
     };
     return () => {
@@ -259,29 +356,150 @@ function App() {
   }, []);
   const auth = useQuery({
     queryKey: ["auth-config"],
-    queryFn: () => request<AuthConfig>("/auth/config"),
+    queryFn: () => rawRequest<AuthConfig>("/auth/config"),
   });
+  const identityKey = ["me", renderedSessionGeneration] as const;
+  const identityIssuance = React.useRef(0);
+  const verifiedIdentityOwner = React.useRef<string | null>(null);
+  const currentSelection = () => isCurrentPreviewSession() && selected !== null &&
+    selectedRef.current === selected && selectionEpochRef.current === selectionEpoch;
+  const selectionDenied = () => Boolean(projectDenial.current && projectDenial.current.session === renderedSessionGeneration &&
+    projectDenial.current.selection === selectionEpoch && projectDenial.current.id === selected);
   const me = useProtectedQuery({
-    queryKey: ["me"],
-    queryFn: () => request<Actor>("/me"),
+    queryKey: identityKey,
+    queryFn: async () => {
+      if (!isCurrentPreviewSession()) throw new Error("The session changed before this request started.");
+      const issuance = ++identityIssuance.current;
+      const current = () => isCurrentPreviewSession() && identityIssuance.current === issuance;
+      healthTransition();
+      const value = await request<unknown>("/me", {}, 65_536,
+        (denied) => { if (denied && current()) expireSession?.("identity-unavailable"); }, undefined, current, 200);
+      let actor: Actor | undefined;
+      try { actor = decodeWireIdentity(value); } catch { /* Invalid identity is unavailable. */ }
+      if (!current() || !actor) throw new Error("Your access could not be established. Please try again.");
+      const owner = JSON.stringify([renderedSessionGeneration, actor.customerId, actor.subject, [...actor.roles].sort()]);
+      if (verifiedIdentityOwner.current !== owner) {
+        verifiedIdentityOwner.current = owner;
+        projectDenial.current = null;
+      }
+      return actor;
+    },
     enabled: signedIn,
   });
+  const renderedActor = me.data, renderedIdentityIssuance = identityIssuance.current;
+  // A selected-project check belongs to the exact completed identity check,
+  // even when the same bearer is subsequently associated with another actor.
+  const identityCurrent = React.useCallback(() => {
+    const state = client.getQueryState<Actor>(["me", renderedSessionGeneration]);
+    return Boolean(isCurrentPreviewSession() && renderedActor && identityIssuance.current === renderedIdentityIssuance &&
+      state?.status === "success" && state.fetchStatus === "idle" && state.data === renderedActor);
+  }, [isCurrentPreviewSession, renderedActor, renderedIdentityIssuance, renderedSessionGeneration]);
+  const isCurrentQueueView = React.useCallback(() => Boolean(identityCurrent() && renderedActor?.roles.includes("project_manager") &&
+    queueViewRevisionRef.current === queueViewRevision && viewRef.current === "projects" && selectedRef.current === null &&
+    !creatingRef.current && updateLocatorRef.current === null), [identityCurrent, renderedActor, queueViewRevision]);
+  const identityRequest = React.useMemo(() => bindSessionRequest(request, identityCurrent),
+    [request, renderedActor, renderedIdentityIssuance]);
+  const projectsKey = ["projects", renderedSessionGeneration, renderedIdentityIssuance] as const;
+  const setupKey = ["project-setup", renderedSessionGeneration, renderedIdentityIssuance] as const;
+  const projectsIssuance = React.useRef(0), setupIssuance = React.useRef(0);
+  const identityReady = signedIn && !!me.data && !me.isFetching && !me.isError;
+  const selectedProjectKey = ["project", selected, renderedSessionGeneration, selectionEpoch, projectAttempt, renderedIdentityIssuance] as const;
   const projects = useProtectedQuery({
-    queryKey: ["projects"],
-    queryFn: () => request<Project[]>("/projects"),
-    enabled: signedIn,
+    queryKey: projectsKey,
+    queryFn: async () => {
+      if (!identityCurrent()) throw new Error("Project access is unavailable.");
+      const issuance = ++projectsIssuance.current;
+      const current = () => identityCurrent() && projectsIssuance.current === issuance;
+      const raw = await identityRequest<unknown>("/projects", {}, 16 * 1024 * 1024, undefined, undefined, current, 200);
+      let value: ReturnType<typeof decodeProjectList> = null;
+      try { value = decodeProjectList(raw); } catch { /* Treat malformed content as unavailable. */ }
+      if (!current() || !value) throw new Error("Project access is unavailable.");
+      return { issuance, value };
+    },
+    enabled: identityReady,
   });
+  const renderedProjects = projects.data;
+  const isCurrentProjectList = () => {
+    const state = client.getQueryState<{ issuance: number; value: Project[] }>(projectsKey);
+    return Boolean(identityCurrent() && renderedProjects && projectsIssuance.current === renderedProjects.issuance &&
+      state?.status === "success" && state.fetchStatus === "idle" && state.data === renderedProjects);
+  };
   const project = useProtectedQuery({
-    queryKey: ["project", selected],
-    queryFn: () => request<Project>("/projects/" + selected),
-    enabled: signedIn && !!selected,
+    queryKey: selectedProjectKey,
+    queryFn: async () => {
+      if (!identityCurrent() || !currentSelection() || selectionDenied()) throw new Error("The project selection is unavailable.");
+      const issuance = ++projectIssuance.current;
+      const current = () => identityCurrent() && currentSelection() && !selectionDenied() && projectAttemptRef.current === projectAttempt && projectIssuance.current === issuance;
+      healthTransition();
+      const result = await request<Project>("/projects/" + selected, {}, 1_048_576, (denied) => {
+        if (!denied || !current() || !selected) return;
+        projectDenial.current = { session: renderedSessionGeneration, selection: selectionEpoch, id: selected };
+        healthTransition(); invalidateReassessment(); pmPreviewInvalidate.current?.(); refreshProjectDenial();
+      }, undefined, current, 200);
+      if (!current() || result?.id !== selected) throw new Error("This project is unavailable for your account.");
+      return result;
+    },
+    enabled: signedIn && !!selected && !!me.data && !me.isFetching && !me.isError && !selectionDenied(),
   });
-  const renderedActor = me.data, renderedProject = selected;
-  const renderedActorUpdatedAt = client.getQueryState(["me"])?.dataUpdatedAt;
-  const renderedProjectUpdatedAt = client.getQueryState(["project", renderedProject])?.dataUpdatedAt;
+  const renderedProject = selected, renderedProjectIssuance = projectIssuance.current;
+  const isCurrentProjectAdmission = () => {
+    const state = client.getQueryState<Project>(selectedProjectKey), identity = client.getQueryState<Actor>(identityKey);
+    return Boolean(renderedActor && identity?.status === "success" && identity.fetchStatus === "idle" &&
+      identityIssuance.current === renderedIdentityIssuance && identity.data?.customerId === renderedActor.customerId &&
+      identity.data.subject === renderedActor.subject && [...identity.data.roles].sort().join("\0") === [...renderedActor.roles].sort().join("\0") &&
+      currentSelection() && !selectionDenied() && projectAttemptRef.current === projectAttempt &&
+      projectIssuance.current === renderedProjectIssuance && state?.status === "success" &&
+      state.fetchStatus === "idle" && state.data?.id === selected);
+  };
+  const projectRequest = React.useMemo(() => bindSessionRequest(request, isCurrentProjectAdmission),
+  [request, selected, selectionEpoch, projectAttempt, renderedIdentityIssuance, renderedProjectIssuance, renderedActor]);
+  const projectPreviewRequest = React.useMemo(() =>
+    (path: string, init: RequestInit, onUnavailable: (denied?: boolean) => void): Promise<unknown> =>
+      projectRequest(path, init, 65536, onUnavailable), [projectRequest]);
+  const retrySelectedProject = () => {
+    if (!identityCurrent() || !currentSelection() || !selectionDenied()) return;
+    projectAttemptRef.current++; projectDenial.current = null; setProjectAttempt(projectAttemptRef.current);
+    refreshProjectDenial();
+  };
+  const retryProjectChecks = () => {
+    if (!currentSelection() || selectionDenied()) return;
+    void client.invalidateQueries({ queryKey: identityKey, exact: true });
+  };
+  const renderedHealthToken = accessToken, renderedHealthSession = sessionGeneration;
+  const isCurrentHealthScope = () => {
+    const identity = client.getQueryState<Actor>(identityKey), currentProject = client.getQueryState<Project>(selectedProjectKey);
+    return Boolean(renderedHealthToken && accessToken === renderedHealthToken && sessionGeneration === renderedHealthSession &&
+      !healthPageHidden && document.visibilityState === "visible" && renderedActor && renderedProject && currentSelection() && !selectionDenied() &&
+      projectAttemptRef.current === projectAttempt && identityIssuance.current === renderedIdentityIssuance &&
+      projectIssuance.current === renderedProjectIssuance &&
+      identity?.status === "success" && identity.fetchStatus === "idle" &&
+      identity.data?.customerId === renderedActor.customerId && identity.data.subject === renderedActor.subject &&
+      [...identity.data.roles].sort().join("\0") === [...renderedActor.roles].sort().join("\0") &&
+      currentProject?.status === "success" && currentProject.fetchStatus === "idle" && currentProject.data?.id === renderedProject);
+  };
+  React.useEffect(() => {
+    const revalidate = () => {
+      healthTransition();
+      if (accessToken && !healthPageHidden && document.visibilityState === "visible") {
+        void client.invalidateQueries({ queryKey: ["me", sessionGeneration], exact: true });
+      }
+    };
+    const hide = () => { healthPageHidden = true; healthFence.transition(false); };
+    const show = () => { healthPageHidden = false; revalidate(); };
+    window.addEventListener("focus", revalidate);
+    window.addEventListener("pageshow", show);
+    document.addEventListener("visibilitychange", revalidate);
+    window.addEventListener("pagehide", hide);
+    return () => { window.removeEventListener("focus", revalidate); window.removeEventListener("pageshow", show);
+      document.removeEventListener("visibilitychange", revalidate); window.removeEventListener("pagehide", hide); };
+  }, []);
+  const renderedActorUpdatedAt = client.getQueryState(identityKey)?.dataUpdatedAt;
+  const renderedProjectUpdatedAt = client.getQueryState(selectedProjectKey)?.dataUpdatedAt;
   const isCurrentReassessmentScope = () => {
-    const identity = client.getQueryState<Actor>(["me"]), projectState = client.getQueryState<Project>(["project", renderedProject]);
-    return isCurrentPreviewSession() && renderedReassessmentScope === reassessmentScope.current && !!renderedActor &&
+    const identity = client.getQueryState<Actor>(identityKey), projectState = client.getQueryState<Project>(selectedProjectKey);
+    return currentSelection() && !selectionDenied() && projectAttemptRef.current === projectAttempt &&
+      identityIssuance.current === renderedIdentityIssuance && projectIssuance.current === renderedProjectIssuance &&
+      renderedReassessmentScope === reassessmentScope.current && !!renderedActor &&
       !!renderedProject && identity?.fetchStatus === "idle" && identity.status === "success" &&
       identity.dataUpdatedAt === renderedActorUpdatedAt && projectState?.dataUpdatedAt === renderedProjectUpdatedAt &&
       identity.data?.customerId === renderedActor.customerId && identity.data.subject === renderedActor.subject &&
@@ -292,19 +510,76 @@ function App() {
     ["system_admin", "pmo_admin"].includes(r),
   );
   const pmoAdmin = me.data?.roles.includes("pmo_admin");
-  const retainedProject =
-    project.data ?? (!denied(project.error) ? project.lastData : undefined);
+  // Retained data only keeps an existing draft owner mounted through a
+  // transient error. Current query state still gates all display and actions.
+  const retainedActor = me.data ?? (!denied(me.error) ? me.lastData : undefined);
+  const retainedProjectOwner = React.useRef<{ key: string; value: Project } | null>(null);
+  const retentionKey = retainedActor && selected ? JSON.stringify([renderedSessionGeneration, selectionEpoch, projectAttempt, selected,
+    retainedActor.customerId, retainedActor.subject, [...retainedActor.roles].sort()]) : null;
+  if (!retentionKey || selectionDenied() || retainedProjectOwner.current?.key !== retentionKey) retainedProjectOwner.current = null;
+  if (retentionKey && project.data && isCurrentProjectAdmission()) retainedProjectOwner.current = { key: retentionKey, value: project.data };
+  const retainedProject = retainedProjectOwner.current?.key === retentionKey ? retainedProjectOwner.current.value : undefined;
+  const projectVisible = Boolean(me.data && project.data && !me.isFetching && !me.isError && !project.isFetching && !project.isError && isCurrentProjectAdmission());
+  const evidenceAdmission = React.useMemo(() => projectVisible ? Object.freeze({}) : null,
+    [projectVisible, renderedSessionGeneration, selectionEpoch, projectAttempt, renderedIdentityIssuance, renderedProjectIssuance]);
   const setup = useProtectedQuery({
-    queryKey: ["project-setup"],
-    queryFn: () => request<ProjectSetup>("/project-setup"),
-    enabled: signedIn,
+    queryKey: setupKey,
+    queryFn: async () => {
+      if (!identityCurrent()) throw new Error("Project setup access is unavailable.");
+      const issuance = ++setupIssuance.current;
+      const current = () => identityCurrent() && setupIssuance.current === issuance;
+      const raw = await identityRequest<unknown>("/project-setup", {}, 8 * 1024 * 1024, undefined, undefined, current, 200);
+      let value: ReturnType<typeof decodeProjectSetup> = null;
+      try { value = decodeProjectSetup(raw); } catch { /* Treat malformed content as unavailable. */ }
+      if (!current() || !value) throw new Error("Project setup access is unavailable.");
+      return { issuance, value };
+    },
+    enabled: identityReady,
   });
+  const renderedSetup = setup.data;
+  const isCurrentSetup = () => {
+    const state = client.getQueryState<{ issuance: number; value: ProjectSetup }>(setupKey);
+    return Boolean(identityCurrent() && renderedSetup && setupIssuance.current === renderedSetup.issuance &&
+      state?.status === "success" && state.fetchStatus === "idle" && state.data === renderedSetup);
+  };
+  const setupRequest = React.useMemo(() => bindSessionRequest(identityRequest, isCurrentSetup),
+    [identityRequest, renderedSetup]);
+  const isCurrentCreationIdentity = () => identityCurrent() && creatingRef.current && creationEpoch.current === renderedCreationEpoch;
+  const isCurrentCreationScope = () => isCurrentCreationIdentity() && isCurrentSetup();
+  const creationRequest = React.useMemo(() => bindSessionRequest(setupRequest, isCurrentCreationIdentity),
+    [setupRequest, renderedCreationEpoch]);
+  const retainedSetupOwner = React.useRef<{ key: string; value: ProjectSetup } | null>(null);
+  const setupOwnerKey = retainedActor ? JSON.stringify([renderedSessionGeneration, retainedActor.customerId,
+    retainedActor.subject, [...retainedActor.roles].sort()]) : null;
+  if (!setupOwnerKey || retainedSetupOwner.current?.key !== setupOwnerKey) retainedSetupOwner.current = null;
+  if (setupOwnerKey && renderedSetup && isCurrentSetup()) retainedSetupOwner.current = { key: setupOwnerKey, value: renderedSetup.value };
+  const retainedSetup = retainedSetupOwner.current?.key === setupOwnerKey ? retainedSetupOwner.current.value : undefined;
+  const visibleProjects = isCurrentProjectList() ? renderedProjects?.value : undefined;
+  const visibleSetup = isCurrentSetup() ? renderedSetup?.value : undefined;
+  const invitationViewCurrent = React.useCallback(() => Boolean(identityCurrent() && updateLocator &&
+    updateLocatorRef.current === updateLocator && queueViewRevisionRef.current === queueViewRevision),
+  [identityCurrent, updateLocator, queueViewRevision]);
+  const invitationRequest = React.useMemo(() => bindSessionRequest(identityRequest, invitationViewCurrent),
+    [identityRequest, invitationViewCurrent]);
+  const platformViewCurrent = React.useCallback(() => Boolean(identityCurrent() && renderedActor?.roles.some((role) =>
+    role === "system_admin" || role === "pmo_admin") && viewRef.current === "platform" &&
+    queueViewRevisionRef.current === queueViewRevision && updateLocatorRef.current === null),
+  [identityCurrent, renderedActor, queueViewRevision]);
+  const platformRequest = React.useMemo(() => bindSessionRequest(identityRequest, platformViewCurrent),
+    [identityRequest, platformViewCurrent]);
+  const csvViewCurrent = () => Boolean(identityCurrent() && isCurrentProjectList() && renderedActor?.roles.includes("pmo_admin") &&
+    viewRef.current === "ingestion" && queueViewRevisionRef.current === queueViewRevision && updateLocatorRef.current === null);
+  const csvRequest = React.useMemo(() => bindSessionRequest(identityRequest, csvViewCurrent),
+    [identityRequest, renderedProjects, queueViewRevision]);
+  const retrySetup = () => {
+    if (identityCurrent()) void client.invalidateQueries({ queryKey: setupKey, exact: true });
+  };
   async function login(persona?: string) {
     setBusy(true);
     setError("");
     try {
       if (auth.data?.mode === "development") {
-        const result = await request<{ token: string }>("/auth/development", {
+        const result = await rawRequest<{ token: string }>("/auth/development", {
           method: "POST",
           body: JSON.stringify({ persona }),
         });
@@ -440,6 +715,7 @@ function App() {
     }
   }
   function navigateProject(id: string | null = null) {
+    if (!identityCurrent()) return;
     setUpdateLocator(null);
     changeView("projects");
     setCreating(false);
@@ -450,6 +726,7 @@ function App() {
     window.history.replaceState({}, "", "/");
   }
   function navigateReconciliation(projectId: string, kind: "milestone" | "scalar", requestId: string) {
+    if (!identityCurrent()) return;
     navigateProject(projectId);
     if (kind === "scalar") setLinkedScalarRequest(requestId);
     else setLinkedRequest(requestId);
@@ -579,6 +856,7 @@ function App() {
             <Button
               className={view === "platform" ? "active" : ""}
               onClick={() => {
+                if (!identityCurrent()) return;
                 navigateProject();
                 changeView("platform");
               }}
@@ -590,6 +868,7 @@ function App() {
             <Button
               className={view === "ingestion" ? "active" : ""}
               onClick={() => {
+                if (!identityCurrent()) return;
                 navigateProject();
                 changeView("ingestion");
               }}
@@ -630,7 +909,7 @@ function App() {
                   : view === "ingestion"
                     ? "Data imports"
                   : selected
-                    ? (project.data?.name ?? "Project workspace")
+                    ? (projectVisible ? project.data?.name ?? "Project workspace" : "Project workspace")
                     : "Your projects"}
               </h1>
               <p className="muted">
@@ -652,29 +931,75 @@ function App() {
             </div>
           </div>
           {me.error && (
-            <p role="alert" className="error">
-              {me.error.message}
-            </p>
+            <div role="alert" className="error">
+              <p>{me.error.message}</p>
+              <Button className="secondary" disabled={me.isFetching} onClick={() => {
+                if (isCurrentPreviewSession()) void client.invalidateQueries({ queryKey: identityKey, exact: true });
+              }}>Retry account access</Button>
+            </div>
           )}
-          {updateLocator && me.data ? (
-            <ProjectUpdateResponse key={`${me.data.customerId}:${me.data.subject}:${updateLocator}`} locator={updateLocator} request={request} />
-          ) : view === "platform" && admin ? (
-            <PlatformView actor={me.data!} />
-          ) : view === "ingestion" && pmoAdmin && me.data ? (
-            <CsvIngestion request={request} projects={projects.data ?? []} actor={me.data} />
-          ) : creating && setup.data ? (
-            <CreateProject
-              setup={setup.data}
-              request={request}
-              onCancel={() => setCreating(false)}
-              onSetupChanged={async () => {
-                await client.invalidateQueries({ queryKey: ["project-setup"] });
-              }}
-              onCreated={(id) => {
-                navigateProject(id);
-                void client.invalidateQueries({ queryKey: ["projects"] });
-              }}
-            />
+          {updateLocator ? (
+            retainedActor && setupOwnerKey ? <>
+              {!invitationViewCurrent() && <p role="status">Checking account access…</p>}
+              <div hidden={!invitationViewCurrent()}>
+                <ProjectUpdateResponse key={JSON.stringify([setupOwnerKey, updateLocator, queueViewRevision])}
+                  locator={updateLocator} customerId={retainedActor.customerId} subject={retainedActor.subject}
+                  ownerScope={JSON.stringify([setupOwnerKey, queueViewRevision])}
+                  admissionScope={JSON.stringify([renderedSessionGeneration, queueViewRevision, renderedIdentityIssuance])}
+                  request={invitationRequest} isCurrentScope={invitationViewCurrent} />
+              </div>
+            </> : <p role="status">Checking account access…</p>
+          ) : view === "platform" && retainedActor && setupOwnerKey && retainedActor.roles.some((role) => role === "system_admin" || role === "pmo_admin") ? (
+            <>
+              {!platformViewCurrent() && <p role="status">Checking account access…</p>}
+              <div hidden={!platformViewCurrent()}>
+                <PlatformView key={JSON.stringify([setupOwnerKey, queueViewRevision])} actor={retainedActor}
+                  ownerScope={JSON.stringify([setupOwnerKey, queueViewRevision])}
+                  admissionScope={JSON.stringify([renderedIdentityIssuance, queueViewRevision])}
+                  request={platformRequest} isCurrentScope={platformViewCurrent} />
+              </div>
+            </>
+          ) : view === "ingestion" && retainedActor && setupOwnerKey && retainedActor.roles.includes("pmo_admin") ? (
+            <>
+              {!csvViewCurrent() && <p role="status">Checking account and project access…</p>}
+              <div hidden={!csvViewCurrent()}>
+                <CsvIngestion key={JSON.stringify([setupOwnerKey, queueViewRevision])} request={csvRequest}
+                  projects={visibleProjects ?? []} actor={retainedActor} isCurrentScope={csvViewCurrent} />
+              </div>
+            </>
+          ) : creating && retainedSetup ? (
+            <>
+              {!isCurrentSetup() && (setup.isError && identityCurrent()
+                ? <div role="alert"><p>Project setup is unavailable.</p><Button className="secondary" onClick={retrySetup}>Retry project setup</Button></div>
+                : <p role="status">Checking project setup access…</p>)}
+              <div hidden={!isCurrentSetup()}>
+                <CreateProject
+                  key={setupOwnerKey}
+                  setup={visibleSetup ?? retainedSetup}
+                  customerId={retainedActor!.customerId}
+                  subject={retainedActor!.subject}
+                  request={creationRequest}
+                  isCurrentScope={isCurrentCreationScope}
+                  isCurrentIdentity={isCurrentCreationIdentity}
+                  onCancel={() => { if (isCurrentCreationScope()) setCreating(false); }}
+                  onSetupChanged={async () => {
+                    if (!isCurrentCreationIdentity()) throw new Error("Project setup access changed.");
+                    await client.invalidateQueries({ queryKey: setupKey, exact: true });
+                    if (!isCurrentCreationIdentity()) throw new Error("Project setup access changed.");
+                    const refreshed = client.getQueryState<{ issuance: number; value: ProjectSetup }>(setupKey);
+                    if (refreshed?.status !== "success" || refreshed.fetchStatus !== "idle" || !refreshed.data)
+                      throw new Error("Project setup could not be refreshed.");
+                    if (refreshed.data.issuance !== setupIssuance.current) throw new Error("Project setup access changed.");
+                    return refreshed.data.value;
+                  }}
+                  onCreated={(id) => {
+                    if (!isCurrentCreationScope()) return;
+                    navigateProject(id);
+                    void client.invalidateQueries({ queryKey: projectsKey, exact: true });
+                  }}
+                />
+              </div>
+            </>
           ) : selected ? (
             <>
               <Button
@@ -683,32 +1008,52 @@ function App() {
               >
                 ← All projects
               </Button>
-              {project.error && (
-                <p role="alert" className="error">
-                  {project.error.message}
-                </p>
+              {selectionDenied() && <div role="alert" className="error">
+                <p>Project access could not be established.</p>
+                <Button className="secondary" disabled={!identityCurrent()} onClick={retrySelectedProject}>Check project access</Button>
+              </div>}
+              {project.error && !selectionDenied() && (
+                <div role="alert" className="error">
+                  <p>{project.error.message}</p>
+                  {!retainedProject && <Button className="secondary" onClick={retryProjectChecks}>Retry access checks</Button>}
+                </div>
               )}
               {retainedProject ? (
-                <>
+                <HealthScopeProvider key={JSON.stringify([renderedSessionGeneration, selectionEpoch, projectAttempt,
+                  retainedActor?.customerId, retainedActor?.subject, [...(retainedActor?.roles ?? [])].sort()])}
+                  fence={healthFence} actor={retainedActor ?? emptyHealthActor} projectId={retainedProject.id}
+                  session={renderedHealthSession} request={projectRequest} isCurrent={isCurrentHealthScope}
+                  visible={projectVisible}>
+                  {!projectVisible && (me.isFetching || project.isFetching
+                    ? <p role="status">Checking project access…</p>
+                    : <div role="alert"><p>Project access could not be established.</p>
+                      <Button className="secondary" onClick={retryProjectChecks}>Retry access checks</Button></div>)}
+                  <EvidenceAdmissionContext.Provider value={evidenceAdmission}>
+                  <div hidden={!projectVisible}>
                   {project.data && <ProjectDetail project={project.data} />}
-                  {project.data && (
+                  {retainedProject && (
                     <ProjectUpdates
-                      key={`project-updates:${project.data.id}`}
-                      projectId={project.data.id}
-                      reportedStatus={project.data.reportedStatus}
-                      request={request}
-                      pmoAdmin={pmoAdmin ?? false}
-                      visible={!project.isFetching && !project.isError}
+                      key={`project-updates:${retainedProject.id}`}
+                      projectId={retainedProject.id}
+                      reportedStatus={retainedProject.reportedStatus}
+                      request={projectRequest}
+                      pmoAdmin={Boolean(retainedActor?.roles.includes("pmo_admin"))}
+                      visible={projectVisible}
+                      isCurrentScope={isCurrentProjectAdmission}
+                      writeOwner={projectPolicyOwner(retainedActor?.customerId, retainedProject.id)}
+                      admissionScope={JSON.stringify([renderedSessionGeneration, selectionEpoch, projectAttempt,
+                        renderedIdentityIssuance, renderedProjectIssuance, renderedActor?.customerId, renderedActor?.subject,
+                        [...(renderedActor?.roles ?? [])].sort()])}
                     />
                   )}
-                  {project.data && (
+                  {retainedProject && (
                     <HealthAssessmentPanel
-                      key={project.data.id}
-                      projectId={project.data.id}
-                      reportedStatus={project.data.reportedStatus}
-                      request={request}
+                      key={JSON.stringify([sessionGeneration, retainedActor?.customerId, retainedActor?.subject, [...(retainedActor?.roles ?? [])].sort(), retainedProject.id, selectionEpoch])}
+                      projectId={retainedProject.id}
+                      reportedStatus={retainedProject.reportedStatus}
                       pmoAdmin={pmoAdmin ?? false}
-                      visible={!project.isFetching && !project.isError}
+                      canInspectMilestone={Boolean(me.data?.roles.includes("leadership"))}
+                      visible={Boolean(me.data && project.data && !me.isFetching && !me.isError && !project.isFetching && !project.isError)}
                     />
                   )}
                   {project.data && me.data && !project.isFetching && !project.isError && (
@@ -716,7 +1061,7 @@ function App() {
                       key={`suggestions:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
                       projectId={project.data.id}
                       scope={`${me.data.customerId}:${me.data.subject}:${project.data.id}`}
-                      request={request}
+                      request={projectRequest}
                     />
                   )}
                   {project.data && me.data && !project.isFetching && !project.isError && (
@@ -724,22 +1069,22 @@ function App() {
                       key={`update-suggestions:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
                       projectId={project.data.id}
                       scope={`${me.data.customerId}:${me.data.subject}:${project.data.id}`}
-                      request={request}
+                      request={projectRequest}
                     />
                   )}
                   {project.data && me.data?.roles.includes("leadership") && !project.isFetching && !project.isError && (
                     <LeadershipBlockerAge
-                      key={`leadership-blocker:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
+                      key={`leadership-blocker:${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
                       projectId={project.data.id}
-                      scope={`${me.data.customerId}:${me.data.subject}:${project.data.id}`}
-                      request={request}
+                      scope={`${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
+                      request={projectRequest}
                     />
                   )}
                   {project.data && me.data?.roles.includes("pmo_admin") && !me.isFetching && !me.isError && !project.isFetching && !project.isError && (
                     <IngestionReassessmentPreview
                       key={`ingestion-reassessment:${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}:${project.data.id}`}
                       projectId={project.data.id}
-                      request={previewRequest}
+                      request={projectPreviewRequest}
                       invalidateRef={reassessmentInvalidate}
                       isCurrentScope={isCurrentReassessmentScope}
                     />
@@ -747,49 +1092,52 @@ function App() {
                   <MilestoneReconciliation
                     key={`reconciliation:${retainedProject.id}`}
                     projectId={retainedProject.id}
-                    request={request}
+                    request={projectRequest}
                     initialRequestId={linkedRequest}
                     visible={!project.isFetching && !project.isError}
                   />
                   <ProjectEvidence
                     key={retainedProject.id}
                     projectId={retainedProject.id}
-                    request={request}
+                    request={projectRequest}
                     initialAssessmentId={linkedAssessment}
                     initialScalarRequestId={linkedScalarRequest}
                     visible={!project.isFetching && !project.isError}
                   />
-                  {project.data && (
+                  <div id="delivery-structure" tabIndex={-1}>
+                  {retainedProject && retainedActor && (
                     <CanonicalProjectDetails
-                      id={project.data.id}
-                      request={request}
-                      leadershipScope={me.data?.roles.includes("leadership") && !me.isFetching && !me.isError && !project.isFetching && !project.isError
-                        ? `${me.data.customerId}:${me.data.subject}:${project.data.id}` : undefined}
-                      canInspectMilestoneRequest={Boolean(me.data?.roles.some((role) => ["project_manager", "portfolio_manager", "pmo_admin"].includes(role)))}
+                      key={JSON.stringify([renderedSessionGeneration, selectionEpoch, retainedActor.customerId, retainedActor.subject, [...retainedActor.roles].sort(), retainedProject.id])}
+                      id={retainedProject.id}
+                      leadershipScope={projectVisible && retainedActor.roles.includes("leadership")
+                        ? JSON.stringify([renderedSessionGeneration, retainedActor.customerId, retainedActor.subject, [...retainedActor.roles].sort(), retainedProject.id]) : undefined}
+                      canInspectMilestoneRequest={retainedActor.roles.some((role) => ["project_manager", "portfolio_manager", "pmo_admin"].includes(role))}
                     />
                   )}
-                </>
+                  </div>
+                  </div>
+                  </EvidenceAdmissionContext.Provider>
+                </HealthScopeProvider>
               ) : (
-                !project.error && <p role="status">Loading project…</p>
+                !project.error && !selectionDenied() && <p role="status">Loading project…</p>
               )}
             </>
           ) : (
             <>
-              {me.data?.roles.includes("project_manager") && !me.isFetching && !me.isError && <PmActionQueuePanel
-                key={`pm-queue:${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}`}
-                scope={`${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}`}
+              {me.data?.roles.includes("project_manager") && identityCurrent() && <PmActionQueuePanel
+                key={`pm-queue:${sessionGeneration}:${renderedIdentityIssuance}:${queueViewRevision}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}`}
+                scope={`${sessionGeneration}:${renderedIdentityIssuance}:${queueViewRevision}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}`}
                 subject={me.data.subject}
-                request={request}
-                previewRequest={previewRequest}
+                request={identityRequest}
                 previewInvalidate={pmPreviewInvalidate}
-                isCurrentPreviewSession={isCurrentPreviewSession}
+                isCurrentPreviewSession={isCurrentQueueView}
                 openProject={navigateProject}
                 openRequest={navigateReconciliation}
               />}
               <div className="summary-strip">
                 <div>
                   <span>Accessible projects</span>
-                  <strong>{projects.data?.length ?? "—"}</strong>
+                  <strong>{visibleProjects?.length ?? "—"}</strong>
                 </div>
                 <div>
                   <span>Evidence connections</span>
@@ -804,10 +1152,11 @@ function App() {
               </div>
               <div className="section-title">
                 <h2>Project workspace</h2>
-                {setup.data?.portfolios.length ? (
+                {visibleSetup?.portfolios.length ? (
                   <Button
                     className="primary"
                     onClick={() => {
+                      if (!isCurrentSetup()) return;
                       navigateProject();
                       setCreating(true);
                     }}
@@ -815,22 +1164,27 @@ function App() {
                     Create project
                   </Button>
                 ) : null}
-                <span>{projects.data?.length ?? 0} visible</span>
+                <span>{visibleProjects ? `${visibleProjects.length} visible` : "Project count unavailable"}</span>
               </div>
-              {projects.error && (
-                <p role="alert" className="error">
-                  {projects.error.message}
-                </p>
+              {setup.isError && identityCurrent() && <div role="alert"><p>Project setup is unavailable.</p>
+                <Button className="secondary" onClick={retrySetup}>Retry project setup</Button></div>}
+              {projects.error && identityCurrent() && (
+                <div role="alert" className="error">
+                  <p>{projects.error.message}</p>
+                  <Button className="secondary" onClick={() => {
+                    if (identityCurrent()) void client.invalidateQueries({ queryKey: projectsKey, exact: true });
+                  }}>Retry project access</Button>
+                </div>
               )}
-              {projects.isPending ? (
-                <p role="status">Loading projects…</p>
-              ) : projects.data?.length ? (
+              {!identityCurrent() || projects.isPending || projects.isFetching ? (
+                <p role="status">Checking project access…</p>
+              ) : visibleProjects?.length ? (
                 <div className="project-grid">
-                  {projects.data.map((p) => (
+                  {visibleProjects.map((p) => (
                     <Button
                       key={p.id}
                       className="project-card"
-                      onClick={() => navigateProject(p.id)}
+                      onClick={() => { if (isCurrentProjectList()) navigateProject(p.id); }}
                     >
                       <div className="card-top">
                         <span className="project-code">{p.code}</span>
@@ -944,16 +1298,47 @@ function ProjectDetail({ project }: { project: Project }) {
     </div>
   );
 }
-function PlatformView({ actor }: { actor: Actor }) {
+const platformReads = new ManagedReadRegistry(8);
+function PlatformView({ actor, request, ownerScope, admissionScope, isCurrentScope }: {
+  actor: Actor; request: RequestFn; ownerScope: string; admissionScope: string; isCurrentScope: () => boolean;
+}) {
+  const active = React.useRef(true), lifecycle = React.useRef(0), statusIssuance = React.useRef(0), auditIssuance = React.useRef(0);
+  const statusDeniedRef = React.useRef(false), auditDeniedRef = React.useRef(false);
+  const [statusDenied, setStatusDenied] = useState(false), [auditDenied, setAuditDenied] = useState(false);
+  const [statusAttempt, setStatusAttempt] = useState(0), [auditAttempt, setAuditAttempt] = useState(0);
+  const statusAttemptRef = React.useRef(0), auditAttemptRef = React.useRef(0);
+  React.useEffect(() => { active.current = true; if (lifecycle.current) { setStatusAttempt(++statusAttemptRef.current); setAuditAttempt(++auditAttemptRef.current); }
+    return () => { active.current = false; lifecycle.current++; client.removeQueries({ queryKey: ["platform-owned", ownerScope] });
+      client.removeQueries({ queryKey: ["access-operations-owned", ownerScope] }); }; }, [ownerScope]);
+  const statusKey = ["platform-owned", ownerScope, admissionScope, statusAttempt] as const;
+  const auditKey = ["access-operations-owned", ownerScope, admissionScope, auditAttempt] as const;
   const status = useProtectedQuery({
-    queryKey: ["platform"],
-    queryFn: () => request<Platform>("/platform"),
+    queryKey: statusKey,
+    queryFn: async ({ signal }) => {
+      const read = ++statusIssuance.current, owner = lifecycle.current;
+      const current = () => isCurrentScope() && active.current && !statusDeniedRef.current && statusAttemptRef.current === statusAttempt && lifecycle.current === owner && statusIssuance.current === read;
+      const value = await managedRead(platformReads, signal, current, (live, completion) =>
+        request<Platform>("/platform", { redirect: "error" }, 65536, (denied) => {
+          if (denied && live()) { statusDeniedRef.current = true; setStatusDenied(true); client.removeQueries({ queryKey: ["platform-owned", ownerScope] }); }
+        }, { current: live, completion }, live, 200));
+      if (!value || typeof value.database !== "string" || typeof value.worker !== "string" || typeof value.shadowMode !== "boolean") throw new Error("Platform status is unavailable.");
+      return { value, issuance: read, lifecycle: owner };
+    },
+    enabled: isCurrentScope() && !statusDenied,
     refetchInterval: 15000,
   });
   const audit = useProtectedQuery({
-    queryKey: ["access-operations", sessionGeneration, actor.customerId, actor.subject, actor.roles.join(",")],
-    queryFn: async () => decodeAccessOperations(await request<unknown>("/access-operations")),
-    enabled: actor.roles.includes("system_admin"),
+    queryKey: auditKey,
+    queryFn: async ({ signal }) => {
+      const read = ++auditIssuance.current, owner = lifecycle.current;
+      const current = () => isCurrentScope() && active.current && !auditDeniedRef.current && auditAttemptRef.current === auditAttempt && lifecycle.current === owner && auditIssuance.current === read;
+      const value = await managedRead(platformReads, signal, current, (live, completion) =>
+        request<unknown>("/access-operations", { redirect: "error" }, 65536, (denied) => {
+          if (denied && live()) { auditDeniedRef.current = true; setAuditDenied(true); client.removeQueries({ queryKey: ["access-operations-owned", ownerScope] }); }
+        }, { current: live, completion }, live, 200));
+      return { value: decodeAccessOperations(value), issuance: read, lifecycle: owner };
+    },
+    enabled: isCurrentScope() && !auditDenied && actor.roles.includes("system_admin"),
     staleTime: 0,
     refetchOnMount: "always",
   });
@@ -964,8 +1349,43 @@ function PlatformView({ actor }: { actor: Actor }) {
   const [message, setMessage] = useState("");
   const [messageError, setMessageError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const operation = React.useRef(false);
+  const draftEpoch = React.useRef(0);
+  const [renderedDraftEpoch, setRenderedDraftEpoch] = useState(0);
+  const edit = (change: () => void) => { if (!isCurrentScope() || !active.current || busy || operation.current || accessGrantWrites.snapshot() !== renderedAccessVersion || draftEpoch.current !== renderedDraftEpoch) return;
+    draftEpoch.current++; setRenderedDraftEpoch(draftEpoch.current); change(); };
+  const statusState = client.getQueryState<typeof status.data>(statusKey), auditState = client.getQueryState<typeof audit.data>(auditKey);
+  const currentStatus = isCurrentScope() && !statusDeniedRef.current && status.data && statusState?.data === status.data &&
+    statusState.status === "success" && statusState.fetchStatus === "idle" && status.data.issuance === statusIssuance.current && status.data.lifecycle === lifecycle.current ? status.data.value : undefined;
+  const currentAudit = isCurrentScope() && !auditDeniedRef.current && audit.data && auditState?.data === audit.data &&
+    auditState.status === "success" && auditState.fetchStatus === "idle" && audit.data.issuance === auditIssuance.current && audit.data.lifecycle === lifecycle.current ? audit.data.value : undefined;
+  const renderedStatusIssuance = statusIssuance.current, renderedAuditIssuance = auditIssuance.current, renderedLifecycle = lifecycle.current;
+  const retryStatus = () => {
+    const state = client.getQueryState(statusKey);
+    if (!isCurrentScope() || statusAttemptRef.current !== statusAttempt || lifecycle.current !== renderedLifecycle ||
+      statusIssuance.current !== renderedStatusIssuance ||
+      (!statusDeniedRef.current && !(state?.status === "error" && state.fetchStatus === "idle"))) return;
+    statusAttemptRef.current++; statusDeniedRef.current = false; setStatusDenied(false); setStatusAttempt(statusAttemptRef.current);
+  };
+  const retryAudit = () => {
+    const state = client.getQueryState(auditKey);
+    if (!isCurrentScope() || auditAttemptRef.current !== auditAttempt || lifecycle.current !== renderedLifecycle ||
+      auditIssuance.current !== renderedAuditIssuance ||
+      (!auditDeniedRef.current && !(state?.status === "error" && state.fetchStatus === "idle"))) return;
+    auditAttemptRef.current++; auditDeniedRef.current = false; setAuditDenied(false); setAuditAttempt(auditAttemptRef.current);
+  };
+  const renderedAccessVersion = React.useSyncExternalStore(accessGrantWrites.subscribe, accessGrantWrites.snapshot, accessGrantWrites.snapshot);
+  const writeOwner = accessGrantOwner(actor.customerId, subject, scopeType, scopeId);
+  const writeState = accessGrantWrites.state(writeOwner);
   async function update(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isCurrentScope() || !active.current || busy || operation.current || accessGrantWrites.snapshot() !== renderedAccessVersion ||
+      draftEpoch.current !== renderedDraftEpoch || !subject.trim() || !operationUuid.test(scopeId)) return;
+    const owner = accessGrantOwner(actor.customerId, subject, scopeType, scopeId);
+    const epoch = draftEpoch.current;
+    const lease = accessGrantWrites.begin(owner);
+    if (!lease) { setMessageError(true); setMessage("An earlier access change is pending or could not be confirmed. Check access before making another change."); return; }
+    operation.current = true;
     setBusy(true);
     setMessage("");
     setMessageError(false);
@@ -981,18 +1401,22 @@ function PlatformView({ actor }: { actor: Actor }) {
           scopeId,
           ...(action === "revoke" ? {} : { role }),
         }),
-      });
+      }, 65536, undefined, undefined, isCurrentScope, 204);
+      if (!isCurrentScope() || !active.current || draftEpoch.current !== epoch) { accessGrantWrites.uncertain(owner, lease); return; }
+      accessGrantWrites.confirm(owner, lease);
       setMessage(
         action === "revoke"
           ? "Revoke operation recorded."
           : "Grant operation recorded.",
       );
-      await client.invalidateQueries();
-    } catch (e) {
-      setMessageError(true);
-      setMessage((e as Error).message);
+      void client.invalidateQueries({ queryKey: ["access-operations-owned", ownerScope] });
+    } catch {
+      accessGrantWrites.uncertain(owner, lease);
+      if (isCurrentScope() && active.current) { setMessageError(true);
+        setMessage("The access change could not be confirmed. Check access before making another change."); }
     } finally {
-      setBusy(false);
+      operation.current = false;
+      if (active.current) setBusy(false);
     }
   }
   return (
@@ -1001,29 +1425,29 @@ function PlatformView({ actor }: { actor: Actor }) {
         <div>
           <span>Database</span>
           <strong className="quiet-value">
-            {status.data?.database ?? "Checking…"}
+            {currentStatus?.database ?? "Checking…"}
           </strong>
         </div>
         <div>
           <span>Background worker</span>
           <strong className="quiet-value">
-            {status.data?.worker ?? "Checking…"}
+            {currentStatus?.worker ?? "Checking…"}
           </strong>
         </div>
         <div>
           <span>Outbound actions</span>
           <strong className="quiet-value">
-            {status.data
-              ? status.data.shadowMode
+            {currentStatus
+              ? currentStatus.shadowMode
                 ? "Shadow mode"
                 : "Policy controlled"
               : "Checking…"}
           </strong>
         </div>
       </div>
-      {status.error && (
+      {(status.error || statusDenied) && (
         <p role="alert" className="error">
-          {status.error.message}
+          Platform status is unavailable. <Button className="secondary" onClick={retryStatus}>Retry platform status</Button>
         </p>
       )}
       <div className="detail-grid">
@@ -1034,19 +1458,20 @@ function PlatformView({ actor }: { actor: Actor }) {
             change is recorded.
           </p>
           <form onSubmit={update}>
+            <fieldset className="access-grant-fields" disabled={busy}>
             <TextField
               label="Account subject"
               required
               maxLength={200}
               value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              onChange={(e) => { const value = e.target.value; edit(() => setSubject(value)); }}
               placeholder="Identity provider subject"
             />
             <div className="form-row">
               <SelectField
                 label="Scope"
                 value={scopeType}
-                onChange={(e) => setScopeType(e.target.value)}
+                onChange={(e) => { const value = e.target.value; edit(() => setScopeType(value)); }}
               >
                 <option value="project">Project</option>
                 <option value="portfolio">Portfolio</option>
@@ -1054,7 +1479,7 @@ function PlatformView({ actor }: { actor: Actor }) {
               <SelectField
                 label="Role"
                 value={role}
-                onChange={(e) => setRole(e.target.value)}
+                onChange={(e) => { const value = e.target.value; edit(() => setRole(value)); }}
               >
                 {[
                   "contributor",
@@ -1074,7 +1499,7 @@ function PlatformView({ actor }: { actor: Actor }) {
               label="Scope identifier"
               required
               value={scopeId}
-              onChange={(e) => setScopeId(e.target.value)}
+              onChange={(e) => { const value = e.target.value; edit(() => setScopeId(value)); }}
               placeholder="Project or portfolio UUID"
               pattern="[0-9a-fA-F-]{36}"
             />
@@ -1083,7 +1508,7 @@ function PlatformView({ actor }: { actor: Actor }) {
                 type="submit"
                 className="primary"
                 value="grant"
-                disabled={busy}
+                disabled={busy || writeState !== "available"}
               >
                 Grant access
               </Button>
@@ -1091,11 +1516,14 @@ function PlatformView({ actor }: { actor: Actor }) {
                 type="submit"
                 className="secondary"
                 value="revoke"
-                disabled={busy}
+                disabled={busy || writeState !== "available"}
               >
                 Revoke access
               </Button>
             </div>
+            </fieldset>
+            {writeState !== "available" && <Message error={writeState !== "pending"}>{writeState === "pending"
+              ? "An access change is pending." : "An earlier access change could not be confirmed. Check access before making another change."}</Message>}
             {message && <Message error={messageError}>{message}</Message>}
           </form>
         </section>
@@ -1107,13 +1535,13 @@ function PlatformView({ actor }: { actor: Actor }) {
           </p>
           {!actor.roles.includes("system_admin") ? (
             <p className="muted">Operation history is unavailable for this role.</p>
+          ) : auditDenied || audit.error ? (
+            <p role="alert" className="error">Access operation history is unavailable. <Button className="secondary" onClick={retryAudit}>Retry operation history</Button></p>
           ) : audit.isFetching ? (
             <p className="muted">Loading operation history…</p>
-          ) : audit.error ? (
-            <p role="alert" className="error">Access operation history is unavailable.</p>
-          ) : audit.data?.length ? (
+          ) : currentAudit?.length ? (
             <ul className="audit-list">
-              {audit.data.map((a) => (
+              {currentAudit.map((a) => (
                 <li key={a.id}>
                   <strong>
                     {a.event === "access.granted"
@@ -1125,8 +1553,10 @@ function PlatformView({ actor }: { actor: Actor }) {
                 </li>
               ))}
             </ul>
-          ) : (
+          ) : currentAudit ? (
             <p className="muted">No recorded access operations found.</p>
+          ) : (
+            <p className="muted">Loading operation history…</p>
           )}
         </section>
       </div>
