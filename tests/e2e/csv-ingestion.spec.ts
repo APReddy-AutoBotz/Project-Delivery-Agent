@@ -90,7 +90,7 @@ const preview = {
   ],
 };
 
-test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing facts", async ({ page }) => {
+test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing facts", async ({ page }, testInfo) => {
   let configured = false;
   let configurationBody: Record<string, unknown> | undefined;
   let previewContentType = "";
@@ -199,5 +199,5 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
   await expect(page.getByText("Canonical project facts were not changed.", { exact: true })).toBeVisible();
   expect(reviewedSelection).toMatchObject({ previewReceiptId, rowOrdinals: [1, 3] });
   expect(factWrites).toBe(0);
-  await page.screenshot({ path: "artifacts/csv-reviewed-import.png", fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("csv-reviewed-import.png"), fullPage: true });
 });
