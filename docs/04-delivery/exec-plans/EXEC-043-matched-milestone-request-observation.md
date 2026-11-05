@@ -717,6 +717,11 @@ the original error, request accounting, response capture and fail-closed
 acceptance requirements. It does not authorize retrieving Original19/20
 artifacts or rerunning those stopped captures. No failure is classified as
 resolved, and no story, criterion or release hold is accepted by this record.
+Optional network diagnostics keep bounded CDP identifiers private and report
+only fixed categories. They do not establish a match to a Playwright request,
+identify redirect hops, prove application body consumption, or change the
+recorder's fail-closed decision; missing or ambiguous observation remains
+unknown.
 
 The separate local follow-up retains a same-owner milestone draft while a
 current access check hides the view, and rejects a stale edit callback. Focused

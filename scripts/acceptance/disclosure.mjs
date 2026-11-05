@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { createNetworkObservation } from "./network-observation.mjs";
 
 export const fixtureSecretNames = [
   "admin-password",
@@ -63,6 +64,23 @@ const safeContinuationDiagnostic = (value) => Object.fromEntries(
     return [key, allowed.has(candidate) ? candidate : "unknown"];
   }),
 );
+const networkStatusAllowed = new Set(["unavailable", "overflow", "incomplete", "none-observed", "ambiguous", "cdp-failure-observed", "multiple-pages"]);
+const networkFieldAllowed = {
+  playwrightMatch: new Set(["unknown"]), hopMatch: new Set(["unknown"]), resource: new Set(["identity", "project_list", "project_setup"]),
+  response: new Set(["2xx", "other", "unknown"]), responseAtFailure: new Set(["2xx", "other", "unknown"]),
+  pause: new Set(["none", "observed"]), pauseAtFailure: new Set(["none", "observed"]),
+  body: new Set(["none", "started", "resolved", "failure"]), bodyAtFailure: new Set(["none", "started", "resolved", "failure"]),
+  continuation: new Set(["none", "started", "resolved", "failure"]), continuationAtFailure: new Set(["none", "started", "resolved", "failure"]),
+  recorderFail: new Set(["none", "attempted"]), recorderFailAtFailure: new Set(["none", "attempted"]),
+  terminal: new Set(["failed"]), canceled: new Set(["yes", "no", "unknown"]), failure: new Set(["aborted", "other", "unknown"]),
+};
+const safeNetworkDiagnostic = (value) => {
+  const candidate = value?.status, status = networkStatusAllowed.has(candidate) ? candidate : "unavailable";
+  if (status !== "cdp-failure-observed") return { status };
+  return { status, ...Object.fromEntries(Object.entries(networkFieldAllowed).map(([key, allowed]) => {
+    const field = value?.[key]; return [key, allowed.has(field) ? field : "unknown"];
+  })) };
+};
 const bucketCaptureCount = (value) =>
   typeof value === "number" && Number.isFinite(value) && value > 0
     ? value >= 2 ? 2 : 1
@@ -71,12 +89,14 @@ export function formatCaptureDiagnostic(value) {
   try {
     const inputPhase = value?.phase;
     const phase = captureDiagnosticPhases.has(inputPhase) ? inputPhase : "unavailable";
+    const network = value?.network;
     return JSON.stringify({
       phase,
       counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, bucketCaptureCount(value?.counters?.[key])])),
       tokenSeen: value?.tokenSeen === true,
       continuation: safeContinuationDiagnostic(value?.continuation),
       request: safeRequestDiagnostic(value?.request),
+      ...(network === undefined ? {} : { network: safeNetworkDiagnostic(network) }),
     });
   } catch {
     return JSON.stringify({ phase: "unavailable", counters: Object.fromEntries(captureDiagnosticCounters.map((key) => [key, 0])), tokenSeen: false, continuation: safeContinuationDiagnostic(undefined), request: safeRequestDiagnostic(undefined) });
@@ -234,6 +254,7 @@ export async function observeBrowserDisclosure(
   let requestDiagnostic;
   let requestStage;
   const requestStages = new WeakMap();
+  let networkObservation, multipleNetworkPages = false;
   const origins = [...new Set([origin, identityOrigin])];
   const tokenUrl =
     identityOrigin + "/identity/realms/pdaa/protocol/openid-connect/token";
@@ -340,6 +361,7 @@ export async function observeBrowserDisclosure(
       inflight: inflightCount(), requests: failed.requests,
     },
     tokenSeen: tokenResponses > 0,
+    ...(failed.requests ? { network: multipleNetworkPages || observedPages.size > 1 ? { status: "multiple-pages" } : networkObservation?.snapshot() ?? { status: "unavailable" } } : {}),
     continuation: continuationDiagnostic,
     request: requestDiagnostic,
   });
@@ -363,10 +385,26 @@ export async function observeBrowserDisclosure(
   capture.newPage = async () => {
     const page = await context.newPage();
     const session = await context.newCDPSession(page);
+    // Optional, private diagnostic state is never consulted by acceptance.
+    // Network.enable is deliberately not awaited; a missing or failed
+    // activation is reported as unavailable without delaying the journey.
+    const network = networkObservation ? null : createNetworkObservation(origin);
+    if (network) networkObservation = network; else multipleNetworkPages = true;
+    if (network) {
+      network.pending();
+      try {
+        session.on("Network.requestWillBeSent", (event) => network.request(event));
+        session.on("Network.responseReceived", (event) => network.response(event));
+        session.on("Network.loadingFinished", (event) => network.finished(event));
+        session.on("Network.loadingFailed", (event) => network.failed(event));
+        Promise.resolve(session.send("Network.enable")).then(() => network.enabled(), () => network.unavailable());
+      } catch { network.unavailable(); }
+    }
     const provisional = new Map();
     const requests = new Set();
     requestTrackers.set(page, requests);
     page.on("request", (request) => {
+      network?.requestObserved();
       if (inflightCount() >= 1024) { failed.requests++; notifyRequests(); return; }
       if (request && (typeof request === "object" || typeof request === "function")) requestStages.set(request, requestStage);
       requests.add(request); notifyRequests();
@@ -464,10 +502,11 @@ export async function observeBrowserDisclosure(
       collect(
         "response",
         (async () => {
-          let phase = "headers";
+          let phase = "headers", bodyPending = false, continuationPending = false, diagnosticNetworkId;
           let branch = "response", resource = "other";
           try {
-            const url = new URL(event.request.url);
+            const initialUrl = event.request.url;
+            const url = new URL(initialUrl);
             if (!origins.includes(url.origin))
               throw new Error("Unexpected disclosure response origin");
             if (url.pathname === "/api/pm/action-queue") resource = "pm_queue";
@@ -476,11 +515,11 @@ export async function observeBrowserDisclosure(
             const status = event.responseStatusCode;
             const method = event.request.method;
             const headers = event.responseHeaders;
-            const identity = JSON.stringify([
-              event.networkId,
-              event.request.url,
-              method,
-            ]);
+            const identityParts = [event.networkId, event.request.url, method];
+            const identity = JSON.stringify(identityParts);
+            diagnosticNetworkId = identityParts[0];
+            if (identityParts[1] === initialUrl) network?.pause({ networkId: diagnosticNetworkId, request: { url: initialUrl, method } });
+            else network?.unavailable();
             // Chromium can emit an error pause before the same native request
             // later supplies its HTTP response. Continue that provisional event
             // unchanged, but require its matching headers and body before passing.
@@ -502,9 +541,11 @@ export async function observeBrowserDisclosure(
                 unresolved.add(record);
               }
               phase = "continuation";
+              network?.continuation(diagnosticNetworkId, "started"); continuationPending = true;
               await session.send("Fetch.continueRequest", {
                 requestId: event.requestId,
               });
+              continuationPending = false; network?.continuation(diagnosticNetworkId, "resolved");
               return;
             }
             if (
@@ -526,9 +567,11 @@ export async function observeBrowserDisclosure(
               );
             } else {
               phase = "body";
+              network?.body(diagnosticNetworkId, "started"); bodyPending = true;
               const result = await session.send("Fetch.getResponseBody", {
                 requestId: event.requestId,
               });
+              bodyPending = false; network?.body(diagnosticNetworkId, "resolved");
               if (
                 typeof result.body !== "string" ||
                 typeof result.base64Encoded !== "boolean"
@@ -567,12 +610,16 @@ export async function observeBrowserDisclosure(
               } else disclosure.add("browser-response-bodies", body);
             }
             phase = "continuation";
+            network?.continuation(diagnosticNetworkId, "started"); continuationPending = true;
             await session.send("Fetch.continueRequest", {
               requestId: event.requestId,
             });
+            continuationPending = false; network?.continuation(diagnosticNetworkId, "resolved");
             unresolved.delete(provisional.get(identity));
             provisional.delete(identity);
           } catch (error) {
+            if (bodyPending) network?.body(diagnosticNetworkId, "failure");
+            if (continuationPending) network?.continuation(diagnosticNetworkId, "failure");
             if (phase === "continuation" && !continuationDiagnostic) {
               try {
                 const message = typeof error?.message === "string" ? error.message : "";
@@ -583,6 +630,7 @@ export async function observeBrowserDisclosure(
               } catch { continuationDiagnostic = safeContinuationDiagnostic(undefined); }
             }
             failed[phase]++;
+            network?.recorderFail(diagnosticNetworkId);
             await session
               .send("Fetch.failRequest", {
                 requestId: event.requestId,

@@ -80,13 +80,16 @@ it("SEC-SECRET-001: host receipts must match the current run, profile, phase and
   }
 });
 
-async function observer() {
+async function observer(networkEnable: "success" | "failure" | "pending" = "success") {
   const canary = secret();
+  let activateNetwork: (() => void) | undefined;
   const check = createDisclosureCheck([canary]);
   const bodies = new Map<string, () => Promise<unknown>>();
   const continuationFailures = new Set<string>();
   const session = Object.assign(new EventEmitter(), {
     send: vi.fn(async (method: string, args?: { requestId?: string }) => {
+      if (method === "Network.enable" && networkEnable === "failure") throw new Error(canary);
+      if (method === "Network.enable" && networkEnable === "pending") return new Promise<void>((resolve) => { activateNetwork = resolve; });
       if (
         method === "Fetch.continueRequest" &&
         continuationFailures.has(args!.requestId!)
@@ -191,6 +194,7 @@ async function observer() {
     tokens,
     pause,
     session,
+    activateNetwork: () => activateNetwork?.(),
   };
 }
 
@@ -348,6 +352,16 @@ it("reads a diagnostic stage once and never serializes a hostile getter", () => 
   expect(formatCaptureDiagnostic({ request: { get stage(): never { throw new Error(canary); } } })).not.toContain(canary);
 });
 
+it("sanitizes hostile network diagnostic fields without re-reading them", () => {
+  const canary = secret(); let reads = 0;
+  const line = formatCaptureDiagnostic({ network: { status: "cdp-failure-observed", get resource() {
+    return ++reads === 1 ? "identity" : canary;
+  }, body: canary, failure: canary, url: canary } });
+  expect(reads).toBe(1); expect(line).not.toContain(canary);
+  expect(JSON.parse(line).network).toMatchObject({ status: "cdp-failure-observed", resource: "identity", body: "unknown", failure: "unknown" });
+  expect(formatCaptureDiagnostic({ network: { get status(): never { throw new Error(canary); } } })).not.toContain(canary);
+});
+
 it("reports the completed failure's label when overlapping failure diagnostics finish out of order", async () => {
   const f = await observer(); f.response(tokenPath, f.tokens);
   let release!: () => void; const held = new Promise<void>((resolve) => { release = resolve; });
@@ -372,6 +386,106 @@ it("leaves a successful labeled request and capture unchanged", async () => {
   expect(f.capture.diagnostic().counters.requests).toBe(0);
   expect(JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic())).request.stage).toBeUndefined();
   expect(f.check.verify(["browser-response-headers", "browser-response-bodies"])["browser-response-bodies"]).toEqual({ captures: 1, bytes: 2 });
+});
+
+it("keeps optional Network activation failures and stalls out of acceptance", async () => {
+  for (const state of ["failure", "pending"] as const) {
+    const f = await observer(state); f.response(tokenPath, f.tokens); f.response("/api/projects", []);
+    await f.capture(f.page);
+    expect(f.capture.diagnostic().counters.requests).toBe(0);
+    const request = { url: () => base + "/api/projects", method: () => "GET", response: async () => null,
+      failure: () => ({ errorText: "net::ERR_ABORTED" }) };
+    f.page.emit("request", request); f.page.emit("requestfailed", request);
+    await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+    const diagnostic = formatCaptureDiagnostic(f.capture.diagnostic());
+    expect(diagnostic).not.toContain(f.canary);
+    expect(JSON.parse(diagnostic).network).toEqual({ status: "unavailable" });
+  }
+});
+
+it("reports multiple pages when an unprepared popup appears", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  f.context.emit("page", new EventEmitter());
+  const request = { url: () => base + "/api/projects", method: () => "GET", response: async () => null,
+    failure: () => ({ errorText: "net::ERR_ABORTED" }) };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  expect(JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic())).network).toEqual({ status: "multiple-pages" });
+});
+
+it("retains an activation coverage gap after Network later becomes available", async () => {
+  const f = await observer("pending"); f.response(tokenPath, f.tokens);
+  const request = { url: () => base + "/api/projects", method: () => "GET", response: async () => null,
+    failure: () => ({ errorText: "net::ERR_ABORTED" }) };
+  f.page.emit("request", request); f.activateNetwork();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  expect(JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic())).network).toEqual({ status: "incomplete" });
+});
+
+it("reports separate CDP evidence without accepting a failed Playwright GET", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const privateId = f.canary + "-network-id";
+  f.session.emit("Network.requestWillBeSent", { requestId: privateId, request: { url: base + "/api/projects?" + f.canary, method: "GET" } });
+  f.session.emit("Network.responseReceived", { requestId: privateId, response: { status: 200 } });
+  f.pause({ path: "/api/projects", networkId: privateId });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  f.session.emit("Network.loadingFailed", { requestId: privateId, canceled: true, errorText: "net::ERR_ABORTED" });
+  const request = { url: () => base + "/api/projects", method: () => "GET", response: async () => null,
+    failure: () => ({ errorText: "net::ERR_ABORTED" }) };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  const diagnostic = formatCaptureDiagnostic(f.capture.diagnostic());
+  expect(diagnostic).not.toContain(privateId); expect(diagnostic).not.toContain(base); expect(diagnostic).not.toContain(f.canary);
+  expect(JSON.parse(diagnostic).network).toMatchObject({ status: "cdp-failure-observed", playwrightMatch: "unknown",
+    resource: "project_list", response: "2xx", bodyAtFailure: "resolved", continuationAtFailure: "resolved", failure: "aborted" });
+});
+
+it("does not treat a resolved malformed body command as captured or accepted", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const id = "synthetic-network-id";
+  f.session.emit("Network.requestWillBeSent", { requestId: id, request: { url: base + "/api/projects", method: "GET" } });
+  f.pause({ path: "/api/projects", networkId: id }, async () => ({ body: null, base64Encoded: false }));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  f.session.emit("Network.loadingFailed", { requestId: id, canceled: true, errorText: "net::ERR_ABORTED" });
+  const request = { url: () => base + "/api/projects", method: () => "GET", response: async () => null,
+    failure: () => ({ errorText: "net::ERR_ABORTED" }) };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  expect(f.capture.diagnostic().counters).toMatchObject({ body: 1, requests: 1 });
+  expect(JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic())).network).toMatchObject({ status: "cdp-failure-observed",
+    bodyAtFailure: "resolved", recorderFailAtFailure: "attempted", playwrightMatch: "unknown", hopMatch: "unknown" });
+});
+
+it("preserves recorder event-access order regardless of optional Network activation", async () => {
+  const traces: string[][] = [];
+  for (const activation of ["success", "failure"] as const) {
+    const f = await observer(activation); f.response(tokenPath, f.tokens);
+    const seen: string[] = [];
+    const request = { get url() { seen.push("url"); return base + "/api/projects"; }, get method() { seen.push("method"); return "GET"; } };
+    const event = { get request() { seen.push("request"); return request; }, get networkId() { seen.push("networkId"); return "one"; },
+      get responseStatusCode() { seen.push("status"); return 200; }, get responseHeaders() { seen.push("headers"); return []; },
+      get responseErrorReason() { seen.push("errorReason"); return undefined; }, get requestId() { seen.push("requestId"); return "synthetic"; } };
+    f.session.send.mockImplementation(async (method: string) => method === "Fetch.getResponseBody" ? { body: "[]", base64Encoded: false } : {});
+    f.session.emit("Fetch.requestPaused", event);
+    await f.capture(f.page);
+    expect(f.capture.diagnostic().counters.response).toBe(0);
+    traces.push(seen);
+  }
+  expect(traces[0]).toEqual(["request", "url", "status", "request", "method", "headers", "networkId", "request", "url", "errorReason", "errorReason", "requestId", "requestId"]);
+  expect(traces[1]).toEqual(traces[0]);
+});
+
+it("does not inspect later CDP event getters after origin validation fails", async () => {
+  for (const activation of ["success", "failure"] as const) {
+    const f = await observer(activation); f.response(tokenPath, f.tokens); let unexpectedReads = 0;
+    f.session.emit("Fetch.requestPaused", { request: { url: "https://foreign.invalid/", get method(): never { unexpectedReads++; throw new Error(f.canary); } },
+      get networkId(): never { unexpectedReads++; throw new Error(f.canary); }, requestId: "foreign" });
+    await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+    expect(unexpectedReads).toBe(0); expect(f.capture.diagnostic().counters.headers).toBe(1);
+  }
 });
 
 it("distinguishes response identity from later fallback eligibility without accepting a failed GET", async () => {
@@ -762,10 +876,10 @@ it("SEC-SECRET-001: browser capture requires an observed token response and comp
 
 it("SEC-SECRET-001: original responses remain paused until delayed and newly queued bodies are captured", async () => {
   const f = await observer();
-  expect(f.session.send.mock.calls[0]).toEqual([
+  expect(f.session.send.mock.calls.filter(([method]) => method === "Fetch.enable")).toEqual([[
     "Fetch.enable",
     { patterns: [{ urlPattern: base + "/*", requestStage: "Response" }] },
-  ]);
+  ]]);
   f.response(tokenPath, f.tokens);
   let releaseFirst!: () => void;
   let releaseSecond!: () => void;
