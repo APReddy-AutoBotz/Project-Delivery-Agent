@@ -502,8 +502,8 @@ The policy presentation decoder has selected parity tests against the domain
 schema, not an exhaustive equivalence proof. Confirmed policy responses must be
 HTTP 200 and match the submitted values and next revision; a newer local cache
 revision is not overwritten. Source-access confirmation uses the endpoint's
-HTTP 200 source-ID and next-revision receipt, which does not echo reader/state
-values.
+HTTP 200 receipt with the same source ID and a strictly newer revision, which
+does not echo reader/state values.
 
 The local policy and source write registries retain unresolved outcomes across
 SPA navigation and actor changes for the same resource. They are bounded,
