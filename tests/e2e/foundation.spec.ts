@@ -36,19 +36,24 @@ test("FR-EVD-009 / SEC-SECRET-001: expected queue denials finish their original 
       if (request.url() === origin + queuePath) finished++;
     });
     await page.clock.install();
+    capture.setDiagnosticStage("foundation-navigation");
     await page.goto(origin);
+    capture.setDiagnosticStage("foundation-login");
     await page.getByRole("button", { name: "Project manager" }).click();
+    capture.setDiagnosticStage("foundation-project");
     await page
       .getByRole("button", { name: /Atlas · Customer platform/ })
       .click();
     await expect(page.getByText("Unknown — no source connected")).toBeVisible();
     await expect.poll(() => statuses).toEqual([404]);
     await expect.poll(() => finished).toBe(1);
+    capture.setDiagnosticStage("foundation-loaded");
     // No response routing/replacement: the recorder reads and continues the
     // server's original 404. settle also requires zero failed/unresolved captures.
     // Development sign-in has no OIDC token response; full expiry/disclosure is
     // separately required by the unchanged real-OIDC acceptance workflow.
     await settleFoundationDisclosure(capture, page);
+    capture.setDiagnosticStage("foundation-revalidate");
     await page.clock.fastForward(15001);
     await expect.poll(() => statuses).toEqual([404, 404]);
     await expect.poll(() => finished).toBe(2);
@@ -110,19 +115,25 @@ test("FR-EVD-009 / SEC-SECRET-001: sign-out stops protected polling before discl
         protectedRequests++;
     });
     await page.clock.install();
+    capture.setDiagnosticStage("foundation-navigation");
     await page.goto(origin);
+    capture.setDiagnosticStage("foundation-login");
     await page.getByRole("button", { name: "Project manager" }).click();
+    capture.setDiagnosticStage("foundation-project");
     await page
       .getByRole("button", { name: /Atlas · Customer platform/ })
       .click();
     await expect(
       page.getByRole("heading", { name: "Delivery structure", exact: true }),
     ).toBeVisible();
+    capture.setDiagnosticStage("foundation-loaded");
     await settleFoundationDisclosure(capture, page);
     const initial = protectedRequests;
+    capture.setDiagnosticStage("foundation-revalidate");
     await page.clock.fastForward(15001);
     await expect.poll(() => protectedRequests).toBeGreaterThan(initial);
     await settleFoundationDisclosure(capture, page);
+    capture.setDiagnosticStage("foundation-signout");
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(
       page.getByRole("heading", {

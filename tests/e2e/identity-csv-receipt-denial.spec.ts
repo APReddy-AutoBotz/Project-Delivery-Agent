@@ -1,7 +1,7 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { createServer, request as httpRequest, type ServerResponse } from "node:http";
 
-for (const scenario of ["stale", "current"] as const) test(`receipt ${scenario} denial preserves exact review retry ownership`, async ({ browser }) => {
+for (const scenario of ["stale", "current", "stale-selection"] as const) test(`receipt ${scenario} denial preserves exact review retry ownership`, async ({ browser }) => {
   const upstream = new URL(String(test.info().project.use.baseURL));
   if (upstream.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(upstream.hostname)) throw new Error("Local upstream required");
   const customerId = "10000000-0000-4000-8000-000000000001", projectId = "30000000-0000-4000-8000-000000000001", sourceId = "40000000-0000-4000-8000-000000000001";
@@ -66,6 +66,21 @@ for (const scenario of ["stale", "current"] as const) test(`receipt ${scenario} 
     await page.getByRole("button", { name: "PMO administrator" }).click(); await page.getByRole("button", { name: /Data imports/ }).click();
     await page.getByLabel("CSV file").setInputFiles({ name: "synthetic.csv", mimeType: "text/csv", buffer: Buffer.from(`Issue ID,Project ID,Forecast\n1,${projectId},2026-01-01\n`) });
     await page.getByRole("button", { name: "Upload and preview" }).click(); await page.getByLabel("Select row 1").check();
+    if (scenario === "stale-selection") {
+      await page.evaluate(() => window.dispatchEvent(new Event("focus"))); await expect.poll(() => Boolean(oldRead)).toBe(true);
+      await page.evaluate(() => window.dispatchEvent(new Event("focus"))); await expect.poll(() => Boolean(retryRead)).toBe(true);
+      retryRead!.writeHead(200, { "Content-Type": "application/json" }); retryRead!.end(JSON.stringify(receipt(false)));
+      await expect(page.getByLabel("Select row 1")).toBeEnabled();
+      await page.getByLabel("Select row 1").check();
+      oldRead!.writeHead(403, { "Content-Type": "application/json", "x-receipt-test": "old" }); oldRead!.end(JSON.stringify({ message: "denied" }));
+      await expect.poll(() => page.evaluate(() => { const s = window as unknown as { oldEof?: boolean; oldReleased?: boolean }; return Boolean(s.oldEof && s.oldReleased); })).toBe(true);
+      await expect(page.getByLabel("Select row 1")).toBeChecked();
+      await page.getByRole("button", { name: "Save 1 reviewed proposal" }).click();
+      await expect.poll(() => reviews).toBe(1);
+      await expect.poll(() => reviewBodies.length).toBe(1);
+      expect(reviewBodies[0]).toMatchObject({ previewReceiptId: previewId, rowOrdinals: [1] });
+      return;
+    }
     await page.getByRole("button", { name: "Save 1 reviewed proposal" }).click();
     await expect(page.getByRole("button", { name: "Retry original reviewed selection" })).toBeEnabled(); expect(reviews).toBe(1);
     await page.evaluate(() => window.dispatchEvent(new Event("focus"))); await expect.poll(() => Boolean(oldRead)).toBe(true);

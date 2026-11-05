@@ -471,7 +471,7 @@ export function CsvIngestion({ request, projects, actor, isCurrentScope }: Props
         dispatched = true;
         return request<unknown>(`/ingestion/sources/${saved.sourceId}/receipts/${saved.receiptId}`, { redirect: "error" }, 8 * 1024 * 1024, (denied) => {
           if (denied && live()) { receiptFences.current.set(receiptKey(saved), { denied: true, active: 0, pinned: ticket!.pinned }); receiptProofRef.current = null;
-            setReceiptError(true); setPreview(null); setReviewed(null); }
+            setReceiptError(true); setPreview(null); setReviewed(null); setSelectedRows([]); }
         }, { current: live, completion: (end) => { if (end === "eof" || end === "terminated") terminal = true; completion(end); } }, live, 200);
       });
     } finally { if (!dispatched || terminal) ticket!.active--; }

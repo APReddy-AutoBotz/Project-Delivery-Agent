@@ -43,12 +43,20 @@ const requestDiagnosticAllowed = {
   response: new Set(["none", "204", "2xx", "3xx", "4xx", "5xx", "other"]),
   phase: new Set(["response", "identity", "eligibility", "origin", "headers"]),
 };
-const safeRequestDiagnostic = (value) => Object.fromEntries(
-  Object.entries(requestDiagnosticAllowed).map(([key, allowed]) => {
+const requestDiagnosticStages = new Set([
+  "login-navigation", "login-submit", "login-checks",
+  "operator-navigation", "operator-submit", "operator-platform", "operator-grant", "operator-revoke", "operator-complete",
+  "foundation-navigation", "foundation-login", "foundation-project", "foundation-loaded", "foundation-revalidate", "foundation-signout",
+]);
+const safeRequestDiagnostic = (value) => {
+  const result = Object.fromEntries(Object.entries(requestDiagnosticAllowed).map(([key, allowed]) => {
     const candidate = value?.[key];
     return [key, allowed.has(candidate) ? candidate : "unknown"];
-  }),
-);
+  }));
+  const stage = value?.stage;
+  if (requestDiagnosticStages.has(stage)) result.stage = stage;
+  return result;
+};
 const safeContinuationDiagnostic = (value) => Object.fromEntries(
   Object.entries(continuationDiagnosticAllowed).map(([key, allowed]) => {
     const candidate = value?.[key];
@@ -224,6 +232,8 @@ export async function observeBrowserDisclosure(
   let diagnosticPhase = "unavailable";
   let continuationDiagnostic;
   let requestDiagnostic;
+  let requestStage;
+  const requestStages = new WeakMap();
   const origins = [...new Set([origin, identityOrigin])];
   const tokenUrl =
     identityOrigin + "/identity/realms/pdaa/protocol/openid-connect/token";
@@ -318,6 +328,8 @@ export async function observeBrowserDisclosure(
       throw new Error("Expected token response was not observed");
     diagnosticPhase = "complete";
   };
+  // Labels record when the request event was observed; they never influence capture.
+  capture.setDiagnosticStage = (stage) => { requestStage = requestDiagnosticStages.has(stage) ? stage : undefined; };
   capture.diagnostic = () => ({
     phase: diagnosticPhase,
     counters: {
@@ -356,13 +368,14 @@ export async function observeBrowserDisclosure(
     requestTrackers.set(page, requests);
     page.on("request", (request) => {
       if (inflightCount() >= 1024) { failed.requests++; notifyRequests(); return; }
+      if (request && (typeof request === "object" || typeof request === "function")) requestStages.set(request, requestStage);
       requests.add(request); notifyRequests();
     });
     const finished = (request) => { requests.delete(request); notifyRequests(); };
     page.on("requestfinished", finished);
     page.on("requestfailed", (request) => {
       if (requests.has(request)) collect("requests", (async () => {
-        const diagnostic = { phase: "response" };
+        const diagnostic = { phase: "response", stage: requestStages.get(request) };
         let response;
         try {
         // Chromium can report a completed bodyless request as aborted. Only

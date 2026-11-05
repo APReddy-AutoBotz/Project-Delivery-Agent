@@ -676,6 +676,9 @@ tickets are separately bounded and reserved before an import; an indeterminate
 original may permanently consume physical capacity in that document. The local
 source and receipt decoders have representative parity and adversarial tests;
 their size and date limits can reject a valid response and are not API bounds.
+When a current receipt is denied, the visible row selection is cleared along
+with the receipt view; an already recorded uncertain review retains its exact
+separate command and selected ordinals for authorized retry.
 
 These guards do not survive a page reload, coordinate other tabs or operators,
 or establish safe replay after database restore or rollback. The receipt API

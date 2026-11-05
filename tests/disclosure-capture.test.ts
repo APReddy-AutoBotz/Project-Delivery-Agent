@@ -313,6 +313,67 @@ it("keeps two failed initial-login requests fatal and reports only bounded categ
   } finally { emit.mockRestore(); }
 });
 
+it("labels a failed original by its observed request stage, not a later request's stage", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const older = { url: () => base + "/api/projects?private=" + f.canary, method: () => "GET",
+    failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => response };
+  const response = { request: () => older, status: () => 200, fromServiceWorker: () => false };
+  const newer = { url: () => base + "/api/projects", method: () => "GET" };
+  f.capture.setDiagnosticStage("login-submit"); f.page.emit("request", older);
+  f.capture.setDiagnosticStage("login-checks"); f.page.emit("request", newer);
+  f.page.emit("requestfinished", newer); f.page.emit("requestfailed", older);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  const line = formatCaptureDiagnostic(f.capture.diagnostic());
+  expect(line).not.toContain(f.canary); expect(line).not.toContain(base);
+  expect(JSON.parse(line).request).toEqual({ resource: "project_list", method: "GET", failure: "aborted",
+    response: "2xx", phase: "eligibility", stage: "login-submit" });
+});
+
+it("does not serialize an unrecognized request-stage label", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const request = { url: () => base + "/api/projects", method: () => "GET",
+    failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => null };
+  f.capture.setDiagnosticStage(f.canary); f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  const line = formatCaptureDiagnostic(f.capture.diagnostic());
+  expect(line).not.toContain(f.canary); expect(JSON.parse(line).request.stage).toBeUndefined();
+});
+
+it("reads a diagnostic stage once and never serializes a hostile getter", () => {
+  const canary = secret(); let reads = 0;
+  const request = { get stage() { return ++reads === 1 ? "login-submit" : canary; } };
+  const line = formatCaptureDiagnostic({ request });
+  expect(reads).toBe(1); expect(line).not.toContain(canary);
+  expect(JSON.parse(line).request.stage).toBe("login-submit");
+  expect(formatCaptureDiagnostic({ request: { get stage(): never { throw new Error(canary); } } })).not.toContain(canary);
+});
+
+it("reports the completed failure's label when overlapping failure diagnostics finish out of order", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  let release!: () => void; const held = new Promise<void>((resolve) => { release = resolve; });
+  const older = { url: () => base + "/api/projects", method: () => "GET", failure: () => ({ errorText: "net::ERR_ABORTED" }),
+    response: async () => { await held; return null; } };
+  const newer = { url: () => base + "/api/projects", method: () => "GET", failure: () => ({ errorText: "net::ERR_ABORTED" }),
+    response: async () => null };
+  f.capture.setDiagnosticStage("operator-submit"); f.page.emit("request", older);
+  f.capture.setDiagnosticStage("operator-grant"); f.page.emit("request", newer);
+  f.page.emit("requestfailed", older); f.page.emit("requestfailed", newer);
+  await new Promise<void>((resolve) => setImmediate(resolve)); release();
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  expect(JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic())).request.stage).toBe("operator-grant");
+});
+
+it("leaves a successful labeled request and capture unchanged", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const request = { url: () => base + "/api/projects", method: () => "GET" };
+  f.capture.setDiagnosticStage("login-submit"); f.page.emit("request", request);
+  f.response("/api/projects", []); f.page.emit("requestfinished", request);
+  await f.capture(f.page);
+  expect(f.capture.diagnostic().counters.requests).toBe(0);
+  expect(JSON.parse(formatCaptureDiagnostic(f.capture.diagnostic())).request.stage).toBeUndefined();
+  expect(f.check.verify(["browser-response-headers", "browser-response-bodies"])["browser-response-bodies"]).toEqual({ captures: 1, bytes: 2 });
+});
+
 it("distinguishes response identity from later fallback eligibility without accepting a failed GET", async () => {
   const f = await observer(); f.response(tokenPath, f.tokens);
   let identities = 0;
