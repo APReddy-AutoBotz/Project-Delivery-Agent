@@ -450,7 +450,7 @@ export function ProjectUpdates({
             Choose the complete required-fact set and a current RESPONSIBLE_OWNER. Leave scheduled scanning off unless the separately configured service identity and signing key are deployed.
           </p>
           <form onSubmit={savePolicy} onChangeCapture={() => { draftEpoch.current++; }}>
-            <fieldset disabled={busy}>
+            <fieldset disabled={busy || draftRevision === null}>
             <div className="form-row">
               <TextField
                 label="Freshness window (seconds)"

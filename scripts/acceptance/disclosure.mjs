@@ -37,7 +37,7 @@ const continuationDiagnosticAllowed = {
   page: new Set(["closed", "open"]),
 };
 const requestDiagnosticAllowed = {
-  resource: new Set(["access_grants", "pm_queue", "project", "other"]),
+  resource: new Set(["access_grants", "pm_queue", "project", "identity", "project_list", "project_setup", "other"]),
   method: new Set(["GET", "POST", "DELETE", "other"]),
   failure: new Set(["aborted", "other"]),
   response: new Set(["none", "204", "2xx", "3xx", "4xx", "5xx", "other"]),
@@ -75,12 +75,30 @@ export function formatCaptureDiagnostic(value) {
   }
 }
 export function reportIdentityCaptureDiagnostic(stage, capture, emit = console.error) {
-  if (!["loaded-details-disclosure", "loaded-details-before-click-disclosure", "operator-disclosure", "scalar-proof-disclosure"].includes(stage)) return;
+  if (!["initial-login-disclosure", "foundation-browser-disclosure", "loaded-details-disclosure", "loaded-details-before-click-disclosure", "operator-disclosure", "scalar-proof-disclosure"].includes(stage)) return;
   let result;
   try { result = formatCaptureDiagnostic(capture?.diagnostic?.()); }
   catch { result = formatCaptureDiagnostic(undefined); }
   try { emit((stage === "operator-disclosure" ? "SEC-SECRET-001 operator capture diagnostic " : "SEC-AUTH-001 capture diagnostic ") + result); }
   catch { /* Diagnostics must not replace the original failure. */ }
+}
+
+export async function captureInitialLoginDisclosure(capture, page) {
+  try {
+    await capture(page);
+  } catch (error) {
+    reportIdentityCaptureDiagnostic("initial-login-disclosure", capture);
+    throw error;
+  }
+}
+
+export async function settleFoundationDisclosure(capture, page) {
+  try {
+    await capture.settle(page);
+  } catch (error) {
+    reportIdentityCaptureDiagnostic("foundation-browser-disclosure", capture);
+    throw error;
+  }
 }
 
 // An explicit verifier interaction must not abandon responses still being
@@ -380,6 +398,9 @@ export async function observeBrowserDisclosure(
             if (url.origin === origin) {
               if (url.pathname === "/api/access-grants") diagnostic.resource = "access_grants";
               else if (url.pathname === "/api/pm/action-queue") diagnostic.resource = "pm_queue";
+              else if (url.pathname === "/api/me") diagnostic.resource = "identity";
+              else if (url.pathname === "/api/projects") diagnostic.resource = "project_list";
+              else if (url.pathname === "/api/project-setup") diagnostic.resource = "project_setup";
               else if (/^\/api\/projects\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/scalar-reconciliation-requests(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?)?$/i.test(url.pathname)) diagnostic.resource = "project";
             }
           } catch { /* unavailable */ }

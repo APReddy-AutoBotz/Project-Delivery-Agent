@@ -1,11 +1,13 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { createServer, request as httpRequest, type ServerResponse } from "node:http";
 
-for (const scenario of ["stale", "confirmed", "malformed"] as const) {
+for (const scenario of ["stale", "confirmed", "confirmed-jump", "malformed"] as const) {
 test(`FR-EVD-009: held source-access write ${scenario} outcome`, async ({ browser }) => {
   const upstream = new URL(String(test.info().project.use.baseURL));
   if (upstream.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(upstream.hostname)) throw new Error("Local upstream required");
   const projectId = "30000000-0000-4000-8000-000000000001", sourceId = "a0000000-0000-4000-8000-000000000001";
+  const nextRevision = scenario === "confirmed-jump" ? 7 : 2;
+  const confirmed = scenario === "confirmed" || scenario === "confirmed-jump";
   let held: ServerResponse | undefined, closed = false, postCount = 0, accessReads = 0, arrived!: () => void;
   const postBodies: unknown[] = [], postBearers: Array<string | undefined> = [];
   const entered = new Promise<void>((resolve) => { arrived = resolve; });
@@ -29,7 +31,7 @@ test(`FR-EVD-009: held source-access write ${scenario} outcome`, async ({ browse
         req.on("end", () => { postBodies.push(JSON.parse(body)); held = res;
           res.on("close", () => { if (!res.writableFinished) closed = true; }); arrived(); }); return;
       }
-      accessReads++; return json(200, { sourceId, revision: postCount ? 2 : 1, state: "AVAILABLE", readers: [postCount ? "new-reader" : "old-reader"] });
+      accessReads++; return json(200, { sourceId, revision: postCount ? nextRevision : 1, state: "AVAILABLE", readers: [postCount ? "new-reader" : "old-reader"] });
     }
     if (path.startsWith("/api/")) return json(404, { message: "Unavailable" });
     const proxy = httpRequest({ hostname: upstream.hostname, port: upstream.port, path: req.url, method: req.method,
@@ -84,10 +86,10 @@ test(`FR-EVD-009: held source-access write ${scenario} outcome`, async ({ browse
     }
     expect(closed).toBe(false); expect(postCount).toBe(1);
     held!.writeHead(200, { "Content-Type": "application/json", "x-synthetic-case": "source-post" });
-    held!.end(JSON.stringify({ sourceId: scenario === "malformed" ? "a0000000-0000-4000-8000-000000000099" : sourceId, revision: 2 }));
+    held!.end(JSON.stringify({ sourceId: scenario === "malformed" ? "a0000000-0000-4000-8000-000000000099" : sourceId, revision: nextRevision }));
     await expect.poll(() => page.evaluate(() => Boolean((window as unknown as { sourceEof?: boolean; sourceReleased?: boolean }).sourceEof &&
       (window as unknown as { sourceReleased?: boolean }).sourceReleased))).toBe(true);
-    if (scenario !== "confirmed") {
+    if (!confirmed) {
       await expect(page.getByText("The earlier source access change could not be confirmed.", { exact: false })).toBeVisible();
       await expect(page.getByRole("button", { name: "Save source access" })).toBeDisabled();
       await page.getByRole("button", { name: "Close source readers" }).click();
@@ -96,13 +98,13 @@ test(`FR-EVD-009: held source-access write ${scenario} outcome`, async ({ browse
     }
     await page.getByRole("button", { name: "Manage source readers" }).click();
     await page.getByRole("button", { name: "Review source access" }).click();
-    if (scenario === "confirmed") {
+    if (confirmed) {
       await expect(page.getByRole("button", { name: "Save source access" })).toBeEnabled();
       await page.getByRole("button", { name: "Save source access" }).click();
       await expect.poll(() => postCount).toBe(2);
       await expect.poll(() => postBodies.length).toBe(2);
       expect(postBearers[1]).toBe("Bearer synthetic-token");
-      expect(postBodies[1]).toEqual({ projectId, sourceId, expectedRevision: 2, state: "AVAILABLE", readers: ["new-reader"] });
+      expect(postBodies[1]).toEqual({ projectId, sourceId, expectedRevision: nextRevision, state: "AVAILABLE", readers: ["new-reader"] });
     } else {
       await expect(page.getByText("The earlier source access change could not be confirmed.", { exact: false })).toBeVisible();
       await expect(page.getByRole("button", { name: "Save source access" })).toBeDisabled();

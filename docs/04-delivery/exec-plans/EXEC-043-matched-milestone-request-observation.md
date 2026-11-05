@@ -689,3 +689,47 @@ Synthetic tests do not establish real backend deduplication or authorization,
 complete disclosure-recorder capture, every pre-commit scheduling interleaving,
 or restore behavior. Independent review of the immutable candidate, full
 validation, hosted checks, merge and postmerge evidence remain open.
+
+### PR #164 production-boundary failure and bounded diagnostics
+
+Reviewed candidate `e6c75de86419faad35cc1f9bba182833a2f42323` was published in
+[PR #164](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/164).
+Documentation workflow `41967472776` passed. Foundation workflow `41967472872`
+passed its native integration and recovery steps, but its production-boundary
+job `127047702212` failed at the first post-login disclosure checkpoint. The
+reported recorder counters show two failed tracked requests; the job log does
+not identify their resource, response or failure category, or establish the
+cause. A cancelled navigation, an interrupted response or another transport
+failure are hypotheses only. The Foundation browser workflow finished with
+276 passing and 17 failing tests. The failures include milestone draft
+retention, receipt-capacity synchronization, preview and queue lifecycle tests,
+source-access journeys, reporting-policy journeys, and disclosure checks.
+Their individual causes require evidence; the full Foundation and
+production-boundary acceptance remain required.
+
+A follow-up adds only finite, allowlisted request categories to the existing
+sanitized diagnostic and emits it when that first checkpoint or a Foundation
+browser disclosure checkpoint fails. It keeps
+the original error, request accounting, response capture and fail-closed
+acceptance requirements. It does not authorize retrieving Original19/20
+artifacts or rerunning those stopped captures. No failure is classified as
+resolved, and no story, criterion or release hold is accepted by this record.
+
+The separate local follow-up retains a same-owner milestone draft while a
+current access check hides the view, and rejects a stale edit callback. Focused
+synthetic browser tests cover the retained draft and current edit, selection
+and identity changes. A synchronized 64-receipt denied-capacity test verifies
+that retry does not repeat the reviewed write until the imports view is
+reopened, and then submits the exact original selection. Queue and preview
+tests observe the original response reaching EOF and releasing its reader
+before replacement work. These are local synthetic checks, not evidence of a
+successful hosted rerun, database authorization, or final release acceptance.
+
+The source-access save receipt must report a strictly newer revision for the
+same source; reader triggers can advance that revision more than once. A
+confirmed receipt still causes a fresh authorized history read before content
+is shown. Synthetic browser checks cover a larger revision jump and reject a
+wrong-source receipt; the strengthened real-database journey remains to run.
+The initial reporting-policy form also stays disabled until its current policy
+has populated the draft, including the no-policy case. Focused synthetic
+browser checks cover both initial responses.

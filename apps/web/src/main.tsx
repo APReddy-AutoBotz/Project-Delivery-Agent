@@ -1105,13 +1105,13 @@ function App() {
                     visible={!project.isFetching && !project.isError}
                   />
                   <div id="delivery-structure" tabIndex={-1}>
-                  {project.data && (
+                  {retainedProject && retainedActor && (
                     <CanonicalProjectDetails
-                      key={JSON.stringify([sessionGeneration, me.data?.customerId, me.data?.subject, [...(me.data?.roles ?? [])].sort(), project.data.id])}
-                      id={project.data.id}
-                      leadershipScope={me.data?.roles.includes("leadership") && !me.isFetching && !me.isError && !project.isFetching && !project.isError
-                        ? JSON.stringify([sessionGeneration, me.data.customerId, me.data.subject, [...me.data.roles].sort(), project.data.id]) : undefined}
-                      canInspectMilestoneRequest={Boolean(me.data?.roles.some((role) => ["project_manager", "portfolio_manager", "pmo_admin"].includes(role)))}
+                      key={JSON.stringify([renderedSessionGeneration, selectionEpoch, retainedActor.customerId, retainedActor.subject, [...retainedActor.roles].sort(), retainedProject.id])}
+                      id={retainedProject.id}
+                      leadershipScope={projectVisible && retainedActor.roles.includes("leadership")
+                        ? JSON.stringify([renderedSessionGeneration, retainedActor.customerId, retainedActor.subject, [...retainedActor.roles].sort(), retainedProject.id]) : undefined}
+                      canInspectMilestoneRequest={retainedActor.roles.some((role) => ["project_manager", "portfolio_manager", "pmo_admin"].includes(role))}
                     />
                   )}
                   </div>

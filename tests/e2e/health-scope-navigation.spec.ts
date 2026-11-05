@@ -77,11 +77,20 @@ test("the separate milestone link has keyboard focus and no implicit observation
   const selected = page.getByLabel("Milestone", { exact: true });
   const question = page.getByLabel("Question", { exact: true });
   await selected.selectOption(id(10)); await question.fill("A draft question");
+  await question.evaluate((element) => {
+    const key = Object.keys(element).find((name) => name.startsWith("__reactProps$"));
+    if (!key) throw new Error("Milestone draft handler unavailable");
+    (window as unknown as { oldMilestoneChange: (event: { target: { value: string } }) => void }).oldMilestoneChange =
+      (element as unknown as Record<string, { onChange: (event: { target: { value: string } }) => void }>)[key]!.onChange;
+  });
   try {
     holdStructure = true; await page.evaluate(() => window.dispatchEvent(new Event("focus"))); await entered;
-    await expect(selected).toHaveCount(0); release();
+    await expect(selected).toHaveCount(0);
+    await page.evaluate(() => (window as unknown as { oldMilestoneChange: (event: { target: { value: string } }) => void }).oldMilestoneChange({ target: { value: "Stale draft" } }));
+    release();
     await expect(selected).toHaveValue(id(10)); await expect(question).toHaveValue("A draft question");
   } finally { release(); }
+  await question.fill("Updated current draft"); await expect(question).toHaveValue("Updated current draft");
   await expect(page.getByRole("button", { name: "Run assessment" })).toBeEnabled();
   await page.evaluate(() => {
     const buttons = [...document.querySelectorAll("button")];
@@ -832,12 +841,12 @@ test("policy drafts survive transient access-check errors but not a selection ch
   await field.fill("America/Los_Angeles");
   failProject = true; await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect.poll(() => failures).toBe(1); await expect(field).toHaveCount(0);
-  await expect(page.locator('main.main > p.error[role="alert"]')).toContainText("The request could not be completed.");
+  await expect(page.locator('main.main > div.error[role="alert"]')).toContainText("The request could not be completed.");
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(field).toHaveValue("America/Los_Angeles");
   failIdentity = true; await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect.poll(() => identityFailures).toBe(1); await expect(field).toHaveCount(0);
-  await expect(page.locator('main.main > p.error[role="alert"]')).toContainText("The request could not be completed.");
+  await expect(page.locator('main.main > div.error[role="alert"]')).toContainText("The request could not be completed.");
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(field).toHaveValue("America/Los_Angeles");
   await page.getByRole("button", { name: "← All projects" }).click();

@@ -18,6 +18,7 @@ import {
   createDisclosureCheck,
   readFixtureSecrets,
   observeBrowserDisclosure,
+  captureInitialLoginDisclosure,
   reportIdentityCaptureDiagnostic,
   scanBrowserAssets,
 } from "./disclosure.mjs";
@@ -293,7 +294,7 @@ try {
         await page.evaluate(() => Object.keys(sessionStorage)),
         [],
       );
-      await capture(page);
+      await captureInitialLoginDisclosure(capture, page);
     },
   );
   await check(

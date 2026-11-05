@@ -18,6 +18,8 @@ import {
   rejectLoggedTokens,
   createHostDisclosure,
   formatCaptureDiagnostic,
+  captureInitialLoginDisclosure,
+  settleFoundationDisclosure,
   reportIdentityCaptureDiagnostic,
 } from "../scripts/acceptance/disclosure.mjs";
 
@@ -241,6 +243,76 @@ it("reports only allowlisted failed-request classes without relaxing capture", a
   expect(formatCaptureDiagnostic({ request: { resource: f.canary, method: f.canary, failure: f.canary, response: f.canary, phase: f.canary } })).not.toContain(f.canary);
 });
 
+it("reports a failed initial-login request using only fixed categories", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const request = { url: () => base + "/api/me?private=" + f.canary, method: () => "GET",
+    failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => null };
+  f.page.emit("request", request); f.page.emit("requestfailed", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  const emit = vi.fn(); reportIdentityCaptureDiagnostic("initial-login-disclosure", f.capture, emit);
+  expect(emit).toHaveBeenCalledTimes(1);
+  const line = emit.mock.calls[0]![0] as string;
+  expect(line).not.toContain(base); expect(line).not.toContain(f.canary);
+  expect(JSON.parse(line.slice("SEC-AUTH-001 capture diagnostic ".length)).request).toEqual({
+    resource: "identity", method: "GET", failure: "aborted", response: "none", phase: "identity",
+  });
+});
+
+it("reports and rethrows the original initial-login disclosure failure", async () => {
+  const canary = secret(), original = new Error(canary), page = {};
+  const capture = Object.assign(vi.fn(async () => { throw original; }), {
+    diagnostic: () => ({ phase: "inflight", counters: { requests: 3 }, url: canary, error: canary }),
+  });
+  const emit = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(captureInitialLoginDisclosure(capture, page)).rejects.toBe(original);
+    expect(capture).toHaveBeenCalledExactlyOnceWith(page); expect(emit).toHaveBeenCalledTimes(1);
+    const line = String(emit.mock.calls[0]![0]); expect(line).not.toContain(canary);
+    expect(JSON.parse(line.slice("SEC-AUTH-001 capture diagnostic ".length))).toMatchObject({
+      phase: "inflight", counters: { requests: 2 },
+    });
+  } finally { emit.mockRestore(); }
+});
+
+it("does not emit a diagnostic when the initial-login disclosure succeeds", async () => {
+  const page = {}, capture = vi.fn(async () => {}), emit = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await captureInitialLoginDisclosure(capture, page);
+    expect(capture).toHaveBeenCalledExactlyOnceWith(page); expect(emit).not.toHaveBeenCalled();
+  } finally { emit.mockRestore(); }
+});
+
+it("preserves the foundation settle result and reports only a sanitized failure", async () => {
+  const canary = secret(), original = new Error(canary), page = {};
+  const capture = { settle: vi.fn(async (): Promise<void> => { throw original; }), diagnostic: () => ({ phase: "inflight", counters: { requests: 3 }, url: canary }) };
+  const emit = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(settleFoundationDisclosure(capture, page)).rejects.toBe(original);
+    expect(capture.settle).toHaveBeenCalledExactlyOnceWith(page);
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(String(emit.mock.calls[0]![0])).not.toContain(canary);
+    capture.settle.mockResolvedValueOnce(undefined);
+    await settleFoundationDisclosure(capture, page);
+    expect(emit).toHaveBeenCalledTimes(1);
+  } finally { emit.mockRestore(); }
+});
+
+it("keeps two failed initial-login requests fatal and reports only bounded categories", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  for (const path of ["/api/me", "/api/projects"]) {
+    const request = { url: () => base + path + "?private=" + f.canary, method: () => "GET",
+      failure: () => ({ errorText: "net::ERR_ABORTED" }), response: async () => null };
+    f.page.emit("request", request); f.page.emit("requestfailed", request);
+  }
+  const emit = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(captureInitialLoginDisclosure(f.capture, f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+    expect(emit).toHaveBeenCalledTimes(1);
+    const line = String(emit.mock.calls[0]![0]); expect(line).not.toContain(base); expect(line).not.toContain(f.canary);
+    expect(JSON.parse(line.slice("SEC-AUTH-001 capture diagnostic ".length))).toMatchObject({ counters: { requests: 2 } });
+  } finally { emit.mockRestore(); }
+});
+
 it("distinguishes response identity from later fallback eligibility without accepting a failed GET", async () => {
   const f = await observer(); f.response(tokenPath, f.tokens);
   let identities = 0;
@@ -282,6 +354,10 @@ it("keeps failure closed when request diagnostic getters throw", async () => {
 
 it.each([
   [base + "/api/pm/action-queue?private=canary", "GET", 200, "pm_queue", "GET", "2xx"],
+  [base + "/api/me?private=canary", "GET", 200, "identity", "GET", "2xx"],
+  [base + "/api/projects?private=canary", "GET", 200, "project_list", "GET", "2xx"],
+  [base + "/api/project-setup?private=canary", "GET", 200, "project_setup", "GET", "2xx"],
+  ["https://foreign.invalid/api/me?private=canary", "GET", 200, "other", "GET", "2xx"],
   [base + "/api/projects/11111111-1111-4111-8111-111111111111/scalar-reconciliation-requests/22222222-2222-4222-8222-222222222222", "GET", 404, "project", "GET", "4xx"],
   [base + "/api/projects/project_1/scalar-reconciliation-requests/secret", "GET", 200, "other", "GET", "2xx"],
   [base + "/api/projects/11111111-1111-4111-8111-111111111111/secret", "GET", 200, "other", "GET", "2xx"],

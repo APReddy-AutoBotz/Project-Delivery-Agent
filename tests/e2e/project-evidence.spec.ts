@@ -1588,10 +1588,31 @@ test("GOLDEN-013 / E2E-EVD-003: authority changes show human, stale and conflict
   await page
     .getByRole("button", { name: "Review source access", exact: true })
     .click();
+  const sourcePath = `${f.prefix}/fact-sources/${second.entry.sourceId}/access`;
+  const oldAccessResponse = await f.api("pmo-portfolio", sourcePath);
+  expect(oldAccessResponse.status()).toBe(200);
+  const oldAccess = await oldAccessResponse.json();
+  let accessWrites = 0;
+  page.on("request", (sent) => {
+    if (sent.method() === "POST" && new URL(sent.url()).pathname === `/api${sourcePath}`) accessWrites++;
+  });
+  const savedAccess = page.waitForResponse((response) => response.request().method() === "POST" &&
+    new URL(response.url()).pathname === `/api${sourcePath}`);
   await page
     .getByRole("button", { name: "Save source access", exact: true })
     .click();
+  const savedResponse = await savedAccess;
+  expect(savedResponse.status()).toBe(200);
+  const savedReceipt = await savedResponse.json();
+  expect(savedReceipt.sourceId).toBe(second.entry.sourceId);
+  expect(savedReceipt.revision).toBeGreaterThan(oldAccess.revision + 1);
   await expect(secondEntry).toContainText("Forecast B");
+  const currentAccessResponse = await f.api("pmo-portfolio", sourcePath);
+  expect(currentAccessResponse.status()).toBe(200);
+  const currentAccess = await currentAccessResponse.json();
+  expect(currentAccess.revision).toBe(savedReceipt.revision);
+  expect(currentAccess.readers).toEqual(["leader-atlas", "pm-atlas", "pmo-portfolio"]);
+  expect(accessWrites).toBe(1);
   expect(second.entry.sourceId).toBeTruthy();
   const conflicting = await captureUI(page);
   expect(conflicting.result.status).toBe("CONFLICTING");
@@ -1789,16 +1810,21 @@ test("FR-EVD-009: uncertain source-access replacement requires reload and compar
   await expect(
     page.getByRole("region", { name: "Source reader management", exact: true }),
   ).toContainText("Saved access has changed");
+  await expect(
+    page.getByRole("region", { name: "Source reader management", exact: true }),
+  ).toContainText("Another change is blocked while this page remains loaded.");
   expect(writes).toBe(1);
-  await page
-    .getByRole("button", { name: "Close and reload saved access", exact: true })
-    .click();
+  // An uncertain replacement has no safe same-page replay; a new page must
+  // compare the server's current access before the user chooses another write.
+  await open(page, f.payload.name);
+  await openFact(page);
   await page
     .getByRole("button", { name: "Manage source readers", exact: true })
     .click();
   await expect(
     page.getByLabel("Reader account subjects", { exact: true }),
   ).toHaveValue("leader-atlas\npmo-portfolio");
+  expect(writes).toBe(1);
   await page.screenshot({
     path: "artifacts/evidence-workflow-source-readers.png",
     fullPage: true,

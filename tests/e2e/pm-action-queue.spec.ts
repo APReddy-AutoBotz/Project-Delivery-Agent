@@ -21,6 +21,26 @@ test("EXEC-026: PM queue hides stale or invalid responses across refresh and sig
   const held = new Promise<void>((resolve) => { release = resolve; });
   const entered = new Promise<void>((resolve) => { arrived = resolve; });
   const settled = new Promise<void>((resolve) => { finished = resolve; });
+  await page.addInitScript(() => {
+    const original = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const state = window as Window & { heldQueueEof?: boolean; heldQueueReleased?: boolean; queueDispatches?: Array<{ eof: boolean; released: boolean }> };
+      if (String(input).endsWith("/api/pm/action-queue"))
+        (state.queueDispatches ??= []).push({ eof: Boolean(state.heldQueueEof), released: Boolean(state.heldQueueReleased) });
+      const response = await original(input, init);
+      if (response.headers.get("x-synthetic-held-queue") !== "yes" || !response.body) return response;
+      const getReader = response.body.getReader.bind(response.body);
+      response.body.getReader = (() => {
+        const reader = getReader(), read = reader.read.bind(reader), releaseLock = reader.releaseLock.bind(reader);
+        reader.read = async () => { const result = await read();
+          if (result.done) (window as Window & { heldQueueEof?: boolean }).heldQueueEof = true;
+          return result; };
+        reader.releaseLock = () => { releaseLock(); (window as Window & { heldQueueReleased?: boolean }).heldQueueReleased = true; };
+        return reader;
+      }) as typeof response.body.getReader;
+      return response;
+    };
+  });
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
     if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
@@ -31,7 +51,7 @@ test("EXEC-026: PM queue hides stale or invalid responses across refresh and sig
       queueReads++;
       if (behavior === "held") {
         arrived();
-        try { await held; await route.fulfill({ json: queue }).catch(() => {}); }
+        try { await held; await route.fulfill({ json: queue, headers: { "x-synthetic-held-queue": "yes" } }).catch(() => {}); }
         finally { finished(); }
         return;
       }
@@ -67,12 +87,22 @@ test("EXEC-026: PM queue hides stale or invalid responses across refresh and sig
   try {
     await panel.getByRole("button", { name: "Refresh suggestions" }).click();
     await entered;
+    const readsWithHeldOriginal = queueReads;
     await page.getByRole("button", { name: "Sign out" }).click();
     behavior = "success";
     await page.getByRole("button", { name: /^Project manager / }).click();
+    await expect(panel).toContainText("Suggestions are unavailable");
+    await expect(panel).not.toContainText("Synthetic queue project");
+    expect(queueReads).toBe(readsWithHeldOriginal);
+    release();
+    await settled;
+    await expect.poll(() => page.evaluate(() => Boolean((window as Window & { heldQueueEof?: boolean }).heldQueueEof))).toBe(true);
+    await expect.poll(() => page.evaluate(() => Boolean((window as Window & { heldQueueReleased?: boolean }).heldQueueReleased))).toBe(true);
     await expect(panel).toContainText("New session project");
+    expect(queueReads).toBe(readsWithHeldOriginal + 1);
+    expect(await page.evaluate((previous) => (window as Window & { queueDispatches: Array<{ eof: boolean; released: boolean }> }).queueDispatches.slice(previous), readsWithHeldOriginal))
+      .toEqual([{ eof: true, released: true }]);
   } finally { release(); }
-  await settled;
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(panel).toContainText("New session project");
   await expect(panel).not.toContainText("Synthetic queue project");

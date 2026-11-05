@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import {
   createDisclosureCheck,
   observeBrowserDisclosure,
+  settleFoundationDisclosure,
 } from "../../scripts/acceptance/disclosure.mjs";
 test.beforeAll(async ({ request }) => {
   expect(
@@ -47,11 +48,11 @@ test("FR-EVD-009 / SEC-SECRET-001: expected queue denials finish their original 
     // server's original 404. settle also requires zero failed/unresolved captures.
     // Development sign-in has no OIDC token response; full expiry/disclosure is
     // separately required by the unchanged real-OIDC acceptance workflow.
-    await capture.settle(page);
+    await settleFoundationDisclosure(capture, page);
     await page.clock.fastForward(15001);
     await expect.poll(() => statuses).toEqual([404, 404]);
     await expect.poll(() => finished).toBe(2);
-    await capture.settle(page);
+    await settleFoundationDisclosure(capture, page);
     const reconciliation = page.getByRole("region", {
       name: "Milestone reconciliation",
       exact: true,
@@ -117,11 +118,11 @@ test("FR-EVD-009 / SEC-SECRET-001: sign-out stops protected polling before discl
     await expect(
       page.getByRole("heading", { name: "Delivery structure", exact: true }),
     ).toBeVisible();
-    await capture.settle(page);
+    await settleFoundationDisclosure(capture, page);
     const initial = protectedRequests;
     await page.clock.fastForward(15001);
     await expect.poll(() => protectedRequests).toBeGreaterThan(initial);
-    await capture.settle(page);
+    await settleFoundationDisclosure(capture, page);
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(
       page.getByRole("heading", {
@@ -140,7 +141,7 @@ test("FR-EVD-009 / SEC-SECRET-001: sign-out stops protected polling before discl
     ).toHaveCount(0);
     const signedOut = protectedRequests;
     await page.clock.fastForward(31000);
-    await capture.settle(page);
+    await settleFoundationDisclosure(capture, page);
     expect(protectedRequests).toBe(signedOut);
     await capture.close();
     check.verify(["browser-response-headers", "browser-response-bodies"]);
@@ -173,13 +174,18 @@ test("Revoked project access removes cached project names and details", async ({
         await request.delete("/api/access-grants", { headers, data: grant })
       ).status(),
     ).toBe(204);
+    const deniedProject = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === `/api/projects/${grant.scopeId}` && [403, 404].includes(response.status());
+    });
     await page.clock.fastForward(16000);
     await page.evaluate(() =>
       window.dispatchEvent(new Event("visibilitychange")),
     );
+    expect([403, 404]).toContain((await deniedProject).status());
     await expect(
       page.getByRole("alert").filter({
-        hasText: /^This project is unavailable for your account\.$/,
+        hasText: /Project access could not be established\./,
       }),
     ).toBeVisible();
     await expect(
@@ -213,17 +219,27 @@ for (const bodyDelivery of ["complete", "interrupted", "pending"] as const) {
       // known 401 must clear protected state even if its discarded body fails or
       // never settles. No response body is used to decide the session outcome.
       await page.addInitScript((delivery) => {
-        const read = Response.prototype.arrayBuffer;
-        Response.prototype.arrayBuffer = function () {
-          if (this.status === 401 && this.url.endsWith("/api/projects")) {
-            (
-              window as Window & { denialBodyReadAttempted?: boolean }
-            ).denialBodyReadAttempted = true;
-            return delivery === "interrupted"
-              ? Promise.reject(new TypeError("Synthetic body read failure"))
-              : new Promise<ArrayBuffer>(() => {});
-          }
-          return read.call(this);
+        const original = window.fetch.bind(window);
+        window.fetch = async (input, init) => {
+          const response = await original(input, init);
+          if (response.status !== 401 || !response.url.endsWith("/api/projects") || !response.body) return response;
+          const stream = response.body, getReader = stream.getReader.bind(stream);
+          stream.getReader = (() => {
+            const reader = getReader(), read = reader.read.bind(reader), release = reader.releaseLock.bind(reader);
+            let gated = false;
+            reader.read = async () => {
+              const state = window as Window & { denialBodyReadAttempted?: boolean; denialBodyEof?: boolean; releaseDenialRead?: () => void };
+              state.denialBodyReadAttempted = true;
+              if (delivery === "interrupted") throw new TypeError("Synthetic body read failure");
+              if (!gated) { gated = true; await new Promise<void>((resolve) => { state.releaseDenialRead = resolve; }); }
+              const result = await read();
+              if (result.done) state.denialBodyEof = true;
+              return result;
+            };
+            reader.releaseLock = () => { release(); (window as Window & { denialReaderReleased?: boolean }).denialReaderReleased = true; };
+            return reader;
+          }) as typeof stream.getReader;
+          return response;
         };
       }, bodyDelivery);
     }
@@ -240,30 +256,37 @@ for (const bodyDelivery of ["complete", "interrupted", "pending"] as const) {
         body: '{"message":"Session expired"}',
       }),
     );
-    await page.clock.fastForward(16000);
-    await page.evaluate(() =>
-      window.dispatchEvent(new Event("visibilitychange")),
-    );
-    await expect(
-      page.getByRole("heading", { name: "Welcome to your workspace" }),
-    ).toBeVisible();
-    await expect(page.getByRole("alert")).toContainText(
-      "Your session has ended",
-    );
-    if (bodyDelivery !== "complete")
-      expect(
-        await page.evaluate(
-          () =>
-            (window as Window & { denialBodyReadAttempted?: boolean })
-              .denialBodyReadAttempted,
-        ),
-      ).toBe(true);
-    await expect(
-      page.getByText("Synthetic body read failure", { exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      page.getByRole("button", { name: /Atlas · Customer platform/ }),
-    ).toHaveCount(0);
+    try {
+      await page.clock.fastForward(16000);
+      await page.evaluate(() =>
+        window.dispatchEvent(new Event("visibilitychange")),
+      );
+      await expect(
+        page.getByRole("heading", { name: "Welcome to your workspace" }),
+      ).toBeVisible();
+      await expect(page.getByRole("alert")).toContainText(
+        "Your session has ended",
+      );
+      if (bodyDelivery !== "complete") {
+        await expect.poll(() => page.evaluate(() => Boolean((window as Window & { denialBodyReadAttempted?: boolean }).denialBodyReadAttempted))).toBe(true);
+        if (bodyDelivery === "pending")
+          expect(await page.evaluate(() => Boolean((window as Window & { denialReaderReleased?: boolean }).denialReaderReleased))).toBe(false);
+      }
+      await expect(
+        page.getByText("Synthetic body read failure", { exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: /Atlas · Customer platform/ }),
+      ).toHaveCount(0);
+      if (bodyDelivery === "pending") {
+        await page.evaluate(() => (window as Window & { releaseDenialRead?: () => void }).releaseDenialRead?.());
+        await expect.poll(() => page.evaluate(() => Boolean((window as Window & { denialBodyEof?: boolean }).denialBodyEof))).toBe(true);
+      }
+      if (bodyDelivery !== "complete")
+        await expect.poll(() => page.evaluate(() => Boolean((window as Window & { denialReaderReleased?: boolean }).denialReaderReleased))).toBe(true);
+    } finally {
+      if (bodyDelivery === "pending") await page.evaluate(() => (window as Window & { releaseDenialRead?: () => void }).releaseDenialRead?.()).catch(() => {});
+    }
   });
 }
 test("Project manager can inspect scoped synthetic evidence and sign out", async ({

@@ -19,6 +19,7 @@ import {
 } from "./evidence-state.js";
 import { FactValue } from "./evidence-display.js";
 import { ProjectPolicyWriteRegistry, projectPolicyOwner, sourceAccessWrites } from "./project-policy-write-registry.js";
+import { confirmsSourceAccess } from "./source-access-receipt.js";
 
 const openedAtFactTypePattern =
   /^raid_item\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.opened_at$/;
@@ -575,13 +576,8 @@ export function SourceAccessForm({
     onDenied,
     isCurrent,
     false,
-    { key: writeKey, registry: sourceAccessWrites, confirm: (submitted, result) => {
-      if (!result || typeof result !== "object" || Array.isArray(result)) return false;
-      const saved = result as Record<string, unknown>;
-      return Object.keys(saved).sort().join(",") === "revision,sourceId" && typeof saved.sourceId === "string" &&
-        saved.sourceId.toLowerCase() === source.sourceId.toLowerCase() && Number.isSafeInteger(saved.revision) &&
-        saved.revision === submitted.expectedRevision + 1 && (saved.revision as number) <= 2147483647;
-    } },
+    { key: writeKey, registry: sourceAccessWrites, confirm: (submitted, result) =>
+      confirmsSourceAccess(source.sourceId, submitted.expectedRevision, result) },
   );
   return (
     <section className="evidence-editor" aria-label="Source reader management">

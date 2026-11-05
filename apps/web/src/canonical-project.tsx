@@ -1085,6 +1085,7 @@ export function CanonicalProjectDetails({
 }) {
   const scope = useHealthScope();
   const [milestoneDraft, setMilestoneDraft] = useState({ selected: "", question: "" });
+  const milestoneDraftEpoch = useRef(0), [renderedMilestoneDraftEpoch, setRenderedMilestoneDraftEpoch] = useState(0);
   const result = useQuery({
     queryKey: ["canonical-project", ...scope.key],
     // Preserve the existing canonical response contract; this endpoint has no
@@ -1136,7 +1137,10 @@ export function CanonicalProjectDetails({
           <DateDisplay dates={detail.dates} />
           {leadershipScope && !result.isFetching && !result.isError && <LeadershipMilestoneConflict
             key={leadershipViewScope} projectId={id} scope={leadershipViewScope} request={guardedRequest} reserveRead={scope.reserveRead}
-            selected={milestoneDraft.selected} question={milestoneDraft.question} onDraftChange={setMilestoneDraft}
+            selected={milestoneDraft.selected} question={milestoneDraft.question} onDraftChange={(draft) => {
+              if (!scope.current() || milestoneDraftEpoch.current !== renderedMilestoneDraftEpoch) return;
+              milestoneDraftEpoch.current++; setRenderedMilestoneDraftEpoch(milestoneDraftEpoch.current); setMilestoneDraft(draft);
+            }}
             canInspectRequest={canInspectMilestoneRequest}
             milestones={detail.milestones as { id: string; key: string; name: string }[]}
             workItems={detail.workItems as { id: string; key: string; title: string }[]} />}
