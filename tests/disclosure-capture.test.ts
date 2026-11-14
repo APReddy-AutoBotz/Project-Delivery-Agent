@@ -198,6 +198,60 @@ async function observer(networkEnable: "success" | "failure" | "pending" = "succ
   };
 }
 
+it.each([200, 204])("scans complete original headers for a normally completed %s response", async (status) => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const request = { url: () => base + "/api/example" };
+  const response = { request: () => request, url: request.url, status: () => status, fromServiceWorker: () => false,
+    headersArray: async () => [{ name: "Set-Cookie", value: "proof=" + f.canary }] };
+  f.page.emit("request", request); f.page.emit("response", response); f.page.emit("requestfinished", request);
+  await f.capture(f.page);
+  expect(() => f.check.verify(["browser-response-headers"])).toThrow(/^Secret disclosure detected$/);
+});
+
+it.each(["untracked", "identity", "origin", "url", "worker", "headers", "rejection"])("fails closed when original headers are unavailable: %s", async (fault) => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  const request = { url: () => fault === "origin" ? "https://other.invalid/api/example" : base + "/api/example" };
+  const response = { request: () => fault === "identity" ? {} : request,
+    url: () => fault === "url" ? base + "/api/different" : request.url(), fromServiceWorker: () => fault === "worker",
+    headersArray: async () => { if (fault === "rejection") throw new Error(f.canary); return fault === "headers" ? [{ name: "X", value: null }] : []; } };
+  if (fault !== "untracked") f.page.emit("request", request);
+  f.page.emit("response", response); f.page.emit("requestfinished", request);
+  await expect(f.capture(f.page)).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+  expect(formatCaptureDiagnostic(f.capture.diagnostic())).not.toContain(f.canary);
+});
+
+it("waits for an original header read even after its request finishes", async () => {
+  const f = await observer(); f.response(tokenPath, f.tokens);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const request = { url: () => base + "/api/example" };
+  const response = { request: () => request, url: request.url, fromServiceWorker: () => false, headersArray: async () => {
+    await gate; return [{ name: "Set-Cookie", value: f.canary }];
+  } };
+  f.page.emit("request", request); f.page.emit("response", response); f.page.emit("requestfinished", request);
+  let completed = false;
+  const pending = f.capture(f.page).then(() => { completed = true; });
+  await Promise.resolve(); await Promise.resolve(); expect(completed).toBe(false);
+  release(); await pending;
+  expect(() => f.check.verify(["browser-response-headers"])).toThrow(/^Secret disclosure detected$/);
+});
+
+it("closes the context and fails within the deadline when original headers never settle", async () => {
+  vi.useFakeTimers();
+  try {
+    const f = await observer(); f.response(tokenPath, f.tokens);
+    const closed = vi.spyOn(f.context, "close");
+    const request = { url: () => base + "/api/example" };
+    const response = { request: () => request, url: request.url, fromServiceWorker: () => false,
+      headersArray: async () => new Promise(() => {}) };
+    f.page.emit("request", request); f.page.emit("response", response); f.page.emit("requestfinished", request);
+    const failure = expect(f.capture.close()).rejects.toThrow(/^Browser disclosure capture incomplete$/);
+    await vi.advanceTimersByTimeAsync(10001); await failure;
+    expect(closed).toHaveBeenCalledTimes(1); expect(f.capture.diagnostic().counters.timeout).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
+});
+
 it("reports only fixed, saturated capture diagnostics and preserves the original failure", () => {
   const canary = secret();
   const emit = vi.fn();

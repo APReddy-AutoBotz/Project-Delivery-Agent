@@ -123,7 +123,7 @@ Exact direct dependencies verified against publisher metadata on 2026-09-06. Run
 | [@nestjs/core](https://registry.npmjs.org/%40nestjs%2Fcore/11.2.3)                         | 11.2.3  | MIT          | Runtime     |
 | [@nestjs/platform-express](https://registry.npmjs.org/%40nestjs%2Fplatform-express/11.2.3) | 11.2.3  | MIT          | Runtime     |
 | [@nestjs/swagger](https://registry.npmjs.org/%40nestjs%2Fswagger/11.4.7)                   | 11.4.7  | MIT          | Runtime     |
-| [@playwright/test](https://registry.npmjs.org/%40playwright%2Ftest/1.63.0)                 | 1.63.0  | Apache-2.0   | Development |
+| [@playwright/test](https://registry.npmjs.org/%40playwright%2Ftest/1.65.0) | 1.65.0 | Apache-2.0 | Development; paired browser verification |
 | [@prisma/adapter-pg](https://registry.npmjs.org/%40prisma%2Fadapter-pg/7.10.0)             | 7.10.0  | Apache-2.0   | Runtime     |
 | [@prisma/client](https://registry.npmjs.org/%40prisma%2Fclient/7.10.0)                     | 7.10.0  | Apache-2.0   | Runtime     |
 | [@tailwindcss/vite](https://registry.npmjs.org/%40tailwindcss%2Fvite/4.3.3)                | 4.3.3   | MIT          | Development |

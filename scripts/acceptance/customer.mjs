@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { chromium } from "@playwright/test";
+import { verifyBrowserToolchain } from "./browser-toolchain.mjs";
 import { closeCustomerBrowserSession } from "./customer-session.mjs";
 import {
   exerciseScalarReconciliationWorkflow,
@@ -242,6 +243,7 @@ async function browserCheck(afterUpgrade) {
   );
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   try {
+    console.log("Browser toolchain: " + JSON.stringify(verifyBrowserToolchain(browser)));
     async function login(
       name,
       path = "/",

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { chromium, expect } from "@playwright/test";
+import { verifyBrowserToolchain } from "./browser-toolchain.mjs";
 import { lookup } from "node:dns/promises";
 import {
   loadDatabaseConfig,
@@ -207,6 +208,7 @@ for (;;) {
 }
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 try {
+  console.log("Browser toolchain: " + JSON.stringify(verifyBrowserToolchain(browser)));
   const context = await browser.newContext();
   const capture = await observeBrowserDisclosure(context, base, disclosure);
   const page = await capture.newPage();

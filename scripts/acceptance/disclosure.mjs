@@ -410,6 +410,20 @@ export async function observeBrowserDisclosure(
       requests.add(request); notifyRequests();
     });
     const finished = (request) => { requests.delete(request); notifyRequests(); };
+    // Fetch interception may omit cookie headers on normally completed
+    // responses. Scan the complete headers of the same original response too;
+    // this issues no replacement request and reads no additional body.
+    page.on("response", (response) => {
+      collect("headers", (async () => {
+        const request = response.request(), responseUrl = response.url();
+        if (!requests.has(request) || responseUrl !== request.url() || !origins.includes(new URL(responseUrl).origin) ||
+            response.fromServiceWorker() !== false) throw new Error("Original response headers unavailable");
+        const headers = await response.headersArray();
+        if (!Array.isArray(headers) || headers.some((item) => typeof item?.name !== "string" || typeof item?.value !== "string"))
+          throw new Error("Original response headers unavailable");
+        disclosure.add("browser-response-headers", JSON.stringify(headers));
+      })());
+    });
     page.on("requestfinished", finished);
     page.on("requestfailed", (request) => {
       if (requests.has(request)) collect("requests", (async () => {

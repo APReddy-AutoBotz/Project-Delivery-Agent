@@ -741,3 +741,32 @@ wrong-source receipt; the strengthened real-database journey remains to run.
 The initial reporting-policy form also stays disabled until its current policy
 has populated the draft, including the no-policy case. Focused synthetic
 browser checks cover both initial responses.
+
+The verification toolchain candidate pins `@playwright/test` to stable
+`1.65.0`, with its paired Chromium and headless shell revision 1254
+(158.0.8127.18). The earlier pinned Chromium 153
+can report a failed no-store streaming request despite the page reading to
+EOF, as described in [Playwright issue #42742](https://github.com/microsoft/playwright/issues/42742).
+Local synthetic comparisons observed that discrepancy on the earlier browser
+and completion on newer paired Chromium; they do not prove the cause of the
+hosted failure. This candidate changes the verification toolchain, including
+the separate acceptance image, and requires fresh full checks and independent
+review. The preceding pinned beta passed focused local controls; stable 1.65.0
+is now available and satisfies the existing release-age guard without an
+exclusion. Response no-store, disclosure capture,
+secret scanning and failed-GET rules remain unchanged; no release hold or
+story acceptance is resolved by the candidate.
+
+SEC-SECRET-001 browser controls found that a normally completed 204 response
+can omit `Set-Cookie` from its CDP Fetch header list even though the exact
+original Playwright response exposes that header. The recorder now also scans
+`headersArray()` from every tracked original response, binding its request,
+URL, configured origin and network delivery before awaiting the header read.
+Missing, malformed, rejected or stalled header collection remains fatal.
+The immediate-navigation test retains every body/header canary check and
+counts all six original terminal events for each method; it no longer
+requires the old Chromium 204 abort to occur. Existing failed-204 fallback
+and failed-GET controls remain required. Browser toolchain evidence checks
+the root pin, installed package chain and actual launched browser version in
+the host suite and each standalone acceptance launch; the reported revision
+is installed manifest metadata, not an independently measured binary hash.

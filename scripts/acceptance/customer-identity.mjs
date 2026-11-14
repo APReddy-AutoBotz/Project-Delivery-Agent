@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "@playwright/test";
+import { verifyBrowserToolchain } from "./browser-toolchain.mjs";
 import { Pool, secret } from "./common.mjs";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
 import {
@@ -138,6 +139,7 @@ async function main() {
       { stdio: "pipe" },
     );
     browser = await chromium.launch({ args: ["--no-sandbox"] });
+    console.log("Browser toolchain: " + JSON.stringify(verifyBrowserToolchain(browser)));
     stage = "login";
     const context = await browser.newContext();
     const capture = await observeBrowserDisclosure(
