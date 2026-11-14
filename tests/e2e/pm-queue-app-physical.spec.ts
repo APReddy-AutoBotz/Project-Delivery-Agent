@@ -1,9 +1,9 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { createServer, request as httpRequest, type ServerResponse } from "node:http";
 
-// Synthetic actual-App control: a queue original stays owned across a dirty
+// EXEC-043 / NFR-SEC-001: synthetic actual-App control. A queue original stays owned across a dirty
 // refresh or an identity-driven panel replacement until its reader releases.
-for (const mode of ["dirty-200", "dirty-403", "remount", "stable-render", "stale-row", "stale-view", "stale-aba", "current-401", "dirty-401", "old-session-401"] as const) {
+for (const mode of ["dirty-200", "dirty-403", "remount", "stable-render", "stale-row", "stale-view", "stale-aba", "current-401", "dirty-401", "old-session-401", "timeout-retry", "timeout-remount", "unknown-cleanup"] as const) {
   test(`queue ${mode} retains its held original`, async ({ browser }) => {
     const upstream = new URL(String(test.info().project.use.baseURL));
     if (upstream.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(upstream.hostname)) throw new Error("Local upstream required");
@@ -36,7 +36,7 @@ for (const mode of ["dirty-200", "dirty-403", "remount", "stable-render", "stale
         queueReads++; requests.push({ method: req.method, bearer: req.headers.authorization });
         if (queueReads === 2) {
           held = res; res.on("close", () => { if (!res.writableFinished) prematureClose = true; });
-          if (["dirty-200", "remount", "stable-render", "stale-row", "stale-view", "stale-aba"].includes(mode)) { res.writeHead(200, { "Content-Type": "application/json", "x-queue-original": "held" }); res.flushHeaders(); }
+          if (["dirty-200", "remount", "stable-render", "stale-row", "stale-view", "stale-aba", "timeout-retry", "timeout-remount", "unknown-cleanup"].includes(mode)) { res.writeHead(200, { "Content-Type": "application/json", "x-queue-original": "held" }); res.flushHeaders(); }
           return;
         }
         if (queueReads === 3) { replacement = res; return; }
@@ -52,11 +52,11 @@ for (const mode of ["dirty-200", "dirty-403", "remount", "stable-render", "stale
     try {
       const address = server.address(); if (!address || typeof address === "string") throw new Error("Loopback unavailable");
       context = await browser.newContext();
-      await context.addInitScript(() => {
+      await context.addInitScript((selectedMode) => {
         const original = window.fetch.bind(window);
         window.fetch = async (input, init) => {
           const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-          const state = window as unknown as { queueSignals?: boolean[]; redirects?: Array<RequestRedirect | undefined>; releaseAtDispatch?: boolean[]; acquired?: boolean; eof?: boolean; released?: boolean };
+          const state = window as unknown as { queueSignals?: boolean[]; redirects?: Array<RequestRedirect | undefined>; releaseAtDispatch?: boolean[]; acquired?: boolean; eof?: boolean; released?: boolean; nativeReleased?: boolean; releaseFailed?: boolean };
           if (new URL(url, location.href).pathname === "/api/pm/action-queue") {
             (state.queueSignals ??= []).push(Boolean(init?.signal)); (state.redirects ??= []).push(init?.redirect);
             (state.releaseAtDispatch ??= []).push(Boolean(state.released));
@@ -68,14 +68,22 @@ for (const mode of ["dirty-200", "dirty-403", "remount", "stable-render", "stale
               const reader = getReader(), read = reader.read.bind(reader), release = reader.releaseLock.bind(reader);
               state.acquired = true;
               reader.read = async () => { const result = await read(); if (result.done) state.eof = true; return result; };
-              reader.releaseLock = () => { release(); state.released = true; };
+              reader.releaseLock = () => {
+                release(); state.nativeReleased = true;
+                // Deliberately make completion unconfirmable to the product;
+                // this is an induced reporting failure, not a native defect.
+                if (selectedMode === "unknown-cleanup") { state.releaseFailed = true; throw new Error("Synthetic release confirmation unavailable"); }
+                state.released = true;
+              };
               return reader;
             }) as typeof stream.getReader;
           }
           return response;
         };
-      });
-      const page = await context.newPage(); await page.goto(`http://127.0.0.1:${address.port}`);
+      }, mode);
+      const page = await context.newPage();
+      if (mode.startsWith("timeout-")) await page.clock.install();
+      await page.goto(`http://127.0.0.1:${address.port}`);
       await page.getByRole("button", { name: /^Project manager / }).first().click();
       const panel = page.getByRole("region", { name: "Action suggestions" });
       if (mode === "stale-row" || mode === "stale-view" || mode === "stale-aba") {
@@ -147,6 +155,96 @@ for (const mode of ["dirty-200", "dirty-403", "remount", "stable-render", "stale
         await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         expect(await page.evaluate(() => (window as unknown as { oldQueuePanel: Element }).oldQueuePanel.isConnected)).toBe(true);
         expect(queueReads).toBe(2); expect(logins).toBe(1);
+        return;
+      }
+      if (mode === "timeout-retry" || mode === "timeout-remount") {
+        await expect.poll(() => page.evaluate(() => Boolean((window as unknown as { acquired?: boolean }).acquired))).toBe(true);
+        await page.clock.fastForward(30001);
+        await expect(panel.getByText("Suggestions are unavailable.", { exact: false })).toBeVisible();
+        expect(queueReads).toBe(2); expect(prematureClose).toBe(false);
+        await panel.getByRole("button", { name: "Refresh suggestions" }).click();
+        if (mode === "timeout-remount") {
+          await panel.evaluate((node) => { (window as unknown as { oldQueuePanel: Element }).oldQueuePanel = node; });
+          const before = identities;
+          await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+          await expect.poll(() => identities).toBeGreaterThan(before);
+          await expect.poll(() => page.evaluate(() => !(window as unknown as { oldQueuePanel: Element }).oldQueuePanel.isConnected)).toBe(true);
+          await expect(panel.getByText("Suggestions are unavailable.", { exact: false })).toBeVisible();
+          await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        }
+        const calibrated = await page.evaluate(async () => {
+          const markerText = "Synthetic timed-out queue project";
+          const state = window as unknown as { oldQueueSeen: boolean; oldQueueObserver: MutationObserver };
+          state.oldQueueSeen = false;
+          state.oldQueueObserver = new MutationObserver((records) => {
+            if (records.some((record) => [...record.addedNodes, ...record.removedNodes].some((node) => node.textContent?.includes(markerText)) ||
+                (record.type === "characterData" && (record.oldValue?.includes(markerText) || record.target.textContent?.includes(markerText))))) state.oldQueueSeen = true;
+          });
+          state.oldQueueObserver.observe(document.body, { childList: true, subtree: true, characterData: true, characterDataOldValue: true });
+          const marker = document.createElement("span"); marker.textContent = markerText; document.body.append(marker); marker.remove();
+          await Promise.resolve(); const insertionSeen = state.oldQueueSeen; state.oldQueueSeen = false;
+          const text = document.createTextNode("baseline"); document.body.append(text); await Promise.resolve();
+          text.data = markerText; text.data = "baseline"; await Promise.resolve(); const textSeen = state.oldQueueSeen;
+          text.remove(); await Promise.resolve(); state.oldQueueSeen = false; return insertionSeen && textSeen;
+        });
+        expect(calibrated).toBe(true);
+        expect(queueReads).toBe(2);
+        expect(await page.evaluate(() => Boolean((window as unknown as { eof?: boolean }).eof))).toBe(false);
+        held!.end(freshBody.replace("Synthetic current queue project", "Synthetic timed-out queue project"));
+        await expect.poll(() => page.evaluate(() => {
+          const state = window as unknown as { eof?: boolean; released?: boolean }; return Boolean(state.eof && state.released);
+        })).toBe(true);
+        await expect.poll(() => queueReads).toBe(3);
+        await expect(panel.getByText("Checking assigned projects and current access…")).toBeVisible();
+        await expect(panel.getByText("Synthetic timed-out queue project", { exact: false })).toHaveCount(0);
+        expect(await page.evaluate(() => (window as unknown as { oldQueueSeen: boolean }).oldQueueSeen)).toBe(false);
+        replacement!.writeHead(200, { "Content-Type": "application/json" }); replacement!.end(body);
+        await expect(panel.getByText("No schedule or update suggestions were produced from the available observations.")).toBeVisible();
+        await page.evaluate(() => new Promise<void>((resolve) => queueMicrotask(() => queueMicrotask(resolve))));
+        expect(queueReads).toBe(3); expect(prematureClose).toBe(false);
+        expect(await page.evaluate(() => (window as unknown as { releaseAtDispatch: boolean[] }).releaseAtDispatch)).toEqual([false, false, true]);
+        expect(await page.evaluate(() => {
+          const state = window as unknown as { oldQueueSeen: boolean; oldQueueObserver: MutationObserver; queueSignals: boolean[]; redirects: Array<RequestRedirect | undefined> };
+          state.oldQueueObserver.disconnect();
+          return { stale: state.oldQueueSeen, signals: state.queueSignals, redirects: state.redirects };
+        })).toEqual({ stale: false, signals: [false, false, false], redirects: ["error", "error", "error"] });
+        expect(requests.every((item) => item.method === "GET" && item.bearer === "Bearer queue-synthetic-token")).toBe(true);
+        return;
+      }
+      if (mode === "unknown-cleanup") {
+        await expect.poll(() => page.evaluate(() => Boolean((window as unknown as { acquired?: boolean }).acquired))).toBe(true);
+        held!.end(body);
+        await expect.poll(() => page.evaluate(() => Boolean((window as unknown as { releaseFailed?: boolean }).releaseFailed))).toBe(true);
+        await expect(panel.getByText("Suggestions are unavailable.", { exact: false })).toBeVisible();
+        await panel.getByRole("button", { name: "Refresh suggestions" }).click();
+        await panel.evaluate((node) => { (window as unknown as { oldQueuePanel: Element }).oldQueuePanel = node; });
+        const before = identities;
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await expect.poll(() => identities).toBeGreaterThan(before);
+        await expect.poll(() => page.evaluate(() => !(window as unknown as { oldQueuePanel: Element }).oldQueuePanel.isConnected)).toBe(true);
+        await expect(panel.getByText("Suggestions are unavailable.", { exact: false })).toBeVisible();
+        await panel.getByRole("button", { name: "Refresh suggestions" }).click();
+        await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        expect(queueReads).toBe(2); expect(prematureClose).toBe(false);
+        expect(await page.evaluate(() => {
+          const state = window as unknown as { eof?: boolean; nativeReleased?: boolean; released?: boolean };
+          return { eof: state.eof, nativeReleased: state.nativeReleased, confirmed: Boolean(state.released) };
+        })).toEqual({ eof: true, nativeReleased: true, confirmed: false });
+        expect(await page.evaluate(() => {
+          const state = window as unknown as { queueSignals: boolean[]; redirects: Array<RequestRedirect | undefined> };
+          return { signals: state.queueSignals, redirects: state.redirects };
+        })).toEqual({ signals: [false, false], redirects: ["error", "error"] });
+        // A new document resets the documented page-lifetime bound; prove the
+        // synthetic backend remains live after refresh/remount were blocked.
+        await page.reload(); await page.getByRole("button", { name: /^Project manager / }).first().click();
+        await expect.poll(() => queueReads).toBe(3);
+        replacement!.writeHead(200, { "Content-Type": "application/json" }); replacement!.end(body);
+        await expect(panel.getByText("No schedule or update suggestions were produced from the available observations.")).toBeVisible();
+        expect(await page.evaluate(() => {
+          const state = window as unknown as { queueSignals: boolean[]; redirects: Array<RequestRedirect | undefined> };
+          return { signals: state.queueSignals, redirects: state.redirects };
+        })).toEqual({ signals: [false], redirects: ["error"] });
+        expect(logins).toBe(2); expect(requests.every((item) => item.method === "GET" && item.bearer === "Bearer queue-synthetic-token")).toBe(true);
         return;
       }
       if (mode === "current-401" || mode === "dirty-401" || mode === "old-session-401") {

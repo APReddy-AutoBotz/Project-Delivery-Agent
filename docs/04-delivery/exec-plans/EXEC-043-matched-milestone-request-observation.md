@@ -770,3 +770,25 @@ and failed-GET controls remain required. Browser toolchain evidence checks
 the root pin, installed package chain and actual launched browser version in
 the host suite and each standalone acceptance launch; the reported revision
 is installed manifest metadata, not an independently measured binary hash.
+
+The 2026-11-14 local queue proof follow-up checks the existing production
+owner rather than integrating the historical unwired session prototype.
+`PmActionQueuePanel` already binds publication to the current App identity and
+view, subscribes before its initial read, coalesces capacity wakes and retains
+physical originals across panel replacement. An unwired alternative is not
+itself a product defect or an implementation requirement.
+
+Two additional actual-App loopback modes exercise the configured 30-second
+deadline through the browser clock: explicit refresh while the timed-out
+original is held and identity-driven remount before release. A third mode
+induces a release-confirmation failure. The timeout modes require the original reader's
+EOF/release before one replacement dispatch; a calibrated mutation observer
+rejects transient rendering of a distinct timed-out payload while the
+replacement is held and after it completes. Indeterminate reporting keeps
+the page's queue capacity spent through refresh/remount; a new-document
+positive control proves the fixture backend remains available. Thirteen
+queue modes passed locally with synthetic accounts and the current App source.
+These are finite exercised schedules, not proof of all wake interleavings,
+native cleanup failure, server authorization or disclosure-recorder capture.
+Hosted and immutable-candidate review gates remain open for this follow-up;
+no wider story, GOLDEN-003 scenario or release hold is accepted here.
