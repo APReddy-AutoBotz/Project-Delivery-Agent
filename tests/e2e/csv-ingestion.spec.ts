@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
@@ -10,6 +9,7 @@ const reviewedReceiptId = randomUUID();
 const actor = { subject: "pmo-portfolio", customerId, roles: ["pmo_admin"] };
 const project = {
   id: projectId,
+  portfolioId: "30000000-0000-4000-8000-000000000050",
   code: "CSV-DEMO",
   name: "CSV import demonstration",
   description: "Synthetic project used by the browser workflow.",
@@ -39,11 +39,19 @@ const source = {
 const preview = {
   receipt: {
     id: previewReceiptId,
+    sourceId: "",
+    actor: actor.subject,
     kind: "CSV_PREVIEW",
     rowCount: 3,
     configRevision: 1,
     mappingRevision: 1,
     parentPreviewReceiptId: null,
+    eventId: null,
+    cursorRevisionBefore: null,
+    cursorRevisionAfter: null,
+    generationBefore: null,
+    generationAfter: null,
+    createdAt: "2026-09-06T00:00:00.000Z",
   },
   outcomes: [
     {
@@ -64,7 +72,7 @@ const preview = {
       operation: "NONE",
       errorCodes: ["INVALID_VALUE"],
       projectId,
-      identity: ["spreadsheet:Projects", "b".repeat(64)],
+      identity: null,
       contentAvailable: false,
       proposals: null,
     },
@@ -82,7 +90,7 @@ const preview = {
   ],
 };
 
-test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing facts", async ({ page }) => {
+test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing facts", async ({ page }, testInfo) => {
   let configured = false;
   let configurationBody: Record<string, unknown> | undefined;
   let previewContentType = "";
@@ -100,7 +108,7 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
       return route.fulfill({ json: { token: "synthetic-browser-token" } });
     if (path === "/me") return route.fulfill({ json: actor });
     if (path === "/projects") return route.fulfill({ json: [project] });
-    if (path === "/project-setup") return route.fulfill({ json: { portfolios: [] } });
+    if (path === "/project-setup") return route.fulfill({ json: { truncated: false, portfolios: [] } });
     if (path === "/ingestion/sources")
       return route.fulfill({ json: configured ? [source] : [] });
     if (path === "/ingestion/sources/configuration" && request.method() === "POST") {
@@ -118,7 +126,7 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
       return route.fulfill({ status: 201, json: { receiptId: previewReceiptId, replayed: false, rowCount: 3 } });
     }
     if (path === `/ingestion/sources/${sourceId}/receipts/${previewReceiptId}`)
-      return route.fulfill({ json: preview });
+      return route.fulfill({ json: { ...preview, receipt: { ...preview.receipt, sourceId } } });
     if (path === `/ingestion/sources/${sourceId}/reviewed-imports` && request.method() === "POST") {
       reviewedSelection = request.postDataJSON() as Record<string, unknown>;
       return route.fulfill({ status: 201, json: { receiptId: reviewedReceiptId, parentPreviewReceiptId: previewReceiptId, replayed: false, rowCount: 2 } });
@@ -130,13 +138,14 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
           receipt: {
             ...preview.receipt,
             id: reviewedReceiptId,
+            sourceId,
             kind: "CSV_REVIEWED_IMPORT",
             rowCount: 2,
             parentPreviewReceiptId: previewReceiptId,
           },
           outcomes: preview.outcomes
             .filter((row) => row.ordinal === 1 || row.ordinal === 3)
-            .map((row) => ({ ...row, parentOrdinal: row.ordinal })),
+            .map((row, index) => ({ ...row, ordinal: index + 1, parentOrdinal: row.ordinal })),
         },
       });
     if (/\/facts(?:\/|$)/.test(path) && request.method() !== "GET") factWrites++;
@@ -149,7 +158,7 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
   await expect(page.getByRole("heading", { name: "Review a CSV import" })).toBeVisible();
   await page.getByLabel(/CSV import demonstration/).check();
   await page.getByRole("button", { name: "Create mapping" }).click();
-  await expect(page.getByText("Mapping saved.")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Mapping saved." })).toBeVisible();
   expect(configurationBody).toMatchObject({
     binding: { customerId, sourceId, sourceType: "csv-upload", origin: "https://csv-upload.invalid" },
     projects: [{ projectId, readers: [actor.subject] }],
@@ -190,6 +199,5 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
   await expect(page.getByText("Canonical project facts were not changed.", { exact: true })).toBeVisible();
   expect(reviewedSelection).toMatchObject({ previewReceiptId, rowOrdinals: [1, 3] });
   expect(factWrites).toBe(0);
-  await mkdir("artifacts", { recursive: true });
-  await page.screenshot({ path: "artifacts/csv-reviewed-import.png", fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("csv-reviewed-import.png"), fullPage: true });
 });

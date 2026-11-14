@@ -7,13 +7,11 @@ import { decodeBlockerAge } from "./pm-queue-decoder.js";
 import { createPmQueueResource, type PmQueueResourceState } from "./pm-queue-resource.js";
 
 export function LeadershipBlockerAge({ projectId, scope, request }: { projectId: string; scope: string; request: RequestFn }) {
-  const loader = useRef(request);
   const resource = useRef<ReturnType<typeof createPmQueueResource<BlockerAgeAdvice>> | null>(null);
   const [state, setState] = useState<{ scope: string; value: PmQueueResourceState<BlockerAgeAdvice> }>({ scope, value: { phase: "loading" } });
-  useEffect(() => { loader.current = request; }, [request]);
   useEffect(() => {
     const driver = createPmQueueResource<BlockerAgeAdvice>({
-      load: async (signal) => decodeBlockerAge(await loader.current<unknown>(`/projects/${projectId}/leadership-blocker-age-suggestions`, { signal }), projectId, "leadership"),
+      load: async (signal) => decodeBlockerAge(await request<unknown>(`/projects/${projectId}/leadership-blocker-age-suggestions`, { signal }), projectId, "leadership"),
       publish: (value) => setState({ scope, value }), visible: () => document.visibilityState === "visible",
     });
     resource.current = driver; driver.refresh();
@@ -21,7 +19,7 @@ export function LeadershipBlockerAge({ projectId, scope, request }: { projectId:
     window.addEventListener("focus", revalidate); document.addEventListener("visibilitychange", revalidate);
     return () => { driver.dispose(); if (resource.current === driver) resource.current = null;
       window.removeEventListener("focus", revalidate); document.removeEventListener("visibilitychange", revalidate); };
-  }, [scope, projectId]);
+  }, [scope, projectId, request]);
   const current = state.scope === scope ? state.value : { phase: "loading" as const };
   return <section className="panel space-y-4" aria-labelledby="leadership-blocker-age-heading">
     <div className="flex flex-wrap items-start justify-between gap-4"><div>

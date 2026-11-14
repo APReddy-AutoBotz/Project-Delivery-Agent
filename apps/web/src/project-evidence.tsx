@@ -14,11 +14,13 @@ import type { RequestFn } from "./canonical-project.js";
 import { Button, TextField, Message } from "./components.js";
 import {
   useEvidenceResource,
+  EvidenceAdmissionContext,
   useEvidenceDenial,
   denied,
   evidenceError,
   savedEvidenceLink,
 } from "./evidence-state.js";
+import { bindSessionRequest } from "./session-bound-request.js";
 import {
   HistoryEntry,
   AssessmentView,
@@ -83,6 +85,19 @@ export function ProjectEvidence({
       ),
     `catalogue:${projectId}`,
   );
+  const catalogueTurn = useRef(0), [renderedCatalogueTurn, setRenderedCatalogueTurn] = useState(0);
+  const catalogueNavigation = useRef(0), [renderedCatalogueNavigation, setRenderedCatalogueNavigation] = useState(0);
+  const catalogueTarget = useRef(0), [renderedCatalogueTarget, setRenderedCatalogueTarget] = useState(0);
+  const catalogueAdmissionCurrent = () => catalogue.isCurrent() && catalogueNavigation.current === renderedCatalogueNavigation;
+  const targetAdmissionCurrent = () => catalogueAdmissionCurrent() && catalogueTarget.current === renderedCatalogueTarget;
+  const catalogueActionCurrent = () => targetAdmissionCurrent() && catalogueTurn.current === renderedCatalogueTurn;
+  const advanceCatalogue = (kind: "page" | "target" | "draft") => { catalogueTurn.current++; setRenderedCatalogueTurn(catalogueTurn.current);
+    if (kind === "page") { catalogueNavigation.current++; setRenderedCatalogueNavigation(catalogueNavigation.current); }
+    if (kind === "target") { catalogueTarget.current++; setRenderedCatalogueTarget(catalogueTarget.current); } };
+  const parentAdmission = React.useContext(EvidenceAdmissionContext);
+  const nestedAdmission = React.useMemo(() => parentAdmission && catalogue.data ? Object.freeze({}) : null,
+    [parentAdmission, catalogue.data]);
+  const evidenceRequest = bindSessionRequest(request, catalogueAdmissionCurrent);
   const canAppend = catalogue.last?.canAppend ?? false,
     canConfigure = catalogue.last?.canConfigure ?? false;
   useEffect(() => {
@@ -104,6 +119,7 @@ export function ProjectEvidence({
     void catalogue.refresh();
   }
   function captured(id: string) {
+    if (!catalogue.isCurrent()) return;
     setAssessmentId(id);
     window.history.replaceState({}, "", savedEvidenceLink(projectId, id));
   }
@@ -139,7 +155,8 @@ export function ProjectEvidence({
                 key={fact.factId}
                 className="secondary"
                 onClick={() => {
-                  setKey(fact.factType);
+                  if (!catalogueActionCurrent()) return;
+                  advanceCatalogue(fact.factType !== target ? "target" : "draft"); setKey(fact.factType);
                   setTarget(fact.factType);
                 }}
               >
@@ -152,12 +169,12 @@ export function ProjectEvidence({
           )}
           <div className="actions">
             {after && (
-              <Button onClick={() => setAfter(null)}>
+              <Button onClick={() => { if (catalogueActionCurrent()) { advanceCatalogue("page"); setAfter(null); } }}>
                 First catalogue page
               </Button>
             )}
             {catalogue.data.next && (
-              <Button onClick={() => setAfter(catalogue.data!.next)}>
+              <Button onClick={() => { if (catalogueActionCurrent()) { advanceCatalogue("page"); setAfter(catalogue.data!.next); } }}>
                 Next fact types
               </Button>
             )}
@@ -166,7 +183,7 @@ export function ProjectEvidence({
             className="evidence-target-form"
             onSubmit={(event) => {
               event.preventDefault();
-              setTarget(key);
+              if (catalogueActionCurrent()) { advanceCatalogue(key !== target ? "target" : "draft"); setTarget(key); }
             }}
           >
             <TextField
@@ -175,7 +192,7 @@ export function ProjectEvidence({
               maxLength={96}
               pattern="[a-z][a-z0-9_.\-]*"
               value={key}
-              onChange={(event) => setKey(event.target.value)}
+              onChange={(event) => { if (catalogueActionCurrent()) { advanceCatalogue("draft"); setKey(event.target.value); } }}
               help="For example project.forecast. An unused key opens an empty history after a fresh access check."
             />
             <Button type="submit" className="primary">
@@ -184,12 +201,14 @@ export function ProjectEvidence({
           </form>
         </>
       )}
+      <EvidenceAdmissionContext.Provider value={nestedAdmission}>
       {catalogue.last && target && (
         <EvidenceTarget
           key={`${target}:${generation}`}
           projectId={projectId}
           factType={target}
-          request={request}
+          request={evidenceRequest}
+          isParentCurrent={targetAdmissionCurrent}
           canAppend={canAppend}
           canConfigure={canConfigure}
           visible={visible && catalogue.phase === "ready"}
@@ -203,7 +222,7 @@ export function ProjectEvidence({
         <SavedAssessment
           key={assessmentId}
           projectId={projectId}
-          request={request}
+          request={evidenceRequest}
           assessmentId={assessmentId}
           visible={visible && catalogue.phase === "ready"}
           onRestricted={clearDrafts}
@@ -214,13 +233,14 @@ export function ProjectEvidence({
         <ScalarReconciliationQueue
           key={`scalar-queue:${generation}`}
           projectId={projectId}
-          request={request}
+          request={evidenceRequest}
           visible={visible && catalogue.phase === "ready"}
           canAppend={canAppend}
           generation={scalarGeneration}
           initialRequestId={initialScalarRequestId}
         />
       ) : null}
+      </EvidenceAdmissionContext.Provider>
     </section>
   );
 }
@@ -291,6 +311,7 @@ function EvidenceTarget({
   projectId,
   factType,
   request,
+  isParentCurrent,
   canAppend,
   canConfigure,
   visible,
@@ -300,6 +321,7 @@ function EvidenceTarget({
   onScalarChange,
 }: Props & {
   factType: string;
+  isParentCurrent: () => boolean;
   canAppend: boolean;
   canConfigure: boolean;
   visible: boolean;
@@ -314,9 +336,15 @@ function EvidenceTarget({
     } | null>(null),
     [sourceId, setSourceId] = useState<string | null>(null),
     [generation, setGeneration] = useState(0);
+  const historyTurn = useRef(0), [renderedHistoryTurn, setRenderedHistoryTurn] = useState(0);
+  const historyNavigation = useRef(0), [renderedHistoryNavigation, setRenderedHistoryNavigation] = useState(0);
+  const advanceHistory = (navigate: boolean) => { historyTurn.current++; setRenderedHistoryTurn(historyTurn.current);
+    if (navigate) { historyNavigation.current++; setRenderedHistoryNavigation(historyNavigation.current); } };
   const [captureKey, setCaptureKey] = useState<string | null>(null),
     [captureBusy, setCaptureBusy] = useState(false),
     [captureError, setCaptureError] = useState("");
+  const captureOperation = useRef(false), captureTurn = useRef(0);
+  const renderedCaptureTurn = captureTurn.current;
   const alive = useRef(true);
   useEffect(
     () => () => {
@@ -338,6 +366,12 @@ function EvidenceTarget({
     },
     `target:${projectId}:${factType}`,
   );
+  const parentAdmission = React.useContext(EvidenceAdmissionContext);
+  const nestedAdmission = React.useMemo(() => parentAdmission && resource.data ? Object.freeze({}) : null,
+    [parentAdmission, resource.data]);
+  const historyAdmissionCurrent = () => isParentCurrent() && resource.isCurrent() && historyNavigation.current === renderedHistoryNavigation;
+  const historyActionCurrent = () => historyAdmissionCurrent() && historyTurn.current === renderedHistoryTurn;
+  const targetRequest = bindSessionRequest(request, historyAdmissionCurrent);
   const priorAccess = useRef(new Map<string, string>());
   useEvidenceDenial(resource.phase, resource.error, onDenied);
   useEffect(() => {
@@ -359,20 +393,21 @@ function EvidenceTarget({
   const shown = visible && resource.phase === "ready",
     last = resource.last;
   async function capture() {
-    if (!shown || captureBusy) return;
-    const idempotencyKey = captureKey ?? crypto.randomUUID();
-    setCaptureKey(idempotencyKey);
+    if (!shown || captureBusy || captureOperation.current || captureTurn.current !== renderedCaptureTurn || !historyActionCurrent()) return;
+    captureOperation.current = true; captureTurn.current++;
     setCaptureBusy(true);
     setCaptureError("");
     try {
-      const value = await request<AssessmentDelivery>(
+      const idempotencyKey = captureKey ?? crypto.randomUUID();
+      setCaptureKey(idempotencyKey);
+      const value = await targetRequest<AssessmentDelivery>(
         `/projects/${projectId}/assessments`,
         {
           method: "POST",
           body: JSON.stringify({ projectId, factType, idempotencyKey }),
         },
       );
-      if (alive.current) {
+      if (alive.current && historyAdmissionCurrent()) {
         setCaptureKey(null);
         onCapture(value.assessmentId);
       }
@@ -382,6 +417,7 @@ function EvidenceTarget({
         if (denied(error)) onDenied();
       }
     } finally {
+      captureOperation.current = false;
       if (alive.current) setCaptureBusy(false);
     }
   }
@@ -391,6 +427,7 @@ function EvidenceTarget({
     onSavedCatalogue();
   }
   return (
+    <EvidenceAdmissionContext.Provider value={nestedAdmission}>
     <div className="evidence-target">
       <h3>{shown ? `Fact: ${factType}` : "Fact history"}</h3>
       <ResourceStatus
@@ -406,7 +443,8 @@ function EvidenceTarget({
             <Button
               className="secondary"
               onClick={() => {
-                setCursor(null);
+                if (!historyActionCurrent()) return;
+                advanceHistory(true); setCursor(null);
                 void resource.refresh();
               }}
             >
@@ -425,17 +463,17 @@ function EvidenceTarget({
               key={entry.id}
               entry={entry}
               configure={canConfigure}
-              onSource={setSourceId}
+              onSource={(id) => { if (historyActionCurrent() && id !== sourceId) { advanceHistory(false); setSourceId(id); } }}
             />
           ))}
           <div className="actions">
             {cursor && (
-              <Button onClick={() => setCursor(null)}>
+              <Button onClick={() => { if (historyActionCurrent()) { advanceHistory(true); setCursor(null); } }}>
                 First history page
               </Button>
             )}
             {last.history.next && (
-              <Button onClick={() => setCursor(last.history.next)}>
+              <Button onClick={() => { if (historyActionCurrent()) { advanceHistory(true); setCursor(last.history.next); } }}>
                 Next history page
               </Button>
             )}
@@ -462,7 +500,7 @@ function EvidenceTarget({
                 key={`scalar:${last.history.factId}:${generation}`}
                 projectId={projectId}
                 factId={last.history.factId}
-                request={request}
+                request={targetRequest}
                 visible={shown}
                 onCapture={onCapture}
                 onDenied={onDenied}
@@ -475,7 +513,8 @@ function EvidenceTarget({
                 projectId={projectId}
                 factType={factType}
                 revision={last.history.throughRevision}
-                request={request}
+                request={targetRequest}
+                isCurrent={historyAdmissionCurrent}
                 onSaved={saved}
                 onDenied={onDenied}
               />
@@ -486,7 +525,8 @@ function EvidenceTarget({
                 projectId={projectId}
                 factType={factType}
                 policy={last.policy}
-                request={request}
+                request={targetRequest}
+                isCurrent={historyAdmissionCurrent}
                 onSaved={saved}
                 onDenied={onDenied}
               />
@@ -498,7 +538,8 @@ function EvidenceTarget({
         <SourceEditor
           key={sourceId}
           projectId={projectId}
-          request={request}
+          request={targetRequest}
+          isParentCurrent={historyActionCurrent}
           sourceId={sourceId}
           visible={shown}
           onDenied={onDenied}
@@ -509,17 +550,20 @@ function EvidenceTarget({
         />
       )}
     </div>
+    </EvidenceAdmissionContext.Provider>
   );
 }
 function SourceEditor({
   projectId,
   request,
   sourceId,
+  isParentCurrent,
   visible,
   onDenied,
   onClose,
 }: Props & {
   sourceId: string;
+  isParentCurrent: () => boolean;
   visible: boolean;
   onDenied: () => void;
   onClose: () => void;
@@ -529,6 +573,8 @@ function SourceEditor({
       `/projects/${projectId}/fact-sources/${sourceId}/access`,
     ),
   );
+  const sourceCurrent = () => isParentCurrent() && resource.isCurrent();
+  const sourceRequest = bindSessionRequest(request, sourceCurrent);
   useEvidenceDenial(resource.phase, resource.error, onDenied);
   return (
     <>
@@ -547,7 +593,8 @@ function SourceEditor({
             <SourceAccessForm
               projectId={projectId}
               source={resource.last}
-              request={request}
+              request={sourceRequest}
+              isCurrent={sourceCurrent}
               onSaved={onClose}
               onDenied={onDenied}
               onClose={onClose}

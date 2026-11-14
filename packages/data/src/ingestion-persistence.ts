@@ -2137,7 +2137,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
               operation: ingestionRowOperationSchema.parse(row.operation),
               errorCodes: codes,
               projectId: row.projectId,
-              identity: row.recordKey === null ? null : [row.recordType, row.recordKey],
+              identity: row.recordKey === null || row.recordType === null ? null : [row.recordType, row.recordKey],
               contentAvailable: row.contentAvailable,
               proposals,
             };

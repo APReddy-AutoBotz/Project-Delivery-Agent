@@ -95,7 +95,7 @@ test("escaped source/reply text, explicit unconfirmed receipt, retry key and sig
   await input.fill("<img src=x onerror=window.replyExecuted=true> Unconfirmed forecast.");
   f.fail();
   await page.getByRole("button", { name: "Record response" }).click();
-  await expect(page.getByRole("alert")).toContainText("could not be recorded");
+  await expect(page.getByRole("alert")).toContainText("could not be confirmed");
   await page.getByRole("button", { name: "Record response" }).click();
   await expect(page.getByRole("status")).toContainText("required facts remain unconfirmed");
   expect(f.submissions).toHaveLength(2);
@@ -178,7 +178,9 @@ test("OIDC callback preserves the invitation locator and SDK expiry clears its d
     if (path === `/api/project-update-invitations/${locator}`) {
       expect(route.request().headers().authorization).toBe("Bearer synthetic-oidc-token");
       return json({ requestId: locator, project: { id: locator, code: "SYN", name: "OIDC synthetic delivery" }, stageKind: "REQUEST",
-        expiresAt: new Date(Date.now() + 3600000).toISOString(), body: "Private authenticated request", rawResponseReaders: ["recipient"], responses: [] });
+        dueAt: new Date(Date.now()).toISOString(), capturedAt: new Date(Date.now()).toISOString(),
+        expiresAt: new Date(Date.now() + 3600000).toISOString(), body: "Private authenticated request",
+        requiredFacts: [{ factType: "project.forecast", label: "Forecast" }], rawResponseReaders: ["recipient"], responses: [] });
     }
     return route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
   });

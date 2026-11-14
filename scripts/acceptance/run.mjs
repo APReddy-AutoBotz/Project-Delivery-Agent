@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { chromium, expect } from "@playwright/test";
+import { verifyBrowserToolchain } from "./browser-toolchain.mjs";
 import { lookup } from "node:dns/promises";
 import {
   loadDatabaseConfig,
@@ -18,6 +19,7 @@ import {
   createDisclosureCheck,
   readFixtureSecrets,
   observeBrowserDisclosure,
+  captureInitialLoginDisclosure,
   reportIdentityCaptureDiagnostic,
   scanBrowserAssets,
 } from "./disclosure.mjs";
@@ -206,6 +208,7 @@ for (;;) {
 }
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 try {
+  console.log("Browser toolchain: " + JSON.stringify(verifyBrowserToolchain(browser)));
   const context = await browser.newContext();
   const capture = await observeBrowserDisclosure(context, base, disclosure);
   const page = await capture.newPage();
@@ -226,6 +229,7 @@ try {
       tokenResponse = await response.json();
   });
   async function login(username) {
+    capture.setDiagnosticStage("login-navigation");
     await page.goto(base);
     await capture.settle(page);
     await page
@@ -234,6 +238,7 @@ try {
     await page.locator("#username").fill(username);
     await page.locator("#password").fill(secret("login-password"));
     await capture.settle(page);
+    capture.setDiagnosticStage("login-submit");
     await page.locator("#kc-login").click();
     await page.getByRole("heading", { name: "Your projects" }).waitFor();
   }
@@ -241,6 +246,7 @@ try {
     "Real OIDC code/PKCE login, configured scope, remote JWKS and scoped API read",
     async () => {
       await login("pm-atlas");
+      capture.setDiagnosticStage("login-checks");
       assert.equal(
         authorization.searchParams.get("code_challenge_method"),
         "S256",
@@ -293,7 +299,7 @@ try {
         await page.evaluate(() => Object.keys(sessionStorage)),
         [],
       );
-      await capture(page);
+      await captureInitialLoginDisclosure(capture, page);
     },
   );
   await check(
@@ -374,6 +380,7 @@ try {
   await check(
     "OIDC operator has no implicit project access; restricted DB role writes audited grants",
     async () => {
+      captureOperator.setDiagnosticStage("operator-navigation");
       await op.goto(base);
       await captureOperator.settle(op);
       await op
@@ -382,23 +389,28 @@ try {
       await op.locator("#username").fill("operator");
       await op.locator("#password").fill(secret("login-password"));
       await captureOperator.settle(op);
+      captureOperator.setDiagnosticStage("operator-submit");
       await op.locator("#kc-login").click();
       await op.getByText("No projects are shared with this account").waitFor();
+      captureOperator.setDiagnosticStage("operator-platform");
       await op.getByRole("button", { name: /Platform & access/ }).click();
       await op.getByLabel("Account subject").fill("acceptance-temporary");
       await op
         .getByLabel("Scope identifier")
         .fill("30000000-0000-4000-8000-000000000001");
+      captureOperator.setDiagnosticStage("operator-grant");
       await op.getByRole("button", { name: "Grant access" }).click();
       await op
         .getByRole("status")
         .filter({ hasText: "Grant operation recorded" })
         .waitFor();
+      captureOperator.setDiagnosticStage("operator-revoke");
       await op.getByRole("button", { name: "Revoke access" }).click();
       await op
         .getByRole("status")
         .filter({ hasText: "Revoke operation recorded" })
         .waitFor();
+      captureOperator.setDiagnosticStage("operator-complete");
     },
   );
   try {

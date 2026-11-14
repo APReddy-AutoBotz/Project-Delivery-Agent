@@ -12,9 +12,11 @@ import type {
 import type { RequestFn } from "./canonical-project.js";
 import { Button, TextField, SelectField, Message } from "./components.js";
 import { FactValue } from "./evidence-display.js";
+import { bindSessionRequest } from "./session-bound-request.js";
 import {
   denied,
   evidenceError,
+  EvidenceAdmissionContext,
   useEvidenceResource,
   utcInstant,
   utcNow,
@@ -159,10 +161,12 @@ function BindingForm({
   target,
   onSaved,
   onDenied,
+  isCurrent,
 }: BaseProps & {
   target: ReconciliationContext["targets"][number];
   onSaved: () => void;
   onDenied: () => void;
+  isCurrent: () => boolean;
 }) {
   const [state, setState] = useState("OPEN"),
     [effectiveAt, setEffectiveAt] = useState(utcNow),
@@ -179,7 +183,7 @@ function BindingForm({
     [],
   );
   async function save() {
-    if (!review || busy) return;
+    if (!review || busy || !isCurrent()) return;
     const turn = ++sequence.current;
     setBusy(true);
     setError("");
@@ -188,13 +192,13 @@ function BindingForm({
         method: "POST",
         body: JSON.stringify(review),
       });
-      if (turn === sequence.current) {
+      if (turn === sequence.current && isCurrent()) {
         setReview(null);
         setStatement("");
         onSaved();
       }
     } catch (cause) {
-      if (turn === sequence.current) {
+      if (turn === sequence.current && isCurrent()) {
         setError(evidenceError(cause));
         if (denied(cause)) {
           setReview(null);
@@ -212,6 +216,7 @@ function BindingForm({
       aria-label="Bind canonical state"
       onSubmit={(event) => {
         event.preventDefault();
+        if (!isCurrent()) return;
         setError("");
         try {
           const effective = utcInstant(effectiveAt),
@@ -326,6 +331,7 @@ function MilestoneCheck({
         `/projects/${projectId}/milestones/${milestoneId}/reconciliation-context`,
       ),
   );
+  const contextRequest = bindSessionRequest(request, context.isCurrent);
   function clear() {
     sequence.current++;
     setTargetId(null);
@@ -338,7 +344,7 @@ function MilestoneCheck({
     if (context.phase === "error" && denied(context.error)) clear();
   }, [context.phase, context.error]);
   async function check() {
-    if (busy) return;
+    if (busy || !context.isCurrent()) return;
     const command = pending ?? { idempotencyKey: crypto.randomUUID() },
       turn = ++sequence.current;
     setPending(command);
@@ -346,7 +352,7 @@ function MilestoneCheck({
     setResult(null);
     setError("");
     try {
-      const value = await request<ReconciliationCheckResult>(
+      const value = await contextRequest<ReconciliationCheckResult>(
         `/projects/${projectId}/milestone-reconciliation-checks`,
         {
           method: "POST",
@@ -359,7 +365,7 @@ function MilestoneCheck({
           }),
         },
       );
-      if (turn === sequence.current) {
+      if (turn === sequence.current && context.isCurrent()) {
         setResult(value);
         setPending(null);
         changed();
@@ -414,7 +420,8 @@ function MilestoneCheck({
             <BindingForm
               key={`${target.targetId}:${generation}`}
               projectId={projectId}
-              request={request}
+              request={contextRequest}
+              isCurrent={context.isCurrent}
               target={target}
               onSaved={() => {
                 setGeneration((value) => value + 1);
@@ -496,6 +503,7 @@ function Queue({
       ),
     `reconciliation-queue:${projectId}:${mode}`,
   );
+  const queueRequest = bindSessionRequest(request, queue.isCurrent);
   useEffect(() => {
     if (queue.phase === "error" && denied(queue.error)) {
       sequence.current++;
@@ -504,7 +512,7 @@ function Queue({
     }
   }, [queue.phase, queue.error]);
   async function refreshAssignment(item: ReconciliationRequestSummary) {
-    if (busy) return;
+    if (busy || !queue.isCurrent()) return;
     const command = pending ?? {
         requestId: item.id,
         expectedAssignmentRevision: item.assignment.revision,
@@ -515,11 +523,11 @@ function Queue({
     setBusy(true);
     setError("");
     try {
-      await request<ReconciliationAssignmentResult>(
+      await queueRequest<ReconciliationAssignmentResult>(
         `/projects/${projectId}/reconciliation-requests/${command.requestId}/assignment`,
         { method: "POST", body: JSON.stringify({ projectId, ...command }) },
       );
-      if (turn === sequence.current) {
+      if (turn === sequence.current && queue.isCurrent()) {
         setPending(null);
         void queue.refresh();
       }
@@ -591,7 +599,7 @@ function Queue({
               </p>
               <Assignment item={item} />
               {mode === "recipient" ? (
-                <Button onClick={() => open(item.id)}>Open request</Button>
+                <Button onClick={() => { if (queue.isCurrent()) open(item.id); }}>Open request</Button>
               ) : null}
               {mode === "manage" ? (
                 <Button
@@ -636,6 +644,10 @@ export function MilestoneReconciliation({
     `reconciliation-canonical:${projectId}`,
     () => request<CanonicalProjectDetail>(`/projects/${projectId}/canonical`),
   );
+  const parentAdmission = React.useContext(EvidenceAdmissionContext);
+  const nestedAdmission = React.useMemo(() => parentAdmission && canonical.data ? Object.freeze({}) : null,
+    [parentAdmission, canonical.data]);
+  const canonicalRequest = bindSessionRequest(request, canonical.isCurrent);
   useEffect(() => {
     if (canonical.phase === "error" && denied(canonical.error)) {
       setMilestoneId(null);
@@ -659,6 +671,7 @@ export function MilestoneReconciliation({
         error={canonical.error}
       />
       {canonical.last ? (
+        <EvidenceAdmissionContext.Provider value={nestedAdmission}>
         <div hidden={!visible || !canonical.data}>
           <SelectField
             label="Milestone to check"
@@ -676,7 +689,7 @@ export function MilestoneReconciliation({
             <MilestoneCheck
               key={`${milestoneId}:${generation}`}
               projectId={projectId}
-              request={request}
+              request={canonicalRequest}
               milestoneId={milestoneId}
               changed={() => setQueueGeneration((value) => value + 1)}
             />
@@ -684,9 +697,10 @@ export function MilestoneReconciliation({
           <Queue
             key={`queue:${generation}`}
             projectId={projectId}
-            request={request}
+            request={canonicalRequest}
             refreshGeneration={queueGeneration}
             open={(id) => {
+              if (!canonical.isCurrent()) return;
               setRequestId(id);
               window.history.replaceState(
                 {},
@@ -699,11 +713,12 @@ export function MilestoneReconciliation({
             <Proof
               key={requestId}
               projectId={projectId}
-              request={request}
+              request={canonicalRequest}
               requestId={requestId}
             />
           ) : null}
         </div>
+        </EvidenceAdmissionContext.Provider>
       ) : null}
     </section>
   );

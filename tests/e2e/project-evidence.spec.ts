@@ -597,13 +597,16 @@ test("E2E-HLT-007: PMO saves a project-local overdue policy and sees its canonic
     (response) =>
       response.url().endsWith(f.prefix + "/schedule-health-policy") &&
       response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  // Start consuming the original response as soon as it is observed, even if
+  // the click is still settling while the editor unmounts and revalidates.
+  void savedWait.catch(() => {});
   await policyPanel
     .getByRole("button", { name: "Save project schedule policy", exact: true })
     .click();
   const savedResponse = await savedWait;
-  expect(savedResponse.status()).toBe(200);
-  const savedPolicy = await savedResponse.json();
+  expect(savedResponse.status).toBe(200);
+  const savedPolicy = savedResponse.body;
   expect(savedPolicy).toMatchObject({
     revision: initialPolicy.revision + 1,
     timeZone: "America/Los_Angeles",
@@ -618,11 +621,12 @@ test("E2E-HLT-007: PMO saves a project-local overdue policy and sees its canonic
     (response) =>
       response.url().endsWith(f.prefix + "/health-assessments") &&
       response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void assessmentWait.catch(() => {});
   await panel.getByRole("button", { name: "Run assessment", exact: true }).click();
   const assessmentResponse = await assessmentWait;
-  expect(assessmentResponse.status()).toBe(201);
-  const assessment = await assessmentResponse.json();
+  expect(assessmentResponse.status).toBe(201);
+  const assessment = assessmentResponse.body;
   expect(assessment.ruleRevision).toBe("schedule-health@2+blocker-age@1");
   expect(assessment.input.scheduleHealthPolicy).toMatchObject({
     revision: savedPolicy.revision,
@@ -706,13 +710,14 @@ test("E2E-HLT-003 source-authorized case: visible age uses current human facts a
     (response) =>
       response.url().endsWith("/admin/blocker-age-threshold-policy") &&
       response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void thresholdSaved.catch(() => {});
   await panel
     .getByRole("button", { name: "Save customer threshold", exact: true })
     .click();
   const thresholdResponse = await thresholdSaved;
-  expect(thresholdResponse.status()).toBe(200);
-  const savedPolicy = await thresholdResponse.json();
+  expect(thresholdResponse.status).toBe(200);
+  const savedPolicy = thresholdResponse.body;
   expect(savedPolicy.minimumBlockerAgeDays).toBe(10);
   expect(savedPolicy.auditRetentionHours).toBe(720);
   expect(savedPolicy.revision).toBe((existingPolicy?.revision ?? 0) + 1);
@@ -846,13 +851,14 @@ test("E2E-HLT-003 source-authorized case: visible age uses current human facts a
       response.url().endsWith(
         "/projects/" + f.projectId + "/health-assessments",
       ) && response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void assessmentSaved.catch(() => {});
   await panel
     .getByRole("button", { name: "Run assessment", exact: true })
     .click();
   const assessmentResponse = await assessmentSaved;
-  expect(assessmentResponse.status()).toBe(201);
-  const assessment = await assessmentResponse.json();
+  expect(assessmentResponse.status).toBe(201);
+  const assessment = assessmentResponse.body;
   const blockerAge = assessment.result.blockerAge;
   expect(blockerAge).toMatchObject({
     coverage: "COMPLETE",
@@ -933,13 +939,14 @@ test("E2E-HLT-003 unresolved case: PMO reviews the threshold and incomplete inve
     (response) =>
       response.url().endsWith("/admin/blocker-age-threshold-policy") &&
       response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void thresholdSaved.catch(() => {});
   await panel
     .getByRole("button", { name: "Save customer threshold", exact: true })
     .click();
   const thresholdResponse = await thresholdSaved;
-  expect(thresholdResponse.status()).toBe(200);
-  const savedPolicy = await thresholdResponse.json();
+  expect(thresholdResponse.status).toBe(200);
+  const savedPolicy = thresholdResponse.body;
   expect(savedPolicy.minimumBlockerAgeDays).toBe(10);
   expect(savedPolicy.auditRetentionHours).toBe(720);
   expect(savedPolicy.revision).toBe((existingPolicy?.revision ?? 0) + 1);
@@ -952,13 +959,14 @@ test("E2E-HLT-003 unresolved case: PMO reviews the threshold and incomplete inve
       response.url().endsWith(
         `/projects/${f.projectId}/health-assessments`,
       ) && response.request().method() === "POST",
-  );
+  ).then(async (response) => ({ status: response.status(), body: await response.json() }));
+  void assessmentSaved.catch(() => {});
   await panel
     .getByRole("button", { name: "Run assessment", exact: true })
     .click();
   const assessmentResponse = await assessmentSaved;
-  expect(assessmentResponse.status()).toBe(201);
-  const assessment = await assessmentResponse.json();
+  expect(assessmentResponse.status).toBe(201);
+  const assessment = assessmentResponse.body;
   expect(assessment.result.blockerAge.coverage).toBe("UNASSESSABLE");
   expect(assessment.result.blockerAge.noOpenBlockers).toBeNull();
   expect(assessment.result.blockerAge.unknownCandidateCount).toBeGreaterThan(0);
@@ -1580,10 +1588,31 @@ test("GOLDEN-013 / E2E-EVD-003: authority changes show human, stale and conflict
   await page
     .getByRole("button", { name: "Review source access", exact: true })
     .click();
+  const sourcePath = `${f.prefix}/fact-sources/${second.entry.sourceId}/access`;
+  const oldAccessResponse = await f.api("pmo-portfolio", sourcePath);
+  expect(oldAccessResponse.status()).toBe(200);
+  const oldAccess = await oldAccessResponse.json();
+  let accessWrites = 0;
+  page.on("request", (sent) => {
+    if (sent.method() === "POST" && new URL(sent.url()).pathname === `/api${sourcePath}`) accessWrites++;
+  });
+  const savedAccess = page.waitForResponse((response) => response.request().method() === "POST" &&
+    new URL(response.url()).pathname === `/api${sourcePath}`);
   await page
     .getByRole("button", { name: "Save source access", exact: true })
     .click();
+  const savedResponse = await savedAccess;
+  expect(savedResponse.status()).toBe(200);
+  const savedReceipt = await savedResponse.json();
+  expect(savedReceipt.sourceId).toBe(second.entry.sourceId);
+  expect(savedReceipt.revision).toBeGreaterThan(oldAccess.revision + 1);
   await expect(secondEntry).toContainText("Forecast B");
+  const currentAccessResponse = await f.api("pmo-portfolio", sourcePath);
+  expect(currentAccessResponse.status()).toBe(200);
+  const currentAccess = await currentAccessResponse.json();
+  expect(currentAccess.revision).toBe(savedReceipt.revision);
+  expect(currentAccess.readers).toEqual(["leader-atlas", "pm-atlas", "pmo-portfolio"]);
+  expect(accessWrites).toBe(1);
   expect(second.entry.sourceId).toBeTruthy();
   const conflicting = await captureUI(page);
   expect(conflicting.result.status).toBe("CONFLICTING");
@@ -1781,16 +1810,21 @@ test("FR-EVD-009: uncertain source-access replacement requires reload and compar
   await expect(
     page.getByRole("region", { name: "Source reader management", exact: true }),
   ).toContainText("Saved access has changed");
+  await expect(
+    page.getByRole("region", { name: "Source reader management", exact: true }),
+  ).toContainText("Another change is blocked while this page remains loaded.");
   expect(writes).toBe(1);
-  await page
-    .getByRole("button", { name: "Close and reload saved access", exact: true })
-    .click();
+  // An uncertain replacement has no safe same-page replay; a new page must
+  // compare the server's current access before the user chooses another write.
+  await open(page, f.payload.name);
+  await openFact(page);
   await page
     .getByRole("button", { name: "Manage source readers", exact: true })
     .click();
   await expect(
     page.getByLabel("Reader account subjects", { exact: true }),
   ).toHaveValue("leader-atlas\npmo-portfolio");
+  expect(writes).toBe(1);
   await page.screenshot({
     path: "artifacts/evidence-workflow-source-readers.png",
     fullPage: true,

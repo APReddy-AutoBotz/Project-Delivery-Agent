@@ -33,12 +33,17 @@ const analysisBytes = readFileSync(
 );
 const realPolicy = JSON.parse(policyBytes.toString());
 const realAnalysis = JSON.parse(analysisBytes.toString());
+type NativeRelatedAdvisory = {
+  urls: string[];
+  [key: string]: unknown;
+};
 const nativeEnvelopeProfiles = JSON.parse(
   readFileSync("tests/fixtures/perl-match-envelopes.json", "utf8"),
 ).profiles as Array<{
   oldHash: string;
   newHash: string;
   originalEnvelope: {
+    relatedVulnerabilities: NativeRelatedAdvisory[];
     matchDetails: Array<{
       type: string;
       found: { versionConstraint: string };
@@ -46,6 +51,25 @@ const nativeEnvelopeProfiles = JSON.parse(
     }>;
   };
 }>;
+const referenceRefresh = JSON.parse(
+  readFileSync("tests/fixtures/perl-reference-refresh.json", "utf8"),
+) as {
+  appendedReference: string;
+  profiles: Array<{ type: string; previousHash: string; newHash: string }>;
+};
+function refreshedNativeEnvelope(
+  profile: (typeof nativeEnvelopeProfiles)[number],
+) {
+  const envelope = structuredClone(profile.originalEnvelope);
+  for (const detail of envelope.matchDetails) {
+    detail.found.versionConstraint = "< 5.36.0-7+deb12u4 (deb)";
+    detail.fix = { suggestedVersion: "5.36.0-7+deb12u4" };
+  }
+  envelope.relatedVulnerabilities[0]!.urls.push(
+    referenceRefresh.appendedReference,
+  );
+  return envelope;
+}
 const encode = (v: any) => Buffer.from(JSON.stringify(v));
 function fixture(target = "api", scope = "squashed"): any {
   const layerID = "sha256:" + hash("base");
@@ -209,6 +233,31 @@ describe("Perl architecture evidence (NFR-SEC-010 / AC-MNT-004)", () => {
       expect(restored).toEqual(original);
       expect(profile.originalEnvelope).toEqual(original);
     });
+  for (const profile of nativeEnvelopeProfiles)
+    it(`binds only the reviewed reference append for ${profile.originalEnvelope.matchDetails[0]!.type}`, () => {
+      const amended = refreshedNativeEnvelope(profile);
+      const pin = referenceRefresh.profiles.find(
+        (entry) => entry.type === amended.matchDetails[0]!.type,
+      )!;
+      expect(pin.previousHash).toBe(profile.newHash);
+      expect(amended.relatedVulnerabilities[0]!.urls).toEqual([
+        ...profile.originalEnvelope.relatedVulnerabilities[0]!.urls,
+        "https://cert-portal.siemens.com/productcert/html/ssa-457936.html",
+      ]);
+      expect(
+        hash(canonical(capturePerlMatchEnvelope(amended, realPolicy.rule))),
+      ).toBe(pin.newHash);
+      const restored = structuredClone(amended);
+      restored.relatedVulnerabilities[0]!.urls.pop();
+      expect(
+        hash(canonical(capturePerlMatchEnvelope(restored, realPolicy.rule))),
+      ).toBe(pin.previousHash);
+      for (const detail of restored.matchDetails) {
+        detail.found.versionConstraint = "none (unknown)";
+        delete detail.fix;
+      }
+      expect(restored).toEqual(profile.originalEnvelope);
+    });
   it("maps every exact target/scope/package to the reviewed direct or indirect profile", () => {
     expect(
       nativeEnvelopeProfiles.map((profile) => [
@@ -225,7 +274,22 @@ describe("Perl architecture evidence (NFR-SEC-010 / AC-MNT-004)", () => {
         "22159dfe26671c56ed61b52810f3a3179bd5b001bb984a642ca3b0a332471d6e",
       ],
     ]);
-    let pins = 0;
+    expect(referenceRefresh.profiles).toEqual([
+      {
+        type: "exact-indirect-match",
+        previousHash: nativeEnvelopeProfiles[0]!.newHash,
+        newHash:
+          "44777af41dd30d5176a4d251560ffa971b8b26c5186c30c2dabd20d0d8a5ef7c",
+      },
+      {
+        type: "exact-direct-match",
+        previousHash: nativeEnvelopeProfiles[1]!.newHash,
+        newHash:
+          "ff62847f097d17a0db7a3a2576ca850c9050ebd640bc63a4df3c8d004ca8dea6",
+      },
+    ]);
+    let pins = 0,
+      directPins = 0;
     for (const input of realPolicy.inputs)
       for (const name of input.packageNames) {
         const type =
@@ -234,11 +298,78 @@ describe("Perl architecture evidence (NFR-SEC-010 / AC-MNT-004)", () => {
           (entry) => entry.originalEnvelope.matchDetails[0]!.type === type,
         );
         expect(profile).toBeDefined();
-        expect(input.matchEnvelopes[name]).toBe(profile!.newHash);
+        const refreshed = referenceRefresh.profiles.find(
+          (entry) => entry.type === type,
+        )!;
+        expect(refreshed.previousHash).toBe(profile!.newHash);
+        expect(input.matchEnvelopes[name]).toBe(refreshed.newHash);
+        if (type === "exact-direct-match") directPins++;
         pins++;
       }
     expect(pins).toBe(20);
+    expect(directPins).toBe(4);
   });
+  for (const [name, mutate] of [
+    [
+      "missing references",
+      (related) => {
+        Reflect.deleteProperty(related, "urls");
+      },
+    ],
+    [
+      "old reference list",
+      (related) => {
+        related.urls.pop();
+      },
+    ],
+    [
+      "changed reference",
+      (related) => {
+        related.urls[2] += "/changed";
+      },
+    ],
+    [
+      "reordered references",
+      (related) => {
+        related.urls.reverse();
+      },
+    ],
+    [
+      "duplicate reference",
+      (related) => {
+        related.urls.push(related.urls[2]!);
+      },
+    ],
+    [
+      "additional reference",
+      (related) => {
+        related.urls.push("https://example.invalid/unreviewed");
+      },
+    ],
+    [
+      "unknown related field",
+      (related) => {
+        related.unreviewed = true;
+      },
+    ],
+  ] as Array<[string, (related: NativeRelatedAdvisory) => void]>)
+    for (const profile of nativeEnvelopeProfiles)
+      it(`rejects ${name} on ${profile.originalEnvelope.matchDetails[0]!.type} without regenerating pins`, () => {
+        const f = fixture();
+        const envelope = refreshedNativeEnvelope(profile);
+        // Synthetic material isolates the strict envelope gate; native bindings
+        // are enforced separately by the unchanged native-evidence gate.
+        f.scan.matches = [{ ...f.scan.matches[0], ...envelope }];
+        const pin = referenceRefresh.profiles.find(
+          (entry) => entry.type === envelope.matchDetails[0]!.type,
+        )!;
+        f.policy.inputs[0].matchEnvelopes["perl-base"] = pin.newHash;
+        const expected = structuredClone(f.policy.inputs[0].matchEnvelopes);
+        expect(deriveReviewedPerlRows(f)).toHaveLength(1);
+        mutate(f.scan.matches[0].relatedVulnerabilities[0]);
+        expect(() => deriveReviewedPerlRows(f)).toThrow(/envelope changed/);
+        expect(f.policy.inputs[0].matchEnvelopes).toEqual(expected);
+      });
   for (const [name, mutate] of [
     [
       "obsolete constraint",

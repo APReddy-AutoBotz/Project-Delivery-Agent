@@ -430,10 +430,11 @@ test("SEC-SECRET-001: Chromium captures original responses before immediate navi
   if (!address || typeof address === "string")
     throw new Error("Loopback fixture unavailable");
   const base = "http://127.0.0.1:" + address.port;
-  const failedBodylessRequests = { POST: 0, DELETE: 0 }, fallbackHeaderReads = { POST: 0, DELETE: 0 }, fallbackSawCookie = { POST: false, DELETE: false };
+  const failedBodylessRequests = { POST: 0, DELETE: 0 }, finishedBodylessRequests = { POST: 0, DELETE: 0 };
+  const originalHeaderReads = { POST: 0, DELETE: 0 }, originalSawCookie = { POST: false, DELETE: false };
   try {
-    // Every independent iteration must pass; repeated header cases make the
-    // observed Chromium abort path less sensitive to event scheduling.
+    // Every independent original response and header/body canary must pass.
+    // A fixed browser may finish 204 normally; an old native abort is not required.
     for (const method of ["POST", "DELETE"] as const) for (const inject of ["none", "body", "header", "header", "header", "none"]) {
       emptyMethod = method;
       const emptyPath = method === "DELETE" ? "/api/access-grants" : "/empty";
@@ -445,24 +446,18 @@ test("SEC-SECRET-001: Chromium captures original responses before immediate navi
       const originalNewPage = context.newPage.bind(context);
       context.newPage = async () => {
         const page = await originalNewPage();
-        page.on("request", (request) => {
-          if (request.url() !== base + emptyPath) return;
-          const originalResponse = request.response.bind(request);
-          request.response = async () => {
-            const response = await originalResponse();
-            if (response) {
-              const originalHeaders = response.headersArray.bind(response);
-              response.headersArray = async () => {
-                const headers = await originalHeaders();
-                fallbackHeaderReads[method]++;
-                if (headers.some((entry) => entry.name.toLowerCase() === "set-cookie" && entry.value.includes(canary))) fallbackSawCookie[method] = true;
-                return headers;
-              };
-            }
-            return response;
+        page.on("response", (response) => {
+          if (response.url() !== base + emptyPath || response.status() !== 204 || response.request().method() !== method) return;
+          const originalHeaders = response.headersArray.bind(response);
+          response.headersArray = async () => {
+            const headers = await originalHeaders();
+            originalHeaderReads[method]++;
+            if (headers.some((entry) => entry.name.toLowerCase() === "set-cookie" && entry.value.includes(canary))) originalSawCookie[method] = true;
+            return headers;
           };
         });
         page.on("requestfailed", (request) => { if (request.url() === base + emptyPath) failedBodylessRequests[method]++; });
+        page.on("requestfinished", (request) => { if (request.url() === base + emptyPath) finishedBodylessRequests[method]++; });
         return page;
       };
       const capture = await observeBrowserDisclosure(context, base, check);
@@ -497,9 +492,9 @@ test("SEC-SECRET-001: Chromium captures original responses before immediate navi
       }
     }
     for (const method of ["POST", "DELETE"] as const) {
-      expect(failedBodylessRequests[method]).toBeGreaterThan(0);
-      expect(fallbackHeaderReads[method]).toBeGreaterThan(0);
-      expect(fallbackSawCookie[method]).toBe(true);
+      expect(failedBodylessRequests[method] + finishedBodylessRequests[method]).toBe(6);
+      expect(originalHeaderReads[method]).toBeGreaterThanOrEqual(6);
+      expect(originalSawCookie[method]).toBe(true);
     }
   } finally {
     server.closeAllConnections();

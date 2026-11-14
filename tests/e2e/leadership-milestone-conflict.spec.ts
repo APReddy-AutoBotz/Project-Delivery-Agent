@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 const customerId = "10000000-0000-4000-8000-000000000001";
 const id = (n: number) => `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const project = { id: id(1), code: "CX", name: "Synthetic conflict project", description: "Fixture", reportedStatus: "UNKNOWN" };
+const project = { id: id(1), portfolioId: id(50), code: "CX", name: "Synthetic conflict project", description: "Fixture", reportedStatus: "UNKNOWN" };
 const secondProject = { ...project, id: id(501), code: "CX-2", name: "Second conflict project" };
 const milestones = [{ id: id(2), key: "MS-1", name: "First milestone", state: "COMPLETE" },
   { id: id(3), key: "MS-2", name: "Second milestone", state: "OPEN" }];
@@ -43,7 +43,7 @@ test("milestone observation hides old details when selection, access and session
     window.fetch = (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("leadership-conflict-observation") && init) {
-        const { signal: _signal, ...rest } = init;
+        const rest = { ...init }; delete rest.signal;
         return original(input, rest).then(async (response) => {
           await response.clone().text();
           const instrumented = window as unknown as { observedQuestionTags?: string[] };
@@ -97,6 +97,8 @@ test("milestone observation hides old details when selection, access and session
       return route.fulfill({ json: { ...base, milestoneId: id(3), outcome: "NOT_DETECTED" } }).catch(() => {});
     }
     if (path === "/pm/action-queue") return route.fulfill({ json: { projects: [] } });
+    if (path.endsWith("/health-assessments/latest")) return route.fulfill({ json: null });
+    if (path.endsWith("/facts")) return route.fulfill({ json: { canAppend: false, canConfigure: false, facts: [], next: null } });
     return route.fulfill({ status: 404, json: { message: "Not found" } });
   });
   await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();
@@ -244,7 +246,7 @@ test("dual-role request status uses its own conflict snapshot and hides stale re
     window.fetch = (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("leadership-manager-request-observation") && init) {
-        const { signal: _signal, ...rest } = init;
+        const rest = { ...init }; delete rest.signal;
         return original(input, rest).then((response) => {
           const tag = response.headers.get("x-synthetic-held");
           if (tag && response.body) {
@@ -288,6 +290,10 @@ test("dual-role request status uses its own conflict snapshot and hides stale re
     if (path === "/projects") return route.fulfill({ json: [project] });
     if (path === `/projects/${project.id}`) return route.fulfill({ json: project });
     if (path === `/projects/${project.id}/canonical`) return route.fulfill({ json: detail });
+    if (path === "/admin/blocker-age-threshold-policy") return route.fulfill({ json: null });
+    if (path === `/projects/${project.id}/schedule-health-policy`) return route.fulfill({ json: {
+      revision: 1, timeZone: "UTC", defaultMinimumOverdueDays: 1, targetOverrides: [], changedBy: null, changedAt: null,
+    } });
     if (path.endsWith("/leadership-conflict-observation")) return route.fulfill({ json: conflict });
     if (path.endsWith("/leadership-manager-request-observation")) {
       reads++;
@@ -314,6 +320,8 @@ test("dual-role request status uses its own conflict snapshot and hides stale re
       return route.fulfill({ json: { observation, requestStatus } });
     }
     if (path === "/pm/action-queue") return route.fulfill({ json: { projects: [] } });
+    if (path.endsWith("/health-assessments/latest")) return route.fulfill({ json: null });
+    if (path.endsWith("/facts")) return route.fulfill({ json: { canAppend: false, canConfigure: false, facts: [], next: null } });
     return route.fulfill({ status: 404, json: { message: "Not found" } });
   });
   await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();

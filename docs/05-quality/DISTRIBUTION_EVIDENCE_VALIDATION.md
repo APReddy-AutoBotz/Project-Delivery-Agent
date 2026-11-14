@@ -3,6 +3,56 @@
 Requirements: NFR-SEC-010, NFR-MNT-004, TR-TEST-001/002; AC-MNT-004;
 OPEN_SOURCE_POLICY; STORY-004; Issue #5; ADR-014; EXEC-003.
 
+## Exact Perl reference metadata refresh, 2026-11-14
+
+PR #164 candidate `f5748d1` passed hosted verification (2,582 unit, 335 integration,
+301 browser tests, migration bootstrap and exact 85-table recovery). Its immutable
+production acceptance also passed, including both customer database profiles,
+upgrade and restore. Foundation run `43614047762` nevertheless failed when
+distribution collection rejected the changed related-advisory envelope. No
+successful distribution artifact or merge is attributed to that run.
+
+The observed indirect hash is
+`44777af41dd30d5176a4d251560ffa971b8b26c5186c30c2dabd20d0d8a5ef7c`;
+the previous pin is
+`ccff737b906311180c94021c466c81a276d0235b4ce94e526d515cd6f40359f0`.
+The direct profile changes from
+`22159dfe26671c56ed61b52810f3a3179bd5b001bb984a642ca3b0a332471d6e` to
+`ff62847f097d17a0db7a3a2576ca850c9050ebd640bc63a4df3c8d004ca8dea6`.
+For each normalized profile, the sole changed leaf is
+`relatedVulnerabilities[0].urls[2]`, appending
+`https://cert-portal.siemens.com/productcert/html/ssa-457936.html`.
+
+The retained [primary NVD API response](https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2026-8376)
+is 5,557 bytes, SHA256
+`422097ed2cb04fae581ab06c56980bc6952d5b6308845a39658cd15015ebb3fa`,
+last modified `2026-11-10T13:19:41.447`. Its ordered references corroborate the
+addition. Siemens and [Debian](https://security-tracker.debian.org/tracker/CVE-2026-8376)
+retain the 32-bit prerequisite. Debian still marks u3 vulnerable and u4 fixed;
+this change neither patches Perl nor establishes whole-image safety.
+
+Fresh Windows scans use Grype 0.118.0 from the checksum-pinned archive, a fresh
+validated vulnerability database and the unchanged scanner configuration. API
+and database scans on retained ordinary PR #49 SBOMs produce the exact two hashes
+and five selected occurrences; unchanged pure report validation, selected
+advisory/artifact checks and package/file/layer facts pass. Independent non-author
+reviews corroborated those results. The separate fixture records input/output,
+raw match and scope-facts hashes. These local historical-image scans corroborate
+the profiles; they are distinct from the failed Linux runner's unavailable raw
+inputs and from new candidate image evidence.
+
+The amendment changes only 20 exact policy pins (16 indirect, four direct) across
+eight existing target/scope inputs. The original fixture and previous fix-refresh
+regressions remain. New controls verify the exact append and reversible old/new
+hashes, every policy binding, and rejection of missing, old, changed, reordered,
+duplicate or additional references and unknown related fields without regenerating
+expected hashes. Matcher, normalizer, proof scope, raw findings and all five
+release holds remain unchanged. Focused tests, immutable candidate review, fresh
+full CI and complete trusted artifact replay remain required before merge.
+Local focused validation passed 313 tests across the Perl, gosu, distribution and
+Node supplemental suites, with architecture and documentation checks passing.
+These checks do not replace the pending full hosted and artifact gates.
+
 ## Matched Perl package architecture, 2026-09-09
 
 Schema 11 requires 87 files, including the new policy and static analysis. The

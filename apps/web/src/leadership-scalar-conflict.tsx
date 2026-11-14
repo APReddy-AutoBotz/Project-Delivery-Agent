@@ -2,51 +2,58 @@ import React, { useEffect, useRef, useState } from "react";
 import type { FactCatalogue, ScalarConflictObservation } from "@pdaa/domain";
 import { decodeScalarCatalogue, decodeScalarConflict } from "./scalar-conflict-decoder.js";
 import { Button, Message } from "./components.js";
-import { createPmQueueResource, type PmQueueResourceState } from "./pm-queue-resource.js";
+import { createPmQueueResource, type PmQueueResourceState, type ReadReserve } from "./pm-queue-resource.js";
 
 type RequestFn = <T>(path: string, init?: RequestInit) => Promise<T>;
-type Props = { projectId: string; scope: string; request: RequestFn };
+type Props = { projectId: string; scope: string; request: RequestFn; reserveRead: ReadReserve; isCurrentScope: () => boolean };
 const maxPageBoundaries = 200;
 
-export function LeadershipScalarConflict({ projectId, scope, request }: Props) {
-  const loader = useRef(request), resource = useRef<ReturnType<typeof createPmQueueResource<FactCatalogue>> | null>(null);
+export function LeadershipScalarConflict({ projectId, scope, request, reserveRead, isCurrentScope }: Props) {
+  const resource = useRef<ReturnType<typeof createPmQueueResource<FactCatalogue>> | null>(null);
+  const publication = useRef(0), currentPage = useRef("");
   const [navigation, setNavigation] = useState<{ scope: string; projectId: string; after: string | null; visited: string[]; generation: number }>({ scope, projectId, after: null, visited: [], generation: 0 });
   const sameScope = navigation.scope === scope && navigation.projectId === projectId;
   const after = sameScope ? navigation.after : null;
   const visited = sameScope ? navigation.visited : [];
   const pageScope = JSON.stringify([scope, projectId, after, navigation.generation]);
   const [state, setState] = useState<{ scope: string; value: PmQueueResourceState<FactCatalogue> }>({ scope: pageScope, value: { phase: "loading" } });
-  useEffect(() => { loader.current = request; }, [request]);
+  currentPage.current = pageScope;
+  const renderedPublication = publication.current;
+  const isCurrentPage = () => isCurrentScope() && currentPage.current === pageScope && publication.current === renderedPublication;
   useEffect(() => {
+    const requestAtMount = request;
     const driver = createPmQueueResource<FactCatalogue>({
+      reserve: reserveRead,
       load: async (signal) => {
         const query = after === null ? "" : `?afterFactType=${encodeURIComponent(after)}`;
-        return decodeScalarCatalogue(await loader.current<unknown>(`/projects/${projectId}/facts${query}`, { signal }), after, visited);
-      }, publish: (value) => setState({ scope: pageScope, value }), visible: () => document.visibilityState === "visible",
+        return decodeScalarCatalogue(await requestAtMount<unknown>(`/projects/${projectId}/facts${query}`, { signal }), after, visited);
+      }, publish: (value) => { publication.current++; setState({ scope: pageScope, value }); }, visible: () => document.visibilityState === "visible",
     });
     resource.current = driver; driver.refresh();
     const revalidate = () => { if (document.visibilityState === "visible") driver.refresh(); };
     window.addEventListener("focus", revalidate); document.addEventListener("visibilitychange", revalidate);
-    return () => { driver.dispose(); if (resource.current === driver) resource.current = null;
+    return () => { publication.current++; driver.dispose(); if (resource.current === driver) resource.current = null;
       window.removeEventListener("focus", revalidate); document.removeEventListener("visibilitychange", revalidate); };
   }, [scope, projectId, after, pageScope]);
   const current = state.scope === pageScope ? state.value : { phase: "loading" as const };
   return <section className="canonical-section" aria-labelledby="scalar-conflict-heading">
     <h3 id="scalar-conflict-heading">Check a date disagreement</h3>
     <p className="muted">Select a project fact to check for a current disagreement between authorized sources. This check does not settle the disagreement or create a request.</p>
-    <Button className="secondary" onClick={() => resource.current?.refresh()}>Refresh fact list</Button>
+    <Button className="secondary" onClick={() => { if (isCurrentPage()) resource.current?.refresh(); }}>Refresh fact list</Button>
     {current.phase === "loading" && <p role="status">Checking the fact list and access…</p>}
     {current.phase === "error" && <Message error>The fact list is unavailable. Refresh to check current access.</Message>}
-    {current.phase === "error" && after !== null && <Button className="secondary" onClick={() => setNavigation((prior) => ({
+    {current.phase === "error" && after !== null && <Button className="secondary" onClick={() => { if (!isCurrentPage()) return; publication.current++; setNavigation((prior) => ({
       scope, projectId, after: null, visited: [], generation: prior.generation + 1,
-    }))}>First fact page</Button>}
+    })); }}>First fact page</Button>}
     {current.phase === "ready" && <>
       <FactSelection key={`${pageScope}:${current.data.facts.map((row) => row.factId).join(":")}`}
-        projectId={projectId} scope={pageScope} request={request} catalogue={current.data} after={after} />
+        projectId={projectId} scope={pageScope} request={request} reserveRead={reserveRead} isCurrentScope={isCurrentScope} catalogue={current.data} after={after} isCurrentPage={isCurrentPage} />
       {!current.data.facts.length && <p>No facts on this catalogue page.</p>}
       <div className="actions">
-        {after !== null && <Button className="secondary" onClick={() => setNavigation((prior) => ({ scope, projectId, after: null, visited: [], generation: prior.generation + 1 }))}>First fact page</Button>}
+        {after !== null && <Button className="secondary" onClick={() => { if (!isCurrentPage()) return; publication.current++; setNavigation((prior) => ({ scope, projectId, after: null, visited: [], generation: prior.generation + 1 })); }}>First fact page</Button>}
         {current.data.next !== null && visited.length < maxPageBoundaries && <Button className="secondary" onClick={() => {
+          if (!isCurrentPage()) return;
+          publication.current++;
           const next = current.data.next!;
           setNavigation((prior) => ({ scope, projectId, after: next,
             visited: [...(prior.scope === scope && prior.projectId === projectId ? prior.visited : []), next], generation: prior.generation + 1 }));
@@ -58,32 +65,37 @@ export function LeadershipScalarConflict({ projectId, scope, request }: Props) {
   </section>;
 }
 
-function FactSelection({ projectId, scope, request, catalogue, after }: Props & { catalogue: FactCatalogue; after: string | null }) {
+function FactSelection({ projectId, scope, request, reserveRead, isCurrentScope, catalogue, after, isCurrentPage }: Props & { catalogue: FactCatalogue; after: string | null; isCurrentPage: () => boolean }) {
   const [selected, setSelected] = useState(""), [generation, setGeneration] = useState(0), [submitted, setSubmitted] = useState<number | null>(null);
+  const selectionVersion = useRef(0), [renderedSelection, setRenderedSelection] = useState(0);
+  const currentSelection = () => isCurrentPage() && selectionVersion.current === renderedSelection;
+  const advanceSelection = () => { selectionVersion.current++; setRenderedSelection(selectionVersion.current); };
   const target = catalogue.facts.find((row) => row.factId === selected);
   return <>
     <label htmlFor="scalar-conflict-select">Project fact</label>{" "}
     <select id="scalar-conflict-select" value={target?.factId ?? ""} onChange={(event) => {
-      setSubmitted(null); setGeneration((value) => value + 1); setSelected(event.target.value);
+      if (!currentSelection()) return;
+      advanceSelection(); setSubmitted(null); setGeneration((value) => value + 1); setSelected(event.target.value);
     }}>
       <option value="">Select a fact</option>
       {catalogue.facts.map((row) => <option key={row.factId} value={row.factId}>{row.factType}</option>)}
     </select>
-    <Button className="secondary" disabled={!target} onClick={() => { setGeneration((value) => value + 1); setSubmitted(generation + 1); }}>Check disagreement</Button>
+    <Button className="secondary" disabled={!target} onClick={() => { if (!currentSelection()) return; advanceSelection(); setGeneration((value) => value + 1); setSubmitted(generation + 1); }}>Check disagreement</Button>
     {target && submitted !== null && <ScalarObservation key={`${scope}:${target.factId}:${submitted}`} projectId={projectId}
-      scope={`${scope}:${target.factId}:${submitted}`} factId={target.factId} factType={target.factType} after={after} request={request} />}
+      scope={`${scope}:${target.factId}:${submitted}`} factId={target.factId} factType={target.factType} after={after} request={request} reserveRead={reserveRead} isCurrentScope={isCurrentScope} />}
   </>;
 }
 
-function ScalarObservation({ projectId, scope, request, factId, factType, after }: Props & { factId: string; factType: string; after: string | null }) {
-  const loader = useRef(request), resource = useRef<ReturnType<typeof createPmQueueResource<ScalarConflictObservation>> | null>(null);
+function ScalarObservation({ projectId, scope, request, reserveRead, factId, factType, after }: Props & { factId: string; factType: string; after: string | null }) {
+  const resource = useRef<ReturnType<typeof createPmQueueResource<ScalarConflictObservation>> | null>(null);
   const [state, setState] = useState<{ scope: string; value: PmQueueResourceState<ScalarConflictObservation> }>({ scope, value: { phase: "loading" } });
-  useEffect(() => { loader.current = request; }, [request]);
   useEffect(() => {
+    const requestAtMount = request;
     const driver = createPmQueueResource<ScalarConflictObservation>({
+      reserve: reserveRead,
       load: async (signal) => {
         const query = after === null ? "" : `?afterFactType=${encodeURIComponent(after)}`;
-        return decodeScalarConflict(await loader.current<unknown>(
+        return decodeScalarConflict(await requestAtMount<unknown>(
           `/projects/${projectId}/fact-observations/${factId}/leadership-conflict${query}`, { signal }), projectId, factId, factType);
       }, publish: (value) => setState({ scope, value }), visible: () => document.visibilityState === "visible",
     });

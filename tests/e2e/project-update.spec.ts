@@ -138,7 +138,7 @@ test("AC-HLT-002: existing evidence without authority stays unconfirmed in saved
   );
   expect(latestResponse.status()).toBe(200);
   expect((await latestResponse.json()).completeness).toEqual(view.completeness);
-  await open(page, f.payload.name);
+  await open(page, f.payload.name, "1");
   const panel = page.getByRole("region", {
     name: "Project update freshness and completeness",
     exact: true,
@@ -190,7 +190,7 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   expect(historyBefore.entries[0].content.effectiveAt).toBe(f.effectiveAt);
   const observedAt = historyBefore.entries[0].content.observedAt;
 
-  await open(page, f.payload.name);
+  await open(page, f.payload.name, "");
   const panel = page.getByRole("region", {
     name: "Project update freshness and completeness",
     exact: true,
@@ -342,7 +342,7 @@ test("E2E-UPD-001: source-authorized stale assessment persists a value-free requ
   );
   expect(JSON.stringify(incomplete.preview)).not.toContain("First synthetic forecast");
 
-  await open(page, f.payload.name);
+  await open(page, f.payload.name, "1");
   const persisted = page.getByRole("region", {
     name: "Project update freshness and completeness",
     exact: true,
@@ -449,7 +449,7 @@ test("E2E-ADM-002: an administrator previews revision-pinned reminders without d
   });
   expect(managerGrant.status()).toBe(204);
 
-  await open(page, f.payload.name);
+  await open(page, f.payload.name, "");
   const panel = page.getByRole("region", {
     name: "Project update freshness and completeness",
     exact: true,
@@ -644,11 +644,10 @@ async function runScheduledProjectUpdateScan(
   });
 }
 
-async function open(page: Page, name: string) {
+async function open(page: Page, name: string, expectedFreshness: string) {
   await page.goto("/");
   await page.getByRole("button", { name: /^PMO administrator / }).click();
-  // The policy query hydrates controlled form fields. Finish that initial load
-  // before a journey edits them, rather than racing its state initialization.
+  // Wait for the original policy response and the form's hydrated state.
   const policyLoaded = page.waitForResponse(
     (response) =>
       response.request().method() === "GET" &&
@@ -660,5 +659,10 @@ async function open(page: Page, name: string) {
   await expect(page.getByRole("heading", { name: "Project evidence", exact: true })).toBeVisible();
   const policyResponse = await policyLoaded;
   expect(policyResponse.status()).toBe(200);
-  await policyResponse.finished();
+  const panel = page.getByRole("region", { name: "Project update freshness and completeness", exact: true });
+  const summary = panel.getByText("Reporting policy · PMO administration", { exact: true });
+  await summary.click();
+  await expect(panel.getByLabel("Freshness window (seconds)", { exact: true })).toBeEnabled();
+  await expect(panel.getByLabel("Freshness window (seconds)", { exact: true })).toHaveValue(expectedFreshness);
+  await summary.click();
 }
