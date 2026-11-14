@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "advisoryId": "CVE-2026-8376",
+  "source": {
+    "url": "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2026-8376",
+    "sha256": "422097ed2cb04fae581ab06c56980bc6952d5b6308845a39658cd15015ebb3fa",
+    "bytes": 5557,
+    "lastModified": "2026-11-10T13:19:41.447"
+  },
+  "appendedReference": "https://cert-portal.siemens.com/productcert/html/ssa-457936.html",
+  "profiles": [
+    {
+      "type": "exact-indirect-match",
+      "previousHash": "ccff737b906311180c94021c466c81a276d0235b4ce94e526d515cd6f40359f0",
+      "newHash": "44777af41dd30d5176a4d251560ffa971b8b26c5186c30c2dabd20d0d8a5ef7c"
+    },
+    {
+      "type": "exact-direct-match",
+      "previousHash": "22159dfe26671c56ed61b52810f3a3179bd5b001bb984a642ca3b0a332471d6e",
+      "newHash": "ff62847f097d17a0db7a3a2576ca850c9050ebd640bc63a4df3c8d004ca8dea6"
+    }
+  ],
+  "evidenceBoundary": "Fresh pinned Windows Grype scans of retained ordinary PR49 SBOMs corroborate both profiles. They are neither raw scans from failed run 43614047762 nor current candidate image evidence. Fresh candidate CI must rebind all 20 occurrences in all eight target/scope inputs.",
+  "diagnosticScans": [
+    {
+      "target": "api",
+      "scope": "squashed",
+      "tool": "0.118.0",
+      "inputSbomSha256": "a82cf6465fd0f197ef9360f1263fc01f56669fce70b775790ef63301dc13981e",
+      "scanSha256": "aa4ff29c1ddaf6d3040c13f56422707d969fb3b746ec5eecf73261d1d90e458c",
+      "scopeFactsSha256": "60a2ebce974cba7f45bf2ba2797a94ae98d932d5fe0ddbd92221847cc12d2d07",
+      "selected": [
+        {
+          "index": 5,
+          "package": "perl-base",
+          "type": "exact-indirect-match",
+          "rawMatchSha256": "2a7bc195ba59772dbc3834191ed9d3e352dd4649d0d0b85610c9daa9850f8995",
+          "envelopeSha256": "44777af41dd30d5176a4d251560ffa971b8b26c5186c30c2dabd20d0d8a5ef7c"
+        }
+      ]
+    },
+    {
+      "target": "database",
+      "scope": "squashed",
+      "tool": "0.118.0",
+      "inputSbomSha256": "ba5cfb0a8af4aa59f7ebab5440e7c66d77ed457acc8a189de93cf45925be92f2",
+      "scanSha256": "e1da1cff79bf4759e85c4d99726810de79dc8d004407bf42feadbb7ad31f2363",
+      "scopeFactsSha256": "c2e2fd2caa3df918259c7d1a9dcb077d6f82873afa2ee320416358b647d580bf",
+      "selected": [
+        {
+          "index": 46,
+          "package": "libperl5.36",
+          "type": "exact-indirect-match",
+          "rawMatchSha256": "cdefd6fb855443736eff9672da2a5bbc35948f3b3be5298cf932b6ad158e2639",
+          "envelopeSha256": "44777af41dd30d5176a4d251560ffa971b8b26c5186c30c2dabd20d0d8a5ef7c"
+        },
+        {
+          "index": 47,
+          "package": "perl",
+          "type": "exact-direct-match",
+          "rawMatchSha256": "918f4e0105866ffa6c9bb8288d0e0d2a7600bb1a6cfeec77cf378b90988ca761",
+          "envelopeSha256": "ff62847f097d17a0db7a3a2576ca850c9050ebd640bc63a4df3c8d004ca8dea6"
+        },
+        {
+          "index": 48,
+          "package": "perl-base",
+          "type": "exact-indirect-match",
+          "rawMatchSha256": "13ad53062451368cdf7feef2b9657d8d324df9c1d66a5594ca136fe3c75dcd55",
+          "envelopeSha256": "44777af41dd30d5176a4d251560ffa971b8b26c5186c30c2dabd20d0d8a5ef7c"
+        },
+        {
+          "index": 49,
+          "package": "perl-modules-5.36",
+          "type": "exact-indirect-match",
+          "rawMatchSha256": "5269d9db378d33d0d6e3da4c22aa2ca9c26b45f19f2980c4fa27a398af8d33fd",
+          "envelopeSha256": "44777af41dd30d5176a4d251560ffa971b8b26c5186c30c2dabd20d0d8a5ef7c"
+        }
+      ]
+    }
+  ]
+}

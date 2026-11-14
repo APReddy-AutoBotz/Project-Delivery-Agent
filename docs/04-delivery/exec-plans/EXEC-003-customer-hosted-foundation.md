@@ -23,6 +23,18 @@ roles; backup/recovery; dependency/license/notices/SBOM and image-scan gates.
 
 ### Current increment: exact Perl package architecture evidence
 
+The 2026-11-14 follow-up addresses PR #164's distribution metadata failure after
+successful packaged acceptance. Independent design/evidence review confirms one
+appended Siemens URL in the related NVD advisory and unchanged package, material,
+selected advisory and fix semantics. Under ADR-014, amend only the 16 indirect
+and four direct envelope pins. Preserve the historical fixture and add a separate
+source/scan receipt with strict reference-mutation regressions. The matcher and
+normalizer remain unchanged. Local fresh scans on historical PR #49 SBOMs are
+diagnostic evidence; new exact-candidate CI, complete target/scope rebinding,
+trusted artifact replay and independent final-SHA review remain mandatory.
+Keep all original findings, failed-run history and five distribution holds.
+See [the validation record](../../05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md).
+
 Under NFR-SEC-010 / NFR-MNT-004 / AC-MNT-004, assess the coherent 220-observation
 Perl batch against current primary records and exact original package bytes.
 Inline triage preserves every observation. Independent validation supports the

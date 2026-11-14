@@ -33,6 +33,32 @@ complete rejection and release-review contract is independently proven.
 
 ## 2026-09-09 amendment: matched Perl package architecture
 
+### 2026-11-14 exact related-reference amendment
+
+PR #164 candidate `f5748d1` passed packaged acceptance, then distribution collection
+correctly rejected a changed CVE-2026-8376 related-advisory envelope. Fresh pinned
+Grype scans on retained ordinary PR #49 API and database SBOMs reproduce both
+profiles. Comparison with the previously reviewed profiles changes only
+`relatedVulnerabilities[0].urls[2]`: the appended
+[Siemens advisory](https://cert-portal.siemens.com/productcert/html/ssa-457936.html).
+The retained [NVD API record](https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2026-8376)
+corroborates that reference. The selected advisory, fix information, CVSS, CWE,
+descriptions and package/material evidence remain unchanged; the published
+architecture precondition still requires a 32-bit build.
+
+Replace only the 20 exact envelope pins with the reviewed direct and indirect
+hashes recorded in `tests/fixtures/perl-reference-refresh.json`. Preserve the
+historical two-field fixture. References remain ordered, fully pinned fields;
+missing, changed, reordered, duplicate or additional references and unknown fields
+still fail. No normalization, ignored field, scanner filter or exception is added.
+
+The local scans corroborate five occurrences on historical images, separately
+from the failed runner's unavailable raw scans. New exact-candidate CI and trusted
+artifact replay must bind all 20 occurrences in all eight target/scope inputs
+before merge. Original findings and all five release holds remain. No dependency,
+runtime payload, migration, authorization or connector scope changes. Rollback is
+a reviewed policy revert followed by fresh evidence collection.
+
 ### 2026-09-11 selected advisory wording amendment
 
 PR #45's first packaged acceptance passed, then distribution collection correctly
