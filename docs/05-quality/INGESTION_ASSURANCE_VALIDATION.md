@@ -245,6 +245,12 @@ mixed CREATE/INVALID preview through the real API and PostgreSQL repository.
 Only preview ordinal 3 is selected; eligible ordinal 1 stays unselected. Invalid
 ordinal 2 has null identity/content, cannot be selected, and its real API commit
 attempt returns 409 without changing the complete native source projection.
+Chromium can omit file-bearing multipart postData from Playwright. A one-command
+observer reads only the original FormData's command key and configuration/mapping
+revisions, then calls native fetch once with the unchanged arguments and returns
+its original response. It stores no file name or file bytes and is restored
+before the separate reviewed-import delivery fault. Native persistence checks
+the received CSV against its independently pinned complete-file hash.
 
 The verifier withholds one JavaScript acknowledgement only after the real first
 HTTP 201 body reaches bounded EOF and its reader releases. The original request

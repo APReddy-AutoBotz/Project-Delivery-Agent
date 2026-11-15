@@ -7,6 +7,11 @@ import { expect } from "@playwright/test";
 import { closeCustomerBrowserSession } from "./customer-session.mjs";
 import { csvImportFixture } from "./csv-import-fixture.mjs";
 import {
+  observeCsvPreviewCommand,
+  readCsvPreviewCommand,
+  restoreCsvPreviewCommand,
+} from "./csv-import-preview-command.mjs";
+import {
   assertCsvFixture,
   csvProjectionReceipt,
   inspectCsvNativeBatch,
@@ -119,36 +124,6 @@ function assertAck(body, kind, replayed, parent) {
     assert.match(body.parentPreviewReceiptId, uuid);
     if (parent !== undefined) assert.equal(body.parentPreviewReceiptId, parent);
   }
-}
-function previewCommand(request) {
-  const contentType = request.headers()["content-type"];
-  const match =
-    /^multipart\/form-data;\s*boundary=(?:"([^"\r\n]+)"|([^;\r\n]+))$/i.exec(
-      contentType ?? "",
-    );
-  assert(match, "Original CSV multipart boundary unavailable");
-  const boundary = match[1] ?? match[2];
-  assert(boundary.length > 0 && boundary.length <= 128);
-  const bytes = request.postDataBuffer();
-  assert(bytes && bytes.length < 1048576 + 8192);
-  const parts = bytes.toString("utf8").split("--" + boundary);
-  const field = (name) => {
-    const prefix = `\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n`;
-    const values = parts.filter((part) => part.startsWith(prefix));
-    assert.equal(values.length, 1);
-    assert(values[0].endsWith("\r\n"));
-    return values[0].slice(prefix.length, -2);
-  };
-  const commandKey = field("commandKey");
-  assert.match(commandKey, uuid);
-  assert.equal(field("configRevision"), "1");
-  assert.equal(field("mappingRevision"), "1");
-  return {
-    commandKey,
-    configRevision: 1,
-    mappingRevision: 1,
-    csvSha256: csvImportFixture.csvSha256,
-  };
 }
 function receiptSummary(value, binding, receiptId, kind, parent) {
   assert(
@@ -412,23 +387,32 @@ export async function exerciseCsvImportWorkflow({
       mimeType: "text/csv",
       buffer: Buffer.from(csvImportFixture.csv),
     });
-    const previewResponse = waitCsvResponse(
-      page,
-      (response) =>
-        response.url() === previewUrl && response.request().method() === "POST",
-    );
-    active();
-    await page
-      .getByRole("button", { name: "Upload and preview", exact: true })
-      .click();
-    const previewOriginal = await previewResponse;
-    const acknowledgement = await originalAck(
-      previewOriginal,
-      previewUrl,
-      "preview",
-      false,
-    );
-    const preview = previewCommand(previewOriginal.request());
+    let acknowledgement, preview;
+    await observeCsvPreviewCommand(page, { base, sourceId: binding.sourceId });
+    try {
+      const previewResponse = waitCsvResponse(
+        page,
+        (response) =>
+          response.url() === previewUrl &&
+          response.request().method() === "POST",
+      );
+      active();
+      await page
+        .getByRole("button", { name: "Upload and preview", exact: true })
+        .click();
+      acknowledgement = await originalAck(
+        await previewResponse,
+        previewUrl,
+        "preview",
+        false,
+      );
+      preview = {
+        ...(await readCsvPreviewCommand(page)),
+        csvSha256: csvImportFixture.csvSha256,
+      };
+    } finally {
+      await restoreCsvPreviewCommand(page);
+    }
     const previewReceiptId = acknowledgement.body.receiptId;
     await expect(
       page.getByRole("heading", {
