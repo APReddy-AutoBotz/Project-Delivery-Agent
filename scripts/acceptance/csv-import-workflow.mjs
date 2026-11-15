@@ -634,6 +634,17 @@ export async function exerciseCsvImportWorkflow({
       );
       assert.deepEqual(afterProbes, afterRetry);
       const filename = "csv-native-reviewed-import.png";
+      active();
+      await capture(page);
+      session.disclosure.verify([
+        "browser-response-headers",
+        "browser-response-bodies",
+        "browser-dom",
+        "browser-storage",
+        "csv-api-headers",
+        "csv-api-bodies",
+      ]);
+      active();
       await page.screenshot({ path: join(output, filename), fullPage: true });
       result = {
         schemaVersion: 1,

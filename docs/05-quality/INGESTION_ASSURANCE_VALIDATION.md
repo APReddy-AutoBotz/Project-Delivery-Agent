@@ -277,10 +277,11 @@ navigation after reload is claimed.
 The pure host validator rejects missing or extra fields, substituted scope,
 lineage, batch counts, canonical state, retry or recovery evidence and unsafe
 screenshot paths. Its corruption controls and synthetic loopback browser controls
-are distinct from genuine customer execution. The screenshot is saved locally
-before final disclosure verification. The JSON receipt is saved and accepted by
-the host only after strict session cleanup and disclosure verification; raw CSV
-and access tokens are not retained in that receipt.
+are distinct from genuine customer execution. The final page, browser storage,
+original responses and API probes pass disclosure verification before the local
+screenshot is saved. The JSON receipt is saved and accepted by the host only
+after the later strict session cleanup and complete disclosure verification;
+raw CSV and access tokens are not retained in that receipt.
 
 No application behavior, migration, runtime dependency or connector scope changes.
 Rollback is an application/test-harness revert; existing compatible data stays.
