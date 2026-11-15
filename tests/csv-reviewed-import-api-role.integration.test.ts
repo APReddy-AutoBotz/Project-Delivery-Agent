@@ -7,6 +7,7 @@ import {
 } from "../packages/data/src/index.js";
 import { CredentialVault } from "../packages/platform/dist/index.js";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
+import type { Actor } from "../packages/domain/src/index.js";
 
 const url = process.env.PDAA_DATABASE_URL;
 if (!url || !/^\/pdaa_test_\d+$/.test(new URL(url).pathname))
@@ -38,13 +39,22 @@ it("commits and replays one reviewed selection without receipt UPDATE privileges
     },
   });
   await owner.accessGrant.createMany({
-    data: ["pmo_admin", "system_admin"].map((role) => ({
-      customerId,
-      subject,
-      scopeType: "project",
-      scopeId: projectId,
-      role,
-    })),
+    data: [
+      {
+        customerId,
+        subject,
+        scopeType: "project",
+        scopeId: projectId,
+        role: "pmo_admin",
+      },
+      {
+        customerId,
+        subject: subject + "-retention",
+        scopeType: "project",
+        scopeId: projectId,
+        role: "system_admin",
+      },
+    ],
   });
 
   type Options = {
@@ -80,12 +90,16 @@ it("commits and replays one reviewed selection without receipt UPDATE privileges
     } as never,
     new CredentialVault(Buffer.alloc(32, 57).toString("base64")),
   );
-  const actor = {
+  const actor: Actor = {
     customerId,
     subject,
-    roles: ["pmo_admin", "system_admin"] as ("pmo_admin" | "system_admin")[],
+    roles: ["pmo_admin"],
   };
-  await api.setRetention(actor, { retentionHours: 24 }, randomUUID());
+  await api.setRetention(
+    { customerId, subject: subject + "-retention", roles: ["system_admin"] },
+    { retentionHours: 24 },
+    randomUUID(),
+  );
   const configured = await api.configure(
     actor,
     {
