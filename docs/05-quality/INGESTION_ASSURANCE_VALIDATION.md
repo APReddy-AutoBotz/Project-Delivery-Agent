@@ -289,7 +289,12 @@ screenshot is saved. The JSON receipt is saved and accepted by the host only
 after the later strict session cleanup and complete disclosure verification;
 raw CSV and access tokens are not retained in that receipt.
 
-No application behavior, migration, runtime dependency or connector scope changes.
+The reviewed-import parent receipt lookup uses ordinary SELECT under the already
+locked authorized source. The former FOR SHARE required UPDATE on the immutable
+receipt table and made the restricted API role return 503. No receipt privilege
+is widened. A real API-role regression preserves denied row-lock access, rejects
+invalid selection, commits one selected row and replays its single receipt/audit.
+No migration, runtime dependency or connector scope changes.
 Rollback is an application/test-harness revert; existing compatible data stays.
 This stage proves baseline-free CREATE proposals. The trusted server-derived
 baseline for UPDATE/renamed-key behavior, source fact publication and whole
