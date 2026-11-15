@@ -11,7 +11,8 @@ import {
   verifyScalarProjectWithdrawal,
 } from "./scalar-reconciliation-workflow.mjs";
 import { Pool, secret } from "./common.mjs";
-import { createDatabase } from "../../packages/data/dist/index.js";
+import { createDatabase, DatabaseIngestionRepository } from "../../packages/data/dist/index.js";
+import { randomUUID } from "node:crypto";
 import { verifyScalarCommandRaces } from "./scalar-reconciliation-races.mjs";
 import { verifyScalarAccessRaces } from "./scalar-access-races.mjs";
 import { verifyScalarCommitGuards } from "./scalar-commit-probes.mjs";
@@ -33,7 +34,10 @@ import {
   seedScalarReconciliation,
   verifyRestoredScalarReconciliation,
 } from "./scalar-reconciliation-fixture.mjs";
-import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
+import { loadDatabaseConfig, CredentialVault } from "../../packages/platform/dist/index.js";
+import { prepareCsvRetention } from "./csv-import-native.mjs";
+import { csvCanonicalTables } from "./csv-import-workflow-receipt.mjs";
+import { exerciseCsvImportWorkflow, replayCsvImportAfterRecreation, snapshotCsvBeforeBackup, verifyRestoredCsvImport } from "./csv-import-workflow.mjs";
 import { waitForIdentityProvider } from "./identity-readiness.mjs";
 import {
   exerciseEvidenceWorkflow,
@@ -190,6 +194,14 @@ async function projection(pool) {
     ).rows;
   return JSON.parse(JSON.stringify(result));
 }
+// Complete immutable/canonical controls; exclude only unrelated live worker clocks.
+async function csvCanonicalSnapshot(pool) {
+  const rows = {};
+  for (const table of csvCanonicalTables)
+    rows[table] = (await pool.query(`SELECT to_jsonb(t) AS row FROM public."${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`)).rows.map(({ row }) => row);
+  return rows;
+}
+const csvBinding = { customerId: env.CUSTOMER_ID, projectId, profile, runId: env.PDAA_ACCEPTANCE_RUN_ID };
 async function ready(after = 0) {
   const deadline = Date.now() + 90000;
   while (Date.now() < deadline) {
@@ -356,6 +368,7 @@ async function browserCheck(afterUpgrade) {
       : null;
     let scalarReceipt;
     let persistence;
+    let csvFixture;
     const operator = await login("operator");
     await operator.page
       .getByText("No projects are shared with this account")
@@ -451,6 +464,13 @@ async function browserCheck(afterUpgrade) {
         runId: env.PDAA_ACCEPTANCE_RUN_ID,
       });
     }
+    if (afterUpgrade) {
+      csvFixture = read("csv-import-workflow-fixture");
+      csvFixture.afterRecreation = await replayCsvImportAfterRecreation({ login, base, pool: db, fixture: csvFixture, canonicalSnapshot: csvCanonicalSnapshot });
+    } else {
+      csvFixture = await exerciseCsvImportWorkflow({ login, base, pool: db, binding: csvBinding, output, canonicalSnapshot: csvCanonicalSnapshot });
+      csvFixture.retentionSetup = read("csv-retention-setup");
+    }
     await scanBrowserAssets(base, disclosure);
     save("disclosure-" + phase, {
       status: "passed",
@@ -465,8 +485,11 @@ async function browserCheck(afterUpgrade) {
         "evidence-api-bodies",
         "reconciliation-api-headers",
         "reconciliation-api-bodies",
+        "csv-api-headers",
+        "csv-api-bodies",
       ]),
     });
+    save("csv-import-workflow-fixture", csvFixture);
     // Retain response bytes only after the independent disclosure recorder has
     // drained original browser responses and checked the full fixture secret set.
     if (afterUpgrade) {
@@ -606,6 +629,12 @@ try {
         "GREEN",
       ],
     );
+    // Explicit fixture prerequisite via the restricted API repository, not a UI onboarding claim.
+    const csvRuntime = createDatabase(loadDatabaseConfig({ ...env, PDAA_DB_USER: "pdaa_api", PDAA_DB_PASSWORD_FILE: "/run/secrets/api-password" }).database);
+    try {
+      const repository = new DatabaseIngestionRepository(csvRuntime, new CredentialVault(Buffer.alloc(32, 52).toString("base64")));
+      save("csv-retention-setup", await prepareCsvRetention(db, csvBinding, (actor) => repository.setRetention(actor, { retentionHours: 24 }, randomUUID())));
+    } finally { await csvRuntime.$disconnect(); }
     await browserCheck(false);
     const state = await projection(db);
     assert.equal(state.AccessGrant.length, 4);
@@ -842,6 +871,10 @@ try {
       ),
       beforeBackupWorker: await workerCheckpoint(db),
     });
+    // Retention may legitimately advance during later recovery fixture preparation.
+    const csvFixture = read("csv-import-workflow-fixture");
+    csvFixture.storageBeforeBackup = await snapshotCsvBeforeBackup(db, csvFixture);
+    save("csv-import-workflow-fixture", csvFixture);
     save("backup-state", await projection(db));
   } else if (phase === "after-upgrade") {
     // This phase starts after recreation; an old worker heartbeat cannot satisfy it.
@@ -875,6 +908,9 @@ try {
     });
     try {
       assertUpdateCaptureRestoreProjection(await projection(restored), read("backup-state"));
+      const csvFixture = read("csv-import-workflow-fixture");
+      csvFixture.restored = await verifyRestoredCsvImport(restored, csvFixture);
+      save("csv-import-workflow-fixture", csvFixture);
       await verifyUpdateCapturePrivileges(restored);
       await verifyEngagementStoragePrivileges(restored);
       await verifyProjectFactPrivileges(restored);

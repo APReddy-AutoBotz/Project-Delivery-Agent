@@ -233,3 +233,57 @@ Rollback is an application revert retaining the compatible schema and immutable
 history; do not drop the cause table. Quarantined restore denies runtime CONNECT,
 preserves exact claims/counters/lineage and requires current permission rechecks
 after lease expiry. It does not enable scanning, engagement or external delivery.
+
+## Connected customer CSV proof candidate, 2026-11-15
+
+FR-CON-006/007 -> AC-CON-005 -> E2E-CON-005 -> Issue #7 -> the next reviewed
+candidate under EXEC-009 Stage 5. Hosted execution and current-artifact review
+remain required; this section describes the candidate rather than a passing run.
+
+Both disposable customer profiles now require a genuine UI mapping/upload and
+mixed CREATE/INVALID preview through the real API and PostgreSQL repository.
+Only preview ordinal 3 is selected; eligible ordinal 1 stays unselected. Invalid
+ordinal 2 has null identity/content, cannot be selected, and its real API commit
+attempt returns 409 without changing the complete native source projection.
+
+The verifier withholds one JavaScript acknowledgement only after the real first
+HTTP 201 body reaches bounded EOF and its reader releases. The original request
+must finish and strict original-response disclosure must settle before explicit
+UI retry. Two identical UI commands must return one receipt, with replayed true
+on retry, one persisted review header/audit and ordinal 3-to-1 lineage. Native
+fetch/read/release failures cannot count as the intended delivery loss. Original
+headers and bytes remain independently scanned, including overwritten JSON keys.
+The original browser body reader retains at most 65,536 bytes, ignores empty
+chunks, and has a 10-second drain deadline. The outer browser work has a separate
+90-second deadline; expiry prevents later submissions, closes the strict capture
+context and awaits the losing work. Cleanup is separate from that work deadline.
+
+Separate authenticated API probes check replay, changed-input conflicts and
+denial for a PM with a positive project read but no source-reader assignment.
+These use exact URLs, no redirects, explicit disclosure channels, response
+disposal and a 65,536-byte accepted/exported body limit after API buffering.
+Complete populated canonical/project projections must remain unchanged.
+
+An explicitly scoped temporary synthetic administrator configures retention
+through the restricted API repository; original grants are restored even after
+an uncertain insertion. This is fixture preparation, not administrator UI proof.
+The dedicated 16-table source projection is fingerprinted after all preparation,
+including the later legitimate retention revision. Authorized API receipt reads
+and replays after recreation, and native retained-data checks before restore
+mutation probes, must match that backup fingerprint. Restored runtime CONNECT
+stays denied and no restored application is started. No durable UI receipt
+navigation after reload is claimed.
+
+The pure host validator rejects missing or extra fields, substituted scope,
+lineage, batch counts, canonical state, retry or recovery evidence and unsafe
+screenshot paths. Its corruption controls and synthetic loopback browser controls
+are distinct from genuine customer execution. Screenshots and metadata are only
+saved after strict disclosure verification; raw CSV and access tokens are not
+retained in the receipt.
+
+No application behavior, migration, runtime dependency or connector scope changes.
+Rollback is an application/test-harness revert; existing compatible data stays.
+This stage proves baseline-free CREATE proposals. The trusted server-derived
+baseline for UPDATE/renamed-key behavior, source fact publication and whole
+STORY-009 acceptance remain pending. The approved CSV alternative does not
+require XLSX. Original19/20 capture remains stopped.
