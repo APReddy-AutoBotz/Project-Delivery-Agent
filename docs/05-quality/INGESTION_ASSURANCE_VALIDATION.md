@@ -277,13 +277,14 @@ navigation after reload is claimed.
 The pure host validator rejects missing or extra fields, substituted scope,
 lineage, batch counts, canonical state, retry or recovery evidence and unsafe
 screenshot paths. Its corruption controls and synthetic loopback browser controls
-are distinct from genuine customer execution. Screenshots and metadata are only
-saved after strict disclosure verification; raw CSV and access tokens are not
-retained in the receipt.
+are distinct from genuine customer execution. The screenshot is saved locally
+before final disclosure verification. The JSON receipt is saved and accepted by
+the host only after strict session cleanup and disclosure verification; raw CSV
+and access tokens are not retained in that receipt.
 
 No application behavior, migration, runtime dependency or connector scope changes.
 Rollback is an application/test-harness revert; existing compatible data stays.
 This stage proves baseline-free CREATE proposals. The trusted server-derived
 baseline for UPDATE/renamed-key behavior, source fact publication and whole
 STORY-009 acceptance remain pending. The approved CSV alternative does not
-require XLSX. Original19/20 capture remains stopped.
+require XLSX.
