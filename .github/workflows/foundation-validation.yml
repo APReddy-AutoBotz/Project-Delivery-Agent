@@ -108,6 +108,8 @@ jobs:
             artifacts/pdaa-acceptance-*/customer-*/milestone-reconciliation-pm-*.png
             artifacts/pdaa-acceptance-*/customer-*/scalar-reconciliation-workflow-fixture.json
             artifacts/pdaa-acceptance-*/customer-*/scalar-reconciliation-pm-*.png
+            artifacts/pdaa-acceptance-*/customer-*/csv-import-workflow-fixture.json
+            artifacts/pdaa-acceptance-*/customer-*/csv-native-reviewed-import.png
           if-no-files-found: error
       - uses: pnpm/action-setup@v4
         with:
