@@ -711,3 +711,24 @@ The local Docker engine is unavailable, so no PostgreSQL serializer equivalence
 has run and no database was changed. Three evolving source reviews find no
 remaining blocker. Full implementation and exact-candidate/native/upgrade/recovery
 checks still gate merge; no story or release acceptance changes.
+
+## Native serializer prototype source, 2026-11-16
+
+[The native prototype](prototypes/csv-comparison-state.sql) defines only the two
+pure grammar/text functions. It reads no application tables and is outside the
+applied migration directory and startup paths. Both functions are immutable
+invokers with fixed search paths and PUBLIC execution revoked. Dictionary,
+identity ordering and DISTINCT record/project counts explicitly use C collation;
+bounded set counts avoid repeated growing array membership scans. The normal
+role matrix will grant the approved read validators only when the actual
+migration is implemented and reviewed.
+
+Three independent static reviews approve the prototype direction; PostgreSQL
+compilation and execution have not run. SQL customer/source UUID and mapping
+revision are typed parameters, derived from native anchors. PostgreSQL normalizes
+valid UUID spellings and rejects invalid casts before function entry. Native
+parity tests must compare canonical typed scope inputs and all dictionary/row
+grammar controls; they must not claim verbatim function-level parity with every
+malformed raw TypeScript scope/revision case. Transport/full-state parsing and
+native casts need their separate denial controls. Fixed vectors, maximum-state
+execution, invoker ACL behavior and all later persistence guards remain required.
