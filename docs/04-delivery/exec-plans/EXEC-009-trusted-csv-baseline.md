@@ -1,0 +1,828 @@
+# EXEC-009 Stage 6: trusted CSV comparison baseline
+
+Status: concrete design approved; prototype authoring in progress. Native
+equivalence and implementation acceptance remain pending.
+Owner: implementation controller. Date: 2026-11-16.
+Requirements: FR-CON-006/007/008/010/012, FR-EVD-009, NFR-SEC-001,
+AC-CON-005, E2E-CON-005, FAIL-006; Issue #7.
+Parent increment: connected CREATE/INVALID customer proof, PR #166.
+
+## Problem and fixed boundaries
+
+The public upload controller supplies no baseline. The current repository can
+accept an internal raw-key baseline, but the HTTP workflow always computes
+baseline-free CREATE proposals. The lower-layer UPDATE/UNCHANGED and conservative
+renamed/moved-key tests therefore do not prove those behaviors through the real
+upload boundary. Durable row keys are SHA-256 of the canonical sheet/key pair;
+raw row keys, complete CSV inputs and unmapped cells must remain unretained.
+
+This work compares source proposals. It publishes no canonical fact, changes no
+source authority, and treats a reviewed import as a proposal selection. Human
+approval is not a model-callable tool. Preserve the approved interface/layout,
+live-onboarding restrictions, immutable migrations and existing user work.
+
+The public endpoint must never accept a client-asserted baseline or silently use
+a partial/purged/unauthorized one. Same command and same input must replay the
+original receipt after newer uploads, while current permission revocation still
+denies the response. No inferred deletion or clearing is introduced.
+
+## Proposed controller decision: comparison cohort
+
+Use the complete prior set of successfully observed CSV record identities and
+their last supplied mapped proposal values under the source's mapping, not just
+the subset later selected for reviewed import. Selection is a separate workflow;
+it cannot erase an unselected but already observed row from comparison history.
+This choice is a technical definition of source comparison state, not an
+authority rule or promotion of the proposal to a fact. Independent requirements
+and source reviews must approve the choice before implementation.
+
+A valid incoming supplied field replaces that field's comparison reference.
+An optional missing field leaves its previous reference intact; it does not
+clear a value. An invalid/review-required row does not advance its prior values.
+Previously accepted identities remain in the complete set even if absent from a
+later upload; an unfamiliar incoming key alongside a missing prior identity
+requires identity review. Rows missing a baseline are not inferred deleted.
+An invalid-only row with no persisted source record does not fabricate one.
+
+The comparison state is scoped to the customer, exact source, sheet and mapping
+revision. Configuration/project/reader changes require explicit current scope
+validation and a reviewed transition rule; no hidden-project values may enter
+an authorized receipt. Mapping incompatibility must fail closed rather than
+silently relabel existing observations CREATE. Define the transition explicitly
+before implementation; do not infer a reset permission from mapping editing.
+
+## Ordering and immutable command binding
+
+Existing lastSuccessReceiptId is connector-only: its database guard rejects a
+CSV receipt. Record/revision/projection tables have no trustworthy current head.
+Timestamps and random UUIDs must not select a latest CSV value. An additive,
+independently reviewed migration is required; no applied migration is edited.
+
+Proposed minimal shape for review:
+
+1. A CSV comparison head under each applicable source/mapping scope, with a
+   monotonic revision and immutable snapshot reference, advanced under the
+   existing source lock and compare-and-swap rules.
+2. An immutable comparison snapshot/command binding for each new CSV preview.
+   It pins the preceding head/revision/digest and a complete bounded state of
+   hashed record identities, project IDs and per-fact projection references.
+   Reuse immutable projection/content rows; retain no duplicate proposal values
+   that could evade the retention policy. The snapshot is evidence of comparison
+   inputs and lineage, not business truth.
+
+Challenge this shape in design review. A simpler alternative is acceptable only
+if it provides explicit ordering, complete identity coverage, optional-field
+carry-forward, retention compliance and immutable replay. A latest full-file
+preview alone loses records absent from later files or optional fields omitted
+from a row; a reviewed subset alone loses eligible unselected records.
+
+Inside the authorized source transaction, first check an existing command.
+Authenticate and authorize current source/project readers before returning its
+receipt. Reuse its original baseline binding and compare the original immutable
+input identity; never recompute it against the current head. New commands derive
+the complete trusted state while locked, validate mapping and permissions,
+compute bounded outcomes, persist their immutable binding/results, and advance
+the head atomically. Concurrent new commands must serialize or reject stale
+state; neither may silently use the same stale comparison head.
+
+Keep existing command/event/source-revision deduplication distinct. Identical
+source revision/content reuses its existing record/projection; conflicting bytes
+under one immutable revision still fail. A changed unmapped cell can create a
+new source revision while its mapped proposals remain UNCHANGED.
+
+## Hashed identity and completeness
+
+Introduce an explicit typed boundary for hashed baseline matching. Do not pass
+hashes into the old raw-key matcher, fabricate raw keys from persisted metadata,
+or retain raw keys merely to reuse that function. Apply exactly the same
+canonical sheet/key hashing used by durable CSV records. Current raw keys may
+exist transiently while parsing the bounded incoming file.
+
+The complete identity set and per-record field-reference set must have explicit
+limits derived from the existing 1,000-row/32-field contracts. Any overflow,
+missing projection, incompatible fact type, unsealed/invalid receipt, purged
+required proposal content, legacy history without a trustworthy ordering pin,
+or incomplete historical coverage fails closed with a finite safe result.
+Never truncate to a limit, choose an arbitrary record on a tie, silently omit an
+unauthorized record or report unavailable comparison data as an empty baseline.
+The first truly empty source can have a verified empty comparison state.
+
+Define exact serialized-size bounds, sorted ordering, hash inputs and SQL
+reference validation before implementing snapshot storage. The head/snapshot
+must be customer/source/project/mapping bound, with receipt lineage guarded in
+SQL against direct API-role tampering. Only allowed API operations may advance
+it; worker mutation remains denied and backup/restore privileges remain explicit.
+
+## Required review decisions before implementation
+
+- Resolve configuration-scope transitions and old-mapping data without hidden
+  value disclosure or an invented reset/delete permission.
+- Establish handling of legacy CSV history; do not manufacture a chronological
+  backfill from dates/UUIDs. Determine whether a safe explicit unavailable state
+  permits an administrator remediation path under existing requirements.
+- Pin the smallest safe SQL schema/constraints, lock order, snapshot size bound,
+  retention behavior, role matrix and immutable receipt validation rules.
+- Define supported rollback: older applications must not create unbound previews
+  on activated sources. A fail-closed CSV boundary is preferable to corrupting
+  comparison state, but its operational behavior must be explicit and reviewed.
+- Decide whether unavailable comparison returns a bounded error or row-level
+  REVIEW_REQUIRED state without inventing an unapproved authority/reset workflow.
+
+## Validation and acceptance gates
+
+Pure/domain controls cover hashed stable identity, CREATE/UPDATE/UNCHANGED,
+optional blanks with no clearing, duplicate keys, moved projects, renamed keys,
+missing prior rows, invalid fields, unknown/incomplete state and exact limits.
+Do not replace the existing raw-key primitive tests with mocks of the new path.
+
+Native API-role/owner probes cover complete state, counter/parent/receipt/hash
+tampering, unauthorized reader/project/mapping transitions, purge, legacy state,
+overflow, concurrent new commands and same-key races. Existing command replay
+must succeed with the original baseline after intervening uploads, and fail for
+changed bytes or lost current permission. Verify one result/audit batch on retry.
+
+The real browser/API/database journey must upload an actual prior file, then a
+changed file showing UPDATE and UNCHANGED before saving selected proposals. A
+real renamed/moved-key upload must require identity review and refuse selection;
+canonical/project projections remain unchanged. Add current receipt reads/replays
+after recreation and native checks before restore mutation probes. Preserve
+strict original-response disclosure and runtime CONNECT quarantine.
+
+Run full build/lint/typecheck/unit, relevant browser and native migration/recovery
+checks. Require independent design, evolving-source and exact-candidate reviews,
+fresh hosted checks and current original evidence before merge. Update table and
+migration inventories only from the final reviewed schema. No complete story,
+source-publication or release acceptance is implied by this draft.
+
+## Controller resolutions after the first independent audit
+
+The three read-only audits agree on the reference-only head/snapshot direction.
+The following proposed resolutions narrow the implementation; they still need
+the concrete SQL/native guard review described below.
+
+- New comparisons use all successfully observed valid rows, including eligible
+  unselected rows. Invalid/review-required rows preserve prior coverage/values.
+  Optional missing fields preserve their original projection reference and clock.
+- Keep the existing HTTP input fingerprint (CSV hash, explicit configuration and
+  mapping revisions, baseline:null). Store server comparison context separately
+  and immutably. Resolve a matching command under current authorization before
+  reading newer heads, expired content or capacity limits; metadata-only replay
+  must not advance state or resurrect content.
+- Reader-only changes and scope widening can retain state only when mapping
+  semantics remain identical, every carried project stays configured, and the
+  actor has current grants/source-reader rights across the complete state.
+  Scope narrowing or mapping/identity/sheet changes fail new comparisons closed;
+  they do not filter prior rows or initialize an empty head. No reset is added.
+- Initialize verified-empty state only when native history proves there are no
+  prior persisted source records/accepted CSV observations. Existing unordered
+  populated history is unavailable for new comparisons. Preserve supported
+  authorized old receipt reads and exact metadata replay; no chronological
+  backfill, reset, deletion or remediation workflow is inferred.
+- Unavailable, expired, purged, incompatible or incomplete comparison state
+  rejects the whole new preview with a finite safe error and no receipt/head
+  mutation. Row-level INVALID/REVIEW_REQUIRED is reserved for input conflicts
+  evaluated against a valid complete baseline. Map the finite error consistently
+  through the domain/API/UI without exposing hidden project or content details.
+- Retention expiry alone, even without a purge job, can make new comparisons
+  unavailable. Re-uploading unchanged bytes does not restore immutable expired
+  content. This can be a lasting availability limit; document it explicitly.
+  Per-field carry-forward never renews the old observation or its retention.
+- An older application must fail closed for new unbound previews after feature
+  activation, while compatible historical reads/replays remain supported.
+  Prefer roll-forward; no comparison history is dropped during rollback.
+
+### Candidate bounds and encoding for the concrete review
+
+Use at most 1,000 cumulative retained identities, 32 distinct fields per identity,
+32,000 total field references and 100 project scopes. This is a cumulative cohort
+limit, not a per-file limit. Overflow fails the entire new command; absent rows
+are not dropped to regain room. Check LIMIT+1/counts before materializing data.
+
+Propose one immutable mapping-bound dictionary of fact types/value types and
+compact rows containing hashed key, record/project IDs and sorted index/UUID
+projection references. Avoid repeating 96-character field names 32,000 times.
+Pin a versioned canonical encoding and a 2 MiB UTF-8 state limit only after a
+worst-case proof including serialization overhead. Bigint head revisions remain
+checked decimal strings at JavaScript boundaries, never unsafe Numbers.
+
+Bound unique retained proposal content before decoding/comparing it as well as
+the reference metadata. Sparse carry-forward across many files can accumulate
+more content than one incoming CSV. Reuse the existing 4 MiB serialized content
+boundary where compatible; reject oversize rather than partially dereferencing.
+Acquire the required policy/projection/content locks before validating expiry,
+hashes and the byte budget so purge and comparison cannot race.
+
+For review, cap per-source immutable comparison metadata at 4,096 contexts and
+256 MiB of stored state. Store validated per-row byte counts and aggregate those
+bounded counters under the source lock; do not repeatedly decode every historic
+snapshot to count its bytes. Existing-command metadata replay does not allocate
+a new context and remains eligible at the cap. These are proposed technical
+limits, not a history deletion permission. Review the storage/availability cost
+and any safe state deduplication before fixing the final schema/constants.
+
+### Concrete SQL review still required
+
+Specify the two table definitions, foreign keys, versioned payload schema/hash,
+the exact canonical serializer shared by SQL and TypeScript, initialization and
+activation guards, transition validator and deferred receipt/head binding.
+Validate that the resulting complete set equals the prior state plus accepted
+current observations, with only permitted per-field reference replacements.
+Cross-source/project/mapping references, duplicated indexes, extra identities,
+state counter/digest tampering and unbound old-binary writes must all fail native
+commit, not merely application validation. Pin API/worker/backup privileges and
+the complete lock order, including retention/purge, before implementation.
+
+Add tests for prior value -> optional blank -> same value, omitted identities
+returning later, unmapped-only changes, raw input equal to a stored 64-hex hash,
+cumulative overflow across valid files, expiry without purge, purge/permission
+races, old-command replay after newer uploads/expiry, legacy sources and old
+applications. No schema/application implementation is authorized by a claim
+that this unresolved concrete-design gate has already passed.
+
+## Concrete schema and transaction proposal for final design review
+
+Use exactly two new business tables, named `IngestionCsvHead` and
+`IngestionCsvContext`. After the retention correction, this proposes 87 business
+tables and 28 migrations;
+inventories must follow the actual approved migration, not this prediction.
+
+`IngestionCsvHead` has a customer/source composite primary key and source FK;
+immutable activation configuration/mapping revisions and a sorted mapping
+dictionary; immutable `READY`/`LEGACY_UNAVAILABLE` initialization; bigint revision;
+nullable current context receipt ID; nullable state hash; and bigint cumulative
+canonical bytes. READY revision zero has no context, the verified-empty-state
+hash and zero accumulated bytes. LEGACY_UNAVAILABLE has no context/hash and
+zero counters. Only revision/current receipt/hash/byte-counter columns are
+API-updatable, and native guards require one exact applied successor.
+
+`IngestionCsvContext` is keyed by its CSV preview receipt ID, with a composite
+customer/source/receipt FK, unique customer/source/revision and the receipt's
+configuration/mapping revisions. It stores predecessor receipt ID/revision/hash,
+complete sorted reference-only rows, canonical byte count and state hash.
+Require successor revision = predecessor + 1; revision one has an absent parent
+receipt and the head's verified-empty hash. Context mutation and truncation are
+denied. Head/current-context and predecessor FKs are restrictive and deferred
+where insertion order requires it. No reference uses timestamp/UUID ordering.
+
+Hash this exact array grammar:
+
+```text
+["pdaa.csv.state.v1", customerId, sourceId, mappingRevisionString,
+ sorted [[factType,valueType],...],
+ sorted [[hashedKey,recordId,projectId,
+          [[fieldIndexString,projectionId],...]],...]]
+```
+
+All tokens are canonical lowercase UUID/hex, normalized decimal strings, the
+existing ASCII fact-type grammar or four fixed value types. Field indexes sort
+numerically; identities/dictionary use bytewise ordering matching SQL COLLATE C.
+There are no generic objects, arbitrary Unicode/escaped strings, raw sheet/key
+text or proposal values. TypeScript JSON.stringify produces compact bytes.
+Only after complete grammar validation may SQL remove JSONB formatter spaces
+and recompute identical SHA-256/length. Do not use this serializer for generic
+JSON or proposals. The dictionary is immutable on the head and injected into
+each hash input; context rows store references, not duplicate dictionaries.
+
+An independent worst-case calculation for this exact grammar gives 1,614,668
+canonical ASCII bytes at maximum row/reference/dictionary lengths. Retain the
+2 MiB state bound. The 256 MiB history budget counts accumulated canonical
+serialized-state bytes, not physical PostgreSQL/TOAST/index/WAL/backup storage.
+It permits about 166 maximum-grammar states, or 128 states at the full byte cap;
+4,096 contexts is a separate ceiling. Both limits are checked atomically and
+old-command replay allocates nothing. No deletion or reset is introduced.
+
+Initialize heads natively after a source's current sealed configuration becomes
+CSV. An AFTER source-configuration-pointer trigger can observe the now-current
+sealed mapping without a transient old-pointer exception. It initializes only
+when no head exists, derives the dictionary/classification from native data and
+uses a head INSERT guard that independently verifies those inputs. Migration
+backfill uses the same classification for existing CSV sources. Existing
+records, accepted observations or any prior CSV preview receipt (including an
+invalid-only preview) mean LEGACY_UNAVAILABLE. This preserves legacy receipt
+validity without an invented migration-time ordering marker. Mapping changes retain
+the old head. API gets guarded head INSERT plus narrow UPDATE; no caller reset
+flag or privileged reset function exists.
+
+An INSERT-only deferred CSV receipt requirement applies to new previews after
+the migration: every new preview must have its valid context and applied head.
+Historical receipts are left unchanged. Context INSERT guards derive the exact
+next state from the preceding state plus the current receipt's accepted rows;
+they must include accepted NONE identities with zero proposal references.
+Omitted identities and optional omitted fields carry forward. Only supplied
+fields may replace references, and only with that receipt's accepted projection.
+Recompute CREATE/UPDATE/UNCHANGED/NONE and conservative identity eligibility from
+the trusted prior values and finite hashed outcomes. Require exact set equality,
+not subset membership. Defer receipt completeness checks where necessary and
+avoid recursion with valid_ingestion_receipt.
+
+Historical structural validity is distinct from live content availability.
+The insertion/commit guard validates live values and classification then;
+immutable context/receipt structure must remain valid after later lawful purge.
+The static restore validator verifies structure, references and transition
+lineage without restoring or requiring redacted plaintext. A new transition
+still rejects expired/missing content, including expiry without a purge job.
+
+Within a new preview transaction, use current sorted project/grant fences,
+optional retention-policy SHARE, source UPDATE, head UPDATE and sorted content
+SHARE. A missing policy row must not itself prevent an existing metadata replay;
+require policy/content only after resolving an existing command. Policy lock
+acquisition does not renew data or evaluate expiry/capacity for a replay. Do not
+add row locks or UPDATE privileges to immutable receipts/records/revisions/
+projections: current ACLs give SELECT/INSERT only. Use source serialization and
+immutable/FK anchors instead. Align the new path with purge's policy-before-
+source order; preserve current authorization and explicit operation timeouts.
+
+Bound unique complete projection-content arrays referenced by the preceding
+and resulting state as one logical 4 MiB union before returning/decoding that
+union. Count full content, not only selected fields. The incoming CSV has its
+separate existing 1 MiB limit; these are serialized-data limits, not a claim
+about exact JavaScript heap usage. Under the content/policy locks, validate
+original revision age using clock_timestamp, hash/schema/type integrity and
+current complete permissions. References do not refresh clocks or inhibit purge.
+
+Public request identity stays CSV hash + submitted revisions + baseline:null.
+Current authorization must precede existing-command return; new-head selection,
+new-command configuration rejection, content dereference and capacity checks
+follow it. Preserve supported old metadata replay even after intervening uploads
+or expiry. Refuse caller-asserted baselines at the repository boundary. The new
+hashed matcher must hash raw incoming keys exactly once, including raw text
+that happens to be 64 hex characters. No raw key is retained to reuse the old
+matcher. The old raw-key domain helper can remain a separately tested primitive.
+
+API gets SELECT/INSERT on contexts and guarded narrow head access. Worker gets
+no new privileges; backup gets SELECT. Migration role owns tables/functions.
+Private trigger functions stay non-callable; grant only required read validators
+to API and rebuild the finite function matrix during roleless bootstrap and
+quarantined restore. Native tests must demonstrate actual restricted-role
+operations, not only owner connections or mocked repository results.
+
+Final design review must approve the exact DDL/function signatures, serializer
+vectors, static/live validator split, lock/replay ordering and metadata-budget
+availability limitations before these definitions become an applied migration.
+
+## Native definitions submitted for the concrete design gate
+
+These are proposed migration-28 definitions, not an applied migration. Use the
+existing UUID, configuration, receipt and projection keys; introduce no timestamp
+ordering or additional privileges on immutable ingestion tables.
+
+```sql
+CREATE TABLE public."IngestionCsvHead" (
+  "customerId" uuid NOT NULL,
+  "sourceId" uuid NOT NULL,
+  "activationConfigRevision" integer NOT NULL,
+  "mappingRevision" integer NOT NULL,
+  dictionary jsonb NOT NULL,
+  readiness varchar(24) NOT NULL,
+  revision bigint NOT NULL DEFAULT 0,
+  "currentReceiptId" uuid,
+  "stateHash" char(64),
+  "canonicalHistoryBytes" bigint NOT NULL DEFAULT 0,
+  PRIMARY KEY ("customerId","sourceId"),
+  UNIQUE ("customerId","sourceId","mappingRevision"),
+  FOREIGN KEY ("customerId","sourceId")
+    REFERENCES public."IngestionSource"("customerId",id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+  FOREIGN KEY ("customerId","sourceId","activationConfigRevision","mappingRevision")
+    REFERENCES public."IngestionConfigurationRevision"
+      ("customerId","sourceId",revision,"mappingRevision")
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CHECK ("activationConfigRevision">0 AND "mappingRevision">0),
+  CHECK (revision BETWEEN 0 AND 4096 AND "canonicalHistoryBytes" BETWEEN 0 AND 268435456),
+  CHECK (readiness IN ('READY','LEGACY_UNAVAILABLE')),
+  CHECK ((readiness='LEGACY_UNAVAILABLE' AND revision=0 AND "currentReceiptId" IS NULL
+          AND "stateHash" IS NULL AND "canonicalHistoryBytes"=0)
+    OR (readiness='READY' AND "stateHash" IS NOT NULL AND "stateHash" ~ '^[a-f0-9]{64}$'
+      AND ((revision=0 AND "currentReceiptId" IS NULL AND "canonicalHistoryBytes"=0)
+        OR (revision>0 AND "currentReceiptId" IS NOT NULL AND "canonicalHistoryBytes">0))))
+);
+CREATE TABLE public."IngestionCsvContext" (
+  "customerId" uuid NOT NULL,
+  "sourceId" uuid NOT NULL,
+  "receiptId" uuid NOT NULL,
+  "configRevision" integer NOT NULL,
+  "mappingRevision" integer NOT NULL,
+  revision bigint NOT NULL,
+  "predecessorReceiptId" uuid,
+  "predecessorRevision" bigint NOT NULL,
+  "predecessorHash" char(64) NOT NULL,
+  rows jsonb NOT NULL,
+  "canonicalBytes" integer NOT NULL,
+  "stateHash" char(64) NOT NULL,
+  PRIMARY KEY ("receiptId"),
+  UNIQUE ("customerId","sourceId",revision),
+  UNIQUE ("customerId","sourceId",revision,"receiptId","stateHash"),
+  FOREIGN KEY ("customerId","sourceId","receiptId")
+    REFERENCES public."IngestionOperationReceipt"("customerId","sourceId",id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+  FOREIGN KEY ("customerId","sourceId","configRevision","mappingRevision")
+    REFERENCES public."IngestionConfigurationRevision"
+      ("customerId","sourceId",revision,"mappingRevision")
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+  FOREIGN KEY ("customerId","sourceId","mappingRevision")
+    REFERENCES public."IngestionCsvHead"("customerId","sourceId","mappingRevision")
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+  FOREIGN KEY ("customerId","sourceId","predecessorRevision","predecessorReceiptId","predecessorHash")
+    REFERENCES public."IngestionCsvContext"
+      ("customerId","sourceId",revision,"receiptId","stateHash")
+    ON DELETE RESTRICT ON UPDATE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  CHECK (revision BETWEEN 1 AND 4096 AND "predecessorRevision"=revision-1),
+  CHECK ((revision=1)=("predecessorReceiptId" IS NULL)),
+  CHECK ("predecessorHash" ~ '^[a-f0-9]{64}$' AND "stateHash" ~ '^[a-f0-9]{64}$'),
+  CHECK ("canonicalBytes" BETWEEN 1 AND 2097152),
+  CHECK (jsonb_typeof(rows)='array' AND jsonb_array_length(rows)<=1000)
+);
+ALTER TABLE public."IngestionCsvHead" ADD CONSTRAINT "IngestionCsvHead_current_context_fkey"
+  FOREIGN KEY ("customerId","sourceId",revision,"currentReceiptId","stateHash")
+  REFERENCES public."IngestionCsvContext"
+    ("customerId","sourceId",revision,"receiptId","stateHash")
+  ON DELETE RESTRICT ON UPDATE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+```
+
+The insert/transition guards must reject NULL or false from every grammar/hash
+validator explicitly with `IS NOT TRUE`; SQL CHECK's treatment of NULL must never
+make an invalid dictionary or hash acceptable. READY requires an explicit
+non-NULL digest even at revision zero. Add direct constraints or guards for
+this property rather than relying on the regex alone.
+
+Proposed finite function signatures:
+
+| Function | Volatility and caller | Responsibility |
+| --- | --- | --- |
+| `valid_ingestion_csv_state(uuid,uuid,integer,jsonb,jsonb) RETURNS boolean` | IMMUTABLE, API executable | Strict six-element state grammar, dictionary/identity/index ordering, bounds; false for any NULL or malformed token. |
+| `ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb) RETURNS text` | IMMUTABLE, API executable | Return canonical ASCII only after full grammar validation; NULL otherwise. |
+| `valid_ingestion_csv_context(uuid) RETURNS boolean` | STABLE, API executable | One context's static scope/hash/byte/reference/parent/result structure; no expiry or plaintext requirement. |
+| `valid_ingestion_csv_head(uuid,uuid) RETURNS boolean` | STABLE, API executable | Exact READY or legacy shape; ledger count/sum/current pointer and initial digest. |
+| `guard_ingestion_csv_head() RETURNS trigger` | private invoker | Derive initial classification/dictionary; allow only exact successor counters/pointer and immutable activation metadata. |
+| `initialize_ingestion_csv_head() RETURNS trigger` | private invoker | AFTER source configuration-pointer insertion/update, initialize missing CSV head only. |
+| `guard_ingestion_csv_context() RETURNS trigger` | private invoker | INSERT only; live locked comparison and exact reference-state transition; deny UPDATE/DELETE. |
+| `require_ingestion_csv_complete() RETURNS trigger` | private invoker | Deferred INSERT-only receipt/context/head binding and final static integrity. |
+
+Use `SET search_path=pg_catalog,public` on all functions. No SECURITY DEFINER.
+Do not split the live validator into a private nested function called by an
+invoker guard: that call would require the executing API role's EXECUTE grant.
+Keep the live validation in the trigger body, with only the four safe read/pure
+validators granted to API. Rebuild the same finite matrix after roleless
+bootstrap and `--no-acl` restore. Add no worker access; backup receives SELECT
+on both tables. Head INSERT is guarded; UPDATE permits only revision,
+currentReceiptId, stateHash and canonicalHistoryBytes. Context is SELECT/INSERT.
+No DELETE/TRUNCATE or update grant to either history table is introduced.
+
+### Static proof and transition algorithm
+
+The dictionary has 1..32 unique fact types sorted with COLLATE C, each paired
+with exactly one of text/date/number/boolean. Every identity row has exactly
+four entries: lowercase 64-hex key, lowercase UUID record, lowercase UUID
+project, and at most 32 unique field-index/projection pairs sorted by numeric
+index. Require index strings to be canonical integers 0..dictionary.length-1.
+Require rows to be strictly key-sorted, at most 1000 distinct identities and at
+most 100 distinct projects. Arrays contain no NULL, extra entries, objects,
+control characters, escapes or arbitrary text. Validate customer/source UUID
+and positive normalized mapping-revision string before serialization.
+
+Construct `jsonb_build_array('pdaa.csv.state.v1', customerId::text,
+sourceId::text, mappingRevision::text, dictionary, rows)`. Only after validation,
+remove the formatter's ASCII spaces and hash the UTF-8 bytes using existing
+pgcrypto SHA-256. Since permitted tokens contain no spaces or escapes, this
+matches compact JSON.stringify; generic JSON does not have that guarantee.
+Pin empty and nonempty serializer vectors and run the same vectors through
+PostgreSQL and TypeScript before migration/persistence acceptance or merge.
+
+A static context validator checks its exact CSV_PREVIEW/HUMAN receipt scope,
+configuration/mapping, predecessor digest/revision, canonical length/hash,
+record/project/sheet binding and every projection's matching record/mapping/
+fact-type membership. It checks reference-only transition shape from the prior
+state and current ACCEPTED outcomes, including accepted NONE rows. It never
+requires retained proposal plaintext to remain valid. The context validator
+must not call valid_ingestion_receipt; the receipt validator may call the
+context validator after its existing receipt rules, avoiding recursion.
+
+READY implies no CSV preview receipt or record/accepted history existed at native
+activation. Even invalid-only legacy previews cause LEGACY_UNAVAILABLE. Require every CSV
+receipt on a READY source to have a structurally valid context. Legacy CSV
+receipts remain valid under LEGACY_UNAVAILABLE, while all new previews on that
+source are rejected by the INSERT-only deferred guard. No old unbound preview
+can be introduced after activation, including by an older application binary.
+Do not backdate or infer this distinction from a timestamp or UUID.
+
+For a new command under the defined locks, reconstruct the prior complete
+identity/reference map, then validate one exact ACCEPTED-observation overlay.
+Preserve absent identities and each absent optional field reference. Replace
+only supplied fields using the current accepted projection; zero-field accepted
+rows still enter the identity set. INVALID/REVIEW_REQUIRED rows cannot replace
+references. Recompute conservative identity-review eligibility from the finite
+outcomes and complete prior identity set, then CREATE/UPDATE/UNCHANGED/NONE from
+live, typed values. Enforce exact equality with every persisted operation and
+with the full submitted successor state, not subset containment.
+
+A separate live pass in the context INSERT guard checks the policy, expiry at
+clock_timestamp(), content digest/schema/type, and union byte bound under the
+retention/content locks. Reject missing or purged content; no reference refreshes
+receivedAt. Historical structure cannot depend on this live pass after commit.
+The source lock serializes new commands; the context must name the old head;
+advance the head once by one and add exactly canonicalBytes to its history
+counter. Head validation checks count=revision, sum(bytes)=historyBytes and the
+highest explicit revision equals its current context. Unique revisions plus
+exact predecessor FKs prohibit branches, gaps, unreferenced successors and cycles.
+
+Failure results stay within the existing bounded vocabulary: current access
+loss is DENIED; malformed/client baseline is INVALID_REQUEST; incompatible
+submitted/current mapping is STALE_CONFIGURATION; absent required policy is
+RETENTION_REQUIRED; unavailable legacy/expired/purged comparison or capacity
+exhaustion is INVALID_PREVIEW; corrupted native anchors are INTEGRITY_CONFLICT.
+Do not expose hidden keys, project IDs, values or retention details in errors.
+Existing matching command replay remains authorized metadata-only and precedes
+all new-comparison availability/capacity checks.
+
+
+### Fixed canonical serializer vectors
+
+These synthetic vectors pin bytes and SHA-256. Python and Node compact serialization must agree; native PostgreSQL equivalence is still a required implementation test.
+
+`empty`: 162 ASCII bytes, SHA-256 `8838197404eeea2374fac6f83e03704340884e543b2c55642630ab1be0cbbfab`.
+
+```json
+["pdaa.csv.state.v1","00000000-0000-4000-8000-000000000001","00000000-0000-4000-8000-000000000002","1",[["project.forecast","date"],["project.status","text"]],[]]
+```
+
+`two-supplied-fields`: 400 ASCII bytes, SHA-256 `d79544a42b54cb5484e6991b0e70b3d66152618e557214876711039a835a0bd6`.
+
+```json
+["pdaa.csv.state.v1","00000000-0000-4000-8000-000000000001","00000000-0000-4000-8000-000000000002","1",[["project.forecast","date"],["project.status","text"]],[["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","00000000-0000-4000-8000-000000000010","00000000-0000-4000-8000-000000000003",[["0","00000000-0000-4000-8000-000000000020"],["1","00000000-0000-4000-8000-000000000021"]]]]]
+```
+
+
+## Concrete-review corrections: transaction, native fences and trigger wiring
+
+These resolutions supersede the earlier shorthand wherever it omits one of the
+following scopes or events. Three independent reviewers approved the corrected
+design at SHA-256 a9d8b69181fd347ad34776f0cde08c63123bc94ce10333cb224b7b72e726bbde.
+The controller accepts that design under the existing delegation. No migration
+has been applied; native and implementation gates remain open.
+
+### Replay and configuration transaction plan
+
+Parse only the bounded public command shape, submitted revisions and complete
+CSV hash before transaction entry. Refuse a caller baseline as INVALID_REQUEST;
+do not decode it or use it as comparison state. The constant baseline:null
+fingerprint remains identical to existing HTTP commands. Do not run the mapper,
+reject a current CONNECTOR mapping, validate submitted revisions against the
+current configuration, select a head, dereference content or evaluate capacity
+before resolving an existing command.
+
+Read minimal current source/configuration scope and any exact subject/kind/key
+receipt with its original project scope as an internal lock plan. This metadata
+read is customer/source bound and returns nothing to the caller. Lock the sorted
+union of original receipt projects and the current complete configuration,
+then the actor's applicable grants. This replay union can contain 200 projects;
+the 100-project comparison-state/configuration/receipt bounds remain separate.
+Do not route the 200-project lock plan through a helper that rejects write scopes
+above 100. Factor lock planning from operation scope validation.
+
+Acquire optional policy SHARE, then source UPDATE; re-read the current sealed
+configuration and exact command under that source fence. If the internal scope
+plan changed during lock acquisition, abort the transaction with bounded
+CONFLICT, without writing a preview/context/head. This is an internal planning
+race, not rejection of the client's historical revisions. A subsequent stable
+attempt must replay. Recheck current grants and source-reader membership for
+every project in the original receipt scope plus the current complete
+configuration; a project absent from the current source-reader configuration
+fails DENIED. Never filter old scope or content to obtain a partial replay.
+
+For an existing receipt, compare the immutable request hash and validate static
+receipt/context integrity, then return the original metadata. Only a new command
+checks submitted/current revisions, mapping kind/head compatibility, policy
+existence and live content/budgets. Map the parsed incoming CSV inside this
+locked new-command branch. The current persistCsvPreview method must therefore
+be refactored; its pre-transaction mapping and pre-replay stale checks cannot be
+retained for this path.
+
+Reorder the supported configure path to the same project/grant-before-source
+order. Read its old configuration and all historical ConnectorSyncGrant scopes
+without locks as a plan, union them with the submitted scope, acquire sorted
+project/grant fences, then source UPDATE, recheck the exact planned configuration
+and grant inventory, and only then lock sorted sync grants. A changed plan aborts
+without configuration effects. New-source creation similarly fences submitted
+projects before insertion; a concurrent creation conflicts safely. Preserve the
+existing requirement to authorize ALL historic sync-grant projects: that
+configuration union is not silently capped at 100 or 200 or truncated. The
+existing transaction timeout remains its finite execution bound. Add real
+configure-versus-preview/replay and grant-revocation races to prove ordering and
+whole-transaction rollback.
+
+### Native fences independent of repository discipline
+
+The context BEFORE INSERT guard independently derives current/previous project
+scope and the receipt subject's grants, takes sorted project/grant fences, policy
+SHARE, source UPDATE and head UPDATE, then rechecks configuration/permissions
+and predecessor before reading live content. The caller cannot substitute an
+assertion that the repository already holds these locks. Existing immutable
+receipt/record/revision/projection rows are read with ordinary SELECT, never row
+locked by granting UPDATE. Content SHARE locks are sorted and acquired before
+live values, age, hashes and the complete union budget are validated.
+
+A head BEFORE UPDATE guard first requires its exact proposed successor context
+to exist, with matching old predecessor, revision, receipt and hash. It then
+rechecks the same current anchors and counters. A valid uncommitted successor
+must have passed the context INSERT guard in this transaction and therefore
+retains the native source/head fences. A committed orphan successor cannot
+exist because deferred context completion rejects it. A direct head update
+without that context fails immediately; it must not acquire further locks in
+an attempt to legitimize an arbitrary pointer. No privilege or lock-introspection
+escape hatch is added.
+
+PostgreSQL can acquire an UPDATE tuple lock before a BEFORE ROW trigger runs.
+Native guards preserve safety even for arbitrary direct API-role statement
+ordering; they do not promise deadlock-free execution for hostile statement
+sequences or existing trigger paths. Such a conflict must abort atomically
+under the existing timeout/deadlock handling. Supported repository paths use the
+canonical order above. Native race tests must demonstrate successful serialization
+or a complete bounded abort with no orphan/context/counter/audit change; they
+cannot waive a partial write or widen grants to make a deadlock pass.
+
+### Exact trigger events
+
+Use these named events in migration 28; every trigger function is a private
+invoker with fixed search_path. Add the corresponding BEFORE TRUNCATE statement
+triggers on both tables, unconditionally rejecting truncation.
+
+| Trigger | Table/event/timing | Required final condition |
+| --- | --- | --- |
+| ingestion_csv_head_guard | Head BEFORE INSERT OR UPDATE OR DELETE, ROW | Derive initialization; reject deletion; check exact successor and immutable fields. |
+| ingestion_csv_context_guard | Context BEFORE INSERT OR UPDATE OR DELETE, ROW | INSERT-only live/native fences and transition; reject mutation/deletion. |
+| ingestion_csv_initialize | Source AFTER INSERT OR UPDATE OF currentConfigRevision,mappingRevision, ROW | Initialize a missing head only when the current sealed mapping is CSV; retain any existing head. |
+| ingestion_csv_receipt_complete | Receipt AFTER INSERT, ROW, WHEN NEW.kind='CSV_PREVIEW', CONSTRAINT DEFERRABLE INITIALLY DEFERRED | Every newly inserted CSV preview requires a READY head, matching valid context and complete applied lineage. |
+| ingestion_csv_context_complete | Context AFTER INSERT, ROW, CONSTRAINT DEFERRABLE INITIALLY DEFERRED | New context is valid and belongs to the complete chain ending at the final head; no orphan context. |
+| ingestion_csv_head_complete | Head AFTER INSERT OR UPDATE, ROW, CONSTRAINT DEFERRABLE INITIALLY DEFERRED | Re-read final head, require valid count/sum/digest/current pointer and all committed contexts covered. |
+
+Deferred checks read the final stored head, not a stale NEW image captured during
+initialization or the OLD image during BEFORE UPDATE. If multiple valid commands
+occur in one transaction, an earlier context can be an ancestor of the final
+head; explicit unique revisions, predecessor FKs and exact ledger totals prove
+coverage without timestamps or recursive function cycles. Pin independent raw
+API-role probes for receipt-without-context, context-without-head-advance,
+head-without-context, substituted parent/hash/bytes, extra contexts, skipped
+revision, deletion and truncation. Each rejection must leave the entire graph
+and material audits unchanged.
+
+### Historical receipts on a current non-CSV source
+
+A source with historical CSV receipts may currently have a CONNECTOR mapping
+and therefore no CSV head. Preserve its historical no-head receipts with the
+existing structural receipt validator. The INSERT-only deferred CSV guard still
+requires READY/current-CSV/context for EVERY new preview regardless of whether a
+head was backfilled, so this compatibility branch does not permit new unbound
+writes. Later CSV activation derives LEGACY_UNAVAILABLE from any existing CSV
+preview (including invalid-only history), record or accepted observation; it
+cannot manufacture an empty READY head. Add populated old-CSV/current-CONNECTOR
+upgrade and read/replay fixtures, followed by a denied fresh preview and denied
+old-binary direct insert. Existing historical receipts must remain structurally
+valid after that later activation.
+
+### Serializer review timing
+
+The fixed ASCII grammar, bytes and hashes are design inputs; Python/Node vectors
+have been checked. PostgreSQL equivalence has not run. Concrete design approval
+authorizes writing the pure serializer/prototype and its synthetic native tests.
+Those tests must prove both fixed vectors, sorting and malformed-token rejection
+before the migration/persistence candidate can pass acceptance or merge. Do not
+claim a native result merely from design approval, and do not require an applied
+migration as a prerequisite for reviewing its pure prototype.
+
+## Pure state prototype progress, 2026-11-16
+
+The initial domain serializer validates and copies the complete reference-only ASCII
+grammar, freezes all returned arrays, and exposes canonical text/byte counts.
+It enforces numeric field ordering, unique identities/records, 1,000 lifetime
+identities, 32 fields and 100 projects. That initial prototype contains no database
+queries, value retention, comparison matcher or HTTP integration. Native identity binding,
+transition authorization and live retention checks remain implementation work.
+
+All 82 focused controls pass, including both fixed digest vectors, the independently
+calculated 1,614,668-byte maximum, invalid structure/sorting/bounds, copied/frozen
+state and 35 trailing-line-separator cases. Scoped strict TypeScript checking
+and the normal source lint rules pass. A frozen-lockfile installation encountered
+a Windows dependency-link EPERM; validation therefore used exact SHA-256-pinned
+copies of the two new files with the already installed pinned runtime. The lockfile
+is unchanged and the failed installation is retained. These are focused prototype
+results, not a full Stage 6 workspace/native/customer acceptance.
+
+The local Docker engine is unavailable, so no PostgreSQL serializer equivalence
+has run and no database was changed. Three evolving source reviews find no
+remaining blocker. Full implementation and exact-candidate/native/upgrade/recovery
+checks still gate merge; no story or release acceptance changes.
+
+## Native serializer prototype source, 2026-11-16
+
+[The native prototype](prototypes/csv-comparison-state.sql) defines only the two
+pure grammar/text functions. It reads no application tables and is outside the
+applied migration directory and startup paths. Both functions are immutable
+invokers with fixed search paths and PUBLIC execution revoked. Dictionary,
+identity ordering and DISTINCT record/project counts explicitly use C collation;
+bounded set counts avoid repeated growing array membership scans. The normal
+role matrix will grant the approved read validators only when the actual
+migration is implemented and reviewed.
+
+Three independent static reviews approve the prototype direction; PostgreSQL
+compilation and execution have not run. SQL customer/source UUID and mapping
+revision are typed parameters, derived from native anchors. PostgreSQL normalizes
+valid UUID spellings and rejects invalid casts before function entry. Native
+parity tests must compare canonical typed scope inputs and all dictionary/row
+grammar controls; they must not claim verbatim function-level parity with every
+malformed raw TypeScript scope/revision case. Transport/full-state parsing and
+native casts need their separate denial controls. Fixed vectors, maximum-state
+execution, invoker ACL behavior and all later persistence guards remain required.
+
+## Hashed comparison primitive, 2026-11-16
+
+PR #166 merged as 7ce15ec9377f5e7d143f2665c42452ed6cf8141b after all exact-head
+checks and independent source/CSV/recovery/distribution artifact reviews passed.
+Its tree is 01f9c8843da36259d20adeb31a690415d837fb35. This continuation contains
+that merge while preserving the separately reviewed local prototypes. The parent
+proves baseline-free CREATE; it does not complete UPDATE or story acceptance.
+Post-merge Foundation run 43805983699 and Documentation run 43805983637 both
+passed on the actual merge commit; its tree matches the reviewed candidate.
+
+The pure CSV mapper now has a separate hashed-baseline schema and typed result.
+An internal normalized-identity comparison engine preserves the original raw-key
+CSV/grid/synthetic helpers. The new entrypoint requires an explicit baseline
+shape; its repository caller must establish complete native state. For a verified
+empty source that shape contains an explicit empty rows array. Shape validation
+alone establishes no completeness, authorization, current grant, retention or
+native reference binding. The native loader and guards remain necessary.
+
+The repository-owned synchronous hash callback receives the exact untrimmed sheet
+and raw key once per distinct valid incoming key. Valid keys on invalid-project
+or invalid-field rows still participate; invalid keys remain unhashed. Stored
+baseline digests are never rehashed. A raw key that happens to contain 64 hex
+characters is still hashed as raw text. Malformed outputs, exceptions and
+different-key collisions fail with a fixed safe error; native Promise outputs
+are rejected without awaiting them or exposing rejection reasons.
+
+The result explicitly labels keyHash and missingPreviousKeyHashes. Raw current
+keys, identity strings and field inputs are transient preview material; native
+persistence must use only the hashes and approved mapped proposals. Optional
+blanks keep incoming proposals empty, while comparisons use the supplied carried
+baseline. The helper neither mutates that baseline nor implements durable state
+overlay, expiry, capacity accounting or a public baseline submission API.
+
+The approved Stage 6 design and bounded matcher design, coverage and evolving
+source reviews preserve this scope. All 195 focused tests across the serializer,
+hashed matcher and original CSV/grid suites pass directly in the worktree; scoped strict TypeScript and source
+lint pass. Coverage includes CREATE/UPDATE/UNCHANGED/NONE, renamed/moved keys,
+missing/duplicate/invalid identities, typed values, optional omissions and returning
+values, unselected observations, 1,000 rows, exact Unicode/hash arguments and
+callback failure/collision/asynchronous results. These are pure comparison results,
+not native persistence or connected UPDATE acceptance.
+
+The existing frozen dependencies were installed from the local package store in
+offline mode with install scripts disabled after Windows link restrictions were
+resolved. No dependency version or lockfile changed. Full workspace build, lint,
+type checking and all 2,778 unit tests across 187 files pass. Exact-candidate
+reviews and all applicable native/integration/customer gates still gate a Stage 6
+merge; pure prototype results do not satisfy connected UPDATE acceptance.
+
+## Bounded native prototype validation harness, 2026-11-16
+
+The synthetic database runner now invokes a separate temporary-function probe
+after creating its unique `pdaa_test_DIGITS` database and applying the released
+27 migrations, before seeding. The helper refuses `/pdaa`, other database names,
+remote hosts, query/fragment overrides and production/non-synthetic configuration
+before constructing a pool. It checks the actual connected database before DDL,
+all 27 SQL checksums and the complete 85-business-table inventory. The reviewed
+prototype SQL bytes are pinned; no applied migration changes.
+
+One owned client executes the two pure functions inside an explicit transaction.
+The harness compares the two independent fixed digest/byte vectors, numeric index
+order, zero-field identities and the independent 1,614,668-byte maximum against
+the TypeScript serializer. Native grammar corruption inputs bypass TypeScript
+validation. Typed UUID/integer normalization and failed casts have separate
+controls; they do not claim identical rejection semantics to the raw transport.
+PUBLIC/API/worker/backup execution remains denied. The actual API-role denial
+has positive role, nonsuperuser and schema-USAGE controls. Prototype ownership
+is checked against the test session, not claimed as deployed migration ownership.
+
+Connection, query, statement, lock and pool-finalization timeouts are bounded.
+Idle-pool and checked-out-client socket errors remain in a finite non-logging
+failure boundary. An attempted BEGIN always leads to a rollback attempt. Function
+absence and exact ledger/table metadata are checked using the still-owned client
+before release/end. Original and cleanup failures are retained as safe categories;
+cleanup failures prevent a success receipt. No COMMIT, table/content write, role
+creation, privilege grant, application startup or default-database mutation occurs.
+
+Unit controls exercise target refusal before connection, actual-database mismatch,
+DDL/uncertain-BEGIN failures, cleanup failures, checked-out socket errors and safe
+diagnostics. Their database fixtures are deliberately failure-only; they cannot
+produce a successful native vector or acceptance receipt. All 37 focused controls
+and strict checking of the new test pass. Native execution has
+not yet run. The local Docker engine remains unavailable and was not started.
+The normal hosted runner must establish compilation, equivalence, role denial
+and successful rollback before any native result is recorded.
+
+This is a separately reviewable prerequisite for Stage 6, not context persistence
+or connected UPDATE acceptance. When migration 28 installs the actual functions,
+replace this temporary-DDL probe with tests of the applied definitions; never
+install missing definitions as a test fallback. The complete head/context guards,
+current source authorization/retention, cumulative state loader and transitions,
+API/retry integration, customer UPDATE/rename proof, upgrade and recovery gates
+remain pending. No story acceptance or customer-release hold changes.

@@ -191,6 +191,21 @@ export const spreadsheetBaselineSchema = z
     ).refine((rows) => unique(rows.map((r) => r.key))),
   })
   .strict();
+// Shape only: the repository must independently establish complete, authorized,
+// live native comparison state before constructing this value-bearing input.
+export const spreadsheetHashedBaselineSchema = z
+  .object({
+    ...binding,
+    rows: ingestionArray(
+      z.object({
+        keyHash: z.string().length(64).regex(/^[a-f0-9]{64}$/),
+        projectId: projectFactIdSchema,
+        fields: ingestionArray(ingestionProposalSchema, 32).refine((fields) =>
+          unique(fields.map((field) => field.factType))),
+      }).strict(),
+      1000,
+    ).refine((rows) => unique(rows.map((row) => row.keyHash))),
+  }).strict();
 type Config = z.infer<typeof spreadsheetPreviewConfigSchema>;
 type Proposal = z.infer<typeof ingestionProposalSchema>;
 type Mapping = z.infer<typeof mapping>;
@@ -234,6 +249,28 @@ export interface SpreadsheetPreview {
   missingPreviousKeys: string[];
   rows: SpreadsheetRowPreview[];
 }
+export type SpreadsheetHashedBaseline = z.infer<typeof spreadsheetHashedBaselineSchema>;
+export type SpreadsheetHashedPreview = Omit<SpreadsheetPreview, "rows" | "missingPreviousKeys"> & {
+  missingPreviousKeyHashes: string[];
+  rows: (SpreadsheetRowPreview & { keyHash: string | null })[];
+};
+type ComparisonScope = Pick<Config, "customerId" | "sourceId" | "sheet" | "mappingRevision">;
+type ComparisonBaseline = ComparisonScope & {
+  rows: { identityKey: string; projectId: string; fields: Proposal[] }[];
+};
+type IdentityStrategy = {
+  mode: "RAW" | "HASHED";
+  parseBaseline(input: unknown): ComparisonBaseline;
+  identify(sheet: string, rawKey: string): string;
+};
+const rawIdentityStrategy: IdentityStrategy = {
+  mode: "RAW",
+  parseBaseline(input) {
+    const baseline = parseIngestion(spreadsheetBaselineSchema, input);
+    return { ...baseline, rows: baseline.rows.map(({ key, ...row }) => ({ ...row, identityKey: key })) };
+  },
+  identify: (_sheet, rawKey) => rawKey,
+};
 function fieldPreview(field: Mapping, raw: string): SpreadsheetFieldPreview {
   const base = { column: field.column, factType: field.factType, raw };
   if (raw === "")
@@ -263,7 +300,7 @@ function fieldPreview(field: Mapping, raw: string): SpreadsheetFieldPreview {
         code: field.type === "number" ? "INVALID_NUMBER" : "INVALID_VALUE",
       };
 }
-const scopeKey = (scope: z.infer<typeof spreadsheetBaselineSchema> | Config) =>
+const scopeKey = (scope: ComparisonScope) =>
   JSON.stringify([
     scope.customerId,
     scope.sourceId,
@@ -276,6 +313,53 @@ export function previewSpreadsheetCsv(
   baselineInput?: unknown,
 ): SpreadsheetPreview {
   return previewSpreadsheetParsed(configInput, baselineInput, () => parseCsvPreview(csv));
+}
+
+// Server-owned synchronous hashing; no caller baseline, authorization, retention
+// or persistence guarantee is established by this pure comparison primitive.
+// Incoming raw values remain transient preview data and must not be persisted.
+export function previewSpreadsheetCsvHashedBaseline(
+  csv: unknown,
+  configInput: unknown,
+  baselineInput: unknown,
+  hashIdentity: (sheet: string, rawKey: string) => string,
+): SpreadsheetHashedPreview {
+  const invalid = (): never => { throw new IngestionInputError("INVALID_BASELINE"); };
+  if (baselineInput === undefined || typeof hashIdentity !== "function") return invalid();
+  const hashes = new Map<string, string>();
+  const rawByHash = new Map<string, string>();
+  const strategy: IdentityStrategy = {
+    mode: "HASHED",
+    parseBaseline(input) {
+      const parsed = spreadsheetHashedBaselineSchema.safeParse(input);
+      if (!parsed.success) return invalid();
+      return { ...parsed.data, rows: parsed.data.rows.map(({ keyHash, ...row }) => ({ ...row, identityKey: keyHash })) };
+    },
+    identify(sheet, rawKey) {
+      const existing = hashes.get(rawKey);
+      if (existing !== undefined) return existing;
+      let hashed: unknown;
+      try { hashed = hashIdentity(sheet, rawKey); } catch { return invalid(); }
+      if (typeof hashed !== "string") {
+        // Reject asynchronous callbacks immediately, while consuming a native
+        // Promise rejection without exposing its reason. Arbitrary callbacks or
+        // in-process Proxy objects are not an isolation boundary.
+        try { void Promise.prototype.then.call(hashed as Promise<unknown>, () => undefined, () => undefined); } catch { /* Not a native Promise. */ }
+        return invalid();
+      }
+      if (hashed.length !== 64 || !/^[a-f0-9]{64}$/.test(hashed)) return invalid();
+      const previousRaw = rawByHash.get(hashed);
+      if (previousRaw !== undefined && previousRaw !== rawKey) return invalid();
+      hashes.set(rawKey, hashed);
+      rawByHash.set(hashed, rawKey);
+      return hashed;
+    },
+  };
+  const { missingPreviousKeys, ...preview } = previewSpreadsheetParsed(
+    configInput, baselineInput, () => parseCsvPreview(csv), strategy,
+  );
+  return { ...preview, missingPreviousKeyHashes: missingPreviousKeys,
+    rows: preview.rows.map((row) => ({ ...row, keyHash: hashes.get(row.key) ?? null })) };
 }
 
 // Pure mapping for a future reviewed workbook adapter. It makes no claim about
@@ -366,12 +450,13 @@ function previewSpreadsheetParsed(
   configInput: unknown,
   baselineInput: unknown,
   parse: (config: Config) => { headers: string[]; rows: string[][] },
+  strategy: IdentityStrategy = rawIdentityStrategy,
 ): SpreadsheetPreview {
   const config = parseIngestion(spreadsheetPreviewConfigSchema, configInput);
   const baseline =
     baselineInput === undefined
       ? null
-      : parseIngestion(spreadsheetBaselineSchema, baselineInput);
+      : strategy.parseBaseline(baselineInput);
   if (
     baseline &&
     (scopeKey(baseline) !== scopeKey(config) ||
@@ -408,9 +493,14 @@ function previewSpreadsheetParsed(
   const keyCounts = new Map<string, number>();
   for (const row of parsed.rows)
     keyCounts.set(row[keyIndex]!, (keyCounts.get(row[keyIndex]!) ?? 0) + 1);
-  const previous = new Map(baseline?.rows.map((row) => [row.key, row]) ?? []);
+  const currentIdentities = new Map<string, string>();
+  for (const rawKey of keyCounts.keys())
+    if (ingestionText(256).safeParse(rawKey).success)
+      currentIdentities.set(rawKey, strategy.identify(config.sheet, rawKey));
+  const presentIdentities = new Set(currentIdentities.values());
+  const previous = new Map(baseline?.rows.map((row) => [row.identityKey, row]) ?? []);
   const missingPreviousKeys = [...previous.keys()].filter(
-    (key) => !keyCounts.has(key),
+    (key) => !presentIdentities.has(key),
   );
   let identityUncertain = false;
   const rows: SpreadsheetRowPreview[] = parsed.rows.map((row, index) => {
@@ -425,7 +515,8 @@ function previewSpreadsheetParsed(
       !config.projectIds.includes(projectId)
     )
       errors.push("INVALID_PROJECT");
-    if (previous.has(key) && previous.get(key)!.projectId !== projectId)
+    const comparisonKey = currentIdentities.get(key);
+    if (comparisonKey !== undefined && previous.has(comparisonKey) && previous.get(comparisonKey)!.projectId !== projectId)
       errors.push("PROJECT_CHANGED");
     if (errors.length) identityUncertain = true;
     const fields = config.fields.map((field) =>
@@ -454,7 +545,7 @@ function previewSpreadsheetParsed(
   });
   for (const row of rows) {
     if (row.status === "INVALID") continue;
-    const before = previous.get(row.key);
+    const before = previous.get(currentIdentities.get(row.key)!);
     if (!before && (identityUncertain || missingPreviousKeys.length > 0)) {
       row.status = "REVIEW_REQUIRED";
       row.errors.push("ROW_IDENTITY_REVIEW");
