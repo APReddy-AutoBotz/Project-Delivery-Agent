@@ -142,6 +142,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...connectorGuardSignatures,
       ...ingestionSignatures,
       "public.guard_ingestion_reconfiguration_scope()",
+      "public.guard_ingestion_retention()",
       ...updateValidators,
       ...updateGuards,
       ...captureGuards,

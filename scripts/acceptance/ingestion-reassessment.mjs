@@ -9,7 +9,7 @@ import { canonicalFixture } from "./canonical-projects.mjs";
 export const reassessmentTables = ["IngestionProjectReassessment"];
 const controlColumns = ["state", "attemptCount", "totalAttempts", "recoveryRevision", "availableAt", "lastReason",
   "claimedGeneration", "assessmentId", "obligationId", "previewId", "completedAt", "auditEventId"];
-const privateFunctions = ["guard_ingestion_project_reassessment()", "require_ingestion_reassessment_complete()", "lock_ingestion_reassessment_preview()", "reject_ingestion_reassessment_history()"];
+const privateFunctions = ["guard_ingestion_project_reassessment()", "require_ingestion_reassessment_complete()", "lock_ingestion_reassessment_preview()", "reject_ingestion_reassessment_history()", "guard_ingestion_retention()"];
 const validators = ['valid_ingestion_reassessment_row(public."IngestionProjectReassessment")', "valid_ingestion_project_reassessment(uuid)"];
 
 export async function verifyReassessmentPrivileges(pool) {

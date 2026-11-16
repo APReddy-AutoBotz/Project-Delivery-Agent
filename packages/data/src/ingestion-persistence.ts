@@ -1876,14 +1876,15 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         const { source } = await this.lockAuthorizedSource(tx, actor, sourceId, projectIds, "write");
         if (source.currentConfigRevision !== snapshot.configRevision || source.mappingRevision !== snapshot.mappingRevision)
           throw new IngestionPersistenceError("STALE_CONFIGURATION");
+        // The authorized source is already locked; immutable parent receipts
+        // need no row lock (which would require an UPDATE privilege).
         const parents = await tx.$queryRaw<{
           id: string; configRevision: number; mappingRevision: number; valid: boolean;
         }[]>`
           SELECT r.id,r."configRevision",r."mappingRevision",public.valid_ingestion_receipt(r.id) AS valid
           FROM public."IngestionOperationReceipt" r
           WHERE r."customerId"=${actor.customerId}::uuid AND r."sourceId"=${sourceId}::uuid
-            AND r.id=${previewReceiptId}::uuid AND r.kind='CSV_PREVIEW'
-          FOR SHARE OF r`;
+            AND r.id=${previewReceiptId}::uuid AND r.kind='CSV_PREVIEW'`;
         const parent = parents[0];
         if (!parent || !parent.valid || parent.configRevision !== source.currentConfigRevision || parent.mappingRevision !== source.mappingRevision)
           throw new IngestionPersistenceError("INVALID_PREVIEW");

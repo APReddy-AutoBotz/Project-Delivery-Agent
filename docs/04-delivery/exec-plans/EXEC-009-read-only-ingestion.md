@@ -711,3 +711,67 @@ AC-CON-001 remains partial under OD-013; public OAuth onboarding and live Jira a
 PR #93, which recorded the initial synthetic-behavior acceptances, merged as `150447436074a26dfeab093e3918159877bcba06`; post-merge Foundation [#36387541017](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36387541017) and Documentation [#36387540498](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36387540498) passed.
 
 See the [Issue #7 evidence ledger](#issue-7-criterion-evidence-ledger-refreshed-2026-09-28) and [Issue #7](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7).
+
+## Stage 5: connected packaged CSV import proof, 2026-11-14
+
+Status: implementation in progress; no additional story or release acceptance.
+Requirements: FR-CON-006/007, FR-ADM-008, NFR-PRV-004, AC-CON-005,
+E2E-CON-005; Issue #7.
+
+The existing browser CSV journey mocks API responses, while native persistence
+checks call the repository directly. Add a genuine browser-to-HTTP-to-native
+journey inside both guarded customer-composition profiles. Reuse real OIDC,
+current source/project authorization, original-response disclosure collection,
+and the existing upgrade and encrypted restore boundary. Keep import selections
+as reviewed proposals and assert complete canonical/project projections unchanged.
+
+Independent source, coverage and recorder design reviews approve this bounded
+shape. Initialize the required retention policy through the restricted API
+repository under a temporary, explicitly scoped synthetic administrator grant;
+restore the original grant rows afterward. Configure the source through the UI,
+upload two eligible rows and one invalid mapped date, and select only ordinal 3.
+Native receipt/outcome/record/revision/projection/lineage and audit checks must
+agree with the browser's original responses. Keep eligible ordinal 1 unselected.
+
+Induce exactly one JavaScript acknowledgement-delivery loss only after the real
+first HTTP 201 original body reaches bounded EOF and its reader releases. Validate
+its exact URL, headers and receipt shape. Do not clone, refetch, fulfil a route,
+change product flags or waive a failed request. Require native request completion
+and strict disclosure settlement before explicit UI retry. The retry must retain
+the exact original body/key/parent/ordinal, return the same receipt with replayed
+true, and leave exactly one committed review batch and selected lineage link.
+Malformed, incomplete or over-limit fault observations fail the proof.
+
+After recreation, use a labelled real authorized API receipt read and replay;
+the current UI has no durable receipt-by-ID navigation. Add a dedicated complete
+projection of the 16 ingestion tables, scoped to the CSV source, plus retention.
+Capture its exact pre-backup fingerprint after all fixture preparation. Restore
+verification compares that retained data and receipt validity before mutation
+probes, while runtime CONNECT quarantine remains enforced. This does not claim a
+restored application or a page-lifetime retry surviving reload.
+
+Use a pure, negatively tested host receipt validator and finite IDs, hashes,
+counts and booleans. Additional HTTP probes use explicit disclosure channels.
+Run focused local validator and recorder controls, exact-candidate independent
+reviews, full hosted checks and current original-artifact review before merge.
+No runtime dependencies, connector scopes or customer activation. Genuine
+execution exposed two existing blockers: a receipt row lock requiring forbidden
+UPDATE privilege, and the retention guard rejecting its required fresh audit ID
+on revision 2. Use ordinary SELECT for the immutable parent under the existing
+source fence, and additive migration 27 for the retention audit-field mask.
+Preserve all 26 released migration checksums, 85 business tables, administrator
+and audit validation, private function ACLs and original audit records. Test
+restricted-role imports/policy updates, populated 26-to-27 upgrade, role-absent
+bootstrap and quarantined restore. Do not bypass the later policy update merely
+to pass the CSV fixture. Required exact-head checks and current artifact reviews
+still gate merge; no whole-story acceptance follows from these corrections.
+
+Separate pending gates remain explicit. The HTTP preview path currently supplies
+no baseline; native outcomes must therefore be described as baseline-free CREATE
+proposals. UPDATE and renamed/moved-key FAIL-006 behaviour are currently lower-layer
+capabilities. A separately reviewed, trusted server-derived baseline design must
+preserve hashed row identity, current permissions, mapping revisions, bounded
+coverage and replay identity before extending those claims end to end. XLSX is
+not required by the approved CSV alternative. Genuine source publication remains
+owned by the coupled origin/stream/authority/SQL/API/presentation work described
+above; this proposal-only stage does not cancel it. STORY-009 stays unaccepted.

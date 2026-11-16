@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { checkIdentityConfiguration } from "./customer-identity-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./evidence-workflow-receipt.mjs";
+import { assertCsvImportWorkflowReceipt } from "./csv-import-workflow-receipt.mjs";
 import { assertMilestoneReconciliationWorkflowReceipt } from "./milestone-reconciliation-workflow-receipt.mjs";
 import { assertScalarWorkflowReceipt } from "./scalar-reconciliation-workflow-receipt.mjs";
 import { validateReconciliationCommitReceipt } from "./reconciliation-commit-receipt.mjs";
@@ -387,6 +388,8 @@ export async function customerProfiles({
           readFileSync(join(evidence, "project-fact-persistence.json"), "utf8"),
         );
         assert.equal(projectFactPersistence.status, "passed");
+        const csvImport = JSON.parse(readFileSync(join(evidence, "csv-import-workflow-fixture.json"), "utf8"));
+        assertCsvImportWorkflowReceipt(csvImport, { profile, runId: project });
         assertEvidenceWorkflowReceipt(projectFactPersistence.evidenceWorkflow);
         assertMilestoneReconciliationWorkflowReceipt(
           projectFactPersistence.milestoneReconciliationWorkflow,
@@ -403,6 +406,7 @@ export async function customerProfiles({
           },
         );
         for (const screenshot of [
+          csvImport.screenshot,
           projectFactPersistence.scalarReconciliationWorkflow.screenshot,
           projectFactPersistence.scalarReconciliationWorkflow.recreatedProof
             .screenshot,
@@ -501,6 +505,7 @@ export async function customerProfiles({
           project: name,
           status: "passed",
           projectFactPersistence,
+          csvImport,
           ...(identityConfiguration ? { identityConfiguration } : {}),
           disclosure: {
             runtime: runtimeDisclosure,
