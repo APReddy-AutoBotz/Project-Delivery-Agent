@@ -19,6 +19,7 @@ import { verifyIngestionPrefixNineUpgrade } from "./acceptance/ingestion-prefix-
 import { verifyIngestionAssuranceUpgrade } from "./acceptance/ingestion-assurance-upgrade.mjs";
 import { verifyUpdateEngagementStorage } from "./acceptance/update-engagement-storage.mjs";
 import { seedEscalationHistory } from "./acceptance/escalation-history.mjs";
+import { verifyCsvComparisonPrototype } from "./acceptance/csv-comparison-prototype.mjs";
 const source = assertSyntheticDatabaseUrl(
   process.env.PDAA_DATABASE_URL ?? "",
   "pdaa",
@@ -315,6 +316,9 @@ try {
 } finally {
   await repeated.$disconnect();
 }
+// Test-only DDL in the database this runner created, before synthetic seeding.
+// The helper refuses the initial /pdaa URL and rolls back both pure functions.
+const csvComparisonPrototype = await verifyCsvComparisonPrototype(source.toString());
 node(["packages/data/dist/seed.js"]);
 
 async function verifyHealthAssessmentRetention(databaseUrl) {
@@ -791,6 +795,7 @@ writeFileSync(
       ingestionPersistenceChecks: "passed",
       prefixNineUpgrade,
       ingestionAssuranceUpgrade,
+      csvComparisonPrototype,
       raidReopenTables: ["RaidReopenReceipt"],
       blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
       projectUpdateTables: [

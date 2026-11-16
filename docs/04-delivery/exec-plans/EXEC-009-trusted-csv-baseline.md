@@ -781,3 +781,48 @@ resolved. No dependency version or lockfile changed. Full workspace build, lint,
 type checking and all 2,778 unit tests across 187 files pass. Exact-candidate
 reviews and all applicable native/integration/customer gates still gate a Stage 6
 merge; pure prototype results do not satisfy connected UPDATE acceptance.
+
+## Bounded native prototype validation harness, 2026-11-16
+
+The synthetic database runner now invokes a separate temporary-function probe
+after creating its unique `pdaa_test_DIGITS` database and applying the released
+27 migrations, before seeding. The helper refuses `/pdaa`, other database names,
+remote hosts, query/fragment overrides and production/non-synthetic configuration
+before constructing a pool. It checks the actual connected database before DDL,
+all 27 SQL checksums and the complete 85-business-table inventory. The reviewed
+prototype SQL bytes are pinned; no applied migration changes.
+
+One owned client executes the two pure functions inside an explicit transaction.
+The harness compares the two independent fixed digest/byte vectors, numeric index
+order, zero-field identities and the independent 1,614,668-byte maximum against
+the TypeScript serializer. Native grammar corruption inputs bypass TypeScript
+validation. Typed UUID/integer normalization and failed casts have separate
+controls; they do not claim identical rejection semantics to the raw transport.
+PUBLIC/API/worker/backup execution remains denied. The actual API-role denial
+has positive role, nonsuperuser and schema-USAGE controls. Prototype ownership
+is checked against the test session, not claimed as deployed migration ownership.
+
+Connection, query, statement, lock and pool-finalization timeouts are bounded.
+Idle-pool and checked-out-client socket errors remain in a finite non-logging
+failure boundary. An attempted BEGIN always leads to a rollback attempt. Function
+absence and exact ledger/table metadata are checked using the still-owned client
+before release/end. Original and cleanup failures are retained as safe categories;
+cleanup failures prevent a success receipt. No COMMIT, table/content write, role
+creation, privilege grant, application startup or default-database mutation occurs.
+
+Unit controls exercise target refusal before connection, actual-database mismatch,
+DDL/uncertain-BEGIN failures, cleanup failures, checked-out socket errors and safe
+diagnostics. Their database fixtures are deliberately failure-only; they cannot
+produce a successful native vector or acceptance receipt. All 37 focused controls
+and strict checking of the new test pass. Native execution has
+not yet run. The local Docker engine remains unavailable and was not started.
+The normal hosted runner must establish compilation, equivalence, role denial
+and successful rollback before any native result is recorded.
+
+This is a separately reviewable prerequisite for Stage 6, not context persistence
+or connected UPDATE acceptance. When migration 28 installs the actual functions,
+replace this temporary-DDL probe with tests of the applied definitions; never
+install missing definitions as a test fallback. The complete head/context guards,
+current source authorization/retention, cumulative state loader and transitions,
+API/retry integration, customer UPDATE/rename proof, upgrade and recovery gates
+remain pending. No story acceptance or customer-release hold changes.
