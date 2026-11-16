@@ -1132,7 +1132,11 @@ tests:
   behavior: Configured expiry for operational, evidence, AI and audit data applies by class with an auditable retention
     job; normal APIs cannot edit/delete retained material audit. Source removal triggers claim revalidation and
     no unauthorized content reappears from embeddings.
-  evidence: []
+  evidence:
+  - tests/csv-reviewed-import-api-role.integration.test.ts
+  - scripts/acceptance/ingestion-assurance-upgrade.mjs
+  - scripts/acceptance/ingestion-role-bootstrap.mjs
+  - "Partial coverage only: audited ingestion policy revisions, restricted-role denials, populated upgrade and guard ACL reconstruction. Complete retention by data class remains planned."
 - id: INT-QA-008
   release: R1
   status: planned

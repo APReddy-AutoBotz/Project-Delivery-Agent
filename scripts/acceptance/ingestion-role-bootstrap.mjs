@@ -11,7 +11,7 @@ const functions = ['valid_ingestion_reassessment_row(public."IngestionProjectRea
   "valid_ingestion_project_reassessment(uuid)", "guard_ingestion_project_reassessment()",
   "require_ingestion_reassessment_complete()", "lock_ingestion_reassessment_preview()",
   "reject_ingestion_reassessment_history()", "valid_ingestion_mapping(jsonb)",
-  "guard_ingestion_reconfiguration_scope()"];
+  "guard_ingestion_reconfiguration_scope()", "guard_ingestion_retention()"];
 const apiFunctions = new Set([functions[0], functions[1], functions[6]]);
 const controls = new Set(["state", "attemptCount", "totalAttempts", "recoveryRevision", "availableAt", "lastReason",
   "claimedGeneration", "assessmentId", "obligationId", "previewId", "completedAt", "auditEventId"]);
@@ -52,7 +52,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
   const url = new URL(sourceUrl);
   assert(["127.0.0.1", "localhost"].includes(url.hostname)); assert.equal(url.pathname, "/postgres");
   const creator = new Pool({ connectionString: url.toString() });
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 26);
+  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 27);
   try {
     assert.deepEqual((await creator.query("SELECT datname FROM pg_database ORDER BY datname")).rows.map((row) => row.datname), ["postgres", "template0", "template1"]);
     assert.deepEqual(await currentRoles(creator), []);
@@ -92,7 +92,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         for (const name of functions) await pool.query("ALTER FUNCTION public." + name + " OWNER TO pdaa_migrate");
         // Simulate the default function EXECUTE grant introduced by --no-acl
         // restore, plus explicit role grants, before reconstructing the ACL.
-        await pool.query("GRANT EXECUTE ON FUNCTION public.guard_ingestion_reconfiguration_scope() TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
+        await pool.query("GRANT EXECUTE ON FUNCTION public.guard_ingestion_reconfiguration_scope(),public.guard_ingestion_retention() TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
         assert.equal((await pool.query("SELECT has_function_privilege('pdaa_worker','public.guard_ingestion_reconfiguration_scope()','EXECUTE') AS allowed")).rows[0].allowed, true);
         await applyBusinessTableGrants(pool);
         await verifyReassessmentPrivileges(pool);
@@ -101,7 +101,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
       } finally { await pool.end(); }
     }
     return { rolesAbsentBeforeAnyBootstrap: true, rolelessDatabase: first, partialRoleDatabase: second,
-      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 26, businessTables: 85,
+      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 27, businessTables: 85,
       publicPrivilegesDenied: true, finiteAclAfterLaterBootstrap: true, retainedDatabases: true };
   } finally { await creator.end(); }
 }

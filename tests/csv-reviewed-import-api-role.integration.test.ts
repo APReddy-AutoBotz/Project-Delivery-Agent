@@ -1,4 +1,4 @@
-// FR-CON-006/007 / AC-CON-005: real API-role CSV commit and exact retry.
+// FR-CON-006/007 / FR-ADM-008 / NFR-PRV-004: native imports and audited policy revisions.
 import { afterAll, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import {
@@ -14,6 +14,18 @@ if (!url || !/^\/pdaa_test_\d+$/.test(new URL(url).pathname))
   throw new Error("CSV API-role test requires an isolated synthetic database");
 const owner = createDatabase(url);
 afterAll(() => owner.$disconnect());
+
+function sqlCode(error: unknown) {
+  const metadata = (
+    error as {
+      meta?: {
+        code?: string;
+        driverAdapterError?: { cause?: { originalCode?: string } };
+      };
+    }
+  )?.meta;
+  return metadata?.code ?? metadata?.driverAdapterError?.cause?.originalCode;
+}
 
 it("commits and replays one reviewed selection without receipt UPDATE privileges", async () => {
   const customerId = randomUUID(),
@@ -155,17 +167,7 @@ it("commits and replays one reviewed selection without receipt UPDATE privileges
   } catch (error) {
     lockError = error;
   }
-  const metadata = (
-    lockError as {
-      meta?: {
-        code?: string;
-        driverAdapterError?: { cause?: { originalCode?: string } };
-      };
-    }
-  )?.meta;
-  expect(
-    metadata?.code ?? metadata?.driverAdapterError?.cause?.originalCode,
-  ).toBe("42501");
+  expect(sqlCode(lockError)).toBe("42501");
 
   await expect(
     api.commitCsvReviewedImport(
@@ -232,4 +234,109 @@ it("commits and replays one reviewed selection without receipt UPDATE privileges
       where: { customerId, event: "ingestion.csv_reviewed_import.persisted" },
     }),
   ).toBe(1);
+  const policyBefore = await owner.ingestionRetentionPolicy.findUniqueOrThrow({
+    where: { customerId },
+  });
+  const originalAudit = await owner.auditEvent.findUniqueOrThrow({
+    where: { id: policyBefore.auditEventId },
+  });
+  const administrator: Actor = {
+    customerId,
+    subject: subject + "-retention",
+    roles: ["system_admin"],
+  };
+  expect(policyBefore).toMatchObject({ retentionHours: 24, revision: 1 });
+  expect(
+    await api.setRetention(administrator, { retentionHours: 48 }, randomUUID()),
+  ).toBe(2);
+  const policyAfter = await owner.ingestionRetentionPolicy.findUniqueOrThrow({
+    where: { customerId },
+  });
+  expect(policyAfter).toMatchObject({
+    retentionHours: 48,
+    revision: 2,
+    changedBy: administrator.subject,
+  });
+  expect(policyAfter.auditEventId).not.toBe(policyBefore.auditEventId);
+  expect(
+    await owner.auditEvent.findUniqueOrThrow({
+      where: { id: policyBefore.auditEventId },
+    }),
+  ).toEqual(originalAudit);
+  expect(
+    await owner.auditEvent.findUniqueOrThrow({
+      where: { id: policyAfter.auditEventId },
+    }),
+  ).toMatchObject({
+    actor: administrator.subject,
+    event: "ingestion.retention.changed",
+    occurredAt: policyAfter.changedAt,
+    detail: { retentionHours: 48, revision: 2 },
+  });
+  expect(
+    await api.readReceipt(actor, { sourceId, receiptId: first.receiptId }),
+  ).toEqual(read);
+  await expect(
+    api.setRetention(actor, { retentionHours: 72 }, randomUUID()),
+  ).rejects.toMatchObject({ code: "DENIED" });
+  expect(
+    await owner.ingestionRetentionPolicy.findUniqueOrThrow({
+      where: { customerId },
+    }),
+  ).toEqual(policyAfter);
+
+  const attemptedAudits: string[] = [];
+  for (const failure of [
+    "unaudited",
+    "wrong-audit",
+    "revision-gap",
+    "not-administrator",
+  ] as const) {
+    let rejected: unknown;
+    try {
+      await asApi(async (tx) => {
+        const at = new Date(),
+          auditId = randomUUID();
+        const changedBy =
+          failure === "not-administrator" ? subject : administrator.subject;
+        const revision = failure === "revision-gap" ? 4 : 3;
+        if (failure !== "unaudited") {
+          attemptedAudits.push(auditId);
+          await tx.auditEvent.create({
+            data: {
+              id: auditId,
+              customerId,
+              actor: changedBy,
+              event: "ingestion.retention.changed",
+              correlationId: randomUUID(),
+              occurredAt: at,
+              detail: {
+                retentionHours: failure === "wrong-audit" ? 73 : 72,
+                revision,
+              },
+            },
+          });
+        }
+        await tx.$executeRaw`UPDATE public."IngestionRetentionPolicy" SET "retentionHours"=72,revision=${revision},
+          "changedBy"=${changedBy},"changedAt"=${at},"auditEventId"=${failure === "unaudited" ? policyAfter.auditEventId : auditId}::uuid WHERE "customerId"=${customerId}::uuid`;
+      });
+    } catch (error) {
+      rejected = error;
+    }
+    expect(sqlCode(rejected)).toBe("P0001");
+    expect(
+      await owner.ingestionRetentionPolicy.findUniqueOrThrow({
+        where: { customerId },
+      }),
+    ).toEqual(policyAfter);
+  }
+  expect(
+    await owner.auditEvent.count({ where: { id: { in: attemptedAudits } } }),
+  ).toBe(0);
+  expect(
+    await api.setRetention(administrator, { retentionHours: 24 }, randomUUID()),
+  ).toBe(3);
+  expect(
+    await api.readReceipt(actor, { sourceId, receiptId: first.receiptId }),
+  ).toEqual(read);
 });

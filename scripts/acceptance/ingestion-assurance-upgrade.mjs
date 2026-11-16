@@ -20,7 +20,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   locator.pathname = "/" + name;
   const config = { host: locator.hostname, port: Number(locator.port), database: name,
     user: decodeURIComponent(locator.username), password: decodeURIComponent(locator.password), ssl: false };
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 26);
+  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 27);
   await migrateDatabase(config, migrations.slice(0, 24));
   const db = createDatabase(locator.toString());
   try {
@@ -59,7 +59,33 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     const before26Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
     assert.equal(before26Ledger.length, 25);
     assert.equal(legacyBefore.configurations.length, 2);
+    await migrateDatabase(config, migrations.slice(0, 26));
+    // A real released-26 policy/audit must survive the additive audit-pointer fix.
+    const retentionAdministrator = { ...admin, subject: admin.subject + "-system", roles: ["system_admin"] };
+    await legacyIngestion.setRetention(retentionAdministrator, { retentionHours: 24 }, randomUUID());
+    const oldRetention = await db.ingestionRetentionPolicy.findUniqueOrThrow({ where: { customerId } });
+    const oldRetentionAudit = await db.auditEvent.findUniqueOrThrow({ where: { id: oldRetention.auditEventId } });
+    await assert.rejects(legacyIngestion.setRetention(retentionAdministrator, { retentionHours: 48 }, randomUUID()),
+      (error) => error?.code === "PERSISTENCE_FAILED");
+    assert.deepEqual(await db.ingestionRetentionPolicy.findUniqueOrThrow({ where: { customerId } }), oldRetention);
+    assert.deepEqual(await db.auditEvent.findUniqueOrThrow({ where: { id: oldRetention.auditEventId } }), oldRetentionAudit);
+    const functionBoundary = () => db.$queryRaw`SELECT p.oid::text AS "functionId",p.proowner::regrole::text AS owner,
+      p.prosecdef AS definer,p.proconfig AS settings,p.proacl::text AS acl FROM pg_proc p
+      WHERE p.oid='public.guard_ingestion_retention()'::regprocedure`;
+    const retentionBoundaryBefore27 = await functionBoundary();
+    const before27Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before27Ledger.length, 26);
     await migrateDatabase(config, migrations);
+    assert.deepEqual(await functionBoundary(), retentionBoundaryBefore27);
+    assert.deepEqual(await db.ingestionRetentionPolicy.findUniqueOrThrow({ where: { customerId } }), oldRetention);
+    assert.equal(await legacyIngestion.setRetention(retentionAdministrator, { retentionHours: 48 }, randomUUID()), 2);
+    const retentionAfter27 = await db.ingestionRetentionPolicy.findUniqueOrThrow({ where: { customerId } });
+    assert.equal(retentionAfter27.retentionHours, 48);
+    assert.equal(retentionAfter27.revision, 2);
+    assert.notEqual(retentionAfter27.auditEventId, oldRetention.auditEventId);
+    assert.deepEqual(await db.auditEvent.findUniqueOrThrow({ where: { id: oldRetention.auditEventId } }), oldRetentionAudit);
+    assert.deepEqual((await db.auditEvent.findUniqueOrThrow({ where: { id: retentionAfter27.auditEventId } })).detail,
+      { retentionHours: 48, revision: 2 });
     assert.deepEqual({
       source: await db.ingestionSource.findUniqueOrThrow({ where: { id: legacySourceId } }),
       configurations: await db.ingestionConfigurationRevision.findMany({ where: { sourceId: legacySourceId }, orderBy: { revision: "asc" } }),
@@ -162,10 +188,14 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.deepEqual(afterLedger.slice(0, 24), beforeLedger);
     assert.equal(afterLedger[24].checksum, createHash("sha256").update(migrations[24].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0, 25), before26Ledger);
-    assert.equal(afterLedger.length, 26);
+    assert.deepEqual(afterLedger.slice(0, 26), before27Ledger);
+    assert.equal(afterLedger.length, 27);
     assert.equal(afterLedger[25].checksum, createHash("sha256").update(migrations[25].sql).digest("hex"));
+    assert.equal(afterLedger[26].checksum, createHash("sha256").update(migrations[26].sql).digest("hex"));
     console.log("Populated released-24 upgrade retained all 24 checksums and its exact failure fence; a real available cause remained uncharged, then completed after only that fence was cleared.");
     return { priorMigrationCount: 24, databaseName: name, retainedLegacyFailureFence: true, scanBlockedByFence: true,
-      availableCauseUncharged: true, positiveControlCompleted: true, retainedPriorChecksums: 24 };
+      availableCauseUncharged: true, positiveControlCompleted: true, retainedPriorChecksums: 24,
+      retentionAuditUpgrade: { priorGuardRejected: true, priorMigrationCount: 26, migrationCount: 27,
+        originalAuditPreserved: true, freshRevisionRecorded: true, functionBoundaryPreserved: true } };
   } finally { await db.$disconnect(); }
 }

@@ -715,7 +715,8 @@ See the [Issue #7 evidence ledger](#issue-7-criterion-evidence-ledger-refreshed-
 ## Stage 5: connected packaged CSV import proof, 2026-11-14
 
 Status: implementation in progress; no additional story or release acceptance.
-Requirements: FR-CON-006/007, AC-CON-005, E2E-CON-005; Issue #7.
+Requirements: FR-CON-006/007, FR-ADM-008, NFR-PRV-004, AC-CON-005,
+E2E-CON-005; Issue #7.
 
 The existing browser CSV journey mocks API responses, while native persistence
 checks call the repository directly. Add a genuine browser-to-HTTP-to-native
@@ -753,7 +754,17 @@ Use a pure, negatively tested host receipt validator and finite IDs, hashes,
 counts and booleans. Additional HTTP probes use explicit disclosure channels.
 Run focused local validator and recorder controls, exact-candidate independent
 reviews, full hosted checks and current original-artifact review before merge.
-No migrations, runtime dependencies, connector scopes or customer activation.
+No runtime dependencies, connector scopes or customer activation. Genuine
+execution exposed two existing blockers: a receipt row lock requiring forbidden
+UPDATE privilege, and the retention guard rejecting its required fresh audit ID
+on revision 2. Use ordinary SELECT for the immutable parent under the existing
+source fence, and additive migration 27 for the retention audit-field mask.
+Preserve all 26 released migration checksums, 85 business tables, administrator
+and audit validation, private function ACLs and original audit records. Test
+restricted-role imports/policy updates, populated 26-to-27 upgrade, role-absent
+bootstrap and quarantined restore. Do not bypass the later policy update merely
+to pass the CSV fixture. Required exact-head checks and current artifact reviews
+still gate merge; no whole-story acceptance follows from these corrections.
 
 Separate pending gates remain explicit. The HTTP preview path currently supplies
 no baseline; native outcomes must therefore be described as baseline-free CREATE

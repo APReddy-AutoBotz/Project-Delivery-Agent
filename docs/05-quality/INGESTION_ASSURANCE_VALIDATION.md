@@ -294,8 +294,23 @@ locked authorized source. The former FOR SHARE required UPDATE on the immutable
 receipt table and made the restricted API role return 503. No receipt privilege
 is widened. A real API-role regression preserves denied row-lock access, rejects
 invalid selection, commits one selected row and replays its single receipt/audit.
-No migration, runtime dependency or connector scope changes.
-Rollback is an application/test-harness revert; existing compatible data stays.
+The subsequent recovery fixture legitimately advances the retention policy.
+The released guard incorrectly treated auditEventId as immutable, rejecting any
+second revision before checking its fresh audit. Additive migration 27,
+202611150001_ingestion_retention_audit, permits that audited pointer change while
+preserving customer immutability, revision increments, current administrator
+grants and exact audit validation. All 26 released migration files stay unchanged;
+the business inventory stays at 85 tables. Bootstrap/restore rebuild the guard's
+private invoker ACL. Native controls reject unaudited, mismatched, unauthorized
+and skipped-revision updates and preserve the original audits and CSV receipts.
+A populated released-26 upgrade must reject revision 2 before migration 27,
+preserve policy/audit/function owner/ACL and all prior checksums across upgrade,
+then accept the same legitimate operation. The later customer fixture update
+remains mandatory rather than being bypassed.
+
+No runtime dependency or connector scope changes. Rollback is an application
+revert retaining the compatible additive function correction, data and history;
+do not remove the applied migration or drop existing receipts.
 This stage proves baseline-free CREATE proposals. The trusted server-derived
 baseline for UPDATE/renamed-key behavior, source fact publication and whole
 STORY-009 acceptance remain pending. The approved CSV alternative does not
