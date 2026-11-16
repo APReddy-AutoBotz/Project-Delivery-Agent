@@ -826,3 +826,36 @@ install missing definitions as a test fallback. The complete head/context guards
 current source authorization/retention, cumulative state loader and transitions,
 API/retry integration, customer UPDATE/rename proof, upgrade and recovery gates
 remain pending. No story acceptance or customer-release hold changes.
+
+## Cumulative reference overlay, 2026-11-16
+
+The normal PR #167 hosted runner has now established genuine PostgreSQL
+equivalence for the pure serializer prototype. Retained artifact 14203851136
+from Foundation run 43817099999 matches candidate 5fafdae and its reviewed tree.
+The independently checked original report records five vectors, including the
+1,614,668-byte maximum, 116 native grammar denials, five cast denials and typed
+normalization. Private immutable invoker permissions, actual API-role denial,
+rollback/function absence and unchanged 27/85 metadata pass. Guard and QA
+reviewers approve the actual native evidence; this is not applied migration 28.
+
+An isolated continuation adds a pure accepted-reference overlay after three
+independent design reviews. It parses the prior state and observation rows under
+the same scope/dictionary, preserves every absent identity and optional field,
+includes new zero-field identities, and rejects known-key record/project
+rebinding. It sorts and revalidates the complete cumulative union, including
+record uniqueness and lifetime identity/project bounds, before returning an
+independent frozen result. No state is filtered or truncated to regain capacity.
+
+The caller must establish complete accepted observations, native reference
+binding, classification, current permissions and live retention independently.
+This helper does not select reviewed rows, load plaintext, renew clocks, classify
+changes, mutate a head or publish canonical facts. Repository integration,
+native context guards, exact retry and connected UPDATE/customer acceptance
+remain pending. All 20 focused overlay controls pass; the combined serializer,
+hashed matcher and overlay suites pass 153 tests across three files. Scoped
+strict TypeScript, full workspace build/lint/type checking and all 2,835 unit
+tests across 189 files pass. Three evolving source reviews find no blocker;
+exact-candidate review remains required. This local work is based on PR #167's
+verified merge 71cc0effee68e7e32308806c3eec2093cacf3d8f and does not change its
+source or approved publication package. Native persistence and connected UPDATE
+acceptance are still pending.

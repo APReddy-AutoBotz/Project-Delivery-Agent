@@ -233,6 +233,7 @@ tests:
   - "tests/e2e/csv-preview-command.spec.ts"
   - "tests/csv-reviewed-import-api-role.integration.test.ts"
   - "tests/csv-comparison-state.test.ts"
+  - "tests/csv-comparison-overlay.test.ts"
   - "tests/spreadsheet-hashed-preview.test.ts"
   - "tests/csv-comparison-prototype-guard.test.ts"
   - "scripts/acceptance/csv-comparison-prototype.mjs"
