@@ -5,6 +5,8 @@ import { canonicalTables } from "./canonical-projects.mjs";
 // Match the installed Prisma PG adapter's structured server error, not its
 // formatted top-level message (which can include SQL and source information).
 const immutableMessages = {
+  IngestionCsvHead: "CSV comparison history is immutable",
+  IngestionCsvContext: "CSV comparison history is immutable",
   IngestionProjectReassessment: "Reassessment history is immutable",
   AuditEvent: "Audit records are immutable",
   FactSource: "Fact history is immutable",
@@ -53,6 +55,7 @@ const immutableMessages = {
   ),
 };
 const sealMessages = {
+  IngestionCsvHead: "Invalid CSV comparison advancement",
   IngestionProjectReassessment: "Immutable reassessment identity",
   FactAssessment: "Invalid assessment seal",
   CanonicalStateBinding: "Invalid state binding seal",
@@ -81,6 +84,8 @@ export async function verifyImmutableHistoryMutation(
   assert(Object.hasOwn(immutableMessages, table), "Unknown history table");
   assert(["UPDATE", "DELETE", "TRUNCATE"].includes(operation));
   const identity = {
+    IngestionCsvHead: "sourceId",
+    IngestionCsvContext: "receiptId",
     MilestoneConsistencyContributorVersion: "assessmentId",
     IngestionConfigurationRevision: "revision",
     IngestionConfigurationProject: "projectId",

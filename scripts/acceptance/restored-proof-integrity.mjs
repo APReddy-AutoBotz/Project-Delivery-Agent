@@ -3,6 +3,8 @@
 import assert from "node:assert/strict";
 
 const checks = [
+  ["IngestionCsvContext", 'public.valid_ingestion_csv_context(a."receiptId")', "receiptId"],
+  ["IngestionCsvHead", 'public.valid_ingestion_csv_head(a."customerId",a."sourceId")', "sourceId"],
   ["IngestionProjectReassessment", "public.valid_ingestion_project_reassessment(a.id)"],
   ["AuthorityPolicy", "public.valid_authority_history(a.id)"],
   ["FactAuthorityConflict", "public.valid_authority_conflict(a.id)"],
@@ -61,7 +63,8 @@ export async function verifyRestoredProofIntegrity(database) {
   // The restore is isolated: no application is started against it. Counts and
   // strict keyset progress additionally reject incomplete or duplicated pages.
   // Do not wrap the complete history in a new ten-second interactive transaction.
-  for (const [table, predicate] of checks) {
+  for (const [table, predicate, key = "id"] of checks) {
+    const keySql = key === "id" ? "id" : '"'+key+'"';
     const countRows = await database.$queryRawUnsafe(
       `SELECT count(*)::int AS count FROM public."${table}"`,
     );
@@ -74,9 +77,9 @@ export async function verifyRestoredProofIntegrity(database) {
     while (true) {
       const rows = await database.$queryRawUnsafe(
         `WITH page AS MATERIALIZED (
-          SELECT * FROM public."${table}"
-          WHERE ($1::uuid IS NULL OR id > $1::uuid)
-          ORDER BY id LIMIT $2::int
+          SELECT *${key === "id" ? "" : ','+keySql+' AS id'} FROM public."${table}"
+          WHERE ($1::uuid IS NULL OR ${keySql} > $1::uuid)
+          ORDER BY ${keySql} LIMIT $2::int
         ) SELECT a.id::text AS id, (${predicate}) AS valid
           FROM page a ORDER BY a.id`,
         cursor,
@@ -119,5 +122,15 @@ export async function verifyRestoredProofIntegrity(database) {
     0,
     "Restored conflict history has revision gaps",
   );
+  await verifyRequiredCsvHeads(database);
   return counts;
+}
+
+export async function verifyRequiredCsvHeads(database) {
+  const missing = await database.$queryRawUnsafe(`SELECT count(*)::int AS missing_csv_heads
+    FROM public."IngestionSource" s JOIN public."IngestionConfigurationRevision" c
+      ON c."customerId"=s."customerId" AND c."sourceId"=s.id AND c.revision=s."currentConfigRevision" AND c.sealed
+    WHERE c.mapping->>'kind'='CSV' AND NOT EXISTS (
+      SELECT 1 FROM public."IngestionCsvHead" h WHERE h."customerId"=s."customerId" AND h."sourceId"=s.id)`);
+  assert.deepEqual(missing,[{missing_csv_heads:0}],"Restored CSV source is missing its required comparison head");
 }

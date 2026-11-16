@@ -90,6 +90,7 @@ import { engagementStorageTables, verifyEngagementStoragePrivileges,
   verifyUpdateEngagementStorage, verifyRestoredEngagementStorage } from "./update-engagement-storage.mjs";
 import { updateCaptureTables, verifyUpdateCapturePrivileges, assertUpdateCaptureRestoreProjection } from "./update-capture-storage.mjs";
 import { seedReassessmentRecovery, verifyRestoredReassessments } from "./ingestion-reassessment.mjs";
+import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -108,6 +109,7 @@ const projectUpdateTables = [
   "ProjectUpdateObligation",
   "ProjectUpdatePreview",
 ];
+const csvComparisonTables=["IngestionCsvHead","IngestionCsvContext"];
 const target = (database) => ({ ...adminConfig, database });
 async function inDatabase(name, fn) {
   const pool = new Pool(target(name));
@@ -138,7 +140,7 @@ const projection = async (pool) => {
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
     ).rows;
-  for (const table of [...projectUpdateTables, ...scheduleHealthPolicyTables, ...engagementStorageTables, ...updateCaptureTables])
+  for (const table of [...projectUpdateTables,...csvComparisonTables, ...scheduleHealthPolicyTables, ...engagementStorageTables, ...updateCaptureTables])
     result[table] = (
       await pool.query(
         `SELECT * FROM "${table}" ORDER BY to_jsonb("${table}")::text COLLATE "C"`,
@@ -416,6 +418,7 @@ try {
       config("database", "pdaa_worker", "worker-password").database,
     );
     const engagementStorage = await verifyUpdateEngagementStorage(adminConfig);
+    const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(admin,undefined,{owner:"pdaa_migrate"});
     const ingestionReassessment = await seedReassessmentRecovery(admin,
       config("database", "pdaa_api", "api-password").database, process.env.CUSTOMER_ID);
     writeFileSync(
@@ -453,7 +456,9 @@ try {
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 85,
+          businessTableCount: 87,
+          csvComparisonTables,
+          csvComparisonPrivileges,
           engagementStorageTables,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
@@ -562,6 +567,7 @@ try {
       );
       await verifyUpdateCapturePrivileges(pool);
       await verifyEngagementStoragePrivileges(pool);
+      const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(pool,undefined,{owner:"pdaa_migrate"});
       await verifyProjectFactPrivileges(pool);
       await verifyImmutableProjectFacts(pool);
       await verifyAuthorityPrivileges(pool);
@@ -618,6 +624,7 @@ try {
         await verifyRestoredEngagementStorage(restoredEngagementDb, receipt.engagementStorage);
       } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
+        csvComparisonPrivileges,
         ingestionReassessment: await verifyRestoredReassessments(pool, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

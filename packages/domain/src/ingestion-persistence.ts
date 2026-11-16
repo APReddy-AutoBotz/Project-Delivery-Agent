@@ -203,7 +203,7 @@ export const ingestionReceiptReadResultSchema = z
           operation: ingestionRowOperationSchema,
           errorCodes: ingestionArray(ingestionSafeErrorSchema, 16),
           projectId: projectFactIdSchema.nullable(),
-          identity: z.tuple([ingestionText(267), ingestionText(256)]).nullable(),
+          identity: z.tuple([ingestionText(268), ingestionText(256)]).nullable(),
           contentAvailable: z.boolean(),
           proposals: ingestionArray(ingestionProposalSchema, 32).nullable(),
         })

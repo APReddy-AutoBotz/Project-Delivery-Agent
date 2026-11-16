@@ -1,7 +1,7 @@
 # EXEC-009 Stage 6: trusted CSV comparison baseline
 
-Status: concrete design approved; prototype authoring in progress. Native
-equivalence and implementation acceptance remain pending.
+Status: concrete design approved; native persistence/integration candidate
+implemented. Exact-candidate and hosted acceptance gates remain pending.
 Owner: implementation controller. Date: 2026-11-16.
 Requirements: FR-CON-006/007/008/010/012, FR-EVD-009, NFR-SEC-001,
 AC-CON-005, E2E-CON-005, FAIL-006; Issue #7.
@@ -612,6 +612,25 @@ whole-transaction rollback.
 
 ### Native fences independent of repository discipline
 
+Implementation refinement reviewed on 2026-11-16: the complete comparison scope
+is the predecessor context's immutable configuration scope, or the activation
+configuration at READY0. A succeeding comparison may widen that set but cannot
+remove even a configured project with no accepted observation. Widening becomes
+durable when a comparison records it; an intervening configuration that never
+supplies a comparison does not redefine the trusted cohort. The loader rejects
+a missing project before plaintext; the native guard independently locks the
+same union and enforces it. Static validation preserves the immutable rule.
+
+The planned INVALID_PREVIEW/409 result is retained for unavailable comparison
+state. Private live guards use finite SQLSTATE PDC01 for unavailable data,
+PDC02 for a changed lock plan/predecessor and PDC03 for denied current scope.
+The repository accepts only matching structured PostgreSQL adapter codes from
+a P2010 error; it maps these to INVALID_PREVIEW, CONFLICT and DENIED without
+reading or exposing SQL message/detail text. This keeps an expiry crossing the
+final native check consistent with expiry detected by the loader. Other SQL
+errors retain the existing bounded persistence failure. Native boundary and
+race evidence remains required before candidate approval.
+
 The context BEFORE INSERT guard independently derives current/previous project
 scope and the receipt subject's grants, takes sorted project/grant fences, policy
 SHARE, source UPDATE and head UPDATE, then rechecks configuration/permissions
@@ -859,3 +878,94 @@ exact-candidate review remains required. This local work is based on PR #167's
 verified merge 71cc0effee68e7e32308806c3eec2093cacf3d8f and does not change its
 source or approved publication package. Native persistence and connected UPDATE
 acceptance are still pending.
+
+## Native persistence and connected proof candidate, 2026-11-16
+
+The next coherent batch integrates the reviewed primitives with an additive
+migration 28, two scalar Prisma models and server-owned comparison loading and
+advancement. The migration installs the applied serializer definitions, guarded
+heads and immutable contexts, receipt-family/revision fences and deferred
+completeness. It preserves the 27 released SQL files. Historical validation is
+separate from live availability and never requires purged proposal plaintext.
+
+The repository rejects caller baselines without invoking accessors. Matching
+commands retain their original CSV/revision/baseline:null fingerprint and
+original context under current complete authorization. They are resolved before
+new-command kind, revision, head, expiry or capacity checks. New comparisons
+validate the complete prior scope and bounded retained-content union, use the
+hashed matcher, overlay accepted references and atomically advance the head.
+Reviewed-import replay likewise retains its original revisions and selection.
+Native reviewed-import birth and all semantic reads check the full parent
+context, independently of the generic receipt validator's cheap metadata link.
+
+Configuration planning preserves every historical sync-grant project and uses
+the canonical project/grant-before-source order. Preview/replay planning admits
+the complete 200-project original/current union while operation scopes remain
+bounded at 100. Purge retains its project/grant, policy, source and mutable-content
+fences; immutable identity/revision/projection rows need no UPDATE privilege.
+Configuration/grant race controls establish the supported canonical project
+gate; they do not claim an isolated grant-tuple-only blocking measurement.
+
+The applied-definition harness no longer creates temporary functions. Missing
+applied definitions fail closed, and existing byte/grammar/cast vectors now run
+against the migration-installed functions. The API can execute the four safe
+validators; all six private guards, including the two reused receipt guards,
+remain inaccessible. Full table, column, grant-option and PUBLIC ACL checks run
+after late bootstrap and real customer/operations restore. Ownership and finite
+ACLs are reconstructed before use of any quarantined restored target.
+
+Upgrade evidence is prepared from actual released-27 API-role graphs, with the
+frozen released-27 grant body applied before seeding. The existing 26-to-27
+retention proof remains a distinct step. Empty CSV, accepted CSV, invalid-only
+history with no records, and historical CSV currently mapped CONNECTOR are
+classified without chronological backfill. Late CSV activation must retain
+legacy receipt validity, reads and exact retry while refusing a fresh comparison.
+Current candidate inventories are 28 migrations and 87 business tables; historical
+prefix inventories remain unchanged.
+
+The same additive migration widens external-record types from 267 to 268
+characters. The approved 256-character sheet plus the 12-character spreadsheet:
+prefix requires this width. Receipt domain/wire schemas, OpenAPI and the browser
+decoder agree; sheet input stays at 256. Maximum-sheet CREATE/UPDATE, reviewed
+import, read and exact replay have native controls; domain/wire and browser
+controls reject oversized sheet or receipt identities. Released SQL is unchanged.
+
+Native controls cover optional NONE identities, all four value types, omitted
+fields and unchanged clocks, exact retry after newer heads/configurations and
+expiry/purge, malformed native graphs, mixed-state duplicates, type/formula/
+number forgeries, scope narrowing, reader loss, actual lock waits and restored
+head omission. The capacity fixtures construct genuine guarded history up to
+4,096 contexts and the 256 MiB canonical budget, including a reachable 1,000-row/
+32-field state and sparse full-content carry-forward. They do not rewrite
+counters or disable constraints to manufacture capacity. The new long-batch
+test wrapper is 300 seconds; individual queries remain bounded at 10 seconds
+and transactions at 60 seconds. Meeting these bounds requires native execution.
+Owner-only corruption fixtures are restricted to the approved isolated loopback
+target and always roll back, including their trigger changes.
+
+A separate actual customer browser journey preserves the earlier CREATE/lost-
+acknowledgement proof. It configures two authorized projects, uploads a prior
+file, observes renamed/moved identities as unselectable, then uploads a changed
+file with UPDATE and UNCHANGED. UI, API and native projections verify the exact
+Forecast values before saving only the selected UPDATE proposal. Its source is
+distinct from the original CSV proof and its move target is bound to the genuine
+reconciliation fixture. Canonical snapshots must remain identical. Original
+response disclosure drains and session finalization remain mandatory on failures.
+Exact metadata replay after recreation and native retained data before restore
+mutation probes are part of the host-validated evidence contract.
+
+Local workspace build, lint and type checks pass. Before the final sheet-width
+correction, 2,880 unit tests across 192 files passed, together with focused
+contract/privacy/fixture controls. The final full-suite rerun is a required
+candidate gate. Strict checking of the new native and browser controls passes.
+Three mocked browser variants pass, including the maximum and oversized receipt
+identities, after installing the pinned browser and enabling local loopback
+access outside Windows sandbox isolation. Initial setup failures are retained.
+Documentation and architecture validation pass. No native migration, database,
+packaged customer browser or recovery execution for this candidate has run
+locally. The Docker engine and default local pdaa
+database remain untouched. Three independent evolving reviews have resolved
+concrete findings; immutable candidate and hosted original-evidence reviews are
+still required. This is implementation work, not story or customer-release
+acceptance. Reviewed imports remain proposals, OD-013/014 gates and all five
+distribution holds remain open, and Original19/20 capture remains stopped.

@@ -194,7 +194,7 @@ const ingestionReceiptReadResultWireSchema = z.strictObject({
     operation: ingestionRowOperationSchema,
     errorCodes: z.array(ingestionSafeErrorSchema).max(16),
     projectId: z.uuid().nullable(),
-    identity: z.tuple([ingestionTextWire(267), ingestionTextWire(256)]).nullable(),
+    identity: z.tuple([ingestionTextWire(268), ingestionTextWire(256)]).nullable(),
     contentAvailable: z.boolean(),
     proposals: z.array(ingestionProposalSchema).max(32).nullable(),
   })).max(1000),

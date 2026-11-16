@@ -7,10 +7,10 @@ import {
 import { CredentialVault } from "../packages/platform/dist/index.js";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
 import type { Actor } from "../packages/domain/src/index.js";
+import { assertCsvPrototypeTarget } from "../scripts/acceptance/csv-comparison-prototype.mjs";
 
 const url = process.env.PDAA_DATABASE_URL!;
-if (!url || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
-  throw new Error("Ingestion tests require an isolated synthetic database");
+assertCsvPrototypeTarget(url);
 const db = createDatabase(url);
 const customerId = process.env.CUSTOMER_ID!;
 const repository = new DatabaseIngestionRepository(
@@ -420,6 +420,21 @@ describe.sequential("durable ingestion persistence", () => {
 
     yield;
 
+    const csvMapping = {
+      kind:"CSV" as const,sheet:"Exact Sheet",identityColumn:"Issue ID",projectColumn:"Project",
+      fields:[{column:"Forecast",factType:"project.forecast",type:"date" as const,required:true}],
+    };
+    const legacyCsv = await repository.configure(pmo,{...configuration,mapping:csvMapping},"ingestion-test-legacy-csv");
+    expect(legacyCsv).toMatchObject({configRevision:4,mappingRevision:3});
+    await expect(repository.persistCsvPreview(manager,{...legacyCsv,commandKey:"legacy-csv-unavailable",
+      fileName:"legacy.csv",csv:`Issue ID,Project,Forecast\nCASE-CSV,${projectId},2026-12-01`},"ingestion-test-legacy-unavailable"))
+      .rejects.toMatchObject({code:"INVALID_PREVIEW"});
+    const connectorConfiguration = configuration;
+    {
+    // The positive path uses a genuinely empty source, not an unordered
+    // populated connector cohort relabeled as a new spreadsheet baseline.
+    const sourceId = randomUUID();
+    const configuration = {...connectorConfiguration,binding:{...connectorConfiguration.binding,sourceId}};
     const csvConfig = await repository.configure(
       pmo,
       {
@@ -441,7 +456,7 @@ describe.sequential("durable ingestion persistence", () => {
       },
       "ingestion-test-config-csv",
     );
-    expect(csvConfig).toMatchObject({ configRevision: 4, mappingRevision: 3 });
+    expect(csvConfig).toMatchObject({ configRevision: 1, mappingRevision: 1 });
     const csv = `Issue ID,Project,Forecast,Private Note\nCASE-CSV,${projectId},2026-12-01,private-cell-value`;
     const preview = await repository.persistCsvPreview(
       manager,
@@ -639,7 +654,7 @@ describe.sequential("durable ingestion persistence", () => {
         mappingRevision: csvConfig.mappingRevision,
         commandKey: "csv-preview-expiring-review",
         fileName: "do-not-retain-this-name.csv",
-        csv: `Issue ID,Project,Forecast\nCASE-EXPIRING,${projectId},2027-01-01`,
+        csv: `Issue ID,Project,Forecast\nCASE-CSV,${projectId},2027-01-01`,
       },
       "ingestion-test-csv-expiring-review-preview",
     );
@@ -687,7 +702,7 @@ describe.sequential("durable ingestion persistence", () => {
       currentCsvConfigurationForStale,
       "ingestion-test-csv-stale-preview-config",
     );
-    expect(changedCsvRevision).toMatchObject({ configRevision: 5, mappingRevision: 3 });
+    expect(changedCsvRevision).toMatchObject({ configRevision: 2, mappingRevision: 1 });
     await expect(repository.commitCsvReviewedImport(
       manager,
       {
@@ -895,7 +910,7 @@ describe.sequential("durable ingestion persistence", () => {
       },
       "ingestion-test-reader-revoked",
     );
-    expect(readerRevoked).toMatchObject({ configRevision: 6, mappingRevision: 3 });
+    expect(readerRevoked).toMatchObject({ configRevision: 3, mappingRevision: 1 });
     await expect(
       repository.readReceipt(manager, { sourceId, receiptId: preview.receiptId }),
     ).rejects.toMatchObject({ code: "DENIED" });
@@ -904,7 +919,8 @@ describe.sequential("durable ingestion persistence", () => {
       currentCsvConfiguration,
       "ingestion-test-reader-restored",
     );
-    expect(readerRestored).toMatchObject({ configRevision: 7, mappingRevision: 3 });
+    expect(readerRestored).toMatchObject({ configRevision: 4, mappingRevision: 1 });
+    }
 
     const remap = await repository.configure(
       pmo,
@@ -918,7 +934,7 @@ describe.sequential("durable ingestion persistence", () => {
       },
       "ingestion-test-expired-remap-config",
     );
-    expect(remap).toMatchObject({ configRevision: 8, mappingRevision: 4 });
+    expect(remap).toMatchObject({ configRevision: 5, mappingRevision: 4 });
     const sourceRecord = await db.$queryRaw<{ id: string }[]>`
       SELECT id FROM public."IngestionExternalRecord"
       WHERE "customerId"=${customerId}::uuid AND "sourceId"=${sourceId}::uuid

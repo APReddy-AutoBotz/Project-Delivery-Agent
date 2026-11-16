@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { verifyRestoredProofIntegrity } from "../scripts/acceptance/restored-proof-integrity.mjs";
+import { verifyRestoredProofIntegrity,verifyRequiredCsvHeads } from "../scripts/acceptance/restored-proof-integrity.mjs";
 
 const id = (n: number) =>
   `00000000-0000-4000-8000-${n.toString().padStart(12, "0")}`;
@@ -9,6 +9,7 @@ function fixture(
   return {
     $queryRawUnsafe: vi.fn(
       async (sql: string, cursor: string | null, size: number) => {
+        if (sql.includes("AS missing_csv_heads")) return [{missing_csv_heads:0}];
         if (sql.includes("HAVING count(*)<>max(revision)"))
           return [{ invalid: 0 }];
         const table = /FROM public\."([^"]+)"/.exec(sql)![1]!;
@@ -29,11 +30,13 @@ function fixture(
 it("NFR-REL-001: checks every restored proof across complete bounded keyset pages", async () => {
   const db = fixture();
   const counts = await verifyRestoredProofIntegrity(db);
-  expect(Object.keys(counts)).toHaveLength(14);
+  expect(Object.keys(counts)).toHaveLength(16);
+  expect(counts.IngestionCsvHead).toBe(2);
+  expect(counts.IngestionCsvContext).toBe(2);
   expect(counts.IngestionProjectReassessment).toBe(2);
   expect(counts.FactAuthorityConflict).toBe(65);
   expect(Object.values(counts).reduce((a: number, b: any) => a + b, 0)).toBe(
-    91,
+    95,
   );
   const pages = db.$queryRawUnsafe.mock.calls.filter(([sql]) =>
     sql.includes("WITH page"),
@@ -42,7 +45,7 @@ it("NFR-REL-001: checks every restored proof across complete bounded keyset page
     pages.every(
       ([sql]) =>
         sql.includes("AS MATERIALIZED") &&
-        sql.includes("ORDER BY id LIMIT $2::int"),
+        /ORDER BY (id|"receiptId"|"sourceId") LIMIT \$2::int/.test(sql),
     ),
   ).toBe(true);
   expect(
@@ -126,3 +129,7 @@ it("rejects conflict revision gaps after every row predicate passed", async () =
     }),
   ).rejects.toThrow("revision gaps");
 });
+it.each([[{missing_csv_heads:1}],[{missing_csv_heads:null}],[],[{missing_csv_heads:0},{missing_csv_heads:0}]].map((rows)=>({rows})))(
+  "rejects a missing required head or malformed native coverage result",async({rows})=>{
+    await expect(verifyRequiredCsvHeads({$queryRawUnsafe:async()=>rows})).rejects.toThrow("missing its required comparison head");
+  });

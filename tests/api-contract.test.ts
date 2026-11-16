@@ -22,6 +22,8 @@ import {
   projectUpdateAssessmentViewSchema,
   projectUpdatePolicyViewSchema,
   projectUpdateSchedulePreviewSchema,
+  ingestionConfigurationSchema,
+  ingestionReceiptReadResultSchema,
 } from "../packages/domain/src/index.js";
 import { buildBlockerAgeAdvice, buildPmActionQueue, ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
 import { HealthAssessmentError, ProjectUpdateError } from "../packages/domain/dist/index.js";
@@ -1384,6 +1386,24 @@ it("SEC-SECRET-001: real HTTP headers, configuration and both output streams exc
     out.mockRestore();
     err.mockRestore();
   }
+});
+
+it("FR-CON-006/007: maximum sheet identities fit receipt domain and wire bounds", () => {
+  const sheet="S".repeat(256),configuration={...ingestionConfiguration,mapping:{...ingestionConfiguration.mapping,sheet}};
+  const configurationPath="/api/ingestion/sources/configuration",receiptPath="/api/ingestion/sources/{sourceId}/receipts/{receiptId}";
+  expect(ingestionConfigurationSchema.safeParse(configuration).success).toBe(true);
+  expect(()=>check.request("POST",configurationPath,configuration)).not.toThrow();
+  const value=ingestionReadReceipt("CSV_PREVIEW",ingestionPreviewId);
+  value.outcomes[0]!.identity[0]="spreadsheet:"+sheet;
+  expect(value.outcomes[0]!.identity[0]).toHaveLength(268);
+  expect(ingestionReceiptReadResultSchema.safeParse(value).success).toBe(true);
+  expect(()=>check.response("GET",receiptPath,200,"application/json",JSON.stringify(value))).not.toThrow();
+  value.outcomes[0]!.identity[0]+="S";
+  expect(ingestionReceiptReadResultSchema.safeParse(value).success).toBe(false);
+  expect(()=>check.response("GET",receiptPath,200,"application/json",JSON.stringify(value))).toThrow();
+  configuration.mapping.sheet+="S";
+  expect(ingestionConfigurationSchema.safeParse(configuration).success).toBe(false);
+  expect(()=>check.request("POST",configurationPath,configuration)).toThrow();
 });
 
 it("CI-FND-001: contract gates reject route/schema/export drift and malformed HTTP bodies", () => {
