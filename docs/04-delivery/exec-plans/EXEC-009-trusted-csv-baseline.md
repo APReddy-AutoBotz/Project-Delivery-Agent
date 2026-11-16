@@ -943,6 +943,15 @@ and transactions at 60 seconds. Meeting these bounds requires native execution.
 Owner-only corruption fixtures are restricted to the approved isolated loopback
 target and always roll back, including their trigger changes.
 
+Exact-candidate review found that generic text proposals allow an empty string,
+while CSV empty cells mean omission or a required-value error. The live context
+guard now independently rejects exact empty text for optional and required
+fields. Native forgery controls require full rollback; a positive whitespace
+case preserves the matcher's untrimmed text semantics and later omission keeps
+the old reference and clocks. Historical static validation still needs no
+plaintext. The rejected candidate is retained; the corrected child requires
+new exact-candidate approval.
+
 A separate actual customer browser journey preserves the earlier CREATE/lost-
 acknowledgement proof. It configures two authorized projects, uploads a prior
 file, observes renamed/moved identities as unselectable, then uploads a changed
@@ -954,13 +963,13 @@ response disclosure drains and session finalization remain mandatory on failures
 Exact metadata replay after recreation and native retained data before restore
 mutation probes are part of the host-validated evidence contract.
 
-Local workspace build, lint and type checks pass. Before the final sheet-width
-correction, 2,880 unit tests across 192 files passed, together with focused
-contract/privacy/fixture controls. The final full-suite rerun is a required
-candidate gate. Strict checking of the new native and browser controls passes.
-Three mocked browser variants pass, including the maximum and oversized receipt
-identities, after installing the pinned browser and enabling local loopback
-access outside Windows sandbox isolation. Initial setup failures are retained.
+Local workspace build, lint and type checks pass. The full sheet-width rerun
+passes 2,881 unit tests across 192 files, together with focused contract/privacy/
+fixture controls. Strict checking of the new native and browser controls passes.
+Three mocked browser variants pass with successful runner cleanup, including
+the maximum and oversized receipt identities, after installing the pinned
+browser, enabling local loopback access outside Windows sandbox isolation and
+using an explicitly closed local server. Initial setup/cleanup failures are retained.
 Documentation and architecture validation pass. No native migration, database,
 packaged customer browser or recovery execution for this candidate has run
 locally. The Docker engine and default local pdaa

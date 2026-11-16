@@ -406,7 +406,7 @@ async function nativeTransition(f:Awaited<ReturnType<typeof fixture>>,baseReceip
     const mappingRevision=mode==="csv-on-connector" ? source.mappingRevision : context!.mappingRevision;
     const outcomes=await tx.ingestionRowOutcome.findMany({where:{receiptId:baseReceiptId},orderBy:{ordinal:"asc"}});
     let comparisonRows=context!.rows;
-    const forgedValue=["wrong-value-type","formula-value","unsafe-number"].includes(mode);
+    const forgedValue=["wrong-value-type","formula-value","unsafe-number","empty-text","required-empty-text"].includes(mode);
     if (forgedValue) {
       const rows=JSON.parse(JSON.stringify(context!.rows)) as [string,string,string,[string,string][]][];
       const dictionary=head!.dictionary as [string,string][];
@@ -415,10 +415,11 @@ async function nativeTransition(f:Awaited<ReturnType<typeof fixture>>,baseReceip
         if (outcome.state!=="ACCEPTED") continue;
         const oldContent=await tx.ingestionProposalContent.findUniqueOrThrow({where:{projectionId:outcome.projectionId!}});
         const proposals=JSON.parse(JSON.stringify(oldContent.proposals)) as {factType:string;value:{type:string;value:unknown}}[];
-        const target=proposals.find((proposal)=>proposal.factType===(mode==="wrong-value-type" ? "project.forecast" : mode==="formula-value" ? "project.status" : "project.metric"))!;
+        const target=proposals.find((proposal)=>proposal.factType===(mode==="wrong-value-type" ? "project.forecast" : mode==="unsafe-number" ? "project.metric" : "project.status"))!;
         expect(target).toBeDefined();
         if (mode==="wrong-value-type") target.value={type:"text",value:"2027-01-01"};
         else if (mode==="formula-value") target.value={type:"text",value:"\u00a0=unsafe-spreadsheet-expression"};
+        else if (mode==="empty-text" || mode==="required-empty-text") target.value={type:"text",value:""};
         else target.value={type:"number",value:9007199254740992};
         const sourceRevisionId=randomUUID(),projectionId=randomUUID(),sourceHash=hash(randomUUID());
         await tx.ingestionSourceRevision.create({data:{id:sourceRevisionId,customerId:f.customerId,sourceId:f.sourceId,recordId:outcome.recordId!,
@@ -507,9 +508,9 @@ it.each(["connector-event","connector-page","csv-on-connector","stale-config"])(
   expect(await f.graph()).toEqual(before);
 });
 
-it.each(["wrong-value-type","formula-value","unsafe-number"])("independently rejects an otherwise well-bound native %s proposal",async(mode)=>{
+it.each(["wrong-value-type","formula-value","unsafe-number","empty-text","required-empty-text"])("independently rejects an otherwise well-bound native %s proposal",async(mode)=>{
   const fields:Field[]=[{column:"Forecast",factType:"project.forecast",type:"date",required:false},
-    {column:"Status",factType:"project.status",type:"text",required:false},{column:"Metric",factType:"project.metric",type:"number",required:false}];
+    {column:"Status",factType:"project.status",type:"text",required:mode==="required-empty-text"},{column:"Metric",factType:"project.metric",type:"number",required:false}];
   const f=await fixture(1,fields),command={...f.input([]),csv:`Key,Project,Forecast,Status,Metric\nA,${f.projects[0]},2027-01-01,start,1.25\n`};
   const first=await f.api.persistCsvPreview(f.actor,command,randomUUID()),before=await f.graph();
   let failure:unknown;
@@ -518,6 +519,23 @@ it.each(["wrong-value-type","formula-value","unsafe-number"])("independently rej
   expect((failure as {meta?:{driverAdapterError?:{cause?:{originalMessage?:string}}}})?.meta?.driverAdapterError?.cause?.originalMessage)
     .toBe("Invalid CSV comparison value");
   expect(await f.graph()).toEqual(before);
+});
+
+it("accepts whitespace text and treats a later empty optional cell as omission",async()=>{
+  const f=await fixture();
+  await f.preview([["A","2027-01-01","start"]]);
+  const changed=await f.preview([["A","2027-01-01","   "]]);
+  expect(changed.read.outcomes[0]!.operation).toBe("UPDATE");
+  expect(changed.read.outcomes[0]!.proposals).toContainEqual({factType:"project.status",value:{type:"text",value:"   "}});
+  const context=await owner.ingestionCsvContext.findUniqueOrThrow({where:{receiptId:changed.result.receiptId}});
+  const rows=context.rows as [string,string,string,[string,string][]][];
+  const statusRef=rows[0]![3].find(([index])=>index==="1")![1];
+  const before=await owner.ingestionProposalContent.findUniqueOrThrow({where:{projectionId:statusRef}});
+  const omitted=await f.preview([["A","2027-01-01",""]]);
+  expect(omitted.read.outcomes[0]!.operation).toBe("UNCHANGED");
+  const next=await owner.ingestionCsvContext.findUniqueOrThrow({where:{receiptId:omitted.result.receiptId}});
+  expect((next.rows as typeof rows)[0]![3].find(([index])=>index==="1")![1]).toBe(statusRef);
+  expect(await owner.ingestionProposalContent.findUniqueOrThrow({where:{projectionId:statusRef}})).toEqual(before);
 });
 
 it("requires full parent context for native reviewed-import birth and semantic reads even when the cheap receipt link still passes",async()=>{

@@ -656,6 +656,7 @@ BEGIN
       SELECT entry->>1 INTO field_type FROM jsonb_array_elements(h.dictionary) entry WHERE (entry->>0) COLLATE "C"=(proposal->>'factType') COLLATE "C";
       IF field_type IS NULL OR (proposal->'value'->>'type') IS DISTINCT FROM field_type THEN RAISE EXCEPTION 'Invalid CSV comparison value'; END IF;
       IF field_type='number' AND abs((proposal->'value'->>'value')::numeric)>9007199254740991 THEN RAISE EXCEPTION 'Invalid CSV comparison value'; END IF;
+      IF field_type='text' AND proposal->'value'->>'value'='' THEN RAISE EXCEPTION 'Invalid CSV comparison value'; END IF;
       IF field_type='text' AND left(ltrim(proposal->'value'->>'value',E'\t\n\f\r '||U&'\000b\00a0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200a\2028\2029\202f\205f\3000\feff'),1) IN ('=','+','-','@') THEN
         RAISE EXCEPTION 'Invalid CSV comparison value';
       END IF;
