@@ -32,7 +32,7 @@ function fixture(mutate?: (kind: Kind, rows: Row[]) => void) {
       expect(sql).toContain("has_function_privilege");
       kind = "function";
       expect(names).toEqual(["guard_ingestion_project_reassessment()", "require_ingestion_reassessment_complete()",
-        "lock_ingestion_reassessment_preview()", "reject_ingestion_reassessment_history()",
+        "lock_ingestion_reassessment_preview()", "reject_ingestion_reassessment_history()", "guard_ingestion_retention()",
         'valid_ingestion_reassessment_row(public."IngestionProjectReassessment")', "valid_ingestion_project_reassessment(uuid)"]);
       rows = roles!.flatMap((role_name) => names!.map((function_name) => ({ role_name, function_name,
         allowed: role_name === "pdaa_api" && [
@@ -68,6 +68,15 @@ describe("complete finite recovery privilege matrices", () => {
   }
   it("continues to deny table grant options", async () => {
     const f = fixture((kind, rows) => { if (kind === "table") rows[0]!.grantable = true; });
+    await expect(verifyReassessmentPrivileges(f.pool)).rejects.toThrow();
+  });
+  it.each(["pdaa_api", "pdaa_worker", "pdaa_backup"])("rejects direct retention guard execution for %s", async (role) => {
+    const f = fixture((kind, rows) => {
+      if (kind !== "function") return;
+      const guard = rows.find((row) => row.role_name === role && row.function_name === "guard_ingestion_retention()");
+      expect(guard).toBeDefined();
+      guard!.allowed = true;
+    });
     await expect(verifyReassessmentPrivileges(f.pool)).rejects.toThrow();
   });
   it.each(["empty", "duplicate", "wrong owner"])("rejects %s metadata", async (change) => {
