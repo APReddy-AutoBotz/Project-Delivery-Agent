@@ -120,3 +120,4 @@ export * from "./milestone-conflict-observation.js";
 export * from "./milestone-request-observation.js";
 export * from "./scalar-conflict-observation.js";
 export * from "./milestone-state-disagreement.js";
+export * from "./csv-comparison-state.js";
