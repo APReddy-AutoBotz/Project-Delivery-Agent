@@ -691,11 +691,11 @@ migration as a prerequisite for reviewing its pure prototype.
 
 ## Pure state prototype progress, 2026-11-16
 
-The domain serializer now validates and copies the complete reference-only ASCII
+The initial domain serializer validates and copies the complete reference-only ASCII
 grammar, freezes all returned arrays, and exposes canonical text/byte counts.
 It enforces numeric field ordering, unique identities/records, 1,000 lifetime
-identities, 32 fields and 100 projects. It contains no database queries, value
-retention, comparison matcher or HTTP integration. Native identity binding,
+identities, 32 fields and 100 projects. That initial prototype contains no database
+queries, value retention, comparison matcher or HTTP integration. Native identity binding,
 transition authorization and live retention checks remain implementation work.
 
 All 82 focused controls pass, including both fixed digest vectors, the independently
@@ -732,3 +732,52 @@ grammar controls; they must not claim verbatim function-level parity with every
 malformed raw TypeScript scope/revision case. Transport/full-state parsing and
 native casts need their separate denial controls. Fixed vectors, maximum-state
 execution, invoker ACL behavior and all later persistence guards remain required.
+
+## Hashed comparison primitive, 2026-11-16
+
+PR #166 merged as 7ce15ec9377f5e7d143f2665c42452ed6cf8141b after all exact-head
+checks and independent source/CSV/recovery/distribution artifact reviews passed.
+Its tree is 01f9c8843da36259d20adeb31a690415d837fb35. This continuation contains
+that merge while preserving the separately reviewed local prototypes. The parent
+proves baseline-free CREATE; it does not complete UPDATE or story acceptance.
+Post-merge Foundation run 43805983699 and Documentation run 43805983637 both
+passed on the actual merge commit; its tree matches the reviewed candidate.
+
+The pure CSV mapper now has a separate hashed-baseline schema and typed result.
+An internal normalized-identity comparison engine preserves the original raw-key
+CSV/grid/synthetic helpers. The new entrypoint requires an explicit baseline
+shape; its repository caller must establish complete native state. For a verified
+empty source that shape contains an explicit empty rows array. Shape validation
+alone establishes no completeness, authorization, current grant, retention or
+native reference binding. The native loader and guards remain necessary.
+
+The repository-owned synchronous hash callback receives the exact untrimmed sheet
+and raw key once per distinct valid incoming key. Valid keys on invalid-project
+or invalid-field rows still participate; invalid keys remain unhashed. Stored
+baseline digests are never rehashed. A raw key that happens to contain 64 hex
+characters is still hashed as raw text. Malformed outputs, exceptions and
+different-key collisions fail with a fixed safe error; native Promise outputs
+are rejected without awaiting them or exposing rejection reasons.
+
+The result explicitly labels keyHash and missingPreviousKeyHashes. Raw current
+keys, identity strings and field inputs are transient preview material; native
+persistence must use only the hashes and approved mapped proposals. Optional
+blanks keep incoming proposals empty, while comparisons use the supplied carried
+baseline. The helper neither mutates that baseline nor implements durable state
+overlay, expiry, capacity accounting or a public baseline submission API.
+
+The approved Stage 6 design and bounded matcher design, coverage and evolving
+source reviews preserve this scope. All 195 focused tests across the serializer,
+hashed matcher and original CSV/grid suites pass directly in the worktree; scoped strict TypeScript and source
+lint pass. Coverage includes CREATE/UPDATE/UNCHANGED/NONE, renamed/moved keys,
+missing/duplicate/invalid identities, typed values, optional omissions and returning
+values, unselected observations, 1,000 rows, exact Unicode/hash arguments and
+callback failure/collision/asynchronous results. These are pure comparison results,
+not native persistence or connected UPDATE acceptance.
+
+The existing frozen dependencies were installed from the local package store in
+offline mode with install scripts disabled after Windows link restrictions were
+resolved. No dependency version or lockfile changed. Full workspace build, lint,
+type checking and all 2,778 unit tests across 187 files pass. Exact-candidate
+reviews and all applicable native/integration/customer gates still gate a Stage 6
+merge; pure prototype results do not satisfy connected UPDATE acceptance.
