@@ -24,7 +24,6 @@ jobs:
       - run: pnpm check:architecture && pnpm check:contracts
       - run: pnpm lint && pnpm typecheck && pnpm test
       - run: node scripts/check-dependencies.mjs
-      - run: pnpm audit --audit-level high
       - name: Fresh role-absent and partial-role migration bootstrap
         run: node scripts/local.mjs scripts/test-ingestion-role-bootstrap.mjs
       - run: pnpm db:migrate && pnpm db:seed
@@ -81,6 +80,9 @@ jobs:
           name: milestone-reconciliation-browser
           path: artifacts/reconciliation-native-pm-proof.png
           if-no-files-found: error
+      - name: Mandatory dependency audit
+        if: always()
+        run: pnpm audit --audit-level high
       - if: always()
         run: docker compose down
   production-boundary:

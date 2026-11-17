@@ -1020,3 +1020,26 @@ The genuine 4,096-context native control passes in 41.204 seconds, including its
 next-command denial and old-command retry. This partial result does not accept
 the complete native, customer, upgrade or recovery contract. Original19/20
 capture remains stopped.
+
+## Unpublished upstream security patch and independent diagnostics, 2026-11-17
+
+The next exact candidate `b8e56e0` passed build/types/lint and all 2,881 unit
+tests, but its native diagnostic did not execute. Mandatory audit rejected
+picomatch 4.0.7 for
+[GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf).
+The advisory's affected range ends at 4.0.7. The audit prints a 4.0.8 patched
+boundary, but the publisher registry has no such release: exact lookup fails,
+independent registry metadata still lists latest 4.0.7, and the official advisory
+lists no patched version. No dependency version is fabricated or adopted, and
+no advisory exception, severity reduction or ignore flag is introduced.
+
+To continue independent synthetic native diagnosis while preserving the existing
+required check, the exact unchanged audit command moves to a final always-run
+step in `verify`, before its existing Docker cleanup. Audit failure still fails
+that same check; native failures also fail it, and the audit still runs after
+them. The job name, tool pins, frozen install, full audit scope, contents-read
+permission, timeout, required checks and branch settings remain unchanged.
+This is the smaller reviewed alternative to new parallel jobs and an aggregate;
+it avoids relying on an unverified new branch-protection requirement. Every
+required exact-head check must pass before merge. An unresolved audit remains a
+merge blocker even when useful native or packaged evidence is collected.
