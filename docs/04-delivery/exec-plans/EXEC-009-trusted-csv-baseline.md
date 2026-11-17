@@ -1,7 +1,7 @@
 # EXEC-009 Stage 6: trusted CSV comparison baseline
 
-Status: concrete design approved; native persistence/integration candidate
-implemented. Exact-candidate and hosted acceptance gates remain pending.
+Status: implementation merged and exact-candidate and post-merge validation
+verified. Issue #7 and story acceptance remain open.
 Owner: implementation controller. Date: 2026-11-16.
 Requirements: FR-CON-006/007/008/010/012, FR-EVD-009, NFR-SEC-001,
 AC-CON-005, E2E-CON-005, FAIL-006; Issue #7.
@@ -1159,3 +1159,39 @@ steps and artifact publication. The tests, their individual deadlines, the
 production-boundary job and the mandatory audit command are unchanged. Review
 the full browser results and exact candidate evidence from the next run. Merge
 still requires the audit and every other required check and review to pass.
+
+## Merge and post-merge evidence
+
+[PR #168](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/168)
+merged reviewed head `72505ef10250a85c860f749a82aef37ff08f9379` as
+`ab2745c4ed7b47e2a91667f1c085421952b4ee3f`. Its first parent is
+`71cc0effee68e7e32308806c3eec2093cacf3d8f` and its second is the reviewed head.
+The actual merge and tested synthetic merge
+`121aed26bf6570f9e5a38cb0f3324133d58095f9` have tree
+`121f833a179bde0cff86b2af4c54abc5fe6ca2c2`.
+
+[Candidate Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44185618987)
+passed. [Candidate Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44185618881)
+passed packaged acceptance on attempt 1. Its verify job reached the
+seven-minute capacity-test deadline after committing 133 of 166 contexts.
+The unchanged-head verify retry completed the capacity test in 394,557 ms,
+with 2,889 unit tests, 386 native integrations and one skip, recovery, browser
+workflows and the required dependency audit passing. The audit found zero
+high or critical findings after the development dependency correction in
+[ADR-016](../../03-architecture/adr/ADR-016-PICOMATCH-TOOLCHAIN-SECURITY-OVERRIDE.md).
+
+Independent original-evidence reviews checked both customer profiles against
+[the production-boundary artifact](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44185618881/artifacts/14374174894)
+and the exact tested tree. The reviews matched rename and move exclusions,
+UPDATE and UNCHANGED proposals, selected-row-only saving, idempotent replay
+after a lost acknowledgement and environment recreation, and all ten CSV
+screenshot hashes. Both isolated restores matched the source-scoped native
+fingerprint and receipt lineage, with 28 released migration checksums,
+87 business tables and API/worker connection quarantine. The running
+application evidence came from synthetic customer profiles before restore.
+Review confirmed the proposal workflow leaves canonical facts untouched.
+
+[Post-merge Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44194349593)
+and [post-merge Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44194349534)
+passed on the actual merge on their first attempts. The distribution review
+still has five open holds. No additional story credit follows from this increment.

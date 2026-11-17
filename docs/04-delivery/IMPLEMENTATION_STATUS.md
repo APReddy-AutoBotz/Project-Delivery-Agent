@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-11-16
+Updated: 2026-11-18
 
 ## Accepted implementation completion
 
@@ -31,6 +31,20 @@ holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+Trusted CSV comparison and reviewed import merged in
+[PR #168](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/168)
+as `ab2745c4ed7b47e2a91667f1c085421952b4ee3f`. The merged tree
+`121f833a179bde0cff86b2af4c54abc5fe6ca2c2` matches the tested
+synthetic merge of reviewed candidate `72505ef10250a85c860f749a82aef37ff08f9379`.
+Exact-candidate Foundation, Documentation and independent source and
+packaged-evidence reviews passed. Post-merge
+[Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44194349593)
+and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44194349534)
+passed on their first attempts. The two packaged profiles prove the trusted
+UPDATE/UNCHANGED baseline, rename and move exclusions, selected-row save,
+exact receipt replay and quarantined restoration. See
+[the stage 6 evidence record](exec-plans/EXEC-009-trusted-csv-baseline.md#merge-and-post-merge-evidence).
+
 Trusted CSV comparison primitives merged in
 [PR #167](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/167)
 as `71cc0effee68e7e32308806c3eec2093cacf3d8f`, with reviewed candidate
@@ -42,17 +56,12 @@ remained connected; rollback and CONNECT quarantine held. The separately
 reviewed unchanged failed-job rerun passed on attempt 2, together with
 Documentation `43821345814`. The original failure evidence is retained.
 
-The next coherent candidate implements the cumulative reference overlay,
-additive migration 28 with two guarded comparison tables, server-owned CSV
-comparison and exact retry, restricted role/recovery checks and a separate
-connected UPDATE/UNCHANGED/rename/move customer journey. It also corrects the
-maximum sheet identity width without changing the 256-character sheet limit.
-The 27 released migrations remain unchanged. Local validation and evolving
-independent reviews are recorded in
-[EXEC-009](exec-plans/EXEC-009-trusted-csv-baseline.md); immutable-candidate and
-hosted native, upgrade, browser and recovery gates remain required. Imports
-save reviewed proposals. Story acceptance, source publication, OD-013/014,
-the five customer-release holds and stopped Original19/20 capture are unchanged.
+The [next spreadsheet increment](exec-plans/EXEC-045-xlsx-proposal-preview.md)
+adds an offline archive and literal-text worksheet decoder. Live XLSX
+processing still requires deployment isolation, supported workbook producer
+evidence, and format-specific authorization and receipt binding. Imports
+save reviewed proposals. Issue #7 and the five customer-release holds remain
+open. OD-013/014 apply, and Original19/20 capture remains stopped.
 
 Read-only matched milestone reconciliation request observation merged in
 [PR #141](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/141)
