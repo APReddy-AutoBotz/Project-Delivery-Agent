@@ -64,5 +64,6 @@ export async function verifyCsvComparisonPrivileges(pool, roles = ["pdaa_api","p
       }
     }
   }
-  return { tables,apiValidators:4,privateGuards:7,workerDenied:true,backupSelectOnly:true,headUpdateColumns:[...controls],publicDenied:true };
+  return { tables,apiValidators:csvComparisonApiFunctions.length,privateGuards:csvComparisonFunctions.length-csvComparisonApiFunctions.length,
+    workerDenied:true,backupSelectOnly:true,headUpdateColumns:[...controls],publicDenied:true };
 }

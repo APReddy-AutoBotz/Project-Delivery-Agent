@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { assertBusinessTableInventory } from "./upgrade-inventory-receipt.mjs";
+import { csvComparisonFunctions, csvComparisonApiFunctions } from "./csv-comparison-privileges.mjs";
 import {
   csvPositiveVectors,
   csvNativeCorruptions,
@@ -20,6 +21,7 @@ const signatures = [
   "public.valid_ingestion_csv_state(uuid,uuid,integer,jsonb,jsonb)",
   "public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb)",
 ];
+const privateCsvFunctions = csvComparisonFunctions.filter((signature) => !csvComparisonApiFunctions.includes(signature));
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 
 export function assertCsvPrototypeTarget(
@@ -203,9 +205,8 @@ async function checkMetadata(client) {
     const {serializeCsvComparisonState} = await import("../../packages/domain/dist/csv-comparison-state.js");
     assert.deepEqual((await client.query(nativeQuery,parameters(csvStateVector()))).rows,
       [{valid:true,text:serializeCsvComparisonState(csvStateVector()).text}]);
-    for (const name of ["guard_ingestion_csv_head","initialize_ingestion_csv_head","guard_ingestion_csv_context",
-      "require_ingestion_csv_complete","guard_ingestion_receipt","guard_ingestion_reviewed_import","require_ingestion_receipt_complete"])
-      await deniedStatement(client,"SELECT public."+name+"()",[],"42501");
+    for (const signature of privateCsvFunctions)
+      await deniedStatement(client,"SELECT public."+signature,[],"42501");
   } finally {
     await client.query("ROLLBACK TO SAVEPOINT csv_prototype_role");
     await client.query("RELEASE SAVEPOINT csv_prototype_role");
@@ -321,7 +322,7 @@ export async function verifyCsvComparisonPrototype(
       ownerIsMigrationSession: true,
       publicWorkerBackupExecuteDenied: true,
       actualApiRolePositive: true,
-      privateApiGuardDenials: 6,
+      privateApiGuardDenials: privateCsvFunctions.length,
       migrations: 28,
       businessTables: 87,
     };
