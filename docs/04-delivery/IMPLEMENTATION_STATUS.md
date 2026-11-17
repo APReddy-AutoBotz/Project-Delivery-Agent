@@ -7,7 +7,7 @@ Updated: 2026-11-18
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
-| R1      |                       4 |                     33 |      12.1% |
+| R1      |                       5 |                     33 |      15.2% |
 
 STORY-001 (TypeScript workspace and runtime/API contracts) and STORY-002
 (PostgreSQL foundation and repository interfaces) are accepted under delegated
@@ -24,10 +24,12 @@ became effective with PR #113 merge 9e1d84323c280b74f4f17bf62de80ec664e600fc.
 Its reviewed tree/ordered parents, exact-head checks and actual post-merge
 Foundation39734257139/Documentation39734257119 all pass. See the [webhook acceptance](../05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md)
 and [freshness acceptance](../05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md) records.
-The resulting accepted total is **7/38 (18.4%)**: R0 3/5 and R1 4/33. Story and
-release denominators are unchanged. Issues #7/#8/#9 and the other unfinished
-stories remain open; technical collection does not accept any of the five release
-holds. Original19/20 research capture remains stopped.
+PR #113 brought the accepted total to 7/38 (18.4%). The
+[STORY-009 CSV acceptance](../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md)
+brings it to **8/38 (21.1%)** after this evidence increment passes independent
+review and required checks and merges. The release totals then are R0 3/5
+and R1 5/33. Issues #7/#8/#9, unfinished stories and all five release holds
+remain open. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
@@ -1238,7 +1240,7 @@ AC-CON-004 remains partial: the signed-event replay evidence reaches one durable
 
 This entire dated checkpoint, including the totals in the following paragraph,
 is historical. The STORY-008 acceptance recorded above became effective with
-PR #113 and supersedes this AC-CON-004 status; current totals are 7/38 above.
+PR #113 and supersedes this AC-CON-004 status. That merge brought the total to 7/38.
 
 AC-CON-001 remains partial because OD-013 keeps public OAuth onboarding and live activation disabled. AC-CON-003 remains partial because OD-014 keeps Jira comment reads and body/author retention disabled. Issue #7 stays open; no story or accepted-story total changes (R0 3/5, R1 2/33; 5/38 combined). No customer Jira site is activated and no proposal becomes a canonical fact.
 

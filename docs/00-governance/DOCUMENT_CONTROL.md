@@ -1,5 +1,16 @@
 # Document Control
 
+## STORY-009 reviewed CSV import software acceptance, 2026-11-18
+
+Under the Product Owner's existing controller delegation, approve the
+STORY-009 software scope for FR-CON-006/007 and AC-CON-005. The independent
+whole-story audit matched the configured CSV journey, exact selection and
+FAIL-006 evidence to verified PR #168 merge
+`ab2745c4ed7b47e2a91667f1c085421952b4ee3f` and the original customer-profile
+artifacts. This decision takes effect after the acceptance increment passes
+independent exact-source review, required checks and verified merge.
+[Complete evidence and limits](../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md)
+
 ## EXEC-020 bounded PM history design approval, 2026-10-22
 
 Under the Product Owner's existing controller delegation, approve the bounded

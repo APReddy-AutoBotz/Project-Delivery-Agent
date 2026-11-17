@@ -775,3 +775,6 @@ coverage and replay identity before extending those claims end to end. XLSX is
 not required by the approved CSV alternative. Genuine source publication remains
 owned by the coupled origin/stream/authority/SQL/API/presentation work described
 above; this proposal-only stage does not cancel it. STORY-009 stays unaccepted.
+
+The [STORY-009 acceptance record](../../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md)
+supersedes this pending CSV checkpoint after its own review and merge gates.

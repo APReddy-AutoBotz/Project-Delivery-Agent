@@ -213,7 +213,7 @@ stories:
   - FR-CON-007
   acceptance_criteria:
   - AC-CON-005
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7
 - id: STORY-010
