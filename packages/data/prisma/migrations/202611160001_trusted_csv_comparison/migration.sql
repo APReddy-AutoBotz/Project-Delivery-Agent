@@ -246,16 +246,26 @@ BEGIN
     )
   ) THEN RETURN false; END IF;
   IF EXISTS (
-    SELECT 1 FROM jsonb_array_elements(c.rows) identity_row
-    CROSS JOIN LATERAL jsonb_array_elements(identity_row->3) field_ref
-    WHERE NOT EXISTS (
-      SELECT 1 FROM public."IngestionProposalProjection" p
-      JOIN public."IngestionProposalContent" content ON content."customerId"=p."customerId" AND content."sourceId"=p."sourceId"
+    WITH refs AS MATERIALIZED (
+      SELECT (identity_row->>1)::uuid AS record_id,(field_ref->>1)::uuid AS projection_id,
+        (h.dictionary->((field_ref->>0)::integer)->>0) COLLATE "C" AS field_name
+      FROM jsonb_array_elements(c.rows) identity_row
+      CROSS JOIN LATERAL jsonb_array_elements(identity_row->3) field_ref
+    ), required_pairs AS MATERIALIZED (
+      SELECT DISTINCT record_id,projection_id FROM refs
+    ), bindings AS MATERIALIZED (
+      SELECT required.record_id,required.projection_id,p."factTypes" AS fact_types,
+        (p.id IS NOT NULL AND content."projectionId" IS NOT NULL) AS valid
+      FROM required_pairs required
+      LEFT JOIN public."IngestionProposalProjection" p ON p.id=required.projection_id
+        AND p."customerId"=c."customerId" AND p."sourceId"=c."sourceId"
+        AND p."recordId"=required.record_id AND p."mappingRevision"=c."mappingRevision"
+      LEFT JOIN public."IngestionProposalContent" content ON content."customerId"=p."customerId" AND content."sourceId"=p."sourceId"
         AND content."recordId"=p."recordId" AND content."projectionId"=p.id
-      WHERE p.id=(field_ref->>1)::uuid AND p."customerId"=c."customerId" AND p."sourceId"=c."sourceId"
-        AND p."recordId"=(identity_row->>1)::uuid AND p."mappingRevision"=c."mappingRevision"
-        AND (h.dictionary->((field_ref->>0)::integer)->>0) COLLATE "C"=ANY(p."factTypes")
     )
+    SELECT 1 FROM refs ref LEFT JOIN bindings binding
+      ON binding.record_id=ref.record_id AND binding.projection_id=ref.projection_id
+    WHERE binding.valid IS NOT TRUE OR (ref.field_name COLLATE "C"=ANY(binding.fact_types)) IS NOT TRUE
   ) THEN RETURN false; END IF;
   IF EXISTS (SELECT 1 FROM public."IngestionRowOutcome" o WHERE o."receiptId"=r.id
     AND ROW(o."customerId",o."sourceId") IS DISTINCT FROM ROW(c."customerId",c."sourceId")) THEN RETURN false; END IF;

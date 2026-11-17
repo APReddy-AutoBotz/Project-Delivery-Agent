@@ -1068,3 +1068,28 @@ restore evidence must match the new checksum; old cece artifacts remain historic
 prerequisites. The two genuine large initial repository constructions and all
 capacity assertions, input bounds and budgets remain unchanged. The unresolved
 upstream audit still blocks merge even if the native correction passes.
+
+## Bounded immutable binding lookup, 2026-11-17
+
+The grouped-overlay candidate `b61ee7d` moves the first failure to COMMIT. Its
+final context-validation statement completes in 8,230 ms; the transaction fails
+at commit after 23,742 ms. Native integration records 381 passed, three failed
+and one skipped. This establishes progress and a deferred-work bottleneck, not
+performance acceptance. Original job evidence and checksums are retained.
+
+The next correction retains every completion trigger and validator call. The
+static context validator expands all references once, deduplicates only immutable
+record/projection lookup pairs, and materializes their exact scoped projection
+and content-metadata bindings. Every original reference still separately checks
+its C-collated field membership, rejecting missing/NULL bindings or membership
+with IS NOT TRUE. Content-row presence remains valid after lawful plaintext
+redaction; no plaintext, time, current grants, cache or all-history scan is added.
+Zero-field identity anchors and all previous hash/scope/overlay checks remain.
+
+A new owner-only rollback control creates two references sharing one projection,
+then removes only one field from its metadata. The cheap receipt link remains
+valid while full context validation must reject the absent membership. The
+original graph and audits must be restored by rollback. This complements the
+unchanged genuine large constructions, optional omissions and purge/replay
+controls. Fresh hosted timing and current-checksum recovery evidence remain
+required; no completion-dispatch, budget or enforcement reduction is inferred.
