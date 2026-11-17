@@ -1144,3 +1144,18 @@ commits. Each query still has ten seconds and each transaction has sixty.
 The fixture stops launching work when Vitest aborts it and reports only the
 phase, committed count, target count and elapsed time on failure. All history
 and overflow assertions still apply, along with the existing hosted job deadline.
+
+## Hosted verification job timing
+
+The `ecb5301` Foundation run passed 2,881 unit tests and 386 native integration
+tests, with one native skip. The native suite completed the genuine maximum
+history and 4,096-context checks. Recovery passed. The 20-minute verify job
+limit canceled Chromium after 271 of 324 tests completed, including the
+reviewed CSV import. The required audit ran during cancellation and failed
+for the same unresolved `picomatch` advisory.
+
+The verify job gets 30 minutes to complete the browser suite, remaining proof
+steps and artifact publication. The tests, their individual deadlines, the
+production-boundary job and the mandatory audit command are unchanged. Review
+the full browser results and exact candidate evidence from the next run. Merge
+still requires the audit and every other required check and review to pass.
