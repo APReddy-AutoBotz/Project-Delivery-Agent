@@ -110,6 +110,11 @@ jobs:
             artifacts/pdaa-acceptance-*/customer-*/scalar-reconciliation-pm-*.png
             artifacts/pdaa-acceptance-*/customer-*/csv-import-workflow-fixture.json
             artifacts/pdaa-acceptance-*/customer-*/csv-native-reviewed-import.png
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-workflow-fixture.json
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-rename.png
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-move.png
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-changed.png
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-saved.png
           if-no-files-found: error
       - uses: pnpm/action-setup@v4
         with:

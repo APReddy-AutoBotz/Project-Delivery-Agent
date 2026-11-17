@@ -963,6 +963,13 @@ response disclosure drains and session finalization remain mandatory on failures
 Exact metadata replay after recreation and native retained data before restore
 mutation probes are part of the host-validated evidence contract.
 
+The first hosted attempt exposed a retention-wiring gap during source review:
+the existing upload list retained only the earlier CSV CREATE fixture and image.
+The production evidence upload now explicitly includes the new comparison
+fixture and its four rename/move/changed/saved images for every customer profile.
+These original files must be independently reviewed alongside their host-checked
+hashes before accepting the connected proof; summary JSON alone is insufficient.
+
 Local workspace build, lint and type checks pass. The full sheet-width rerun
 passes 2,881 unit tests across 192 files, together with focused contract/privacy/
 fixture controls. Strict checking of the new native and browser controls passes.
