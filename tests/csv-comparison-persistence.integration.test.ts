@@ -21,7 +21,29 @@ const errorCode=(error:unknown)=>(error as {meta?:{driverAdapterError?:{cause?:{
 type Row=readonly [string,string?,string?,string?,string?];
 type Field=Extract<IngestionConfiguration["mapping"],{kind:"CSV"}>["fields"][number];
 
-async function fixture(projectCount=1,fields?:Field[],sheet="Projects") {
+const own=(value:unknown,key:string):unknown=>value!==null && typeof value==="object" ? Object.getOwnPropertyDescriptor(value,key)?.value : undefined;
+function nativeCodes(error:unknown) {
+  const code=own(error,"code"),cause=own(own(own(error,"meta"),"driverAdapterError"),"cause"),sqlstate=own(cause,"originalCode");
+  return {
+    prismaCode:typeof code==="string" && ["P2010","P2028","P2024","P2034","P1001","P1002","P1008","P1017"].includes(code) ? code : "OTHER",
+    sqlstate:own(cause,"kind")==="postgres" && typeof sqlstate==="string" &&
+      ["57014","55P03","23503","23505","23514","P0001","PDC01","PDC02","PDC03","42501","22P02","53100","54000","40P01","40001","22023"].includes(sqlstate) ? sqlstate : "OTHER",
+  };
+}
+function nativeQueryFamily(args:unknown[]) {
+  const sql=typeof args[0]==="string" ? args[0] : Array.isArray(args[0]) ? args[0].join("?") : "";
+  for (const [family,fragment] of [
+    ["FACT_STREAM_INSERT",'INSERT INTO public."IngestionFactStream"'],["RECORD_INSERT",'INSERT INTO public."IngestionExternalRecord"'],
+    ["REVISION_INSERT",'INSERT INTO public."IngestionSourceRevision"'],["PROJECTION_INSERT",'INSERT INTO public."IngestionProposalProjection"'],
+    ["CONTENT_INSERT",'INSERT INTO public."IngestionProposalContent"'],["RECEIPT_INSERT",'INSERT INTO public."IngestionOperationReceipt"'],
+    ["OUTCOME_INSERT",'INSERT INTO public."IngestionRowOutcome"'],["CONTEXT_INSERT",'INSERT INTO public."IngestionCsvContext"'],
+    ["HEAD_UPDATE",'UPDATE public."IngestionCsvHead"'],["CONTEXT_VALIDATION","public.valid_ingestion_csv_context("],
+    ["CONTENT_READ",'FROM public."IngestionProposalContent"'],
+  ] as const) if (sql.includes(fragment)) return family;
+  return "OTHER";
+}
+
+async function fixture(projectCount=1,fields?:Field[],sheet="Projects",diagnostic:"WIDE"|"SPARSE"|null=null) {
   const customerId=randomUUID(),portfolioId=randomUUID(),sourceId=randomUUID(),subject="csv-state-"+randomUUID();
   const actor:Actor={customerId,subject,roles:["pmo_admin"]};
   await owner.customer.create({data:{id:customerId,name:"Synthetic comparison fixture"}});
@@ -30,13 +52,33 @@ async function fixture(projectCount=1,fields?:Field[],sheet="Projects") {
   await owner.project.createMany({data:projects.map((id)=>({id,customerId,portfolioId,code:"CSV-"+id,name:"CSV state fixture",description:"Synthetic only",reportedStatus:"UNKNOWN"}))});
   await owner.accessGrant.createMany({data:[{customerId,subject,scopeType:"portfolio",scopeId:portfolioId,role:"pmo_admin"},
     {customerId,subject:subject+"-system",scopeType:"portfolio",scopeId:portfolioId,role:"system_admin"}]});
-  const asApi=<T>(operation:(tx:Tx)=>Promise<T>,options?:Options)=>owner.$transaction(async(tx)=>{
+  const asApi=async<T>(operation:(tx:Tx)=>Promise<T>,options?:Options)=>{
+    const started=Date.now();let completed=false,queryFailed=false,ordinal=0;
+    let last={method:"NONE",family:"NONE",elapsedMs:0};
+    try {return await owner.$transaction(async(tx)=>{
     await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
     const [principal]=await tx.$queryRaw<{role:string;superuser:boolean;migrationMember:boolean}[]>`SELECT current_user::text AS role,
       (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser,pg_has_role(current_user,'pdaa_migrate','MEMBER') AS "migrationMember"`;
     expect(principal).toEqual({role:"pdaa_api",superuser:false,migrationMember:false});
-    return operation(tx);
-  },options);
+    const observed=diagnostic===null ? tx : new Proxy(tx,{get(target,property){
+      const value=Reflect.get(target,property,target);
+      if (["$executeRaw","$queryRaw","$executeRawUnsafe","$queryRawUnsafe"].includes(String(property))) return async(...args:unknown[])=>{
+        ordinal++;const at=Date.now();last={method:String(property),family:nativeQueryFamily(args),elapsedMs:0};
+        try {return await Reflect.apply(value,target,args);} catch(error) {queryFailed=true;throw error;}
+        finally {last.elapsedMs=Math.min(600000,Math.max(0,Date.now()-at));}
+      };
+      return typeof value==="function" ? value.bind(target) : value;
+    }});
+    const result=await operation(observed);completed=true;return result;
+  },options);} catch(error) {
+      // Test-only, before repository redaction. Emit finite labels/codes/timing;
+      // never retain raw errors, messages, metadata, SQL, values or parameters.
+      if (diagnostic!==null) try {console.error("CSV_NATIVE_DIAGNOSTIC",JSON.stringify({fixture:diagnostic,
+        boundary:queryFailed ? "QUERY" : completed ? "COMMIT" : "TRANSACTION",ordinal,...last,
+        transactionElapsedMs:Math.min(600000,Math.max(0,Date.now()-started)),...nativeCodes(error)}));} catch { /* Preserve the original failure unchanged. */ }
+      throw error;
+    }
+  };
   const apiClient={$queryRaw:(sql:TemplateStringsArray,...values:unknown[])=>asApi((tx)=>tx.$queryRaw(sql,...values)),
     $transaction:asApi,auditEvent:{create:(input:Prisma.AuditEventCreateArgs)=>asApi((tx)=>tx.auditEvent.create(input))}};
   const api=new DatabaseIngestionRepository(apiClient as never,vault);
@@ -66,7 +108,7 @@ async function fixture(projectCount=1,fields?:Field[],sheet="Projects") {
     result.audits=await owner.auditEvent.findMany({where:{customerId,event:{not:"ingestion.operation.denied"}},orderBy:{id:"asc"}});
     return result;
   };
-  return {customerId,sourceId,projects,actor,api,apiClient,asApi,configuration,configure,input,preview,graph};
+  return {customerId,sourceId,projects,actor,api,apiClient,asApi,configuration,configure,input,preview,graph,stopDiagnostics:()=>{diagnostic=null;}};
 }
 
 it("stores accepted NONE identities and carries omitted optional references without refreshing their clocks",async()=>{
@@ -394,6 +436,9 @@ it("serializes an actual purge before a new comparison and refuses redacted base
 // Tampering targets native guards directly; every failed graph/audit rolls back.
 async function nativeTransition(f:Awaited<ReturnType<typeof fixture>>,baseReceiptId:string,mode:string,transaction?:Tx) {
   const operation=async(tx:Tx)=>{
+    // Each transition validates immediately at the end; a following transition
+    // in the same transaction still needs deferred graph construction.
+    await tx.$executeRawUnsafe("SET CONSTRAINTS ALL DEFERRED");
     const [head]=await tx.$queryRaw<{revision:bigint;currentReceiptId:string;stateHash:string;canonicalHistoryBytes:bigint;dictionary:unknown}[]>`
       SELECT revision,"currentReceiptId","stateHash","canonicalHistoryBytes",dictionary FROM public."IngestionCsvHead"
       WHERE "customerId"=${f.customerId}::uuid AND "sourceId"=${f.sourceId}::uuid`;
@@ -593,9 +638,10 @@ function wideCsv(projectId:string,count:number,value:(row:number,field:number)=>
     ["K"+row,projectId,...wideFields.map((_,field)=>value(row,field))].join(","))].join("\n");
 }
 it("persists a reachable 1000-row/32-field state and genuinely exhausts the canonical-history byte budget",async()=>{
-  const f=await fixture(1,wideFields),command={...f.input([]),csv:wideCsv(f.projects[0]!,1000,()=>"v")};
+  const f=await fixture(1,wideFields,"Projects","WIDE"),command={...f.input([]),csv:wideCsv(f.projects[0]!,1000,()=>"v")};
   expect(Buffer.byteLength(command.csv)).toBeLessThanOrEqual(1048576);
   const first=await f.api.persistCsvPreview(f.actor,command,randomUUID());
+  f.stopDiagnostics();
   expect(first.rowCount).toBe(1000);
   const context=await owner.ingestionCsvContext.findUniqueOrThrow({where:{receiptId:first.receiptId}});
   const rows=context.rows as [string,string,string,[string,string][]][];
@@ -683,9 +729,10 @@ it("genuinely fills 4096 contexts, rejects the next command and retains exact me
 },300000);
 
 it("bounds the unique full PostgreSQL content union across sparse carry-forward before a new comparison",async()=>{
-  const f=await fixture(1,wideFields),base=f.input([]);
+  const f=await fixture(1,wideFields,"Projects","SPARSE"),base=f.input([]);
   const first={...base,csv:wideCsv(f.projects[0]!,500,()=>"a".repeat(50))};
   await f.api.persistCsvPreview(f.actor,first,randomUUID());
+  f.stopDiagnostics();
   const second={...base,commandKey:randomUUID(),csv:wideCsv(f.projects[0]!,500,(_row,field)=>field===0 ? "" : "b".repeat(50))};
   await f.api.persistCsvPreview(f.actor,second,randomUUID());
   const [{bytes,uniqueProjections}]=await owner.$queryRaw<{bytes:bigint;uniqueProjections:bigint}[]>`

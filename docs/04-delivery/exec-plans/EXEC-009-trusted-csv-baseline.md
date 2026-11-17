@@ -985,3 +985,38 @@ concrete findings; immutable candidate and hosted original-evidence reviews are
 still required. This is implementation work, not story or customer-release
 acceptance. Reviewed imports remain proposals, OD-013/014 gates and all five
 distribution holds remain open, and Original19/20 capture remains stopped.
+
+## Initial hosted native failures and diagnostic correction, 2026-11-17
+
+PR #168 opened on approved `cece4e8` with its exact description. Foundation
+44131743979 verifies synthetic merge `53bd8c9`, whose tree matches the candidate
+and whose ordered parents are main `71cc0ef` and `cece4e8`. Documentation passes.
+Fresh role-absent/partial bootstrap, migration installation, build, contracts,
+lint, types, units and dependency checks pass. Native integration records
+380 passed, four failed and one skipped; the complete original provider-decoded
+job log and its checksum are retained privately.
+
+Two failures expose fixture barriers rather than established runtime defects.
+The native successor helper left constraints immediate after its first graph;
+the following same-transaction receipt was rejected before construction. Each
+helper entry now explicitly defers construction and retains immediate final
+validation. The reader-revocation gate paused before the now-first Project
+fence, allowing a read to linearize before revocation. The corrected race holds
+the real configuration fences, proves the named reader is blocked, then releases
+configuration while retaining UNAVAILABLE and fresh-read hidden assertions.
+
+The other failures occur during initial normal 1,000-row/32-field and 500-row/
+32-field preview construction, before history filling or sparse carry-forward.
+Their privacy-safe errors do not identify the underlying statement. A test-only
+observer now reports one finite query family/ordinal, query or commit boundary,
+bounded elapsed times and recognized Prisma/SQLSTATE codes before normal error
+redaction. It emits no raw error, message, metadata, SQL or values, rethrows the
+original error unchanged and stops after successful initial construction.
+The existing 10-second query and 60-second transaction budgets, input bounds,
+guards and capacity assertions remain unchanged. A new hosted run must establish
+the cause before any enforcement or budget change is justified.
+
+The genuine 4,096-context native control passes in 41.204 seconds, including its
+next-command denial and old-command retry. This partial result does not accept
+the complete native, customer, upgrade or recovery contract. Original19/20
+capture remains stopped.

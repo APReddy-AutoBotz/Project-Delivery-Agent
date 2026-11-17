@@ -992,14 +992,27 @@ it("paginates only current-readable source causes without hidden identifiers dis
 
 it("fails closed during a current-reader revocation lock race and hides the source after that revocation commits", async () => {
   const f = await fixture(); await f.ingest();
-  const gate = transactionGate((sql) => sql.includes('FROM public."Project"') && sql.includes("FOR UPDATE"));
+  const gate = transactionGate((sql) => sql.includes('INSERT INTO public."IngestionConfigurationRevision"'));
+  const readerGate = transactionGate((sql) => sql.includes('FROM "Project"') && sql.includes("FOR UPDATE"));
   Reflect.set(f.ingestion, "db", gate.database);
+  Reflect.set(f.updates, "db", readerGate.database);
   const revoked = f.ingestion.configure(f.admin, { ...f.configuration,
     projects: [{ projectId: f.projectId, readers: ["another-reader"] }] } as never, randomUUID());
-  await gate.reached;
-  try { await expect(f.updates.reassessments(f.admin, f.projectId)).rejects.toMatchObject({ code: "UNAVAILABLE" }); }
-  finally { gate.resume(); Reflect.set(f.ingestion, "db", db); }
-  await revoked;
+  let read:Promise<unknown>|undefined;
+  try {
+    const holder=await awaitBarrier(gate.reached,revoked);
+    read=f.updates.reassessments(f.admin,f.projectId);read.catch(()=>{});
+    const waiter=await awaitBarrier(readerGate.reached,read);
+    readerGate.resume();
+    await waitForSpecificBlocker(holder,waiter);
+    gate.resume();
+    await expect(read).rejects.toMatchObject({code:"UNAVAILABLE"});
+    await revoked;
+  } finally {
+    gate.resume();readerGate.resume();
+    Reflect.set(f.ingestion,"db",db);Reflect.set(f.updates,"db",db);
+    await Promise.allSettled([revoked,...(read ? [read] : [])]);
+  }
   expect(await f.updates.reassessments(f.admin, f.projectId)).toEqual({ items: [], nextCursor: null });
 });
 
