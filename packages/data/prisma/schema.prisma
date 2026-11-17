@@ -904,6 +904,40 @@ model IngestionSource {
   @@unique([customerId, id], map: "IngestionSource_scope_key")
 }
 
+model IngestionCsvHead {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  activationConfigRevision Int
+  mappingRevision Int
+  dictionary Json
+  readiness String @db.VarChar(24)
+  revision BigInt @default(0)
+  currentReceiptId String? @db.Uuid
+  stateHash String? @db.Char(64)
+  canonicalHistoryBytes BigInt @default(0)
+  @@id([customerId, sourceId], map: "IngestionCsvHead_pkey")
+  @@unique([customerId, sourceId, mappingRevision], map: "IngestionCsvHead_mapping_key")
+}
+
+model IngestionCsvContext {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @id(map: "IngestionCsvContext_pkey") @db.Uuid
+  configRevision Int
+  mappingRevision Int
+  revision BigInt
+  predecessorReceiptId String? @db.Uuid
+  predecessorRevision BigInt
+  predecessorHash String @db.Char(64)
+  rows Json
+  canonicalBytes Int
+  stateHash String @db.Char(64)
+  @@unique([customerId, sourceId, revision], map: "IngestionCsvContext_revision_key")
+  @@unique([customerId, sourceId, revision, receiptId, stateHash], map: "IngestionCsvContext_predecessor_key")
+  @@index([customerId, sourceId, configRevision, mappingRevision], map: "IngestionCsvContext_configuration_idx")
+  @@index([customerId, sourceId, predecessorRevision], map: "IngestionCsvContext_parent_idx")
+}
+
 model IngestionConfigurationRevision {
   customerId String @db.Uuid
   sourceId String @db.Uuid
@@ -949,7 +983,7 @@ model IngestionExternalRecord {
   customerId String @db.Uuid
   sourceId String @db.Uuid
   projectId String @db.Uuid
-  recordType String @db.VarChar(267)
+  recordType String @db.VarChar(268)
   recordKey String @db.VarChar(256)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@unique([customerId, sourceId, id], map: "IngestionExternalRecord_scope_key")

@@ -99,9 +99,9 @@ it("bounds driver timeouts and replaces URL-bearing pool errors with finite cate
   });
 });
 
-// Construct only enough synthetic metadata to reach a deliberately failed DDL.
+// Construct only enough synthetic metadata to reach a deliberately failed read.
 // No fake returns a successful native vector, role result or acceptance receipt.
-function failingPool(mode = "ddl") {
+function failingPool(mode = "definitions") {
   const directory = new URL(
     "../packages/data/prisma/migrations/",
     import.meta.url,
@@ -127,7 +127,7 @@ function failingPool(mode = "ddl") {
   });
   const tables = [...tableNames].sort().map((relname) => ({ relname }));
   const events: string[] = [];
-  let absenceReads = 0;
+  let presenceReads = 0;
   const injected = () =>
     Object.assign(new Error("private " + target), {
       code: "42601",
@@ -154,14 +154,14 @@ function failingPool(mode = "ddl") {
         return { rows: tables };
       }
       if (sql.startsWith("SELECT to_regprocedure")) {
-        events.push("absence");
-        absenceReads++;
+        events.push("presence");
+        presenceReads++;
         return {
           rows: [
             {
               a:
-                mode === "verification" && absenceReads > 1 ? "leftover" : null,
-              b: null,
+                (mode === "verification" && presenceReads > 1) || mode === "missing" ? null : "applied_validator",
+              b: "applied_serializer",
             },
           ],
         };
@@ -175,8 +175,8 @@ function failingPool(mode = "ddl") {
         events.push("timeout");
         return {};
       }
-      if (sql.includes("CREATE FUNCTION public.valid_ingestion_csv_state")) {
-        events.push("ddl");
+      if (sql.includes("FROM pg_proc p WHERE")) {
+        events.push("definitions");
         if (mode === "owned-error") emitter.emit("error", injected());
         throw injected();
       }
@@ -218,7 +218,15 @@ async function fail(mode: string) {
   expect(JSON.stringify(error)).not.toContain(target);
   return { error, events };
 }
-it("checks the actual database before DDL and still finalizes the client and pool", async () => {
+it("fails closed when an applied function is missing, without installing a fallback", async () => {
+  const {error,events} = await fail("missing");
+  expect(error.failure.primary.stage).toBe("applied-schema");
+  expect(events).not.toContain("begin");
+  expect(events).not.toContain("definitions");
+  expect(events).toContain("release:true");
+  expect(events.at(-1)).toBe("end");
+});
+it("checks the actual database before applied reads and still finalizes the client and pool", async () => {
   const { error, events } = await fail("target");
   expect(error.failure).toEqual({
     primary: { stage: "actual-target" },
@@ -235,18 +243,18 @@ it("ends the pool after a failed connection", async () => {
   });
   expect(events).toEqual(["connect", "end"]);
 });
-it.each(["ddl", "begin"])(
-  "rolls back an uncertain %s result and verifies absence/metadata before release",
+it.each(["definitions", "begin"])(
+  "rolls back an uncertain %s result and verifies applied presence/metadata before release",
   async (mode) => {
     const { error, events } = await fail(mode);
     expect(error.failure.primary).toEqual({
-      stage: mode === "ddl" ? "prototype-ddl" : "begin",
+      stage: mode === "definitions" ? "applied-definitions" : "begin",
       sqlstate: "42601",
       position: 17,
     });
     expect(events.slice(-6)).toEqual([
       "rollback",
-      "absence",
+      "presence",
       "ledger",
       "tables",
       "release:true",
@@ -259,7 +267,7 @@ it.each(["rollback", "verification", "release", "end"])(
   "retains original and %s cleanup failure and attempts all finalizers",
   async (mode) => {
     const { error, events } = await fail(mode);
-    expect(error.failure.primary.stage).toBe("prototype-ddl");
+    expect(error.failure.primary.stage).toBe("applied-definitions");
     expect(error.failure.cleanup.map((e: any) => e.stage)).toEqual([
       {
         rollback: "rollback",
@@ -275,12 +283,12 @@ it.each(["rollback", "verification", "release", "end"])(
 it("contains checked-out client socket errors without raw logging or escaping finalizers", async () => {
   const { error, events } = await fail("owned-error");
   expect(error.failure).toEqual({
-    primary: { stage: "prototype-ddl", sqlstate: "42601", position: 17 },
+    primary: { stage: "applied-definitions", sqlstate: "42601", position: 17 },
     cleanup: [{ stage: "owned-client-error", sqlstate: "42601", position: 17 }],
   });
   expect(events.slice(-6)).toEqual([
     "rollback",
-    "absence",
+    "presence",
     "ledger",
     "tables",
     "release:true",

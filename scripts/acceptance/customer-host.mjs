@@ -6,6 +6,7 @@ import { resolve, join } from "node:path";
 import { checkIdentityConfiguration } from "./customer-identity-host.mjs";
 import { assertEvidenceWorkflowReceipt } from "./evidence-workflow-receipt.mjs";
 import { assertCsvImportWorkflowReceipt } from "./csv-import-workflow-receipt.mjs";
+import {assertCsvComparisonWorkflowReceipt} from "./csv-comparison-workflow-receipt.mjs";
 import { assertMilestoneReconciliationWorkflowReceipt } from "./milestone-reconciliation-workflow-receipt.mjs";
 import { assertScalarWorkflowReceipt } from "./scalar-reconciliation-workflow-receipt.mjs";
 import { validateReconciliationCommitReceipt } from "./reconciliation-commit-receipt.mjs";
@@ -390,6 +391,9 @@ export async function customerProfiles({
         assert.equal(projectFactPersistence.status, "passed");
         const csvImport = JSON.parse(readFileSync(join(evidence, "csv-import-workflow-fixture.json"), "utf8"));
         assertCsvImportWorkflowReceipt(csvImport, { profile, runId: project });
+        const csvComparison=JSON.parse(readFileSync(join(evidence,"csv-comparison-workflow-fixture.json"),"utf8"));
+        assertCsvComparisonWorkflowReceipt(csvComparison,{profile,runId:project,originalSourceId:csvImport.sourceId,
+          movedProjectId:projectFactPersistence.milestoneReconciliationWorkflow.projectId});
         assertEvidenceWorkflowReceipt(projectFactPersistence.evidenceWorkflow);
         assertMilestoneReconciliationWorkflowReceipt(
           projectFactPersistence.milestoneReconciliationWorkflow,
@@ -407,6 +411,7 @@ export async function customerProfiles({
         );
         for (const screenshot of [
           csvImport.screenshot,
+          ...csvComparison.screenshots,
           projectFactPersistence.scalarReconciliationWorkflow.screenshot,
           projectFactPersistence.scalarReconciliationWorkflow.recreatedProof
             .screenshot,
@@ -506,6 +511,7 @@ export async function customerProfiles({
           status: "passed",
           projectFactPersistence,
           csvImport,
+          csvComparison,
           ...(identityConfiguration ? { identityConfiguration } : {}),
           disclosure: {
             runtime: runtimeDisclosure,

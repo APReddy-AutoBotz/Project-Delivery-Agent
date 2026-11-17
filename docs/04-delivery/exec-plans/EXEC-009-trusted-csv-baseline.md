@@ -1,7 +1,7 @@
 # EXEC-009 Stage 6: trusted CSV comparison baseline
 
-Status: concrete design approved; prototype authoring in progress. Native
-equivalence and implementation acceptance remain pending.
+Status: concrete design approved; native persistence/integration candidate
+implemented. Exact-candidate and hosted acceptance gates remain pending.
 Owner: implementation controller. Date: 2026-11-16.
 Requirements: FR-CON-006/007/008/010/012, FR-EVD-009, NFR-SEC-001,
 AC-CON-005, E2E-CON-005, FAIL-006; Issue #7.
@@ -612,6 +612,25 @@ whole-transaction rollback.
 
 ### Native fences independent of repository discipline
 
+Implementation refinement reviewed on 2026-11-16: the complete comparison scope
+is the predecessor context's immutable configuration scope, or the activation
+configuration at READY0. A succeeding comparison may widen that set but cannot
+remove even a configured project with no accepted observation. Widening becomes
+durable when a comparison records it; an intervening configuration that never
+supplies a comparison does not redefine the trusted cohort. The loader rejects
+a missing project before plaintext; the native guard independently locks the
+same union and enforces it. Static validation preserves the immutable rule.
+
+The planned INVALID_PREVIEW/409 result is retained for unavailable comparison
+state. Private live guards use finite SQLSTATE PDC01 for unavailable data,
+PDC02 for a changed lock plan/predecessor and PDC03 for denied current scope.
+The repository accepts only matching structured PostgreSQL adapter codes from
+a P2010 error; it maps these to INVALID_PREVIEW, CONFLICT and DENIED without
+reading or exposing SQL message/detail text. This keeps an expiry crossing the
+final native check consistent with expiry detected by the loader. Other SQL
+errors retain the existing bounded persistence failure. Native boundary and
+race evidence remains required before candidate approval.
+
 The context BEFORE INSERT guard independently derives current/previous project
 scope and the receipt subject's grants, takes sorted project/grant fences, policy
 SHARE, source UPDATE and head UPDATE, then rechecks configuration/permissions
@@ -826,3 +845,317 @@ install missing definitions as a test fallback. The complete head/context guards
 current source authorization/retention, cumulative state loader and transitions,
 API/retry integration, customer UPDATE/rename proof, upgrade and recovery gates
 remain pending. No story acceptance or customer-release hold changes.
+
+## Cumulative reference overlay, 2026-11-16
+
+The normal PR #167 hosted runner has now established genuine PostgreSQL
+equivalence for the pure serializer prototype. Retained artifact 14203851136
+from Foundation run 43817099999 matches candidate 5fafdae and its reviewed tree.
+The independently checked original report records five vectors, including the
+1,614,668-byte maximum, 116 native grammar denials, five cast denials and typed
+normalization. Private immutable invoker permissions, actual API-role denial,
+rollback/function absence and unchanged 27/85 metadata pass. Guard and QA
+reviewers approve the actual native evidence; this is not applied migration 28.
+
+An isolated continuation adds a pure accepted-reference overlay after three
+independent design reviews. It parses the prior state and observation rows under
+the same scope/dictionary, preserves every absent identity and optional field,
+includes new zero-field identities, and rejects known-key record/project
+rebinding. It sorts and revalidates the complete cumulative union, including
+record uniqueness and lifetime identity/project bounds, before returning an
+independent frozen result. No state is filtered or truncated to regain capacity.
+
+The caller must establish complete accepted observations, native reference
+binding, classification, current permissions and live retention independently.
+This helper does not select reviewed rows, load plaintext, renew clocks, classify
+changes, mutate a head or publish canonical facts. Repository integration,
+native context guards, exact retry and connected UPDATE/customer acceptance
+remain pending. All 20 focused overlay controls pass; the combined serializer,
+hashed matcher and overlay suites pass 153 tests across three files. Scoped
+strict TypeScript, full workspace build/lint/type checking and all 2,835 unit
+tests across 189 files pass. Three evolving source reviews find no blocker;
+exact-candidate review remains required. This local work is based on PR #167's
+verified merge 71cc0effee68e7e32308806c3eec2093cacf3d8f and does not change its
+source or approved publication package. Native persistence and connected UPDATE
+acceptance are still pending.
+
+## Native persistence and connected proof candidate, 2026-11-16
+
+The next coherent batch integrates the reviewed primitives with an additive
+migration 28, two scalar Prisma models and server-owned comparison loading and
+advancement. The migration installs the applied serializer definitions, guarded
+heads and immutable contexts, receipt-family/revision fences and deferred
+completeness. It preserves the 27 released SQL files. Historical validation is
+separate from live availability and never requires purged proposal plaintext.
+
+The repository rejects caller baselines without invoking accessors. Matching
+commands retain their original CSV/revision/baseline:null fingerprint and
+original context under current complete authorization. They are resolved before
+new-command kind, revision, head, expiry or capacity checks. New comparisons
+validate the complete prior scope and bounded retained-content union, use the
+hashed matcher, overlay accepted references and atomically advance the head.
+Reviewed-import replay likewise retains its original revisions and selection.
+Native reviewed-import birth and all semantic reads check the full parent
+context, independently of the generic receipt validator's cheap metadata link.
+
+Configuration planning preserves every historical sync-grant project and uses
+the canonical project/grant-before-source order. Preview/replay planning admits
+the complete 200-project original/current union while operation scopes remain
+bounded at 100. Purge retains its project/grant, policy, source and mutable-content
+fences; immutable identity/revision/projection rows need no UPDATE privilege.
+Configuration/grant race controls establish the supported canonical project
+gate; they do not claim an isolated grant-tuple-only blocking measurement.
+
+The applied-definition harness no longer creates temporary functions. Missing
+applied definitions fail closed, and existing byte/grammar/cast vectors now run
+against the migration-installed functions. The API can execute the four safe
+validators; all six private guards, including the two reused receipt guards,
+remain inaccessible. Full table, column, grant-option and PUBLIC ACL checks run
+after late bootstrap and real customer/operations restore. Ownership and finite
+ACLs are reconstructed before use of any quarantined restored target.
+
+Upgrade evidence is prepared from actual released-27 API-role graphs, with the
+frozen released-27 grant body applied before seeding. The existing 26-to-27
+retention proof remains a distinct step. Empty CSV, accepted CSV, invalid-only
+history with no records, and historical CSV currently mapped CONNECTOR are
+classified without chronological backfill. Late CSV activation must retain
+legacy receipt validity, reads and exact retry while refusing a fresh comparison.
+Current candidate inventories are 28 migrations and 87 business tables; historical
+prefix inventories remain unchanged.
+
+The same additive migration widens external-record types from 267 to 268
+characters. The approved 256-character sheet plus the 12-character spreadsheet:
+prefix requires this width. Receipt domain/wire schemas, OpenAPI and the browser
+decoder agree; sheet input stays at 256. Maximum-sheet CREATE/UPDATE, reviewed
+import, read and exact replay have native controls; domain/wire and browser
+controls reject oversized sheet or receipt identities. Released SQL is unchanged.
+
+Native controls cover optional NONE identities, all four value types, omitted
+fields and unchanged clocks, exact retry after newer heads/configurations and
+expiry/purge, malformed native graphs, mixed-state duplicates, type/formula/
+number forgeries, scope narrowing, reader loss, actual lock waits and restored
+head omission. The capacity fixtures construct genuine guarded history up to
+4,096 contexts and the 256 MiB canonical budget, including a reachable 1,000-row/
+32-field state and sparse full-content carry-forward. They do not rewrite
+counters or disable constraints to manufacture capacity. The new long-batch
+test wrapper is 300 seconds; individual queries remain bounded at 10 seconds
+and transactions at 60 seconds. Meeting these bounds requires native execution.
+Owner-only corruption fixtures are restricted to the approved isolated loopback
+target and always roll back, including their trigger changes.
+
+Exact-candidate review found that generic text proposals allow an empty string,
+while CSV empty cells mean omission or a required-value error. The live context
+guard now independently rejects exact empty text for optional and required
+fields. Native forgery controls require full rollback; a positive whitespace
+case preserves the matcher's untrimmed text semantics and later omission keeps
+the old reference and clocks. Historical static validation still needs no
+plaintext. The rejected candidate is retained; the corrected child requires
+new exact-candidate approval.
+
+A separate actual customer browser journey preserves the earlier CREATE/lost-
+acknowledgement proof. It configures two authorized projects, uploads a prior
+file, observes renamed/moved identities as unselectable, then uploads a changed
+file with UPDATE and UNCHANGED. UI, API and native projections verify the exact
+Forecast values before saving only the selected UPDATE proposal. Its source is
+distinct from the original CSV proof and its move target is bound to the genuine
+reconciliation fixture. Canonical snapshots must remain identical. Original
+response disclosure drains and session finalization remain mandatory on failures.
+Exact metadata replay after recreation and native retained data before restore
+mutation probes are part of the host-validated evidence contract.
+
+The first hosted attempt exposed a retention-wiring gap during source review:
+the existing upload list retained only the earlier CSV CREATE fixture and image.
+The production evidence upload now explicitly includes the new comparison
+fixture and its four rename/move/changed/saved images for every customer profile.
+These original files must be independently reviewed alongside their host-checked
+hashes before accepting the connected proof; summary JSON alone is insufficient.
+
+Local workspace build, lint and type checks pass. The full sheet-width rerun
+passes 2,881 unit tests across 192 files, together with focused contract/privacy/
+fixture controls. Strict checking of the new native and browser controls passes.
+Three mocked browser variants pass with successful runner cleanup, including
+the maximum and oversized receipt identities, after installing the pinned
+browser, enabling local loopback access outside Windows sandbox isolation and
+using an explicitly closed local server. Initial setup/cleanup failures are retained.
+Documentation and architecture validation pass. No native migration, database,
+packaged customer browser or recovery execution for this candidate has run
+locally. The Docker engine and default local pdaa
+database remain untouched. Three independent evolving reviews have resolved
+concrete findings; immutable candidate and hosted original-evidence reviews are
+still required. This is implementation work, not story or customer-release
+acceptance. Reviewed imports remain proposals, OD-013/014 gates and all five
+distribution holds remain open, and Original19/20 capture remains stopped.
+
+## Initial hosted native failures and diagnostic correction, 2026-11-17
+
+PR #168 opened on approved `cece4e8` with its exact description. Foundation
+44131743979 verifies synthetic merge `53bd8c9`, whose tree matches the candidate
+and whose ordered parents are main `71cc0ef` and `cece4e8`. Documentation passes.
+Fresh role-absent/partial bootstrap, migration installation, build, contracts,
+lint, types, units and dependency checks pass. Native integration records
+380 passed, four failed and one skipped; the complete original provider-decoded
+job log and its checksum are retained privately.
+
+Two failures expose fixture barriers rather than established runtime defects.
+The native successor helper left constraints immediate after its first graph;
+the following same-transaction receipt was rejected before construction. Each
+helper entry now explicitly defers construction and retains immediate final
+validation. The reader-revocation gate paused before the now-first Project
+fence, allowing a read to linearize before revocation. The corrected race holds
+the real configuration fences, proves the named reader is blocked, then releases
+configuration while retaining UNAVAILABLE and fresh-read hidden assertions.
+
+The other failures occur during initial normal 1,000-row/32-field and 500-row/
+32-field preview construction, before history filling or sparse carry-forward.
+Their privacy-safe errors do not identify the underlying statement. A test-only
+observer now reports one finite query family/ordinal, query or commit boundary,
+bounded elapsed times and recognized Prisma/SQLSTATE codes before normal error
+redaction. It emits no raw error, message, metadata, SQL or values, rethrows the
+original error unchanged and stops after successful initial construction.
+The existing 10-second query and 60-second transaction budgets, input bounds,
+guards and capacity assertions remain unchanged. A new hosted run must establish
+the cause before any enforcement or budget change is justified.
+
+The genuine 4,096-context native control passes in 41.204 seconds, including its
+next-command denial and old-command retry. This partial result does not accept
+the complete native, customer, upgrade or recovery contract. Original19/20
+capture remains stopped.
+
+## Unpublished upstream security patch and independent diagnostics, 2026-11-17
+
+The next exact candidate `b8e56e0` passed build/types/lint and all 2,881 unit
+tests, but its native diagnostic did not execute. Mandatory audit rejected
+picomatch 4.0.7 for
+[GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf).
+The advisory's affected range ends at 4.0.7. The audit prints a 4.0.8 patched
+boundary, but the publisher registry has no such release: exact lookup fails,
+independent registry metadata still lists latest 4.0.7, and the official advisory
+lists no patched version. No dependency version is fabricated or adopted, and
+no advisory exception, severity reduction or ignore flag is introduced.
+
+To continue independent synthetic native diagnosis while preserving the existing
+required check, the exact unchanged audit command moves to a final always-run
+step in `verify`, before its existing Docker cleanup. Audit failure still fails
+that same check; native failures also fail it, and the audit still runs after
+them. The job name, tool pins, frozen install, full audit scope, contents-read
+permission, timeout, required checks and branch settings remain unchanged.
+This is the smaller reviewed alternative to new parallel jobs and an aggregate;
+it avoids relying on an unverified new branch-protection requirement. Every
+required exact-head check must pass before merge. An unresolved audit remains a
+merge blocker even when useful native or packaged evidence is collected.
+
+## Measured context-validation query cost, 2026-11-17
+
+The `3bef9c2` run reaches the diagnostic: the first wide preview fails at query
+37, CONTEXT_VALIDATION, after 10,004 ms, with 33,401 ms elapsed in its transaction.
+The statement invokes the static context, head and generic receipt validators;
+this measurement does not isolate one function. The corrected same-transaction
+successor and real reader-revocation race pass. Subsequent fixture initialization
+and old scenario phases show query timeouts/cascades, so none are accepted as
+unrelated flakes. The complete original log and checksum remain retained.
+
+Both static and live overlay reconstructions now aggregate references once per
+C-collated identity key, then LEFT JOIN those groups onto the unchanged identity
+union. Numeric field-index ordering, UNION ALL supplied/carried semantics, the
+empty-array fallback for zero-field identities and final C-key ordering remain
+identical. Exact equality, reference binding, hashes, live availability and all
+other validators still run. The final three-validator query is retained for a
+new native measurement; no COMMIT/stream guard or deadline changes are inferred.
+
+This changes only unreleased migration 28 and this plan. All 27 released SQL
+files stay byte-for-byte unchanged. Fresh native, upgrade and encrypted backup/
+restore evidence must match the new checksum; old cece artifacts remain historical
+prerequisites. The two genuine large initial repository constructions and all
+capacity assertions, input bounds and budgets remain unchanged. The unresolved
+upstream audit still blocks merge even if the native correction passes.
+
+## Bounded immutable binding lookup, 2026-11-17
+
+The grouped-overlay candidate `b61ee7d` moves the first failure to COMMIT. Its
+final context-validation statement completes in 8,230 ms; the transaction fails
+at commit after 23,742 ms. Native integration records 381 passed, three failed
+and one skipped. This establishes progress and a deferred-work bottleneck, not
+performance acceptance. Original job evidence and checksums are retained.
+
+The next correction retains every completion trigger and validator call. The
+static context validator expands all references once, deduplicates only immutable
+record/projection lookup pairs, and materializes their exact scoped projection
+and content-metadata bindings. Every original reference still separately checks
+its C-collated field membership, rejecting missing/NULL bindings or membership
+with IS NOT TRUE. Content-row presence remains valid after lawful plaintext
+redaction; no plaintext, time, current grants, cache or all-history scan is added.
+Zero-field identity anchors and all previous hash/scope/overlay checks remain.
+
+A new owner-only rollback control creates two references sharing one projection,
+then carries them through a later empty optional observation before removing
+only one field from the older projection's metadata. The inspected context's
+expected overlay stays unchanged, isolating per-reference membership from overlay
+reconstruction. The cheap receipt link remains
+valid while full context validation must reject the absent membership. The
+original graph and audits must be restored by rollback. This complements the
+unchanged genuine large constructions, optional omissions and purge/replay
+controls. Fresh hosted timing and current-checksum recovery evidence remain
+required; no completion-dispatch, budget or enforcement reduction is inferred.
+
+## Deferred receipt and context validation
+
+The `d500ad7` hosted run passed sparse carry-forward and the shared-projection
+regression. The wide preview still failed at COMMIT after completing its final
+validation query in 4,000 ms. The subsequent 4,096-context case reported a
+query timeout. In total, 383 native tests passed, two failed and one skipped.
+The required dependency audit also failed. The original verify log is retained.
+
+CSV preview outcome callbacks now check their own row and its receipt bindings.
+The header callback still validates the whole receipt, including the exact row
+count. The immutable count fixes the allowed ordinal range. Each ordinal is
+unique, so a completed receipt has no slot for a later row. An explicitly
+immediate outcome constraint can validate rows during construction, while the
+header constraint still checks completion when made immediate or at commit.
+The native controls cover incomplete headers, malformed rows, a complete graph,
+and append attempts against full and empty receipts.
+
+The CSV head callback validates the stored head and its current context. Each
+context callback independently validates its own context, including earlier
+contexts in a multi-preview transaction. Receipt and context callbacks still
+require the same scoped receipt link and sealed CSV source. The public validators
+retain their full checks for reads and recovery. Migration 28 remains unreleased.
+Fresh hosted results must establish timing and validate the new checksum before
+merge. The existing audit gate continues to apply.
+
+## Maximum-history test timing
+
+The `75d34c6` hosted run passed the wide preview's commit, the 4,096-context
+case, sparse carry-forward and the new selective-constraint checks. Its only
+native failure was the 300-second deadline for the full 256 MiB history test.
+Native totals were 385 passed, one failed and one skipped. The audit remains
+blocking, and the exact run's original log is retained.
+
+The serializer now checks the bounded field references together, orders them by
+their actual array positions and casts an index only after validating its
+canonical grammar. It renders the validated string once. When current and
+predecessor rows are exactly equal under the same codec inputs, the validators
+reuse that string within the call. Both stored digests and byte counts are
+checked where previously required. The full reference, scope, retention and
+completion checks still run. Native grammar, parity and rollback proofs remain
+required for the new checksum.
+
+The whole-history test now has a seven-minute budget for the real sequence of
+commits. Each query still has ten seconds and each transaction has sixty.
+The fixture stops launching work when Vitest aborts it and reports only the
+phase, committed count, target count and elapsed time on failure. All history
+and overflow assertions still apply, along with the existing hosted job deadline.
+
+## Hosted verification job timing
+
+The `ecb5301` Foundation run passed 2,881 unit tests and 386 native integration
+tests, with one native skip. The native suite completed the genuine maximum
+history and 4,096-context checks. Recovery passed. The 20-minute verify job
+limit canceled Chromium after 271 of 324 tests completed, including the
+reviewed CSV import. The required audit ran during cancellation and failed
+for the same unresolved `picomatch` advisory.
+
+The verify job gets 30 minutes to complete the browser suite, remaining proof
+steps and artifact publication. The tests, their individual deadlines, the
+production-boundary job and the mandatory audit command are unchanged. Review
+the full browser results and exact candidate evidence from the next run. Merge
+still requires the audit and every other required check and review to pass.

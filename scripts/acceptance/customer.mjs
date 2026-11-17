@@ -36,8 +36,10 @@ import {
 } from "./scalar-reconciliation-fixture.mjs";
 import { loadDatabaseConfig, CredentialVault } from "../../packages/platform/dist/index.js";
 import { prepareCsvRetention } from "./csv-import-native.mjs";
+import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
 import { csvCanonicalTables } from "./csv-import-workflow-receipt.mjs";
 import { exerciseCsvImportWorkflow, replayCsvImportAfterRecreation, snapshotCsvBeforeBackup, verifyRestoredCsvImport } from "./csv-import-workflow.mjs";
+import {exerciseCsvComparisonWorkflow,replayCsvComparisonAfterRecreation,snapshotCsvComparisonBeforeBackup,verifyRestoredCsvComparison} from "./csv-comparison-workflow.mjs";
 import { waitForIdentityProvider } from "./identity-readiness.mjs";
 import {
   exerciseEvidenceWorkflow,
@@ -124,6 +126,7 @@ const projectUpdateTables = [
   "ProjectUpdateObligation",
   "ProjectUpdatePreview",
 ];
+const csvComparisonTables=["IngestionCsvHead","IngestionCsvContext"];
 const scheduleHealthPolicyTables = ["ScheduleHealthPolicyRevision"];
 const profile = env.PDAA_CUSTOMER_PROFILE;
 assert(["bundled", "external"].includes(profile));
@@ -185,12 +188,13 @@ async function projection(pool) {
     "AuditEvent",
     "_prisma_migrations",
     ...projectUpdateTables,
+    ...csvComparisonTables,
     ...scheduleHealthPolicyTables,
     ...engagementStorageTables,
     ...updateCaptureTables,
   ])
     result[table] = (
-      await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
+      await pool.query(`SELECT * FROM "${table}" t ORDER BY ${csvComparisonTables.includes(table) ? 'to_jsonb(t)::text COLLATE "C"' : '1'}`)
     ).rows;
   return JSON.parse(JSON.stringify(result));
 }
@@ -369,6 +373,7 @@ async function browserCheck(afterUpgrade) {
     let scalarReceipt;
     let persistence;
     let csvFixture;
+    let csvComparison;
     const operator = await login("operator");
     await operator.page
       .getByText("No projects are shared with this account")
@@ -467,9 +472,13 @@ async function browserCheck(afterUpgrade) {
     if (afterUpgrade) {
       csvFixture = read("csv-import-workflow-fixture");
       csvFixture.afterRecreation = await replayCsvImportAfterRecreation({ login, base, pool: db, fixture: csvFixture, canonicalSnapshot: csvCanonicalSnapshot });
+      csvComparison=read("csv-comparison-workflow-fixture");
+      csvComparison.afterRecreation=await replayCsvComparisonAfterRecreation({login,base,pool:db,fixture:csvComparison,canonicalSnapshot:csvCanonicalSnapshot});
     } else {
       csvFixture = await exerciseCsvImportWorkflow({ login, base, pool: db, binding: csvBinding, output, canonicalSnapshot: csvCanonicalSnapshot });
       csvFixture.retentionSetup = read("csv-retention-setup");
+      csvComparison=await exerciseCsvComparisonWorkflow({login,base,pool:db,binding:csvBinding,movedProjectId:reconciliationFixture.projectId,
+        canonicalSnapshot:csvCanonicalSnapshot,output});
     }
     await scanBrowserAssets(base, disclosure);
     save("disclosure-" + phase, {
@@ -490,6 +499,7 @@ async function browserCheck(afterUpgrade) {
       ]),
     });
     save("csv-import-workflow-fixture", csvFixture);
+    save("csv-comparison-workflow-fixture",csvComparison);
     // Retain response bytes only after the independent disclosure recorder has
     // drained original browser responses and checked the full fixture secret set.
     if (afterUpgrade) {
@@ -557,7 +567,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 27);
+    assert.equal(migrations.length, 28);
     assert.equal(migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
@@ -611,6 +621,7 @@ try {
     assert.equal(development.status, 404);
     save("installed-state", state);
   } else if (phase === "before-upgrade") {
+    const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(db,undefined,{owner:"pdaa_migrate"});
     // Product provisioning was proved empty first. Only this guarded test introduces data.
     assert.deepEqual(await projection(db), read("installed-state"));
     await db.query('INSERT INTO "Portfolio" VALUES ($1,$2,$3)', [
@@ -829,9 +840,11 @@ try {
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 85,
+      businessTableCount: 87,
+      csvComparisonTables,
+      csvComparisonPrivileges,
       engagementStorageTables,
-      migrationCount: 27,
+      migrationCount: 28,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -876,6 +889,9 @@ try {
     const csvFixture = read("csv-import-workflow-fixture");
     csvFixture.storageBeforeBackup = await snapshotCsvBeforeBackup(db, csvFixture);
     save("csv-import-workflow-fixture", csvFixture);
+    const csvComparison=read("csv-comparison-workflow-fixture");
+    csvComparison.storageBeforeBackup=await snapshotCsvComparisonBeforeBackup(db,csvComparison);
+    save("csv-comparison-workflow-fixture",csvComparison);
     save("backup-state", await projection(db));
   } else if (phase === "after-upgrade") {
     // This phase starts after recreation; an old worker heartbeat cannot satisfy it.
@@ -911,7 +927,11 @@ try {
       assertUpdateCaptureRestoreProjection(await projection(restored), read("backup-state"));
       const csvFixture = read("csv-import-workflow-fixture");
       csvFixture.restored = await verifyRestoredCsvImport(restored, csvFixture);
+      const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(restored,undefined,{owner:"pdaa_migrate"});
       save("csv-import-workflow-fixture", csvFixture);
+      const csvComparison=read("csv-comparison-workflow-fixture");
+      csvComparison.restored=await verifyRestoredCsvComparison(restored,csvComparison);
+      save("csv-comparison-workflow-fixture",csvComparison);
       await verifyUpdateCapturePrivileges(restored);
       await verifyEngagementStoragePrivileges(restored);
       await verifyProjectFactPrivileges(restored);
@@ -970,6 +990,7 @@ try {
         await verifyRestoredEngagementStorage(restoredEngagementDb, receipt.engagementStorage);
       } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
+        csvComparisonPrivileges,
         ingestionReassessment: await verifyRestoredReassessments(restored, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

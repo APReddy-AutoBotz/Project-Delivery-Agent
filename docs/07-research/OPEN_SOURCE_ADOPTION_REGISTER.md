@@ -383,3 +383,16 @@ remain required. Initial CI recorded six moderate findings; the refreshed graph
 reports four. No commercial/security release disposition is inferred from either
 count. Owner: implementation controller. Recovery is a
 reviewed manifest/lock/register revert and rebuild, with no database rollback.
+
+## Temporary Picomatch development override, 2026-11-18
+
+NFR-MNT-004 / AC-MNT-004 / CI-MNT-004. The published MIT fork
+`@ryotsu/picomatch@4.0.7-a` is the exact, development-only replacement for
+`picomatch@4.0.7` under
+[ADR-016](../03-architecture/adr/ADR-016-PICOMATCH-TOOLCHAIN-SECURITY-OVERRIDE.md).
+The adoption record binds the publisher, source commit and tarball integrity.
+The [third-party notice](../../THIRD_PARTY_NOTICES.md#picomatch-development-tooling-2026-11-18)
+links the original MIT license. Preserve the normal audit, frozen install and
+packaged validation. The implementation controller owns the pin and its removal
+once an upstream fix passes the same checks. Complete distribution review remains
+required.

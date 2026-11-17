@@ -317,3 +317,44 @@ role can execute the fixed-scope retention procedure; ordinary API access cannot
 update or delete assessment history. Assessment availability and expiry are
 rechecked against current project grants on every read. This increment does not
 establish source authority or accept AC-HLT-004.
+
+## Trusted CSV comparison storage candidate
+
+FR-CON-006/007/012 and NFR-SEC-001: migration 28 adds `IngestionCsvHead` and
+`IngestionCsvContext` as specified in
+[EXEC-009 trusted baseline](../04-delivery/exec-plans/EXEC-009-trusted-csv-baseline.md).
+The candidate is subject to native, upgrade, recovery and exact-candidate gates.
+It preserves every released migration and adds no canonical fact publication.
+
+Migration 28 also widens `IngestionExternalRecord.recordType` from 267 to 268
+characters so the approved 256-character sheet and `spreadsheet:` prefix fit.
+Receipt domain, wire and browser bounds match; sheet input remains at 256.
+
+The head pins an immutable activation configuration, mapping dictionary and
+readiness classification. Its only mutable fields are the monotonic revision,
+current context receipt, canonical hash and cumulative byte counter. Each
+immutable preview context names its exact predecessor and the complete sorted
+cohort of hashed identities, record/project IDs and per-field projection IDs.
+There are no duplicate proposal values, raw CSV keys, filenames or raw cells in
+comparison storage. Proposal content retains its existing expiry and redaction.
+
+Native guards independently prove current scope, mapping, retained content,
+classification and the exact cumulative overlay. Deferred constraints reject
+missing contexts, orphan successors or unapplied head advances. Historical
+validators remain independent of live plaintext, grants and time, so lawful
+redaction does not invalidate immutable command history. Restore validates every
+head/context and detects a missing head on an empty current CSV source.
+
+The cohort is bounded at 1,000 identities, 32 fields and 100 projects; each
+canonical state is bounded at 2 MiB. A source retains at most 4,096 contexts and
+256 MiB of canonical state, with a 4 MiB union of required full content arrays.
+Overflow, incompatible mapping/scope or unavailable required content rejects a
+new comparison. Existing unordered history is `LEGACY_UNAVAILABLE`; dates and
+UUIDs never manufacture an order or reset permission. A previous configured
+project remains in comparison scope even when it had no observed row.
+
+The API role has SELECT/INSERT on the two tables and only the four approved
+head UPDATE columns. Four pure/read validators are executable; mutation and
+completion guards remain private. Backup has SELECT only and the worker has
+no access. Recovery reconstructs table, column and function privileges after
+`--no-acl` restore before the quarantined target can be used.

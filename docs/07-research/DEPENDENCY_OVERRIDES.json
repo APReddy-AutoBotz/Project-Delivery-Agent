@@ -43,6 +43,14 @@
     ]
   },
   {
+    "name": "picomatch@4.0.7",
+    "replacementName": "@ryotsu/picomatch",
+    "version": "4.0.7-a",
+    "reason": "Temporary development tooling security replacement for GHSA-fc5q-39xc-vjpf under ADR-016",
+    "runtime": false,
+    "consumers": ["Vite", "Vitest", "typescript-eslint via tinyglobby and fdir"]
+  },
+  {
     "name": "proxy-addr",
     "version": "2.0.8",
     "runtime": true,

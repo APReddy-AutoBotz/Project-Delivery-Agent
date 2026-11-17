@@ -132,3 +132,14 @@ open.
 - **source-map-js 1.2.2** — BSD-3-Clause; [publisher metadata](https://registry.npmjs.org/source-map-js/1.2.2); source: https://github.com/7rulnik/source-map-js.
 
 Original package license/copyright files must remain intact. This inventory is not complete distribution approval. Vite 7.3.7 is the dated patch replacement for the original baseline version in the table above.
+
+## Picomatch development tooling, 2026-11-18
+
+- **@ryotsu/picomatch 4.0.7-a** — MIT, copyright 2017-present Jon Schlinkert.
+  The published fork supplies the development-only override in
+  [ADR-016](docs/03-architecture/adr/ADR-016-PICOMATCH-TOOLCHAIN-SECURITY-OVERRIDE.md).
+  [Publisher metadata](https://registry.npmjs.org/@ryotsu%2fpicomatch/4.0.7-a)
+  and [original license](https://github.com/ryotsu-kankichi/secured-picomatch/blob/3ab5a7627d480259e3d9ca67fbc14c125d374f0e/LICENSE).
+
+Retain the original MIT notice with the package. Complete distribution review
+remains required.

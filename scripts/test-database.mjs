@@ -150,6 +150,7 @@ try {
     "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
     "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
     "IngestionProjectReassessment",
+    "IngestionCsvHead", "IngestionCsvContext",
     "ScheduleHealthPolicyRevision",
   ];
   assert.deepEqual(
@@ -700,6 +701,7 @@ node([
   "tests/scalar-reconciliation.integration.test.ts",
   "tests/ingestion-persistence.integration.test.ts",
   "tests/csv-reviewed-import-api-role.integration.test.ts",
+  "tests/csv-comparison-persistence.integration.test.ts",
   "tests/spreadsheet-preparse.integration.test.ts",
   "tests/connector-runtime.integration.test.ts",
   "tests/ingestion-reassessment.integration.test.ts",
@@ -807,7 +809,7 @@ writeFileSync(
       ],
       engagementStorage,
       engagementStorageTables: ["ProjectUpdateEngagement","ProjectUpdateStage","ProjectUpdateOutbox","ProjectUpdateDispatchAttempt"],
-      businessTables: 85,
+      businessTables: 87,
       ingestionReassessmentTables: ["IngestionProjectReassessment"],
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",

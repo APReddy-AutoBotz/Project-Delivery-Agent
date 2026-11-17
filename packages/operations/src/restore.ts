@@ -206,6 +206,12 @@ async function restoreArchive(
           (SELECT count(*)::int FROM "ScalarReconciliationCheck" WHERE public.valid_scalar_reconciliation_check(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "ScalarReconciliationAssignment" WHERE public.valid_scalar_reconciliation_assignment(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionOperationReceipt" WHERE public.valid_ingestion_receipt(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "IngestionCsvContext" WHERE public.valid_ingestion_csv_context("receiptId") IS NOT TRUE) +
+          (SELECT count(*)::int FROM "IngestionCsvHead" WHERE public.valid_ingestion_csv_head("customerId","sourceId") IS NOT TRUE) +
+          (SELECT count(*)::int FROM "IngestionSource" s JOIN "IngestionConfigurationRevision" c
+            ON c."customerId"=s."customerId" AND c."sourceId"=s.id AND c.revision=s."currentConfigRevision" AND c.sealed
+            WHERE c.mapping->>'kind'='CSV' AND NOT EXISTS (
+              SELECT 1 FROM "IngestionCsvHead" h WHERE h."customerId"=s."customerId" AND h."sourceId"=s.id)) +
           (SELECT count(*)::int FROM "IngestionProjectReassessment" WHERE public.valid_ingestion_project_reassessment(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionProposalContent" WHERE proposals IS NOT NULL AND public.valid_ingestion_projection_content("projectionId",proposals) IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionExternalRecord" r WHERE NOT EXISTS (SELECT 1 FROM "IngestionSourceRevision" v WHERE v."customerId"=r."customerId" AND v."sourceId"=r."sourceId" AND v."recordId"=r.id)) +
