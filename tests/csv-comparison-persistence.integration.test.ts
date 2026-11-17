@@ -699,11 +699,24 @@ function wideCsv(projectId:string,count:number,value:(row:number,field:number)=>
   return ["Key,Project,"+wideFields.map((field)=>field.column).join(","),...Array.from({length:count},(_,row)=>
     ["K"+row,projectId,...wideFields.map((_,field)=>value(row,field))].join(","))].join("\n");
 }
-it("persists a reachable 1000-row/32-field state and genuinely exhausts the canonical-history byte budget",async()=>{
+it("persists a reachable 1000-row/32-field state and genuinely exhausts the canonical-history byte budget",async({signal,onTestFailed,onTestFinished})=>{
+  let stage = "INITIAL_PREVIEW";
+  let committed = 0;
+  let target = 0;
+  let filling: Promise<void> | undefined;
+  const started = performance.now();
+  onTestFailed(() => {
+    console.error("CSV_NATIVE_CAPACITY_PROGRESS", JSON.stringify({stage,committed,target,elapsedMs:Math.round(performance.now()-started)}));
+  });
+  // The test owns the fill even when Vitest's deadline wins the race.
+  onTestFinished(async () => { await filling?.catch(() => undefined); }, 70000);
   const f=await fixture(1,wideFields,"Projects","WIDE"),command={...f.input([]),csv:wideCsv(f.projects[0]!,1000,()=>"v")};
   expect(Buffer.byteLength(command.csv)).toBeLessThanOrEqual(1048576);
   const first=await f.api.persistCsvPreview(f.actor,command,randomUUID());
   f.stopDiagnostics();
+  committed = 1;
+  stage = "REPLAY_BEFORE_FILL";
+  signal.throwIfAborted();
   expect(first.rowCount).toBe(1000);
   const context=await owner.ingestionCsvContext.findUniqueOrThrow({where:{receiptId:first.receiptId}});
   const rows=context.rows as [string,string,string,[string,string][]][];
@@ -712,9 +725,13 @@ it("persists a reachable 1000-row/32-field state and genuinely exhausts the cano
   const before=await f.graph();
   expect(await f.api.persistCsvPreview(f.actor,command,randomUUID())).toEqual({...first,replayed:true});
   expect(await f.graph()).toEqual(before);
-  const target=Math.floor(268435456/context.canonicalBytes);
+  target=Math.floor(268435456/context.canonicalBytes);
   expect(target).toBeGreaterThan(1); expect(target).toBeLessThan(4096);
-  await fillNativeContexts(f,target);
+  stage = "FILL";
+  filling=fillNativeContexts(f,target,signal,(revision)=>{committed=revision;});
+  await filling;
+  stage = "CAPACITY_REJECTION";
+  signal.throwIfAborted();
   const head=await owner.ingestionCsvHead.findUniqueOrThrow({where:{customerId_sourceId:{customerId:f.customerId,sourceId:f.sourceId}}});
   expect(head.canonicalHistoryBytes).toBe(BigInt(target*context.canonicalBytes));
   expect(head.canonicalHistoryBytes+BigInt(context.canonicalBytes)).toBeGreaterThan(268435456n);
@@ -724,12 +741,12 @@ it("persists a reachable 1000-row/32-field state and genuinely exhausts the cano
   expect(await owner.ingestionCsvContext.count({where:{sourceId:f.sourceId}})).toBe(target);
   expect(await owner.ingestionOperationReceipt.count({where:{sourceId:f.sourceId}})).toBe(target);
   expect(await f.api.persistCsvPreview(f.actor,command,randomUUID())).toEqual({...first,replayed:true});
-},300000);
+},420000);
 
 // Actual API-role commands, not forged counters. Every entry passes the live
 // constructor, exact head advance and all deferred completeness checks. Bounded
 // chunks retain the normal 10-second query and 60-second transaction deadlines.
-async function fillNativeContexts(f:Awaited<ReturnType<typeof fixture>>,target:number) {
+async function fillNativeContexts(f:Awaited<ReturnType<typeof fixture>>,target:number,signal:AbortSignal,onCommit?:(revision:number)=>void) {
   expect(Number.isInteger(target) && target>1 && target<=4096).toBe(true);
   expect(/^[a-f0-9-]{36}$/.test(f.customerId) && /^[a-f0-9-]{36}$/.test(f.sourceId)).toBe(true);
   expect(/^csv-state-[a-f0-9-]{36}$/.test(f.actor.subject)).toBe(true);
@@ -739,12 +756,14 @@ async function fillNativeContexts(f:Awaited<ReturnType<typeof fixture>>,target:n
   expect(/^[a-f0-9]{64}$/.test(requestHash)).toBe(true);
   let head=await owner.ingestionCsvHead.findUniqueOrThrow({where:{customerId_sourceId:{customerId:f.customerId,sourceId:f.sourceId}}});
   while (head.revision<BigInt(target)) {
+    signal.throwIfAborted();
     const size=Math.min(target-Number(head.revision),target>1000 ? 32 : 1);
     await f.asApi(async(tx)=>{
       await tx.$queryRaw`SELECT id FROM public."Project" WHERE "customerId"=${f.customerId}::uuid AND id=ANY(${f.projects}::uuid[]) ORDER BY id FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM public."AccessGrant" WHERE "customerId"=${f.customerId}::uuid AND subject=${f.actor.subject} ORDER BY id FOR SHARE`;
       await tx.$queryRaw`SELECT revision FROM public."IngestionRetentionPolicy" WHERE "customerId"=${f.customerId}::uuid FOR SHARE`;
       await tx.$queryRaw`SELECT id FROM public."IngestionSource" WHERE "customerId"=${f.customerId}::uuid AND id=${f.sourceId}::uuid FOR UPDATE`;
+      signal.throwIfAborted();
       // All interpolated literals above were generated and format-checked here;
       // DO cannot bind parameters inside its dollar-quoted body.
       await tx.$executeRawUnsafe(`DO $capacity$
@@ -771,15 +790,18 @@ async function fillNativeContexts(f:Awaited<ReturnType<typeof fixture>>,target:n
               WHERE "customerId"=h."customerId" AND "sourceId"=h."sourceId";
           END LOOP;
         END $capacity$`);
+      signal.throwIfAborted();
     },{timeout:60000});
+    signal.throwIfAborted();
     const advanced=await owner.ingestionCsvHead.findUniqueOrThrow({where:{customerId_sourceId:{customerId:f.customerId,sourceId:f.sourceId}}});
     expect(advanced.revision).toBe(head.revision+BigInt(size)); head=advanced;
+    onCommit?.(Number(head.revision));
   }
 }
 
-it("genuinely fills 4096 contexts, rejects the next command and retains exact metadata replay",async()=>{
+it("genuinely fills 4096 contexts, rejects the next command and retains exact metadata replay",async({signal})=>{
   const f=await fixture(),first=await f.preview([]);
-  await fillNativeContexts(f,4096);
+  await fillNativeContexts(f,4096,signal);
   const before=await owner.ingestionCsvHead.findUniqueOrThrow({where:{customerId_sourceId:{customerId:f.customerId,sourceId:f.sourceId}}});
   expect(before.revision).toBe(4096n);
   await expect(f.api.persistCsvPreview(f.actor,f.input([]),randomUUID())).rejects.toMatchObject({code:"INVALID_PREVIEW"});

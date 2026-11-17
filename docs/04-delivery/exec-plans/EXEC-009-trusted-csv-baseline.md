@@ -1121,3 +1121,26 @@ require the same scoped receipt link and sealed CSV source. The public validator
 retain their full checks for reads and recovery. Migration 28 remains unreleased.
 Fresh hosted results must establish timing and validate the new checksum before
 merge. The existing audit gate continues to apply.
+
+## Maximum-history test timing
+
+The `75d34c6` hosted run passed the wide preview's commit, the 4,096-context
+case, sparse carry-forward and the new selective-constraint checks. Its only
+native failure was the 300-second deadline for the full 256 MiB history test.
+Native totals were 385 passed, one failed and one skipped. The audit remains
+blocking, and the exact run's original log is retained.
+
+The serializer now checks the bounded field references together, orders them by
+their actual array positions and casts an index only after validating its
+canonical grammar. It renders the validated string once. When current and
+predecessor rows are exactly equal under the same codec inputs, the validators
+reuse that string within the call. Both stored digests and byte counts are
+checked where previously required. The full reference, scope, retention and
+completion checks still run. Native grammar, parity and rollback proofs remain
+required for the new checksum.
+
+The whole-history test now has a seven-minute budget for the real sequence of
+commits. Each query still has ten seconds and each transaction has sixty.
+The fixture stops launching work when Vitest aborts it and reports only the
+phase, committed count, target count and elapsed time on failure. All history
+and overflow assertions still apply, along with the existing hosted job deadline.

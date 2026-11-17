@@ -2,102 +2,103 @@
 -- Unreleased candidate: native, upgrade, customer and recovery gates are required before merge.
 -- A 256-character sheet plus the spreadsheet: prefix requires 268 characters.
 ALTER TABLE public."IngestionExternalRecord" ALTER COLUMN "recordType" TYPE varchar(268);
-CREATE FUNCTION public.valid_ingestion_csv_state(
+CREATE FUNCTION public.ingestion_csv_state_text(
   state_customer uuid, state_source uuid, state_mapping integer,
   state_dictionary jsonb, state_rows jsonb
-) RETURNS boolean
+) RETURNS text
 LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog,public AS $$
 DECLARE
   entry jsonb;
   identity_row jsonb;
-  field_reference jsonb;
   field_name text;
   previous_field text := '';
   identity_key text;
   previous_key text := '';
   record_id text;
   project_id text;
-  projection_id text;
-  index_text text;
-  field_index integer;
-  previous_index integer;
   dictionary_length integer;
   identity_count integer;
   distinct_records integer;
   distinct_projects integer;
   canonical_text text;
 BEGIN
-  IF state_customer IS NULL OR state_source IS NULL OR state_mapping IS NULL OR state_mapping<=0 THEN RETURN false; END IF;
-  IF jsonb_typeof(state_dictionary) IS DISTINCT FROM 'array' THEN RETURN false; END IF;
-  IF jsonb_typeof(state_rows) IS DISTINCT FROM 'array' THEN RETURN false; END IF;
+  IF state_customer IS NULL OR state_source IS NULL OR state_mapping IS NULL OR state_mapping<=0 THEN RETURN NULL; END IF;
+  IF jsonb_typeof(state_dictionary) IS DISTINCT FROM 'array' THEN RETURN NULL; END IF;
+  IF jsonb_typeof(state_rows) IS DISTINCT FROM 'array' THEN RETURN NULL; END IF;
   dictionary_length := jsonb_array_length(state_dictionary);
   identity_count := jsonb_array_length(state_rows);
-  IF dictionary_length NOT BETWEEN 1 AND 32 OR identity_count>1000 THEN RETURN false; END IF;
+  IF dictionary_length NOT BETWEEN 1 AND 32 OR identity_count>1000 THEN RETURN NULL; END IF;
   FOR entry IN SELECT value FROM jsonb_array_elements(state_dictionary) LOOP
-    IF jsonb_typeof(entry) IS DISTINCT FROM 'array' THEN RETURN false; END IF;
-    IF jsonb_array_length(entry)<>2 THEN RETURN false; END IF;
-    IF jsonb_typeof(entry->0) IS DISTINCT FROM 'string' OR jsonb_typeof(entry->1) IS DISTINCT FROM 'string' THEN RETURN false; END IF;
+    IF jsonb_typeof(entry) IS DISTINCT FROM 'array' THEN RETURN NULL; END IF;
+    IF jsonb_array_length(entry)<>2 THEN RETURN NULL; END IF;
+    IF jsonb_typeof(entry->0) IS DISTINCT FROM 'string' OR jsonb_typeof(entry->1) IS DISTINCT FROM 'string' THEN RETURN NULL; END IF;
     field_name := entry->>0;
-    IF octet_length(field_name) NOT BETWEEN 1 AND 96 THEN RETURN false; END IF;
+    IF octet_length(field_name) NOT BETWEEN 1 AND 96 THEN RETURN NULL; END IF;
     IF field_name COLLATE "C" !~ '^[a-z][a-z0-9_.-]{0,95}$'
       OR field_name COLLATE "C" ~ '[^a-z0-9_.-]'
       OR field_name COLLATE "C" <= previous_field COLLATE "C"
-      OR entry->>1 NOT IN ('text','date','number','boolean') THEN RETURN false; END IF;
+      OR entry->>1 NOT IN ('text','date','number','boolean') THEN RETURN NULL; END IF;
     previous_field := field_name;
   END LOOP;
   FOR identity_row IN SELECT value FROM jsonb_array_elements(state_rows) LOOP
-    IF jsonb_typeof(identity_row) IS DISTINCT FROM 'array' THEN RETURN false; END IF;
-    IF jsonb_array_length(identity_row)<>4 THEN RETURN false; END IF;
+    IF jsonb_typeof(identity_row) IS DISTINCT FROM 'array' THEN RETURN NULL; END IF;
+    IF jsonb_array_length(identity_row)<>4 THEN RETURN NULL; END IF;
     IF jsonb_typeof(identity_row->0) IS DISTINCT FROM 'string'
       OR jsonb_typeof(identity_row->1) IS DISTINCT FROM 'string'
       OR jsonb_typeof(identity_row->2) IS DISTINCT FROM 'string'
-      OR jsonb_typeof(identity_row->3) IS DISTINCT FROM 'array' THEN RETURN false; END IF;
+      OR jsonb_typeof(identity_row->3) IS DISTINCT FROM 'array' THEN RETURN NULL; END IF;
     identity_key := identity_row->>0;
     record_id := identity_row->>1;
     project_id := identity_row->>2;
-    IF octet_length(identity_key)<>64 OR octet_length(record_id)<>36 OR octet_length(project_id)<>36 THEN RETURN false; END IF;
+    IF octet_length(identity_key)<>64 OR octet_length(record_id)<>36 OR octet_length(project_id)<>36 THEN RETURN NULL; END IF;
     IF identity_key COLLATE "C" !~ '^[a-f0-9]{64}$'
       OR identity_key COLLATE "C" <= previous_key COLLATE "C"
       OR record_id COLLATE "C" !~ '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
-      OR project_id COLLATE "C" !~ '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' THEN RETURN false; END IF;
-    IF jsonb_array_length(identity_row->3)>32 THEN RETURN false; END IF;
-    previous_index := -1;
-    FOR field_reference IN SELECT value FROM jsonb_array_elements(identity_row->3) LOOP
-      IF jsonb_typeof(field_reference) IS DISTINCT FROM 'array' THEN RETURN false; END IF;
-      IF jsonb_array_length(field_reference)<>2 THEN RETURN false; END IF;
-      IF jsonb_typeof(field_reference->0) IS DISTINCT FROM 'string'
-        OR jsonb_typeof(field_reference->1) IS DISTINCT FROM 'string' THEN RETURN false; END IF;
-      index_text := field_reference->>0;
-      projection_id := field_reference->>1;
-      IF octet_length(index_text) NOT BETWEEN 1 AND 2 OR octet_length(projection_id)<>36 THEN RETURN false; END IF;
-      IF index_text COLLATE "C" !~ '^(0|[1-9][0-9]?)$' OR index_text COLLATE "C" ~ '[^0-9]'
-        OR projection_id COLLATE "C" !~ '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' THEN RETURN false; END IF;
-      field_index := index_text::integer;
-      IF field_index<=previous_index OR field_index>=dictionary_length THEN RETURN false; END IF;
-      previous_index := field_index;
-    END LOOP;
+      OR project_id COLLATE "C" !~ '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' THEN RETURN NULL; END IF;
+    IF jsonb_array_length(identity_row->3)>32 THEN RETURN NULL; END IF;
     previous_key := identity_key;
   END LOOP;
+  -- The first pass bounds every identity's reference array. Check the bounded
+  -- references together and keep casts inside their shape and grammar checks.
+  IF EXISTS (
+    WITH parsed AS (
+      SELECT row_entry.ordinal AS identity_ordinal,field.ordinal AS field_ordinal,
+        CASE WHEN jsonb_typeof(field.ref)='array' THEN jsonb_array_length(field.ref) END AS arity,
+        CASE WHEN jsonb_typeof(field.ref->0)='string'
+          AND octet_length(field.ref->>0) BETWEEN 1 AND 2
+          AND (field.ref->>0) COLLATE "C" ~ '^(0|[1-9][0-9]?)$'
+          AND (field.ref->>0) COLLATE "C" !~ '[^0-9]'
+          THEN (field.ref->>0)::integer END AS field_index,
+        (jsonb_typeof(field.ref->1)='string' AND octet_length(field.ref->>1)=36
+          AND (field.ref->>1) COLLATE "C" ~ '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$') AS valid_projection
+      FROM jsonb_array_elements(state_rows) WITH ORDINALITY row_entry(row_value,ordinal)
+      CROSS JOIN LATERAL jsonb_array_elements(row_entry.row_value->3) WITH ORDINALITY field(ref,ordinal)
+    ), ordered AS (
+      SELECT arity,field_index,valid_projection,
+        lag(field_index,1,-1) OVER (PARTITION BY identity_ordinal ORDER BY field_ordinal) AS previous_index
+      FROM parsed
+    )
+    SELECT 1 FROM ordered WHERE arity IS DISTINCT FROM 2 OR valid_projection IS NOT TRUE
+      OR field_index IS NULL OR field_index>=dictionary_length OR field_index<=previous_index
+  ) THEN RETURN NULL; END IF;
   -- Set-based bounded counts avoid a growing per-row linear membership scan.
   SELECT count(DISTINCT (value->>1) COLLATE "C"),count(DISTINCT (value->>2) COLLATE "C")
     INTO distinct_records,distinct_projects FROM jsonb_array_elements(state_rows);
-  IF distinct_records<>identity_count OR distinct_projects>100 THEN RETURN false; END IF;
+  IF distinct_records<>identity_count OR distinct_projects>100 THEN RETURN NULL; END IF;
   -- Permitted tokens are all ASCII and contain neither spaces nor escapes.
   canonical_text := replace(jsonb_build_array('pdaa.csv.state.v1',state_customer::text,
     state_source::text,state_mapping::text,state_dictionary,state_rows)::text,' ','');
-  RETURN octet_length(convert_to(canonical_text,'UTF8'))<=2097152;
+  IF octet_length(convert_to(canonical_text,'UTF8'))>2097152 THEN RETURN NULL; END IF;
+  RETURN canonical_text;
 END $$;
 
-CREATE FUNCTION public.ingestion_csv_state_text(
+CREATE FUNCTION public.valid_ingestion_csv_state(
   state_customer uuid, state_source uuid, state_mapping integer,
   state_dictionary jsonb, state_rows jsonb
-) RETURNS text
-LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog,public AS $$
-BEGIN
-  IF public.valid_ingestion_csv_state(state_customer,state_source,state_mapping,state_dictionary,state_rows) IS NOT TRUE THEN RETURN NULL; END IF;
-  RETURN replace(jsonb_build_array('pdaa.csv.state.v1',state_customer::text,
-    state_source::text,state_mapping::text,state_dictionary,state_rows)::text,' ','');
-END $$;
+) RETURNS boolean
+LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,public AS $$
+  SELECT public.ingestion_csv_state_text(state_customer,state_source,state_mapping,state_dictionary,state_rows) IS NOT NULL
+$$;
 
 REVOKE ALL ON FUNCTION public.valid_ingestion_csv_state(uuid,uuid,integer,jsonb,jsonb),
   public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb) FROM PUBLIC;
@@ -220,7 +221,9 @@ BEGIN
         AND revision=c."predecessorRevision" AND "stateHash"=c."predecessorHash" AND "mappingRevision"=c."mappingRevision";
     IF NOT FOUND THEN RETURN false; END IF;
     prior_rows := parent.rows;
-    prior_encoded := public.ingestion_csv_state_text(c."customerId",c."sourceId",c."mappingRevision",h.dictionary,prior_rows);
+    -- Identical rows under these same codec inputs have the same validated bytes.
+    prior_encoded := CASE WHEN prior_rows=c.rows THEN encoded
+      ELSE public.ingestion_csv_state_text(c."customerId",c."sourceId",c."mappingRevision",h.dictionary,prior_rows) END;
     IF prior_encoded IS NULL OR octet_length(convert_to(prior_encoded,'UTF8'))<>parent."canonicalBytes"
       OR encode(sha256(convert_to(prior_encoded,'UTF8')),'hex')<>parent."stateHash" THEN RETURN false; END IF;
   END IF;
@@ -522,7 +525,8 @@ BEGIN
     IF NOT FOUND THEN RAISE EXCEPTION 'Invalid CSV comparison context'; END IF;
     prior_rows:=parent.rows;
   END IF;
-  prior_encoded:=public.ingestion_csv_state_text(NEW."customerId",NEW."sourceId",NEW."mappingRevision",planned_head.dictionary,prior_rows);
+  prior_encoded:=CASE WHEN prior_rows=NEW.rows THEN encoded
+    ELSE public.ingestion_csv_state_text(NEW."customerId",NEW."sourceId",NEW."mappingRevision",planned_head.dictionary,prior_rows) END;
   IF prior_encoded IS NULL OR encode(sha256(convert_to(prior_encoded,'UTF8')),'hex')<>planned_head."stateHash" THEN
     RAISE EXCEPTION 'Invalid CSV comparison context';
   END IF;
