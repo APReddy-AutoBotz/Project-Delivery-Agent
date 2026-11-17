@@ -27,6 +27,7 @@ Published packages are used without modification. Their original license and cop
 - **ajv-formats 3.0.1** — MIT; [publisher metadata](https://registry.npmjs.org/ajv-formats/3.0.1); source: git+https://github.com/ajv-validator/ajv-formats.git.
 - **deepmerge-ts 8.0.0** — BSD-3-Clause; [publisher metadata](https://registry.npmjs.org/deepmerge-ts/8.0.0); source: git+https://github.com/RebeccaStevens/deepmerge-ts.git.
 - **yauzl 3.4.0** — MIT; [publisher metadata](https://registry.npmjs.org/yauzl/3.4.0). The offline XLSX archive reader also uses its locked MIT dependency [pend 1.2.0](https://registry.npmjs.org/pend/1.2.0).
+- **saxes 6.0.0** — ISC; [publisher metadata](https://registry.npmjs.org/saxes/6.0.0) and [release-tag license notices](https://github.com/lddubeau/saxes/blob/v6.0.0/LICENSE). The installed package omits the full notice text. The offline worksheet decoder also uses the locked MIT dependency [xmlchars 2.2.0](https://registry.npmjs.org/xmlchars/2.2.0).
 - **eslint 10.10.0** — MIT; [publisher metadata](https://registry.npmjs.org/eslint/10.10.0); source: git+https://github.com/eslint/eslint.git.
 - **graphile-worker 0.17.3** — MIT; [publisher metadata](https://registry.npmjs.org/graphile-worker/0.17.3); source: git+ssh://git@github.com/graphile/worker.git.
 - **jose 6.2.12** — MIT; [publisher metadata](https://registry.npmjs.org/jose/6.2.12); source: git+https://github.com/panva/jose.git.

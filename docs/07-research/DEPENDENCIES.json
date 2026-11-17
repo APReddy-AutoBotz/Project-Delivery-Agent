@@ -604,6 +604,21 @@
       "replacementPath": "Remove override when reviewed Express dependency adopts the patch; preserve first-party authorization"
     },
     {
+      "name": "saxes",
+      "version": "6.0.0",
+      "runtime": false,
+      "consumers": ["Offline XLSX worksheet acceptance"],
+      "license": "ISC",
+      "repository": "git+https://github.com/lddubeau/saxes.git",
+      "source": "https://registry.npmjs.org/saxes/6.0.0",
+      "modified": false,
+      "integrity": "sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA==",
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated engineering review for synthetic offline inspection; upstream is archived",
+      "reviewDate": "2026-11-18",
+      "replacementPath": "Replace behind the worksheet decoder after strict XML and deployment review"
+    },
+    {
       "name": "yauzl",
       "version": "3.4.0",
       "runtime": false,
