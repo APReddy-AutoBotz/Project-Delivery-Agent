@@ -11,6 +11,7 @@ export const csvComparisonFunctions = Object.freeze([
   "require_ingestion_csv_complete()",
   "guard_ingestion_receipt()",
   "guard_ingestion_reviewed_import()",
+  "require_ingestion_receipt_complete()",
 ]);
 export const csvComparisonApiFunctions = Object.freeze(csvComparisonFunctions.slice(0,4));
 const tables = ["IngestionCsvHead","IngestionCsvContext"];
@@ -63,5 +64,5 @@ export async function verifyCsvComparisonPrivileges(pool, roles = ["pdaa_api","p
       }
     }
   }
-  return { tables,apiValidators:4,privateGuards:6,workerDenied:true,backupSelectOnly:true,headUpdateColumns:[...controls],publicDenied:true };
+  return { tables,apiValidators:4,privateGuards:7,workerDenied:true,backupSelectOnly:true,headUpdateColumns:[...controls],publicDenied:true };
 }

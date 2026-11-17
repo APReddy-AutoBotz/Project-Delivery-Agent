@@ -768,6 +768,55 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN RETURN false;
 END $$;
 
+-- A CSV preview header owns receipt-wide completion. Its immutable count and
+-- the unique, range-checked ordinals leave no free slot after that check passes.
+-- Outcome events still verify their own bindings, including when their
+-- constraint is made immediate separately from the header constraint.
+CREATE OR REPLACE FUNCTION public.require_ingestion_receipt_complete() RETURNS trigger
+LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
+DECLARE
+  target uuid;
+  receipt public."IngestionOperationReceipt"%ROWTYPE;
+BEGIN
+  IF TG_TABLE_NAME='IngestionOperationReceipt' THEN
+    target:=NEW.id;
+  ELSE
+    target:=NEW."receiptId";
+    SELECT * INTO receipt FROM public."IngestionOperationReceipt" WHERE id=target;
+    IF FOUND AND TG_TABLE_NAME='IngestionRowOutcome' AND receipt.kind='CSV_PREVIEW'
+      AND receipt."executionMode"='HUMAN' AND receipt."syncJobId" IS NULL THEN
+      IF ROW(receipt."customerId",receipt."sourceId") IS DISTINCT FROM ROW(NEW."customerId",NEW."sourceId")
+        OR (NEW.ordinal BETWEEN 1 AND receipt."outcomeCount") IS NOT TRUE
+        OR (NEW."projectId" IS NOT NULL AND NOT EXISTS (
+          SELECT 1 FROM public."IngestionReceiptProjectScope" s
+          WHERE s."receiptId"=target AND s."customerId"=NEW."customerId"
+            AND s."sourceId"=NEW."sourceId" AND s."projectId"=NEW."projectId"
+        )) OR (NEW.state='ACCEPTED' AND (
+          NEW."recordKey" IS NULL OR NEW."projectId" IS NULL OR NOT EXISTS (
+            SELECT 1 FROM public."IngestionExternalRecord" e
+            JOIN public."IngestionSourceRevision" v ON v."customerId"=e."customerId" AND v."sourceId"=e."sourceId"
+              AND v."recordId"=e.id AND v.id=NEW."sourceRevisionId"
+            JOIN public."IngestionProposalProjection" p ON p."customerId"=v."customerId" AND p."sourceId"=v."sourceId"
+              AND p."recordId"=v."recordId" AND p."sourceRevisionId"=v.id AND p.id=NEW."projectionId"
+              AND p."mappingRevision"=receipt."mappingRevision"
+            JOIN public."IngestionProposalContent" c ON c."customerId"=p."customerId" AND c."sourceId"=p."sourceId"
+              AND c."recordId"=p."recordId" AND c."projectionId"=p.id
+            WHERE e.id=NEW."recordId" AND e."customerId"=NEW."customerId" AND e."sourceId"=NEW."sourceId"
+              AND e."projectId"=NEW."projectId" AND e."recordKey"=NEW."recordKey"
+          )
+        )) OR (NEW.state<>'ACCEPTED' AND (NEW."projectionId" IS NOT NULL OR cardinality(NEW."errorCodes")=0)) THEN
+        RAISE EXCEPTION 'Incomplete ingestion receipt cannot commit';
+      END IF;
+      RETURN NULL;
+    END IF;
+  END IF;
+  IF public.valid_ingestion_receipt(target) IS NOT TRUE THEN
+    RAISE EXCEPTION 'Incomplete ingestion receipt cannot commit';
+  END IF;
+  RETURN NULL;
+END $$;
+REVOKE ALL ON FUNCTION public.require_ingestion_receipt_complete() FROM PUBLIC;
+
 CREATE OR REPLACE FUNCTION public.guard_ingestion_receipt() RETURNS trigger
 LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
 DECLARE source_row public."IngestionSource"%ROWTYPE; mapping_value jsonb;
@@ -820,27 +869,30 @@ CREATE FUNCTION public.require_ingestion_csv_complete() RETURNS trigger
 LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
 DECLARE customer_target uuid; source_target uuid; receipt_target uuid; head_row public."IngestionCsvHead"%ROWTYPE;
 BEGIN
-  IF TG_TABLE_NAME='IngestionOperationReceipt' THEN
-    customer_target:=NEW."customerId"; source_target:=NEW."sourceId"; receipt_target:=NEW.id;
-  ELSIF TG_TABLE_NAME='IngestionCsvContext' THEN
-    customer_target:=NEW."customerId"; source_target:=NEW."sourceId"; receipt_target:=NEW."receiptId";
-  ELSE
-    customer_target:=NEW."customerId"; source_target:=NEW."sourceId";
-  END IF;
-  -- Always re-read the final stored head. Earlier valid contexts can be ancestors
-  -- when more than one command is assembled in the same transaction.
-  SELECT * INTO head_row FROM public."IngestionCsvHead" WHERE "customerId"=customer_target AND "sourceId"=source_target;
-  IF NOT FOUND OR public.valid_ingestion_csv_head(customer_target,source_target) IS NOT TRUE THEN
-    RAISE EXCEPTION 'Incomplete CSV comparison cannot commit';
-  END IF;
-  IF receipt_target IS NOT NULL THEN
-    IF head_row.readiness<>'READY' OR public.valid_ingestion_csv_context(receipt_target) IS NOT TRUE
-      OR public.valid_ingestion_receipt(receipt_target) IS NOT TRUE
-      OR NOT EXISTS (SELECT 1 FROM public."IngestionSource" s JOIN public."IngestionConfigurationRevision" cfg
-        ON cfg."customerId"=s."customerId" AND cfg."sourceId"=s.id AND cfg.revision=s."currentConfigRevision" AND cfg.sealed
-        WHERE s."customerId"=customer_target AND s.id=source_target AND cfg.mapping->>'kind'='CSV') THEN
+  IF TG_TABLE_NAME='IngestionCsvHead' THEN
+    -- Each advance queues a head event. Its validator checks the final stored
+    -- pointer, accounting and current context, including on initial activation.
+    IF public.valid_ingestion_csv_head(NEW."customerId",NEW."sourceId") IS NOT TRUE THEN
       RAISE EXCEPTION 'Incomplete CSV comparison cannot commit';
     END IF;
+    RETURN NULL;
+  ELSIF TG_TABLE_NAME='IngestionOperationReceipt' THEN
+    customer_target:=NEW."customerId"; source_target:=NEW."sourceId"; receipt_target:=NEW.id;
+  ELSE
+    customer_target:=NEW."customerId"; source_target:=NEW."sourceId"; receipt_target:=NEW."receiptId";
+    -- Validate every inserted context, even one superseded in this transaction.
+    IF public.valid_ingestion_csv_context(receipt_target) IS NOT TRUE THEN
+      RAISE EXCEPTION 'Incomplete CSV comparison cannot commit';
+    END IF;
+  END IF;
+  -- The generic receipt check proves the exact context/receipt link on a ready
+  -- head. The independently queued context and head events check their graphs.
+  SELECT * INTO head_row FROM public."IngestionCsvHead" WHERE "customerId"=customer_target AND "sourceId"=source_target;
+  IF NOT FOUND OR head_row.readiness<>'READY' OR public.valid_ingestion_receipt(receipt_target) IS NOT TRUE
+    OR NOT EXISTS (SELECT 1 FROM public."IngestionSource" s JOIN public."IngestionConfigurationRevision" cfg
+      ON cfg."customerId"=s."customerId" AND cfg."sourceId"=s.id AND cfg.revision=s."currentConfigRevision" AND cfg.sealed
+      WHERE s."customerId"=customer_target AND s.id=source_target AND cfg.mapping->>'kind'='CSV') THEN
+    RAISE EXCEPTION 'Incomplete CSV comparison cannot commit';
   END IF;
   RETURN NULL;
 END $$;
@@ -887,7 +939,7 @@ BEGIN
   FOREACH role_name IN ARRAY ARRAY['pdaa_api','pdaa_worker','pdaa_backup'] LOOP
     IF to_regrole(role_name) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON TABLE public."IngestionCsvHead",public."IngestionCsvContext" FROM %I',role_name);
-      EXECUTE format('REVOKE ALL ON FUNCTION public.valid_ingestion_csv_state(uuid,uuid,integer,jsonb,jsonb),public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb),public.valid_ingestion_csv_context(uuid),public.valid_ingestion_csv_head(uuid,uuid),public.guard_ingestion_csv_head(),public.initialize_ingestion_csv_head(),public.guard_ingestion_csv_context(),public.require_ingestion_csv_complete(),public.guard_ingestion_receipt(),public.guard_ingestion_reviewed_import() FROM %I',role_name);
+      EXECUTE format('REVOKE ALL ON FUNCTION public.valid_ingestion_csv_state(uuid,uuid,integer,jsonb,jsonb),public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb),public.valid_ingestion_csv_context(uuid),public.valid_ingestion_csv_head(uuid,uuid),public.guard_ingestion_csv_head(),public.initialize_ingestion_csv_head(),public.guard_ingestion_csv_context(),public.require_ingestion_csv_complete(),public.guard_ingestion_receipt(),public.guard_ingestion_reviewed_import(),public.require_ingestion_receipt_complete() FROM %I',role_name);
     END IF;
   END LOOP;
   IF to_regrole('pdaa_api') IS NOT NULL THEN

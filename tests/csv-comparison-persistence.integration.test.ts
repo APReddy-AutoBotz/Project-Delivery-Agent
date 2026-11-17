@@ -492,7 +492,18 @@ async function nativeTransition(f:Awaited<ReturnType<typeof fixture>>,baseReceip
     await tx.$executeRaw`INSERT INTO public."IngestionReceiptProjectScope" ("customerId","sourceId","receiptId","projectId","grantId","grantRole","grantScopeType","grantScopeId")
       SELECT "customerId","sourceId",${receiptId}::uuid,"projectId","grantId","grantRole","grantScopeType","grantScopeId"
       FROM public."IngestionReceiptProjectScope" WHERE "receiptId"=${baseReceiptId}::uuid`;
-    for (const outcome of outcomes) await tx.ingestionRowOutcome.create({data:{...outcome,receiptId,operation:outcome.state==="ACCEPTED" ? forgedValue ? "UPDATE" : "UNCHANGED" : "NONE"}});
+    if (mode.startsWith("selective-")) await tx.$executeRawUnsafe("SET CONSTRAINTS ingestion_outcome_commit IMMEDIATE");
+    const suppliedOutcomes=mode==="selective-incomplete" ? outcomes.slice(0,-1) : outcomes;
+    for (const outcome of suppliedOutcomes) {
+      if (mode==="selective-rejected-no-reason" && outcome.ordinal===1) {
+        await tx.$executeRaw`INSERT INTO public."IngestionRowOutcome" ("customerId","sourceId","receiptId",ordinal,state,operation,"errorCodes","projectId","recordKey")
+          VALUES (${f.customerId}::uuid,${f.sourceId}::uuid,${receiptId}::uuid,1,'INVALID','NONE',ARRAY[]::text[],${outcome.projectId}::uuid,${outcome.recordKey})`;
+      } else {
+        await tx.ingestionRowOutcome.create({data:{...outcome,receiptId,
+          operation:outcome.state==="ACCEPTED" ? forgedValue ? "UPDATE" : "UNCHANGED" : "NONE"}});
+      }
+    }
+    if (mode==="selective-incomplete") await tx.$executeRawUnsafe("SET CONSTRAINTS ingestion_receipt_commit IMMEDIATE");
     if (mode==="mixed-duplicate") await tx.ingestionRowOutcome.create({data:{customerId:f.customerId,sourceId:f.sourceId,receiptId,
       ordinal:outcomeCount,state:"INVALID",operation:"NONE",errorCodes:["DUPLICATE_KEY"],projectId:outcomes[0]!.projectId,recordKey:outcomes[0]!.recordKey}});
     if (mode==="reviewed-parent") {
@@ -539,6 +550,30 @@ it("allows a real native same-state successor and retains older-context validity
     await nativeTransition(f,first.result.receiptId,"valid",tx);
   },{timeout:20000});
   expect(await owner.ingestionCsvContext.count({where:{sourceId:f.sourceId}})).toBe(4);
+});
+
+it("checks immediate CSV outcomes while their graph is built and leaves no ordinal for a late append", async () => {
+  const f = await fixture();
+  const first = await f.preview([["A","2027-01-01","start"],["B","2027-01-02","other"]]);
+  const receiptId = await nativeTransition(f, first.result.receiptId, "selective-outcome");
+  const read = await f.api.readReceipt(f.actor, {sourceId:f.sourceId,receiptId});
+  expect(read.outcomes.map((row) => row.operation)).toEqual(["UNCHANGED","UNCHANGED"]);
+  const empty = await f.preview([]);
+  const before = await f.graph();
+  const append = (target: string, ordinal: number) => f.asApi((tx) => tx.$executeRaw`
+    INSERT INTO public."IngestionRowOutcome" ("customerId","sourceId","receiptId",ordinal,state,operation,"errorCodes","projectId","recordKey","recordId","sourceRevisionId","projectionId")
+    SELECT "customerId","sourceId",${target}::uuid,${ordinal}::integer,state,operation,"errorCodes","projectId","recordKey","recordId","sourceRevisionId","projectionId"
+    FROM public."IngestionRowOutcome" WHERE "receiptId"=${receiptId}::uuid AND ordinal=1`);
+  for (const [target, ordinal, code] of [[receiptId,1,"23505"],[receiptId,3,"P0001"],[empty.result.receiptId,1,"P0001"]] as const) {
+    const failure = await append(target,ordinal).then(() => undefined, (error: unknown) => error);
+    expect(errorCode(failure)).toBe(code);
+  }
+  for (const mode of ["selective-incomplete","selective-rejected-no-reason"]) {
+    const failure = await nativeTransition(f,first.result.receiptId,mode).then(() => undefined, (error: unknown) => error);
+    expect(errorCode(failure)).toBe("P0001");
+    expect(own(own(own(own(failure,"meta"),"driverAdapterError"),"cause"),"originalMessage")).toBe("Incomplete ingestion receipt cannot commit");
+  }
+  expect(await f.graph()).toEqual(before);
 });
 
 it.each(["connector-event","connector-page","csv-on-connector","stale-config"])("rejects direct native receipt family or revision bypass %s",async(mode)=>{

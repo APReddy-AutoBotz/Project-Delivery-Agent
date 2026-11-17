@@ -1096,3 +1096,28 @@ original graph and audits must be restored by rollback. This complements the
 unchanged genuine large constructions, optional omissions and purge/replay
 controls. Fresh hosted timing and current-checksum recovery evidence remain
 required; no completion-dispatch, budget or enforcement reduction is inferred.
+
+## Deferred receipt and context validation
+
+The `d500ad7` hosted run passed sparse carry-forward and the shared-projection
+regression. The wide preview still failed at COMMIT after completing its final
+validation query in 4,000 ms. The subsequent 4,096-context case reported a
+query timeout. In total, 383 native tests passed, two failed and one skipped.
+The required dependency audit also failed. The original verify log is retained.
+
+CSV preview outcome callbacks now check their own row and its receipt bindings.
+The header callback still validates the whole receipt, including the exact row
+count. The immutable count fixes the allowed ordinal range. Each ordinal is
+unique, so a completed receipt has no slot for a later row. An explicitly
+immediate outcome constraint can validate rows during construction, while the
+header constraint still checks completion when made immediate or at commit.
+The native controls cover incomplete headers, malformed rows, a complete graph,
+and append attempts against full and empty receipts.
+
+The CSV head callback validates the stored head and its current context. Each
+context callback independently validates its own context, including earlier
+contexts in a multi-preview transaction. Receipt and context callbacks still
+require the same scoped receipt link and sealed CSV source. The public validators
+retain their full checks for reads and recovery. Migration 28 remains unreleased.
+Fresh hosted results must establish timing and validate the new checksum before
+merge. The existing audit gate continues to apply.

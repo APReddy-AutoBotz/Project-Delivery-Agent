@@ -204,7 +204,7 @@ async function checkMetadata(client) {
     assert.deepEqual((await client.query(nativeQuery,parameters(csvStateVector()))).rows,
       [{valid:true,text:serializeCsvComparisonState(csvStateVector()).text}]);
     for (const name of ["guard_ingestion_csv_head","initialize_ingestion_csv_head","guard_ingestion_csv_context",
-      "require_ingestion_csv_complete","guard_ingestion_receipt","guard_ingestion_reviewed_import"])
+      "require_ingestion_csv_complete","guard_ingestion_receipt","guard_ingestion_reviewed_import","require_ingestion_receipt_complete"])
       await deniedStatement(client,"SELECT public."+name+"()",[],"42501");
   } finally {
     await client.query("ROLLBACK TO SAVEPOINT csv_prototype_role");

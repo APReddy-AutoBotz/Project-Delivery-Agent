@@ -133,7 +133,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     "public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb)","public.valid_ingestion_csv_context(uuid)","public.valid_ingestion_csv_head(uuid,uuid)"];
   const csvGuards = ["public.guard_ingestion_csv_head()","public.initialize_ingestion_csv_head()",
     "public.guard_ingestion_csv_context()","public.require_ingestion_csv_complete()",
-    "public.guard_ingestion_receipt()","public.guard_ingestion_reviewed_import()"];
+    "public.guard_ingestion_receipt()","public.guard_ingestion_reviewed_import()","public.require_ingestion_receipt_complete()"];
   expect(revoked).toHaveLength(10);
   expect(
     revoked
