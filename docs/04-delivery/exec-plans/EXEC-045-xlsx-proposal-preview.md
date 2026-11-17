@@ -58,6 +58,33 @@ equate the two.
 
 ## Required workbook and persistence work
 
+The offline XLSX archive reader provides the first byte-level step towards
+FR-CON-006/007. It uses pinned yauzl 3.4.0 for central and local ZIP headers and
+Node 24 for bounded raw DEFLATE and CRC-32. It copies at most 1 MiB of input
+and admits at most 64 ASCII XML or relationship parts, at most 4 MiB per part
+and 8 MiB of total expanded content. A part must account for its complete
+declared compressed extent and match its actual length and CRC. The single-
+disk archive has no comments, extra fields or ZIP64, uses stored or DEFLATE
+entries. Data descriptors must carry the ZIP record signature and match the
+sizes and CRC. Local records tile the bytes before the exact central directory. Case-insensitive
+duplicate names, file/directory name collisions, nonfile entries, unsupported
+methods and inconsistencies reject the entire archive.
+
+The checked workbook fixture was authored with the Codex spreadsheet bundle
+26.1116.12010. Its Portfolio sheet contains one header row and two fictional
+rows with literal text IDs and forecast dates. The exported workbook has
+SHA-256 `ea4fb60074ed77ef1de8af80a620ef87e4e07247cab57cb894d107f96a4895f4`.
+Tests compare the digest of each expanded part with an independent
+standard-library ZIP read. Fixtures also cover the allowed ZIP record forms
+and finite bounds. CRC detects corruption
+and establishes no authenticity. The archive reader neither interprets
+relationships and XML nor proves a workbook's suitability for mapping. It
+opens no filesystem entries and returns exact opaque part bytes only to its
+offline caller. This synchronous inflate is for the offline boundary only.
+The live path needs independently validated XML/OPC semantics, a killable
+worker with resource bounds and pre/post authorization, and durable receipts
+bound to the original workbook and selected mapping before any import.
+
 An unregistered local slot model exercises admission around the synthetic frame
 codec. It reserves declared input bytes before pulling a queued stream, limits
 one local lease, checks an absolute monotonic deadline, correlates a response

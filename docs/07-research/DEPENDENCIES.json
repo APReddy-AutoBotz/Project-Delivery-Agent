@@ -604,6 +604,21 @@
       "replacementPath": "Remove override when reviewed Express dependency adopts the patch; preserve first-party authorization"
     },
     {
+      "name": "yauzl",
+      "version": "3.4.0",
+      "runtime": false,
+      "consumers": ["Offline XLSX archive acceptance"],
+      "license": "MIT",
+      "repository": "git+https://github.com/thejoshwolfe/yauzl.git",
+      "source": "https://registry.npmjs.org/yauzl/3.4.0",
+      "modified": false,
+      "integrity": "sha512-jIH9yLR9wqr0wOS0TpBvo/g/2UgZH5qePVbjgRliiF0BYvOZyaBknKsF+x9Iht0O6sqgnB93rCICdOZFecJuDw==",
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated engineering review for offline archive inspection",
+      "reviewDate": "2026-11-18",
+      "replacementPath": "Replace behind the offline ZIP admission module"
+    },
+    {
       "name": "source-map-js",
       "version": "1.2.2",
       "runtime": false,

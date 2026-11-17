@@ -4,6 +4,22 @@
 
 Every runtime dependency must be pinned through the lockfile and reviewed before release.
 
+### Offline XLSX archive inspection
+
+For FR-CON-006/007, the offline archive reader uses the exact published
+yauzl 3.4.0 package (MIT) and its locked pend 1.2.0 dependency (MIT).
+Yauzl provides lazy directory and local header inspection. The first-party
+reader enforces the accepted ZIP subset, integrity and expansion bounds.
+Public reviewed GitHub advisory queries returned no entries for these exact
+versions at review time. The synchronous inflater is built into Node 24.
+This is a development-only dependency behind one archive module. Replace it
+behind that module if its maintenance or API changes. XML parser selection,
+packaging and commercial distribution require their own review.
+See the [pinned yauzl API](https://github.com/thejoshwolfe/yauzl/blob/3.4.0/README.md)
+and [ECMA-376 package specification](https://ecma-international.org/publications-and-standards/standards/ecma-376/).
+
+### Baseline components
+
 | Component              | Purpose                   | Licence            | Decision             | Integration method                                        | Notes                                                 |
 | ---------------------- | ------------------------- | ------------------ | -------------------- | --------------------------------------------------------- | ----------------------------------------------------- |
 | React                  | Web UI                    | MIT                | Proposed             | Use published package                                     | Web framework; replacement would be costly            |
