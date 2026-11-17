@@ -312,10 +312,12 @@ BEGIN
     WHERE NOT EXISTS (SELECT 1 FROM supplied s WHERE s.key=p.key AND s.field_index=(ref->>0)::integer)
   ), refs AS (
     SELECT * FROM supplied UNION ALL SELECT * FROM carried
+  ), grouped_refs AS (
+    SELECT key,jsonb_agg(jsonb_build_array(field_index::text,projection_id::text) ORDER BY field_index) AS refs
+    FROM refs GROUP BY key
   ), merged AS (
-    SELECT i.key,jsonb_build_array(i.key,i.record_id::text,i.project_id::text,
-      (SELECT COALESCE(jsonb_agg(jsonb_build_array(v.field_index::text,v.projection_id::text) ORDER BY v.field_index),'[]'::jsonb)
-       FROM refs v WHERE v.key=i.key)) AS entry FROM identities i
+    SELECT i.key,jsonb_build_array(i.key,i.record_id::text,i.project_id::text,COALESCE(g.refs,'[]'::jsonb)) AS entry
+    FROM identities i LEFT JOIN grouped_refs g ON g.key=i.key
   ) SELECT COALESCE(jsonb_agg(entry ORDER BY key COLLATE "C"),'[]'::jsonb) INTO expected_rows FROM merged;
   RETURN c.rows=expected_rows;
 EXCEPTION WHEN OTHERS THEN RETURN false;
@@ -617,10 +619,12 @@ BEGIN
     WHERE NOT EXISTS (SELECT 1 FROM supplied v WHERE v.key=p.key AND v.field_index=(ref->>0)::integer)
   ), refs AS (
     SELECT * FROM supplied UNION ALL SELECT * FROM carried
+  ), grouped_refs AS (
+    SELECT key,jsonb_agg(jsonb_build_array(field_index::text,projection_id::text) ORDER BY field_index) AS refs
+    FROM refs GROUP BY key
   ), merged AS (
-    SELECT i.key,jsonb_build_array(i.key,i.record_id::text,i.project_id::text,
-      (SELECT COALESCE(jsonb_agg(jsonb_build_array(v.field_index::text,v.projection_id::text) ORDER BY v.field_index),'[]'::jsonb) FROM refs v WHERE v.key=i.key)) AS entry
-    FROM identities i
+    SELECT i.key,jsonb_build_array(i.key,i.record_id::text,i.project_id::text,COALESCE(g.refs,'[]'::jsonb)) AS entry
+    FROM identities i LEFT JOIN grouped_refs g ON g.key=i.key
   ) SELECT COALESCE(jsonb_agg(entry ORDER BY key COLLATE "C"),'[]'::jsonb) INTO expected_rows FROM merged;
   IF NEW.rows IS DISTINCT FROM expected_rows THEN RAISE EXCEPTION 'Invalid CSV comparison context'; END IF;
   SELECT COALESCE(array_agg(id ORDER BY id),'{}'::uuid[]) INTO projection_ids FROM (

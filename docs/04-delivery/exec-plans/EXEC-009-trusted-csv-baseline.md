@@ -1043,3 +1043,28 @@ This is the smaller reviewed alternative to new parallel jobs and an aggregate;
 it avoids relying on an unverified new branch-protection requirement. Every
 required exact-head check must pass before merge. An unresolved audit remains a
 merge blocker even when useful native or packaged evidence is collected.
+
+## Measured context-validation query cost, 2026-11-17
+
+The `3bef9c2` run reaches the diagnostic: the first wide preview fails at query
+37, CONTEXT_VALIDATION, after 10,004 ms, with 33,401 ms elapsed in its transaction.
+The statement invokes the static context, head and generic receipt validators;
+this measurement does not isolate one function. The corrected same-transaction
+successor and real reader-revocation race pass. Subsequent fixture initialization
+and old scenario phases show query timeouts/cascades, so none are accepted as
+unrelated flakes. The complete original log and checksum remain retained.
+
+Both static and live overlay reconstructions now aggregate references once per
+C-collated identity key, then LEFT JOIN those groups onto the unchanged identity
+union. Numeric field-index ordering, UNION ALL supplied/carried semantics, the
+empty-array fallback for zero-field identities and final C-key ordering remain
+identical. Exact equality, reference binding, hashes, live availability and all
+other validators still run. The final three-validator query is retained for a
+new native measurement; no COMMIT/stream guard or deadline changes are inferred.
+
+This changes only unreleased migration 28 and this plan. All 27 released SQL
+files stay byte-for-byte unchanged. Fresh native, upgrade and encrypted backup/
+restore evidence must match the new checksum; old cece artifacts remain historical
+prerequisites. The two genuine large initial repository constructions and all
+capacity assertions, input bounds and budgets remain unchanged. The unresolved
+upstream audit still blocks merge even if the native correction passes.
