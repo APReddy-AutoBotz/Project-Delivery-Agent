@@ -584,21 +584,27 @@ it("accepts whitespace text and treats a later empty optional cell as omission",
 });
 
 it("checks every field membership when multiple references share one metadata projection binding",async()=>{
-  const f=await fixture(),first=await f.preview([["A","2027-01-01","start"]]);
-  const context=await owner.ingestionCsvContext.findUniqueOrThrow({where:{receiptId:first.result.receiptId}});
+  const f=await fixture();await f.preview([["A","2027-01-01","start"]]);
+  const carried=await f.preview([["A"]]);
+  expect(carried.read.outcomes[0]).toMatchObject({operation:"UNCHANGED",proposals:[]});
+  const context=await owner.ingestionCsvContext.findUniqueOrThrow({where:{receiptId:carried.result.receiptId}});
   const rows=context.rows as [string,string,string,[string,string][]][];
   expect(rows[0]![3]).toHaveLength(2);
   const projectionId=rows[0]![3][0]![1];
   expect(rows[0]![3][1]![1]).toBe(projectionId);
+  const observation=await owner.ingestionRowOutcome.findFirstOrThrow({where:{receiptId:carried.result.receiptId}});
+  expect(observation.projectionId).not.toBe(projectionId);
   const before=await f.graph();
   await expect(owner.$transaction(async(tx)=>{
-    expect(await tx.$queryRaw`SELECT public.valid_ingestion_csv_context(${first.result.receiptId}::uuid) AS valid`).toEqual([{valid:true}]);
+    expect(await tx.$queryRaw`SELECT public.valid_ingestion_csv_context(${carried.result.receiptId}::uuid) AS valid`).toEqual([{valid:true}]);
     await tx.$executeRawUnsafe('ALTER TABLE public."IngestionProposalProjection" DISABLE TRIGGER ingestion_projection_guard');
     try {
       await tx.$executeRaw`UPDATE public."IngestionProposalProjection" SET "factTypes"=ARRAY['project.forecast']::text[] WHERE id=${projectionId}::uuid`;
     } finally {await tx.$executeRawUnsafe('ALTER TABLE public."IngestionProposalProjection" ENABLE TRIGGER ingestion_projection_guard');}
-    expect(await tx.$queryRaw`SELECT public.valid_ingestion_receipt(${first.result.receiptId}::uuid) AS cheap,
-      public.valid_ingestion_csv_context(${first.result.receiptId}::uuid) AS full`).toEqual([{cheap:true,full:false}]);
+    // Its current observation supplies no fields, so changing the carried
+    // projection's factTypes cannot change this context's expected overlay.
+    expect(await tx.$queryRaw`SELECT public.valid_ingestion_receipt(${carried.result.receiptId}::uuid) AS cheap,
+      public.valid_ingestion_csv_context(${carried.result.receiptId}::uuid) AS full`).toEqual([{cheap:true,full:false}]);
     throw new Error("ROLLED_BACK_SHARED_PROJECTION_MEMBERSHIP");
   },{timeout:20000})).rejects.toThrow("ROLLED_BACK_SHARED_PROJECTION_MEMBERSHIP");
   expect(await f.graph()).toEqual(before);

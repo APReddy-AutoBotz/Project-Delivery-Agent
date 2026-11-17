@@ -1087,7 +1087,10 @@ redaction; no plaintext, time, current grants, cache or all-history scan is adde
 Zero-field identity anchors and all previous hash/scope/overlay checks remain.
 
 A new owner-only rollback control creates two references sharing one projection,
-then removes only one field from its metadata. The cheap receipt link remains
+then carries them through a later empty optional observation before removing
+only one field from the older projection's metadata. The inspected context's
+expected overlay stays unchanged, isolating per-reference membership from overlay
+reconstruction. The cheap receipt link remains
 valid while full context validation must reject the absent membership. The
 original graph and audits must be restored by rollback. This complements the
 unchanged genuine large constructions, optional omissions and purge/replay
