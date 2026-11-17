@@ -2,6 +2,23 @@
   "reviewDate": "2026-09-06",
   "entries": [
     {
+      "name": "@ryotsu/picomatch",
+      "version": "4.0.7-a",
+      "reason": "Temporary development tooling security replacement for picomatch 4.0.7 under ADR-016",
+      "runtime": false,
+      "consumers": ["Vite", "Vitest", "typescript-eslint via tinyglobby and fdir"],
+      "license": "MIT",
+      "repository": "https://github.com/ryotsu-kankichi/secured-picomatch",
+      "source": "https://registry.npmjs.org/@ryotsu/picomatch/-/picomatch-4.0.7-a.tgz",
+      "sourceCommit": "3ab5a7627d480259e3d9ca67fbc14c125d374f0e",
+      "integrity": "sha512-JroBFEmaejC7szGSfqOhF1QZHLKvX2wTA1+fWyfkpy3BjzdQKNPLKa2FtgeKVUDy5/UPUNkXEeCHJ5ZRBMLTVA==",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "ADR-016; independent review and exact-candidate checks required",
+      "reviewDate": "2026-11-18",
+      "replacementPath": "Remove the override when a reviewed upstream release fixes GHSA-fc5q-39xc-vjpf and the normal checks pass"
+    },
+    {
       "name": "brace-expansion",
       "version": "5.0.11",
       "reason": "Development-only minimatch dependency: GHSA-qhr7-859c-m2p7 and GHSA-6j4f-fj2g-mc7p",

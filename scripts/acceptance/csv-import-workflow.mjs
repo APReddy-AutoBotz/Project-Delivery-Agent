@@ -31,7 +31,7 @@ const keys = (value, expected) =>
   !Array.isArray(value) &&
   Object.keys(value).sort().join(",") === [...expected].sort().join(",");
 
-async function csvApi(session, base, path, status, options = {}) {
+export async function csvApi(session, base, path, status, options = {}) {
   session.assertCsvActive?.();
   assert(
     /^\/(?:ingestion\/sources\/[0-9a-f-]{36}\/|projects\/[0-9a-f-]{36}$)/.test(

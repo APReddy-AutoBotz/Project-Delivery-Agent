@@ -1,11 +1,11 @@
-// FR-CON-006/007/012 / NFR-SEC-001: temporary pure-function proof, NOT migration 28.
-// Replace with applied-definition tests when migration 28 exists. Never use this
-// temporary DDL as a fallback for a missing applied function.
+// FR-CON-006/007/012 / NFR-SEC-001: applied migration-28 serializer proof.
+// Keep the existing guarded entry point; missing definitions fail with no DDL fallback.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { assertBusinessTableInventory } from "./upgrade-inventory-receipt.mjs";
+import { csvComparisonFunctions, csvComparisonApiFunctions } from "./csv-comparison-privileges.mjs";
 import {
   csvPositiveVectors,
   csvNativeCorruptions,
@@ -13,20 +13,15 @@ import {
   csvStateVector,
 } from "./csv-comparison-vectors.mjs";
 
-const sqlUrl = new URL(
-  "../../docs/04-delivery/exec-plans/prototypes/csv-comparison-state.sql",
-  import.meta.url,
-);
 const migrationUrl = new URL(
   "../../packages/data/prisma/migrations/",
   import.meta.url,
 );
-const sqlDigest =
-  "4bafed620683d76b2cc265c3b21013491eaa842f8d8d5fc93befad520f194338";
 const signatures = [
   "public.valid_ingestion_csv_state(uuid,uuid,integer,jsonb,jsonb)",
   "public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb)",
 ];
+const privateCsvFunctions = csvComparisonFunctions.filter((signature) => !csvComparisonApiFunctions.includes(signature));
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 
 export function assertCsvPrototypeTarget(
@@ -101,20 +96,22 @@ async function snapshot(client) {
   ).rows;
   return { ledger, tables };
 }
-async function assertAbsent(client) {
+async function assertApplied(client) {
   const result = await client.query(
     "SELECT to_regprocedure($1)::text AS a,to_regprocedure($2)::text AS b",
     signatures,
   );
-  assert.deepEqual(result.rows, [{ a: null, b: null }]);
+  assert.equal(result.rows.length,1);
+  assert.equal(typeof result.rows[0].a,"string","Applied CSV validator missing");
+  assert.equal(typeof result.rows[0].b,"string","Applied CSV serializer missing");
 }
 function assertReleasedSnapshot(before) {
   const names = readdirSync(migrationUrl, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort();
-  assert.equal(names.length, 27);
-  assert.equal(before.ledger.length, 27);
+  assert.equal(names.length, 28);
+  assert.equal(before.ledger.length, 28);
   for (const [i, name] of names.entries()) {
     assert.match(name, /^[0-9]{12}(?:[0-9]{2})?_[a-z0-9_]+$/);
     const row = before.ledger[i];
@@ -127,7 +124,7 @@ function assertReleasedSnapshot(before) {
       row.finished_at && !row.rolled_back_at && row.applied_steps_count === 1,
     );
   }
-  assert.equal(before.tables.length, 86);
+  assert.equal(before.tables.length, 88);
   assert(before.tables.some((t) => t.relname === "_prisma_migrations"));
   assertBusinessTableInventory(
     before.tables
@@ -186,11 +183,11 @@ async function checkMetadata(client) {
     );
     for (const key of [
       "public_execute",
-      "api_execute",
       "worker_execute",
       "backup_execute",
     ])
       assert.equal(row[key], false);
+    assert.equal(row.api_execute,true);
   }
   await client.query("SAVEPOINT csv_prototype_role");
   try {
@@ -205,12 +202,11 @@ async function checkMetadata(client) {
       superuser: false,
       usage: true,
     });
-    await deniedStatement(
-      client,
-      nativeQuery,
-      parameters(csvStateVector()),
-      "42501",
-    );
+    const {serializeCsvComparisonState} = await import("../../packages/domain/dist/csv-comparison-state.js");
+    assert.deepEqual((await client.query(nativeQuery,parameters(csvStateVector()))).rows,
+      [{valid:true,text:serializeCsvComparisonState(csvStateVector()).text}]);
+    for (const signature of privateCsvFunctions)
+      await deniedStatement(client,"SELECT public."+signature,[],"42501");
   } finally {
     await client.query("ROLLBACK TO SAVEPOINT csv_prototype_role");
     await client.query("RELEASE SAVEPOINT csv_prototype_role");
@@ -223,7 +219,7 @@ export async function verifyCsvComparisonPrototype(
 ) {
   // No pool, URL-bearing driver error or DDL is reachable before this guard.
   const databaseName = assertCsvPrototypeTarget(databaseUrl, environment);
-  let stage = "prototype-bytes",
+  let stage = "pool",
     pool,
     client,
     before,
@@ -234,8 +230,6 @@ export async function verifyCsvComparisonPrototype(
     idleFailure = false;
   const cleanup = [];
   try {
-    const sql = readFileSync(sqlUrl);
-    assert.equal(digest(sql), sqlDigest);
     stage = "pool";
     pool = poolFactory({
       connectionString: databaseUrl,
@@ -261,16 +255,16 @@ export async function verifyCsvComparisonPrototype(
       (await client.query("SELECT current_database() AS name")).rows[0]?.name,
       databaseName,
     );
-    stage = "released-schema";
+    stage = "applied-schema";
     before = await snapshot(client);
     assertReleasedSnapshot(before);
-    await assertAbsent(client);
+    await assertApplied(client);
     stage = "begin";
     beginAttempted = true;
     await client.query("BEGIN");
     await client.query("SET LOCAL statement_timeout='15s'");
-    stage = "prototype-ddl";
-    await client.query(sql.toString("utf8"));
+    stage = "applied-definitions";
+    await checkMetadata(client);
     const { serializeCsvComparisonState } = await import(
       "../../packages/domain/dist/csv-comparison-state.js"
     );
@@ -313,11 +307,9 @@ export async function verifyCsvComparisonPrototype(
       stage = "cast-" + name;
       await deniedStatement(client, nativeQuery, parameters(state), sqlstate);
     }
-    stage = "private-invoker-metadata";
-    await checkMetadata(client);
     receipt = {
-      scope: "TEMPORARY_PURE_SQL_PROTOTYPE",
-      sqlDigest,
+      scope: "APPLIED_MIGRATION_28",
+      migrationChecksum: before.ledger[27].checksum,
       vectors: vectorReceipts,
       nativeGrammarDenials: corruptions.length,
       nativeCastDenials: casts.length,
@@ -327,11 +319,12 @@ export async function verifyCsvComparisonPrototype(
       canonicalByteLimit: 2097152,
       structuralMaximumBelowByteLimit: true,
       invokerImmutableFixedPath: true,
-      ownerIsTestSession: true,
-      publicApiWorkerBackupExecuteDenied: true,
-      actualApiRoleDenial: true,
-      migrations: 27,
-      businessTables: 85,
+      ownerIsMigrationSession: true,
+      publicWorkerBackupExecuteDenied: true,
+      actualApiRolePositive: true,
+      privateApiGuardDenials: privateCsvFunctions.length,
+      migrations: 28,
+      businessTables: 87,
     };
   } catch (error) {
     primary = safeFailure(stage, error);
@@ -347,7 +340,7 @@ export async function verifyCsvComparisonPrototype(
         }
         if (before) {
           try {
-            await assertAbsent(client);
+            await assertApplied(client);
             assert.deepEqual(await snapshot(client), before);
           } catch (error) {
             cleanup.push(safeFailure("rollback-verification", error));
@@ -385,7 +378,7 @@ export async function verifyCsvComparisonPrototype(
   return Object.freeze({
     ...receipt,
     rolledBack: true,
-    prototypeFunctionsAbsent: true,
+    appliedFunctionsRetained: true,
     ledgerAndTableMetadataUnchanged: true,
   });
 }

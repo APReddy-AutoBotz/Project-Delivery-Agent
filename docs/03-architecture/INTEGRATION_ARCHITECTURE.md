@@ -211,3 +211,33 @@ The comment marker, comparison base, append-only attempt events, atomic executio
 claim and unknown-outcome handling are defined in APPROVAL_AND_WRITEBACK.md.
 Adapters must not treat a timeout as safe to retry. All retries return through
 preflight. Comment append is not a field-level compare-and-swap operation.
+
+## CSV comparison and exact command retry candidate
+
+FR-CON-006/007/012: the existing CSV upload and reviewed-import routes retain
+their public request shape. The server derives comparison inputs from immutable
+native references; caller-supplied baselines are rejected without decoding them.
+Incoming raw keys are hashed with the exact source sheet/key identity function.
+Optional omissions preserve old references and clocks; absent rows do not imply
+deletion. New ambiguous identities and moved projects require explicit review.
+
+Before returning an existing command, the repository locks and rechecks current
+project grants and source readers across the complete original/current scope.
+It compares the original immutable input fingerprint and validates the original
+receipt/context, then returns the original metadata. Newer heads, mapping edits,
+expired content and exhausted capacity cannot reinterpret that command as a new
+write. Lost current permission still denies its replay. A changed internal lock
+plan aborts atomically as CONFLICT; a stable subsequent attempt can replay.
+
+Only a new command checks current revisions, comparison compatibility, live
+content and budgets, maps the uploaded CSV and atomically stores its receipt,
+context and head advance. Project/grant, policy, source, head and mutable-content
+fences align configuration, comparison and purge. Immutable record/revision/
+projection rows receive no UPDATE privilege merely to acquire locks. Saving a
+reviewed subset records proposal lineage and does not change canonical facts.
+
+The migration-28 candidate requires native applied-definition, direct-role,
+concurrency, upgrade, packaged browser and quarantined-restore evidence under
+[EXEC-009](../04-delivery/exec-plans/EXEC-009-trusted-csv-baseline.md). Older binaries
+fail closed for new unbound previews after activation. Prefer roll-forward;
+preserve comparison history and every released migration during recovery.

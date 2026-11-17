@@ -20,3 +20,4 @@ An ADR becomes binding when approved in the documentation baseline. Superseded A
 | ADR-013 | Foundation operations jobs | Accepted under delegated controller authority |
 | ADR-014 | Evidence for distribution review | Accepted under delegated controller authority |
 | ADR-015 | Project-local schedule overdue policy | Accepted under delegated controller authority; exact implementation review required |
+| ADR-016 | Temporary Picomatch toolchain security override | Bounded design approved; exact candidate review and hosted validation required |

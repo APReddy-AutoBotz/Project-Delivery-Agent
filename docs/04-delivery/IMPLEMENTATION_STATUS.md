@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-10-31
+Updated: 2026-11-16
 
 ## Accepted implementation completion
 
@@ -30,6 +30,29 @@ stories remain open; technical collection does not accept any of the five releas
 holds. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
+
+Trusted CSV comparison primitives merged in
+[PR #167](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/167)
+as `71cc0effee68e7e32308806c3eec2093cacf3d8f`, with reviewed candidate
+`5fafdaec059f187f5bbd8472760484cf8c4110f1` and identical tree
+`cc89925c8bf0a043d7bfbcb5e2ca10a5888ec04c`. Candidate hosted checks and three
+independent source/original-artifact reviews pass. Post-merge Foundation
+`43821345950` first failed its final restore gate when an autovacuum worker
+remained connected; rollback and CONNECT quarantine held. The separately
+reviewed unchanged failed-job rerun passed on attempt 2, together with
+Documentation `43821345814`. The original failure evidence is retained.
+
+The next coherent candidate implements the cumulative reference overlay,
+additive migration 28 with two guarded comparison tables, server-owned CSV
+comparison and exact retry, restricted role/recovery checks and a separate
+connected UPDATE/UNCHANGED/rename/move customer journey. It also corrects the
+maximum sheet identity width without changing the 256-character sheet limit.
+The 27 released migrations remain unchanged. Local validation and evolving
+independent reviews are recorded in
+[EXEC-009](exec-plans/EXEC-009-trusted-csv-baseline.md); immutable-candidate and
+hosted native, upgrade, browser and recovery gates remain required. Imports
+save reviewed proposals. Story acceptance, source publication, OD-013/014,
+the five customer-release holds and stopped Original19/20 capture are unchanged.
 
 Read-only matched milestone reconciliation request observation merged in
 [PR #141](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/141)

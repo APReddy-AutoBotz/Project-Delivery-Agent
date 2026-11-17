@@ -90,7 +90,11 @@ const preview = {
   ],
 };
 
-test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing facts", async ({ page }, testInfo) => {
+for (const variant of ["normal", "maximum sheet", "oversized receipt identity"] as const) {
+test(`FR-CON-006/007: PMO admin saves selected CSV proposals without publishing facts (${variant})`, async ({ page }, testInfo) => {
+  const sheet=variant==="normal" ? "Projects" : "S".repeat(256);
+  const currentPreview={...preview,outcomes:preview.outcomes.map((row)=>({...row,
+    identity:row.identity===null ? null : ["spreadsheet:"+sheet+(variant==="oversized receipt identity" ? "S" : ""),row.identity[1]]}))};
   let configured = false;
   let configurationBody: Record<string, unknown> | undefined;
   let previewContentType = "";
@@ -126,7 +130,7 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
       return route.fulfill({ status: 201, json: { receiptId: previewReceiptId, replayed: false, rowCount: 3 } });
     }
     if (path === `/ingestion/sources/${sourceId}/receipts/${previewReceiptId}`)
-      return route.fulfill({ json: { ...preview, receipt: { ...preview.receipt, sourceId } } });
+      return route.fulfill({ json: { ...currentPreview, receipt: { ...preview.receipt, sourceId } } });
     if (path === `/ingestion/sources/${sourceId}/reviewed-imports` && request.method() === "POST") {
       reviewedSelection = request.postDataJSON() as Record<string, unknown>;
       return route.fulfill({ status: 201, json: { receiptId: reviewedReceiptId, parentPreviewReceiptId: previewReceiptId, replayed: false, rowCount: 2 } });
@@ -143,7 +147,7 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
             rowCount: 2,
             parentPreviewReceiptId: previewReceiptId,
           },
-          outcomes: preview.outcomes
+          outcomes: currentPreview.outcomes
             .filter((row) => row.ordinal === 1 || row.ordinal === 3)
             .map((row, index) => ({ ...row, ordinal: index + 1, parentOrdinal: row.ordinal })),
         },
@@ -156,13 +160,15 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
   await page.getByRole("button", { name: "PMO administrator" }).click();
   await page.getByRole("button", { name: /Data imports/ }).click();
   await expect(page.getByRole("heading", { name: "Review a CSV import" })).toBeVisible();
+  await expect(page.getByLabel("Sheet label")).toHaveAttribute("maxlength","256");
+  await page.getByLabel("Sheet label").fill(sheet);
   await page.getByLabel(/CSV import demonstration/).check();
   await page.getByRole("button", { name: "Create mapping" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Mapping saved." })).toBeVisible();
   expect(configurationBody).toMatchObject({
     binding: { customerId, sourceId, sourceType: "csv-upload", origin: "https://csv-upload.invalid" },
     projects: [{ projectId, readers: [actor.subject] }],
-    mapping: { kind: "CSV", identityColumn: "Issue ID", projectColumn: "Project ID" },
+    mapping: { kind: "CSV", sheet, identityColumn: "Issue ID", projectColumn: "Project ID" },
   });
 
   await page.getByLabel("CSV file").setInputFiles({
@@ -171,6 +177,13 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
     buffer: Buffer.from(`Issue ID,Project ID,Forecast\nDELIVERY-1,${projectId},2027-03-01\nDELIVERY-2,${projectId},not-a-date\nDELIVERY-3,${projectId},2027-04-15`, "utf8"),
   });
   await page.getByRole("button", { name: "Upload and preview" }).click();
+  if (variant==="oversized receipt identity") {
+    await expect(page.getByText("Preview saved, but its receipt is unavailable.",{exact:true})).toBeVisible();
+    await expect(page.getByRole("checkbox",{name:"Select row 1"})).toHaveCount(0);
+    expect(reviewedSelection).toBeUndefined();
+    expect(factWrites).toBe(0);
+    return;
+  }
   await expect(page.getByRole("heading", { name: `Preview ${previewReceiptId.slice(0, 8)}` })).toBeVisible();
   expect(previewContentType).toMatch(/^multipart\/form-data\s*;\s*boundary=/i);
   expect(previewContentType).not.toContain("application/json");
@@ -201,3 +214,4 @@ test("FR-CON-006/007: PMO admin saves selected CSV proposals without publishing 
   expect(factWrites).toBe(0);
   await page.screenshot({ path: testInfo.outputPath("csv-reviewed-import.png"), fullPage: true });
 });
+}

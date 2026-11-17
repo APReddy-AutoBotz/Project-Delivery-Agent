@@ -8,7 +8,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,7 +24,6 @@ jobs:
       - run: pnpm check:architecture && pnpm check:contracts
       - run: pnpm lint && pnpm typecheck && pnpm test
       - run: node scripts/check-dependencies.mjs
-      - run: pnpm audit --audit-level high
       - name: Fresh role-absent and partial-role migration bootstrap
         run: node scripts/local.mjs scripts/test-ingestion-role-bootstrap.mjs
       - run: pnpm db:migrate && pnpm db:seed
@@ -81,6 +80,9 @@ jobs:
           name: milestone-reconciliation-browser
           path: artifacts/reconciliation-native-pm-proof.png
           if-no-files-found: error
+      - name: Mandatory dependency audit
+        if: always()
+        run: pnpm audit --audit-level high
       - if: always()
         run: docker compose down
   production-boundary:
@@ -110,6 +112,11 @@ jobs:
             artifacts/pdaa-acceptance-*/customer-*/scalar-reconciliation-pm-*.png
             artifacts/pdaa-acceptance-*/customer-*/csv-import-workflow-fixture.json
             artifacts/pdaa-acceptance-*/customer-*/csv-native-reviewed-import.png
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-workflow-fixture.json
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-rename.png
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-move.png
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-changed.png
+            artifacts/pdaa-acceptance-*/customer-*/csv-comparison-saved.png
           if-no-files-found: error
       - uses: pnpm/action-setup@v4
         with:

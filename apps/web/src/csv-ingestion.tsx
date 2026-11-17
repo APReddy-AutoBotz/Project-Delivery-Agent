@@ -176,7 +176,7 @@ function decodeReceipt(value: unknown, expected: SavedReceipt, allowedProjects: 
       !Array.isArray(row.errorCodes) || row.errorCodes.length > 16 || !row.errorCodes.every((code: unknown) => typeof code === "string" &&
         ["INVALID_INPUT", "INVALID_KEY", "DUPLICATE_KEY", "INVALID_PROJECT", "PROJECT_CHANGED", "INVALID_FIELDS", "ROW_IDENTITY_REVIEW", "REQUIRED_VALUE", "INVALID_FORMULA", "INVALID_NUMBER", "INVALID_VALUE"].includes(code)) ||
       !(row.projectId === null || (typeof row.projectId === "string" && csvUuid.test(row.projectId) && allowed.has(row.projectId.toLowerCase()))) ||
-      !(row.identity === null || (Array.isArray(row.identity) && row.identity.length === 2 && wireText(row.identity[0], 267) && wireText(row.identity[1], 256))) ||
+      !(row.identity === null || (Array.isArray(row.identity) && row.identity.length === 2 && wireText(row.identity[0], 268) && wireText(row.identity[1], 256))) ||
       typeof row.contentAvailable !== "boolean" || !(row.proposals === null || (Array.isArray(row.proposals) && row.proposals.length <= 32))) throw new Error("Receipt is unavailable.");
     if (row.contentAvailable !== (row.proposals !== null) || (row.contentAvailable && (row.projectId === null || row.identity === null)))
       throw new Error("Receipt is unavailable.");

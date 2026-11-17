@@ -49,6 +49,13 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT SELECT,INSERT ON "ScalarReconciliationRequest","ScalarReconciliationCheck","ScalarReconciliationAssignment" TO pdaa_api;
     GRANT UPDATE (sealed) ON "ScalarReconciliationRequest" TO pdaa_api;
     GRANT SELECT,INSERT ON "IngestionSource","IngestionConfigurationRevision","IngestionConfigurationProject","IngestionConfigurationReader","IngestionRetentionPolicy","IngestionExternalRecord","IngestionFactStream","IngestionSourceRevision","IngestionProposalProjection","IngestionProposalContent","IngestionOperationReceipt","IngestionReceiptProjectScope","IngestionCursorTransition","IngestionRowOutcome","IngestionReviewedImport","IngestionReviewedImportRow" TO pdaa_api;
+    REVOKE ALL ON "IngestionCsvHead","IngestionCsvContext" FROM PUBLIC;
+    REVOKE ALL ("customerId","sourceId","activationConfigRevision","mappingRevision",dictionary,readiness,revision,"currentReceiptId","stateHash","canonicalHistoryBytes") ON "IngestionCsvHead" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+    REVOKE ALL ("customerId","sourceId","receiptId","configRevision","mappingRevision",revision,"predecessorReceiptId","predecessorRevision","predecessorHash",rows,"canonicalBytes","stateHash") ON "IngestionCsvContext" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+    GRANT SELECT,INSERT ON "IngestionCsvHead","IngestionCsvContext" TO pdaa_api;
+    GRANT UPDATE (revision,"currentReceiptId","stateHash","canonicalHistoryBytes") ON "IngestionCsvHead" TO pdaa_api;
+    REVOKE ALL ON FUNCTION public.valid_ingestion_csv_state(uuid,uuid,integer,jsonb,jsonb),public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb),public.valid_ingestion_csv_context(uuid),public.valid_ingestion_csv_head(uuid,uuid),public.guard_ingestion_csv_head(),public.initialize_ingestion_csv_head(),public.guard_ingestion_csv_context(),public.require_ingestion_csv_complete(),public.guard_ingestion_receipt(),public.guard_ingestion_reviewed_import(),public.require_ingestion_receipt_complete() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+    GRANT EXECUTE ON FUNCTION public.valid_ingestion_csv_state(uuid,uuid,integer,jsonb,jsonb),public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb),public.valid_ingestion_csv_context(uuid),public.valid_ingestion_csv_head(uuid,uuid) TO pdaa_api;
     GRANT SELECT,INSERT ON "ConnectorSyncGrant" TO pdaa_api;
     GRANT UPDATE ("configRevision",revision,active,"changedBy","auditEventId","changedAt") ON "ConnectorSyncGrant" TO pdaa_api;
     GRANT SELECT,INSERT ON "ConnectorSyncJob" TO pdaa_api;

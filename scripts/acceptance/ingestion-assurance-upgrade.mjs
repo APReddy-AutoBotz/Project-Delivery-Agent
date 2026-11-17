@@ -9,6 +9,8 @@ import { canonicalFixture } from "./canonical-projects.mjs";
 import { claimReassessmentFixtureJob } from "./ingestion-reassessment.mjs";
 import { Pool } from "./common.mjs";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
+import {prepareCsvComparisonUpgrade,verifyCsvComparisonUpgrade} from "./csv-comparison-upgrade.mjs";
+import {applyReleased27BusinessGrants} from "./prior-twenty-seven-business-grants.mjs";
 export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   const locator = assertSyntheticDatabaseUrl(sourceUrl, "pdaa");
   assert.equal(process.env.DATA_MODE, "synthetic"); assert.notEqual(process.env.NODE_ENV, "production");
@@ -20,7 +22,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   locator.pathname = "/" + name;
   const config = { host: locator.hostname, port: Number(locator.port), database: name,
     user: decodeURIComponent(locator.username), password: decodeURIComponent(locator.password), ssl: false };
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 27);
+  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 28);
   await migrateDatabase(config, migrations.slice(0, 24));
   const db = createDatabase(locator.toString());
   try {
@@ -75,7 +77,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     const retentionBoundaryBefore27 = await functionBoundary();
     const before27Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
     assert.equal(before27Ledger.length, 26);
-    await migrateDatabase(config, migrations);
+    await migrateDatabase(config, migrations.slice(0,27));
     assert.deepEqual(await functionBoundary(), retentionBoundaryBefore27);
     assert.deepEqual(await db.ingestionRetentionPolicy.findUniqueOrThrow({ where: { customerId } }), oldRetention);
     assert.equal(await legacyIngestion.setRetention(retentionAdministrator, { retentionHours: 48 }, randomUUID()), 2);
@@ -92,6 +94,18 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
       projects: await db.ingestionConfigurationProject.findMany({ where: { sourceId: legacySourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }] }),
       readers: await db.ingestionConfigurationReader.findMany({ where: { sourceId: legacySourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }, { subject: "asc" }] }),
     }, legacyBefore);
+    const legacyGrantPool=new Pool({connectionString:locator.toString()});
+    try {
+      await legacyGrantPool.query(`DO $owners$ DECLARE item record; BEGIN
+        FOR item IN SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+          WHERE n.nspname='public' AND c.relkind IN ('r','p') AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
+        LOOP EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname); END LOOP;
+      END $owners$`);
+      await applyReleased27BusinessGrants(legacyGrantPool);
+    } finally {await legacyGrantPool.end();}
+    const released27 = await prepareCsvComparisonUpgrade(db,legacyIngestion,admin,projectId);
+    await migrateDatabase(config,migrations);
+    const csvComparisonUpgrade = await verifyCsvComparisonUpgrade(db,legacyIngestion,admin,projectId,released27);
     const grantPool = new Pool({ connectionString: locator.toString() });
     try {
       await grantPool.query(`DO $owners$ DECLARE item record; BEGIN
@@ -189,13 +203,15 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.equal(afterLedger[24].checksum, createHash("sha256").update(migrations[24].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0, 25), before26Ledger);
     assert.deepEqual(afterLedger.slice(0, 26), before27Ledger);
-    assert.equal(afterLedger.length, 27);
+    assert.equal(afterLedger.length, 28);
     assert.equal(afterLedger[25].checksum, createHash("sha256").update(migrations[25].sql).digest("hex"));
     assert.equal(afterLedger[26].checksum, createHash("sha256").update(migrations[26].sql).digest("hex"));
+    assert.deepEqual(afterLedger.slice(0,27),released27.ledger);
+    assert.equal(afterLedger[27].checksum,createHash("sha256").update(migrations[27].sql).digest("hex"));
     console.log("Populated released-24 upgrade retained all 24 checksums and its exact failure fence; a real available cause remained uncharged, then completed after only that fence was cleared.");
     return { priorMigrationCount: 24, databaseName: name, retainedLegacyFailureFence: true, scanBlockedByFence: true,
       availableCauseUncharged: true, positiveControlCompleted: true, retainedPriorChecksums: 24,
       retentionAuditUpgrade: { priorGuardRejected: true, priorMigrationCount: 26, migrationCount: 27,
-        originalAuditPreserved: true, freshRevisionRecorded: true, functionBoundaryPreserved: true } };
+        originalAuditPreserved: true, freshRevisionRecorded: true, functionBoundaryPreserved: true },csvComparisonUpgrade };
   } finally { await db.$disconnect(); }
 }

@@ -19,6 +19,8 @@ export const csvStorageTables = Object.freeze([
   "IngestionRowOutcome",
   "IngestionReviewedImport",
   "IngestionReviewedImportRow",
+  "IngestionCsvHead",
+  "IngestionCsvContext",
 ]);
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -171,6 +173,8 @@ export async function inspectCsvNativeBatch(pool, binding, expected) {
     IngestionRowOutcome: reviewed ? 4 : 3,
     IngestionReviewedImport: reviewed ? 1 : 0,
     IngestionReviewedImportRow: reviewed ? 1 : 0,
+    IngestionCsvHead: 1,
+    IngestionCsvContext: 1,
   };
   assert.deepEqual(csvProjectionReceipt(projection).counts, counts);
   const receipts = projection.IngestionOperationReceipt;

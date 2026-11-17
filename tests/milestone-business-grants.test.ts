@@ -129,7 +129,12 @@ it("rebuilds finite released and ingestion function boundaries before granting o
   ];
   const reassessmentGuards = ["public.guard_ingestion_project_reassessment()", "public.require_ingestion_reassessment_complete()",
     "public.lock_ingestion_reassessment_preview()", "public.reject_ingestion_reassessment_history()"];
-  expect(revoked).toHaveLength(9);
+  const csvValidators = ["public.valid_ingestion_csv_state(uuid,uuid,integer,jsonb,jsonb)",
+    "public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb)","public.valid_ingestion_csv_context(uuid)","public.valid_ingestion_csv_head(uuid,uuid)"];
+  const csvGuards = ["public.guard_ingestion_csv_head()","public.initialize_ingestion_csv_head()",
+    "public.guard_ingestion_csv_context()","public.require_ingestion_csv_complete()",
+    "public.guard_ingestion_receipt()","public.guard_ingestion_reviewed_import()","public.require_ingestion_receipt_complete()"];
+  expect(revoked).toHaveLength(10);
   expect(
     revoked
       .flatMap((match) => splitFunctionSignatures(match[1]!))
@@ -147,12 +152,13 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...updateGuards,
       ...captureGuards,
       ...reassessmentValidators, ...reassessmentGuards,
+      ...csvValidators,...csvGuards,
     ].sort(),
   );
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
   ];
-  expect(granted).toHaveLength(7);
+  expect(granted).toHaveLength(8);
   expect(granted.flatMap((match) => splitFunctionSignatures(match[1]!)).sort()).toEqual(
     [
       "public.valid_canonical_state_binding(uuid)",
@@ -167,6 +173,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...ingestionSignatures,
       ...updateValidators,
       ...reassessmentValidators,
+      ...csvValidators,
       "public.lock_update_issuance_gate(uuid)",
       "public.purge_update_capture_content(uuid)",
     ].sort(),
@@ -181,7 +188,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(16);
+  ]).toHaveLength(18);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {

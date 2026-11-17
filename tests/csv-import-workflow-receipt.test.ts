@@ -54,6 +54,8 @@ function fixture() {
       IngestionRowOutcome: review ? 4 : 3,
       IngestionReviewedImport: review ? 1 : 0,
       IngestionReviewedImportRow: review ? 1 : 0,
+      IngestionCsvHead: 1,
+      IngestionCsvContext: 1,
     },
     previewReceiptId,
     reviewReceiptId: review ? reviewReceiptId : null,

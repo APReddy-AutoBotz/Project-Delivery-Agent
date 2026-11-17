@@ -24,10 +24,9 @@ import {
   parseIngestion,
   parseCsvPreview,
   persistedSpreadsheetConfigSchema,
-  previewSpreadsheetCsv,
+  previewSpreadsheetCsvHashedBaseline,
   projectFactIdSchema,
   projectFactSubjectSchema,
-  spreadsheetBaselineSchema,
   validateConnectorPage,
   validateConnectorRecord,
   type Actor,
@@ -44,6 +43,7 @@ import type {
 } from "./generated/prisma/client.js";
 import { actorInput } from "./fact-authorization.js";
 import { enqueueConnectorReassessments } from "./ingestion-reassessments.js";
+import { loadCsvComparison, saveCsvComparison } from "./ingestion-csv-comparison.js";
 
 type Tx = Prisma.TransactionClient;
 type MappingRow = { id: string; customerId: string; sourceId: string; sourceType: string; origin: string; currentConfigRevision: number | null; mappingRevision: number; cursorRevision: bigint; syncGeneration: bigint; cursorEnvelope: string | null; cursorState: string; healthState: string; healthCode: string; healthCheckedAt: Date | null; lastSuccessReceiptId: string | null };
@@ -162,6 +162,15 @@ function mapError(error: unknown, fallback: IngestionPersistenceError["code"]) {
     return new IngestionPersistenceError("INVALID_REQUEST");
   if (error instanceof Error && error.name === "ZodError")
     return new IngestionPersistenceError("INVALID_REQUEST");
+  const databaseError = error as {code?:unknown;meta?:{driverAdapterError?:{cause?:{kind?:unknown;code?:unknown;originalCode?:unknown}}}} | null;
+  const cause = databaseError?.meta?.driverAdapterError?.cause;
+  // Only our dedicated native CSV states are interpreted. Never inspect or
+  // return arbitrary SQL message/detail text, which can contain source content.
+  if (databaseError?.code === "P2010" && cause?.kind === "postgres" && cause.code === cause.originalCode) {
+    if (cause.code === "PDC01") return new IngestionPersistenceError("INVALID_PREVIEW");
+    if (cause.code === "PDC02") return new IngestionPersistenceError("CONFLICT");
+    if (cause.code === "PDC03") return new IngestionPersistenceError("DENIED");
+  }
   return new IngestionPersistenceError(fallback);
 }
 function uuid(value: unknown) {
@@ -286,11 +295,12 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     actor: Actor,
     projectsInput: readonly string[],
     action: "read" | "write" | "configure",
+    projectLimit = 100,
   ) {
     const projectIds = [...new Set(projectsInput)].sort(exactCompare);
     // Configuration changes must check every historic grant as well as both
     // configuration scopes. History cannot be truncated to fit a fixed union.
-    if (!projectIds.length || (action !== "configure" && projectIds.length > 100))
+    if (!projectIds.length || (action !== "configure" && projectIds.length > projectLimit))
       throw new IngestionPersistenceError("DENIED");
     const projects = action === "read"
       ? await tx.$queryRaw<{ id: string; portfolioId: string }[]>`
@@ -542,6 +552,59 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       FROM public."IngestionOperationReceipt"
       WHERE "customerId"=${customerId}::uuid AND "sourceId"=${sourceId}::uuid AND subject=${subject} AND kind=${kind} AND "commandKey"=${commandKey}`;
     return rows[0] ?? null;
+  }
+
+  private async csvCommandPlan(tx: Tx, actor: Actor, sourceId: string, kind: string, commandKey: string) {
+    const sources = await tx.$queryRaw<{ currentConfigRevision: number | null; mappingRevision: number }[]>`
+      SELECT "currentConfigRevision","mappingRevision" FROM public."IngestionSource"
+      WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid`;
+    const source = sources[0];
+    if (!source || source.currentConfigRevision === null) throw new IngestionPersistenceError("DENIED");
+    const existing = await this.commandReceipt(tx,actor.customerId,sourceId,actor.subject,kind,commandKey);
+    const scopes = await tx.$queryRaw<{ configRevision: number; projectId: string }[]>`
+      SELECT p."configRevision",p."projectId" FROM public."IngestionConfigurationProject" p
+      JOIN public."IngestionConfigurationRevision" c ON c."customerId"=p."customerId" AND c."sourceId"=p."sourceId"
+        AND c.revision=p."configRevision" AND c.sealed
+      WHERE p."customerId"=${actor.customerId}::uuid AND p."sourceId"=${sourceId}::uuid
+        AND p."configRevision"=ANY(${[...new Set([source.currentConfigRevision,existing?.configRevision ?? source.currentConfigRevision])]}::integer[])
+      ORDER BY p."configRevision",p."projectId"`;
+    const currentProjects = scopes.filter((row) => row.configRevision === source.currentConfigRevision).map((row) => row.projectId);
+    const originalProjects = existing ? scopes.filter((row) => row.configRevision === existing.configRevision).map((row) => row.projectId) : [];
+    if (!currentProjects.length || currentProjects.length > 100 || (existing && (!originalProjects.length || originalProjects.length > 100)))
+      throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+    return { ...source,existing,currentProjects,originalProjects,
+      projects: [...new Set([...currentProjects,...originalProjects])].sort(exactCompare) };
+  }
+
+  private async lockCsvCommand(tx: Tx, actor: Actor, sourceId: string, kind: string, commandKey: string) {
+    const planned = await this.csvCommandPlan(tx,actor,sourceId,kind,commandKey);
+    await this.authorizedProjects(tx,actor,planned.projects,"write",200);
+    const policies = await tx.$queryRaw<{ revision: number; retentionHours: number }[]>`
+      SELECT revision,"retentionHours" FROM public."IngestionRetentionPolicy"
+      WHERE "customerId"=${actor.customerId}::uuid FOR SHARE`;
+    const source = await this.currentSource(tx,actor.customerId,sourceId);
+    const current = await this.csvCommandPlan(tx,actor,sourceId,kind,commandKey);
+    const identity = (plan: typeof planned) => canonical({
+      configRevision:plan.currentConfigRevision,mappingRevision:plan.mappingRevision,
+      currentProjects:plan.currentProjects,originalProjects:plan.originalProjects,receiptId:plan.existing?.id ?? null,
+    });
+    if (identity(planned) !== identity(current)) throw new IngestionPersistenceError("CONFLICT");
+    const config = await this.currentConfiguration(tx,source);
+    await this.sourceReaders(tx,actor,source,config,current.projects);
+    return { source,config,projectIds:current.currentProjects,existing:current.existing,policy:policies[0] };
+  }
+
+  private async assertReceiptIntegrity(tx: Tx, receiptId: string) {
+    // Structural proof survives lawful redaction. Generic receipt validation has
+    // only a cheap CSV link; semantic consumers must also check the full context.
+    const result = await tx.$queryRaw<{ valid: boolean }[]>`
+      SELECT public.valid_ingestion_receipt(r.id) AND (
+        NOT EXISTS (SELECT 1 FROM public."IngestionCsvHead" h WHERE h."customerId"=r."customerId" AND h."sourceId"=r."sourceId" AND h.readiness='READY')
+        OR CASE r.kind WHEN 'CSV_PREVIEW' THEN public.valid_ingestion_csv_context(r.id)
+          WHEN 'CSV_REVIEWED_IMPORT' THEN public.valid_ingestion_csv_context((SELECT "previewReceiptId" FROM public."IngestionReviewedImport" WHERE "receiptId"=r.id))
+          ELSE true END) AS valid
+      FROM public."IngestionOperationReceipt" r WHERE r.id=${receiptId}::uuid`;
+    if (!result[0]?.valid) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
   }
 
   private async eventReceipt(
@@ -1256,7 +1319,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       return this.db.$transaction(async (tx) => {
         const found = await tx.$queryRaw<MappingRow[]>`
           SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
-          FROM public."IngestionSource" WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid FOR UPDATE`;
+          FROM public."IngestionSource" WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid`;
         let source = found[0];
         let previousConfiguration: { mapping: unknown; revision: number; mappingRevision: number } | undefined;
         let previousProjectIds: string[] = [];
@@ -1280,7 +1343,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           ? await tx.$queryRaw<{ id: string; projectId: string; configRevision: number; revision: number; active: boolean }[]>`
               SELECT id,"projectId","configRevision",revision,active FROM public."ConnectorSyncGrant"
               WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${configuration.binding.sourceId}::uuid
-              ORDER BY "projectId" FOR UPDATE`
+              ORDER BY "projectId"`
           : [];
         const projectIds = [...new Set([
           ...configuration.projects.map((project) => project.projectId),
@@ -1288,6 +1351,21 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           ...previousSyncGrants.map((grant) => grant.projectId),
         ])].sort(exactCompare);
         await this.authorizedProjects(tx, actor, projectIds, "configure");
+        // Lock all planned projects/grants before Source, then recheck the exact
+        // configuration and complete historic sync-grant inventory under it.
+        const lockedSources = await tx.$queryRaw<MappingRow[]>`
+          SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
+          FROM public."IngestionSource" WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid FOR UPDATE`;
+        const lockedSource = lockedSources[0];
+        if (Boolean(source) !== Boolean(lockedSource) || (source && lockedSource &&
+          (source.currentConfigRevision !== lockedSource.currentConfigRevision || source.mappingRevision !== lockedSource.mappingRevision)))
+          throw new IngestionPersistenceError("CONFLICT");
+        source = lockedSource;
+        const lockedSyncGrants = await tx.$queryRaw<{ id: string; projectId: string; configRevision: number; revision: number; active: boolean }[]>`
+          SELECT id,"projectId","configRevision",revision,active FROM public."ConnectorSyncGrant"
+          WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${configuration.binding.sourceId}::uuid
+          ORDER BY "projectId" FOR UPDATE`;
+        if (canonical(previousSyncGrants) !== canonical(lockedSyncGrants)) throw new IngestionPersistenceError("CONFLICT");
         if (source && (source.sourceType !== configuration.binding.sourceType || source.origin !== configuration.binding.origin))
           throw new IngestionPersistenceError("CONFLICT");
         let configRevision = 1;
@@ -1741,31 +1819,39 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     });
     const commandKey = parseIngestion(ingestionCommandKeySchema, request.commandKey);
     return this.run(actor, "csv_preview", correlationId, "PERSISTENCE_FAILED", async () => {
-      const snapshot = await this.preflight(sourceId, actor);
-      if (snapshot.configuration.mapping.kind !== "CSV")
-        throw new IngestionPersistenceError("INVALID_REQUEST");
-      const projectIds = snapshot.configuration.projects.map((project) => project.projectId);
-      const baseline = input.baseline === undefined ? undefined : parseIngestion(spreadsheetBaselineSchema, input.baseline);
-      const config = parseIngestion(persistedSpreadsheetConfigSchema, {
+      // Never invoke a caller baseline getter or parse caller comparison values.
+      if ("baseline" in input) throw new IngestionPersistenceError("INVALID_REQUEST");
+      const revisions = parseIngestion(z.strictObject({
+        configRevision:z.number().int().min(1).max(2147483647),
+        mappingRevision:z.number().int().min(1).max(2147483647),
+      }),{configRevision:input.configRevision,mappingRevision:input.mappingRevision});
+      const csvHash = sha256(Buffer.from(request.csv,"utf8"));
+      const requestHash = sha256(boundedJson({csvHash,...revisions,baseline:null}));
+      return this.db.$transaction(async (tx) => {
+        const {source,config:configuration,projectIds,existing,policy} = await this.lockCsvCommand(tx,actor,sourceId,"CSV_PREVIEW",commandKey);
+        if (existing) {
+          const replayed = await this.replay(existing,requestHash);
+          await this.assertReceiptIntegrity(tx,existing.id);
+          return {receiptId:replayed.receiptId,replayed:true,rowCount:replayed.rowCount ?? 0};
+        }
+        if (source.currentConfigRevision !== revisions.configRevision || source.mappingRevision !== revisions.mappingRevision)
+          throw new IngestionPersistenceError("STALE_CONFIGURATION");
+        if (configuration.mapping.kind !== "CSV") throw new IngestionPersistenceError("INVALID_REQUEST");
+        if (!policy) throw new IngestionPersistenceError("RETENTION_REQUIRED");
+        const prior = await loadCsvComparison(tx,actor.customerId,sourceId,revisions.configRevision,revisions.mappingRevision,configuration);
+        const config = parseIngestion(persistedSpreadsheetConfigSchema, {
         customerId: actor.customerId,
         sourceId,
-        sheet: snapshot.configuration.mapping.sheet,
-        mappingRevision: String(snapshot.mappingRevision),
+        sheet: configuration.mapping.sheet,
+        mappingRevision: String(revisions.mappingRevision),
         fileName: request.fileName,
-        identityColumn: snapshot.configuration.mapping.identityColumn,
-        projectColumn: snapshot.configuration.mapping.projectColumn,
+        identityColumn: configuration.mapping.identityColumn,
+        projectColumn: configuration.mapping.projectColumn,
         projectIds,
-        fields: snapshot.configuration.mapping.fields,
+        fields: configuration.mapping.fields,
       });
-      const preview = previewSpreadsheetCsv(request.csv, config, baseline);
+      const preview = previewSpreadsheetCsvHashedBaseline(request.csv, config, prior.baseline,csvIdentityKey);
       const parsedCsv = parseCsvPreview(request.csv);
-      const csvHash = sha256(Buffer.from(request.csv, "utf8"));
-      const requestHash = sha256(boundedJson({
-        csvHash,
-        configRevision: input.configRevision,
-        mappingRevision: input.mappingRevision,
-        baseline: baseline ?? null,
-      }));
       const projectSet = new Set(projectIds);
       const pending: PendingRecord[] = [];
       for (const [index, row] of preview.rows.entries()) {
@@ -1773,7 +1859,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         const sourceHash = canonicalCsvRow(parsedCsv.headers, parsedCsv.rows[index]!);
         pending.push({
           recordType: csvType(preview.sheet),
-          recordKey: csvIdentityKey(preview.sheet, row.key),
+          recordKey: row.keyHash!,
           projectId: row.projectId,
           revision: `sha256:${sourceHash}`,
           sourceContentHash: sourceHash,
@@ -1791,7 +1877,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
             operation: "NONE",
             errorCodes: readSafeErrors(row),
             projectId,
-            recordKey: validKey ? csvIdentityKey(preview.sheet, row.key) : null,
+            recordKey: validKey ? row.keyHash : null,
             recordId: null,
             sourceRevisionId: null,
             projectionId: null,
@@ -1802,25 +1888,14 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           operation: row.operation,
           errorCodes: [],
           projectId: row.projectId,
-          recordKey: csvIdentityKey(preview.sheet, row.key),
+          recordKey: row.keyHash,
           recordId: null,
           sourceRevisionId: null,
           projectionId: null,
         };
       });
       boundedJson({ rows: projectedOutcomes, records: pending });
-      return this.db.$transaction(async (tx) => {
-        const { source, config } = await this.lockAuthorizedSource(tx, actor, sourceId, projectIds, "write");
-        if (source.currentConfigRevision !== input.configRevision || source.mappingRevision !== input.mappingRevision || snapshot.configRevision !== input.configRevision || snapshot.mappingRevision !== input.mappingRevision)
-          throw new IngestionPersistenceError("STALE_CONFIGURATION");
-        const existing = await this.commandReceipt(tx, actor.customerId, sourceId, actor.subject, "CSV_PREVIEW", commandKey);
-        if (existing) {
-          await this.sourceReaders(tx, actor, source, config, projectIds);
-          const replayed = await this.replay(existing, requestHash);
-          return { receiptId: replayed.receiptId, replayed: true, rowCount: replayed.rowCount ?? 0 };
-        }
-        await this.retention(tx, actor.customerId);
-        const prepared = await this.prepareRecords(tx, source, input.mappingRevision, pending);
+        const prepared = await this.prepareRecords(tx, source, revisions.mappingRevision, pending);
         const preparedByKey = new Map(prepared.map((item) => [item.recordKey, item]));
         const outcomes = projectedOutcomes.map((outcome) => {
           if (outcome.state !== "ACCEPTED") return outcome;
@@ -1838,11 +1913,12 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           kind: "CSV_PREVIEW",
           commandKey,
           requestHash,
-          configRevision: input.configRevision,
-          mappingRevision: input.mappingRevision,
+          configRevision: revisions.configRevision,
+          mappingRevision: revisions.mappingRevision,
           scopeProjectIds: projectIds,
           outcomes,
         });
+        await saveCsvComparison(tx,prior,receiptId,revisions.configRevision,prepared);
         return { receiptId, replayed: false, rowCount: outcomes.length };
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 60000 });
     });
@@ -1861,21 +1937,23 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     const commandKey = parseIngestion(ingestionCommandKeySchema, request.commandKey);
     const rowOrdinals = request.rowOrdinals;
     return this.run(actor, "csv_reviewed_import", correlationId, "PERSISTENCE_FAILED", async () => {
-      const snapshot = await this.preflight(sourceId, actor);
-      if (snapshot.configuration.mapping.kind !== "CSV")
-        throw new IngestionPersistenceError("INVALID_REQUEST");
-      const projectIds = snapshot.configuration.projects.map((project) => project.projectId);
-      const requestHash = sha256(boundedJson({
-        sourceId,
-        previewReceiptId,
-        rowOrdinals,
-        configRevision: snapshot.configRevision,
-        mappingRevision: snapshot.mappingRevision,
-      }));
       return this.db.$transaction(async (tx) => {
-        const { source } = await this.lockAuthorizedSource(tx, actor, sourceId, projectIds, "write");
-        if (source.currentConfigRevision !== snapshot.configRevision || source.mappingRevision !== snapshot.mappingRevision)
-          throw new IngestionPersistenceError("STALE_CONFIGURATION");
+        const {source,config,projectIds,existing,policy} = await this.lockCsvCommand(tx,actor,sourceId,"CSV_REVIEWED_IMPORT",commandKey);
+        const requestHash = sha256(boundedJson({sourceId,previewReceiptId,rowOrdinals,
+          configRevision:existing?.configRevision ?? source.currentConfigRevision,
+          mappingRevision:existing?.mappingRevision ?? source.mappingRevision}));
+        if (existing) {
+          const replayed = await this.replay(existing,requestHash);
+          await this.assertReceiptIntegrity(tx,existing.id);
+          const links = await tx.$queryRaw<{ previewReceiptId: string }[]>`
+            SELECT "previewReceiptId" FROM public."IngestionReviewedImport"
+            WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "receiptId"=${existing.id}::uuid`;
+          if (links.length !== 1 || links[0]!.previewReceiptId !== previewReceiptId)
+            throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+          return ingestionReviewedImportResultSchema.parse({receiptId:replayed.receiptId,parentPreviewReceiptId:previewReceiptId,
+            replayed:true,rowCount:replayed.rowCount ?? 0});
+        }
+        if (config.mapping.kind !== "CSV") throw new IngestionPersistenceError("INVALID_REQUEST");
         // The authorized source is already locked; immutable parent receipts
         // need no row lock (which would require an UPDATE privilege).
         const parents = await tx.$queryRaw<{
@@ -1888,32 +1966,13 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         const parent = parents[0];
         if (!parent || !parent.valid || parent.configRevision !== source.currentConfigRevision || parent.mappingRevision !== source.mappingRevision)
           throw new IngestionPersistenceError("INVALID_PREVIEW");
-
-        const existing = await this.commandReceipt(tx, actor.customerId, sourceId, actor.subject, "CSV_REVIEWED_IMPORT", commandKey);
-        if (existing) {
-          const replayed = await this.replay(existing, requestHash);
-          const links = await tx.$queryRaw<{ previewReceiptId: string; valid: boolean }[]>`
-            SELECT i."previewReceiptId",public.valid_ingestion_receipt(i."receiptId") AS valid
-            FROM public."IngestionReviewedImport" i
-            WHERE i."customerId"=${actor.customerId}::uuid AND i."sourceId"=${sourceId}::uuid AND i."receiptId"=${existing.id}::uuid`;
-          if (!links[0] || links[0].previewReceiptId !== previewReceiptId || !links[0].valid)
-            throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
-          return ingestionReviewedImportResultSchema.parse({
-            receiptId: replayed.receiptId,
-            parentPreviewReceiptId: previewReceiptId,
-            replayed: true,
-            rowCount: replayed.rowCount ?? 0,
-          });
-        }
+        await this.assertReceiptIntegrity(tx,previewReceiptId);
 
         const duplicate = await tx.$queryRaw<{ receiptId: string }[]>`
           SELECT "receiptId" FROM public."IngestionReviewedImport"
           WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "previewReceiptId"=${previewReceiptId}::uuid`;
         if (duplicate.length) throw new IngestionPersistenceError("CONFLICT");
-        const retention = await tx.$queryRaw<{ retentionHours: number; revision: number }[]>`
-          SELECT "retentionHours",revision FROM public."IngestionRetentionPolicy"
-          WHERE "customerId"=${actor.customerId}::uuid FOR SHARE`;
-        if (!retention[0]) throw new IngestionPersistenceError("RETENTION_REQUIRED");
+        if (!policy) throw new IngestionPersistenceError("RETENTION_REQUIRED");
         const rows = await tx.$queryRaw<{
           ordinal: number; state: string; operation: string; errorCodes: string[];
           projectId: string | null; recordKey: string | null; recordId: string | null;
@@ -1956,8 +2015,8 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           kind: "CSV_REVIEWED_IMPORT",
           commandKey,
           requestHash,
-          configRevision: snapshot.configRevision,
-          mappingRevision: snapshot.mappingRevision,
+          configRevision: source.currentConfigRevision!,
+          mappingRevision: source.mappingRevision,
           scopeProjectIds: projectIds,
           outcomes,
         });
@@ -2080,10 +2139,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         const receipt = receipts[0];
         if (!receipt || receipt.configRevision !== header[0]!.configRevision)
           throw new IngestionPersistenceError("NOT_FOUND");
-        const validity = await tx.$queryRaw<{ valid: boolean }[]>`
-          SELECT public.valid_ingestion_receipt(${receiptId}::uuid) AS valid`;
-        if (!validity[0]?.valid)
-          throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        await this.assertReceiptIntegrity(tx,receiptId);
         const reviewed = await tx.$queryRaw<{ previewReceiptId: string }[]>`
           SELECT "previewReceiptId" FROM public."IngestionReviewedImport"
           WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "receiptId"=${receiptId}::uuid`;
@@ -2257,12 +2313,10 @@ export class DatabaseIngestionRepository implements IngestionRepository {
             AND c."redactedAt" IS NULL AND r."receivedAt"+make_interval(hours=>${policyRows[0].retentionHours})<=clock_timestamp()
           ORDER BY p."sourceId",p."recordId",p."sourceRevisionId",p.id LIMIT 1000`;
         if (!candidates.length) return 0;
-        const recordIds = [...new Set(candidates.map((row) => row.recordId))].sort(exactCompare);
-        const revisionIds = [...new Set(candidates.map((row) => row.sourceRevisionId))].sort(exactCompare);
         const projectionIds = candidates.map((row) => row.projectionId).sort(exactCompare);
-        await tx.$queryRaw`SELECT id FROM public."IngestionExternalRecord" WHERE "customerId"=${actor.customerId}::uuid AND id=ANY(${recordIds}::uuid[]) ORDER BY "sourceId",id FOR UPDATE`;
-        await tx.$queryRaw`SELECT id FROM public."IngestionSourceRevision" WHERE "customerId"=${actor.customerId}::uuid AND id=ANY(${revisionIds}::uuid[]) ORDER BY "recordId",id FOR UPDATE`;
-        await tx.$queryRaw`SELECT id FROM public."IngestionProposalProjection" WHERE "customerId"=${actor.customerId}::uuid AND id=ANY(${projectionIds}::uuid[]) ORDER BY "recordId",id FOR UPDATE`;
+        // The policy and all sources are already fenced. Immutable identity,
+        // revision and projection rows need no UPDATE privilege or tuple lock;
+        // only the mutable content rows below participate in redaction.
         const locked = await tx.$queryRaw<{ projectionId: string }[]>`
           SELECT "projectionId" FROM public."IngestionProposalContent"
           WHERE "customerId"=${actor.customerId}::uuid AND "projectionId"=ANY(${projectionIds}::uuid[]) AND proposals IS NOT NULL
