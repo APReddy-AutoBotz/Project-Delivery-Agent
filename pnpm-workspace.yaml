@@ -7,6 +7,7 @@ overrides:
   deepmerge-ts: 8.0.0
   multer: 2.5.0
   mysql2: 3.23.1
+  picomatch@4.0.7: 'npm:@ryotsu/picomatch@4.0.7-a'
   proxy-addr: 2.0.8
   source-map-js: 1.2.2
   vite: 7.3.7

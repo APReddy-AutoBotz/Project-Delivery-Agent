@@ -3,6 +3,17 @@ import { readdirSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { load, JSON_SCHEMA } from "js-yaml";
 const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const packageName = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+
+function isExactSelector(selector) {
+  const separator = selector.lastIndexOf("@");
+  return (
+    separator > 0 &&
+    packageName.test(selector.slice(0, separator)) &&
+    exactVersion.test(selector.slice(separator + 1))
+  );
+}
+
 export function checkDependencies(
   manifests,
   entries,
@@ -28,9 +39,16 @@ export function checkDependencies(
   const reviewed = new Map();
   for (const entry of reviewedOverrides) {
     if (
+      typeof entry.name !== "string" ||
       reviewed.has(entry.name) ||
+      typeof entry.version !== "string" ||
       !exactVersion.test(entry.version) ||
-      typeof entry.runtime !== "boolean"
+      typeof entry.runtime !== "boolean" ||
+      (entry.replacementName !== undefined &&
+        (typeof entry.replacementName !== "string" ||
+          !packageName.test(entry.replacementName) ||
+          !isExactSelector(entry.name) ||
+          entry.runtime))
     )
       throw new Error("Invalid or duplicate override review: " + entry.name);
     reviewed.set(entry.name, entry);
@@ -39,14 +57,13 @@ export function checkDependencies(
     throw new Error("Workspace overrides differ from reviewed overrides");
   for (const [name, version] of Object.entries(workspaceOverrides)) {
     const entry = reviewed.get(name);
-    if (
-      typeof version !== "string" ||
-      !exactVersion.test(version) ||
-      !entry ||
-      entry.version !== version
-    )
+    if (!entry) throw new Error("Unreviewed workspace override: " + name);
+    const expectedSpec = entry.replacementName
+      ? `npm:${entry.replacementName}@${entry.version}`
+      : entry.version;
+    if (version !== expectedSpec)
       throw new Error("Unreviewed workspace override: " + name);
-    const key = name + "@" + version;
+    const key = (entry.replacementName ?? name) + "@" + entry.version;
     wanted.set(key, (wanted.get(key) ?? false) || entry.runtime);
   }
   const registered = new Map();
