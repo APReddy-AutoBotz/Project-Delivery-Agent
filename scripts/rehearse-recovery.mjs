@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { canonicalTables } from "./acceptance/canonical-projects.mjs";
 import { verifyImmutableHistoryMutation } from "./acceptance/immutable-history.mjs";
 import { engagementStorageTables, verifyRestoredEngagementStorage } from "./acceptance/update-engagement-storage.mjs";
-import { verifyRestoredProofIntegrity } from "./acceptance/restored-proof-integrity.mjs";
+import { verifyRestoredCsvContextRows, verifyRestoredProofIntegrity } from "./acceptance/restored-proof-integrity.mjs";
 import {
   assertSyntheticDatabaseUrl,
   CredentialVault,
@@ -199,12 +199,21 @@ try {
   )).map((row) => row.tablename);
   assert.deepEqual([...tables].sort(),actualTables,"Recovery inventory must cover every public table");
   for (const table of tables) {
-    const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
-    assert.deepEqual(
-      await restored.$queryRawUnsafe(sql),
-      await original.$queryRawUnsafe(sql),
-      "Restored " + table + " rows must match",
-    );
+    try {
+      if (table === "IngestionCsvContext") {
+        const checked = await verifyRestoredCsvContextRows(original, restored);
+        console.log(`Compared ${checked} restored CSV contexts exactly in bounded pages.`);
+      } else {
+        const sql = `SELECT to_jsonb(t)::text AS row FROM "${table}" t ORDER BY to_jsonb(t)::text COLLATE "C"`;
+        assert.deepEqual(
+          await restored.$queryRawUnsafe(sql),
+          await original.$queryRawUnsafe(sql),
+          "Restored " + table + " rows must match",
+        );
+      }
+    } catch (cause) {
+      throw new Error("Recovery row comparison failed for " + table, {cause});
+    }
   }
   const engagementEvidence = JSON.parse(readFileSync("artifacts/database-validation.json","utf8")).engagementStorage;
   await verifyRestoredEngagementStorage(restored,engagementEvidence);
