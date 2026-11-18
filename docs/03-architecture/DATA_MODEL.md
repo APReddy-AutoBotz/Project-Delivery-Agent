@@ -353,8 +353,9 @@ dictionary once per context for its retained proposal type checks. Each receipt
 still persists and charges the complete context and passes the existing scope,
 lineage, binding, retention and completeness checks.
 
-The canonical codec checks each reference's type, length, index and order. It
-compares each canonical index with its immediate predecessor at the same
+The canonical codec checks each reference's type and length, then looks up
+its exact decimal index among the keys of the validated field dictionary.
+It compares each canonical index with its immediate predecessor at the same
 identity and checks the UUID grammar once per distinct projection string.
 
 The cohort is bounded at 1,000 identities, 32 fields and 100 projects; each

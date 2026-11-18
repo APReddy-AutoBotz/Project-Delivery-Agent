@@ -429,6 +429,7 @@ DECLARE
   record_id text;
   project_id text;
   dictionary_length integer;
+  field_indexes jsonb;
   identity_count integer;
   distinct_records integer;
   distinct_projects integer;
@@ -471,16 +472,16 @@ BEGIN
     previous_key := identity_key;
   END LOOP;
   -- The first pass bounds every identity's reference array. Check the bounded
-  -- references together and keep casts inside their shape and grammar checks.
+  -- references against the canonical decimal keys of the validated dictionary.
+  SELECT jsonb_object_agg(value::text,true) INTO field_indexes
+    FROM generate_series(0,dictionary_length-1) value;
   IF EXISTS (
     WITH parsed AS MATERIALIZED (
       SELECT CASE WHEN field.ordinal>1 THEN row_entry.row_value->3->(field.ordinal::integer-2)->>0 END AS previous_index,
         CASE WHEN jsonb_typeof(field.ref)='array' THEN jsonb_array_length(field.ref) END AS arity,
         CASE WHEN jsonb_typeof(field.ref->0)='string'
           AND octet_length(field.ref->>0) BETWEEN 1 AND 2
-          AND (field.ref->>0) COLLATE "C" ~ '^(0|[1-9][0-9]?)$'
-          AND (field.ref->>0) COLLATE "C" !~ '[^0-9]'
-          THEN (field.ref->>0)::integer END AS field_index,
+          THEN field.ref->>0 END AS field_index,
         CASE WHEN jsonb_typeof(field.ref->1)='string' THEN (field.ref->>1) COLLATE "C" END AS projection_id
       FROM jsonb_array_elements(state_rows) row_entry(row_value)
       CROSS JOIN LATERAL jsonb_array_elements(row_entry.row_value->3) WITH ORDINALITY field(ref,ordinal)
@@ -488,9 +489,9 @@ BEGIN
       SELECT DISTINCT projection_id FROM parsed
     )
     SELECT 1 FROM parsed WHERE arity IS DISTINCT FROM 2 OR octet_length(projection_id) IS DISTINCT FROM 36
-      OR field_index IS NULL OR field_index>=dictionary_length OR octet_length(previous_index)>octet_length(field_index::text)
-      OR (octet_length(previous_index)=octet_length(field_index::text)
-        AND previous_index COLLATE "C">=field_index::text COLLATE "C")
+      OR (field_indexes ? field_index) IS NOT TRUE OR octet_length(previous_index)>octet_length(field_index)
+      OR (octet_length(previous_index)=octet_length(field_index)
+        AND previous_index COLLATE "C">=field_index COLLATE "C")
     UNION ALL
     SELECT 1 FROM distinct_projections WHERE projection_id COLLATE "C" !~
       '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
