@@ -323,6 +323,27 @@ it("keeps metadata replay after expiry and lawful purge, while refusing fresh co
   expect(await f.graph()).toEqual(purged);
 });
 
+it("rolls back the first fact stream batch when a later batch fails and permits exact retry", async () => {
+  const f = await fixture();
+  const command = f.input(Array.from({length: 129}, (_, index): Row => [`R${index}`, "2027-01-01", "ready"]));
+  const before = await f.graph();
+  let batches = 0;
+  const {repository} = gateRepository(f, (sql) => {
+    if (sql.includes('INSERT INTO public."IngestionFactStream"') && ++batches === 2)
+      throw new Error("Synthetic second stream batch failure");
+    return false;
+  });
+
+  await expect(repository.persistCsvPreview(f.actor, command, randomUUID())).rejects.toMatchObject({code: "PERSISTENCE_FAILED"});
+  expect(batches).toBe(2);
+  expect(await f.graph()).toEqual(before);
+
+  const retry = await f.api.persistCsvPreview(f.actor, command, randomUUID());
+  expect(retry).toMatchObject({rowCount: 129, replayed: false});
+  expect(await owner.ingestionFactStream.count({where: {sourceId: f.sourceId}})).toBe(258);
+  expect(await f.api.persistCsvPreview(f.actor, command, randomUUID())).toEqual({...retry, replayed: true});
+}, 20000);
+
 it("maps expiry at the final native guard to the same bounded unavailable result and rolls back the entire new command",async()=>{
   const f=await fixture(); await f.preview([["A","2027-01-01","start"]]);
   await expireRevision(f.sourceId,3);
