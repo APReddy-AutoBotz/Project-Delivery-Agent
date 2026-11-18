@@ -4,6 +4,36 @@
 
 Every runtime dependency must be pinned through the lockfile and reviewed before release.
 
+### Offline XLSX archive inspection
+
+For FR-CON-006/007, the offline archive reader uses the exact published
+yauzl 3.4.0 package (MIT) and its locked pend 1.2.0 dependency (MIT).
+Yauzl provides lazy directory and local header inspection. The first-party
+reader enforces the accepted ZIP subset, integrity and expansion bounds.
+Public reviewed GitHub advisory queries returned no entries for these exact
+versions at review time. The synchronous inflater is built into Node 24.
+This is a development-only dependency behind one archive module. Replace it
+behind that module if its maintenance or API changes. XML parser selection,
+packaging and commercial distribution require their own review.
+See the [pinned yauzl API](https://github.com/thejoshwolfe/yauzl/blob/3.4.0/README.md)
+and [ECMA-376 package specification](https://ecma-international.org/publications-and-standards/standards/ecma-376/).
+
+The offline worksheet decoder pins saxes 6.0.0 (ISC) with xmlchars 2.2.0 (MIT).
+Saxes checks strict XML and expanded namespace identities without a native
+library or a resource loader. Its upstream repository is archived. The
+maintenance risk is accepted for the synthetic, development-only adapter.
+A live worker requires a fresh parser, dependency and isolation review.
+The independent comparison identified lossy expanded attribute handling in
+saxen 12.0.0. Maintained libxml2 SAX2 is a possible isolated worker option
+subject to native dependency and packaging review.
+See the [pinned saxes parser source](https://raw.githubusercontent.com/lddubeau/saxes/v6.0.0/src/saxes.ts).
+The installed npm package omits the full license text. The
+[release-tag license](https://github.com/lddubeau/saxes/blob/v6.0.0/LICENSE)
+contains both ISC notices. Record original license bytes and applicability
+before any package distribution.
+
+### Baseline components
+
 | Component              | Purpose                   | Licence            | Decision             | Integration method                                        | Notes                                                 |
 | ---------------------- | ------------------------- | ------------------ | -------------------- | --------------------------------------------------------- | ----------------------------------------------------- |
 | React                  | Web UI                    | MIT                | Proposed             | Use published package                                     | Web framework; replacement would be costly            |

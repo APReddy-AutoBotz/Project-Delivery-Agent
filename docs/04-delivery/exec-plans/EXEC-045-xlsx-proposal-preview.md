@@ -58,6 +58,67 @@ equate the two.
 
 ## Required workbook and persistence work
 
+The offline XLSX archive reader provides the first byte-level step towards
+FR-CON-006/007. It uses pinned yauzl 3.4.0 for central and local ZIP headers and
+Node 24 for bounded raw DEFLATE and CRC-32. It copies at most 1 MiB of input
+and admits at most 64 ASCII XML or relationship parts, at most 4 MiB per part
+and 8 MiB of total expanded content. A part must account for its complete
+declared compressed extent and match its actual length and CRC. The single-
+disk archive has no comments, extra fields or ZIP64, uses stored or DEFLATE
+entries. Data descriptors must carry the ZIP record signature and match the
+sizes and CRC. Local records tile the bytes before the exact central directory. Case-insensitive
+duplicate names, file/directory name collisions, nonfile entries, unsupported
+methods and inconsistencies reject the entire archive.
+
+The checked workbook fixture was authored with the Codex spreadsheet bundle
+26.1116.12010. Its Portfolio sheet contains one header row and two fictional
+rows with literal text IDs and forecast dates. The exported workbook has
+SHA-256 `ea4fb60074ed77ef1de8af80a620ef87e4e07247cab57cb894d107f96a4895f4`.
+Tests compare the digest of each expanded part with an independent
+standard-library ZIP read. Fixtures also cover the allowed ZIP record forms
+and finite bounds. CRC detects corruption
+and establishes no authenticity. The archive reader neither interprets
+relationships and XML nor proves a workbook's suitability for mapping. It
+opens no filesystem entries and returns exact opaque part bytes only to its
+offline caller. This synchronous inflate is for the offline boundary only.
+The live path needs independently validated XML/OPC semantics, a killable
+worker with resource bounds and pre/post authorization, and durable receipts
+bound to the original workbook and selected mapping before any import.
+
+### Offline worksheet semantics
+
+The offline worksheet decoder builds on the archive reader for FR-CON-006/007.
+Its first supported profile is a minimal Transitional SpreadsheetML package
+with one visible worksheet and optional plain shared strings. The workbook,
+package relationships, worksheet relationship ID, exact configured sheet name
+and part content types must agree. All admitted archive members must belong to
+this graph. The profile requires physical row 1 to be the header and contiguous,
+rectangular coordinates. A cell contains explicit inline text or a canonical
+index into the plain shared-string table. When present, shared-string count
+attributes must agree with the actual table and total inline and shared cells.
+Expanded string uses count against the grid byte limit. Leading zeroes, XML
+text and Unicode are preserved. Unsupported
+OOXML escape sequences, cached string types, formulas, hidden rows and sheets,
+merges, external relationships, metadata outside this profile and missing
+coordinates are rejected. Dates use literal text and the existing mapped date
+validator.
+
+The tests construct workbook ZIP bytes from the accepted OPC profile and pass
+decoded cells through the existing proposal mapper. The archive-only exporter
+fixture is outside the semantic profile because it has styles, theme and a
+different cell storage type. General Excel producer interoperability and a
+user-facing export template still require evidence.
+
+The offline decoder checks fatal UTF-8 and XML 1.0, rejects DTDs and matches
+expanded names. The archive bounds each XML part before parsing. An attribute
+or text token can allocate before its callback, and a bounded worksheet tree
+can be resident in memory. Live activation requires proven killable isolation
+and resource bounds, receipt binding to original bytes, and current
+authorization before processing and again under persistence locks.
+
+See the [SpreadsheetML structure](https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/structure-of-a-spreadsheetml-document)
+and [ECMA-376 OPC specification](https://ecma-international.org/publications-and-standards/standards/ecma-376/).
+
 An unregistered local slot model exercises admission around the synthetic frame
 codec. It reserves declared input bytes before pulling a queued stream, limits
 one local lease, checks an absolute monotonic deadline, correlates a response
