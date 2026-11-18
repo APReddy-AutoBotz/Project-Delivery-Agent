@@ -1,13 +1,13 @@
 # Implementation Status
 
-Updated: 2026-11-16
+Updated: 2026-11-18
 
 ## Accepted implementation completion
 
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
-| R1      |                       4 |                     33 |      12.1% |
+| R1      |                       5 |                     33 |      15.2% |
 
 STORY-001 (TypeScript workspace and runtime/API contracts) and STORY-002
 (PostgreSQL foundation and repository interfaces) are accepted under delegated
@@ -24,12 +24,28 @@ became effective with PR #113 merge 9e1d84323c280b74f4f17bf62de80ec664e600fc.
 Its reviewed tree/ordered parents, exact-head checks and actual post-merge
 Foundation39734257139/Documentation39734257119 all pass. See the [webhook acceptance](../05-quality/JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md)
 and [freshness acceptance](../05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md) records.
-The resulting accepted total is **7/38 (18.4%)**: R0 3/5 and R1 4/33. Story and
-release denominators are unchanged. Issues #7/#8/#9 and the other unfinished
-stories remain open; technical collection does not accept any of the five release
-holds. Original19/20 research capture remains stopped.
+PR #113 brought the accepted total to 7/38 (18.4%). The
+[STORY-009 CSV acceptance](../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md)
+brings it to **8/38 (21.1%)** after this evidence increment passes independent
+review and required checks and merges. The release totals then are R0 3/5
+and R1 5/33. Issues #7/#8/#9, unfinished stories and all five release holds
+remain open. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
+
+Trusted CSV comparison and reviewed import merged in
+[PR #168](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/168)
+as `ab2745c4ed7b47e2a91667f1c085421952b4ee3f`. The merged tree
+`121f833a179bde0cff86b2af4c54abc5fe6ca2c2` matches the tested
+synthetic merge of reviewed candidate `72505ef10250a85c860f749a82aef37ff08f9379`.
+Exact-candidate Foundation, Documentation and independent source and
+packaged-evidence reviews passed. Post-merge
+[Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44194349593)
+and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44194349534)
+passed on their first attempts. The two packaged profiles prove the trusted
+UPDATE/UNCHANGED baseline, rename and move exclusions, selected-row save,
+exact receipt replay and quarantined restoration. See
+[the stage 6 evidence record](exec-plans/EXEC-009-trusted-csv-baseline.md#merge-and-post-merge-evidence).
 
 Trusted CSV comparison primitives merged in
 [PR #167](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/167)
@@ -42,17 +58,12 @@ remained connected; rollback and CONNECT quarantine held. The separately
 reviewed unchanged failed-job rerun passed on attempt 2, together with
 Documentation `43821345814`. The original failure evidence is retained.
 
-The next coherent candidate implements the cumulative reference overlay,
-additive migration 28 with two guarded comparison tables, server-owned CSV
-comparison and exact retry, restricted role/recovery checks and a separate
-connected UPDATE/UNCHANGED/rename/move customer journey. It also corrects the
-maximum sheet identity width without changing the 256-character sheet limit.
-The 27 released migrations remain unchanged. Local validation and evolving
-independent reviews are recorded in
-[EXEC-009](exec-plans/EXEC-009-trusted-csv-baseline.md); immutable-candidate and
-hosted native, upgrade, browser and recovery gates remain required. Imports
-save reviewed proposals. Story acceptance, source publication, OD-013/014,
-the five customer-release holds and stopped Original19/20 capture are unchanged.
+The [next spreadsheet increment](exec-plans/EXEC-045-xlsx-proposal-preview.md)
+adds an offline archive and literal-text worksheet decoder. Live XLSX
+processing still requires deployment isolation, supported workbook producer
+evidence, and format-specific authorization and receipt binding. Imports
+save reviewed proposals. Issue #7 and the five customer-release holds remain
+open. OD-013/014 apply, and Original19/20 capture remains stopped.
 
 Read-only matched milestone reconciliation request observation merged in
 [PR #141](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/141)
@@ -1229,7 +1240,7 @@ AC-CON-004 remains partial: the signed-event replay evidence reaches one durable
 
 This entire dated checkpoint, including the totals in the following paragraph,
 is historical. The STORY-008 acceptance recorded above became effective with
-PR #113 and supersedes this AC-CON-004 status; current totals are 7/38 above.
+PR #113 and supersedes this AC-CON-004 status. That merge brought the total to 7/38.
 
 AC-CON-001 remains partial because OD-013 keeps public OAuth onboarding and live activation disabled. AC-CON-003 remains partial because OD-014 keeps Jira comment reads and body/author retention disabled. Issue #7 stays open; no story or accepted-story total changes (R0 3/5, R1 2/33; 5/38 combined). No customer Jira site is activated and no proposal becomes a canonical fact.
 

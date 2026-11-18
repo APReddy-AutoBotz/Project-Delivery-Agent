@@ -1,5 +1,14 @@
 # Decision Log
 
+## STORY-009 reviewed CSV import software acceptance, 2026-11-18
+
+Accept the approved CSV alternative under the existing controller delegation,
+effective after this record's review, required checks and verified merge.
+PR #168 supplies real preview, reviewed-row receipt, replay and recovery
+evidence. Only STORY-009 gains credit, bringing R1 to 5/33 and overall to 8/38
+when the decision takes effect. Issue #7 remains open for its other scope.
+[Acceptance record](../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md)
+
 ## EXEC-020 bounded PM history design approval, 2026-10-22
 
 Under the Product Owner's existing controller delegation, approve the bounded

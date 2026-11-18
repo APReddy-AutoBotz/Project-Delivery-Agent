@@ -34,3 +34,9 @@ The machine-readable source is `requirements/traceability.yaml`. This document p
 
 Acceptance takes effect after this record's separately reviewed merge and required
 checks. Other story/criterion ownership and shared GOLDEN-003 remain unchanged.
+
+## STORY-009 acceptance evidence, 2026-11-18
+
+| Story | Requirement/criterion chain | Implementation and complete acceptance record |
+| --- | --- | --- |
+| STORY-009 / Issue #7 | FR-CON-006/007 -> AC-CON-005 -> E2E-CON-005 and FAIL-006 | PR #168; [reviewed CSV import acceptance](../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md) |
