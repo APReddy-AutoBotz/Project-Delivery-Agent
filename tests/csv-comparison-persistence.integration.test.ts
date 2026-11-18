@@ -309,6 +309,7 @@ it("keeps metadata replay after expiry and lawful purge, while refusing fresh co
   const before=await f.graph();
   expect(await f.api.persistCsvPreview(f.actor,first.command,randomUUID())).toEqual({...first.result,replayed:true});
   await expect(f.preview([["A","2027-01-02","next"]])).rejects.toMatchObject({code:"INVALID_PREVIEW"});
+  await expect(f.preview([])).rejects.toMatchObject({code:"INVALID_PREVIEW"});
   await expect(f.api.commitCsvReviewedImport(f.actor,{sourceId:f.sourceId,previewReceiptId:first.result.receiptId,rowOrdinals:[1],commandKey:randomUUID()},randomUUID()))
     .rejects.toMatchObject({code:"INVALID_PREVIEW"});
   expect(await f.graph()).toEqual(before);
@@ -318,8 +319,30 @@ it("keeps metadata replay after expiry and lawful purge, while refusing fresh co
   expect(await f.api.persistCsvPreview(f.actor,first.command,randomUUID())).toEqual({...first.result,replayed:true});
   expect((await f.api.readReceipt(f.actor,{sourceId:f.sourceId,receiptId:first.result.receiptId})).outcomes[0]).toMatchObject({contentAvailable:false,proposals:null});
   await expect(f.preview([["A","2027-01-01","start"]])).rejects.toMatchObject({code:"INVALID_PREVIEW"});
+  await expect(f.preview([])).rejects.toMatchObject({code:"INVALID_PREVIEW"});
   expect(await f.graph()).toEqual(purged);
 });
+
+it("rolls back the first fact stream batch when a later batch fails and permits exact retry", async () => {
+  const f = await fixture();
+  const command = f.input(Array.from({length: 129}, (_, index): Row => [`R${index}`, "2027-01-01", "ready"]));
+  const before = await f.graph();
+  let batches = 0;
+  const {repository} = gateRepository(f, (sql) => {
+    if (sql.includes('INSERT INTO public."IngestionFactStream"') && ++batches === 2)
+      throw new Error("Synthetic second stream batch failure");
+    return false;
+  });
+
+  await expect(repository.persistCsvPreview(f.actor, command, randomUUID())).rejects.toMatchObject({code: "PERSISTENCE_FAILED"});
+  expect(batches).toBe(2);
+  expect(await f.graph()).toEqual(before);
+
+  const retry = await f.api.persistCsvPreview(f.actor, command, randomUUID());
+  expect(retry).toMatchObject({rowCount: 129, replayed: false});
+  expect(await owner.ingestionFactStream.count({where: {sourceId: f.sourceId}})).toBe(258);
+  expect(await f.api.persistCsvPreview(f.actor, command, randomUUID())).toEqual({...retry, replayed: true});
+}, 20000);
 
 it("maps expiry at the final native guard to the same bounded unavailable result and rolls back the entire new command",async()=>{
   const f=await fixture(); await f.preview([["A","2027-01-01","start"]]);
@@ -540,6 +563,20 @@ it.each(["missing-context","backdated-missing-context","head-only","orphan-conte
     expect(await f.graph()).toEqual(before);
   });
 
+it("rejects a self-consistently hashed forged overlay with no accepted outcomes",async()=>{
+  const f=await fixture();
+  await f.preview([["A","2027-01-01","start"]]);
+  const empty=await f.preview([]);
+  expect(empty.read.outcomes).toEqual([]);
+  const valid=await nativeTransition(f,empty.result.receiptId,"valid");
+  expect((await f.api.readReceipt(f.actor,{sourceId:f.sourceId,receiptId:valid})).outcomes).toEqual([]);
+  const before=await f.graph();
+  await expect(nativeTransition(f,empty.result.receiptId,"missing-identity")).rejects.toMatchObject({
+    meta:{driverAdapterError:{cause:{originalCode:"P0001",originalMessage:"Invalid CSV comparison context"}}},
+  });
+  expect(await f.graph()).toEqual(before);
+});
+
 it("allows a real native same-state successor and retains older-context validity",async()=>{
   const f=await fixture(),first=await f.preview([["A","2027-01-01","start"]]);
   const receiptId=await nativeTransition(f,first.result.receiptId,"valid");
@@ -629,6 +666,8 @@ it("checks every field membership when multiple references share one metadata pr
   expect(rows[0]![3][1]![1]).toBe(projectionId);
   const observation=await owner.ingestionRowOutcome.findFirstOrThrow({where:{receiptId:carried.result.receiptId}});
   expect(observation.projectionId).not.toBe(projectionId);
+  const empty=await f.preview([]);
+  expect(empty.read.outcomes).toEqual([]);
   const before=await f.graph();
   await expect(owner.$transaction(async(tx)=>{
     expect(await tx.$queryRaw`SELECT public.valid_ingestion_csv_context(${carried.result.receiptId}::uuid) AS valid`).toEqual([{valid:true}]);
@@ -640,6 +679,7 @@ it("checks every field membership when multiple references share one metadata pr
     // projection's factTypes cannot change this context's expected overlay.
     expect(await tx.$queryRaw`SELECT public.valid_ingestion_receipt(${carried.result.receiptId}::uuid) AS cheap,
       public.valid_ingestion_csv_context(${carried.result.receiptId}::uuid) AS full`).toEqual([{cheap:true,full:false}]);
+    expect(await tx.$queryRaw`SELECT public.valid_ingestion_csv_context(${empty.result.receiptId}::uuid) AS valid`).toEqual([{valid:false}]);
     throw new Error("ROLLED_BACK_SHARED_PROJECTION_MEMBERSHIP");
   },{timeout:20000})).rejects.toThrow("ROLLED_BACK_SHARED_PROJECTION_MEMBERSHIP");
   expect(await f.graph()).toEqual(before);
@@ -699,6 +739,97 @@ function wideCsv(projectId:string,count:number,value:(row:number,field:number)=>
   return ["Key,Project,"+wideFields.map((field)=>field.column).join(","),...Array.from({length:count},(_,row)=>
     ["K"+row,projectId,...wideFields.map((_,field)=>value(row,field))].join(","))].join("\n");
 }
+
+it("keeps the native CSV codec exact for ordered field pairs and malformed references",async()=>{
+  const f=await fixture(1,wideFields);
+  const dictionary=wideFields.map(({factType,type})=>[factType,type]);
+  const dictionaryJson=JSON.stringify(dictionary);
+  const project=f.projects[0]!;
+  const firstRecord=randomUUID(),secondRecord=randomUUID(),shared=randomUUID(),distinct=randomUUID();
+  const firstKey="0".repeat(64),secondKey="1".repeat(64);
+
+  await f.asApi(async(tx)=>{
+    const [pairs]=await tx.$queryRaw<{mismatches:number}[]>`
+      SELECT count(*) FILTER (WHERE (
+        public.ingestion_csv_state_text(${f.customerId}::uuid,${f.sourceId}::uuid,1,${dictionaryJson}::jsonb,
+          jsonb_build_array(jsonb_build_array(${firstKey}::text,${firstRecord}::text,${project}::text,
+            jsonb_build_array(jsonb_build_array(a::text,${shared}::text),jsonb_build_array(b::text,${shared}::text)))))
+        IS NOT NULL) IS DISTINCT FROM (a<b))::integer AS mismatches
+      FROM generate_series(0,31) first_index(a) CROSS JOIN generate_series(0,31) second_index(b)`;
+    expect(pairs?.mismatches).toBe(0);
+
+    const encode=async (rows:unknown[])=>{
+      const [encoded]=await tx.$queryRaw<{value:string|null}[]>`SELECT public.ingestion_csv_state_text(
+        ${f.customerId}::uuid,${f.sourceId}::uuid,1,${dictionaryJson}::jsonb,${JSON.stringify(rows)}::jsonb) AS value`;
+      return encoded?.value;
+    };
+    const valid=[
+      [[firstKey,firstRecord,project,[["9",shared],["10",shared],["31",distinct]]]],
+      [[firstKey,firstRecord,project,[["31",shared]]],[secondKey,secondRecord,project,[["0",distinct]]]],
+      [[firstKey,firstRecord,project,[]],[secondKey,secondRecord,project,[["31",shared]]]],
+    ];
+    for (const rows of valid) {
+      const expected=serializeCsvComparisonState(["pdaa.csv.state.v1",f.customerId,f.sourceId,"1",dictionary,rows]);
+      expect(await encode(rows)).toBe(expected.text);
+    }
+
+    const malformedReferences:unknown[][]=[
+      [null], [{}], [["0"]], [["0",shared,"extra"]],
+      Array.from({length:33},(_,index)=>[String(index),shared]),
+      ...["01","-1"," 1","1.5",1,null].map((index)=>[["0",shared],[index,shared],["31",shared]]),
+      ...[null,7,true,{},[],"q"+shared.slice(1)].map((projectionId)=>[["0",shared],["1",projectionId]]),
+    ];
+    for (const refs of malformedReferences) {
+      expect(await encode([[firstKey,firstRecord,project,refs]])).toBeNull();
+    }
+  },{timeout:20000});
+});
+
+it("preserves validated rows and charges history for CSV receipts with no accepted outcomes",async()=>{
+  const f=await fixture(1,wideFields);
+  const project=f.projects[0]!;
+  const persist=async(csv:string)=>{
+    const result=await f.api.persistCsvPreview(f.actor,{...f.input([]),csv},randomUUID());
+    const context=await owner.ingestionCsvContext.findUniqueOrThrow({where:{receiptId:result.receiptId}});
+    const receipt=await f.api.readReceipt(f.actor,{sourceId:f.sourceId,receiptId:result.receiptId});
+    expect(await f.asApi((tx)=>tx.$queryRaw`SELECT public.valid_ingestion_csv_context(${result.receiptId}::uuid) AS valid`))
+      .toEqual([{valid:true}]);
+    return {context,outcomes:receipt.outcomes};
+  };
+  const empty=wideCsv(project,0,()=>"");
+  const invalid=wideCsv("invalid-project",1,()=>"value");
+  const first=await persist(empty);
+  expect(first.outcomes).toEqual([]);
+  expect(first.context.rows).toEqual([]);
+  const invalidFirst=await persist(invalid);
+  expect(invalidFirst.outcomes).toMatchObject([{state:"INVALID",operation:"NONE"}]);
+  expect(invalidFirst.context.rows).toEqual(first.context.rows);
+
+  const zeroField=await persist(wideCsv(project,1,()=>""));
+  expect(zeroField.outcomes).toMatchObject([{state:"ACCEPTED",operation:"NONE"}]);
+  expect(zeroField.context.rows).toEqual([[expect.any(String),expect.any(String),project,[]]]);
+  const populated=await persist(wideCsv(project,2,(row)=>row===1 ? "value" : ""));
+  expect(populated.outcomes).toMatchObject([{state:"ACCEPTED",operation:"UNCHANGED"},{state:"ACCEPTED",operation:"CREATE"}]);
+  const rows=populated.context.rows as [string,string,string,[string,string][]][];
+  expect(rows.map((row)=>row[3].length).sort((a,b)=>a-b)).toEqual([0,32]);
+  expect(rows.find((row)=>row[3].length===32)![3].map(([index])=>index))
+    .toEqual(wideFields.map((_,index)=>String(index)));
+
+  const invalidCarry=await persist(invalid);
+  const emptyCarry=await persist(empty);
+  expect(invalidCarry.outcomes).toMatchObject([{state:"INVALID",operation:"NONE"}]);
+  expect(emptyCarry.outcomes).toEqual([]);
+  for (const [previous,next] of [[first,invalidFirst],[populated,invalidCarry],[invalidCarry,emptyCarry]] as const) {
+    expect(next.context).toMatchObject({revision:previous.context.revision+1n,
+      predecessorReceiptId:previous.context.receiptId,predecessorHash:previous.context.stateHash,
+      rows:previous.context.rows,stateHash:previous.context.stateHash,canonicalBytes:previous.context.canonicalBytes});
+  }
+  const head=await owner.ingestionCsvHead.findUniqueOrThrow({where:{customerId_sourceId:{customerId:f.customerId,sourceId:f.sourceId}}});
+  expect(head.currentReceiptId).toBe(emptyCarry.context.receiptId);
+  expect(head.canonicalHistoryBytes).toBe([first,invalidFirst,zeroField,populated,invalidCarry,emptyCarry]
+    .reduce((total,{context})=>total+BigInt(context.canonicalBytes),0n));
+});
+
 it("persists a reachable 1000-row/32-field state and genuinely exhausts the canonical-history byte budget",async({signal,onTestFailed,onTestFinished})=>{
   let stage = "INITIAL_PREVIEW";
   let committed = 0;

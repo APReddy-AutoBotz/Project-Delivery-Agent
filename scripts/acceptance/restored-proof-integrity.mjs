@@ -58,6 +58,45 @@ const checks = [
 ];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+export async function verifyRestoredCsvContextRows(original, restored) {
+  const count = 'SELECT count(*)::int AS count FROM public."IngestionCsvContext"';
+  const sourceCount = await original.$queryRawUnsafe(count);
+  const targetCount = await restored.$queryRawUnsafe(count);
+  assert.equal(sourceCount.length, 1);
+  const expected = sourceCount[0].count;
+  assert(Number.isSafeInteger(expected) && expected >= 0);
+  assert.deepEqual(targetCount, sourceCount, "Restored CSV context count differs");
+
+  // A retained context can hold nearly 2 MiB of canonical CSV state. Compare
+  // its exact stored row text without sorting or materializing the whole table.
+  const pageSize = 4;
+  const page = `SELECT t."receiptId"::text AS id, to_jsonb(t)::text AS row
+    FROM public."IngestionCsvContext" t
+    WHERE ($1::uuid IS NULL OR t."receiptId" > $1::uuid)
+    ORDER BY t."receiptId" LIMIT $2::int`;
+  let cursor = null;
+  let checked = 0;
+  while (true) {
+    const source = await original.$queryRawUnsafe(page, cursor, pageSize);
+    const target = await restored.$queryRawUnsafe(page, cursor, pageSize);
+    assert(Array.isArray(source) && Array.isArray(target) && source.length <= pageSize);
+    assert.equal(target.length, source.length, "Restored CSV context page length differs");
+    if (!source.length) break;
+    for (const [index, entry] of source.entries()) {
+      assert(typeof entry.id === "string" && uuid.test(entry.id));
+      assert(cursor === null || entry.id > cursor, "CSV context comparison did not advance");
+      const restoredEntry = target[index];
+      assert(typeof entry.row === "string" && restoredEntry.id === entry.id && restoredEntry.row === entry.row,
+        "Restored CSV context row differs");
+      cursor = entry.id;
+      checked += 1;
+      assert(checked <= expected, "CSV context inventory changed during comparison");
+    }
+  }
+  assert.equal(checked, expected, "Incomplete restored CSV context comparison");
+  return checked;
+}
+
 export async function verifyRestoredProofIntegrity(database) {
   const counts = {};
   // The restore is isolated: no application is started against it. Counts and

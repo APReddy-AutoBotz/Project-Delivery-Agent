@@ -191,6 +191,24 @@ actions and route unprovable outcomes to manual recovery. A restore drill must
 include a comment completed after backup and prove it is not replayed. Resume
 requires an authorized operator's recorded review of reconciliation results.
 
+The PostgreSQL 17 restore keeps the initial gates before and immediately after
+the archive load. At the final ownership and integrity transaction gate, each
+session count uses a refreshed activity snapshot. A single unambiguously
+classified autovacuum worker can trigger a settlement window of up to 1.5
+seconds with 250 ms pauses and at most seven observations. The wait budget
+limits when to issue a new count. In-flight queries retain the existing
+database timeouts. COMMIT requires a fresh, unfiltered count of zero other
+sessions. A remaining or unclassified session, a client connection, or a
+query failure follows the existing rollback and quarantine path.
+
+The check is an observation of activity at a point in time. A worker waiting
+on the restore transaction's locks can remain active for the entire window.
+The restore leaves maintenance running, uses the existing database privileges,
+and keeps its original API and worker connection restrictions. A failed
+target remains quarantined. A new restore uses an empty target.
+[PostgreSQL activity snapshots](https://www.postgresql.org/docs/17/monitoring-stats.html) ·
+[PostgreSQL maintenance and locking](https://www.postgresql.org/docs/17/routine-vacuuming.html)
+
 ## Authorized PM request history
 
 An existing named PM escalation invitation can show its current request cycle.

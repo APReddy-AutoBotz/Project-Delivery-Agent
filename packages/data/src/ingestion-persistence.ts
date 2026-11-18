@@ -680,21 +680,24 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     if (recordByIdentity.size !== pending.length)
       throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
 
-    const streamRows = pending.flatMap((record) =>
-      normalizeProposals(record.proposals).map((proposal) => ({
-        id: randomUUID(),
-        customerId: source.customerId,
-        sourceId: source.id,
+    const streamRecords = pending
+      .filter((record) => record.proposals.length > 0)
+      .map((record) => ({
         recordId: recordByIdentity.get(`${record.recordType}\u0000${record.recordKey}`)!.id,
-        factType: proposal.factType,
-      })),
-    );
-    if (streamRows.length) {
+        factTypes: record.proposals.map((proposal) => proposal.factType),
+      }))
+      .sort((a, b) => exactCompare(a.recordId, b.recordId));
+    // Preserve record order and the caller's transaction while bounding each
+    // insert. A wide CSV can contribute 32,000 streams to a single preview.
+    const streamRecordBatchSize = 128;
+    for (let start = 0; start < streamRecords.length; start += streamRecordBatchSize) {
+      const batch = streamRecords.slice(start, start + streamRecordBatchSize);
       await tx.$executeRaw`
         INSERT INTO public."IngestionFactStream" (id,"customerId","sourceId","recordId","factType")
-        SELECT x.id,x."customerId",x."sourceId",x."recordId",x."factType"
-        FROM jsonb_to_recordset(${canonical(streamRows)}::jsonb) AS x(id uuid,"customerId" uuid,"sourceId" uuid,"recordId" uuid,"factType" text)
-        ORDER BY x."recordId",x."factType"
+        SELECT gen_random_uuid(),${source.customerId}::uuid,${source.id}::uuid,x."recordId",fact."factType"
+        FROM jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) AS x("recordId" uuid,"factTypes" text[])
+        CROSS JOIN LATERAL unnest(x."factTypes") AS fact("factType")
+        ORDER BY x."recordId",fact."factType"
         ON CONFLICT ("customerId","sourceId","recordId","factType") DO NOTHING`;
     }
 

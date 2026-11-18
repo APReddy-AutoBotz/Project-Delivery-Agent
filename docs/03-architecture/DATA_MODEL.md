@@ -345,6 +345,22 @@ validators remain independent of live plaintext, grants and time, so lawful
 redaction does not invalidate immutable command history. Restore validates every
 head/context and detects a missing head on an empty current CSV source.
 
+Migration 29 reduces work in the existing validators. A receipt with zero
+accepted outcomes carries forward the already validated predecessor rows.
+Receipts with accepted outcomes use the full overlay, including accepted
+identities with zero fields. The live guard also indexes the validated mapping
+dictionary once per context for its retained proposal type checks. Each receipt
+still persists and charges the complete context and passes the existing scope,
+lineage, binding, retention and completeness checks.
+
+The canonical codec checks each reference's type and length, then looks up
+its exact decimal index among the keys of the validated field dictionary.
+It compares each canonical index with its immediate predecessor at the same
+identity and checks the UUID grammar once per distinct projection string.
+The codec renders the two validated arrays directly into the existing canonical
+text format. The native guard and validator reuse the verified bytes and digest
+within a call when the predecessor rows are identical.
+
 The cohort is bounded at 1,000 identities, 32 fields and 100 projects; each
 canonical state is bounded at 2 MiB. A source retains at most 4,096 contexts and
 256 MiB of canonical state, with a 4 MiB union of required full content arrays.

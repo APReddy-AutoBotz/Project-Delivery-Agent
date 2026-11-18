@@ -22,7 +22,9 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   locator.pathname = "/" + name;
   const config = { host: locator.hostname, port: Number(locator.port), database: name,
     user: decodeURIComponent(locator.username), password: decodeURIComponent(locator.password), ssl: false };
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 28);
+  const migrations = readMigrations("packages/data/prisma/migrations");
+  assert.equal(migrations.length, 29);
+  assert.equal(migrations[28].name, "202611180001_csv_comparison_validation_cost");
   await migrateDatabase(config, migrations.slice(0, 24));
   const db = createDatabase(locator.toString());
   try {
@@ -104,8 +106,51 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
       await applyReleased27BusinessGrants(legacyGrantPool);
     } finally {await legacyGrantPool.end();}
     const released27 = await prepareCsvComparisonUpgrade(db,legacyIngestion,admin,projectId);
-    await migrateDatabase(config,migrations);
+    await migrateDatabase(config,migrations.slice(0,28));
     const csvComparisonUpgrade = await verifyCsvComparisonUpgrade(db,legacyIngestion,admin,projectId,released27);
+    const {sourceId:csvSourceId} = released27.cases.find((entry)=>entry.kind === "empty");
+    const csvScope = {customerId,sourceId:csvSourceId};
+    const csvHeadWhere = {customerId_sourceId:csvScope};
+    const csvHead = await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere});
+    assert.equal(csvHead.revision,1n);
+    const csvSource = await db.ingestionSource.findUniqueOrThrow({where:{id:csvSourceId}});
+    const emptyInput = {sourceId:csvSourceId,configRevision:csvSource.currentConfigRevision,
+      mappingRevision:csvSource.mappingRevision,commandKey:randomUUID(),fileName:"empty.csv",csv:"Key,Project,Forecast\n"};
+    const emptyPreview = await legacyIngestion.persistCsvPreview(admin,emptyInput,randomUUID());
+    assert.equal(emptyPreview.rowCount,0);
+    const readCsvContexts = () => db.ingestionCsvContext.findMany({where:csvScope,orderBy:{revision:"asc"}});
+    const savedContexts = await readCsvContexts();
+    assert.equal(savedContexts.length,2);
+    assert.equal(savedContexts[0].rows.length,1);
+    assert.deepEqual(savedContexts[1].rows,savedContexts[0].rows);
+    const savedHead = await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere});
+    const csvFunctionBoundary = () => db.$queryRaw`SELECT p.oid::text AS id,p.proowner::regrole::text AS owner,
+      p.prosecdef AS definer,p.provolatile::text AS volatility,p.proconfig AS settings,p.proacl::text AS acl
+      FROM pg_proc p WHERE p.oid IN ('public.valid_ingestion_csv_context(uuid)'::regprocedure,
+        'public.guard_ingestion_csv_context()'::regprocedure,
+        'public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb)'::regprocedure) ORDER BY p.oid`;
+    const savedBoundary = await csvFunctionBoundary();
+    assert.equal(savedBoundary.length,3);
+    const before29Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before29Ledger.length,28);
+    await migrateDatabase(config,migrations);
+    await migrateDatabase(config,migrations);
+    assert.deepEqual(await csvFunctionBoundary(),savedBoundary);
+    assert.deepEqual(await readCsvContexts(),savedContexts);
+    assert.deepEqual(await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere}),savedHead);
+    for (const {receiptId} of savedContexts) {
+      assert.deepEqual(await db.$queryRaw`SELECT public.valid_ingestion_csv_context(${receiptId}::uuid) AS valid`,[{valid:true}]);
+    }
+    assert.deepEqual(await legacyIngestion.persistCsvPreview(admin,emptyInput,randomUUID()),{...emptyPreview,replayed:true});
+    const carry = await legacyIngestion.persistCsvPreview(admin,{...emptyInput,commandKey:randomUUID()},randomUUID());
+    const carryContext = await db.ingestionCsvContext.findUniqueOrThrow({where:{receiptId:carry.receiptId}});
+    assert.equal(carryContext.predecessorReceiptId,emptyPreview.receiptId);
+    assert.equal(carryContext.stateHash,savedHead.stateHash);
+    assert.deepEqual(carryContext.rows,savedContexts[1].rows);
+    const advancedHead = await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere});
+    assert.equal(advancedHead.canonicalHistoryBytes,savedHead.canonicalHistoryBytes+BigInt(carryContext.canonicalBytes));
+    const csvValidationCostUpgrade = {priorMigrationCount:28,migrationCount:29,retainedPriorChecksums:28,
+      preservedPopulatedContexts:2,preservedHead:true,functionBoundaryPreserved:true,repeatAndReplayPassed:true,successorCharged:true};
     const grantPool = new Pool({ connectionString: locator.toString() });
     try {
       await grantPool.query(`DO $owners$ DECLARE item record; BEGIN
@@ -203,15 +248,18 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.equal(afterLedger[24].checksum, createHash("sha256").update(migrations[24].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0, 25), before26Ledger);
     assert.deepEqual(afterLedger.slice(0, 26), before27Ledger);
-    assert.equal(afterLedger.length, 28);
+    assert.equal(afterLedger.length, 29);
     assert.equal(afterLedger[25].checksum, createHash("sha256").update(migrations[25].sql).digest("hex"));
     assert.equal(afterLedger[26].checksum, createHash("sha256").update(migrations[26].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0,27),released27.ledger);
     assert.equal(afterLedger[27].checksum,createHash("sha256").update(migrations[27].sql).digest("hex"));
+    assert.deepEqual(afterLedger.slice(0,28),before29Ledger);
+    assert.equal(afterLedger[28].checksum,createHash("sha256").update(migrations[28].sql).digest("hex"));
     console.log("Populated released-24 upgrade retained all 24 checksums and its exact failure fence; a real available cause remained uncharged, then completed after only that fence was cleared.");
     return { priorMigrationCount: 24, databaseName: name, retainedLegacyFailureFence: true, scanBlockedByFence: true,
       availableCauseUncharged: true, positiveControlCompleted: true, retainedPriorChecksums: 24,
       retentionAuditUpgrade: { priorGuardRejected: true, priorMigrationCount: 26, migrationCount: 27,
-        originalAuditPreserved: true, freshRevisionRecorded: true, functionBoundaryPreserved: true },csvComparisonUpgrade };
+        originalAuditPreserved: true, freshRevisionRecorded: true, functionBoundaryPreserved: true },
+      csvComparisonUpgrade,csvValidationCostUpgrade };
   } finally { await db.$disconnect(); }
 }
