@@ -136,6 +136,9 @@ tests:
   - scripts/test-production.mjs
   - scripts/acceptance/customer-host.mjs
   - scripts/acceptance/customer.mjs
+  - tests/restore-session-check.test.ts
+  - tests/restore-session-check.integration.test.ts
+  - tests/restore-phase-flow.test.ts
   - deploy/customer/compose.yaml
   - .github/workflows/foundation-validation.yml
   - docs/05-quality/CUSTOMER_COMPOSITION_VALIDATION.md

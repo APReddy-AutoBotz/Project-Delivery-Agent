@@ -6,6 +6,7 @@ import {
   assertPostgres17,
   assertEmptyTarget,
   assertNoOtherSessions,
+  assertRestoreCommitQuiescence,
   identifier,
   type OperationsConfig,
 } from "./config.js";
@@ -229,7 +230,7 @@ async function restoreArchive(
         if (authorityIntegrity !== 0)
           throw new Error("Restored authority integrity failed");
         diagnostic.enter("sessions_before_commit");
-        await assertNoOtherSessions(client, (category, observation) => {
+        await assertRestoreCommitQuiescence(client, (category, observation) => {
           diagnostic.enter(({
             other_sessions: "sessions_before_commit_other_sessions",
             query_failed: "sessions_before_commit_query_failed",
