@@ -49,6 +49,15 @@ const stablePartHashes = new Map([
 const minimal = (): ArchivePart[] =>
   names.map((name) => ({ name, content: Buffer.from("<part/>") }));
 
+function growthHint(padding: number) {
+  const extra = Buffer.alloc(8 + padding);
+  extra.writeUInt16LE(0xa220);
+  extra.writeUInt16LE(4 + padding, 2);
+  extra.writeUInt16LE(0xa028, 4);
+  extra.writeUInt16LE(padding, 6);
+  return extra;
+}
+
 describe("FR-CON-006/007 offline XLSX archive admission", () => {
   it("returns the original bytes of every part in a real synthetic workbook", async () => {
     const parts = await readXlsxArchive(fixture);
@@ -97,6 +106,57 @@ describe("FR-CON-006/007 offline XLSX archive admission", () => {
       await expect(readXlsxArchive(archive)).rejects.toThrow(
         /^XLSX_ARCHIVE_REJECTED$/u,
       );
+    }
+  });
+
+  it("admits named Office growth hints only under the explicit Excel profile", async () => {
+    const parts = [
+      ...minimal(),
+      { name: "docProps/core.xml", content: Buffer.from("<properties/>") },
+    ];
+    parts[0]!.localExtra = growthHint(512);
+    parts[3]!.localExtra = growthHint(256);
+    const archive = writeTestArchive(parts, { deflate: true });
+    await expect(readXlsxArchive(archive)).rejects.toThrow(
+      /^XLSX_ARCHIVE_REJECTED$/u,
+    );
+    await expect(readXlsxArchive(archive, "excel-text-v1")).resolves.toEqual(
+      new Map(parts.map(({ name, content }) => [name, content])),
+    );
+  });
+
+  it.each([
+    ["field identifier", 0],
+    ["field length", 2],
+    ["signature", 4],
+    ["initial length", 6],
+    ["padding", 8],
+  ] as const)(
+    "rejects a corrupt Office growth hint %s",
+    async (_name, byte) => {
+      const parts = minimal();
+      const extra = growthHint(512);
+      extra[byte] = 0xff;
+      parts[0]!.localExtra = extra;
+      await expect(
+        readXlsxArchive(writeTestArchive(parts), "excel-text-v1"),
+      ).rejects.toThrow(/^XLSX_ARCHIVE_REJECTED$/u);
+    },
+  );
+
+  it("rejects unexpected Office growth hints and retains complete extent accounting", async () => {
+    const placements: [number, Buffer, Buffer?][] = [
+      [2, growthHint(512)],
+      [0, growthHint(256)],
+      [0, Buffer.concat([growthHint(512), growthHint(256)])],
+      [0, growthHint(512), Buffer.of(0)],
+    ];
+    for (const [index, localExtra, recordPadding] of placements) {
+      const parts = minimal();
+      Object.assign(parts[index]!, { localExtra, recordPadding });
+      await expect(
+        readXlsxArchive(writeTestArchive(parts), "excel-text-v1"),
+      ).rejects.toThrow(/^XLSX_ARCHIVE_REJECTED$/u);
     }
   });
 

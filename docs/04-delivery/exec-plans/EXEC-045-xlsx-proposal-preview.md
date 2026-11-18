@@ -119,6 +119,43 @@ authorization before processing and again under persistence locks.
 See the [SpreadsheetML structure](https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/structure-of-a-spreadsheetml-document)
 and [ECMA-376 OPC specification](https://ecma-international.org/publications-and-standards/standards/ecma-376/).
 
+### Explicit Excel text profile
+
+The separately selected offline `excel-text-v1` profile supports the observed
+Excel 16.0 text-only workbook variant. Local ZIP growth hints are allowed only
+on the five named package metadata parts, with the observed 256- or 512-byte
+zero-filled reservations and exact header, signature and length checks. The
+central directory, payload sizes, contiguous local extents, expansion and CRC
+checks still apply. See ECMA-376 Part 2 §7.3.8.
+
+The profile admits two closed package shapes for one visible worksheet and plain
+shared strings. The native shape carries ten parts, including the exact verified
+style and theme pair. The normalized text-only shape carries eight parts and
+omits both presentation parts, relationships and overrides. Partial or orphaned
+presentation data fails validation. Only the bounded metadata forms are admitted, including
+the local path hint in one namespace-resolved compatibility branch. The decoder
+discards document properties, revision data and path hints. The required sheet
+name, dimension and row spans agree with the actual grid. Every cell uses a
+plain shared string and a physical coordinate in the dense rectangle. The
+portable profile remains independently selectable and the parser never selects
+a profile by retrying a rejected workbook.
+
+Two locally saved Excel workbooks proved exact text, leading-zero identities and
+physical row order. A copy with synthetic project IDs produced two typed date
+proposals through the existing mapper. A first-party normalized XLSX fixture
+assembled in unit tests exercises the same decoder and mapper. It also checks
+closed package graphs, sheet and coordinate consistency, literal cell rules and
+presentation rejection. Native Office files and their metadata stay private.
+Native producer evidence comes from the separate pinned local run.
+
+This is a restricted offline producer profile. Other Excel presentation defaults,
+numeric cells, additional sheets, custom style forms and complex workbook
+features remain outside it. This increment adds no runtime dependencies,
+connector scope or migrations. Reverting the incremental offline reader
+commit restores the portable profile without data recovery. Deployment
+isolation, current authorization and durable workbook-specific receipt
+binding gate live use.
+
 An unregistered local slot model exercises admission around the synthetic frame
 codec. It reserves declared input bytes before pulling a queued stream, limits
 one local lease, checks an absolute monotonic deadline, correlates a response

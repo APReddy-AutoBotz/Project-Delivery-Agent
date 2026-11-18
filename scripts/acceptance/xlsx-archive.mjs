@@ -17,6 +17,13 @@ const utf8Flag = 0x0800;
 const deflateOptionFlags = 0x0006;
 const stored = 0;
 const deflated = 8;
+const excelGrowthPadding = new Map([
+  ["[Content_Types].xml", 512],
+  ["_rels/.rels", 512],
+  ["xl/_rels/workbook.xml.rels", 256],
+  ["docProps/core.xml", 256],
+  ["docProps/app.xml", 256],
+]);
 
 function requireArchive(condition) {
   if (!condition) throw new Error("XLSX_ARCHIVE_REJECTED");
@@ -93,16 +100,22 @@ function checkCentralEntry(bytes, cursor, end, entry) {
   return next;
 }
 
-async function readPartExtent(bytes, zip, entry, directoryStart) {
+async function readPartExtent(
+  bytes,
+  zip,
+  entry,
+  directoryStart,
+  growthPadding,
+) {
   const start = entry.relativeOffsetOfLocalHeader;
   requireArchive(start + localHeaderBytes <= directoryStart);
   const local = await zip.readLocalFileHeaderPromise(entry);
   const usesDescriptor = (entry.generalPurposeBitFlag & descriptorFlag) !== 0;
+  const extraStart = start + localHeaderBytes + entry.fileNameRaw.length;
   requireArchive(
-    local.fileDataStart ===
-      start + localHeaderBytes + entry.fileNameRaw.length &&
+    local.fileDataStart === extraStart + local.extraFieldLength &&
+      local.fileDataStart <= directoryStart &&
       local.fileName.equals(entry.fileNameRaw) &&
-      local.extraFieldLength === 0 &&
       local.compressionMethod === entry.compressionMethod &&
       local.versionNeededToExtract === entry.versionNeededToExtract &&
       local.generalPurposeBitFlag === entry.generalPurposeBitFlag &&
@@ -112,6 +125,21 @@ async function readPartExtent(bytes, zip, entry, directoryStart) {
       local.compressedSize === (usesDescriptor ? 0 : entry.compressedSize) &&
       local.uncompressedSize === (usesDescriptor ? 0 : entry.uncompressedSize),
   );
+  if (local.extraFieldLength !== 0) {
+    // ECMA-376 Part 2 §7.3.8. This profile accepts the unchanged local
+    // reservation emitted by the observed Excel producer on named parts.
+    requireArchive(
+      growthPadding !== undefined &&
+        local.extraFieldLength === 8 + growthPadding &&
+        bytes.readUInt16LE(extraStart) === 0xa220 &&
+        bytes.readUInt16LE(extraStart + 2) === 4 + growthPadding &&
+        bytes.readUInt16LE(extraStart + 4) === 0xa028 &&
+        bytes.readUInt16LE(extraStart + 6) === growthPadding &&
+        bytes
+          .subarray(extraStart + 8, local.fileDataStart)
+          .every((byte) => byte === 0),
+    );
+  }
   const dataEnd = local.fileDataStart + entry.compressedSize;
   const end = dataEnd + (usesDescriptor ? descriptorBytes : 0);
   requireArchive(end <= directoryStart);
@@ -150,10 +178,11 @@ function inflatePart(compressed, uncompressedSize) {
 
 // Offline archive admission for FR-CON-006/007. Callers supply an owned Buffer
 // in a trusted process. This does not inspect XML or authorize an import.
-export async function readXlsxArchive(input) {
+export async function readXlsxArchive(input, profile = "portable") {
   try {
     requireArchive(
-      Buffer.isBuffer(input) &&
+      (profile === "portable" || profile === "excel-text-v1") &&
+        Buffer.isBuffer(input) &&
         !types.isSharedArrayBuffer(input.buffer) &&
         input.length >= endRecordBytes &&
         input.length <= maxArchiveBytes,
@@ -183,6 +212,9 @@ export async function readXlsxArchive(input) {
           zip,
           entry,
           directory.directoryStart,
+          profile === "excel-text-v1"
+            ? excelGrowthPadding.get(name)
+            : undefined,
         );
         records.set(name, { entry, extent });
       }

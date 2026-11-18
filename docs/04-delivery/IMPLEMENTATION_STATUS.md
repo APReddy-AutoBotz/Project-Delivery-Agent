@@ -58,12 +58,16 @@ remained connected; rollback and CONNECT quarantine held. The separately
 reviewed unchanged failed-job rerun passed on attempt 2, together with
 Documentation `43821345814`. The original failure evidence is retained.
 
-The [next spreadsheet increment](exec-plans/EXEC-045-xlsx-proposal-preview.md)
-adds an offline archive and literal-text worksheet decoder. Live XLSX
-processing still requires deployment isolation, supported workbook producer
-evidence, and format-specific authorization and receipt binding. Imports
-save reviewed proposals. Issue #7 and the five customer-release holds remain
-open. OD-013/014 apply, and Original19/20 capture remains stopped.
+[PR #171](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/171)
+merged the offline XLSX archive and literal-text worksheet decoder as
+`1e1b7c5a1c7491f4c73de479bb67666c3369e5fa`. Its candidate and actual main
+Documentation and Foundation checks passed. The
+[current spreadsheet increment](exec-plans/EXEC-045-xlsx-proposal-preview.md)
+adds an explicit offline Excel-text profile. Live XLSX processing requires
+deployment isolation, current authorization and workbook-specific receipt
+binding. Imports save reviewed proposals. Issue #7 and the five
+customer-release holds remain open. OD-013/014 apply, and Original19/20
+capture remains stopped.
 
 Read-only matched milestone reconciliation request observation merged in
 [PR #141](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/141)
