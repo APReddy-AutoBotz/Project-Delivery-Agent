@@ -719,6 +719,51 @@ function wideCsv(projectId:string,count:number,value:(row:number,field:number)=>
     ["K"+row,projectId,...wideFields.map((_,field)=>value(row,field))].join(","))].join("\n");
 }
 
+it("keeps the native CSV codec exact for ordered field pairs and malformed references",async()=>{
+  const f=await fixture(1,wideFields);
+  const dictionary=wideFields.map(({factType,type})=>[factType,type]);
+  const dictionaryJson=JSON.stringify(dictionary);
+  const project=f.projects[0]!;
+  const firstRecord=randomUUID(),secondRecord=randomUUID(),shared=randomUUID(),distinct=randomUUID();
+  const firstKey="0".repeat(64),secondKey="1".repeat(64);
+
+  await f.asApi(async(tx)=>{
+    const [pairs]=await tx.$queryRaw<{mismatches:number}[]>`
+      SELECT count(*) FILTER (WHERE (
+        public.ingestion_csv_state_text(${f.customerId}::uuid,${f.sourceId}::uuid,1,${dictionaryJson}::jsonb,
+          jsonb_build_array(jsonb_build_array(${firstKey}::text,${firstRecord}::text,${project}::text,
+            jsonb_build_array(jsonb_build_array(a::text,${shared}::text),jsonb_build_array(b::text,${shared}::text)))))
+        IS NOT NULL) IS DISTINCT FROM (a<b))::integer AS mismatches
+      FROM generate_series(0,31) first_index(a) CROSS JOIN generate_series(0,31) second_index(b)`;
+    expect(pairs?.mismatches).toBe(0);
+
+    const encode=async (rows:unknown[])=>{
+      const [encoded]=await tx.$queryRaw<{value:string|null}[]>`SELECT public.ingestion_csv_state_text(
+        ${f.customerId}::uuid,${f.sourceId}::uuid,1,${dictionaryJson}::jsonb,${JSON.stringify(rows)}::jsonb) AS value`;
+      return encoded?.value;
+    };
+    const valid=[
+      [[firstKey,firstRecord,project,[["9",shared],["10",shared],["31",distinct]]]],
+      [[firstKey,firstRecord,project,[["31",shared]]],[secondKey,secondRecord,project,[["0",distinct]]]],
+      [[firstKey,firstRecord,project,[]],[secondKey,secondRecord,project,[["31",shared]]]],
+    ];
+    for (const rows of valid) {
+      const expected=serializeCsvComparisonState(["pdaa.csv.state.v1",f.customerId,f.sourceId,"1",dictionary,rows]);
+      expect(await encode(rows)).toBe(expected.text);
+    }
+
+    const malformedReferences:unknown[][]=[
+      [null], [{}], [["0"]], [["0",shared,"extra"]],
+      Array.from({length:33},(_,index)=>[String(index),shared]),
+      ...["01","-1"," 1","1.5",1,null].map((index)=>[["0",shared],[index,shared],["31",shared]]),
+      ...[null,7,true,{},[],"q"+shared.slice(1)].map((projectionId)=>[["0",shared],["1",projectionId]]),
+    ];
+    for (const refs of malformedReferences) {
+      expect(await encode([[firstKey,firstRecord,project,refs]])).toBeNull();
+    }
+  },{timeout:20000});
+});
+
 it("preserves validated rows and charges history for CSV receipts with no accepted outcomes",async()=>{
   const f=await fixture(1,wideFields);
   const project=f.projects[0]!;

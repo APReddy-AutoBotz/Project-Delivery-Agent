@@ -1224,3 +1224,18 @@ The existing capacity fixture, deadline, scope, locks and recovery gates apply.
 The candidate requires exact source approval and fresh hosted native capacity,
 clean/repeat migration, populated upgrade, packaged acceptance and encrypted
 recovery evidence before merge.
+
+The [first hosted candidate](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44221862089/job/134525420097)
+reached 144 of 166 contexts at the unchanged 420,000 ms deadline. The other
+388 integration tests passed and one was skipped. A separate Windows native
+experiment on that candidate profiled the canonical codec and reached 142
+contexts, compared with 100 for the initial migration 29 body. Both local
+runs timed out. The revised unreleased migration 29 also checks the UUID
+grammar once per distinct projection string. It checks presence, type,
+length and index for every reference. Canonical numeric indexes sort exactly
+by length and C lexical order, so each reference can compare directly to its
+immediate previous position. Malformed references still fail their own
+checks, including when a comparison alone yields unknown. The exact native
+controls exhaust all 1,024 pairs of canonical indexes and cover sparse and
+multi-identity layouts, malformed tuples, indexes and projection IDs.
+The revised candidate needs fresh exact review and hosted validation.

@@ -127,9 +127,10 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     const csvFunctionBoundary = () => db.$queryRaw`SELECT p.oid::text AS id,p.proowner::regrole::text AS owner,
       p.prosecdef AS definer,p.provolatile::text AS volatility,p.proconfig AS settings,p.proacl::text AS acl
       FROM pg_proc p WHERE p.oid IN ('public.valid_ingestion_csv_context(uuid)'::regprocedure,
-        'public.guard_ingestion_csv_context()'::regprocedure) ORDER BY p.oid`;
+        'public.guard_ingestion_csv_context()'::regprocedure,
+        'public.ingestion_csv_state_text(uuid,uuid,integer,jsonb,jsonb)'::regprocedure) ORDER BY p.oid`;
     const savedBoundary = await csvFunctionBoundary();
-    assert.equal(savedBoundary.length,2);
+    assert.equal(savedBoundary.length,3);
     const before29Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
     assert.equal(before29Ledger.length,28);
     await migrateDatabase(config,migrations);
