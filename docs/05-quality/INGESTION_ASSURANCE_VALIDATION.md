@@ -315,3 +315,7 @@ This stage proves baseline-free CREATE proposals. The trusted server-derived
 baseline for UPDATE/renamed-key behavior, source fact publication and whole
 STORY-009 acceptance remain pending. The approved CSV alternative does not
 require XLSX.
+
+PR #168 subsequently verified the trusted CSV baseline and the connected
+rename and move controls. See the [STORY-009 acceptance record](CSV_REVIEWED_IMPORT_ACCEPTANCE.md)
+for the complete CSV scope and its review and merge gates.
