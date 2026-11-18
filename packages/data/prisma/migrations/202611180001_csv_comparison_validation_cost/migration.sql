@@ -74,27 +74,23 @@ BEGIN
         AND e."recordType" COLLATE "C"=('spreadsheet:'||(mapping_value->>'sheet')) COLLATE "C"
     )
   ) THEN RETURN false; END IF;
+  -- Validate each projection binding once with all fields it must supply.
   IF EXISTS (
-    WITH refs AS MATERIALIZED (
+    WITH required_pairs AS MATERIALIZED (
       SELECT (identity_row->>1)::uuid AS record_id,(field_ref->>1)::uuid AS projection_id,
-        (h.dictionary->((field_ref->>0)::integer)->>0) COLLATE "C" AS field_name
+        array_agg((h.dictionary->((field_ref->>0)::integer)->>0) COLLATE "C") AS field_names
       FROM jsonb_array_elements(c.rows) identity_row
       CROSS JOIN LATERAL jsonb_array_elements(identity_row->3) field_ref
-    ), required_pairs AS MATERIALIZED (
-      SELECT DISTINCT record_id,projection_id FROM refs
-    ), bindings AS MATERIALIZED (
-      SELECT required.record_id,required.projection_id,p."factTypes" AS fact_types,
-        (p.id IS NOT NULL AND content."projectionId" IS NOT NULL) AS valid
-      FROM required_pairs required
-      LEFT JOIN public."IngestionProposalProjection" p ON p.id=required.projection_id
-        AND p."customerId"=c."customerId" AND p."sourceId"=c."sourceId"
-        AND p."recordId"=required.record_id AND p."mappingRevision"=c."mappingRevision"
-      LEFT JOIN public."IngestionProposalContent" content ON content."customerId"=p."customerId" AND content."sourceId"=p."sourceId"
-        AND content."recordId"=p."recordId" AND content."projectionId"=p.id
+      GROUP BY 1,2
     )
-    SELECT 1 FROM refs ref LEFT JOIN bindings binding
-      ON binding.record_id=ref.record_id AND binding.projection_id=ref.projection_id
-    WHERE binding.valid IS NOT TRUE OR (ref.field_name COLLATE "C"=ANY(binding.fact_types)) IS NOT TRUE
+    SELECT 1 FROM required_pairs required
+    LEFT JOIN public."IngestionProposalProjection" p ON p.id=required.projection_id
+      AND p."customerId"=c."customerId" AND p."sourceId"=c."sourceId"
+      AND p."recordId"=required.record_id AND p."mappingRevision"=c."mappingRevision"
+    LEFT JOIN public."IngestionProposalContent" content ON content."customerId"=p."customerId" AND content."sourceId"=p."sourceId"
+      AND content."recordId"=p."recordId" AND content."projectionId"=p.id
+    WHERE p.id IS NULL OR content."projectionId" IS NULL
+      OR (required.field_names COLLATE "C" <@ p."factTypes" COLLATE "C") IS NOT TRUE
   ) THEN RETURN false; END IF;
   IF EXISTS (SELECT 1 FROM public."IngestionRowOutcome" o WHERE o."receiptId"=r.id
     AND ROW(o."customerId",o."sourceId") IS DISTINCT FROM ROW(c."customerId",c."sourceId")) THEN RETURN false; END IF;

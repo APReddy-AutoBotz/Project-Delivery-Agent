@@ -1238,4 +1238,12 @@ immediate previous position. Malformed references still fail their own
 checks, including when a comparison alone yields unknown. The exact native
 controls exhaust all 1,024 pairs of canonical indexes and cover sparse and
 multi-identity layouts, malformed tuples, indexes and projection IDs.
+
+A full native run also exposed a nested loop in the initial 1,000-row by
+32-field preview. The planner rescanned 1,000 materialized bindings for each
+of 32,000 field references. The updated validator collects the required
+field names per typed record/projection pair before joining its scoped
+projection and retained content. C-collated array containment checks every
+required name and still denies a missing binding, content row or field.
+The change leaves the client query limit and capacity fixture unchanged.
 The revised candidate needs fresh exact review and hosted validation.
