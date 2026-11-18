@@ -542,6 +542,20 @@ it.each(["missing-context","backdated-missing-context","head-only","orphan-conte
     expect(await f.graph()).toEqual(before);
   });
 
+it("rejects a self-consistently hashed forged overlay with no accepted outcomes",async()=>{
+  const f=await fixture();
+  await f.preview([["A","2027-01-01","start"]]);
+  const empty=await f.preview([]);
+  expect(empty.read.outcomes).toEqual([]);
+  const valid=await nativeTransition(f,empty.result.receiptId,"valid");
+  expect((await f.api.readReceipt(f.actor,{sourceId:f.sourceId,receiptId:valid})).outcomes).toEqual([]);
+  const before=await f.graph();
+  await expect(nativeTransition(f,empty.result.receiptId,"missing-identity")).rejects.toMatchObject({
+    meta:{driverAdapterError:{cause:{originalCode:"P0001",originalMessage:"Invalid CSV comparison context"}}},
+  });
+  expect(await f.graph()).toEqual(before);
+});
+
 it("allows a real native same-state successor and retains older-context validity",async()=>{
   const f=await fixture(),first=await f.preview([["A","2027-01-01","start"]]);
   const receiptId=await nativeTransition(f,first.result.receiptId,"valid");

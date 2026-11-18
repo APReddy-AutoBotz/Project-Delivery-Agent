@@ -1195,3 +1195,32 @@ Review confirmed the proposal workflow leaves canonical facts untouched.
 and [post-merge Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44194349534)
 passed on the actual merge on their first attempts. The distribution review
 still has five open holds. No additional story credit follows from this increment.
+
+## Migration 29 capacity and validation
+
+The [main native check](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44213670338/job/134498024752)
+reached 141 of 166 committed contexts before the existing seven-minute fixture
+deadline. The packaged boundary and recovery job passed. Local PostgreSQL 17.11
+profiling attributed most SQL time to encoding the canonical state, validating
+stored contexts and checking retained proposals.
+
+Migration 29 replaces the two existing context functions in place. Both
+overlay statements use the validated predecessor directly when the receipt has
+zero stored accepted outcomes. Strict canonical ordering, unique identities,
+canonical UUIDs and ordered field indexes make the predecessor the exact
+result of expanding and reassembling it in this case. Any accepted outcome,
+including a zero-field identity, uses the original overlay. The existence check
+and overlay share a single SQL statement snapshot. The guard indexes the
+validated unique ASCII field names once per context. Each stored proposal then
+has the same type or missing-key result as the original C-collated lookup.
+
+Native tests cover exact empty and invalid-only carry, accepted zero-field
+identities, history byte charging, expired and purged content, corrupted
+projection membership and a forged zero-accepted overlay with matching
+replacement hash and bytes. The upgrade fixture first populates migration 28
+and then asserts the complete prior ledger, unchanged data and function
+boundaries, exact replay and correct successor charging after migration 29.
+The existing capacity fixture, deadline, scope, locks and recovery gates apply.
+The candidate requires exact source approval and fresh hosted native capacity,
+clean/repeat migration, populated upgrade, packaged acceptance and encrypted
+recovery evidence before merge.
