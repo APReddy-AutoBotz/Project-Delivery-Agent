@@ -546,7 +546,8 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 28);
+    assert.equal(upgrade.migrations.length, 29);
+    assert.equal(upgrade.migrations[28].name, "202611180001_csv_comparison_validation_cost");
     assert.equal(upgrade.migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(upgrade.migrations[20].name, "202609290002_project_update_cadence");
     assert.equal(upgrade.migrations[21].name, "202609300001_update_engagement_storage");

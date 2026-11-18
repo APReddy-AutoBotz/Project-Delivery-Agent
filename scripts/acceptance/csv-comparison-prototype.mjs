@@ -110,8 +110,8 @@ function assertReleasedSnapshot(before) {
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort();
-  assert.equal(names.length, 28);
-  assert.equal(before.ledger.length, 28);
+  assert.equal(names.length, 29);
+  assert.equal(before.ledger.length, 29);
   for (const [i, name] of names.entries()) {
     assert.match(name, /^[0-9]{12}(?:[0-9]{2})?_[a-z0-9_]+$/);
     const row = before.ledger[i];
@@ -323,7 +323,7 @@ export async function verifyCsvComparisonPrototype(
       publicWorkerBackupExecuteDenied: true,
       actualApiRolePositive: true,
       privateApiGuardDenials: privateCsvFunctions.length,
-      migrations: 28,
+      migrations: 29,
       businessTables: 87,
     };
   } catch (error) {

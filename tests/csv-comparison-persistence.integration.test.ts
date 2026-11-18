@@ -309,6 +309,7 @@ it("keeps metadata replay after expiry and lawful purge, while refusing fresh co
   const before=await f.graph();
   expect(await f.api.persistCsvPreview(f.actor,first.command,randomUUID())).toEqual({...first.result,replayed:true});
   await expect(f.preview([["A","2027-01-02","next"]])).rejects.toMatchObject({code:"INVALID_PREVIEW"});
+  await expect(f.preview([])).rejects.toMatchObject({code:"INVALID_PREVIEW"});
   await expect(f.api.commitCsvReviewedImport(f.actor,{sourceId:f.sourceId,previewReceiptId:first.result.receiptId,rowOrdinals:[1],commandKey:randomUUID()},randomUUID()))
     .rejects.toMatchObject({code:"INVALID_PREVIEW"});
   expect(await f.graph()).toEqual(before);
@@ -318,6 +319,7 @@ it("keeps metadata replay after expiry and lawful purge, while refusing fresh co
   expect(await f.api.persistCsvPreview(f.actor,first.command,randomUUID())).toEqual({...first.result,replayed:true});
   expect((await f.api.readReceipt(f.actor,{sourceId:f.sourceId,receiptId:first.result.receiptId})).outcomes[0]).toMatchObject({contentAvailable:false,proposals:null});
   await expect(f.preview([["A","2027-01-01","start"]])).rejects.toMatchObject({code:"INVALID_PREVIEW"});
+  await expect(f.preview([])).rejects.toMatchObject({code:"INVALID_PREVIEW"});
   expect(await f.graph()).toEqual(purged);
 });
 
@@ -629,6 +631,8 @@ it("checks every field membership when multiple references share one metadata pr
   expect(rows[0]![3][1]![1]).toBe(projectionId);
   const observation=await owner.ingestionRowOutcome.findFirstOrThrow({where:{receiptId:carried.result.receiptId}});
   expect(observation.projectionId).not.toBe(projectionId);
+  const empty=await f.preview([]);
+  expect(empty.read.outcomes).toEqual([]);
   const before=await f.graph();
   await expect(owner.$transaction(async(tx)=>{
     expect(await tx.$queryRaw`SELECT public.valid_ingestion_csv_context(${carried.result.receiptId}::uuid) AS valid`).toEqual([{valid:true}]);
@@ -640,6 +644,7 @@ it("checks every field membership when multiple references share one metadata pr
     // projection's factTypes cannot change this context's expected overlay.
     expect(await tx.$queryRaw`SELECT public.valid_ingestion_receipt(${carried.result.receiptId}::uuid) AS cheap,
       public.valid_ingestion_csv_context(${carried.result.receiptId}::uuid) AS full`).toEqual([{cheap:true,full:false}]);
+    expect(await tx.$queryRaw`SELECT public.valid_ingestion_csv_context(${empty.result.receiptId}::uuid) AS valid`).toEqual([{valid:false}]);
     throw new Error("ROLLED_BACK_SHARED_PROJECTION_MEMBERSHIP");
   },{timeout:20000})).rejects.toThrow("ROLLED_BACK_SHARED_PROJECTION_MEMBERSHIP");
   expect(await f.graph()).toEqual(before);
@@ -699,6 +704,52 @@ function wideCsv(projectId:string,count:number,value:(row:number,field:number)=>
   return ["Key,Project,"+wideFields.map((field)=>field.column).join(","),...Array.from({length:count},(_,row)=>
     ["K"+row,projectId,...wideFields.map((_,field)=>value(row,field))].join(","))].join("\n");
 }
+
+it("preserves validated rows and charges history for CSV receipts with no accepted outcomes",async()=>{
+  const f=await fixture(1,wideFields);
+  const project=f.projects[0]!;
+  const persist=async(csv:string)=>{
+    const result=await f.api.persistCsvPreview(f.actor,{...f.input([]),csv},randomUUID());
+    const context=await owner.ingestionCsvContext.findUniqueOrThrow({where:{receiptId:result.receiptId}});
+    const receipt=await f.api.readReceipt(f.actor,{sourceId:f.sourceId,receiptId:result.receiptId});
+    expect(await f.asApi((tx)=>tx.$queryRaw`SELECT public.valid_ingestion_csv_context(${result.receiptId}::uuid) AS valid`))
+      .toEqual([{valid:true}]);
+    return {context,outcomes:receipt.outcomes};
+  };
+  const empty=wideCsv(project,0,()=>"");
+  const invalid=wideCsv("invalid-project",1,()=>"value");
+  const first=await persist(empty);
+  expect(first.outcomes).toEqual([]);
+  expect(first.context.rows).toEqual([]);
+  const invalidFirst=await persist(invalid);
+  expect(invalidFirst.outcomes).toMatchObject([{state:"INVALID",operation:"NONE"}]);
+  expect(invalidFirst.context.rows).toEqual(first.context.rows);
+
+  const zeroField=await persist(wideCsv(project,1,()=>""));
+  expect(zeroField.outcomes).toMatchObject([{state:"ACCEPTED",operation:"NONE"}]);
+  expect(zeroField.context.rows).toEqual([[expect.any(String),expect.any(String),project,[]]]);
+  const populated=await persist(wideCsv(project,2,(row)=>row===1 ? "value" : ""));
+  expect(populated.outcomes).toMatchObject([{state:"ACCEPTED",operation:"UNCHANGED"},{state:"ACCEPTED",operation:"CREATE"}]);
+  const rows=populated.context.rows as [string,string,string,[string,string][]][];
+  expect(rows.map((row)=>row[3].length).sort((a,b)=>a-b)).toEqual([0,32]);
+  expect(rows.find((row)=>row[3].length===32)![3].map(([index])=>index))
+    .toEqual(wideFields.map((_,index)=>String(index)));
+
+  const invalidCarry=await persist(invalid);
+  const emptyCarry=await persist(empty);
+  expect(invalidCarry.outcomes).toMatchObject([{state:"INVALID",operation:"NONE"}]);
+  expect(emptyCarry.outcomes).toEqual([]);
+  for (const [previous,next] of [[first,invalidFirst],[populated,invalidCarry],[invalidCarry,emptyCarry]] as const) {
+    expect(next.context).toMatchObject({revision:previous.context.revision+1n,
+      predecessorReceiptId:previous.context.receiptId,predecessorHash:previous.context.stateHash,
+      rows:previous.context.rows,stateHash:previous.context.stateHash,canonicalBytes:previous.context.canonicalBytes});
+  }
+  const head=await owner.ingestionCsvHead.findUniqueOrThrow({where:{customerId_sourceId:{customerId:f.customerId,sourceId:f.sourceId}}});
+  expect(head.currentReceiptId).toBe(emptyCarry.context.receiptId);
+  expect(head.canonicalHistoryBytes).toBe([first,invalidFirst,zeroField,populated,invalidCarry,emptyCarry]
+    .reduce((total,{context})=>total+BigInt(context.canonicalBytes),0n));
+});
+
 it("persists a reachable 1000-row/32-field state and genuinely exhausts the canonical-history byte budget",async({signal,onTestFailed,onTestFinished})=>{
   let stage = "INITIAL_PREVIEW";
   let committed = 0;
