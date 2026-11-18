@@ -54,7 +54,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
   const url = new URL(sourceUrl);
   assert(["127.0.0.1", "localhost"].includes(url.hostname)); assert.equal(url.pathname, "/postgres");
   const creator = new Pool({ connectionString: url.toString() });
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 28);
+  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 29);
   try {
     assert.deepEqual((await creator.query("SELECT datname FROM pg_database ORDER BY datname")).rows.map((row) => row.datname), ["postgres", "template0", "template1"]);
     assert.deepEqual(await currentRoles(creator), []);
@@ -107,7 +107,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
       } finally { await pool.end(); }
     }
     return { rolesAbsentBeforeAnyBootstrap: true, rolelessDatabase: first, partialRoleDatabase: second,
-      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 28, businessTables: 87,
+      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 29, businessTables: 87,
       publicPrivilegesDenied: true, finiteAclAfterLaterBootstrap: true, retainedDatabases: true };
   } finally { await creator.end(); }
 }

@@ -1195,3 +1195,55 @@ Review confirmed the proposal workflow leaves canonical facts untouched.
 and [post-merge Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44194349534)
 passed on the actual merge on their first attempts. The distribution review
 still has five open holds. No additional story credit follows from this increment.
+
+## Migration 29 capacity and validation
+
+The [main native check](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44213670338/job/134498024752)
+reached 141 of 166 committed contexts before the existing seven-minute fixture
+deadline. The packaged boundary and recovery job passed. Local PostgreSQL 17.11
+profiling attributed most SQL time to encoding the canonical state, validating
+stored contexts and checking retained proposals.
+
+Migration 29 replaces the two existing context functions in place. Both
+overlay statements use the validated predecessor directly when the receipt has
+zero stored accepted outcomes. Strict canonical ordering, unique identities,
+canonical UUIDs and ordered field indexes make the predecessor the exact
+result of expanding and reassembling it in this case. Any accepted outcome,
+including a zero-field identity, uses the original overlay. The existence check
+and overlay share a single SQL statement snapshot. The guard indexes the
+validated unique ASCII field names once per context. Each stored proposal then
+has the same type or missing-key result as the original C-collated lookup.
+
+Native tests cover exact empty and invalid-only carry, accepted zero-field
+identities, history byte charging, expired and purged content, corrupted
+projection membership and a forged zero-accepted overlay with matching
+replacement hash and bytes. The upgrade fixture first populates migration 28
+and then asserts the complete prior ledger, unchanged data and function
+boundaries, exact replay and correct successor charging after migration 29.
+The existing capacity fixture, deadline, scope, locks and recovery gates apply.
+The candidate requires exact source approval and fresh hosted native capacity,
+clean/repeat migration, populated upgrade, packaged acceptance and encrypted
+recovery evidence before merge.
+
+The [first hosted candidate](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44221862089/job/134525420097)
+reached 144 of 166 contexts at the unchanged 420,000 ms deadline. The other
+388 integration tests passed and one was skipped. A separate Windows native
+experiment on that candidate profiled the canonical codec and reached 142
+contexts, compared with 100 for the initial migration 29 body. Both local
+runs timed out. The revised unreleased migration 29 also checks the UUID
+grammar once per distinct projection string. It checks presence, type,
+length and index for every reference. Canonical numeric indexes sort exactly
+by length and C lexical order, so each reference can compare directly to its
+immediate previous position. Malformed references still fail their own
+checks, including when a comparison alone yields unknown. The exact native
+controls exhaust all 1,024 pairs of canonical indexes and cover sparse and
+multi-identity layouts, malformed tuples, indexes and projection IDs.
+
+A full native run also exposed a nested loop in the initial 1,000-row by
+32-field preview. The planner rescanned 1,000 materialized bindings for each
+of 32,000 field references. The updated validator collects the required
+field names per typed record/projection pair before joining its scoped
+projection and retained content. C-collated array containment checks every
+required name and still denies a missing binding, content row or field.
+The change leaves the client query limit and capacity fixture unchanged.
+The revised candidate needs fresh exact review and hosted validation.

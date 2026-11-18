@@ -71,4 +71,4 @@ writeFileSync(resolve(root, "artifacts", "ingestion-role-bootstrap.json"), JSON.
   status: "passed", checkedAt: new Date().toISOString(), image,
   ...checks, isolatedClusterDisposed: true,
 }, null, 2) + "\n");
-console.log("Role-absent and partial-role clean/repeat migrations passed: 28 migrations, exact 87 tables, finite ACLs; owned cluster disposed.");
+console.log("Role-absent and partial-role clean/repeat migrations passed: 29 migrations, exact 87 tables, finite ACLs; owned cluster disposed.");
