@@ -4,7 +4,7 @@ import { restoreFailureDetails, restoreFailurePhase } from "../scripts/acceptanc
 
 // Failure-control tests only: no real database, archive or filesystem target.
 const f = vi.hoisted(() => {
-  const state = { fault: "", cleanupFault: "", sessionChecks: 0 };
+  const state = { fault: "", cleanupFault: "", sessionChecks: 0, finalGateCallAt: -1 };
   const fail = (phase: string) => {
     if (state.fault === phase || state.cleanupFault === phase)
       throw new Error("Private error details must not be logged");
@@ -36,8 +36,10 @@ vi.mock("../packages/operations/src/config.js", () => ({
   connect: async () => f.client,
   assertPostgres17: async () => {},
   assertEmptyTarget: async () => {},
-  assertNoOtherSessions: async (_client: unknown, report?: (category: string, observation?: unknown) => void) => {
+  assertNoOtherSessions: async () => { f.state.sessionChecks++; },
+  assertRestoreCommitQuiescence: async (_client: unknown, report: (category: string, observation?: unknown) => void) => {
     f.state.sessionChecks++;
+    f.state.finalGateCallAt = f.client.query.mock.calls.length;
     if (f.state.sessionChecks !== 3) return;
     const categories: Record<string, string> = {
       sessions_before_commit_other_sessions: "other_sessions",
@@ -46,7 +48,7 @@ vi.mock("../packages/operations/src/config.js", () => ({
     };
     const category = categories[f.state.fault];
     if (category) {
-      report?.(category, category === "other_sessions" ? { count: "one", client: "yes", nonclient: "no", null_type: "no" } : undefined);
+      report(category, category === "other_sessions" ? { count: "one", client: "yes", nonclient: "no", null_type: "no" } : undefined);
       throw new Error("Private session-check error");
     }
   },
@@ -137,8 +139,31 @@ it.each([
         expect(restoreFailureDetails(Buffer.from(line))).toEqual({ phase: fault, sessions: { count: "one", client: "yes", nonclient: "no", null_type: "no" } });
       if (["ownership", "grants", "integrity", "commit"].includes(fault) || fault.startsWith("sessions_before_commit_"))
         expect(f.client.query).toHaveBeenCalledWith("ROLLBACK");
+      if (fault.startsWith("sessions_before_commit_"))
+        expect(f.client.query).not.toHaveBeenCalledWith("COMMIT");
     } finally {
       output.mockRestore();
     }
   },
 );
+
+it("DEP-002: a successful final session gate is followed directly by commit and quarantine verification", async () => {
+  f.state.fault = "";
+  f.state.cleanupFault = "";
+  f.state.sessionChecks = 0;
+  f.state.finalGateCallAt = -1;
+  f.client.query.mockClear();
+  await expect(restore(
+    {
+      customerId: "synthetic",
+      database: { database: "synthetic_target", host: "same", port: 5432 },
+    } as never,
+    [],
+    "synthetic",
+    "archive.pdaa",
+    Buffer.alloc(32),
+  )).resolves.toMatchObject({ quarantine: true, applicationStarted: false });
+  expect(f.state.sessionChecks).toBe(3);
+  expect(f.client.query.mock.calls[f.state.finalGateCallAt]).toEqual(["COMMIT"]);
+  expect(f.client.query).not.toHaveBeenCalledWith("ROLLBACK");
+});

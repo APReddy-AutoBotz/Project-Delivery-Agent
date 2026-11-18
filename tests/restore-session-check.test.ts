@@ -1,5 +1,8 @@
 import { expect, it, vi } from "vitest";
-import { assertNoOtherSessions } from "../packages/operations/src/config.js";
+import {
+  assertNoOtherSessions,
+  assertRestoreCommitQuiescence,
+} from "../packages/operations/src/config.js";
 
 it("DEP-002: the session gate accepts only zero and reports no success diagnostic", async () => {
   const client = { query: vi.fn(async (_query: string) => ({ rows: [{ n: 0 }] })) }, report = vi.fn();
@@ -94,4 +97,159 @@ it("SEC-SECRET-001: query and diagnostic failures retain the original error with
   await expect(assertNoOtherSessions(client as never, report)).rejects.toBe(privateError);
   expect(report).toHaveBeenCalledExactlyOnceWith("query_failed");
   expect(JSON.stringify(report.mock.calls)).not.toContain("private");
+});
+
+const clearActivity = "SELECT pg_catalog.pg_stat_clear_snapshot()";
+const maintenance = {
+  n: 1,
+  client: false,
+  nonclient: true,
+  null_type: false,
+  backend_kind: "autovacuum_worker",
+};
+const otherClient = {
+  n: 1,
+  client: true,
+  nonclient: false,
+  null_type: false,
+  backend_kind: "unknown",
+};
+
+function commitGateClient(...probes: (object | Error)[]) {
+  return {
+    query: vi.fn(async (sql: string) => {
+      if (sql === clearActivity) return {};
+      expect(sql).toContain(
+        "FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()",
+      );
+      const probe = probes.shift();
+      if (probe instanceof Error) throw probe;
+      return { rows: [probe] };
+    }),
+  };
+}
+
+it("DEP-002: commit observes fresh zero once when the database is already clear", async () => {
+  const client = commitGateClient({ n: 0 });
+  const report = vi.fn();
+  await assertRestoreCommitQuiescence(client as never, report);
+  expect(client.query).toHaveBeenCalledTimes(2);
+  expect(client.query).toHaveBeenNthCalledWith(1, clearActivity);
+  expect(report).not.toHaveBeenCalled();
+});
+
+it("DEP-002: one maintenance worker must exit before a fresh unfiltered zero can admit commit", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "performance"] });
+  try {
+    const client = commitGateClient(maintenance, { n: 0 });
+    const report = vi.fn();
+    const result = assertRestoreCommitQuiescence(client as never, report);
+    await vi.runAllTimersAsync();
+    await result;
+    expect(client.query).toHaveBeenCalledTimes(4);
+    expect(client.query).toHaveBeenNthCalledWith(1, clearActivity);
+    expect(client.query).toHaveBeenNthCalledWith(3, clearActivity);
+    expect(report).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("DEP-002: a persistent worker consumes only the finite settlement window", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "performance"] });
+  try {
+    const client = commitGateClient(...Array.from({ length: 7 }, () => maintenance));
+    const report = vi.fn();
+    const start = performance.now();
+    const result = expect(
+      assertRestoreCommitQuiescence(client as never, report),
+    ).rejects.toThrow("Target has another database session");
+    await vi.runAllTimersAsync();
+    await result;
+    expect(client.query).toHaveBeenCalledTimes(14);
+    expect(performance.now() - start).toBe(1500);
+    expect(report).toHaveBeenCalledExactlyOnceWith("other_sessions", {
+      count: "one",
+      client: "no",
+      nonclient: "yes",
+      null_type: "no",
+      backend_kind: "autovacuum_worker",
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it.each([
+  otherClient,
+  { ...maintenance, n: 2 },
+  { ...maintenance, backend_kind: "parallel_worker" },
+  { ...maintenance, client: null, null_type: true },
+  { ...maintenance, n: "0" },
+  new Error("private activity query details"),
+])("DEP-002: every other observation fails on the first probe", async (observation) => {
+  const client = commitGateClient(observation, { n: 0 });
+  const report = vi.fn();
+  await expect(assertRestoreCommitQuiescence(client as never, report)).rejects.toBeDefined();
+  expect(client.query).toHaveBeenCalledTimes(2);
+  expect(report).toHaveBeenCalledOnce();
+  expect(JSON.stringify(report.mock.calls)).not.toContain("private");
+});
+
+it.each([
+  ["client", otherClient, "other_sessions"],
+  ["unknown", { ...maintenance, backend_kind: "unknown" }, "other_sessions"],
+  ["mixed", { ...maintenance, n: 2, client: true }, "other_sessions"],
+  ["error", new Error("private activity row"), "query_failed"],
+] as const)("DEP-002: %s after a settling worker prevents commit immediately", async (_name, observation, category) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "performance"] });
+  try {
+    const client = commitGateClient(maintenance, observation, { n: 0 });
+    const report = vi.fn();
+    const result = expect(
+      assertRestoreCommitQuiescence(client as never, report),
+    ).rejects.toBeDefined();
+    await vi.runAllTimersAsync();
+    await result;
+    expect(client.query).toHaveBeenCalledTimes(4);
+    expect(report).toHaveBeenCalledOnce();
+    expect(report.mock.calls[0]?.[0]).toBe(category);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("DEP-002: exhausts the wait budget when a refresh completes after its deadline", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "performance"] });
+  try {
+    const client = commitGateClient(maintenance, { n: 0 });
+    let clears = 0;
+    const query = client.query.getMockImplementation()!;
+    client.query.mockImplementation(async (sql) => {
+      if (sql === clearActivity && ++clears === 2) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 1501));
+      }
+      return query(sql);
+    });
+    const report = vi.fn(() => { throw new Error("private reporter"); });
+    const result = expect(
+      assertRestoreCommitQuiescence(client as never, report),
+    ).rejects.toThrow("Target has another database session");
+    await vi.runAllTimersAsync();
+    await result;
+    expect(client.query).toHaveBeenCalledTimes(3);
+    expect(report).toHaveBeenCalledOnce();
+    expect(report.mock.calls[0]?.[0]).toBe("other_sessions");
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("DEP-002: a failed activity refresh never proceeds to count", async () => {
+  const privateError = new Error("private snapshot refresh");
+  const client = { query: vi.fn(async () => { throw privateError; }) };
+  const report = vi.fn();
+  await expect(assertRestoreCommitQuiescence(client as never, report)).rejects.toBe(privateError);
+  expect(client.query).toHaveBeenCalledExactlyOnceWith(clearActivity);
+  expect(report).toHaveBeenCalledExactlyOnceWith("query_failed");
 });

@@ -108,17 +108,16 @@ export async function assertEmptyTarget(client: Client) {
 type SessionCheckFailure = "other_sessions" | "query_failed" | "invalid_result";
 type BackendKind = "autovacuum_worker" | "parallel_worker" | "logical_replication_worker" | "other_nonclient" | "unknown";
 export type SessionObservation = { count: "one" | "multiple"; client: "yes" | "no" | "unknown"; nonclient: "yes" | "no" | "unknown"; null_type: "yes" | "no" | "unknown"; backend_kind: BackendKind };
-export async function assertNoOtherSessions(client: Client, onFailure?: (category: SessionCheckFailure, observation?: SessionObservation) => void) {
-  const report = (category: SessionCheckFailure, observation?: SessionObservation) => {
-    try {
-      if (observation) onFailure?.(category, observation);
-      else onFailure?.(category);
-    } catch { /* Diagnostics must not change restore behavior. */ }
-  };
+type SessionCheckReporter = (category: SessionCheckFailure, observation?: SessionObservation) => void;
+type SessionCheckProblem =
+  | { category: "query_failed" | "invalid_result"; error: unknown }
+  | { category: "other_sessions"; observation: SessionObservation; error: Error };
+
+async function checkOtherSessions(client: Client, includeClasses: boolean): Promise<SessionCheckProblem | undefined> {
   let result: unknown;
   try {
     result = await client.query(
-      onFailure
+      includeClasses
         ? `SELECT count(*)::int AS n,
              bool_or(backend_type = 'client backend') AS client,
              bool_or(backend_type <> 'client backend' AND backend_type IS NOT NULL) AS nonclient,
@@ -133,8 +132,7 @@ export async function assertNoOtherSessions(client: Client, onFailure?: (categor
         : "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()",
     );
   } catch (error) {
-    report("query_failed");
-    throw error;
+    return { category: "query_failed", error };
   }
   let count: unknown;
   try {
@@ -142,8 +140,7 @@ export async function assertNoOtherSessions(client: Client, onFailure?: (categor
     if (!Array.isArray(rows) || rows.length !== 1 || !rows[0] || typeof rows[0] !== "object") throw new Error();
     count = (rows[0] as { n?: unknown }).n;
   } catch {
-    report("invalid_result");
-    throw new Error("Target has another database session");
+    return { category: "invalid_result", error: new Error("Target has another database session") };
   }
   if (count !== 0) {
     if (typeof count === "number" && Number.isSafeInteger(count) && count > 0) {
@@ -167,11 +164,68 @@ export async function assertNoOtherSessions(client: Client, onFailure?: (categor
             backendKind = value as BackendKind;
         } catch { /* A diagnostic getter cannot change the guard. */ }
       }
-      report("other_sessions", { count: count === 1 ? "one" : "multiple", client: classify(clientSeen), nonclient: classify(nonclientSeen), null_type: contradiction ? "unknown" : nullTypeSeen === true ? "yes" : nullTypeSeen === false ? "no" : "unknown", backend_kind: backendKind });
-    } else report("invalid_result");
-    throw new Error("Target has another database session");
+      return {
+        category: "other_sessions",
+        observation: { count: count === 1 ? "one" : "multiple", client: classify(clientSeen), nonclient: classify(nonclientSeen), null_type: contradiction ? "unknown" : nullTypeSeen === true ? "yes" : nullTypeSeen === false ? "no" : "unknown", backend_kind: backendKind },
+        error: new Error("Target has another database session"),
+      };
+    }
+    return { category: "invalid_result", error: new Error("Target has another database session") };
   }
 }
+
+function rejectSessions(failure: SessionCheckProblem, report?: SessionCheckReporter): never {
+  try {
+    if (failure.category === "other_sessions") report?.(failure.category, failure.observation);
+    else report?.(failure.category);
+  } catch { /* Diagnostics must not change restore behavior. */ }
+  throw failure.error;
+}
+
+export async function assertNoOtherSessions(client: Client, onFailure?: SessionCheckReporter) {
+  const failure = await checkOtherSessions(client, Boolean(onFailure));
+  if (failure) rejectSessions(failure, onFailure);
+}
+
+const restoreSessionPollMs = 250;
+const restoreSessionWaitMs = 1500;
+const restoreSessionProbeLimit = 7;
+
+export async function assertRestoreCommitQuiescence(
+  client: Client,
+  onFailure: SessionCheckReporter,
+) {
+  let deadline = 0;
+  let previous: SessionCheckProblem | undefined;
+  for (let probe = 1; ; probe += 1) {
+    try {
+      // Activity can be cached for the entire ownership/integrity transaction.
+      await client.query("SELECT pg_catalog.pg_stat_clear_snapshot()");
+    } catch (error) {
+      rejectSessions({ category: "query_failed", error }, onFailure);
+    }
+    if (previous && performance.now() > deadline) rejectSessions(previous, onFailure);
+    const failure = await checkOtherSessions(client, true);
+    if (!failure) return;
+    const settling =
+      failure.category === "other_sessions" &&
+      failure.observation.count === "one" &&
+      failure.observation.client === "no" &&
+      failure.observation.nonclient === "yes" &&
+      failure.observation.null_type === "no" &&
+      failure.observation.backend_kind === "autovacuum_worker";
+    if (!settling) rejectSessions(failure, onFailure);
+    deadline ||= performance.now() + restoreSessionWaitMs;
+    if (
+      probe >= restoreSessionProbeLimit ||
+      performance.now() + restoreSessionPollMs > deadline
+    ) rejectSessions(failure, onFailure);
+    await new Promise<void>((resolve) => setTimeout(resolve, restoreSessionPollMs));
+    if (performance.now() > deadline) rejectSessions(failure, onFailure);
+    previous = failure;
+  }
+}
+
 export async function lock(client: Client) {
   const deadline = Date.now() + 10000;
   do {

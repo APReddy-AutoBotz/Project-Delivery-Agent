@@ -1,6 +1,9 @@
 import { createRequire } from "node:module";
 import { expect, it, vi } from "vitest";
-import { assertNoOtherSessions } from "../packages/operations/src/config.js";
+import {
+  assertNoOtherSessions,
+  assertRestoreCommitQuiescence,
+} from "../packages/operations/src/config.js";
 
 const url = process.env.PDAA_DATABASE_URL;
 if (!url || !/^\/pdaa_test_\d+$/.test(new URL(url).pathname) ||
@@ -61,6 +64,38 @@ it("DEP-002: PostgreSQL applies the finite backend CASE to synthetic value rows"
 }, 30000);
 
 const restrictedUrl = process.env.PDAA_RESTRICTED_TEST_URL;
+
+it("DEP-002: final fresh activity sees a new client during the same transaction", async () => {
+  const { Client } = createRequire(new URL("../packages/operations/package.json", import.meta.url))("pg");
+  const gate = new Client({ connectionString: url });
+  const peer = new Client({ connectionString: url, application_name: "pdaa-session-gate-control" });
+  const report = vi.fn();
+  try {
+    await gate.connect();
+    await gate.query("BEGIN");
+    const visible = async () => (await gate.query(
+      "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND application_name=$1) AS visible",
+      ["pdaa-session-gate-control"],
+    )).rows[0]!.visible;
+    expect(await visible()).toBe(false);
+    await peer.connect();
+    await peer.query("SELECT 1");
+    expect(await visible()).toBe(false);
+    await expect(assertRestoreCommitQuiescence(gate, report)).rejects.toThrow(
+      "Target has another database session",
+    );
+    expect(await visible()).toBe(true);
+    expect(report).toHaveBeenCalledExactlyOnceWith(
+      "other_sessions",
+      expect.objectContaining({ client: "yes" }),
+    );
+    await peer.query("SELECT 1");
+    await gate.query("ROLLBACK");
+  } finally {
+    try { await peer.end(); } finally { await gate.end(); }
+  }
+}, 30000);
+
 it.skipIf(!restrictedUrl)("DEP-002: restricted synthetic login can observe the gate without monitoring grants", async () => {
   const restricted = new URL(restrictedUrl!);
   if (restricted.hostname !== new URL(url!).hostname || restricted.port !== new URL(url!).port || restricted.pathname !== new URL(url!).pathname)
