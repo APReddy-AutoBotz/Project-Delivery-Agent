@@ -1,4 +1,4 @@
-// FR-CON-006/007/012 / NFR-SEC-001: applied migration-28 serializer proof.
+// FR-CON-006/007/012 / NFR-SEC-001: applied migration-29 serializer proof.
 // Keep the existing guarded entry point; missing definitions fail with no DDL fallback.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -111,6 +111,7 @@ function assertReleasedSnapshot(before) {
     .map((e) => e.name)
     .sort();
   assert.equal(names.length, 29);
+  assert.equal(names[28], "202611180001_csv_comparison_validation_cost");
   assert.equal(before.ledger.length, 29);
   for (const [i, name] of names.entries()) {
     assert.match(name, /^[0-9]{12}(?:[0-9]{2})?_[a-z0-9_]+$/);
@@ -308,8 +309,8 @@ export async function verifyCsvComparisonPrototype(
       await deniedStatement(client, nativeQuery, parameters(state), sqlstate);
     }
     receipt = {
-      scope: "APPLIED_MIGRATION_28",
-      migrationChecksum: before.ledger[27].checksum,
+      scope: "APPLIED_MIGRATION_29",
+      migrationChecksum: before.ledger[28].checksum,
       vectors: vectorReceipts,
       nativeGrammarDenials: corruptions.length,
       nativeCastDenials: casts.length,
