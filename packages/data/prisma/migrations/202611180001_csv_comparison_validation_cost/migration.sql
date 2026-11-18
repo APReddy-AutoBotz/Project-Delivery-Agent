@@ -13,8 +13,10 @@ DECLARE
   activation_mapping jsonb;
   expected_dictionary jsonb;
   prior_rows jsonb := '[]'::jsonb;
-  encoded text;
-  prior_encoded text;
+  encoded bytea;
+  encoded_hash text;
+  prior_encoded bytea;
+  same_rows boolean;
   expected_rows jsonb;
 BEGIN
   SELECT * INTO c FROM public."IngestionCsvContext" WHERE "receiptId"=target;
@@ -34,13 +36,14 @@ BEGIN
   SELECT jsonb_agg(jsonb_build_array(value->>'factType',value->>'type') ORDER BY (value->>'factType') COLLATE "C")
     INTO expected_dictionary FROM jsonb_array_elements(mapping_value->'fields');
   IF h.dictionary IS DISTINCT FROM expected_dictionary THEN RETURN false; END IF;
-  encoded := public.ingestion_csv_state_text(c."customerId",c."sourceId",c."mappingRevision",h.dictionary,c.rows);
-  IF encoded IS NULL OR octet_length(convert_to(encoded,'UTF8'))<>c."canonicalBytes"
-    OR encode(sha256(convert_to(encoded,'UTF8')),'hex')<>c."stateHash" THEN RETURN false; END IF;
+  encoded := convert_to(public.ingestion_csv_state_text(c."customerId",c."sourceId",c."mappingRevision",h.dictionary,c.rows),'UTF8');
+  encoded_hash := encode(sha256(encoded),'hex');
+  IF encoded IS NULL OR octet_length(encoded)<>c."canonicalBytes"
+    OR encoded_hash<>c."stateHash" THEN RETURN false; END IF;
   IF c.revision=1 THEN
     IF c."predecessorReceiptId" IS NOT NULL THEN RETURN false; END IF;
-    prior_encoded := public.ingestion_csv_state_text(c."customerId",c."sourceId",c."mappingRevision",h.dictionary,prior_rows);
-    IF prior_encoded IS NULL OR encode(sha256(convert_to(prior_encoded,'UTF8')),'hex')<>c."predecessorHash" THEN RETURN false; END IF;
+    prior_encoded := convert_to(public.ingestion_csv_state_text(c."customerId",c."sourceId",c."mappingRevision",h.dictionary,prior_rows),'UTF8');
+    IF prior_encoded IS NULL OR encode(sha256(prior_encoded),'hex')<>c."predecessorHash" THEN RETURN false; END IF;
   ELSE
     SELECT * INTO parent FROM public."IngestionCsvContext"
       WHERE "customerId"=c."customerId" AND "sourceId"=c."sourceId" AND "receiptId"=c."predecessorReceiptId"
@@ -48,10 +51,11 @@ BEGIN
     IF NOT FOUND THEN RETURN false; END IF;
     prior_rows := parent.rows;
     -- Identical rows under these same codec inputs have the same validated bytes.
-    prior_encoded := CASE WHEN prior_rows=c.rows THEN encoded
-      ELSE public.ingestion_csv_state_text(c."customerId",c."sourceId",c."mappingRevision",h.dictionary,prior_rows) END;
-    IF prior_encoded IS NULL OR octet_length(convert_to(prior_encoded,'UTF8'))<>parent."canonicalBytes"
-      OR encode(sha256(convert_to(prior_encoded,'UTF8')),'hex')<>parent."stateHash" THEN RETURN false; END IF;
+    same_rows := prior_rows=c.rows;
+    prior_encoded := CASE WHEN same_rows THEN encoded
+      ELSE convert_to(public.ingestion_csv_state_text(c."customerId",c."sourceId",c."mappingRevision",h.dictionary,prior_rows),'UTF8') END;
+    IF prior_encoded IS NULL OR octet_length(prior_encoded)<>parent."canonicalBytes"
+      OR (CASE WHEN same_rows THEN encoded_hash ELSE encode(sha256(prior_encoded),'hex') END)<>parent."stateHash" THEN RETURN false; END IF;
   END IF;
 
   -- A comparison can widen the complete prior configuration scope, never narrow
@@ -187,8 +191,9 @@ DECLARE
   last_ordinal integer;
   content_bytes bigint;
   content_valid boolean;
-  encoded text;
-  prior_encoded text;
+  encoded bytea;
+  encoded_hash text;
+  prior_hash text;
   expected_rows jsonb;
   proposal jsonb;
   field_type text;
@@ -209,18 +214,19 @@ BEGIN
     OR NEW.revision<>planned_head.revision+1 OR NEW."predecessorRevision"<>planned_head.revision
     OR NEW."predecessorReceiptId" IS DISTINCT FROM planned_head."currentReceiptId"
     OR NEW."predecessorHash" IS DISTINCT FROM planned_head."stateHash" THEN RAISE EXCEPTION 'Invalid CSV comparison context'; END IF;
-  encoded:=public.ingestion_csv_state_text(NEW."customerId",NEW."sourceId",NEW."mappingRevision",planned_head.dictionary,NEW.rows);
-  IF encoded IS NULL OR NEW."canonicalBytes" IS DISTINCT FROM octet_length(convert_to(encoded,'UTF8'))
-    OR NEW."stateHash"::text IS DISTINCT FROM encode(sha256(convert_to(encoded,'UTF8')),'hex') THEN RAISE EXCEPTION 'Invalid CSV comparison context'; END IF;
+  encoded:=convert_to(public.ingestion_csv_state_text(NEW."customerId",NEW."sourceId",NEW."mappingRevision",planned_head.dictionary,NEW.rows),'UTF8');
+  encoded_hash:=encode(sha256(encoded),'hex');
+  IF encoded IS NULL OR NEW."canonicalBytes" IS DISTINCT FROM octet_length(encoded)
+    OR NEW."stateHash"::text IS DISTINCT FROM encoded_hash THEN RAISE EXCEPTION 'Invalid CSV comparison context'; END IF;
   IF planned_head.revision>0 THEN
     SELECT * INTO parent FROM public."IngestionCsvContext" WHERE "customerId"=NEW."customerId" AND "sourceId"=NEW."sourceId"
       AND "receiptId"=planned_head."currentReceiptId" AND revision=planned_head.revision AND "stateHash"=planned_head."stateHash";
     IF NOT FOUND THEN RAISE EXCEPTION 'Invalid CSV comparison context'; END IF;
     prior_rows:=parent.rows;
   END IF;
-  prior_encoded:=CASE WHEN prior_rows=NEW.rows THEN encoded
-    ELSE public.ingestion_csv_state_text(NEW."customerId",NEW."sourceId",NEW."mappingRevision",planned_head.dictionary,prior_rows) END;
-  IF prior_encoded IS NULL OR encode(sha256(convert_to(prior_encoded,'UTF8')),'hex')<>planned_head."stateHash" THEN
+  prior_hash:=CASE WHEN prior_rows=NEW.rows THEN encoded_hash
+    ELSE encode(sha256(convert_to(public.ingestion_csv_state_text(NEW."customerId",NEW."sourceId",NEW."mappingRevision",planned_head.dictionary,prior_rows),'UTF8')),'hex') END;
+  IF prior_hash IS NULL OR prior_hash<>planned_head."stateHash" THEN
     RAISE EXCEPTION 'Invalid CSV comparison context';
   END IF;
   SELECT COALESCE(array_agg(project_id ORDER BY project_id),'{}'::uuid[]) INTO project_ids FROM (
@@ -500,9 +506,10 @@ BEGIN
   SELECT count(DISTINCT (value->>1) COLLATE "C"),count(DISTINCT (value->>2) COLLATE "C")
     INTO distinct_records,distinct_projects FROM jsonb_array_elements(state_rows);
   IF distinct_records<>identity_count OR distinct_projects>100 THEN RETURN NULL; END IF;
-  -- Permitted tokens are all ASCII and contain neither spaces nor escapes.
-  canonical_text := replace(jsonb_build_array('pdaa.csv.state.v1',state_customer::text,
-    state_source::text,state_mapping::text,state_dictionary,state_rows)::text,' ','');
+  -- The validated tokens need no escaping. Serialize each array directly.
+  canonical_text := format('["pdaa.csv.state.v1","%s","%s","%s",%s,%s]',
+    state_customer,state_source,state_mapping,
+    replace(state_dictionary::text,' ',''),replace(state_rows::text,' ',''));
   IF octet_length(convert_to(canonical_text,'UTF8'))>2097152 THEN RETURN NULL; END IF;
   RETURN canonical_text;
 END $$;

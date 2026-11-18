@@ -357,6 +357,9 @@ The canonical codec checks each reference's type and length, then looks up
 its exact decimal index among the keys of the validated field dictionary.
 It compares each canonical index with its immediate predecessor at the same
 identity and checks the UUID grammar once per distinct projection string.
+The codec renders the two validated arrays directly into the existing canonical
+text format. The native guard and validator reuse the verified bytes and digest
+within a call when the predecessor rows are identical.
 
 The cohort is bounded at 1,000 identities, 32 fields and 100 projects; each
 canonical state is bounded at 2 MiB. A source retains at most 4,096 contexts and
