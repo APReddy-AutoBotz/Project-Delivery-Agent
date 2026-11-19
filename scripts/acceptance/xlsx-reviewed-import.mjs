@@ -226,11 +226,23 @@ export async function proveNativeXlsxReviewedImport(
     };
     const before = await state(pool, source);
     const open = await read(selected.receiptId);
+    const directRead = (client, tenant) => client.$queryRaw`
+      SELECT public.read_ingestion_xlsx_preview_receipt(
+        ${tenant}::uuid,${source.sourceId}::uuid,${reviewer}::text,
+        ARRAY['pmo_admin']::text[],${selected.receiptId}::uuid,0
+      ) AS result
+    `;
     const created = await pool.query(
       'SELECT "createdAt" FROM public."IngestionOperationReceipt" WHERE id=$1',
       [selected.receiptId],
     );
     assert.equal(open.createdAt, created.rows[0].createdAt.toISOString());
+    const zoned = await db.$transaction(async (client) => {
+      await client.$executeRaw`SET LOCAL TIME ZONE 'Pacific/Auckland'`;
+      await client.$executeRaw`SET LOCAL DateStyle TO 'SQL, DMY'`;
+      return directRead(client, customer);
+    });
+    assert.deepEqual(zoned, [{ result: { status: "READY", view: open } }]);
     assert.equal(open.previewContextSha256, input.previewContextSha256);
     assert.equal(open.selectionState, "OPEN");
     assert.equal(open.rowCount, 55);
@@ -281,13 +293,20 @@ export async function proveNativeXlsxReviewedImport(
       }),
       { code: "DENIED" },
     );
-    await assert.rejects(
-      repository.readXlsxPreviewReceipt(
-        { ...actor(reviewer), customerId: randomUUID() },
-        readInput,
-      ),
-      { code: "DENIED" },
-    );
+    const otherCustomer = randomUUID();
+    await pool.query('INSERT INTO public."Customer" (id,name) VALUES ($1,$2)', [
+      otherCustomer,
+      "Synthetic workbook access boundary",
+    ]);
+    try {
+      const crossTenant = await directRead(db, otherCustomer);
+      assert.deepEqual(crossTenant, [{ result: { status: "DENIED" } }]);
+    } finally {
+      // Keep the packaged customer fixture single-tenant at backup time.
+      await pool.query('DELETE FROM public."Customer" WHERE id=$1', [
+        otherCustomer,
+      ]);
+    }
     await assert.rejects(
       repository.readXlsxPreviewReceipt(
         { ...actor(reviewer), roles: ["leadership"] },
@@ -295,6 +314,44 @@ export async function proveNativeXlsxReviewedImport(
       ),
       { code: "DENIED" },
     );
+    const {
+      rows: [liveContent],
+    } = await pool.query(
+      `SELECT c."projectionId",c.proposals::text
+       FROM public."IngestionRowOutcome" o JOIN public."IngestionProposalContent" c
+        ON c."customerId"=o."customerId" AND c."sourceId"=o."sourceId" AND c."projectionId"=o."projectionId"
+       WHERE o."customerId"=$1 AND o."sourceId"=$2 AND o."receiptId"=$3 AND o.ordinal=1`,
+      [customer, source.sourceId, selected.receiptId],
+    );
+    const replaceFixtureProposals = (proposals) =>
+      withFixtureOwner(pool, async (client) => {
+        await client.query(
+          'ALTER TABLE public."IngestionProposalContent" DISABLE TRIGGER ingestion_content_guard',
+        );
+        await client.query(
+          'ALTER TABLE public."IngestionProposalContent" DISABLE TRIGGER ingestion_redaction_commit',
+        );
+        const changed = await client.query(
+          'UPDATE public."IngestionProposalContent" SET proposals=$4::jsonb WHERE "customerId"=$1 AND "sourceId"=$2 AND "projectionId"=$3',
+          [customer, source.sourceId, liveContent.projectionId, proposals],
+        );
+        assert.equal(changed.rowCount, 1);
+        await client.query(
+          'ALTER TABLE public."IngestionProposalContent" ENABLE TRIGGER ingestion_redaction_commit',
+        );
+        await client.query(
+          'ALTER TABLE public."IngestionProposalContent" ENABLE TRIGGER ingestion_content_guard',
+        );
+      });
+    await replaceFixtureProposals("[]");
+    try {
+      await assert.rejects(read(selected.receiptId), {
+        code: "INTEGRITY_CONFLICT",
+      });
+    } finally {
+      await replaceFixtureProposals(liveContent.proposals);
+    }
+    assert.deepEqual(await read(selected.receiptId), open);
     assert.deepEqual(await state(pool, source), before);
     await assert.rejects(commit({ ...input, rowOrdinals: [3, 1] }), {
       code: "INVALID_INPUT",
