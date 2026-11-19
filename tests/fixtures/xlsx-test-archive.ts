@@ -5,6 +5,7 @@ export type ArchivePart = {
   content: Buffer;
   compressedSuffix?: Buffer;
   inflatedLength?: number;
+  localExtra?: Buffer;
   recordPadding?: Buffer;
   extractVersion?: number;
 };
@@ -36,6 +37,7 @@ export function writeTestArchive(
     local.writeUInt16LE(flags, 6);
     local.writeUInt16LE(method, 8);
     local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(part.localExtra?.length ?? 0, 28);
     if (!descriptor) {
       local.writeUInt32LE(checksum, 14);
       local.writeUInt32LE(data.length, 18);
@@ -52,7 +54,9 @@ export function writeTestArchive(
     directory.writeUInt32LE(inflatedLength, 24);
     directory.writeUInt16LE(name.length, 28);
     directory.writeUInt32LE(position, 42);
-    const record = [local, name, data];
+    const record = [local, name];
+    if (part.localExtra) record.push(part.localExtra);
+    record.push(data);
     if (descriptor) {
       const trailer = Buffer.alloc(16);
       trailer.writeUInt32LE(0x08074b50);
