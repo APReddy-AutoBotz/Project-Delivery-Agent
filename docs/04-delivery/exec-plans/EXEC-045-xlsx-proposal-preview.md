@@ -441,6 +441,15 @@ or availability flags. Values under review remain proposals. Workbook
 identity does not establish the upstream authority of a source.
 
 The local component computes and validates these immutable bindings.
+The companion mapper checks the workbook request against the authorized
+mapping snapshot and uses retained hashed identities with the existing
+spreadsheet comparison rules. Workbook row hashes have their own domain
+and preserve exact sheet and row-key text. Both offline decoder profiles
+exercise this path with actual synthetic workbook bytes. A missing
+baseline fails closed even though a verified empty baseline permits new
+rows. Renamed or moved identities retain the existing review safeguards.
+An accepted identity with only empty optional values can retain a
+`NONE` outcome and an empty proposal hash. Selection excludes that row.
 An additive native design must still prove the independently computed
 tuple hashes, scope and lineage at storage, lock order, exact retry,
 revocation, retention, role privileges, populated upgrades, backup and

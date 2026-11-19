@@ -95,6 +95,7 @@ function parse<T extends z.ZodType>(
 function sha256(value: Buffer | string): string {
   return createHash("sha256").update(value).digest("hex");
 }
+const emptyProposalSha256 = sha256("[]");
 
 const typedArray = Object.getPrototypeOf(Uint8Array.prototype);
 const byteLength = Object.getOwnPropertyDescriptor(
@@ -202,10 +203,11 @@ function checkedContext(input: unknown): z.infer<typeof previewContext> {
       invalid();
     if (row.state === "ACCEPTED") {
       if (
-        row.operation === "NONE" ||
         row.errorCodes.length !== 0 ||
         row.keySha256 === null ||
         row.record === null ||
+        (row.operation === "NONE" &&
+          row.record.proposalSha256 !== emptyProposalSha256) ||
         acceptedKeys.has(row.keySha256)
       )
         invalid();
@@ -285,9 +287,10 @@ export function hashXlsxReviewedSelection(
     parent.request.sourceId !== command.sourceId ||
     parent.previewReceiptId !== command.previewReceiptId ||
     contextHash(parent) !== command.previewContextSha256 ||
-    command.rowOrdinals.some(
-      (ordinal) => parent.outcomes[ordinal - 1]?.state !== "ACCEPTED",
-    )
+    command.rowOrdinals.some((ordinal) => {
+      const row = parent.outcomes[ordinal - 1];
+      return row?.state !== "ACCEPTED" || row.operation === "NONE";
+    })
   ) {
     throw new IngestionPersistenceError("INVALID_PREVIEW");
   }

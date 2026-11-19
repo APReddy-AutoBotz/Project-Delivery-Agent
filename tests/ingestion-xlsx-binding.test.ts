@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   captureXlsxPreviewRequest,
@@ -345,5 +346,21 @@ describe("FR-CON-006/007 original XLSX workbook and reviewed receipt binding", (
         ),
       ).toThrow(invalidRequest);
     }
+  });
+
+  it("binds an accepted empty-proposal row but excludes it from reviewed selection", () => {
+    const parent = preview();
+    parent.outcomes[0]!.operation = "NONE";
+    expect(() => hashXlsxPreviewContext(parent)).toThrow(invalidPreview);
+    parent.outcomes[0]!.record!.proposalSha256 = createHash("sha256")
+      .update("[]")
+      .digest("hex");
+    const command = selection(parent);
+    expect(() => hashXlsxReviewedSelection(command, parent)).toThrow(
+      invalidPreview,
+    );
+    expect(
+      hashXlsxReviewedSelection({ ...command, rowOrdinals: [3] }, parent),
+    ).toMatch(/^[a-f0-9]{64}$/u);
   });
 });
