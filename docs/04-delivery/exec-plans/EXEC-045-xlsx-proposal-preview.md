@@ -398,16 +398,56 @@ local and central ZIP filenames. These narrow fixtures neither implement XLSX
 nor demonstrate archive security. Validate integrity, relationships, workbook
 semantics and actual deployment isolation before enabling any file adapter.
 
-The existing path labels and hashes CSV. Do not convert a workbook to CSV and
-reuse its receipt as if the original upload were CSV. Design a truthful versioned
-XLSX receipt and request hash binding the original workbook digest, selected
-sheet, parser contract, baseline and configuration/mapping revisions. Preserve
-stable customer/source/sheet/row identity, immutable project binding, replay and
-collision rules, current source-reader authorization, retention and historical
-CSV proofs. Any required database changes must be additive and include runtime
-ACL, upgrade, backup and restore verification. The reviewed import remains an
-explicit selection of eligible proposal rows, not a fact or independent
-verification of the workbook's upstream origin.
+### Immutable XLSX receipt binding
+
+FR-CON-006/007 and Issue #7 require a distinct workbook receipt. The
+server-side binding component uses three versioned UTF-8 JSON tuples
+and SHA-256. Native XLSX storage will use distinct receipt kinds and byte identity.
+Existing CSV receipts retain their original proof contracts.
+
+- The request hash binds the customer, source, authenticated subject, command
+  key, supplied configuration and mapping revisions, exact selected sheet,
+  immutable parser contract, original byte length and original byte digest.
+  A bounded, owned copy provides the input to both hashing and the decoder.
+  The adapter will map the persisted `portable-v1` contract to the offline
+  reader's `portable` selector. `excel-text-v1` has the same name in both.
+  Authorization and admission precede workbook capture. On an existing
+  command, use the original parser contract and original request binding
+  before new-command revision checks. Reauthorize current and original
+  project scope and current source readers before disclosing the result.
+  An exact retry uses the finalized result without parsing again. A different
+  input binding under the same key conflicts after authorization.
+- The preview context hash binds the minted receipt ID, request hash, complete
+  sorted project scope and ordered outcomes to the baseline used under lock.
+  A verified genesis has an explicit tag. A retained baseline pins its receipt
+  ID, sequence and state hash even when it has zero rows. Unavailable,
+  corrupt or expired history blocks a new comparison. An advance of the
+  baseline changes the context hash while the original request hash stays
+  available for replay.
+- The selection hash binds the selecting subject and command key to the
+  finalized parent context, source scope and unique ascending eligible
+  parent ordinals. An eligible ordinal identifies a preview data row, and
+  the dense worksheet's physical row is its ordinal plus one. The
+  selection subject can differ from the preview subject under the existing
+  spreadsheet authorization rules. The transaction checks current grants,
+  exact record/projection lineage, live retained content and current
+  revisions before a new save. Old metadata can remain replayable after
+  lawful redaction if current authorization and proof checks pass.
+
+Contexts store safe row states, ordered error codes, opaque row hashes and
+record, revision and projection references with immutable content digests.
+The binding contains no raw workbook, cell values or mutable authorization
+or availability flags. Values under review remain proposals. Workbook
+identity does not establish the upstream authority of a source.
+
+The local component computes and validates these immutable bindings.
+An additive native design must still prove the independently computed
+tuple hashes, scope and lineage at storage, lock order, exact retry,
+revocation, retention, role privileges, populated upgrades, backup and
+restoration before enabling a route. The component opens no application
+entry point and creates no database receipt. Its tests use fictional inputs
+and independently encoded fixed vectors. Reverting it requires no data
+recovery. Original19/20 capture stays stopped.
 
 ## Required validation
 
