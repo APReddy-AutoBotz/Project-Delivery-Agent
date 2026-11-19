@@ -43,6 +43,7 @@ if (process.argv[3] === "denied") {
     readFileSync(join(proof, "expected.json"), "utf8"),
   );
   for (const [index, { id, gridIndex }] of expected.jobs.entries()) {
+    const started = performance.now();
     const client = createConnection({ path: socket, allowHalfOpen: true });
     const timer = setTimeout(
       () => client.destroy(new Error("Decoder proof timed out")),
@@ -54,6 +55,15 @@ if (process.argv[3] === "denied") {
       assert.deepEqual(
         decodeResult(await result, Buffer.from(id, "hex")),
         expected.grids[gridIndex],
+      );
+    } catch (error) {
+      throw new Error(
+        "Synthetic XLSX runtime proof failed at case " +
+          (index + 1) +
+          " after " +
+          Math.round(performance.now() - started) +
+          " ms",
+        { cause: error },
       );
     } finally {
       clearTimeout(timer);

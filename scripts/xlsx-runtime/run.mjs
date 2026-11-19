@@ -82,7 +82,12 @@ function verifyBoundary(container, access, name, user) {
   assert.equal(host.ReadonlyRootfs, true);
   assert.equal(host.Privileged, false);
   assert.deepEqual(host.CapDrop, ["ALL"]);
-  assert.deepEqual(host.CapAdd ?? [], []);
+  assert.deepEqual(host.CapAdd ?? [], name === "initializer" ? ["CHOWN"] : []);
+  assert(!host.Tmpfs || Object.keys(host.Tmpfs).length === 0);
+  assert.deepEqual(
+    container.Config.Env.map((pair) => pair.split("=", 1)[0]).sort(),
+    ["NODE_ENV", "PATH"],
+  );
   assert(host.SecurityOpt.includes("no-new-privileges:true"));
   assert.equal(host.Memory, 268_435_456);
   assert.equal(host.MemorySwap, host.Memory);
@@ -174,10 +179,13 @@ try {
   verifyBoundary(decoder, true, "decoder", "1001:2000");
   assert.equal(decoder.Image, imageId);
   assert.equal(decoder.State.Health.Status, "healthy");
-  assert.deepEqual(
-    decoder.Config.Env.map((pair) => pair.split("=", 1)[0]).sort(),
-    ["NODE_ENV", "PATH"],
-  );
+  const initializerId = compose("ps", "-aq", "xlsx-initialize");
+  assert.match(initializerId, /^[0-9a-f]{64}$/u);
+  const initializer = inspect(initializerId);
+  verifyBoundary(initializer, true, "initializer", "0:2000");
+  assert.equal(initializer.Image, imageId);
+  assert.equal(initializer.State.Status, "exited");
+  assert.equal(initializer.State.ExitCode, 0);
 
   for (const [user, extra, intent] of [
     ["1000:1000", ["--group-add", "2000"], "decode"],
@@ -240,6 +248,7 @@ try {
     image: imageId,
     manifestSha256: manifest,
     actualContainerLimits: true,
+    leastPrivilegeInitializer: true,
     profiles,
     capacity,
     readOnlyCaller: true,
