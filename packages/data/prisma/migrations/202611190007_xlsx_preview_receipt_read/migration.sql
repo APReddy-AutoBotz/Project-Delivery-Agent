@@ -24,12 +24,10 @@ CREATE FUNCTION public.can_read_ingestion_xlsx_preview(
   )
 $$;
 
+-- Keep session-dependent formatting inside the function boundary.
 CREATE FUNCTION public.read_ingestion_xlsx_preview_receipt(
   customer uuid, source uuid, actor_subject text, actor_roles text[], preview uuid, after_ordinal integer
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
-SET search_path=pg_catalog,pg_temp
-SET DateStyle='ISO, YMD'
-SET TimeZone='UTC' AS $$
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp SET DateStyle='ISO, YMD' SET TimeZone='UTC' AS $$
 DECLARE
   denied CONSTANT jsonb := '{"status":"DENIED"}';
   invalid CONSTANT jsonb := '{"status":"INTEGRITY_CONFLICT"}';
