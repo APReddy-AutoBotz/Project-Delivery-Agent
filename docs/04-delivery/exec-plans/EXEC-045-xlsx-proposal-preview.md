@@ -577,8 +577,27 @@ an occupied volume requiring a trusted replacement. The runtime-image
 check uses synthetic workbooks for both profiles, verifies the manifest
 and the read-only caller boundary, and checks clean and abnormal restart.
 
-Customer-stack attachment, both database topology checks, reviewed
-selection and live upload remain pending.
+### Opt-in customer API attachment
+
+The XLSX customer overlay selects a dedicated API image with the
+root-owned peer-checking executable and mounts the decoder's socket
+volume read-only. The API verifies its service identity and the
+fixed mount and executable metadata at startup. The native bridge
+checks the connected decoder UID and GID before forwarding bytes.
+The decoder carries no network or database configuration. The API
+keeps the existing production database role and uses the sealed
+parser profile.
+
+The synthetic customer rehearsal uses the existing bundled and
+external PostgreSQL configurations. It loads the production API
+composition, uses both workbook profiles over the packaged bridge,
+and checks the database login, TLS, exact retry, mismatched bytes
+and proposal-only persistence. The owner verifier independently
+checks native receipt integrity and canonical fact state. Foundation
+collects finite evidence after both disposable projects are removed.
+
+The customer rehearsals, reviewed row selection and live upload
+remain subject to their validation and release gates.
 
 ## Required validation
 
