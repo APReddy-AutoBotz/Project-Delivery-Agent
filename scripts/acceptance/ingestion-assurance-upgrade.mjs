@@ -24,13 +24,14 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   const config = { host: locator.hostname, port: Number(locator.port), database: name,
     user: decodeURIComponent(locator.username), password: decodeURIComponent(locator.password), ssl: false };
   const migrations = readMigrations("packages/data/prisma/migrations");
-  assert.equal(migrations.length, 34);
+  assert.equal(migrations.length, 35);
   assert.equal(migrations[28].name, "202611180001_csv_comparison_validation_cost");
   assert.equal(migrations[29].name, "202611190001_xlsx_receipt_codec");
   assert.equal(migrations[30].name, "202611190002_xlsx_source_genesis");
   assert.equal(migrations[31].name, "202611190003_xlsx_preview_context");
   assert.equal(migrations[32].name, "202611190004_xlsx_preview_retry");
   assert.equal(migrations[33].name, "202611190005_xlsx_preview_writer");
+  assert.equal(migrations[34].name, "202611190006_xlsx_reviewed_import");
   await migrateDatabase(config, migrations.slice(0, 24));
   const db = createDatabase(locator.toString());
   // Project released columns explicitly before and after the additive workbook discriminator.
@@ -281,7 +282,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.equal(afterLedger[24].checksum, createHash("sha256").update(migrations[24].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0, 25), before26Ledger);
     assert.deepEqual(afterLedger.slice(0, 26), before27Ledger);
-    assert.equal(afterLedger.length, 34);
+    assert.equal(afterLedger.length, 35);
     assert.equal(afterLedger[25].checksum, createHash("sha256").update(migrations[25].sql).digest("hex"));
     assert.equal(afterLedger[26].checksum, createHash("sha256").update(migrations[26].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0,27),released27.ledger);

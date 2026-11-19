@@ -599,7 +599,7 @@ BEGIN
   ) THEN RETURN denied; END IF;
 
   SELECT h.* INTO head FROM public."IngestionXlsxHead" h
-    WHERE h."customerId"=customer AND h."sourceId"=source FOR SHARE OF h;
+    WHERE h."customerId"=customer AND h."sourceId"=source FOR UPDATE OF h;
   IF NOT FOUND THEN RETURN '{"status":"INTEGRITY_CONFLICT"}'; END IF;
   command_doc := jsonb_build_object('customerId',customer,'sourceId',source,'subject',actor_subject,
     'commandKey',command_key,'previewReceiptId',preview,'previewContextSha256',context_sha,

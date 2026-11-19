@@ -44,10 +44,14 @@ async function context(pool, receiptId) {
   return rows[0].hash;
 }
 
-export async function verifyXlsxReviewPrivileges(pool) {
+export async function verifyXlsxReviewPrivileges(
+  pool,
+  roles = ["pdaa_api", "pdaa_worker", "pdaa_backup"],
+  { owner = "pdaa_migrate", apiExecute = true } = {},
+) {
   for (const signature of xlsxReviewFunctions) {
     const { rows } = await pool.query(
-      `SELECT pg_get_userbyid(p.proowner) AS owner,
+      `SELECT pg_get_userbyid(p.proowner) AS owner,p.prosecdef,p.proconfig,
       ARRAY(SELECT a.grantee::regrole::text FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
         WHERE a.grantee<>p.proowner AND a.privilege_type='EXECUTE' ORDER BY a.grantee) AS readers,
       EXISTS(SELECT 1 FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
@@ -55,14 +59,33 @@ export async function verifyXlsxReviewPrivileges(pool) {
       FROM pg_proc p WHERE p.oid=to_regprocedure($1)`,
       [signature],
     );
+    const exposed = signature === xlsxReviewApiFunction;
+    const granted = exposed && apiExecute;
     assert.deepEqual(rows, [
       {
-        owner: "pdaa_migrate",
-        readers: signature === xlsxReviewApiFunction ? ["pdaa_api"] : [],
+        owner,
+        prosecdef:
+          exposed ||
+          signature ===
+            "public.require_ingestion_xlsx_reviewed_import_complete()",
+        proconfig: [
+          signature === "public.verified_ingestion_xlsx_context(uuid)"
+            ? "search_path=pg_catalog"
+            : "search_path=pg_catalog, pg_temp",
+        ],
+        readers: granted ? ["pdaa_api"] : [],
         grantable: false,
       },
     ]);
+    for (const role of roles) {
+      const { rows: permissions } = await pool.query(
+        "SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed",
+        [role, signature],
+      );
+      assert.equal(permissions[0].allowed, granted && role === "pdaa_api");
+    }
   }
+  return { finiteReviewedImportGrant: true };
 }
 
 async function state(pool, { customerId, sourceId }) {
@@ -79,12 +102,11 @@ async function state(pool, { customerId, sourceId }) {
   ).rows[0];
 }
 
-export async function proveNativeXlsxReviewedImport(pool, apiConnection) {
-  const customer = (
-    await pool.query(
-      'SELECT "customerId" FROM public."IngestionRetentionPolicy"',
-    )
-  ).rows[0]?.customerId;
+export async function proveNativeXlsxReviewedImport(
+  pool,
+  apiConnection,
+  customer,
+) {
   assert(customer);
   await proveXlsxSourceGenesis(pool, {
     retain: true,
@@ -157,7 +179,7 @@ export async function proveNativeXlsxReviewedImport(pool, apiConnection) {
     };
     const before = await state(pool, source);
     await assert.rejects(commit({ ...input, rowOrdinals: [3, 1] }), {
-      code: "INVALID_REQUEST",
+      code: "INVALID_INPUT",
     });
     await assert.rejects(commit({ ...input, rowOrdinals: [1, 4] }), {
       code: "INVALID_PREVIEW",
@@ -253,53 +275,58 @@ export async function proveRestoredXlsxReviewedImport(pool, apiConnection) {
     rowOrdinals: [1, 2, 3],
     commandKey: "fixture-review-commit",
   };
-  const db = createDatabase(apiConnection);
-  const repository = new DatabaseIngestionRepository(
-    db,
-    new CredentialVault(Buffer.alloc(32, 34).toString("base64")),
-  );
-  const retry = () =>
-    repository.commitXlsxReviewedImport(
-      {
-        customerId: source.customerId,
-        subject: reviewer,
-        roles: ["pmo_admin"],
-      },
-      input,
-      randomUUID(),
-    );
-  try {
-    await assertXlsxReviewedImportIntegrity(pool);
-    await verifyXlsxReviewPrivileges(pool);
-    assert.deepEqual(await retry(), {
-      receiptId: id,
-      parentPreviewReceiptId: previewReceiptId,
-      replayed: true,
-      rowCount: 3,
-    });
-    const client = await pool.connect();
+  await assertXlsxReviewedImportIntegrity(pool);
+  await verifyXlsxReviewPrivileges(pool);
+  // Customer restore remains quarantined. Exercise a real API login only in
+  // the disposable native upgrade and no-ACL restore fixture.
+  if (apiConnection) {
+    const db = createDatabase(apiConnection);
     try {
-      await client.query(
-        'BEGIN; ALTER TABLE public."IngestionReviewedImportRow" DISABLE TRIGGER ingestion_reviewed_import_row_guard',
+      const repository = new DatabaseIngestionRepository(
+        db,
+        new CredentialVault(Buffer.alloc(32, 34).toString("base64")),
       );
-      await client.query(
-        'DELETE FROM public."IngestionReviewedImportRow" WHERE "receiptId"=$1 AND ordinal=3',
-        [id],
-      );
-      await assert.rejects(
-        assertXlsxReviewedImportIntegrity(client),
-        /reviewed imports are invalid/u,
+      assert.deepEqual(
+        await repository.commitXlsxReviewedImport(
+          {
+            customerId: source.customerId,
+            subject: reviewer,
+            roles: ["pmo_admin"],
+          },
+          input,
+          randomUUID(),
+        ),
+        {
+          receiptId: id,
+          parentPreviewReceiptId: previewReceiptId,
+          replayed: true,
+          rowCount: 3,
+        },
       );
     } finally {
-      try {
-        await client.query("ROLLBACK");
-      } finally {
-        client.release();
-      }
+      await db.$disconnect();
     }
-    await assertXlsxReviewedImportIntegrity(pool);
-    return { reviewedImportProofRestored: true, missingLinkDetected: true };
-  } finally {
-    await db.$disconnect();
   }
+  const client = await pool.connect();
+  try {
+    await client.query(
+      'BEGIN; ALTER TABLE public."IngestionReviewedImportRow" DISABLE TRIGGER ingestion_reviewed_import_row_guard',
+    );
+    await client.query(
+      'DELETE FROM public."IngestionReviewedImportRow" WHERE "receiptId"=$1 AND ordinal=3',
+      [id],
+    );
+    await assert.rejects(
+      assertXlsxReviewedImportIntegrity(client),
+      /reviewed imports are invalid/u,
+    );
+  } finally {
+    try {
+      await client.query("ROLLBACK");
+    } finally {
+      client.release();
+    }
+  }
+  await assertXlsxReviewedImportIntegrity(pool);
+  return { reviewedImportProofRestored: true, missingLinkDetected: true };
 }

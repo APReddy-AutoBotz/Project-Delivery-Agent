@@ -168,7 +168,8 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     "public.read_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text)",
     "public.finalize_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text,integer,text,text,jsonb,jsonb)",
   ];
-  expect(revoked).toHaveLength(15);
+  const xlsxReviewApi = "public.commit_ingestion_xlsx_reviewed_import(uuid,uuid,text,text[],text,uuid,text,integer[],text)";
+  expect(revoked).toHaveLength(16);
   expect(
     revoked
       .flatMap((match) => splitFunctionSignatures(match[1]!))
@@ -195,13 +196,17 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       "public.lock_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text)",
       "public.materialize_ingestion_xlsx_fields(uuid,uuid,integer,text,jsonb)",
       "public.require_ingestion_xlsx_preview_complete()",
+      xlsxReviewApi,
+      "public.verified_ingestion_xlsx_context(uuid)",
+      "public.valid_ingestion_xlsx_reviewed_import(uuid)",
+      "public.require_ingestion_xlsx_reviewed_import_complete()",
       "public.guard_ingestion_configuration()",
     ].sort(),
   );
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
   ];
-  expect(granted).toHaveLength(10);
+  expect(granted).toHaveLength(11);
   expect(granted.flatMap((match) => splitFunctionSignatures(match[1]!)).sort()).toEqual(
     [
       "public.valid_canonical_state_binding(uuid)",
@@ -219,6 +224,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...csvValidators,
       xlsxRetryFunction,
       ...xlsxWriterApi,
+      xlsxReviewApi,
       "public.lock_update_issuance_gate(uuid)",
       "public.purge_update_capture_content(uuid)",
     ].sort(),
@@ -233,7 +239,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(25);
+  ]).toHaveLength(27);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {

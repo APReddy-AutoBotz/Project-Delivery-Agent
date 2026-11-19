@@ -511,14 +511,14 @@ export async function proveNativeXlsxPreviews(pool) {
   }
 }
 
-export async function verifyNativeXlsxComparisonRuntime(pool, ownerConnection, expectedContexts = 3) {
+export async function verifyNativeXlsxComparisonRuntime(pool, ownerConnection, expectedContexts = 3, sourceId = null) {
   const { rows } = await pool.query(`SELECT s."customerId",s.id AS "sourceId",
     c.revision AS "configRevision",c."mappingRevision",c.mapping->>'sheet' AS sheet,
     c.mapping->>'parserContract' AS "parserContract",h."currentReceiptId"
     FROM public."IngestionSource" s JOIN public."IngestionConfigurationRevision" c
       ON c."customerId"=s."customerId" AND c."sourceId"=s.id AND c.revision=s."currentConfigRevision"
     JOIN public."IngestionXlsxHead" h ON h."customerId"=s."customerId" AND h."sourceId"=s.id
-    WHERE s."inputFamily"='XLSX'`);
+    WHERE s."inputFamily"='XLSX' AND ($1::uuid IS NULL OR s.id=$1)`, [sourceId]);
   assert.equal(rows.length, 1);
   const { customerId, currentReceiptId, ...request } = rows[0];
   const actor = { customerId, subject: "synthetic-workbook-pmo", roles: ["pmo_admin"] };
@@ -557,7 +557,7 @@ export async function verifyNativeXlsxPreviewRestore(pool, expectedContexts = 3)
   try {
     await client.query("BEGIN");
     await assertXlsxPreviewIntegrity(client);
-    const snapshot = `SELECT "receiptId",revision,"contextSha256","stateSha256" FROM public."IngestionXlsxContext" ORDER BY revision`;
+    const snapshot = `SELECT "receiptId",revision,"contextSha256","stateSha256" FROM public."IngestionXlsxContext" ORDER BY "sourceId", revision`;
     const { rows: before } = await client.query(snapshot);
     assert.equal(before.length, expectedContexts);
     await client.query("SAVEPOINT workbook_restore_context");
