@@ -111,7 +111,12 @@ export async function proveNativeXlsxPreviewRetry(pool, apiConnection) {
     assert.deepEqual(await db.$queryRaw`SELECT session_user::text AS role`,[{role:"pdaa_api"}]);
     const repository=new DatabaseIngestionRepository(db,vault);
     const retry = (input=original,bytes=workbook,principal=actor) => repository.probeXlsxPreviewRetry(principal,input,bytes,randomUUID());
+    const prepare = (input=original,bytes=workbook,principal=actor) => repository.prepareXlsxPreview(principal,input,bytes,randomUUID());
     assert.deepEqual(await retry(),expected);
+    const replay = await prepare();
+    assert.deepEqual(replay,{kind:"REPLAYED",result:expected});
+    assert.equal(Object.isFrozen(replay),true);
+    assert.equal(Object.isFrozen(replay.result),true);
     assert.deepEqual(await new DatabaseIngestionRepository(db,vault).probeXlsxPreviewRetry(actor,original,workbook,randomUUID()),expected);
     assert.notEqual(latest.receiptId,fixture.receiptId);
     assert.equal(latest.outcomeCount,0);
@@ -121,8 +126,15 @@ export async function proveNativeXlsxPreviewRetry(pool, apiConnection) {
     for (const [input,bytes] of [[original,altered],[original,Buffer.concat([workbook,Buffer.from("x")])],
       [{...original,configRevision:currentRevision},workbook],[{...original,mappingRevision:original.mappingRevision+1},workbook],
       [{...original,sheet:"Another sheet"},workbook]]) await assert.rejects(retry(input,bytes),errorCode("CONFLICT"));
-    assert.equal(await retry({...original,commandKey:"missing-workbook-command",configRevision:currentRevision},null),null);
-    await assert.rejects(retry({...original,commandKey:"missing-workbook-command"},null),errorCode("STALE_CONFIGURATION"));
+    const fresh = {...original,commandKey:"missing-workbook-command",configRevision:currentRevision};
+    const admission = await prepare(fresh,null);
+    assert.deepEqual(admission,{kind:"FRESH",parserContract:fixture.mapping.parserContract});
+    assert.equal(Object.isFrozen(admission),true);
+    assert.equal(await retry(fresh,null),null);
+    await assert.rejects(prepare({...fresh,sheet:"Another sheet"},null),errorCode("STALE_CONFIGURATION"));
+    await assert.rejects(prepare({...fresh,mappingRevision:fresh.mappingRevision+1},null),errorCode("STALE_CONFIGURATION"));
+    await assert.rejects(prepare({...fresh,configRevision:original.configRevision},null),errorCode("STALE_CONFIGURATION"));
+    await assert.rejects(prepare(fresh,null,{...actor,subject:"another-synthetic-subject"}),errorCode("DENIED"));
     assert.deepEqual(await db.$queryRaw`SELECT * FROM public.probe_ingestion_xlsx_retry(
       ${randomUUID()}::uuid,${sourceId}::uuid,${subject}::text,ARRAY['pmo_admin']::text[],${original.commandKey}::text,
       ${original.configRevision}::integer,${original.mappingRevision}::integer,${original.sheet}::text,NULL::integer,NULL::text)`,
@@ -155,6 +167,7 @@ export async function proveNativeXlsxPreviewRetry(pool, apiConnection) {
     assert.deepEqual(await snapshot(),saved);
     return {exactAfterConfigAndHeadAdvance:true,sameKeyConflict:true,denialBeforeWorkbook:true,
       capturedAndCurrentGrantChecks:true,readerRevocationDenied:true,contentionFailsClosed:true,
-      unauthorizedContentionDenial:true,emptyHeadReplayed:true,successfulRetryAuditUnchanged:true,mapStateUnchanged:true};
+      unauthorizedContentionDenial:true,emptyHeadReplayed:true,successfulRetryAuditUnchanged:true,
+      freshAdmissionReturnsOnlySealedProfile:true,mapStateUnchanged:true};
   } finally { await db.$disconnect(); }
 }

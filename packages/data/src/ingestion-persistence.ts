@@ -28,6 +28,7 @@ import {
   projectFactIdSchema,
   projectFactSubjectSchema,
   xlsxMappingRevisionSchema,
+  xlsxParserContractSchema,
   xlsxSheetSchema,
   validateConnectorPage,
   validateConnectorRecord,
@@ -121,6 +122,10 @@ const xlsxRetryResult = z.discriminatedUnion("status", [
     row_count: z.null(),
   }),
 ]);
+type XlsxPreviewReplay = Readonly<{ receiptId: string; replayed: true; rowCount: number }>;
+type XlsxPreviewAdmission =
+  | Readonly<{ kind: "FRESH"; parserContract: z.infer<typeof xlsxParserContractSchema> }>
+  | Readonly<{ kind: "REPLAYED"; result: XlsxPreviewReplay }>;
 const spreadsheetPreparseSnapshotSchema = z.strictObject({
   binding: connectorBindingSchema,
   subject: projectFactSubjectSchema,
@@ -1833,13 +1838,24 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     });
   }
 
-  // Internal only. A miss neither decodes the workbook nor saves a new preview.
   async probeXlsxPreviewRetry(
     actorInputValue: Actor,
     input: unknown,
     originalWorkbook: unknown,
     correlationInput: string,
-  ): Promise<{receiptId:string; replayed:true; rowCount:number} | null> {
+  ): Promise<XlsxPreviewReplay | null> {
+    const decision = await this.prepareXlsxPreview(actorInputValue, input, originalWorkbook, correlationInput);
+    return decision.kind === "REPLAYED" ? decision.result : null;
+  }
+
+  // The fresh decision observes a locked configuration. A later transaction
+  // must reauthorize the actor and recheck the configuration before writing.
+  async prepareXlsxPreview(
+    actorInputValue: Actor,
+    input: unknown,
+    originalWorkbook: unknown,
+    correlationInput: string,
+  ): Promise<XlsxPreviewAdmission> {
     const actor = parseActor(actorInputValue);
     const correlationId = contextSchema(correlationInput);
     const request = parseIngestion(xlsxRetryInput, input);
@@ -1860,6 +1876,19 @@ export class DatabaseIngestionRepository implements IngestionRepository {
             return parsed.data;
           };
           const admission = await probe(null, null);
+          if (admission.status === "ABSENT") {
+            // M33 has locked this source and established the exact current
+            // sealed configuration. Use the same transaction for the profile.
+            const rows = await tx.$queryRaw<{ parserContract: unknown }[]>`
+              SELECT mapping->>'parserContract' AS "parserContract"
+              FROM public."IngestionConfigurationRevision"
+              WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${request.sourceId}::uuid
+                AND revision=${request.configRevision}::integer AND "mappingRevision"=${request.mappingRevision}::integer
+                AND sealed AND mapping->>'kind'='XLSX' AND mapping->>'sheet'=${request.sheet}::text`;
+            const contract = xlsxParserContractSchema.safeParse(rows[0]?.parserContract);
+            if (rows.length !== 1 || !contract.success) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+            return Object.freeze({ kind: "FRESH" as const, parserContract: contract.data });
+          }
           if (admission.status !== "CHECK_BYTES") {
             if (admission.status === "REPLAYED") throw new IngestionPersistenceError("PERSISTENCE_FAILED");
             return admission;
@@ -1870,10 +1899,13 @@ export class DatabaseIngestionRepository implements IngestionRepository {
             throw new IngestionPersistenceError("PERSISTENCE_FAILED");
           return exact;
         }, { isolationLevel:"ReadCommitted", maxWait:5000, timeout:12000 });
-        if (result.status === "REPLAYED") return {receiptId:result.receipt_id, replayed:true, rowCount:result.row_count};
-        if (result.status === "ABSENT") return null;
+        if ("kind" in result) return result;
+        if (result.status === "REPLAYED") return Object.freeze({
+          kind: "REPLAYED",
+          result: Object.freeze({ receiptId: result.receipt_id, replayed: true, rowCount: result.row_count }),
+        });
         if (result.status === "RETRY") continue;
-        if (result.status === "CHECK_BYTES") throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+        if (result.status === "CHECK_BYTES" || result.status === "ABSENT") throw new IngestionPersistenceError("PERSISTENCE_FAILED");
         throw new IngestionPersistenceError(result.status);
       }
       throw new IngestionPersistenceError("PERSISTENCE_FAILED");

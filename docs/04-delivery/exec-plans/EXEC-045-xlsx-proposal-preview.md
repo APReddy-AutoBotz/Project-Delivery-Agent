@@ -513,9 +513,16 @@ reconstruct the finite function grant. Packaged restore checks that grant in
 quarantine. A separate synthetic PostgreSQL copy permits a direct API login
 for replay across restore, lawful redaction and context corruption checks.
 
+An internal fresh-command decision reads only the parser contract from the
+exact sealed XLSX configuration while the authorization transaction still
+holds the source lock. The decision uses the existing API database grant and
+leaves workbook bytes untouched. A retry returns the stored receipt metadata.
+The synthetic API-login fixture checks both results, denied access, stale
+request fields and stable comparison state.
+
 The public configuration and receipt contracts still expose the existing
-spreadsheet path. Fresh service preview, reviewed selection and live workbook
-upload remain pending.
+spreadsheet path. Fresh preview decoding and writing, reviewed selection and
+live workbook upload remain pending.
 
 ## Required validation
 
