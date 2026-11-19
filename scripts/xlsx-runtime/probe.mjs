@@ -44,6 +44,7 @@ if (process.argv[3] === "denied") {
   );
   for (const [index, { id, gridIndex }] of expected.jobs.entries()) {
     const started = performance.now();
+    let failure;
     const client = createConnection({ path: socket, allowHalfOpen: true });
     const timer = setTimeout(
       () => client.destroy(new Error("Decoder proof timed out")),
@@ -63,7 +64,7 @@ if (process.argv[3] === "denied") {
           : error.message === "XLSX_WIRE_REJECTED"
             ? "incomplete or invalid frame"
             : "transport failure";
-      throw new Error(
+      failure = new Error(
         "Synthetic XLSX runtime proof failed at case " +
           (index + 1) +
           " after " +
@@ -76,6 +77,7 @@ if (process.argv[3] === "denied") {
       clearTimeout(timer);
       client.destroy();
     }
+    if (failure) throw failure;
   }
 }
 process.stdout.write("XLSX_RUNTIME_PROBE_PASSED\n");

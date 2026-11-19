@@ -31,6 +31,7 @@ const evidence = join(root, "artifacts", "xlsx-runtime-package.json");
 let built = false;
 let composed = false;
 let proofFailure;
+const cleanupFailures = [];
 let result;
 
 function docker(args, timeout = 30_000) {
@@ -263,7 +264,6 @@ try {
 } catch (error) {
   proofFailure = error;
 } finally {
-  const cleanupFailures = [];
   const cleanup = (remove) => {
     try {
       remove();
@@ -276,13 +276,13 @@ try {
   if (built) cleanup(() => docker(["image", "rm", image]));
   if (cleanupFailures.length === 0)
     cleanup(() => rmSync(workspace, { recursive: true, force: true }));
-  if (cleanupFailures.length) {
-    if (proofFailure) cleanupFailures.unshift(proofFailure);
-    throw new AggregateError(
-      cleanupFailures,
-      "XLSX runtime teardown did not finish for " + project,
-    );
-  }
+}
+if (cleanupFailures.length) {
+  if (proofFailure) cleanupFailures.unshift(proofFailure);
+  throw new AggregateError(
+    cleanupFailures,
+    "XLSX runtime teardown did not finish for " + project,
+  );
 }
 if (proofFailure) throw proofFailure;
 mkdirSync(join(root, "artifacts"), { recursive: true });
