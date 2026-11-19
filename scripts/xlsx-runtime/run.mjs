@@ -30,6 +30,7 @@ const containers = [];
 const evidence = join(root, "artifacts", "xlsx-runtime-package.json");
 let built = false;
 let composed = false;
+let proofFailure;
 let result;
 
 function docker(args, timeout = 30_000) {
@@ -259,6 +260,8 @@ try {
     cleanRestart: true,
     abnormalRestartDenied: true,
   };
+} catch (error) {
+  proofFailure = error;
 } finally {
   const cleanupFailures = [];
   const cleanup = (remove) => {
@@ -271,13 +274,17 @@ try {
   for (const id of containers) cleanup(() => docker(["rm", "-f", id]));
   if (composed) cleanup(() => compose("down", "--volumes", "--remove-orphans"));
   if (built) cleanup(() => docker(["image", "rm", image]));
-  cleanup(() => rmSync(workspace, { recursive: true, force: true }));
-  if (cleanupFailures.length)
+  if (cleanupFailures.length === 0)
+    cleanup(() => rmSync(workspace, { recursive: true, force: true }));
+  if (cleanupFailures.length) {
+    if (proofFailure) cleanupFailures.unshift(proofFailure);
     throw new AggregateError(
       cleanupFailures,
-      "XLSX runtime teardown did not finish",
+      "XLSX runtime teardown did not finish for " + project,
     );
+  }
 }
+if (proofFailure) throw proofFailure;
 mkdirSync(join(root, "artifacts"), { recursive: true });
 writeFileSync(evidence, JSON.stringify(result, null, 2) + "\n", { flag: "wx" });
 console.log("XLSX decoder runtime package proof passed");
