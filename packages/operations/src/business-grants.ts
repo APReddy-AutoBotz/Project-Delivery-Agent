@@ -12,6 +12,17 @@ export const xlsxReceiptCodecFunctions = Object.freeze([
   "public.ingestion_xlsx_v1_selection_hash(jsonb,jsonb)",
 ]);
 
+export const xlsxGenesisFunctions = Object.freeze([
+  "public.ingestion_xlsx_v1_state_text(uuid,uuid,integer,jsonb,jsonb,jsonb,jsonb)",
+  "public.valid_ingestion_xlsx_mapping(jsonb)",
+  "public.guard_ingestion_xlsx_source()",
+  "public.guard_ingestion_xlsx_mapping_family()",
+  "public.initialize_ingestion_xlsx_head()",
+  "public.valid_ingestion_xlsx_genesis(uuid,uuid)",
+  "public.require_ingestion_xlsx_genesis()",
+  "public.guard_ingestion_xlsx_legacy_write()",
+]);
+
 export async function assertBusinessTableOwner(client: Pick<Client, "query">) {
   const principals = (
     await client.query(
@@ -133,6 +144,30 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       ELSIF present <> 0 OR recorded THEN
         RAISE EXCEPTION 'Incomplete XLSX receipt codec family';
       END IF;
-    END $xlsx_acl$
+    END $xlsx_acl$;
+    DO $xlsx_genesis_acl$
+    DECLARE present integer; owned boolean; has_head boolean; recorded boolean := false;
+    BEGIN
+      SELECT count(p.oid), bool_and(p.proowner=current_user::regrole) INTO present, owned
+        FROM unnest(ARRAY[${xlsxGenesisFunctions.map((name) => `'${name}'`).join(",")}]) AS functions(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(signature);
+      has_head := to_regclass('public."IngestionXlsxHead"') IS NOT NULL;
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190002_xlsx_source_genesis') INTO recorded;
+      END IF;
+      IF present = ${xlsxGenesisFunctions.length} AND has_head THEN
+        IF current_user = 'pdaa_migrate' AND owned IS NOT TRUE THEN
+          RAISE EXCEPTION 'Unexpected XLSX genesis function owner';
+        END IF;
+        REVOKE ALL ON FUNCTION ${xlsxGenesisFunctions.join(",")},public.guard_ingestion_configuration() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL ON TABLE public."IngestionXlsxHead" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL ("customerId","sourceId","activationConfigRevision","mappingRevision",dictionary,"genesisSha256")
+          ON public."IngestionXlsxHead" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        GRANT SELECT ON public."IngestionXlsxHead" TO pdaa_backup;
+      ELSIF present <> 0 OR has_head OR recorded THEN
+        RAISE EXCEPTION 'Incomplete XLSX source genesis family';
+      END IF;
+    END $xlsx_genesis_acl$
   `);
 }

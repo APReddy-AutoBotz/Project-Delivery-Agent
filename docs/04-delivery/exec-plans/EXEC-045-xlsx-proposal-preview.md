@@ -462,6 +462,22 @@ rows, source scope and record lineage under lock. Exact retry, revocation,
 retention and recovery of the resulting receipts remain launch gates before
 adding an application entry point. Original19/20 capture stays stopped.
 
+### Native workbook source and initial comparison state
+
+The local migration 31 adds an immutable workbook source family selected by the
+migration owner. The source, workbook mapping, PMO authorization, audit and
+empty comparison state are committed together. Activation binds the exact sheet,
+parser profile and mapping revision. The application role uses the legacy
+source configuration and receipt contracts while workbook activation is dormant.
+
+Workbook comparison state has a dedicated UTF-8 digest domain. Its sorted
+identities and mapped-field projection references use the same structural
+rules as the CSV comparison, including carry-forward and stable record and
+project identity. PostgreSQL computes the empty state directly from the sealed
+mapping. Recovery validates the stored genesis and reconstructs the finite
+function and table grants. The preview receipt writer and comparison history
+append still require a native transaction and dedicated validation.
+
 ## Required validation
 
 PR #153 Foundation run [41262214531](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41262214531)

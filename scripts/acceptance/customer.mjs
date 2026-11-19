@@ -38,6 +38,7 @@ import { loadDatabaseConfig, CredentialVault } from "../../packages/platform/dis
 import { prepareCsvRetention } from "./csv-import-native.mjs";
 import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
 import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
+import { verifyXlsxGenesisPrivileges } from "./xlsx-source-genesis.mjs";
 import { csvCanonicalTables } from "./csv-import-workflow-receipt.mjs";
 import { exerciseCsvImportWorkflow, replayCsvImportAfterRecreation, snapshotCsvBeforeBackup, verifyRestoredCsvImport } from "./csv-import-workflow.mjs";
 import {exerciseCsvComparisonWorkflow,replayCsvComparisonAfterRecreation,snapshotCsvComparisonBeforeBackup,verifyRestoredCsvComparison} from "./csv-comparison-workflow.mjs";
@@ -190,6 +191,7 @@ async function projection(pool) {
     "_prisma_migrations",
     ...projectUpdateTables,
     ...csvComparisonTables,
+    "IngestionXlsxHead",
     ...scheduleHealthPolicyTables,
     ...engagementStorageTables,
     ...updateCaptureTables,
@@ -568,7 +570,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 30);
+    assert.equal(migrations.length, 31);
     assert.equal(migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
@@ -842,12 +844,12 @@ try {
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 87,
+      businessTableCount: 88,
       csvComparisonTables,
       csvComparisonPrivileges,
       xlsxReceiptCodec,
       engagementStorageTables,
-      migrationCount: 30,
+      migrationCount: 31,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -932,6 +934,8 @@ try {
       csvFixture.restored = await verifyRestoredCsvImport(restored, csvFixture);
       const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(restored,undefined,{owner:"pdaa_migrate"});
       const xlsxReceiptCodec = await verifyXlsxReceiptCodec(restored, { owner: "pdaa_migrate" });
+      const xlsxGenesisPrivileges = await verifyXlsxGenesisPrivileges(restored,
+        ["pdaa_api","pdaa_worker","pdaa_backup"], { owner:"pdaa_migrate", backupRead:true });
       save("csv-import-workflow-fixture", csvFixture);
       const csvComparison=read("csv-comparison-workflow-fixture");
       csvComparison.restored=await verifyRestoredCsvComparison(restored,csvComparison);
@@ -996,6 +1000,7 @@ try {
       receipt.restore = {
         csvComparisonPrivileges,
         xlsxReceiptCodec,
+        xlsxGenesisPrivileges,
         ingestionReassessment: await verifyRestoredReassessments(restored, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

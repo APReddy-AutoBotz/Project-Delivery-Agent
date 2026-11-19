@@ -152,7 +152,7 @@ try {
     "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
     "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
     "IngestionProjectReassessment",
-    "IngestionCsvHead", "IngestionCsvContext",
+    "IngestionCsvHead", "IngestionCsvContext", "IngestionXlsxHead",
     "ScheduleHealthPolicyRevision",
   ];
   assert.deepEqual(
@@ -819,7 +819,7 @@ writeFileSync(
       ],
       engagementStorage,
       engagementStorageTables: ["ProjectUpdateEngagement","ProjectUpdateStage","ProjectUpdateOutbox","ProjectUpdateDispatchAttempt"],
-      businessTables: 87,
+      businessTables: 88,
       ingestionReassessmentTables: ["IngestionProjectReassessment"],
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",

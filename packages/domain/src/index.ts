@@ -122,3 +122,4 @@ export * from "./scalar-conflict-observation.js";
 export * from "./milestone-state-disagreement.js";
 export * from "./csv-comparison-state.js";
 export * from "./csv-comparison-overlay.js";
+export * from "./xlsx-comparison-state.js";

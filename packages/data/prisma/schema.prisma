@@ -889,6 +889,7 @@ model IngestionSource {
   id String @id @db.Uuid
   customerId String @db.Uuid
   sourceType String @db.VarChar(96)
+  inputFamily String @default("LEGACY")
   origin String @db.VarChar(2048)
   currentConfigRevision Int?
   mappingRevision Int @default(0)
@@ -902,6 +903,16 @@ model IngestionSource {
   lastSuccessReceiptId String? @db.Uuid
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@unique([customerId, id], map: "IngestionSource_scope_key")
+}
+
+model IngestionXlsxHead {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  activationConfigRevision Int
+  mappingRevision Int
+  dictionary Json
+  genesisSha256 String @db.Char(64)
+  @@id([customerId, sourceId], map: "IngestionXlsxHead_pkey")
 }
 
 model IngestionCsvHead {

@@ -339,13 +339,16 @@ export class DatabaseIngestionRepository implements IngestionRepository {
   }
 
   private async currentSource(tx: Tx, customerId: string, sourceId: string, lock: "UPDATE" | "SHARE" = "UPDATE") {
+    // Whole-row lookup also supports released prefixes in upgrade rehearsals.
     const rows = lock === "UPDATE"
       ? await tx.$queryRaw<MappingRow[]>`
           SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
-          FROM public."IngestionSource" WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid FOR UPDATE`
+          FROM public."IngestionSource" s WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid
+            AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX' FOR UPDATE`
       : await tx.$queryRaw<MappingRow[]>`
           SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
-          FROM public."IngestionSource" WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid FOR SHARE`;
+          FROM public."IngestionSource" s WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid
+            AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX' FOR SHARE`;
     if (!rows[0]) throw new IngestionPersistenceError("NOT_FOUND");
     if (rows[0].currentConfigRevision === null)
       throw new IngestionPersistenceError("STALE_CONFIGURATION");
@@ -397,7 +400,8 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     const sourceId = uuid(sourceIdInput);
     const rows = await this.db.$queryRaw<MappingRow[]>`
       SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
-      FROM public."IngestionSource" WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid`;
+      FROM public."IngestionSource" s WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid
+        AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX'`;
     const source = rows[0];
     if (!source || source.currentConfigRevision === null)
       throw new IngestionPersistenceError("DENIED");
@@ -556,8 +560,9 @@ export class DatabaseIngestionRepository implements IngestionRepository {
 
   private async csvCommandPlan(tx: Tx, actor: Actor, sourceId: string, kind: string, commandKey: string) {
     const sources = await tx.$queryRaw<{ currentConfigRevision: number | null; mappingRevision: number }[]>`
-      SELECT "currentConfigRevision","mappingRevision" FROM public."IngestionSource"
-      WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid`;
+      SELECT "currentConfigRevision","mappingRevision" FROM public."IngestionSource" s
+      WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid
+        AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX'`;
     const source = sources[0];
     if (!source || source.currentConfigRevision === null) throw new IngestionPersistenceError("DENIED");
     const existing = await this.commandReceipt(tx,actor.customerId,sourceId,actor.subject,kind,commandKey);
@@ -1320,10 +1325,12 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       if (configuration.binding.customerId !== actor.customerId)
         throw new IngestionPersistenceError("DENIED");
       return this.db.$transaction(async (tx) => {
-        const found = await tx.$queryRaw<MappingRow[]>`
-          SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
-          FROM public."IngestionSource" WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid`;
-        let source = found[0];
+        const found = await tx.$queryRaw<(MappingRow & { inputFamily: string | null })[]>`
+          SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId",
+            to_jsonb(s)->>'inputFamily' AS "inputFamily"
+          FROM public."IngestionSource" s WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid`;
+        if (found[0]?.inputFamily === "XLSX") throw new IngestionPersistenceError("DENIED");
+        let source: MappingRow | undefined = found[0];
         let previousConfiguration: { mapping: unknown; revision: number; mappingRevision: number } | undefined;
         let previousProjectIds: string[] = [];
         if (source) {
@@ -1530,8 +1537,9 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     const actor = parseActor(actorInputValue);
     return this.run(actor, "source_list", "ingestion.source.list", "PERSISTENCE_FAILED", async () => {
       const sources = await this.db.$queryRaw<{ id: string }[]>`
-        SELECT id FROM public."IngestionSource"
+        SELECT id FROM public."IngestionSource" s
         WHERE "customerId"=${actor.customerId}::uuid AND "currentConfigRevision" IS NOT NULL
+          AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX'
         ORDER BY id`;
       const summaries: IngestionSourceSummary[] = [];
       for (const source of sources) {

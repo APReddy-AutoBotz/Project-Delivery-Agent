@@ -116,7 +116,8 @@ export async function verifyCsvComparisonUpgrade(db,repository,actor,projectId,p
       assert.equal((await repository.readReceipt(actor,{sourceId:entry.sourceId,receiptId:entry.preview.receiptId})).receipt.id,entry.preview.receiptId);
       assert.deepEqual(await repository.persistCsvPreview(actor,entry.preview.input,randomUUID()),{receiptId:entry.preview.receiptId,replayed:true,rowCount:1});
     }
-    const source=await db.ingestionSource.findUniqueOrThrow({where:{id:entry.sourceId}});
+    const source=await db.ingestionSource.findUniqueOrThrow({where:{id:entry.sourceId},
+      select:{currentConfigRevision:true,mappingRevision:true}});
     const input={sourceId:entry.sourceId,configRevision:source.currentConfigRevision,mappingRevision:source.mappingRevision,
       commandKey:randomUUID(),fileName:"new.csv",csv:`Key,Project,Forecast\nRELEASED-27,${projectId},2027-01-01\n`};
     if (entry.kind === "empty") {

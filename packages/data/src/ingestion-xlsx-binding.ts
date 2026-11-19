@@ -8,9 +8,11 @@ import {
   ingestionRowOperationSchema,
   ingestionRowStateSchema,
   ingestionSafeErrorSchema,
-  ingestionText,
   projectFactIdSchema,
   projectFactSubjectSchema,
+  xlsxMappingRevisionSchema,
+  xlsxParserContractSchema,
+  xlsxSheetSchema,
 } from "@pdaa/domain";
 import { z } from "zod";
 
@@ -18,14 +20,9 @@ import { z } from "zod";
 // source scope, locked comparison state and retained content separately.
 const maxWorkbookBytes = 1_048_576;
 const digest = z.string().regex(/^[a-f0-9]{64}$/u);
-const revision = z.number().int().min(1).max(2_147_483_647);
+const revision = xlsxMappingRevisionSchema;
 const id = projectFactIdSchema;
 const subject = projectFactSubjectSchema;
-const sheet = ingestionText(31).refine(
-  (value) => !/[\\/*?:[\]]|_x[0-9a-f]{4}_/iu.test(value),
-);
-// Recognition of a historic profile does not authorize a new decode.
-const parserContract = z.enum(["portable-v1", "excel-text-v1"]);
 const scopeFields = {
   customerId: id,
   sourceId: id,
@@ -34,8 +31,9 @@ const scopeFields = {
 };
 const requestScope = z.strictObject({
   ...scopeFields,
-  sheet,
-  parserContract,
+  sheet: xlsxSheetSchema,
+  // Recognition of a historic profile does not authorize a new decode.
+  parserContract: xlsxParserContractSchema,
   configRevision: revision,
   mappingRevision: revision,
 });

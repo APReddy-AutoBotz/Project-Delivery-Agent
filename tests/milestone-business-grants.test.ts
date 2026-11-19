@@ -145,7 +145,17 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     "public.ingestion_xlsx_v1_context_hash(jsonb)",
     "public.ingestion_xlsx_v1_selection_hash(jsonb,jsonb)",
   ];
-  expect(revoked).toHaveLength(11);
+  const xlsxGenesisFunctions = [
+    "public.ingestion_xlsx_v1_state_text(uuid,uuid,integer,jsonb,jsonb,jsonb,jsonb)",
+    "public.valid_ingestion_xlsx_mapping(jsonb)",
+    "public.guard_ingestion_xlsx_source()",
+    "public.guard_ingestion_xlsx_mapping_family()",
+    "public.initialize_ingestion_xlsx_head()",
+    "public.valid_ingestion_xlsx_genesis(uuid,uuid)",
+    "public.require_ingestion_xlsx_genesis()",
+    "public.guard_ingestion_xlsx_legacy_write()",
+  ];
+  expect(revoked).toHaveLength(12);
   expect(
     revoked
       .flatMap((match) => splitFunctionSignatures(match[1]!))
@@ -165,6 +175,8 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...reassessmentValidators, ...reassessmentGuards,
       ...csvValidators,...csvGuards,
       ...xlsxCodecFunctions,
+      ...xlsxGenesisFunctions,
+      "public.guard_ingestion_configuration()",
     ].sort(),
   );
   const granted = [
@@ -200,7 +212,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(19);
+  ]).toHaveLength(20);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {
