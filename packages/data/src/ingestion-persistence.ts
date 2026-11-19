@@ -2223,8 +2223,8 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     return this.run(actor, "xlsx_reviewed_import", correlationId, "PERSISTENCE_FAILED", async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         const result = await this.db.$transaction(async (tx) => {
-          const [row] = await tx.$queryRaw<{ result: unknown }[]>
-            `SELECT public.commit_ingestion_xlsx_reviewed_import(
+          const [row] = await tx.$queryRaw<{ result: unknown }[]>`
+            SELECT public.commit_ingestion_xlsx_reviewed_import(
               ${actor.customerId}::uuid,${input.sourceId}::uuid,${actor.subject}::text,${roles}::text[],${input.commandKey}::text,
               ${input.previewReceiptId}::uuid,${input.previewContextSha256}::text,${input.rowOrdinals}::integer[],${correlationId}::text
             ) AS result`;

@@ -77,7 +77,7 @@ export async function proveXlsxSourceProvisioning(
   for (const project of [firstProject, secondProject]) {
     await pool.query(
       `INSERT INTO public."Project" (id,"customerId","portfolioId",code,name,description,"reportedStatus")
-       VALUES ($1,$2,$3,$1::text,'Synthetic XLSX operator project','Provisioning fixture','UNKNOWN')`,
+       VALUES ($1::uuid,$2,$3,$1::uuid::text,'Synthetic XLSX operator project','Provisioning fixture','UNKNOWN')`,
       [project, customerId, portfolio],
     );
   }
