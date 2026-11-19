@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readMigrations, migrateDatabase } from "../../packages/operations/dist/index.js";
-import { applyBusinessTableGrants, xlsxReceiptCodecFunctions, xlsxGenesisFunctions, xlsxContextFunctions, xlsxRetryFunction, xlsxWriterFunctions, xlsxReviewFunctions } from "../../packages/operations/dist/business-grants.js";
+import { applyBusinessTableGrants, xlsxReceiptCodecFunctions, xlsxGenesisFunctions, xlsxContextFunctions, xlsxRetryFunction, xlsxWriterFunctions, xlsxReviewFunctions, xlsxReceiptReadFunctions } from "../../packages/operations/dist/business-grants.js";
 import { assertBusinessTableInventory } from "./upgrade-inventory-receipt.mjs";
 import { verifyReassessmentPrivileges } from "./ingestion-reassessment.mjs";
 import { csvComparisonFunctions,csvComparisonApiFunctions,verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
@@ -61,7 +61,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
   const url = new URL(sourceUrl);
   assert(["127.0.0.1", "localhost"].includes(url.hostname)); assert.equal(url.pathname, "/postgres");
   const creator = new Pool({ connectionString: url.toString() });
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 35);
+  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 36);
   try {
     assert.deepEqual((await creator.query("SELECT datname FROM pg_database ORDER BY datname")).rows.map((row) => row.datname), ["postgres", "template0", "template1"]);
     assert.deepEqual(await currentRoles(creator), []);
@@ -110,6 +110,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         await pool.query("ALTER FUNCTION " + xlsxRetryFunction + " OWNER TO pdaa_migrate");
         for (const signature of xlsxWriterFunctions) await pool.query("ALTER FUNCTION " + signature + " OWNER TO pdaa_migrate");
         for (const signature of xlsxReviewFunctions) await pool.query("ALTER FUNCTION " + signature + " OWNER TO pdaa_migrate");
+        for (const signature of xlsxReceiptReadFunctions) await pool.query("ALTER FUNCTION " + signature + " OWNER TO pdaa_migrate");
         // Simulate the default function EXECUTE grant introduced by --no-acl
         // restore, plus explicit role grants, before reconstructing the ACL.
         await pool.query("GRANT EXECUTE ON FUNCTION public.guard_ingestion_reconfiguration_scope(),public.guard_ingestion_retention() TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
@@ -121,6 +122,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         await pool.query("GRANT EXECUTE ON FUNCTION " + xlsxRetryFunction + " TO PUBLIC,pdaa_worker,pdaa_backup");
         await pool.query("GRANT EXECUTE ON FUNCTION " + xlsxWriterFunctions.join(",") + " TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
         await pool.query("GRANT EXECUTE ON FUNCTION " + xlsxReviewFunctions.join(",") + " TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
+        await pool.query("GRANT EXECUTE ON FUNCTION " + xlsxReceiptReadFunctions.join(",") + " TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
         await pool.query('GRANT ALL ON public."IngestionXlsxContext" TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup');
         await pool.query('GRANT ALL ON public."IngestionCsvHead",public."IngestionCsvContext" TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup');
         await pool.query('GRANT SELECT (dictionary) ON public."IngestionCsvHead" TO PUBLIC; GRANT INSERT (rows),REFERENCES ("receiptId") ON public."IngestionCsvContext" TO pdaa_worker; GRANT UPDATE ("stateHash") ON public."IngestionCsvHead" TO pdaa_backup WITH GRANT OPTION');
@@ -141,7 +143,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
       } finally { await pool.end(); }
     }
     return { rolesAbsentBeforeAnyBootstrap: true, rolelessDatabase: first, partialRoleDatabase: second,
-      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 35, businessTables: 89,
+      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 36, businessTables: 89,
       publicPrivilegesDenied: true, finiteAclAfterLaterBootstrap: true, retainedDatabases: true };
   } finally { await creator.end(); }
 }

@@ -110,6 +110,39 @@ type ReceiptRow = {
 };
 
 const idSchema = projectFactIdSchema;
+const xlsxReceiptOrdinal = z.number().int().min(1).max(1000);
+const xlsxReceiptReadInput = z.strictObject({
+  sourceId: idSchema,
+  previewReceiptId: idSchema,
+  afterOrdinal: z.number().int().min(0).max(1000),
+});
+const xlsxReceiptPage = z.strictObject({
+  sourceId: idSchema,
+  previewReceiptId: idSchema,
+  createdAt: z.iso.datetime(),
+  configRevision: xlsxMappingRevisionSchema,
+  mappingRevision: xlsxMappingRevisionSchema,
+  rowCount: z.number().int().min(0).max(1000),
+  previewContextSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  selectionState: z.enum(["OPEN", "REVIEWED", "STALE"]),
+  outcomes: z.array(z.strictObject({
+    ordinal: xlsxReceiptOrdinal,
+    state: ingestionRowStateSchema,
+    operation: ingestionRowOperationSchema,
+    errorCodes: z.array(ingestionSafeErrorSchema).max(16),
+    projectId: idSchema.nullable(),
+    contentAvailable: z.boolean(),
+    selectable: z.boolean(),
+    proposals: z.array(ingestionProposalSchema).max(32).nullable(),
+  })).max(50),
+  nextOrdinal: xlsxReceiptOrdinal.nullable(),
+});
+const xlsxReceiptReadResult = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("READY"), view: xlsxReceiptPage }),
+  z.strictObject({
+    status: z.enum(["DENIED", "RETRY", "RETENTION_REQUIRED", "INVALID_REQUEST", "INTEGRITY_CONFLICT"]),
+  }),
+]);
 const xlsxReviewInput = ingestionReviewedImportRequestSchema.extend({
   previewContextSha256: z.string().regex(/^[a-f0-9]{64}$/u),
 });
@@ -2110,6 +2143,42 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         await saveCsvComparison(tx,prior,receiptId,revisions.configRevision,prepared);
         return { receiptId, replayed: false, rowCount: outcomes.length };
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 60000 });
+    });
+  }
+
+  async readXlsxPreviewReceipt(actorInputValue: Actor, inputValue: unknown) {
+    const actor = parseActor(actorInputValue);
+    const input = parseIngestion(xlsxReceiptReadInput, inputValue);
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_receipt_read", "ingestion.xlsx.receipt.read", "PERSISTENCE_FAILED", async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const [row] = await this.db.$transaction((tx) => tx.$queryRaw<{ result: unknown }[]>`
+          SELECT public.read_ingestion_xlsx_preview_receipt(
+            ${actor.customerId}::uuid,${input.sourceId}::uuid,${actor.subject}::text,${roles}::text[],
+            ${input.previewReceiptId}::uuid,${input.afterOrdinal}::integer) AS result
+        `, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 12000 });
+        const result = xlsxReceiptReadResult.safeParse(row?.result);
+        if (!result.success) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        if (result.data.status === "RETRY") continue;
+        if (result.data.status !== "READY") throw new IngestionPersistenceError(result.data.status);
+        const view = result.data.view;
+        const last = input.afterOrdinal + view.outcomes.length;
+        if (view.sourceId !== input.sourceId || view.previewReceiptId !== input.previewReceiptId ||
+          (input.afterOrdinal < view.rowCount && view.outcomes.length === 0) ||
+          (view.outcomes.length > 0 && last > view.rowCount) ||
+          view.nextOrdinal !== (last < view.rowCount ? last : null) ||
+          view.outcomes.some((outcome, index) => {
+            const available = outcome.proposals !== null;
+            return outcome.ordinal !== input.afterOrdinal + index + 1 ||
+              outcome.contentAvailable !== available ||
+              (available && (outcome.state !== "ACCEPTED" || outcome.projectId === null || outcome.errorCodes.length > 0)) ||
+              outcome.selectable !== (view.selectionState === "OPEN" && available && outcome.operation !== "NONE");
+          }) ||
+          Buffer.byteLength(JSON.stringify(view), "utf8") > 8 * 1024 * 1024)
+          throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        return view;
+      }
+      throw new IngestionPersistenceError("PERSISTENCE_FAILED");
     });
   }
 

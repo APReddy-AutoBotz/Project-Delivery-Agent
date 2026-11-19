@@ -12,6 +12,8 @@ import {
   assertXlsxReviewedImportIntegrity,
 } from "../../packages/operations/dist/xlsx-genesis-integrity.js";
 import {
+  xlsxReceiptReadApi,
+  xlsxReceiptReadFunctions,
   xlsxReviewApiFunction,
   xlsxReviewFunctions,
 } from "../../packages/operations/dist/business-grants.js";
@@ -20,6 +22,7 @@ import { proveXlsxSourceGenesis } from "./xlsx-source-genesis.mjs";
 const sheet = "Portfolio Review";
 const previewAuthor = "synthetic-workbook-pmo";
 const reviewer = "synthetic-workbook-reviewer";
+const newReviewer = "synthetic-current-workbook-reviewer";
 
 async function binding(pool) {
   const { rows } = await pool.query(
@@ -47,9 +50,12 @@ async function context(pool, receiptId) {
 export async function verifyXlsxReviewPrivileges(
   pool,
   roles = ["pdaa_api", "pdaa_worker", "pdaa_backup"],
-  { owner = "pdaa_migrate", apiExecute = true } = {},
+  { owner = "pdaa_migrate", apiExecute = true, receiptReader = true } = {},
 ) {
-  for (const signature of xlsxReviewFunctions) {
+  const signatures = receiptReader
+    ? [...xlsxReviewFunctions, ...xlsxReceiptReadFunctions]
+    : xlsxReviewFunctions;
+  for (const signature of signatures) {
     const { rows } = await pool.query(
       `SELECT pg_get_userbyid(p.proowner) AS owner,p.prosecdef,p.proconfig,
       ARRAY(SELECT a.grantee::regrole::text FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
@@ -59,7 +65,8 @@ export async function verifyXlsxReviewPrivileges(
       FROM pg_proc p WHERE p.oid=to_regprocedure($1)`,
       [signature],
     );
-    const exposed = signature === xlsxReviewApiFunction;
+    const exposed =
+      signature === xlsxReviewApiFunction || signature === xlsxReceiptReadApi;
     const granted = exposed && apiExecute;
     assert.deepEqual(rows, [
       {
@@ -69,7 +76,8 @@ export async function verifyXlsxReviewPrivileges(
           signature ===
             "public.require_ingestion_xlsx_reviewed_import_complete()",
         proconfig: [
-          signature === "public.verified_ingestion_xlsx_context(uuid)"
+          signature === "public.verified_ingestion_xlsx_context(uuid)" ||
+          signature === xlsxReceiptReadFunctions[1]
             ? "search_path=pg_catalog"
             : "search_path=pg_catalog, pg_temp",
         ],
@@ -172,6 +180,9 @@ export async function proveNativeXlsxReviewedImport(
       ["Review-B", source.projectId, "", ""],
       row("Review-C", "New"),
       row("Review-D", "Malformed date", "invalid-date"),
+      ...Array.from({ length: 51 }, (_, index) =>
+        row(`Page-${index + 1}`, "Stable"),
+      ),
     ],
   ];
   const preview = (grid, key) =>
@@ -191,11 +202,18 @@ export async function proveNativeXlsxReviewedImport(
     );
   const commit = (request, subject = reviewer) =>
     repository.commitXlsxReviewedImport(actor(subject), request, randomUUID());
+  const read = (previewReceiptId, afterOrdinal = 0, subject = reviewer) =>
+    repository.readXlsxPreviewReceipt(actor(subject), {
+      sourceId: source.sourceId,
+      previewReceiptId,
+      afterOrdinal,
+    });
 
   try {
     assert.deepEqual(await db.$queryRaw`SELECT session_user::text AS name`, [
       { name: "pdaa_api" },
     ]);
+    await verifyXlsxReviewPrivileges(pool);
     await preview(cases[0], "fixture-review-baseline");
     const selected = await preview(cases[1], "fixture-review-preview");
     const advanced = await preview(cases[1], "fixture-review-head-advance");
@@ -207,6 +225,77 @@ export async function proveNativeXlsxReviewedImport(
       commandKey: "fixture-review-commit",
     };
     const before = await state(pool, source);
+    const open = await read(selected.receiptId);
+    const created = await pool.query(
+      'SELECT "createdAt" FROM public."IngestionOperationReceipt" WHERE id=$1',
+      [selected.receiptId],
+    );
+    assert.equal(open.createdAt, created.rows[0].createdAt.toISOString());
+    assert.equal(open.previewContextSha256, input.previewContextSha256);
+    assert.equal(open.selectionState, "OPEN");
+    assert.equal(open.rowCount, 55);
+    assert.deepEqual(await read(selected.receiptId, 0, previewAuthor), open);
+    assert.equal(open.nextOrdinal, 50);
+    assert.deepEqual(
+      open.outcomes.map(({ ordinal }) => ordinal),
+      Array.from({ length: 50 }, (_, i) => i + 1),
+    );
+    assert.deepEqual(
+      open.outcomes
+        .slice(0, 4)
+        .map(({ operation, selectable }) => [operation, selectable]),
+      [
+        ["UPDATE", true],
+        ["UNCHANGED", true],
+        ["CREATE", true],
+        ["NONE", false],
+      ],
+    );
+    assert.deepEqual(open.outcomes[1].proposals, []);
+    assert.equal(open.outcomes[1].contentAvailable, true);
+    assert.equal(open.outcomes[3].proposals, null);
+    const remainder = await read(selected.receiptId, open.nextOrdinal);
+    assert.deepEqual(
+      remainder.outcomes.map(({ ordinal }) => ordinal),
+      [51, 52, 53, 54, 55],
+    );
+    assert.equal(remainder.nextOrdinal, null);
+    assert.deepEqual((await read(selected.receiptId, 55)).outcomes, []);
+    await assert.rejects(read(selected.receiptId, 1001), {
+      code: "INVALID_INPUT",
+    });
+    await assert.rejects(read(randomUUID()), { code: "DENIED" });
+    await assert.rejects(
+      read(selected.receiptId, 0, "unentitled-workbook-reviewer"),
+      { code: "DENIED" },
+    );
+    const readInput = {
+      sourceId: source.sourceId,
+      previewReceiptId: selected.receiptId,
+      afterOrdinal: 0,
+    };
+    await assert.rejects(
+      repository.readXlsxPreviewReceipt(actor(reviewer), {
+        ...readInput,
+        sourceId: randomUUID(),
+      }),
+      { code: "DENIED" },
+    );
+    await assert.rejects(
+      repository.readXlsxPreviewReceipt(
+        { ...actor(reviewer), customerId: randomUUID() },
+        readInput,
+      ),
+      { code: "DENIED" },
+    );
+    await assert.rejects(
+      repository.readXlsxPreviewReceipt(
+        { ...actor(reviewer), roles: ["leadership"] },
+        readInput,
+      ),
+      { code: "DENIED" },
+    );
+    assert.deepEqual(await state(pool, source), before);
     await assert.rejects(commit({ ...input, rowOrdinals: [3, 1] }), {
       code: "INVALID_INPUT",
     });
@@ -236,6 +325,10 @@ export async function proveNativeXlsxReviewedImport(
       rowCount: 3,
     };
     assert.deepEqual(await commit(input), replay);
+    const reviewed = await read(selected.receiptId);
+    assert.equal(reviewed.selectionState, "REVIEWED");
+    assert(reviewed.outcomes.every(({ selectable }) => !selectable));
+    await assert.rejects(read(saved.receiptId), { code: "DENIED" });
     await assert.rejects(commit({ ...input, rowOrdinals: [2, 3] }), {
       code: "CONFLICT",
     });
@@ -292,6 +385,7 @@ export async function proveNativeXlsxReviewedImport(
     );
     try {
       await assert.rejects(commit(input), { code: "DENIED" });
+      await assert.rejects(read(selected.receiptId), { code: "DENIED" });
       await assert.rejects(commit({ ...input, rowOrdinals: [1] }), {
         code: "DENIED",
       });
@@ -335,6 +429,21 @@ export async function proveNativeXlsxReviewedImport(
     };
     const counts = await reviewWriteCounts(pool, source);
     assert.deepEqual(counts, { receipts: 1, reviews: 1, links: 3, audits: 1 });
+    const expired = await read(advanced.receiptId);
+    assert.equal(expired.selectionState, "OPEN");
+    assert.deepEqual(
+      expired.outcomes
+        .slice(0, 2)
+        .map(({ contentAvailable, selectable, proposals }) => [
+          contentAvailable,
+          selectable,
+          proposals,
+        ]),
+      [
+        [false, false, null],
+        [true, true, []],
+      ],
+    );
     await assert.rejects(commit(unused), { code: "INVALID_PREVIEW" });
     assert.deepEqual(await reviewWriteCounts(pool, source), counts);
 
@@ -365,6 +474,7 @@ export async function proveNativeXlsxReviewedImport(
     });
     await assert.rejects(commit(unused), { code: "INVALID_PREVIEW" });
     assert.deepEqual(await commit(input), replay);
+    assert.deepEqual(await read(advanced.receiptId), expired);
     assert.deepEqual(await reviewWriteCounts(pool, source), counts);
     assert.deepEqual(await state(pool, source), before);
 
@@ -400,8 +510,17 @@ export async function proveNativeXlsxReviewedImport(
       await client.query(
         `INSERT INTO public."IngestionConfigurationReader"
          SELECT "customerId","sourceId",2,"projectId",subject FROM public."IngestionConfigurationReader"
-         WHERE "customerId"=$1 AND "sourceId"=$2 AND "configRevision"=1`,
-        params,
+         WHERE "customerId"=$1 AND "sourceId"=$2 AND "configRevision"=1 AND subject<>$3`,
+        [...params, previewAuthor],
+      );
+      await client.query(
+        `INSERT INTO public."AccessGrant" (id,"customerId",subject,"scopeType","scopeId",role)
+         VALUES ($1,$2,$3,'project',$4,'pmo_admin')`,
+        [randomUUID(), customer, newReviewer, source.projectId],
+      );
+      await client.query(
+        'INSERT INTO public."IngestionConfigurationReader" VALUES ($1,$2,2,$3,$4)',
+        [...params, source.projectId, newReviewer],
       );
       await client.query(
         `UPDATE public."IngestionConfigurationRevision" SET sealed=true
@@ -416,6 +535,16 @@ export async function proveNativeXlsxReviewedImport(
     });
     await assert.rejects(commit(unused), { code: "STALE_CONFIGURATION" });
     assert.deepEqual(await commit(input), replay);
+    const stale = await read(advanced.receiptId);
+    assert.equal(stale.selectionState, "STALE");
+    assert(stale.outcomes.every(({ selectable }) => !selectable));
+    assert.equal((await read(selected.receiptId)).selectionState, "REVIEWED");
+    await assert.rejects(read(advanced.receiptId, 0, previewAuthor), {
+      code: "DENIED",
+    });
+    await assert.rejects(read(advanced.receiptId, 0, newReviewer), {
+      code: "DENIED",
+    });
     assert.deepEqual(await reviewWriteCounts(pool, source), counts);
     await assertXlsxGenesisIntegrity(pool);
     await assertXlsxPreviewIntegrity(pool);
@@ -454,6 +583,19 @@ export async function proveRestoredXlsxReviewedImport(pool, apiConnection) {
         db,
         new CredentialVault(Buffer.alloc(32, 34).toString("base64")),
       );
+      const receipt = await repository.readXlsxPreviewReceipt(
+        {
+          customerId: source.customerId,
+          subject: reviewer,
+          roles: ["pmo_admin"],
+        },
+        { sourceId: source.sourceId, previewReceiptId, afterOrdinal: 0 },
+      );
+      assert.equal(receipt.selectionState, "REVIEWED");
+      assert.equal(receipt.previewContextSha256, input.previewContextSha256);
+      assert.equal(receipt.nextOrdinal, 50);
+      assert.equal(receipt.outcomes[0].proposals, null);
+      assert.deepEqual(receipt.outcomes[1].proposals, []);
       assert.deepEqual(
         await repository.commitXlsxReviewedImport(
           {
