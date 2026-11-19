@@ -520,9 +520,24 @@ leaves workbook bytes untouched. A retry returns the stored receipt metadata.
 The synthetic API-login fixture checks both results, denied access, stale
 request fields and stable comparison state.
 
-The public configuration and receipt contracts still expose the existing
-spreadsheet path. Fresh preview decoding and writing, reviewed selection and
-live workbook upload remain pending.
+### Trusted workbook comparison baseline
+
+The database-owner loader reauthorizes the actor and locks projects, grants,
+retention, source and head in the native append order. It verifies the sealed
+mapping, current predecessor and full captured project scope before loading
+projection values. Genesis and a finalized empty head remain distinct. Each
+returned value binds to an authorized project, exact record and projection,
+and the field and type in the head dictionary. Bounds apply to the referenced
+content and the serialized baseline. A changed configuration, missing proof,
+or expired or redacted value makes the baseline unavailable.
+
+This read uses the existing database-owner transaction and creates no
+receipt. Its result stays inside the transaction that will consume it. Native
+fixtures verify genesis, retained empty state, partial carry-forward, role
+denial, stale configuration, redaction and restore.
+
+Fresh preview decoding and writing, reviewed selection and live workbook
+upload remain pending.
 
 ## Required validation
 

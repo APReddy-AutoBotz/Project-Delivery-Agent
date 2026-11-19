@@ -7,10 +7,17 @@ import {
   hashXlsxPreviewContext,
 } from "../../packages/data/dist/ingestion-xlsx-binding.js";
 import { applyXlsxComparisonObservations } from "../../packages/domain/dist/xlsx-comparison-state.js";
+import { loadXlsxComparison } from "../../packages/data/dist/ingestion-xlsx-comparison.js";
+import { createDatabase } from "../../packages/data/dist/index.js";
 import { assertXlsxPreviewIntegrity } from "../../packages/operations/dist/xlsx-genesis-integrity.js";
 import { xlsxContextFunctions } from "../../packages/operations/dist/business-grants.js";
 
 const sha256 = (input) => createHash("sha256").update(input).digest("hex");
+const errorCode = (code) => (error) => error?.code === code;
+const retainedFields = [
+  { factType: "project.forecast", value: { type: "date", value: "2027-02-01" } },
+  { factType: "project.status", value: { type: "text", value: "On track" } },
+];
 
 export async function verifyXlsxContextPrivileges(
   pool,
@@ -72,6 +79,20 @@ export async function proveNativeXlsxPreviews(pool) {
     );
     assert.equal(readers.length, 1);
     const { projectId, subject } = readers[0];
+    const actor = { customerId, subject, roles: ["pmo_admin"] };
+    const expected = { sourceId, configRevision, mappingRevision, sheet: mapping.sheet, parserContract: mapping.parserContract };
+    // The staged controls run on the same native connection and transaction
+    // as their savepoints. The separate runtime probe below uses Prisma.
+    const nativeTx = {
+      async $queryRaw(parts, ...values) {
+        const text = parts.reduce((sql, part, index) => index === 0 ? part : sql + "$" + index + part, "");
+        const { rows } = await client.query(text, values);
+        for (const row of rows)
+          if (typeof row.canonicalHistoryBytes === "string") row.canonicalHistoryBytes = BigInt(row.canonicalHistoryBytes);
+        return rows;
+      },
+    };
+    const loadBaseline = () => loadXlsxComparison(nativeTx, actor, expected);
     await client.query(
       `SELECT id FROM public."Project" WHERE "customerId"=$1 AND id=$2 FOR UPDATE`,
       [customerId, projectId],
@@ -118,6 +139,9 @@ export async function proveNativeXlsxPreviews(pool) {
       );
       policy = { revision: 1 };
     }
+    const genesis = await loadBaseline();
+    assert.deepEqual(genesis.predecessor, { kind: "GENESIS", stateSha256: head.genesisSha256 });
+    assert.deepEqual(genesis.baseline.rows, []);
     await client.query(
       `SELECT id FROM public."IngestionSource" WHERE "customerId"=$1 AND id=$2 FOR UPDATE`,
       [customerId, sourceId],
@@ -351,6 +375,16 @@ export async function proveNativeXlsxPreviews(pool) {
       state = next.state;
       return receiptId;
     };
+    const initialState = state, initialPredecessor = previous;
+    await client.query("SAVEPOINT workbook_empty_head");
+    const emptyReceipt = await recordPreview("fixture-empty-head", null);
+    const empty = await loadBaseline();
+    assert.equal(empty.predecessor.kind, "RETAINED");
+    assert.equal(empty.predecessor.receiptId, emptyReceipt);
+    assert.deepEqual(empty.baseline.rows, []);
+    await client.query("ROLLBACK TO SAVEPOINT workbook_empty_head; RELEASE SAVEPOINT workbook_empty_head");
+    state = initialState;
+    previous = initialPredecessor;
     const date = (value) => ({
       factType: "project.forecast",
       value: { type: "date", value },
@@ -367,6 +401,11 @@ export async function proveNativeXlsxPreviews(pool) {
       "CREATE",
     );
     const receipt1 = await recordPreview("fixture-preview-1", first);
+    const sharedProjection = await loadBaseline();
+    assert.deepEqual(sharedProjection.baseline.rows[0].fields, [
+      date("2027-01-01"), retainedFields[1],
+    ]);
+    assert.equal(new Set(sharedProjection.state[7][0][3].map(([, id]) => id)).size, 1);
     const update = await createObservation(
       "fixture-2",
       [date("2027-02-01")],
@@ -395,6 +434,10 @@ export async function proveNativeXlsxPreviews(pool) {
       2,
     );
     await recordPreview("fixture-preview-3", null);
+    const retained = await loadBaseline();
+    assert.deepEqual(retained.predecessor, { kind: "RETAINED", ...previous });
+    assert.deepEqual(retained.baseline.rows, [{ keyHash: keySha256, projectId, fields: retainedFields }]);
+    assert.equal(Object.isFrozen(retained.baseline.rows[0].fields[0].value), true);
     await client.query("SAVEPOINT workbook_lawful_redaction");
     const retentionSubject = subject + "-expiry-fixture";
     const changedAt = new Date();
@@ -427,6 +470,7 @@ export async function proveNativeXlsxPreviews(pool) {
     );
     await client.query("SET CONSTRAINTS ingestion_redaction_commit IMMEDIATE");
     await assertXlsxPreviewIntegrity(client);
+    await assert.rejects(loadBaseline(), errorCode("INVALID_PREVIEW"));
     await assert.rejects(
       recordPreview("fixture-expired", null),
       /Workbook comparison content is unavailable/u,
@@ -454,6 +498,9 @@ export async function proveNativeXlsxPreviews(pool) {
       supersededReceiptValid: true,
       historicalProofSurvivesRedaction: true,
       freshPreviewRequiresLiveHistory: true,
+      comparisonPreservesEmptyAndGenesis: true,
+      comparisonMaterializesCarryForward: true,
+      comparisonRejectsRedactedContent: true,
     };
   } finally {
     try {
@@ -461,6 +508,47 @@ export async function proveNativeXlsxPreviews(pool) {
     } finally {
       client.release();
     }
+  }
+}
+
+export async function verifyNativeXlsxComparisonRuntime(pool, ownerConnection) {
+  const { rows } = await pool.query(`SELECT s."customerId",s.id AS "sourceId",
+    c.revision AS "configRevision",c."mappingRevision",c.mapping->>'sheet' AS sheet,
+    c.mapping->>'parserContract' AS "parserContract",h."currentReceiptId"
+    FROM public."IngestionSource" s JOIN public."IngestionConfigurationRevision" c
+      ON c."customerId"=s."customerId" AND c."sourceId"=s.id AND c.revision=s."currentConfigRevision"
+    JOIN public."IngestionXlsxHead" h ON h."customerId"=s."customerId" AND h."sourceId"=s.id
+    WHERE s."inputFamily"='XLSX'`);
+  assert.equal(rows.length, 1);
+  const { customerId, currentReceiptId, ...request } = rows[0];
+  const actor = { customerId, subject: "synthetic-workbook-pmo", roles: ["pmo_admin"] };
+  const db = createDatabase(ownerConnection);
+  try {
+    return await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL ROLE pdaa_api`;
+      await assert.rejects(loadXlsxComparison(tx, actor, request), errorCode("DENIED"));
+      await tx.$executeRaw`SET LOCAL ROLE pdaa_worker`;
+      await assert.rejects(loadXlsxComparison(tx, actor, request), errorCode("DENIED"));
+      await tx.$executeRaw`SET LOCAL ROLE pdaa_backup`;
+      await assert.rejects(loadXlsxComparison(tx, actor, request), errorCode("DENIED"));
+      await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
+      await assert.rejects(loadXlsxComparison(tx, { ...actor, roles: ["leadership"] }, request), errorCode("DENIED"));
+      await assert.rejects(loadXlsxComparison(tx, { ...actor, subject: "synthetic-no-workbook-grant" }, request),
+        errorCode("DENIED"));
+      await assert.rejects(loadXlsxComparison(tx, actor, { ...request, configRevision: request.configRevision + 1 }),
+        errorCode("STALE_CONFIGURATION"));
+      const otherProfile = request.parserContract === "portable-v1" ? "excel-text-v1" : "portable-v1";
+      await assert.rejects(loadXlsxComparison(tx, actor, { ...request, parserContract: otherProfile }),
+        errorCode("STALE_CONFIGURATION"));
+      const result = await loadXlsxComparison(tx, actor, request);
+      assert.equal(result.predecessor.kind, "RETAINED");
+      assert.equal(result.predecessor.receiptId, currentReceiptId);
+      assert.equal(result.predecessor.revision, 3);
+      assert.deepEqual(result.baseline.rows.map(({ fields }) => fields), [retainedFields]);
+      return { ownerMaterializedRetainedBaseline: true, runtimeRolesDenied: true, staleConfigurationDenied: true };
+    }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 12000 });
+  } finally {
+    await db.$disconnect();
   }
 }
 

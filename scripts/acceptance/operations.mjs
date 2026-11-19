@@ -93,7 +93,10 @@ import { seedReassessmentRecovery, verifyRestoredReassessments } from "./ingesti
 import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
 import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
 import { proveXlsxSourceGenesis, verifyXlsxGenesisPrivileges } from "./xlsx-source-genesis.mjs";
-import { proveNativeXlsxPreviews, verifyNativeXlsxPreviewRestore, verifyXlsxContextPrivileges, verifyXlsxPreviewSerialization } from "./xlsx-native-preview.mjs";
+import {
+  proveNativeXlsxPreviews, verifyNativeXlsxComparisonRuntime, verifyNativeXlsxPreviewRestore,
+  verifyXlsxContextPrivileges, verifyXlsxPreviewSerialization,
+} from "./xlsx-native-preview.mjs";
 import { proveNativeXlsxPreviewRetry, verifyXlsxRetryPrivileges } from "./xlsx-preview-retry.mjs";
 guard();
 const adminConfig = config(
@@ -428,6 +431,7 @@ try {
       existingCustomer: process.env.CUSTOMER_ID, retain: true,
     });
     const xlsxNativePreviews = await proveNativeXlsxPreviews(admin);
+    const xlsxComparison = await verifyNativeXlsxComparisonRuntime(admin, adminConfig);
     const xlsxPreviewSerialization = await verifyXlsxPreviewSerialization(admin);
     const xlsxPreviewRetry = await proveNativeXlsxPreviewRetry(admin, config("database", "pdaa_api", "api-password").database);
     const ingestionReassessment = await seedReassessmentRecovery(admin,
@@ -473,6 +477,7 @@ try {
           xlsxReceiptCodec,
           xlsxGenesis,
           xlsxNativePreviews,
+          xlsxComparison,
           xlsxPreviewSerialization,
           xlsxPreviewRetry,
           engagementStorageTables,
@@ -590,6 +595,7 @@ try {
       assert.equal(expected.IngestionXlsxHead.length, 1);
       assert.equal(expected.IngestionXlsxContext.length, 3);
       const xlsxGenesisRestore = await verifyNativeXlsxPreviewRestore(pool);
+      const xlsxComparison = await verifyNativeXlsxComparisonRuntime(pool, target("restore_target"));
       const xlsxRetryPrivileges = await verifyXlsxRetryPrivileges(pool, ["pdaa_api","pdaa_worker","pdaa_backup"],
         {owner:"pdaa_migrate",apiExecute:true});
       const xlsxContextPrivileges = await verifyXlsxContextPrivileges(pool,
@@ -654,6 +660,7 @@ try {
         xlsxReceiptCodec,
         xlsxGenesisPrivileges,
         xlsxGenesisRestore,
+        xlsxComparison,
         xlsxContextPrivileges,
         xlsxRetryPrivileges,
         ingestionReassessment: await verifyRestoredReassessments(pool, receipt.ingestionReassessment),

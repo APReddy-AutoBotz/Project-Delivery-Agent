@@ -45,6 +45,7 @@ import type {
   PrismaClient as Database,
 } from "./generated/prisma/client.js";
 import { actorInput } from "./fact-authorization.js";
+import { authorizeIngestionProjects, currentRoleMatches, ingestionWriteRoles } from "./ingestion-project-authorization.js";
 import { enqueueConnectorReassessments } from "./ingestion-reassessments.js";
 import { loadCsvComparison, saveCsvComparison } from "./ingestion-csv-comparison.js";
 import { fingerprintXlsxWorkbook } from "./ingestion-xlsx-binding.js";
@@ -106,7 +107,6 @@ type ReceiptRow = {
 };
 
 const idSchema = projectFactIdSchema;
-const ingestionWriteRoles: readonly string[] = ["project_manager", "portfolio_manager", "pmo_admin"];
 const xlsxRetryInput = z.strictObject({
   sourceId: idSchema,
   commandKey: ingestionCommandKeySchema,
@@ -211,9 +211,6 @@ function parseActor(value: Actor): Actor {
     throw new IngestionPersistenceError("INVALID_REQUEST");
   }
 }
-function currentRoleMatches(actor: Actor, role: string) {
-  return actor.roles.some((candidate) => candidate === role);
-}
 function configMapping(config: IngestionConfiguration) {
   if (config.mapping.kind === "CSV")
     return {
@@ -312,54 +309,6 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     } catch {
       throw new IngestionPersistenceError("PERSISTENCE_FAILED");
     }
-  }
-
-  private async authorizedProjects(
-    tx: Tx,
-    actor: Actor,
-    projectsInput: readonly string[],
-    action: "read" | "write" | "configure",
-    projectLimit = 100,
-  ) {
-    const projectIds = [...new Set(projectsInput)].sort(exactCompare);
-    // Configuration changes must check every historic grant as well as both
-    // configuration scopes. History cannot be truncated to fit a fixed union.
-    if (!projectIds.length || (action !== "configure" && projectIds.length > projectLimit))
-      throw new IngestionPersistenceError("DENIED");
-    const projects = action === "read"
-      ? await tx.$queryRaw<{ id: string; portfolioId: string }[]>`
-          SELECT id,"portfolioId" FROM public."Project"
-          WHERE "customerId"=${actor.customerId}::uuid AND id=ANY(${projectIds}::uuid[])
-          ORDER BY id FOR SHARE`
-      : await tx.$queryRaw<{ id: string; portfolioId: string }[]>`
-          SELECT id,"portfolioId" FROM public."Project"
-          WHERE "customerId"=${actor.customerId}::uuid AND id=ANY(${projectIds}::uuid[])
-          ORDER BY id FOR UPDATE`;
-    if (projects.length !== projectIds.length)
-      throw new IngestionPersistenceError("DENIED");
-    const portfolioIds = [...new Set(projects.map((project) => project.portfolioId))].sort(exactCompare);
-    const grants = await tx.$queryRaw<
-      { id: string; scopeType: string; scopeId: string; role: string }[]
-    >`
-      SELECT id,"scopeType","scopeId",role FROM public."AccessGrant"
-      WHERE "customerId"=${actor.customerId}::uuid AND subject=${actor.subject}
-        AND (("scopeType"='project' AND "scopeId"=ANY(${projectIds}::uuid[]))
-          OR ("scopeType"='portfolio' AND "scopeId"=ANY(${portfolioIds}::uuid[])))
-      ORDER BY id FOR SHARE`;
-    const allowed: readonly string[] =
-      action === "read"
-        ? ["leadership", "project_manager", "portfolio_manager", "pmo_admin"]
-        : action === "write"
-          ? ingestionWriteRoles
-          : ["pmo_admin"];
-    const eligible = grants.filter((grant) =>
-      allowed.includes(grant.role) && currentRoleMatches(actor, grant.role));
-    const allowedProjects = new Set(eligible.filter((grant) => grant.scopeType === "project").map((grant) => grant.scopeId));
-    const allowedPortfolios = new Set(eligible.filter((grant) => grant.scopeType === "portfolio").map((grant) => grant.scopeId));
-    for (const project of projects)
-      if (!allowedProjects.has(project.id) && !allowedPortfolios.has(project.portfolioId))
-        throw new IngestionPersistenceError("DENIED");
-    return { projectIds, projects, grants };
   }
 
   private async currentSource(tx: Tx, customerId: string, sourceId: string, lock: "UPDATE" | "SHARE" = "UPDATE") {
@@ -525,7 +474,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     scope: readonly string[],
     action: "read" | "write",
   ) {
-    await this.authorizedProjects(tx, actor, scope, action);
+    await authorizeIngestionProjects(tx, actor, scope, action);
     const source = await this.currentSource(
       tx,
       actor.customerId,
@@ -607,7 +556,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
 
   private async lockCsvCommand(tx: Tx, actor: Actor, sourceId: string, kind: string, commandKey: string) {
     const planned = await this.csvCommandPlan(tx,actor,sourceId,kind,commandKey);
-    await this.authorizedProjects(tx,actor,planned.projects,"write",200);
+    await authorizeIngestionProjects(tx,actor,planned.projects,"write",200);
     const policies = await tx.$queryRaw<{ revision: number; retentionHours: number }[]>`
       SELECT revision,"retentionHours" FROM public."IngestionRetentionPolicy"
       WHERE "customerId"=${actor.customerId}::uuid FOR SHARE`;
@@ -1384,7 +1333,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           ...previousProjectIds,
           ...previousSyncGrants.map((grant) => grant.projectId),
         ])].sort(exactCompare);
-        await this.authorizedProjects(tx, actor, projectIds, "configure");
+        await authorizeIngestionProjects(tx, actor, projectIds, "configure");
         // Lock all planned projects/grants before Source, then recheck the exact
         // configuration and complete historic sync-grant inventory under it.
         const lockedSources = await tx.$queryRaw<MappingRow[]>`
@@ -2237,7 +2186,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         ORDER BY "projectId"`;
       const originalProjectIds = originalScope.map((row) => row.projectId);
       return this.db.$transaction(async (tx) => {
-        await this.authorizedProjects(tx, actor, originalProjectIds, "read");
+        await authorizeIngestionProjects(tx, actor, originalProjectIds, "read");
         const source = await this.currentSource(tx, actor.customerId, sourceId, "SHARE");
         const config = await this.currentConfiguration(tx, source);
         await this.sourceReaders(tx, actor, source, config, originalProjectIds);
