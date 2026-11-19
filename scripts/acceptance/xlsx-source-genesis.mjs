@@ -327,12 +327,18 @@ export async function verifyXlsxGenesisRestoreDenials(pool) {
       assertXlsxGenesisIntegrity(client),
       /Restored workbook genesis is invalid/u,
     );
+    // A missing workbook head cannot be hidden by a legacy source label.
+    await client.query('ALTER TABLE public."IngestionSource" DISABLE TRIGGER ingestion_xlsx_source_guard');
+    await client.query(`UPDATE public."IngestionSource" SET "inputFamily"='LEGACY'
+      WHERE "customerId"=$1 AND id=$2`, params);
+    await assert.rejects(assertXlsxGenesisIntegrity(client), /Restored workbook genesis is invalid/u);
     await client.query("ROLLBACK");
     assert.deepEqual((await client.query(inventory)).rows, rows);
     await assertXlsxGenesisIntegrity(client);
     return {
       tamperedHeadDenied: true,
       missingHeadDenied: true,
+      mixedFamilyDenied: true,
       retainedHeadVerified: true,
     };
   } finally {
