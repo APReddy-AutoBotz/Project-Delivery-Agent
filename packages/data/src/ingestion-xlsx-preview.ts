@@ -8,6 +8,12 @@ import { z } from "zod";
 import type { captureXlsxPreviewRequest } from "./ingestion-xlsx-binding.js";
 
 type BoundRequest = ReturnType<typeof captureXlsxPreviewRequest>["request"];
+export type XlsxPreviewDecoder = {
+  tryAcquire(): {
+    decode(request: BoundRequest, bytes: Buffer): Promise<unknown>;
+    release(): void;
+  } | null;
+};
 const mappingSnapshot = z.strictObject({
   configRevision: z.number().int().min(1).max(2_147_483_647),
   config: persistedSpreadsheetConfigSchema,
@@ -16,6 +22,20 @@ const mappingSnapshot = z.strictObject({
 function xlsxRowKey(sheet: string, key: string): string {
   return createHash("sha256")
     .update(JSON.stringify(["pdaa.xlsx.row-key.v1", sheet, key]))
+    .digest("hex");
+}
+
+// The revision identifies normalized row content independently of its ordinal
+// and the original workbook byte digest.
+export function xlsxSourceRowDigest(
+  request: Pick<BoundRequest, "sheet" | "parserContract">,
+  headers: readonly string[],
+  row: readonly string[],
+) {
+  const cells = headers.map((header, index) => [header, row[index]!] as const)
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return createHash("sha256")
+    .update(JSON.stringify(["pdaa.xlsx.source-row.v1", request.sheet, request.parserContract, cells]))
     .digest("hex");
 }
 

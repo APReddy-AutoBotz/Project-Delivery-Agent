@@ -511,7 +511,7 @@ export async function proveNativeXlsxPreviews(pool) {
   }
 }
 
-export async function verifyNativeXlsxComparisonRuntime(pool, ownerConnection) {
+export async function verifyNativeXlsxComparisonRuntime(pool, ownerConnection, expectedContexts = 3) {
   const { rows } = await pool.query(`SELECT s."customerId",s.id AS "sourceId",
     c.revision AS "configRevision",c."mappingRevision",c.mapping->>'sheet' AS sheet,
     c.mapping->>'parserContract' AS "parserContract",h."currentReceiptId"
@@ -543,7 +543,7 @@ export async function verifyNativeXlsxComparisonRuntime(pool, ownerConnection) {
       const result = await loadXlsxComparison(tx, actor, request);
       assert.equal(result.predecessor.kind, "RETAINED");
       assert.equal(result.predecessor.receiptId, currentReceiptId);
-      assert.equal(result.predecessor.revision, 3);
+      assert.equal(result.predecessor.revision, expectedContexts);
       assert.deepEqual(result.baseline.rows.map(({ fields }) => fields), [retainedFields]);
       return { ownerMaterializedRetainedBaseline: true, runtimeRolesDenied: true, staleConfigurationDenied: true };
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 12000 });
@@ -552,14 +552,14 @@ export async function verifyNativeXlsxComparisonRuntime(pool, ownerConnection) {
   }
 }
 
-export async function verifyNativeXlsxPreviewRestore(pool) {
+export async function verifyNativeXlsxPreviewRestore(pool, expectedContexts = 3) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     await assertXlsxPreviewIntegrity(client);
     const snapshot = `SELECT "receiptId",revision,"contextSha256","stateSha256" FROM public."IngestionXlsxContext" ORDER BY revision`;
     const { rows: before } = await client.query(snapshot);
-    assert.equal(before.length, 3);
+    assert.equal(before.length, expectedContexts);
     await client.query("SAVEPOINT workbook_restore_context");
     await client.query(
       `DELETE FROM public."AccessGrant" g USING public."IngestionReceiptProjectScope" captured
@@ -596,7 +596,7 @@ export async function verifyNativeXlsxPreviewRestore(pool) {
     assert.deepEqual((await client.query(snapshot)).rows, before);
     await assertXlsxPreviewIntegrity(client);
     return {
-      contextsVerified: 3,
+      contextsVerified: expectedContexts,
       olderContextCorruptionDenied: true,
       historicalGrantScopeDriftDenied: true,
       historicalProofSurvivesGrantRevocation: true,

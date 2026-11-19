@@ -98,6 +98,7 @@ import {
   verifyXlsxContextPrivileges, verifyXlsxPreviewSerialization,
 } from "./xlsx-native-preview.mjs";
 import { proveNativeXlsxPreviewRetry, verifyXlsxRetryPrivileges } from "./xlsx-preview-retry.mjs";
+import { proveNativeXlsxPreviewWriter, verifyXlsxWriterPrivileges } from "./xlsx-preview-writer.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -434,6 +435,7 @@ try {
     const xlsxComparison = await verifyNativeXlsxComparisonRuntime(admin, adminConfig);
     const xlsxPreviewSerialization = await verifyXlsxPreviewSerialization(admin);
     const xlsxPreviewRetry = await proveNativeXlsxPreviewRetry(admin, config("database", "pdaa_api", "api-password").database);
+    const xlsxPreviewWriter = await proveNativeXlsxPreviewWriter(admin, config("database", "pdaa_api", "api-password").database);
     const ingestionReassessment = await seedReassessmentRecovery(admin,
       config("database", "pdaa_api", "api-password").database, process.env.CUSTOMER_ID);
     writeFileSync(
@@ -480,6 +482,7 @@ try {
           xlsxComparison,
           xlsxPreviewSerialization,
           xlsxPreviewRetry,
+          xlsxPreviewWriter,
           engagementStorageTables,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
@@ -593,10 +596,12 @@ try {
       const xlsxGenesisPrivileges = await verifyXlsxGenesisPrivileges(pool,
         ["pdaa_api","pdaa_worker","pdaa_backup"], { owner:"pdaa_migrate", backupRead:true });
       assert.equal(expected.IngestionXlsxHead.length, 1);
-      assert.equal(expected.IngestionXlsxContext.length, 3);
-      const xlsxGenesisRestore = await verifyNativeXlsxPreviewRestore(pool);
-      const xlsxComparison = await verifyNativeXlsxComparisonRuntime(pool, target("restore_target"));
+      assert.equal(expected.IngestionXlsxContext.length, 5);
+      const xlsxGenesisRestore = await verifyNativeXlsxPreviewRestore(pool, 5);
+      const xlsxComparison = await verifyNativeXlsxComparisonRuntime(pool, target("restore_target"), 5);
       const xlsxRetryPrivileges = await verifyXlsxRetryPrivileges(pool, ["pdaa_api","pdaa_worker","pdaa_backup"],
+        {owner:"pdaa_migrate",apiExecute:true});
+      const xlsxWriterPrivileges = await verifyXlsxWriterPrivileges(pool, ["pdaa_api","pdaa_worker","pdaa_backup"],
         {owner:"pdaa_migrate",apiExecute:true});
       const xlsxContextPrivileges = await verifyXlsxContextPrivileges(pool,
         ["pdaa_api","pdaa_worker","pdaa_backup"],{owner:"pdaa_migrate",backupRead:true});
@@ -663,6 +668,7 @@ try {
         xlsxComparison,
         xlsxContextPrivileges,
         xlsxRetryPrivileges,
+        xlsxWriterPrivileges,
         ingestionReassessment: await verifyRestoredReassessments(pool, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

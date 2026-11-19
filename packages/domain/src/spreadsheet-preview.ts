@@ -94,7 +94,7 @@ export function parseCsvPreview(input: unknown): {
 // This validates already-decoded, bounded data; it is not a workbook parser or
 // an isolation boundary for arbitrary in-process Proxy objects. A future file
 // adapter must establish physical row/column, formula and sheet semantics first.
-function parseSpreadsheetGrid(input: unknown): { headers: string[]; rows: string[][] } {
+export function parseSpreadsheetGrid(input: unknown): { headers: string[]; rows: string[][] } {
   const invalid = (): never => { throw new IngestionInputError("GRID_SHAPE"); };
   if (!input || typeof input !== "object" || Array.isArray(input)) return invalid();
   const prototype = Object.getPrototypeOf(input);

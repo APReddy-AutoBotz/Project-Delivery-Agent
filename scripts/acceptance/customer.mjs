@@ -40,6 +40,7 @@ import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
 import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
 import { verifyXlsxGenesisPrivileges } from "./xlsx-source-genesis.mjs";
 import { verifyXlsxRetryPrivileges } from "./xlsx-preview-retry.mjs";
+import { verifyXlsxWriterPrivileges } from "./xlsx-preview-writer.mjs";
 import { csvCanonicalTables } from "./csv-import-workflow-receipt.mjs";
 import { exerciseCsvImportWorkflow, replayCsvImportAfterRecreation, snapshotCsvBeforeBackup, verifyRestoredCsvImport } from "./csv-import-workflow.mjs";
 import {exerciseCsvComparisonWorkflow,replayCsvComparisonAfterRecreation,snapshotCsvComparisonBeforeBackup,verifyRestoredCsvComparison} from "./csv-comparison-workflow.mjs";
@@ -572,7 +573,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 33);
+    assert.equal(migrations.length, 34);
     assert.equal(migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
@@ -851,7 +852,7 @@ try {
       csvComparisonPrivileges,
       xlsxReceiptCodec,
       engagementStorageTables,
-      migrationCount: 33,
+      migrationCount: 34,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -940,6 +941,8 @@ try {
         ["pdaa_api","pdaa_worker","pdaa_backup"], { owner:"pdaa_migrate", backupRead:true });
       const xlsxRetryPrivileges = await verifyXlsxRetryPrivileges(restored, ["pdaa_api","pdaa_worker","pdaa_backup"],
         {owner:"pdaa_migrate",apiExecute:true});
+      const xlsxWriterPrivileges = await verifyXlsxWriterPrivileges(restored, ["pdaa_api","pdaa_worker","pdaa_backup"],
+        {owner:"pdaa_migrate",apiExecute:true});
       save("csv-import-workflow-fixture", csvFixture);
       const csvComparison=read("csv-comparison-workflow-fixture");
       csvComparison.restored=await verifyRestoredCsvComparison(restored,csvComparison);
@@ -1006,6 +1009,7 @@ try {
         xlsxReceiptCodec,
         xlsxGenesisPrivileges,
         xlsxRetryPrivileges,
+        xlsxWriterPrivileges,
         ingestionReassessment: await verifyRestoredReassessments(restored, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

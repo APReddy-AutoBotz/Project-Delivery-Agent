@@ -23,7 +23,9 @@ import {
   ingestionText,
   parseIngestion,
   parseCsvPreview,
+  parseSpreadsheetGrid,
   persistedSpreadsheetConfigSchema,
+  spreadsheetHashedBaselineSchema,
   previewSpreadsheetCsvHashedBaseline,
   projectFactIdSchema,
   projectFactSubjectSchema,
@@ -48,7 +50,8 @@ import { actorInput } from "./fact-authorization.js";
 import { authorizeIngestionProjects, currentRoleMatches, ingestionWriteRoles } from "./ingestion-project-authorization.js";
 import { enqueueConnectorReassessments } from "./ingestion-reassessments.js";
 import { loadCsvComparison, saveCsvComparison } from "./ingestion-csv-comparison.js";
-import { fingerprintXlsxWorkbook } from "./ingestion-xlsx-binding.js";
+import { captureXlsxPreviewRequest, fingerprintXlsxWorkbook } from "./ingestion-xlsx-binding.js";
+import { mapBoundXlsxPreviewGrid, xlsxSourceRowDigest, type XlsxPreviewDecoder } from "./ingestion-xlsx-preview.js";
 
 type Tx = Prisma.TransactionClient;
 type MappingRow = { id: string; customerId: string; sourceId: string; sourceType: string; origin: string; currentConfigRevision: number | null; mappingRevision: number; cursorRevision: bigint; syncGeneration: bigint; cursorEnvelope: string | null; cursorState: string; healthState: string; healthCode: string; healthCheckedAt: Date | null; lastSuccessReceiptId: string | null };
@@ -126,6 +129,34 @@ type XlsxPreviewReplay = Readonly<{ receiptId: string; replayed: true; rowCount:
 type XlsxPreviewAdmission =
   | Readonly<{ kind: "FRESH"; parserContract: z.infer<typeof xlsxParserContractSchema> }>
   | Readonly<{ kind: "REPLAYED"; result: XlsxPreviewReplay }>;
+const xlsxWriterFailure = z.strictObject({ status: z.enum([
+  "DENIED", "RETRY", "RECHECK", "CONFLICT", "STALE_CONFIGURATION", "INVALID_REQUEST", "INVALID_PREVIEW", "INTEGRITY_CONFLICT",
+]) });
+const xlsxWriterRead = z.discriminatedUnion("status", [
+  xlsxWriterFailure,
+  z.strictObject({
+    status: z.literal("READY"),
+    mapping: z.strictObject({
+      kind: z.literal("XLSX"),
+      sheet: xlsxSheetSchema,
+      parserContract: xlsxParserContractSchema,
+      identityColumn: z.string(),
+      projectColumn: z.string(),
+      fields: persistedSpreadsheetConfigSchema.shape.fields,
+    }),
+    projectIds: z.array(idSchema).min(1).max(100),
+    witness: z.strictObject({
+      revision: z.number().int().min(0).max(4095),
+      receiptId: idSchema.nullable(),
+      stateSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    }),
+    baseline: spreadsheetHashedBaselineSchema,
+  }),
+]);
+const xlsxWriterFinal = z.discriminatedUnion("status", [
+  xlsxWriterFailure,
+  z.strictObject({ status: z.literal("STORED"), receiptId: idSchema, rowCount: z.number().int().min(0).max(1000) }),
+]);
 const spreadsheetPreparseSnapshotSchema = z.strictObject({
   binding: connectorBindingSchema,
   subject: projectFactSubjectSchema,
@@ -1858,6 +1889,88 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         throw new IngestionPersistenceError(result.status);
       }
       throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+    });
+  }
+
+  // The caller supplies the reviewed isolated decoder adapter. HTTP upload
+  // activation and the adapter's process boundary are separate release gates.
+  async persistXlsxPreview(
+    actorInputValue: Actor,
+    input: unknown,
+    originalWorkbook: unknown,
+    decoder: XlsxPreviewDecoder,
+    correlationInput: string,
+  ): Promise<{ receiptId: string; replayed: boolean; rowCount: number }> {
+    const actor = parseActor(actorInputValue);
+    const correlationId = contextSchema(correlationInput);
+    const request = parseIngestion(xlsxRetryInput, input);
+    const admission = await this.prepareXlsxPreview(actor, request, originalWorkbook, correlationId);
+    if (admission.kind === "REPLAYED") return admission.result;
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_preview", correlationId, "PERSISTENCE_FAILED", async () => {
+      const slot = decoder.tryAcquire();
+      if (!slot) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+      try {
+        const bound = captureXlsxPreviewRequest({
+          ...request, customerId: actor.customerId, subject: actor.subject, parserContract: admission.parserContract,
+        }, originalWorkbook);
+        const grid = parseSpreadsheetGrid(await slot.decode(bound.request, bound.copyForDecoder()));
+        const { sourceId, commandKey, configRevision, mappingRevision, sheet, parserContract, workbookBytes, workbookSha256 } = bound.request;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const result = await this.db.$transaction(async (tx) => {
+            const [read] = await tx.$queryRaw<{ result: unknown }[]>`
+              SELECT public.read_ingestion_xlsx_preview(
+                ${actor.customerId}::uuid,${sourceId}::uuid,${actor.subject}::text,${roles}::text[],${commandKey}::text,
+                ${configRevision}::integer,${mappingRevision}::integer,${sheet}::text,${parserContract}::text) AS result`;
+            const prepared = xlsxWriterRead.safeParse(read?.result);
+            if (!prepared.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+            if (prepared.data.status !== "READY") return prepared.data;
+            const { mapping, projectIds, witness, baseline } = prepared.data;
+            if (mapping.sheet !== sheet || mapping.parserContract !== parserContract)
+              throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+            const preview = mapBoundXlsxPreviewGrid(bound.request, grid, { configRevision, config: {
+              customerId: actor.customerId, sourceId, sheet, mappingRevision: String(mappingRevision),
+              fileName: "preview.xlsx", projectIds, identityColumn: mapping.identityColumn,
+              projectColumn: mapping.projectColumn, fields: mapping.fields,
+            } }, baseline);
+            const allowed = new Set(projectIds);
+            const outcomes = preview.rows.map((row, index) => {
+              const projectId = allowed.has(row.projectId) ? row.projectId : null;
+              if (row.status !== "VALID") return {
+                state: row.status, operation: "NONE", errorCodes: readSafeErrors(row),
+                projectId, keySha256: row.identity !== null && projectId !== null ? row.keyHash : null,
+                sourceContentSha256: null, proposals: null,
+              };
+              if (!projectId || !row.keyHash) throw new IngestionPersistenceError("INVALID_PREVIEW");
+              return {
+                state: "ACCEPTED", operation: row.operation, errorCodes: [], projectId, keySha256: row.keyHash,
+                sourceContentSha256: xlsxSourceRowDigest(bound.request, grid.headers, grid.rows[index]!),
+                proposals: normalizeProposals(row.proposals),
+              };
+            });
+            const [stored] = await tx.$queryRaw<{ result: unknown }[]>`
+              SELECT public.finalize_ingestion_xlsx_preview(
+                ${actor.customerId}::uuid,${sourceId}::uuid,${actor.subject}::text,${roles}::text[],${commandKey}::text,
+                ${configRevision}::integer,${mappingRevision}::integer,${sheet}::text,${parserContract}::text,
+                ${workbookBytes}::integer,${workbookSha256}::text,${correlationId}::text,
+                ${JSON.stringify(witness)}::jsonb,${boundedJson(outcomes)}::jsonb) AS result`;
+            const final = xlsxWriterFinal.safeParse(stored?.result);
+            if (!final.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+            return final.data;
+          }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 12000 });
+          if (result.status === "STORED") return { receiptId: result.receiptId, replayed: false, rowCount: result.rowCount };
+          if (result.status === "RETRY") continue;
+          if (result.status === "RECHECK") {
+            const replay = await this.probeXlsxPreviewRetry(actor, request, bound.copyForDecoder(), correlationId);
+            if (replay) return replay;
+            throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+          }
+          throw new IngestionPersistenceError(result.status);
+        }
+        throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+      } finally {
+        slot.release();
+      }
     });
   }
 

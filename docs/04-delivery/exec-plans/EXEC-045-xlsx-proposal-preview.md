@@ -536,8 +536,27 @@ receipt. Its result stays inside the transaction that will consume it. Native
 fixtures verify genesis, retained empty state, partial carry-forward, role
 denial, stale configuration, redaction and restore.
 
-Fresh preview decoding and writing, reviewed selection and live workbook
-upload remain pending.
+### API-role native workbook preview transaction
+
+Migration 34 adds two fixed database calls for the existing API login. The
+repository checks exact replay before reserving a decoder slot. For a fresh
+command it copies the bounded workbook and decodes it outside the database
+transaction. In one short transaction, the first call reauthorizes the actor,
+locks the source and complete comparison scope, and loads the sealed mapping
+and retained fields. The in-process mapper derives safe outcomes and a separate
+versioned row-content digest from normalized cell values.
+
+The finalizer rechecks authorization, exact configuration, live retention
+and the predecessor before writing proposal content, outcomes, audit, receipt
+and head atomically. A command that raced during decode leaves the write
+transaction and repeats exact replay. The database receives only typed
+proposals, safe outcomes and hashes. The native append guard checks the result.
+The acceptance fixture uses the actual API login with a bounded synthetic
+decoder adapter. It exercises capture, deduplication, grant revocation during
+decode, atomic rollback, and reconstruction of the finite grants at restore.
+
+The deployed isolated decoder adapter, reviewed selection and live upload
+remain pending.
 
 ## Required validation
 

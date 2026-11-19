@@ -33,6 +33,17 @@ export const xlsxContextFunctions = Object.freeze([
 ]);
 
 export const xlsxRetryFunction = "public.probe_ingestion_xlsx_retry(uuid,uuid,text,text[],text,integer,integer,text,integer,text)";
+export const xlsxWriterApiFunctions = Object.freeze([
+  "public.read_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text)",
+  "public.finalize_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text,integer,text,text,jsonb,jsonb)",
+]);
+export const xlsxWriterCommitFunction = "public.require_ingestion_xlsx_preview_complete()";
+export const xlsxWriterFunctions = Object.freeze([
+  ...xlsxWriterApiFunctions,
+  xlsxWriterCommitFunction,
+  "public.lock_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text)",
+  "public.materialize_ingestion_xlsx_fields(uuid,uuid,integer,text,jsonb)",
+]);
 
 export async function assertBusinessTableOwner(client: Pick<Client, "query">) {
   const principals = (
@@ -231,6 +242,35 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
           RAISE EXCEPTION 'Unexpected XLSX retry function privileges';
         END IF;
       END IF;
-    END $xlsx_retry_acl$
+    END $xlsx_retry_acl$;
+    DO $xlsx_writer_acl$
+    DECLARE present integer; correct boolean; recorded boolean := false;
+    BEGIN
+      SELECT count(*),bool_and(p.prosecdef=(entries.signature=ANY(ARRAY[${[...xlsxWriterApiFunctions, xlsxWriterCommitFunction].map((name) => `'${name}'`).join(",")}]))
+        AND p.provolatile='v' AND NOT p.proretset AND p.prorettype=
+          CASE WHEN entries.signature='${xlsxWriterCommitFunction}' THEN 'trigger'::regtype ELSE 'jsonb'::regtype END
+        AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp'])
+        INTO present,correct
+        FROM unnest(ARRAY[${xlsxWriterFunctions.map((name) => `'${name}'`).join(",")}]) entries(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entries.signature);
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190005_xlsx_preview_writer') INTO recorded;
+      END IF;
+      IF present=0 AND NOT recorded THEN RETURN; END IF;
+      IF present<>${xlsxWriterFunctions.length} OR correct IS NOT TRUE THEN
+        RAISE EXCEPTION 'Unexpected XLSX writer function boundary';
+      END IF;
+      REVOKE ALL ON FUNCTION ${xlsxWriterFunctions.join(",")} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT EXECUTE ON FUNCTION ${xlsxWriterApiFunctions.join(",")} TO pdaa_api;
+      IF EXISTS (SELECT 1 FROM unnest(ARRAY[${xlsxWriterFunctions.map((name) => `'${name}'`).join(",")}]) entries(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entries.signature)
+        CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+        WHERE acl.grantee<>p.proowner
+          AND (entries.signature<>ALL(ARRAY[${xlsxWriterApiFunctions.map((name) => `'${name}'`).join(",")}])
+            OR acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable)) THEN
+        RAISE EXCEPTION 'Unexpected XLSX writer function privileges';
+      END IF;
+    END $xlsx_writer_acl$
   `);
 }
