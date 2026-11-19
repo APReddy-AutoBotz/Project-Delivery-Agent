@@ -8,26 +8,12 @@ import { proveXlsxSourceGenesis } from "./xlsx-source-genesis.mjs";
 
 const env = process.env;
 const customerId = "10000000-0000-4000-8000-000000000002";
+const customerName = "Controlled customer installation";
 const profiles = ["portable-v1", "excel-text-v1"];
 const command = "fixture-packaged-xlsx-preview";
-const profile = env.PDAA_CUSTOMER_PROFILE;
-assert(["bundled", "external"].includes(profile));
-assert.equal(env.PDAA_ACCEPTANCE, "customer-composition");
-assert.equal(env.NODE_ENV, "production");
-assert.equal(env.DEPLOYMENT_MODE, "customer");
-assert.equal(env.DATA_MODE, "customer");
-assert.match(env.PDAA_ACCEPTANCE_RUN_ID, /^pdaa-acceptance-\d+-[a-f0-9]{8}$/u);
-assert.equal(env.CUSTOMER_ID, customerId);
-assert.equal(env.PDAA_DB_NAME, "pdaa");
-assert.equal(
-  env.PDAA_DB_HOST,
-  profile === "bundled" ? "database" : "external-database",
-);
-assert.equal(env.PDAA_DB_USER, "postgres");
-assert.equal(env.PDAA_DB_PASSWORD_FILE, "/run/secrets/admin-password");
-assert.equal(secret("customer-ready"), "isolated customer composition\n");
-const pool = new Pool(loadDatabaseConfig(env));
 const phase = process.argv[2];
+let pool;
+let step = "environment";
 
 async function cases() {
   const { rows } = await pool.query(
@@ -57,15 +43,24 @@ async function canonicalDigest() {
 }
 
 async function prepare() {
-  assert.equal(
-    (await pool.query('SELECT count(*)::int AS n FROM public."Customer"'))
-      .rows[0].n,
-    0,
+  step = "provisioned-customer";
+  const { rows: databases } = await pool.query(
+    `SELECT shobj_description(oid,'pg_database') AS marker
+     FROM pg_database WHERE datname=current_database()`,
   );
-  await pool.query('INSERT INTO public."Customer" (id,name) VALUES ($1,$2)', [
-    customerId,
-    env.CUSTOMER_NAME,
-  ]);
+  assert.deepEqual(databases, [{ marker: `pdaa.foundation.v1:${customerId}` }]);
+  const { rows: customers } = await pool.query(
+    'SELECT id::text AS id,name FROM public."Customer"',
+  );
+  assert.deepEqual(customers, [{ id: customerId, name: customerName }]);
+  const { rows: projectState } = await pool.query(
+    `SELECT NOT EXISTS (SELECT 1 FROM public."Portfolio")
+      AND NOT EXISTS (SELECT 1 FROM public."Project")
+      AND NOT EXISTS (SELECT 1 FROM public."IngestionSource") AS empty`,
+  );
+  assert.deepEqual(projectState, [{ empty: true }]);
+
+  step = "source-genesis";
   for (const parserContract of profiles)
     await proveXlsxSourceGenesis(pool, {
       retain: true,
@@ -74,6 +69,7 @@ async function prepare() {
       parserContract,
     });
   const bindings = await cases();
+  step = "retention-fixture";
   const { projectId } = bindings[0];
   const actor = "synthetic-workbook-retention";
   const audit = randomUUID();
@@ -115,6 +111,7 @@ async function prepare() {
 }
 
 async function verify(expected) {
+  step = "receipt-verification";
   assert.match(expected.canonicalSha256, /^[0-9a-f]{64}$/u);
   assert.deepEqual(
     expected.results.map((result) => result.profile).sort(),
@@ -166,12 +163,33 @@ async function verify(expected) {
 }
 
 try {
+  const profile = env.PDAA_CUSTOMER_PROFILE;
   assert(["prepare", "verify"].includes(phase));
+  assert(["bundled", "external"].includes(profile));
+  assert.equal(env.PDAA_ACCEPTANCE, "customer-composition");
+  assert.equal(env.NODE_ENV, "production");
+  assert.equal(env.DEPLOYMENT_MODE, "customer");
+  assert.equal(env.DATA_MODE, "customer");
+  assert.match(env.PDAA_ACCEPTANCE_RUN_ID, /^pdaa-acceptance-\d+-[a-f0-9]{8}$/u);
+  assert.equal(env.CUSTOMER_ID, customerId);
+  assert.equal(env.CUSTOMER_NAME, customerName);
+  assert.equal(env.PDAA_DB_NAME, "pdaa");
+  assert.equal(
+    env.PDAA_DB_HOST,
+    profile === "bundled" ? "database" : "external-database",
+  );
+  assert.equal(env.PDAA_DB_USER, "postgres");
+  assert.equal(env.PDAA_DB_PASSWORD_FILE, "/run/secrets/admin-password");
+  assert.equal(secret("customer-ready"), "isolated customer composition\n");
+  pool = new Pool(loadDatabaseConfig(env));
   const result =
     phase === "prepare"
       ? await prepare()
       : await verify(JSON.parse(process.argv[3]));
   process.stdout.write(JSON.stringify(result) + "\n");
+} catch {
+  process.stderr.write("XLSX_CUSTOMER_PROOF_FAILED " + step + "\n");
+  process.exitCode = 1;
 } finally {
-  await pool.end();
+  await pool?.end();
 }

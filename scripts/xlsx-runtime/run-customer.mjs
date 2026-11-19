@@ -59,10 +59,15 @@ function docker(step, args, env = {}, timeout = 120_000) {
     (child.stdout ?? "") + (child.stderr ?? ""),
     { mode: 0o600 },
   );
-  if (child.status !== 0 || child.error)
-    throw new Error("XLSX customer rehearsal failed at " + step, {
+  if (child.status !== 0 || child.error) {
+    const proofStep = child.stderr?.match(
+      /^XLSX_CUSTOMER_PROOF_FAILED (environment|provisioned-customer|source-genesis|retention-fixture|receipt-verification)\r?$/mu,
+    )?.[1];
+    const detail = proofStep ? step + " (" + proofStep + ")" : step;
+    throw new Error("XLSX customer rehearsal failed at " + detail, {
       cause: child.error,
     });
+  }
   return child.stdout.trim();
 }
 
