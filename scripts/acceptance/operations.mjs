@@ -101,6 +101,7 @@ import { proveNativeXlsxPreviewRetry, verifyXlsxRetryPrivileges } from "./xlsx-p
 import { proveNativeXlsxPreviewWriter, verifyXlsxWriterPrivileges } from "./xlsx-preview-writer.mjs";
 import { proveNativeXlsxReviewedImport, proveRestoredXlsxReviewedImport } from "./xlsx-reviewed-import.mjs";
 import { proveXlsxSourceProvisioning, verifyRestoredXlsxSourceProvision } from "./xlsx-source-provision.mjs";
+import { verifyImmutableHistoryMutation, verifyXlsxHistoryGuardInstallation } from "./immutable-history.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -658,11 +659,15 @@ try {
       await verifyMilestoneReconciliationIntegrity(pool);
       await verifyScalarReconciliationPrivileges(pool);
       await verifyScalarReconciliationIntegrity(pool);
-      const restoredScalarOwner = createDatabase(target("restore_target"));
+      const restoredHistoryOwner = createDatabase(target("restore_target"));
       try {
-        await verifyScalarReconciliationImmutable(restoredScalarOwner);
+        await verifyScalarReconciliationImmutable(restoredHistoryOwner);
+        await verifyXlsxHistoryGuardInstallation(restoredHistoryOwner);
+        for (const table of ["IngestionXlsxHead", "IngestionXlsxContext"])
+          for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
+            await verifyImmutableHistoryMutation(restoredHistoryOwner, table, operation);
       } finally {
-        await restoredScalarOwner.$disconnect();
+        await restoredHistoryOwner.$disconnect();
       }
       const scalarReconciliationOriginalProof =
         await verifyRestoredScalarReconciliation(
@@ -680,6 +685,7 @@ try {
         xlsxReceiptCodec,
         xlsxGenesisPrivileges,
         xlsxGenesisRestore,
+        xlsxHistoryGuardsChecked: true,
         xlsxComparison,
         xlsxContextPrivileges,
         xlsxRetryPrivileges,

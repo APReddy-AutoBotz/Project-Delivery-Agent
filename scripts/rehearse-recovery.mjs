@@ -7,7 +7,7 @@ import {
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import { canonicalTables } from "./acceptance/canonical-projects.mjs";
-import { verifyImmutableHistoryMutation } from "./acceptance/immutable-history.mjs";
+import { verifyImmutableHistoryMutation, verifyXlsxHistoryGuardInstallation } from "./acceptance/immutable-history.mjs";
 import { engagementStorageTables, verifyRestoredEngagementStorage } from "./acceptance/update-engagement-storage.mjs";
 import { verifyRestoredCsvContextRows, verifyRestoredProofIntegrity } from "./acceptance/restored-proof-integrity.mjs";
 import {
@@ -243,6 +243,11 @@ try {
   console.log(
     "All native proof families verified: " + JSON.stringify(proofCounts),
   );
+  // The standalone fixture may have no XLSX rows. Packaged recovery verifies
+  // row mutations on its populated workbook proofs.
+  await verifyXlsxHistoryGuardInstallation(restored);
+  for (const table of ["IngestionXlsxHead", "IngestionXlsxContext"])
+    await verifyImmutableHistoryMutation(restored, table, "TRUNCATE");
   for (const table of [
     "AuditEvent",
     "FactSource",
@@ -279,7 +284,7 @@ try {
     "IngestionRowOutcome",
     "IngestionReviewedImport",
     "IngestionReviewedImportRow",
-    "IngestionCsvHead", "IngestionCsvContext", "IngestionXlsxHead", "IngestionXlsxContext",
+    "IngestionCsvHead", "IngestionCsvContext",
     "ConnectorWebhookReceipt",
     "IngestionSyncReceiptProjectScope",
   ]) {
