@@ -1,0 +1,42 @@
+x-fixture: &fixture
+  image: ${PDAA_XLSX_FIXTURE_IMAGE:?}
+  network_mode: none
+  cgroup: private
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 256m
+  memswap_limit: 256m
+  cpus: 0.5
+  pids_limit: 32
+  restart: "no"
+x-link: &link
+  type: volume
+  source: link
+  target: /fixture-link
+  volume: {nocopy: true}
+services:
+  initialize:
+    <<: *fixture
+    user: "0:0"
+    cap_add: [CHOWN]
+    command: [initialize]
+    volumes: [*link]
+  decoder:
+    <<: *fixture
+    user: "1001:2000"
+    environment:
+      PDAA_XLSX_FIXTURE_MODE: ${PDAA_XLSX_FIXTURE_MODE:?}
+    volumes: [*link]
+  caller:
+    <<: *fixture
+    user: "1002:2000"
+    entrypoint: [node, scripts/xlsx-isolation/caller.mjs]
+    volumes: [{<<: *link, read_only: true}]
+  unrelated:
+    <<: *fixture
+    user: "1003:1003"
+    entrypoint: [node, scripts/xlsx-isolation/caller.mjs]
+    volumes: [{<<: *link, read_only: true}]
+volumes:
+  link: {}

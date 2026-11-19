@@ -156,6 +156,53 @@ commit restores the portable profile without data recovery. Deployment
 isolation, current authorization and durable workbook-specific receipt
 binding gate live use.
 
+[PR #174](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/174)
+merged the Excel-text profile as `21cd953eccb5d10fe328bac4159cbdc0a876c34a`.
+The reviewed candidate `71bf7ad62a7539bf7ae15b33a39154063a614672` and the
+actual merge share tree `bbe0d21294e7f00af77798bd2c65689817877a4a`. Candidate
+Foundation `44421751918` and Documentation `44421752314` passed, as did
+actual-main Foundation `44426387519` and Documentation `44426387717`.
+Independent source and original-evidence reviews passed. The profile stays offline.
+
+### Packaged parser isolation fixture
+
+The next increment exercises the offline parser in a disposable Linux Compose
+project on Foundation runners. A dedicated unprivileged decoder and an inert
+caller use a pathname socket in one per-project named volume. The caller mounts
+the volume read-only. Its shared group can traverse the directory and connect.
+A UID outside that group is denied. The fixture uses filesystem ownership and
+container process identities to establish this case. Socket peer credentials
+for a future API require separate evidence.
+
+The decoder starts with loopback-only networking, a read-only root, no
+capabilities, no-new-privileges, 256 MiB memory with no swap, a half-CPU quota
+and 32 tasks. The code observes cgroup v2 settings inside both participants.
+The build context stages only the reviewed offline decoder, fixture sources,
+and their four already locked dependencies. The fixture has no customer
+configuration, secrets, product volumes, database connection or image
+publication. Synthetic wire cases exercise the portable and normalized
+Excel-text profiles. See Docker's [none network driver](https://docs.docker.com/engine/network/drivers/none/)
+and [runtime resource limits](https://docs.docker.com/engine/containers/resource_constraints/).
+
+One connection can occupy the decoder slot. The server holds it through
+request EOF, child execution and bounded local write completion. The caller
+applies a separate deadline before accepting a complete correlated frame.
+Tests pause the receiver to verify incomplete output at the server deadline.
+Emitting a response requires a clean child close. An interrupted group retires the
+container after an attempted group kill. A controlled descendant reports that
+it started before the timeout test checks terminal container state. An
+occupied endpoint is refused and only a fresh project volume is used for the
+replacement. The runner removes its own resources before emitting a finite
+evidence record. Limits observed here establish fixture settings. CPU and
+memory exhaustion and a compromised child or supervisor require separate
+tests. The socket owner still has the decoder volume mounted.
+
+The fixture uses no application, auth or receipt surface. Acceptance and
+release totals remain open. Removing this fixture and its Foundation job
+requires no application rollback or database recovery. Live use still needs
+proof on both customer deployments, transactional reauthorization and durable
+workbook-specific receipts.
+
 An unregistered local slot model exercises admission around the synthetic frame
 codec. It reserves declared input bytes before pulling a queued stream, limits
 one local lease, checks an absolute monotonic deadline, correlates a response
