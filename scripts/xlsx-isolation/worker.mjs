@@ -1,27 +1,12 @@
 import { spawn } from "node:child_process";
 import { writeSync } from "node:fs";
-import { readXlsxWorksheet } from "../acceptance/xlsx-worksheet.mjs";
-import {
-  decodeRequest,
-  encodeRejected,
-  encodeResult,
-  readOneFrame,
-  requestLimit,
-} from "./wire.mjs";
+import { parseWorkbookFrame } from "../xlsx-runtime/parse.mjs";
 
 try {
   const mode = process.argv[2];
-  const { job, sheet, workbook, profile } = decodeRequest(
-    await readOneFrame(process.stdin, requestLimit),
-  );
-  let grid;
-  try {
-    grid = await readXlsxWorksheet(workbook, sheet, profile);
-  } catch {
-    process.stdout.write(encodeRejected(job));
-  }
-  if (grid) {
-    const response = encodeResult(job, grid);
+  const { frame: response, decoded } = await parseWorkbookFrame(process.stdin);
+  if (!decoded) process.stdout.write(response);
+  else {
     if (mode === "descendant") {
       const descendant = spawn(
         process.execPath,

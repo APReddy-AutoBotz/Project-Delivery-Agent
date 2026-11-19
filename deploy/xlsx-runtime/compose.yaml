@@ -1,0 +1,33 @@
+# EXEC-045 decoder service. Reference stack attachment is gated separately.
+x-decoder: &decoder
+  image: ${PDAA_XLSX_DECODER_IMAGE:?}
+  network_mode: none
+  cgroup: private
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 256m
+  memswap_limit: 256m
+  cpus: 0.5
+  pids_limit: 32
+  restart: "no"
+  volumes:
+    - type: volume
+      source: xlsx-link
+      target: /run/pdaa-xlsx
+      volume: {nocopy: true}
+services:
+  xlsx-initialize:
+    <<: *decoder
+    user: "0:2000"
+    cap_add: [CHOWN]
+    entrypoint: [node, scripts/xlsx-runtime/initialize.mjs]
+    healthcheck: {disable: true}
+  xlsx-decoder:
+    <<: *decoder
+    user: "1001:2000"
+    stop_grace_period: 12s
+    depends_on:
+      xlsx-initialize: {condition: service_completed_successfully}
+volumes:
+  xlsx-link: {}

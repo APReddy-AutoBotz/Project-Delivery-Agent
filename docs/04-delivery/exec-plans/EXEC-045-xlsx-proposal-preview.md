@@ -555,8 +555,30 @@ The acceptance fixture uses the actual API login with a bounded synthetic
 decoder adapter. It exercises capture, deduplication, grant revocation during
 decode, atomic rollback, and reconstruction of the finite grants at restore.
 
-The deployed isolated decoder adapter, reviewed selection and live upload
-remain pending.
+The API-owned client uses the selected sheet, sealed parser profile and
+owned bytes. It checks the decoder credentials before sending bytes, binds
+the bounded response to a one-use correlation ID, and retires after an
+unconfirmed transport or cleanup failure. Exact retry resolves the durable
+receipt ahead of decoder admission.
+
+### Decoder-only runtime package
+
+An allowlisted context stages the parser, worker, supervisor and socket
+service with the four locked parser packages. Its manifest binds the staged
+file contents, package lock and Dockerfile. A separate Compose project
+validates the built image with networking disabled, a read-only root,
+dedicated identity, a private cgroup and fixed resource limits.
+The one-shot initializer prepares the volume before the decoder starts.
+Callers use a read-only socket mount.
+
+The service stops admission on shutdown and removes its ownership marker
+after the active exchange and socket close settle. An abnormal stop leaves
+an occupied volume requiring a trusted replacement. The runtime-image
+check uses synthetic workbooks for both profiles, verifies the manifest
+and the read-only caller boundary, and checks clean and abnormal restart.
+
+Customer-stack attachment, both database topology checks, reviewed
+selection and live upload remain pending.
 
 ## Required validation
 

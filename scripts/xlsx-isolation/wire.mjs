@@ -1,1 +1,1 @@
-export * from "../../packages/platform/src/xlsx-wire.ts";
+export * from "../xlsx-runtime/wire.mjs";
