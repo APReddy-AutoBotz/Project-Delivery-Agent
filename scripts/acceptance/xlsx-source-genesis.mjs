@@ -55,7 +55,7 @@ export async function verifyXlsxGenesisPrivileges(
 
 export async function proveXlsxSourceGenesis(
   pool,
-  { retain = false, existingCustomer, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1", reviewer } = {},
+  { retain = false, existingCustomer, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1", reviewer, forecastRequired = true } = {},
 ) {
   const client = await pool.connect();
   const [fixtureCustomer, source, portfolio, project, auditId] = Array.from(
@@ -81,7 +81,7 @@ export async function proveXlsxSourceGenesis(
         column: "Forecast",
         factType: "project.forecast",
         type: "date",
-        required: true,
+        required: forecastRequired,
       },
     ],
   };

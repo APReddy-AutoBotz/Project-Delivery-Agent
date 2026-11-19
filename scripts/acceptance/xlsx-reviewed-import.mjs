@@ -102,6 +102,34 @@ async function state(pool, { customerId, sourceId }) {
   ).rows[0];
 }
 
+async function withFixtureOwner(pool, action) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN; SET LOCAL ROLE pdaa_migrate");
+    await action(client);
+    await client.query("COMMIT");
+  } finally {
+    try {
+      await client.query("ROLLBACK");
+    } finally {
+      client.release();
+    }
+  }
+}
+
+async function reviewWriteCounts(pool, { sourceId, customerId }) {
+  const { rows } = await pool.query(
+    `SELECT
+      (SELECT count(*)::int FROM public."IngestionOperationReceipt" WHERE "sourceId"=$1 AND kind='XLSX_REVIEWED_IMPORT') AS receipts,
+      (SELECT count(*)::int FROM public."IngestionReviewedImport" WHERE "sourceId"=$1) AS reviews,
+      (SELECT count(*)::int FROM public."IngestionReviewedImportRow" WHERE "sourceId"=$1) AS links,
+      (SELECT count(*)::int FROM public."AuditEvent" WHERE "customerId"=$2
+        AND event='ingestion.xlsx_reviewed_import.persisted' AND detail->>'sourceId'=$1::text) AS audits`,
+    [sourceId, customerId],
+  );
+  return rows[0];
+}
+
 export async function proveNativeXlsxReviewedImport(
   pool,
   apiConnection,
@@ -113,6 +141,7 @@ export async function proveNativeXlsxReviewedImport(
     existingCustomer: customer,
     sheet,
     reviewer,
+    forecastRequired: false,
   });
   const source = await binding(pool);
   assert.equal(source.customerId, customer);
@@ -130,19 +159,19 @@ export async function proveNativeXlsxReviewedImport(
   const db = createDatabase(apiConnection);
   const vault = new CredentialVault(Buffer.alloc(32, 34).toString("base64"));
   const repository = new DatabaseIngestionRepository(db, vault);
-  const row = (key, text, project = source.projectId) => [
+  const row = (key, text, forecast = "2027-04-01") => [
     key,
-    project,
+    source.projectId,
     text,
-    "2027-04-01",
+    forecast,
   ];
   const cases = [
-    [row("Review-A", "Active"), row("Review-B", "Stable")],
+    [row("Review-A", "Active"), ["Review-B", source.projectId, "", ""]],
     [
       row("Review-A", "Needs attention"),
-      row("Review-B", "Stable"),
+      ["Review-B", source.projectId, "", ""],
       row("Review-C", "New"),
-      row("Review-D", "Unknown project", randomUUID()),
+      row("Review-D", "Malformed date", "invalid-date"),
     ],
   ];
   const preview = (grid, key) =>
@@ -169,7 +198,7 @@ export async function proveNativeXlsxReviewedImport(
     ]);
     await preview(cases[0], "fixture-review-baseline");
     const selected = await preview(cases[1], "fixture-review-preview");
-    await preview(cases[1], "fixture-review-head-advance");
+    const advanced = await preview(cases[1], "fixture-review-head-advance");
     const input = {
       sourceId: source.sourceId,
       previewReceiptId: selected.receiptId,
@@ -215,17 +244,41 @@ export async function proveNativeXlsxReviewedImport(
       { code: "CONFLICT" },
     );
     const link = await pool.query(
-      `SELECT r.subject,o.operation,l."previewOrdinal"
+      `SELECT r.subject,o.operation,l."previewOrdinal",cardinality(p."factTypes") AS fields, o."sourceRevisionId",o."projectionId"
       FROM public."IngestionOperationReceipt" r JOIN public."IngestionRowOutcome" o ON o."receiptId"=r.id
       JOIN public."IngestionReviewedImportRow" l ON l."receiptId"=r.id AND l.ordinal=o.ordinal
+      JOIN public."IngestionProposalProjection" p ON p.id=o."projectionId"
       WHERE r.id=$1 ORDER BY o.ordinal`,
       [saved.receiptId],
     );
-    assert.deepEqual(link.rows, [
-      { subject: reviewer, operation: "UPDATE", previewOrdinal: 1 },
-      { subject: reviewer, operation: "UNCHANGED", previewOrdinal: 2 },
-      { subject: reviewer, operation: "CREATE", previewOrdinal: 3 },
-    ]);
+    assert.deepEqual(
+      link.rows.map(({ subject, operation, previewOrdinal, fields }) => ({
+        subject,
+        operation,
+        previewOrdinal,
+        fields,
+      })),
+      [
+        {
+          subject: reviewer,
+          operation: "UPDATE",
+          previewOrdinal: 1,
+          fields: 2,
+        },
+        {
+          subject: reviewer,
+          operation: "UNCHANGED",
+          previewOrdinal: 2,
+          fields: 0,
+        },
+        {
+          subject: reviewer,
+          operation: "CREATE",
+          previewOrdinal: 3,
+          fields: 2,
+        },
+      ],
+    );
     const {
       rows: [grant],
     } = await pool.query(
@@ -249,6 +302,121 @@ export async function proveNativeXlsxReviewedImport(
       );
     }
     assert.deepEqual(await state(pool, source), before);
+
+    // Model elapsed retention time for one synthetic revision. The real API
+    // lookup, row-link guard, and one-way purge then run with normal guards.
+    const aged = link.rows[0];
+    await withFixtureOwner(pool, async (client) => {
+      await client.query(
+        'ALTER TABLE public."IngestionSourceRevision" DISABLE TRIGGER ingestion_revision_guard',
+      );
+      assert.equal(
+        (
+          await client.query(
+            `UPDATE public."IngestionSourceRevision" r
+          SET "receivedAt"=clock_timestamp()-make_interval(hours=>p."retentionHours"+1)
+          FROM public."IngestionRetentionPolicy" p
+          WHERE r."customerId"=$1 AND r."sourceId"=$2 AND r.id=$3 AND p."customerId"=r."customerId"`,
+            [customer, source.sourceId, aged.sourceRevisionId],
+          )
+        ).rowCount,
+        1,
+      );
+      await client.query(
+        'ALTER TABLE public."IngestionSourceRevision" ENABLE TRIGGER ingestion_revision_guard',
+      );
+    });
+    const unused = {
+      ...input,
+      previewReceiptId: advanced.receiptId,
+      previewContextSha256: await context(pool, advanced.receiptId),
+      rowOrdinals: [1],
+      commandKey: "fixture-review-expired",
+    };
+    const counts = await reviewWriteCounts(pool, source);
+    assert.deepEqual(counts, { receipts: 1, reviews: 1, links: 3, audits: 1 });
+    await assert.rejects(commit(unused), { code: "INVALID_PREVIEW" });
+    assert.deepEqual(await reviewWriteCounts(pool, source), counts);
+
+    await withFixtureOwner(pool, async (client) => {
+      const purger = reviewer + "-retention";
+      const audit = randomUUID();
+      const now = new Date();
+      await client.query(
+        `INSERT INTO public."AccessGrant" (id,"customerId",subject,"scopeType","scopeId",role)
+         VALUES ($1,$2,$3,'project',$4,'system_admin')`,
+        [randomUUID(), customer, purger, source.projectId],
+      );
+      await client.query(
+        `INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId","occurredAt",detail)
+         VALUES ($1,$2,$3,'ingestion.content.purged',$4,$5,'{"redactedCount":1}')`,
+        [audit, customer, purger, randomUUID(), now],
+      );
+      assert.equal(
+        (
+          await client.query(
+            `UPDATE public."IngestionProposalContent" SET proposals=NULL,"redactedAt"=$4,"redactionAuditEventId"=$5
+         WHERE "customerId"=$1 AND "sourceId"=$2 AND "projectionId"=$3`,
+            [customer, source.sourceId, aged.projectionId, now, audit],
+          )
+        ).rowCount,
+        1,
+      );
+    });
+    await assert.rejects(commit(unused), { code: "INVALID_PREVIEW" });
+    assert.deepEqual(await commit(input), replay);
+    assert.deepEqual(await reviewWriteCounts(pool, source), counts);
+    assert.deepEqual(await state(pool, source), before);
+
+    await withFixtureOwner(pool, async (client) => {
+      const id = randomUUID();
+      const now = new Date();
+      const params = [customer, source.sourceId];
+      await client.query(
+        `INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId","occurredAt",detail)
+         VALUES ($1,$2,$3,'ingestion.configuration.changed',$4,$5,$6)`,
+        [
+          id,
+          customer,
+          previewAuthor,
+          randomUUID(),
+          now,
+          { sourceId: source.sourceId, configRevision: 2, mappingRevision: 1 },
+        ],
+      );
+      await client.query(
+        `INSERT INTO public."IngestionConfigurationRevision"
+          ("customerId","sourceId",revision,"mappingRevision",mapping,"changedBy","auditEventId","createdAt")
+         SELECT "customerId","sourceId",2,"mappingRevision",mapping,"changedBy",$3,$4
+         FROM public."IngestionConfigurationRevision" WHERE "customerId"=$1 AND "sourceId"=$2 AND revision=1`,
+        [...params, id, now],
+      );
+      await client.query(
+        `INSERT INTO public."IngestionConfigurationProject"
+         SELECT "customerId","sourceId",2,"projectId" FROM public."IngestionConfigurationProject"
+         WHERE "customerId"=$1 AND "sourceId"=$2 AND "configRevision"=1`,
+        params,
+      );
+      await client.query(
+        `INSERT INTO public."IngestionConfigurationReader"
+         SELECT "customerId","sourceId",2,"projectId",subject FROM public."IngestionConfigurationReader"
+         WHERE "customerId"=$1 AND "sourceId"=$2 AND "configRevision"=1`,
+        params,
+      );
+      await client.query(
+        `UPDATE public."IngestionConfigurationRevision" SET sealed=true
+         WHERE "customerId"=$1 AND "sourceId"=$2 AND revision=2`,
+        params,
+      );
+      await client.query(
+        `UPDATE public."IngestionSource" SET "currentConfigRevision"=2,"cursorState"='RESET_REQUIRED'
+         WHERE "customerId"=$1 AND id=$2`,
+        params,
+      );
+    });
+    await assert.rejects(commit(unused), { code: "STALE_CONFIGURATION" });
+    assert.deepEqual(await commit(input), replay);
+    assert.deepEqual(await reviewWriteCounts(pool, source), counts);
     await assertXlsxGenesisIntegrity(pool);
     await assertXlsxPreviewIntegrity(pool);
     await assertXlsxReviewedImportIntegrity(pool);
