@@ -55,7 +55,7 @@ export async function verifyXlsxGenesisPrivileges(
 
 export async function proveXlsxSourceGenesis(
   pool,
-  { retain = false, existingCustomer, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1" } = {},
+  { retain = false, existingCustomer, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1", reviewer } = {},
 ) {
   const client = await pool.connect();
   const [fixtureCustomer, source, portfolio, project, auditId] = Array.from(
@@ -184,6 +184,17 @@ export async function proveXlsxSourceGenesis(
       `INSERT INTO public."IngestionConfigurationReader" VALUES ($1,$2,1,$3,$4)`,
       [customer, source, project, subject],
     );
+    if (reviewer !== undefined) {
+      await client.query(
+        `INSERT INTO public."AccessGrant" (id,"customerId",subject,"scopeType","scopeId",role)
+        VALUES ($1,$2,$3,'project',$4,'pmo_admin')`,
+        [randomUUID(), customer, reviewer, project],
+      );
+      await client.query(
+        `INSERT INTO public."IngestionConfigurationReader" VALUES ($1,$2,1,$3,$4)`,
+        [customer, source, project, reviewer],
+      );
+    }
     await client.query(
       `UPDATE public."IngestionConfigurationRevision" SET sealed=true WHERE "customerId"=$1 AND "sourceId"=$2`,
       [customer, source],

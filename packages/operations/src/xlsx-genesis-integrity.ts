@@ -27,3 +27,10 @@ export async function assertXlsxPreviewIntegrity(client: Pick<Client, "query">) 
         AND c."sourceId"=r."sourceId" AND c."receiptId"=r.id)) AS invalid`);
   if (rows[0]?.invalid !== 0) throw new Error("Restored workbook previews are invalid");
 }
+
+export async function assertXlsxReviewedImportIntegrity(client: Pick<Client, "query">) {
+  const { rows } = await client.query(`SELECT count(*)::int AS invalid
+    FROM public."IngestionOperationReceipt" r WHERE r.kind='XLSX_REVIEWED_IMPORT'
+      AND public.valid_ingestion_xlsx_reviewed_import(r.id) IS NOT TRUE`);
+  if (rows[0]?.invalid !== 0) throw new Error("Restored workbook reviewed imports are invalid");
+}

@@ -110,6 +110,20 @@ type ReceiptRow = {
 };
 
 const idSchema = projectFactIdSchema;
+const xlsxReviewInput = ingestionReviewedImportRequestSchema.extend({
+  previewContextSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+});
+const xlsxReviewResult = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.enum(["STORED", "REPLAYED"]),
+    receiptId: idSchema,
+    rowCount: z.number().int().min(1).max(1000),
+  }),
+  z.strictObject({
+    status: z.enum(["DENIED", "RETRY", "CONFLICT", "STALE_CONFIGURATION", "RETENTION_REQUIRED",
+      "INVALID_REQUEST", "INVALID_PREVIEW", "INTEGRITY_CONFLICT"]),
+  }),
+]);
 const xlsxRetryInput = z.strictObject({
   sourceId: idSchema,
   commandKey: ingestionCommandKeySchema,
@@ -2099,6 +2113,34 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     });
   }
 
+  async commitXlsxReviewedImport(actorInputValue: Actor, inputValue: unknown, correlationInput: string) {
+    const actor = parseActor(actorInputValue);
+    const correlationId = contextSchema(correlationInput);
+    const input = parseIngestion(xlsxReviewInput, inputValue);
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_reviewed_import", correlationId, "PERSISTENCE_FAILED", async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await this.db.$transaction(async (tx) => {
+          const [row] = await tx.$queryRaw<{ result: unknown }[]>
+            `SELECT public.commit_ingestion_xlsx_reviewed_import(
+              ${actor.customerId}::uuid,${input.sourceId}::uuid,${actor.subject}::text,${roles}::text[],${input.commandKey}::text,
+              ${input.previewReceiptId}::uuid,${input.previewContextSha256}::text,${input.rowOrdinals}::integer[],${correlationId}::text
+            ) AS result`;
+          return xlsxReviewResult.safeParse(row?.result);
+        }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 12000 });
+        if (!result.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+        if (result.data.status === "STORED" || result.data.status === "REPLAYED") {
+          return ingestionReviewedImportResultSchema.parse({
+            receiptId: result.data.receiptId, parentPreviewReceiptId: input.previewReceiptId,
+            replayed: result.data.status === "REPLAYED", rowCount: result.data.rowCount,
+          });
+        }
+        if (result.data.status !== "RETRY") throw new IngestionPersistenceError(result.data.status);
+      }
+      throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+    });
+  }
+
   async commitCsvReviewedImport(
     actorInputValue: Actor,
     inputValue: Parameters<IngestionRepository["commitCsvReviewedImport"]>[1],
@@ -2295,7 +2337,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     return this.run(actor, "receipt_read", "ingestion.receipt.read", "PERSISTENCE_FAILED", async () => {
       const header = await this.db.$queryRaw<{ configRevision: number; kind: string }[]>`
         SELECT "configRevision",kind FROM public."IngestionOperationReceipt"
-        WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND id=${receiptId}::uuid AND kind<>'XLSX_PREVIEW'`;
+        WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND id=${receiptId}::uuid AND kind NOT IN ('XLSX_PREVIEW','XLSX_REVIEWED_IMPORT')`;
       if (!header[0]) throw new IngestionPersistenceError("DENIED");
       const originalScope = await this.db.$queryRaw<{ projectId: string }[]>`
         SELECT "projectId" FROM public."IngestionConfigurationProject"

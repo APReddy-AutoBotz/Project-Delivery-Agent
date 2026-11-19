@@ -45,6 +45,14 @@ export const xlsxWriterFunctions = Object.freeze([
   "public.materialize_ingestion_xlsx_fields(uuid,uuid,integer,text,jsonb)",
 ]);
 
+export const xlsxReviewApiFunction = "public.commit_ingestion_xlsx_reviewed_import(uuid,uuid,text,text[],text,uuid,text,integer[],text)";
+export const xlsxReviewFunctions = Object.freeze([
+  xlsxReviewApiFunction,
+  "public.verified_ingestion_xlsx_context(uuid)",
+  "public.valid_ingestion_xlsx_reviewed_import(uuid)",
+  "public.require_ingestion_xlsx_reviewed_import_complete()",
+]);
+
 export async function assertBusinessTableOwner(client: Pick<Client, "query">) {
   const principals = (
     await client.query(
@@ -271,6 +279,41 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
             OR acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable)) THEN
         RAISE EXCEPTION 'Unexpected XLSX writer function privileges';
       END IF;
-    END $xlsx_writer_acl$
+    END $xlsx_writer_acl$;
+    DO $xlsx_review_acl$
+    DECLARE
+      present integer;
+      correct boolean;
+      recorded boolean := false;
+    BEGIN
+      SELECT count(*),bool_and(p.prosecdef=entry.definer AND p.provolatile=entry.volatility::"char"
+        AND NOT p.proretset AND p.prorettype=entry.return_type::regtype
+        AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=entry.settings)
+        INTO present,correct
+      FROM (VALUES
+        ('${xlsxReviewApiFunction}',true,'v','jsonb',ARRAY['search_path=pg_catalog, pg_temp']),
+        ('public.verified_ingestion_xlsx_context(uuid)',false,'s','jsonb',ARRAY['search_path=pg_catalog']),
+        ('public.valid_ingestion_xlsx_reviewed_import(uuid)',false,'s','boolean',ARRAY['search_path=pg_catalog, pg_temp']),
+        ('public.require_ingestion_xlsx_reviewed_import_complete()',true,'v','trigger',ARRAY['search_path=pg_catalog, pg_temp'])
+      ) entry(signature,definer,volatility,return_type,settings)
+      JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entry.signature);
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190006_xlsx_reviewed_import') INTO recorded;
+      END IF;
+      IF present=0 AND NOT recorded THEN RETURN; END IF;
+      IF present<>${xlsxReviewFunctions.length} OR correct IS NOT TRUE THEN
+        RAISE EXCEPTION 'Unexpected XLSX review function boundary';
+      END IF;
+      REVOKE ALL ON FUNCTION ${xlsxReviewFunctions.join(",")} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT EXECUTE ON FUNCTION ${xlsxReviewApiFunction} TO pdaa_api;
+      IF EXISTS (
+        SELECT 1 FROM unnest(ARRAY[${xlsxReviewFunctions.map((name) => "'" + name + "'").join(",")}]) entries(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entries.signature)
+        CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+        WHERE acl.grantee<>p.proowner AND (entries.signature<>'${xlsxReviewApiFunction}'
+          OR acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable)
+      ) THEN RAISE EXCEPTION 'Unexpected XLSX review function privileges'; END IF;
+    END $xlsx_review_acl$
   `);
 }
