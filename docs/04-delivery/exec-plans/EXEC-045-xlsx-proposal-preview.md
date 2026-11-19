@@ -496,9 +496,26 @@ locks projects and grants before retention, source and head. The fixtures verify
 serialization, lawful redaction, grant revocation and restore rejection of
 corruption in an older context or captured project scope.
 
+### Exact native preview retry
+
+Migration 33 adds an internal, read-only receipt probe for the API database
+login. The service checks authenticated actor role claims against live grants
+and source readers for the current and captured project scopes before hashing
+workbook bytes. The retry uses the retained parser contract and submitted
+request fields. It returns the prior receipt only when the fingerprint and
+immutable context match. Advancing the comparison head or changing the source
+configuration leaves an exact retry available while access remains current.
+
+The synthetic acceptance fixture uses a direct API login and checks exact
+retry, changed bytes and request metadata, configuration and grant changes,
+contention, and the absence of comparison writes. Bootstrap and restore
+reconstruct the finite function grant. Packaged restore checks that grant in
+quarantine. A separate synthetic PostgreSQL copy permits a direct API login
+for replay across restore, lawful redaction and context corruption checks.
+
 The public configuration and receipt contracts still expose the existing
-spreadsheet path. Service-level exact replay, reviewed selection and a live
-workbook upload remain pending.
+spreadsheet path. Fresh service preview, reviewed selection and live workbook
+upload remain pending.
 
 ## Required validation
 

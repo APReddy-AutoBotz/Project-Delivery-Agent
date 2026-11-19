@@ -94,6 +94,7 @@ import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
 import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
 import { proveXlsxSourceGenesis, verifyXlsxGenesisPrivileges } from "./xlsx-source-genesis.mjs";
 import { proveNativeXlsxPreviews, verifyNativeXlsxPreviewRestore, verifyXlsxContextPrivileges, verifyXlsxPreviewSerialization } from "./xlsx-native-preview.mjs";
+import { proveNativeXlsxPreviewRetry, verifyXlsxRetryPrivileges } from "./xlsx-preview-retry.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -428,6 +429,7 @@ try {
     });
     const xlsxNativePreviews = await proveNativeXlsxPreviews(admin);
     const xlsxPreviewSerialization = await verifyXlsxPreviewSerialization(admin);
+    const xlsxPreviewRetry = await proveNativeXlsxPreviewRetry(admin, config("database", "pdaa_api", "api-password").database);
     const ingestionReassessment = await seedReassessmentRecovery(admin,
       config("database", "pdaa_api", "api-password").database, process.env.CUSTOMER_ID);
     writeFileSync(
@@ -472,6 +474,7 @@ try {
           xlsxGenesis,
           xlsxNativePreviews,
           xlsxPreviewSerialization,
+          xlsxPreviewRetry,
           engagementStorageTables,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
@@ -587,6 +590,8 @@ try {
       assert.equal(expected.IngestionXlsxHead.length, 1);
       assert.equal(expected.IngestionXlsxContext.length, 3);
       const xlsxGenesisRestore = await verifyNativeXlsxPreviewRestore(pool);
+      const xlsxRetryPrivileges = await verifyXlsxRetryPrivileges(pool, ["pdaa_api","pdaa_worker","pdaa_backup"],
+        {owner:"pdaa_migrate",apiExecute:true});
       const xlsxContextPrivileges = await verifyXlsxContextPrivileges(pool,
         ["pdaa_api","pdaa_worker","pdaa_backup"],{owner:"pdaa_migrate",backupRead:true});
       await verifyProjectFactPrivileges(pool);
@@ -650,6 +655,7 @@ try {
         xlsxGenesisPrivileges,
         xlsxGenesisRestore,
         xlsxContextPrivileges,
+        xlsxRetryPrivileges,
         ingestionReassessment: await verifyRestoredReassessments(pool, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

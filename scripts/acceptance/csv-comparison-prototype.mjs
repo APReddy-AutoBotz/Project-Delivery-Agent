@@ -110,7 +110,7 @@ function assertReleasedSnapshot(before) {
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort();
-  assert.equal(names.length, 32);
+  assert.equal(names.length, 33);
   assert.equal(names[28], "202611180001_csv_comparison_validation_cost");
   assert.equal(before.ledger.length, names.length);
   for (const [i, name] of names.entries()) {

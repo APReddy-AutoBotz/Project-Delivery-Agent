@@ -24,11 +24,12 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   const config = { host: locator.hostname, port: Number(locator.port), database: name,
     user: decodeURIComponent(locator.username), password: decodeURIComponent(locator.password), ssl: false };
   const migrations = readMigrations("packages/data/prisma/migrations");
-  assert.equal(migrations.length, 32);
+  assert.equal(migrations.length, 33);
   assert.equal(migrations[28].name, "202611180001_csv_comparison_validation_cost");
   assert.equal(migrations[29].name, "202611190001_xlsx_receipt_codec");
   assert.equal(migrations[30].name, "202611190002_xlsx_source_genesis");
   assert.equal(migrations[31].name, "202611190003_xlsx_preview_context");
+  assert.equal(migrations[32].name, "202611190004_xlsx_preview_retry");
   await migrateDatabase(config, migrations.slice(0, 24));
   const db = createDatabase(locator.toString());
   // Project released columns explicitly before and after the additive workbook discriminator.
@@ -154,6 +155,9 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     await migrateDatabase(config,migrations.slice(0,31));
     const before32Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
     assert.equal(before32Ledger.length,31);
+    await migrateDatabase(config,migrations.slice(0,32));
+    const before33Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before33Ledger.length,32);
     await migrateDatabase(config,migrations);
     await migrateDatabase(config,migrations);
     assert.deepEqual(await csvFunctionBoundary(),savedBoundary);
@@ -273,7 +277,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.equal(afterLedger[24].checksum, createHash("sha256").update(migrations[24].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0, 25), before26Ledger);
     assert.deepEqual(afterLedger.slice(0, 26), before27Ledger);
-    assert.equal(afterLedger.length, 32);
+    assert.equal(afterLedger.length, 33);
     assert.equal(afterLedger[25].checksum, createHash("sha256").update(migrations[25].sql).digest("hex"));
     assert.equal(afterLedger[26].checksum, createHash("sha256").update(migrations[26].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0,27),released27.ledger);
@@ -286,6 +290,8 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.deepEqual(afterLedger[30],{migration_name:migrations[30].name,checksum:migrations[30].checksum});
     assert.deepEqual(afterLedger.slice(0,31),before32Ledger);
     assert.deepEqual(afterLedger[31],{migration_name:migrations[31].name,checksum:migrations[31].checksum});
+    assert.deepEqual(afterLedger.slice(0,32),before33Ledger);
+    assert.deepEqual(afterLedger[32],{migration_name:migrations[32].name,checksum:migrations[32].checksum});
     console.log("Populated released-24 upgrade retained all 24 checksums and its exact failure fence; a real available cause remained uncharged, then completed after only that fence was cleared.");
     return { priorMigrationCount: 24, databaseName: name, retainedLegacyFailureFence: true, scanBlockedByFence: true,
       availableCauseUncharged: true, positiveControlCompleted: true, retainedPriorChecksums: 24,

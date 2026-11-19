@@ -151,6 +151,16 @@ function requestHash(binding: z.infer<typeof requestBinding>): string {
   );
 }
 
+function fingerprintOwnedWorkbook(original: Buffer) {
+  return { workbookSha256: sha256(original), workbookBytes: original.length };
+}
+
+// The retry caller authorizes first. No decoder or parser profile is needed
+// to fingerprint an independent copy of the original accepted bytes.
+export function fingerprintXlsxWorkbook(input: unknown) {
+  return Object.freeze(fingerprintOwnedWorkbook(copyBoundedWorkbook(input)));
+}
+
 // The decoder receives a fresh copy of the same bytes owned by this closure.
 // Callers must authorize and reserve capacity before entering this function.
 export function captureXlsxPreviewRequest(
@@ -161,8 +171,7 @@ export function captureXlsxPreviewRequest(
   const original = copyBoundedWorkbook(originalBytes);
   const request = Object.freeze({
     ...scope,
-    workbookSha256: sha256(original),
-    workbookBytes: original.length,
+    ...fingerprintOwnedWorkbook(original),
   });
   return Object.freeze({
     request,

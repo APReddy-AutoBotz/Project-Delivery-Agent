@@ -32,6 +32,8 @@ export const xlsxContextFunctions = Object.freeze([
   "public.valid_ingestion_xlsx_head(uuid,uuid)",
 ]);
 
+export const xlsxRetryFunction = "public.probe_ingestion_xlsx_retry(uuid,uuid,text,text[],text,integer,integer,text,integer,text)";
+
 export async function assertBusinessTableOwner(client: Pick<Client, "query">) {
   const principals = (
     await client.query(
@@ -204,6 +206,31 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       ELSIF present <> 0 OR has_context OR recorded THEN
         RAISE EXCEPTION 'Incomplete XLSX context family';
       END IF;
-    END $xlsx_context_acl$
+    END $xlsx_context_acl$;
+    DO $xlsx_retry_acl$
+    DECLARE target oid; correct boolean; recorded boolean := false;
+    BEGIN
+      target := to_regprocedure('${xlsxRetryFunction}');
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190004_xlsx_preview_retry') INTO recorded;
+      END IF;
+      IF target IS NULL THEN
+        IF recorded THEN RAISE EXCEPTION 'Missing XLSX retry function'; END IF;
+      ELSE
+        SELECT p.prosecdef AND p.provolatile='v' AND p.proretset
+          AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
+          INTO correct FROM pg_catalog.pg_proc p WHERE p.oid=target;
+        IF correct IS NOT TRUE THEN RAISE EXCEPTION 'Unexpected XLSX retry function boundary'; END IF;
+        REVOKE ALL ON FUNCTION ${xlsxRetryFunction} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        GRANT EXECUTE ON FUNCTION ${xlsxRetryFunction} TO pdaa_api;
+        IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc p,
+          LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+          WHERE p.oid=target AND acl.grantee<>p.proowner
+            AND (acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable)) THEN
+          RAISE EXCEPTION 'Unexpected XLSX retry function privileges';
+        END IF;
+      END IF;
+    END $xlsx_retry_acl$
   `);
 }

@@ -27,6 +27,8 @@ import {
   previewSpreadsheetCsvHashedBaseline,
   projectFactIdSchema,
   projectFactSubjectSchema,
+  xlsxMappingRevisionSchema,
+  xlsxSheetSchema,
   validateConnectorPage,
   validateConnectorRecord,
   type Actor,
@@ -44,6 +46,7 @@ import type {
 import { actorInput } from "./fact-authorization.js";
 import { enqueueConnectorReassessments } from "./ingestion-reassessments.js";
 import { loadCsvComparison, saveCsvComparison } from "./ingestion-csv-comparison.js";
+import { fingerprintXlsxWorkbook } from "./ingestion-xlsx-binding.js";
 
 type Tx = Prisma.TransactionClient;
 type MappingRow = { id: string; customerId: string; sourceId: string; sourceType: string; origin: string; currentConfigRevision: number | null; mappingRevision: number; cursorRevision: bigint; syncGeneration: bigint; cursorEnvelope: string | null; cursorState: string; healthState: string; healthCode: string; healthCheckedAt: Date | null; lastSuccessReceiptId: string | null };
@@ -102,6 +105,22 @@ type ReceiptRow = {
 };
 
 const idSchema = projectFactIdSchema;
+const ingestionWriteRoles: readonly string[] = ["project_manager", "portfolio_manager", "pmo_admin"];
+const xlsxRetryInput = z.strictObject({
+  sourceId: idSchema,
+  commandKey: ingestionCommandKeySchema,
+  configRevision: xlsxMappingRevisionSchema,
+  mappingRevision: xlsxMappingRevisionSchema,
+  sheet: xlsxSheetSchema,
+});
+const xlsxRetryResult = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("REPLAYED"), receipt_id: idSchema, row_count: z.number().int().min(0).max(1000) }),
+  z.strictObject({
+    status: z.enum(["DENIED", "RETRY", "CHECK_BYTES", "ABSENT", "STALE_CONFIGURATION", "INTEGRITY_CONFLICT", "CONFLICT"]),
+    receipt_id: z.null(),
+    row_count: z.null(),
+  }),
+]);
 const spreadsheetPreparseSnapshotSchema = z.strictObject({
   binding: connectorBindingSchema,
   subject: projectFactSubjectSchema,
@@ -326,7 +345,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       action === "read"
         ? ["leadership", "project_manager", "portfolio_manager", "pmo_admin"]
         : action === "write"
-          ? ["project_manager", "portfolio_manager", "pmo_admin"]
+          ? ingestionWriteRoles
           : ["pmo_admin"];
     const eligible = grants.filter((grant) =>
       allowed.includes(grant.role) && currentRoleMatches(actor, grant.role));
@@ -1811,6 +1830,53 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid`;
         return { receiptId, replayed: false };
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 60000 });
+    });
+  }
+
+  // Internal only. A miss neither decodes the workbook nor saves a new preview.
+  async probeXlsxPreviewRetry(
+    actorInputValue: Actor,
+    input: unknown,
+    originalWorkbook: unknown,
+    correlationInput: string,
+  ): Promise<{receiptId:string; replayed:true; rowCount:number} | null> {
+    const actor = parseActor(actorInputValue);
+    const correlationId = contextSchema(correlationInput);
+    const request = parseIngestion(xlsxRetryInput, input);
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_preview_retry", correlationId, "PERSISTENCE_FAILED", async () => {
+      if (!roles.length) throw new IngestionPersistenceError("DENIED");
+      let fingerprint: ReturnType<typeof fingerprintXlsxWorkbook> | undefined;
+      for (let attempt=0; attempt<2; attempt++) {
+        const result = await this.db.$transaction(async (tx) => {
+          const probe = async (bytes: number | null, digest: string | null) => {
+            const rows = await tx.$queryRaw<unknown[]>`
+              SELECT status,receipt_id,row_count FROM public.probe_ingestion_xlsx_retry(
+                ${actor.customerId}::uuid,${request.sourceId}::uuid,${actor.subject}::text,${roles}::text[],
+                ${request.commandKey}::text,${request.configRevision}::integer,${request.mappingRevision}::integer,
+                ${request.sheet}::text,${bytes}::integer,${digest}::text)`;
+            const parsed = xlsxRetryResult.safeParse(rows[0]);
+            if (rows.length !== 1 || !parsed.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+            return parsed.data;
+          };
+          const admission = await probe(null, null);
+          if (admission.status !== "CHECK_BYTES") {
+            if (admission.status === "REPLAYED") throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+            return admission;
+          }
+          fingerprint ??= fingerprintXlsxWorkbook(originalWorkbook);
+          const exact = await probe(fingerprint.workbookBytes, fingerprint.workbookSha256);
+          if (exact.status === "CHECK_BYTES" || exact.status === "ABSENT")
+            throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+          return exact;
+        }, { isolationLevel:"ReadCommitted", maxWait:5000, timeout:12000 });
+        if (result.status === "REPLAYED") return {receiptId:result.receipt_id, replayed:true, rowCount:result.row_count};
+        if (result.status === "ABSENT") return null;
+        if (result.status === "RETRY") continue;
+        if (result.status === "CHECK_BYTES") throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+        throw new IngestionPersistenceError(result.status);
+      }
+      throw new IngestionPersistenceError("PERSISTENCE_FAILED");
     });
   }
 

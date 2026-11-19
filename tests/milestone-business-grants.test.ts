@@ -163,7 +163,8 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     "public.guard_ingestion_xlsx_graph_owner()",
     "public.valid_ingestion_xlsx_head(uuid,uuid)",
   ];
-  expect(revoked).toHaveLength(13);
+  const xlsxRetryFunction = "public.probe_ingestion_xlsx_retry(uuid,uuid,text,text[],text,integer,integer,text,integer,text)";
+  expect(revoked).toHaveLength(14);
   expect(
     revoked
       .flatMap((match) => splitFunctionSignatures(match[1]!))
@@ -185,13 +186,14 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...xlsxCodecFunctions,
       ...xlsxGenesisFunctions,
       ...xlsxContextFunctions,
+      xlsxRetryFunction,
       "public.guard_ingestion_configuration()",
     ].sort(),
   );
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
   ];
-  expect(granted).toHaveLength(8);
+  expect(granted).toHaveLength(9);
   expect(granted.flatMap((match) => splitFunctionSignatures(match[1]!)).sort()).toEqual(
     [
       "public.valid_canonical_state_binding(uuid)",
@@ -207,6 +209,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...updateValidators,
       ...reassessmentValidators,
       ...csvValidators,
+      xlsxRetryFunction,
       "public.lock_update_issuance_gate(uuid)",
       "public.purge_update_capture_content(uuid)",
     ].sort(),
@@ -221,7 +224,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(21);
+  ]).toHaveLength(23);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {
