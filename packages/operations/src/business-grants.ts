@@ -331,7 +331,7 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=entry.settings)
         INTO present,correct
       FROM (VALUES
-        ('${xlsxReceiptReadApi}',true,'v','jsonb',ARRAY['search_path=pg_catalog, pg_temp']),
+        ('${xlsxReceiptReadApi}',true,'v','jsonb',ARRAY['search_path=pg_catalog, pg_temp','DateStyle=ISO, YMD','TimeZone=UTC']),
         ('${xlsxReceiptReadFunctions[1]}',false,'s','boolean',ARRAY['search_path=pg_catalog'])
       ) entry(signature,definer,volatility,return_type,settings)
       JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entry.signature);

@@ -80,6 +80,9 @@ export async function verifyXlsxReviewPrivileges(
           signature === xlsxReceiptReadFunctions[1]
             ? "search_path=pg_catalog"
             : "search_path=pg_catalog, pg_temp",
+          ...(signature === xlsxReceiptReadApi
+            ? ["DateStyle=ISO, YMD", "TimeZone=UTC"]
+            : []),
         ],
         readers: granted ? ["pdaa_api"] : [],
         grantable: false,
@@ -242,7 +245,8 @@ export async function proveNativeXlsxReviewedImport(
       await client.$executeRaw`SET LOCAL DateStyle TO 'SQL, DMY'`;
       return directRead(client, customer);
     });
-    assert.deepEqual(zoned, [{ result: { status: "READY", view: open } }]);
+    assert.equal(zoned[0].result.status, "READY");
+    assert.deepEqual(zoned[0].result.view, open);
     assert.equal(open.previewContextSha256, input.previewContextSha256);
     assert.equal(open.selectionState, "OPEN");
     assert.equal(open.rowCount, 55);
