@@ -455,8 +455,7 @@ The migration owner can evaluate a bounded receipt projection and compare its
 digest with the TypeScript result. Clean and populated upgrade rehearsals check
 parity, and restore tests exercise the owner-only grants after `pg_restore`
 recreates the functions. The database inventory remains at 87 business tables.
-This increment creates no receipt rows and needs no data rollback. Customer
-recovery uses the preceding release and its pre-upgrade backup.
+Customer recovery uses the preceding release and its pre-upgrade backup.
 
 The next native storage increment must bind those digests to actual retained
 rows, source scope and record lineage under lock. Exact retry, revocation,
