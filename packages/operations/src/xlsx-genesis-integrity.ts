@@ -15,3 +15,15 @@ export async function assertXlsxGenesisIntegrity(
   if (rows[0]?.invalid !== 0)
     throw new Error("Restored workbook genesis is invalid");
 }
+
+export async function assertXlsxPreviewIntegrity(client: Pick<Client, "query">) {
+  const { rows } = await client.query(`SELECT
+    (SELECT count(*)::int FROM public."IngestionXlsxHead" h
+      WHERE public.valid_ingestion_xlsx_head(h."customerId",h."sourceId") IS NOT TRUE)
+    + (SELECT count(*)::int FROM public."IngestionXlsxContext" c
+      WHERE public.valid_ingestion_xlsx_context(c."receiptId") IS NOT TRUE)
+    + (SELECT count(*)::int FROM public."IngestionOperationReceipt" r WHERE r.kind='XLSX_PREVIEW'
+      AND NOT EXISTS (SELECT 1 FROM public."IngestionXlsxContext" c WHERE c."customerId"=r."customerId"
+        AND c."sourceId"=r."sourceId" AND c."receiptId"=r.id)) AS invalid`);
+  if (rows[0]?.invalid !== 0) throw new Error("Restored workbook previews are invalid");
+}

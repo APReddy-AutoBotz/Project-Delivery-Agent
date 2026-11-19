@@ -2131,7 +2131,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     return this.run(actor, "receipt_read", "ingestion.receipt.read", "PERSISTENCE_FAILED", async () => {
       const header = await this.db.$queryRaw<{ configRevision: number; kind: string }[]>`
         SELECT "configRevision",kind FROM public."IngestionOperationReceipt"
-        WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND id=${receiptId}::uuid`;
+        WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND id=${receiptId}::uuid AND kind<>'XLSX_PREVIEW'`;
       if (!header[0]) throw new IngestionPersistenceError("DENIED");
       const originalScope = await this.db.$queryRaw<{ projectId: string }[]>`
         SELECT "projectId" FROM public."IngestionConfigurationProject"

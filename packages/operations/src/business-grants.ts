@@ -23,6 +23,15 @@ export const xlsxGenesisFunctions = Object.freeze([
   "public.guard_ingestion_xlsx_legacy_write()",
 ]);
 
+export const xlsxContextFunctions = Object.freeze([
+  "public.ingestion_xlsx_overlay(uuid,jsonb,jsonb)",
+  "public.valid_ingestion_xlsx_context(uuid)",
+  "public.guard_ingestion_xlsx_head_advance()",
+  "public.append_ingestion_xlsx_context()",
+  "public.guard_ingestion_xlsx_graph_owner()",
+  "public.valid_ingestion_xlsx_head(uuid,uuid)",
+]);
+
 export async function assertBusinessTableOwner(client: Pick<Client, "query">) {
   const principals = (
     await client.query(
@@ -168,6 +177,33 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       ELSIF present <> 0 OR has_head OR recorded THEN
         RAISE EXCEPTION 'Incomplete XLSX source genesis family';
       END IF;
-    END $xlsx_genesis_acl$
+    END $xlsx_genesis_acl$;
+    DO $xlsx_context_acl$
+    DECLARE present integer; owned boolean; has_context boolean; recorded boolean := false;
+    BEGIN
+      SELECT count(p.oid), bool_and(p.proowner=current_user::regrole) INTO present, owned
+        FROM unnest(ARRAY[${xlsxContextFunctions.map((name) => `'${name}'`).join(",")}]) AS functions(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(signature);
+      has_context := to_regclass('public."IngestionXlsxContext"') IS NOT NULL;
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190003_xlsx_preview_context') INTO recorded;
+      END IF;
+      IF present = ${xlsxContextFunctions.length} AND has_context THEN
+        IF current_user = 'pdaa_migrate' AND owned IS NOT TRUE THEN
+          RAISE EXCEPTION 'Unexpected XLSX context function owner';
+        END IF;
+        REVOKE ALL ON FUNCTION ${xlsxContextFunctions.join(",")} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL ON TABLE public."IngestionXlsxContext" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL ("customerId","sourceId","receiptId",revision,"predecessorReceiptId","predecessorRevision","predecessorSha256",
+          "workbookBytes","workbookSha256","contextSha256",rows,"canonicalBytes","stateSha256")
+          ON public."IngestionXlsxContext" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL (revision,"currentReceiptId","stateSha256","canonicalHistoryBytes")
+          ON public."IngestionXlsxHead" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        GRANT SELECT ON public."IngestionXlsxContext" TO pdaa_backup;
+      ELSIF present <> 0 OR has_context OR recorded THEN
+        RAISE EXCEPTION 'Incomplete XLSX context family';
+      END IF;
+    END $xlsx_context_acl$
   `);
 }

@@ -92,7 +92,8 @@ import { updateCaptureTables, verifyUpdateCapturePrivileges, assertUpdateCapture
 import { seedReassessmentRecovery, verifyRestoredReassessments } from "./ingestion-reassessment.mjs";
 import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
 import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
-import { proveXlsxSourceGenesis, verifyXlsxGenesisPrivileges, verifyXlsxGenesisRestoreDenials } from "./xlsx-source-genesis.mjs";
+import { proveXlsxSourceGenesis, verifyXlsxGenesisPrivileges } from "./xlsx-source-genesis.mjs";
+import { proveNativeXlsxPreviews, verifyNativeXlsxPreviewRestore, verifyXlsxContextPrivileges, verifyXlsxPreviewSerialization } from "./xlsx-native-preview.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -142,7 +143,7 @@ const projection = async (pool) => {
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
     ).rows;
-  for (const table of [...projectUpdateTables,...csvComparisonTables, "IngestionXlsxHead", ...scheduleHealthPolicyTables, ...engagementStorageTables, ...updateCaptureTables])
+  for (const table of [...projectUpdateTables,...csvComparisonTables, "IngestionXlsxHead", "IngestionXlsxContext", ...scheduleHealthPolicyTables, ...engagementStorageTables, ...updateCaptureTables])
     result[table] = (
       await pool.query(
         `SELECT * FROM "${table}" ORDER BY to_jsonb("${table}")::text COLLATE "C"`,
@@ -425,6 +426,8 @@ try {
     const xlsxGenesis = await proveXlsxSourceGenesis(admin, {
       existingCustomer: process.env.CUSTOMER_ID, retain: true,
     });
+    const xlsxNativePreviews = await proveNativeXlsxPreviews(admin);
+    const xlsxPreviewSerialization = await verifyXlsxPreviewSerialization(admin);
     const ingestionReassessment = await seedReassessmentRecovery(admin,
       config("database", "pdaa_api", "api-password").database, process.env.CUSTOMER_ID);
     writeFileSync(
@@ -462,11 +465,13 @@ try {
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 88,
+          businessTableCount: 89,
           csvComparisonTables,
           csvComparisonPrivileges,
           xlsxReceiptCodec,
           xlsxGenesis,
+          xlsxNativePreviews,
+          xlsxPreviewSerialization,
           engagementStorageTables,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
@@ -580,7 +585,10 @@ try {
       const xlsxGenesisPrivileges = await verifyXlsxGenesisPrivileges(pool,
         ["pdaa_api","pdaa_worker","pdaa_backup"], { owner:"pdaa_migrate", backupRead:true });
       assert.equal(expected.IngestionXlsxHead.length, 1);
-      const xlsxGenesisRestore = await verifyXlsxGenesisRestoreDenials(pool);
+      assert.equal(expected.IngestionXlsxContext.length, 3);
+      const xlsxGenesisRestore = await verifyNativeXlsxPreviewRestore(pool);
+      const xlsxContextPrivileges = await verifyXlsxContextPrivileges(pool,
+        ["pdaa_api","pdaa_worker","pdaa_backup"],{owner:"pdaa_migrate",backupRead:true});
       await verifyProjectFactPrivileges(pool);
       await verifyImmutableProjectFacts(pool);
       await verifyAuthorityPrivileges(pool);
@@ -641,6 +649,7 @@ try {
         xlsxReceiptCodec,
         xlsxGenesisPrivileges,
         xlsxGenesisRestore,
+        xlsxContextPrivileges,
         ingestionReassessment: await verifyRestoredReassessments(pool, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

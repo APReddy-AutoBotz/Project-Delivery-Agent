@@ -478,6 +478,28 @@ mapping. Recovery validates the stored genesis and reconstructs the finite
 function and table grants. The preview receipt writer and comparison history
 append still require a native transaction and dedicated validation.
 
+### Native preview receipts and retained comparison state
+
+Migration 32 adds a private `XLSX_PREVIEW` receipt path for the migration owner.
+Each context binds the workbook digest, its exact predecessor, the captured
+project scope and the stored outcome and projection revisions. It writes the
+context and advances the comparison head in the same transaction. A rejected
+append rolls back the receipt, audit, scope and state. Fresh appends verify
+live retained projection content. Historical validation verifies the immutable
+proof after lawful redaction and walks every context during restore.
+
+The synthetic validation fixture creates a valued result, an update with
+partial field carry-forward, and an empty result that retains the prior state.
+It checks the native hashes against TypeScript, rolls back a forged overlay and
+checks an earlier receipt after later previews advance the head. Receipt birth
+locks projects and grants before retention, source and head. The fixtures verify
+serialization, lawful redaction, grant revocation and restore rejection of
+corruption in an older context or captured project scope.
+
+The public configuration and receipt contracts still expose the existing
+spreadsheet path. Service-level exact replay, reviewed selection and a live
+workbook upload remain pending.
+
 ## Required validation
 
 PR #153 Foundation run [41262214531](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41262214531)

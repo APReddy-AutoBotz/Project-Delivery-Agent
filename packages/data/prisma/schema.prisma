@@ -912,7 +912,29 @@ model IngestionXlsxHead {
   mappingRevision Int
   dictionary Json
   genesisSha256 String @db.Char(64)
+  revision Int @default(0)
+  currentReceiptId String? @db.Uuid
+  stateSha256 String? @db.Char(64)
+  canonicalHistoryBytes BigInt @default(0)
   @@id([customerId, sourceId], map: "IngestionXlsxHead_pkey")
+}
+
+model IngestionXlsxContext {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @id @db.Uuid
+  revision Int
+  predecessorReceiptId String? @db.Uuid
+  predecessorRevision Int
+  predecessorSha256 String @db.Char(64)
+  workbookBytes Int
+  workbookSha256 String @db.Char(64)
+  contextSha256 String @db.Char(64)
+  rows Json
+  canonicalBytes Int
+  stateSha256 String @db.Char(64)
+  @@unique([customerId, sourceId, revision], map: "IngestionXlsxContext_revision_key")
+  @@unique([customerId, sourceId, revision, receiptId, stateSha256], map: "IngestionXlsxContext_exact_key")
 }
 
 model IngestionCsvHead {

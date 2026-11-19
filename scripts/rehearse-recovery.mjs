@@ -192,7 +192,7 @@ try {
     "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
     "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
     "IngestionProjectReassessment",
-    "IngestionCsvHead", "IngestionCsvContext", "IngestionXlsxHead",
+    "IngestionCsvHead", "IngestionCsvContext", "IngestionXlsxHead", "IngestionXlsxContext",
   ];
   const actualTables = (await restored.$queryRawUnsafe(
     "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
@@ -279,7 +279,7 @@ try {
     "IngestionRowOutcome",
     "IngestionReviewedImport",
     "IngestionReviewedImportRow",
-    "IngestionCsvHead", "IngestionCsvContext", "IngestionXlsxHead",
+    "IngestionCsvHead", "IngestionCsvContext", "IngestionXlsxHead", "IngestionXlsxContext",
     "ConnectorWebhookReceipt",
     "IngestionSyncReceiptProjectScope",
   ]) {

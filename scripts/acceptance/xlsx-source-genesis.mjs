@@ -251,7 +251,7 @@ export async function proveXlsxSourceGenesis(
     await denied(
       `UPDATE public."IngestionXlsxHead" SET "genesisSha256"=repeat('a',64) WHERE "sourceId"=$1`,
       [source],
-      /history is immutable/u,
+      /history is immutable|Invalid workbook head advance/u,
     );
     await denied(
       `UPDATE public."IngestionSource" SET "inputFamily"='LEGACY' WHERE id=$1`,
@@ -304,9 +304,10 @@ export async function verifyXlsxGenesisRestoreDenials(pool) {
     );
     const head = rows[0];
     await assertXlsxGenesisIntegrity(client);
-    await client.query(
-      'ALTER TABLE public."IngestionXlsxHead" DISABLE TRIGGER ingestion_xlsx_head_immutable',
-    );
+    const advancedSchema = (await client.query(`SELECT to_regclass('public."IngestionXlsxContext"') IS NOT NULL AS present`)).rows[0].present;
+    await client.query(advancedSchema
+      ? 'ALTER TABLE public."IngestionXlsxHead" DISABLE TRIGGER ingestion_xlsx_head_advance'
+      : 'ALTER TABLE public."IngestionXlsxHead" DISABLE TRIGGER ingestion_xlsx_head_immutable');
     const params = [head.customerId, head.sourceId];
     await client.query("SAVEPOINT workbook_restored_head");
     await client.query(

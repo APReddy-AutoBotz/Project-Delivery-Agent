@@ -192,6 +192,7 @@ async function projection(pool) {
     ...projectUpdateTables,
     ...csvComparisonTables,
     "IngestionXlsxHead",
+    "IngestionXlsxContext",
     ...scheduleHealthPolicyTables,
     ...engagementStorageTables,
     ...updateCaptureTables,
@@ -570,7 +571,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 31);
+    assert.equal(migrations.length, 32);
     assert.equal(migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
@@ -844,12 +845,12 @@ try {
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 88,
+      businessTableCount: 89,
       csvComparisonTables,
       csvComparisonPrivileges,
       xlsxReceiptCodec,
       engagementStorageTables,
-      migrationCount: 31,
+      migrationCount: 32,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
