@@ -126,6 +126,19 @@ async function verify(expected) {
     const wanted = expected.results.find(
       (result) => result.profile === profile,
     );
+    const { rows: state } = await pool.query(
+      `SELECT h.revision,h."currentReceiptId"::text AS "receiptId",
+         (SELECT count(*)::int FROM public."IngestionXlsxContext" x
+          WHERE x."customerId"=h."customerId" AND x."sourceId"=h."sourceId") AS contexts,
+         (SELECT count(*)::int FROM public."IngestionOperationReceipt" r
+          WHERE r."customerId"=h."customerId" AND r."sourceId"=h."sourceId"
+            AND r.kind='XLSX_PREVIEW') AS receipts
+       FROM public."IngestionXlsxHead" h WHERE h."customerId"=$1 AND h."sourceId"=$2`,
+      [customerId, sourceId],
+    );
+    assert.deepEqual(state, [
+      { revision: 1, receiptId: wanted.receiptId, contexts: 1, receipts: 1 },
+    ]);
     const { rows } = await pool.query(
       `SELECT r.id::text AS "receiptId",x."workbookSha256",x.revision,o.operation,p."factTypes"
        FROM public."IngestionOperationReceipt" r JOIN public."IngestionXlsxContext" x ON x."receiptId"=r.id

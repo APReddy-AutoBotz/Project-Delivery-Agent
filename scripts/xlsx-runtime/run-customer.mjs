@@ -8,7 +8,6 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   book,
@@ -20,7 +19,9 @@ import { root } from "./staging.mjs";
 
 const run =
   "pdaa-acceptance-" + Date.now() + "-" + randomBytes(4).toString("hex");
-const local = mkdtempSync(join(tmpdir(), "pdaa-xlsx-customer-"));
+const scratch = join(root, "tmp");
+mkdirSync(scratch, { recursive: true });
+const local = mkdtempSync(join(scratch, "pdaa-xlsx-customer-"));
 const endpoint =
   process.platform === "win32"
     ? "npipe:////./pipe/dockerDesktopLinuxEngine"
@@ -192,6 +193,37 @@ function exercise(profile) {
     "service_healthy",
   );
 
+  let composed = false;
+  const fixtureMount = "type=bind,src=" + hostPath(secrets) + ",dst=/fixture";
+  active.set(project, () => {
+    if (composed) {
+      compose("stop", "down", "--volumes", "--remove-orphans");
+      composed = false;
+    }
+    // The fixture generator changes ownership inside this run-owned mount.
+    // Return it to the host runner only after all project containers stop.
+    if (process.getuid && process.getgid) {
+      call("restore-fixture-ownership", [
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--cap-drop",
+        "ALL",
+        "--cap-add",
+        "CHOWN",
+        "--cap-add",
+        "DAC_OVERRIDE",
+        "--mount",
+        fixtureMount,
+        images["xlsx-proof"],
+        "chown",
+        "-Rh",
+        process.getuid() + ":" + process.getgid(),
+        "/fixture",
+      ]);
+    }
+  });
   call("generate-synthetic-secrets", [
     "run",
     "--rm",
@@ -200,14 +232,12 @@ function exercise(profile) {
     "-e",
     "PDAA_ACCEPTANCE=isolated",
     "--mount",
-    "type=bind,src=" + hostPath(secrets) + ",dst=/fixture",
+    fixtureMount,
     images["xlsx-proof"],
     "node",
     "scripts/acceptance/prepare-customer.mjs",
   ]);
-  active.set(project, () =>
-    compose("stop", "down", "--volumes", "--remove-orphans"),
-  );
+  composed = true;
   compose(
     "start-database",
     "up",
