@@ -181,7 +181,7 @@ try {
   assert.equal(env.PDAA_DB_USER, "postgres");
   assert.equal(env.PDAA_DB_PASSWORD_FILE, "/run/secrets/admin-password");
   assert.equal(secret("customer-ready"), "isolated customer composition\n");
-  pool = new Pool(loadDatabaseConfig(env));
+  pool = new Pool(loadDatabaseConfig(env).database);
   const result =
     phase === "prepare"
       ? await prepare()
