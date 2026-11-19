@@ -163,6 +163,9 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     await migrateDatabase(config,migrations.slice(0,33));
     const before34Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
     assert.equal(before34Ledger.length,33);
+    await migrateDatabase(config,migrations.slice(0,34));
+    const before35Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before35Ledger.length,34);
     await migrateDatabase(config,migrations);
     await migrateDatabase(config,migrations);
     assert.deepEqual(await csvFunctionBoundary(),savedBoundary);
@@ -299,6 +302,8 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.deepEqual(afterLedger[32],{migration_name:migrations[32].name,checksum:migrations[32].checksum});
     assert.deepEqual(afterLedger.slice(0,33),before34Ledger);
     assert.deepEqual(afterLedger[33],{migration_name:migrations[33].name,checksum:migrations[33].checksum});
+    assert.deepEqual(afterLedger.slice(0,34),before35Ledger);
+    assert.deepEqual(afterLedger[34],{migration_name:migrations[34].name,checksum:migrations[34].checksum});
     console.log("Populated released-24 upgrade retained all 24 checksums and its exact failure fence; a real available cause remained uncharged, then completed after only that fence was cleared.");
     return { priorMigrationCount: 24, databaseName: name, retainedLegacyFailureFence: true, scanBlockedByFence: true,
       availableCauseUncharged: true, positiveControlCompleted: true, retainedPriorChecksums: 24,
