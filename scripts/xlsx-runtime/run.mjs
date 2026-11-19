@@ -82,7 +82,10 @@ function verifyBoundary(container, access, name, user) {
   assert.equal(host.ReadonlyRootfs, true);
   assert.equal(host.Privileged, false);
   assert.deepEqual(host.CapDrop, ["ALL"]);
-  assert.deepEqual(host.CapAdd ?? [], name === "initializer" ? ["CHOWN"] : []);
+  assert.deepEqual(
+    (host.CapAdd ?? []).map((cap) => cap.replace(/^CAP_/u, "")),
+    name === "initializer" ? ["CHOWN"] : [],
+  );
   assert(!host.Tmpfs || Object.keys(host.Tmpfs).length === 0);
   assert.deepEqual(
     container.Config.Env.map((pair) => pair.split("=", 1)[0]).sort(),

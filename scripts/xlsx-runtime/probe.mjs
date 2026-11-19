@@ -57,13 +57,20 @@ if (process.argv[3] === "denied") {
         expected.grids[gridIndex],
       );
     } catch (error) {
+      const reason =
+        error.code === "ERR_ASSERTION"
+          ? "unexpected decoded grid"
+          : error.message === "XLSX_WIRE_REJECTED"
+            ? "incomplete or invalid frame"
+            : "transport failure";
       throw new Error(
         "Synthetic XLSX runtime proof failed at case " +
           (index + 1) +
           " after " +
           Math.round(performance.now() - started) +
-          " ms",
-        { cause: error },
+          " ms (" +
+          reason +
+          ")",
       );
     } finally {
       clearTimeout(timer);
