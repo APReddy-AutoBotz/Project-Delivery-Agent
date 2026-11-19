@@ -41,7 +41,7 @@ import {
   type IngestionSyncSnapshot,
   type SpreadsheetRowPreview,
 } from "@pdaa/domain";
-import { CredentialVault } from "@pdaa/platform";
+import { CredentialVault, type XlsxPreviewDecoder } from "@pdaa/platform";
 import type {
   Prisma,
   PrismaClient as Database,
@@ -51,7 +51,7 @@ import { authorizeIngestionProjects, currentRoleMatches, ingestionWriteRoles } f
 import { enqueueConnectorReassessments } from "./ingestion-reassessments.js";
 import { loadCsvComparison, saveCsvComparison } from "./ingestion-csv-comparison.js";
 import { captureXlsxPreviewRequest, fingerprintXlsxWorkbook } from "./ingestion-xlsx-binding.js";
-import { mapBoundXlsxPreviewGrid, xlsxSourceRowDigest, type XlsxPreviewDecoder } from "./ingestion-xlsx-preview.js";
+import { mapBoundXlsxPreviewGrid, xlsxSourceRowDigest } from "./ingestion-xlsx-preview.js";
 
 type Tx = Prisma.TransactionClient;
 type MappingRow = { id: string; customerId: string; sourceId: string; sourceType: string; origin: string; currentConfigRevision: number | null; mappingRevision: number; cursorRevision: bigint; syncGeneration: bigint; cursorEnvelope: string | null; cursorState: string; healthState: string; healthCode: string; healthCheckedAt: Date | null; lastSuccessReceiptId: string | null };
@@ -319,6 +319,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
   constructor(
     private readonly db: Database,
     private readonly vault: CredentialVault,
+    private readonly xlsxDecoder?: XlsxPreviewDecoder,
   ) {}
 
   private async denialAudit(
@@ -1892,14 +1893,14 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     });
   }
 
-  // The caller supplies the reviewed isolated decoder adapter. HTTP upload
-  // activation and the adapter's process boundary are separate release gates.
+  // Only the trusted composition root supplies the decoder. This method has
+  // no public upload route.
   async persistXlsxPreview(
     actorInputValue: Actor,
     input: unknown,
     originalWorkbook: unknown,
-    decoder: XlsxPreviewDecoder,
     correlationInput: string,
+    signal?: AbortSignal,
   ): Promise<{ receiptId: string; replayed: boolean; rowCount: number }> {
     const actor = parseActor(actorInputValue);
     const correlationId = contextSchema(correlationInput);
@@ -1908,15 +1909,18 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     if (admission.kind === "REPLAYED") return admission.result;
     const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
     return this.run(actor, "xlsx_preview", correlationId, "PERSISTENCE_FAILED", async () => {
-      const slot = decoder.tryAcquire();
+      signal?.throwIfAborted();
+      const slot = this.xlsxDecoder?.tryAcquire();
       if (!slot) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
       try {
         const bound = captureXlsxPreviewRequest({
           ...request, customerId: actor.customerId, subject: actor.subject, parserContract: admission.parserContract,
         }, originalWorkbook);
-        const grid = parseSpreadsheetGrid(await slot.decode(bound.request, bound.copyForDecoder()));
         const { sourceId, commandKey, configRevision, mappingRevision, sheet, parserContract, workbookBytes, workbookSha256 } = bound.request;
+        const decoded = await slot.decode({ sheet, parserContract }, bound.copyForDecoder(), signal);
+        const grid = parseSpreadsheetGrid(decoded);
         for (let attempt = 0; attempt < 2; attempt++) {
+          signal?.throwIfAborted();
           const result = await this.db.$transaction(async (tx) => {
             const [read] = await tx.$queryRaw<{ result: unknown }[]>`
               SELECT public.read_ingestion_xlsx_preview(

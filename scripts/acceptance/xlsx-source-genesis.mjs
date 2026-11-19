@@ -55,7 +55,7 @@ export async function verifyXlsxGenesisPrivileges(
 
 export async function proveXlsxSourceGenesis(
   pool,
-  { retain = false, existingCustomer } = {},
+  { retain = false, existingCustomer, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1" } = {},
 ) {
   const client = await pool.connect();
   const [fixtureCustomer, source, portfolio, project, auditId] = Array.from(
@@ -66,8 +66,8 @@ export async function proveXlsxSourceGenesis(
   const subject = "synthetic-workbook-pmo";
   const mapping = {
     kind: "XLSX",
-    sheet: 'Portfolio 🧪 "1"',
-    parserContract: "excel-text-v1",
+    sheet,
+    parserContract,
     identityColumn: "Key",
     projectColumn: "Project",
     fields: [

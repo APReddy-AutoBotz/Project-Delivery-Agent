@@ -193,8 +193,9 @@ function namespace(prefix: string, suffix: string): string {
 }
 
 // Authored from the supported package shape. All document metadata is fictional.
-export function excelTextParts(): Map<string, string> {
-  const parts = fixtureParts(matrix, true);
+export function excelTextParts(values = matrix): Map<string, string> {
+  const parts = fixtureParts(values, true);
+  const width = values[0]!.length;
   modify(
     parts,
     "_rels/.rels",
@@ -242,13 +243,13 @@ export function excelTextParts(): Map<string, string> {
     `<x:worksheet xmlns:x="${wbNs}" ${mc} ${namespace("x14ac", "2009/9/ac")}
       ${revision} ${revision2} ${namespace("xr3", "2016/revision3")}
       mc:Ignorable="x14ac xr xr2 xr3" xr:uid="synthetic">
-      <x:dimension ref="A1:C3"/>
+      <x:dimension ref="A1:${column(width - 1)}${values.length}"/>
       <x:sheetViews><x:sheetView tabSelected="1" workbookViewId="0"/></x:sheetViews>
       <x:sheetFormatPr defaultRowHeight="15"/>`,
   );
   parts.set(
     sheetPath,
-    parts.get(sheetPath)!.replaceAll(/<x:row r="[1-3]"/gu, '$& spans="1:3"'),
+    parts.get(sheetPath)!.replaceAll(/<x:row r="[1-9][0-9]*"/gu, `$& spans="1:${width}"`),
   );
   modify(
     parts,

@@ -24,6 +24,7 @@ export {
   type ConnectorTaskHeaders,
   type ConnectorTaskKeyRing,
 } from "./connector-task-auth.js";
+export { IsolatedXlsxDecoder, type XlsxPreviewDecoder } from "./xlsx-decoder.js";
 export { operationalLog } from "./logging.js";
 import { operationalLog } from "./logging.js";
 

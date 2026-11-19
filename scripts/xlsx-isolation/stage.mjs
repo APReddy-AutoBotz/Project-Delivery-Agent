@@ -32,6 +32,7 @@ export function stage(destination) {
       "wire",
       "worker",
     ].map((name) => `scripts/xlsx-isolation/${name}.mjs`),
+    "packages/platform/src/xlsx-wire.ts",
     "tests/fixtures/xlsx-test-worksheet.ts",
     "tests/fixtures/xlsx-test-archive.ts",
     "deploy/xlsx-isolation/Dockerfile",

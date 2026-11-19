@@ -8,12 +8,6 @@ import { z } from "zod";
 import type { captureXlsxPreviewRequest } from "./ingestion-xlsx-binding.js";
 
 type BoundRequest = ReturnType<typeof captureXlsxPreviewRequest>["request"];
-export type XlsxPreviewDecoder = {
-  tryAcquire(): {
-    decode(request: BoundRequest, bytes: Buffer): Promise<unknown>;
-    release(): void;
-  } | null;
-};
 const mappingSnapshot = z.strictObject({
   configRevision: z.number().int().min(1).max(2_147_483_647),
   config: persistedSpreadsheetConfigSchema,

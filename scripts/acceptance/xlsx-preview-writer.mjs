@@ -43,7 +43,7 @@ export async function proveNativeXlsxPreviewWriter(pool, apiConnection) {
   const grid = { headers: ["Key", "Project", "Status", "Forecast"], rows: [["Fixture-1", projectId, "On track", "2027-02-01"]] };
   const workbook = Buffer.from("synthetic native writer fixture");
   const db = createDatabase(apiConnection);
-  const repository = new DatabaseIngestionRepository(db, new CredentialVault(Buffer.alloc(32, 23).toString("base64")));
+  const vault = new CredentialVault(Buffer.alloc(32, 23).toString("base64"));
   let admissions = 0;
   let releases = 0;
   const decoder = {
@@ -51,7 +51,7 @@ export async function proveNativeXlsxPreviewWriter(pool, apiConnection) {
       admissions++;
       return {
         async decode(request, bytes) {
-          assert.equal(request.parserContract, "excel-text-v1");
+          assert.deepEqual(request, { sheet: config.sheet, parserContract: "excel-text-v1" });
           assert.deepEqual(bytes, workbook);
           return grid;
         },
@@ -62,7 +62,8 @@ export async function proveNativeXlsxPreviewWriter(pool, apiConnection) {
   const fresh = { ...config, commandKey: "fixture-writer-fresh" };
   const race = { ...config, commandKey: "fixture-writer-race" };
   const preview = (metadata, adapter = decoder, bytes = workbook, principal = actor) =>
-    repository.persistXlsxPreview(principal, metadata, bytes, adapter, randomUUID());
+    new DatabaseIngestionRepository(db, vault, adapter)
+      .persistXlsxPreview(principal, metadata, bytes, randomUUID());
   try {
     assert.deepEqual(await db.$queryRaw`SELECT session_user::text AS name`, [{ name: "pdaa_api" }]);
     const saved = await preview(fresh);
