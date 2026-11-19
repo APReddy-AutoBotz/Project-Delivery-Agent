@@ -6,6 +6,7 @@ import { provision, migrateRelease } from "./provision.js";
 import { backup } from "./backup.js";
 import { restore } from "./restore.js";
 import { backupKey } from "./archive.js";
+import { provisionXlsxSource, readXlsxSourceProvision } from "./xlsx-source-provision.js";
 import { updateIssuanceStatus, changeUpdateIssuance, readUpdateIssuanceChange } from "./update-engagement-issuance.js";
 installFatalHandlers("operations");
 
@@ -17,6 +18,10 @@ try {
   const command = process.argv[2];
   let result: unknown;
   if (command === "provision") result = await provision(config, migrations);
+  else if (command === "provision-xlsx") {
+    if (process.argv.length !== 4) throw new Error("Explicit XLSX source manifest required");
+    result = await provisionXlsxSource(config, await readXlsxSourceProvision(process.argv[3]!));
+  }
   else if (command === "migrate")
     result = await migrateRelease(config, migrations);
   else if (command === "backup")

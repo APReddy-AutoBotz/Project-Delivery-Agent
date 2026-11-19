@@ -110,6 +110,20 @@ type ReceiptRow = {
 };
 
 const idSchema = projectFactIdSchema;
+const xlsxCatalogueInput = z.strictObject({ afterSourceId: idSchema.nullable() });
+const xlsxCatalogueResult = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("DENIED") }),
+  z.strictObject({
+    status: z.literal("READY"),
+    sources: z.array(z.strictObject({
+      sourceId: idSchema,
+      configRevision: xlsxMappingRevisionSchema,
+      mappingRevision: xlsxMappingRevisionSchema,
+      sheet: xlsxSheetSchema,
+    })).max(50),
+    nextSourceId: idSchema.nullable(),
+  }),
+]);
 const xlsxReceiptOrdinal = z.number().int().min(1).max(1000);
 const xlsxReceiptReadInput = z.strictObject({
   sourceId: idSchema,
@@ -1614,6 +1628,25 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         }
       }
       return summaries;
+    });
+  }
+
+  async listXlsxSources(actorInputValue: Actor, inputValue: unknown) {
+    const actor = parseActor(actorInputValue);
+    const { afterSourceId } = parseIngestion(xlsxCatalogueInput, inputValue);
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_source_list", "ingestion.xlsx.source.list", "PERSISTENCE_FAILED", async () => {
+      const [row] = await this.db.$queryRaw<{ result: unknown }[]>`
+        SELECT public.list_ingestion_xlsx_sources(
+          ${actor.customerId}::uuid,${actor.subject}::text,${roles}::text[],${afterSourceId}::uuid) AS result`;
+      const page = xlsxCatalogueResult.safeParse(row?.result);
+      if (!page.success) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+      if (page.data.status === "DENIED") throw new IngestionPersistenceError("DENIED");
+      const { sources, nextSourceId } = page.data;
+      if (sources.some(({ sourceId }, index) => sourceId <= (sources[index - 1]?.sourceId ?? afterSourceId ?? "")) ||
+        (nextSourceId !== null && (sources.length !== 50 || sources.at(-1)?.sourceId !== nextSourceId)))
+        throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+      return { sources, nextSourceId };
     });
   }
 

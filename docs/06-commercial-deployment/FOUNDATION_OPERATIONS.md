@@ -111,6 +111,60 @@ enable, subject to current recipient, reader and source access and retention.
 The signed retention task purges at most 50 request and 50 response bodies per
 batch. Expired bodies are withheld even while a backlog remains.
 
+## XLSX source provisioning
+
+The `provision-xlsx` maintenance command uses the migration login against an
+initialized customer database. Supply an approved manifest with the customer
+and source IDs, an HTTPS origin, the live PMO subject, project IDs and reader
+subjects, and the exact workbook mapping and parser profile.
+
+```json
+{
+  "binding": {
+    "customerId": "10000000-0000-4000-8000-000000000001",
+    "sourceId": "20000000-0000-4000-8000-000000000001",
+    "sourceType": "xlsx",
+    "origin": "https://worksheets.example.com"
+  },
+  "changedBy": "configured-pmo-subject",
+  "projects": [
+    {
+      "projectId": "30000000-0000-4000-8000-000000000001",
+      "readers": ["configured-pmo-subject"]
+    }
+  ],
+  "mapping": {
+    "kind": "XLSX",
+    "sheet": "Portfolio",
+    "parserContract": "portable-v1",
+    "identityColumn": "Key",
+    "projectColumn": "Project",
+    "fields": [
+      {"column": "Status", "factType": "project.status", "type": "text", "required": false}
+    ]
+  }
+}
+```
+
+Use the configured customer project, volume path and operations image.
+
+```bash
+docker compose --env-file /srv/pdaa/customer.env -p pdaa-customer -f deploy/customer/compose.yaml \
+  run --rm -e PDAA_DB_USER=pdaa_migrate \
+  -e PDAA_DB_PASSWORD_FILE=/run/secrets/migration-password \
+  -v /srv/pdaa/xlsx-source.json:/run/xlsx-source.json:ro \
+  operations provision-xlsx /run/xlsx-source.json
+```
+
+The command checks the PMO subject's current grants across every listed project
+and writes the source, sealed first configuration, comparison head and audit
+event atomically. An exact retry returns the original configuration. A changed
+manifest for the same source ID returns a conflict. A quarantined restore
+target must complete the recovery procedure before accepting provisioning.
+Provisioned sources are available to the internal catalogue subject to
+live project grants and source-reader membership. Browser activation is
+independently gated.
+
 ## OIDC configuration and role mapping
 
 FR-ADM-001/002: set `OIDC_ISSUER`, `OIDC_JWKS_URI`, `OIDC_CLIENT_ID`,
