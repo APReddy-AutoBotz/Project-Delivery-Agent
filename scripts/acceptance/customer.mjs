@@ -37,6 +37,7 @@ import {
 import { loadDatabaseConfig, CredentialVault } from "../../packages/platform/dist/index.js";
 import { prepareCsvRetention } from "./csv-import-native.mjs";
 import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
+import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
 import { csvCanonicalTables } from "./csv-import-workflow-receipt.mjs";
 import { exerciseCsvImportWorkflow, replayCsvImportAfterRecreation, snapshotCsvBeforeBackup, verifyRestoredCsvImport } from "./csv-import-workflow.mjs";
 import {exerciseCsvComparisonWorkflow,replayCsvComparisonAfterRecreation,snapshotCsvComparisonBeforeBackup,verifyRestoredCsvComparison} from "./csv-comparison-workflow.mjs";
@@ -567,7 +568,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 29);
+    assert.equal(migrations.length, 30);
     assert.equal(migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
@@ -622,6 +623,7 @@ try {
     save("installed-state", state);
   } else if (phase === "before-upgrade") {
     const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(db,undefined,{owner:"pdaa_migrate"});
+    const xlsxReceiptCodec = await verifyXlsxReceiptCodec(db, { owner: "pdaa_migrate" });
     // Product provisioning was proved empty first. Only this guarded test introduces data.
     assert.deepEqual(await projection(db), read("installed-state"));
     await db.query('INSERT INTO "Portfolio" VALUES ($1,$2,$3)', [
@@ -843,8 +845,9 @@ try {
       businessTableCount: 87,
       csvComparisonTables,
       csvComparisonPrivileges,
+      xlsxReceiptCodec,
       engagementStorageTables,
-      migrationCount: 29,
+      migrationCount: 30,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -928,6 +931,7 @@ try {
       const csvFixture = read("csv-import-workflow-fixture");
       csvFixture.restored = await verifyRestoredCsvImport(restored, csvFixture);
       const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(restored,undefined,{owner:"pdaa_migrate"});
+      const xlsxReceiptCodec = await verifyXlsxReceiptCodec(restored, { owner: "pdaa_migrate" });
       save("csv-import-workflow-fixture", csvFixture);
       const csvComparison=read("csv-comparison-workflow-fixture");
       csvComparison.restored=await verifyRestoredCsvComparison(restored,csvComparison);
@@ -991,6 +995,7 @@ try {
       } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
         csvComparisonPrivileges,
+        xlsxReceiptCodec,
         ingestionReassessment: await verifyRestoredReassessments(restored, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

@@ -450,13 +450,18 @@ baseline fails closed even though a verified empty baseline permits new
 rows. Renamed or moved identities retain the existing review safeguards.
 An accepted identity with only empty optional values can retain a
 `NONE` outcome and an empty proposal hash. Selection excludes that row.
-An additive native design must still prove the independently computed
-tuple hashes, scope and lineage at storage, lock order, exact retry,
-revocation, retention, role privileges, populated upgrades, backup and
-restoration before enabling a route. The component opens no application
-entry point and creates no database receipt. Its tests use fictional inputs
-and independently encoded fixed vectors. Reverting it requires no data
-recovery. Original19/20 capture stays stopped.
+The local migration adds PostgreSQL equivalents of the three tuple hashes.
+The migration owner can evaluate a bounded receipt projection and compare its
+digest with the TypeScript result. Clean and populated upgrade rehearsals check
+parity, and restore tests exercise the owner-only grants after `pg_restore`
+recreates the functions. The database inventory remains at 87 business tables.
+This increment creates no receipt rows and needs no data rollback. Customer
+recovery uses the preceding release and its pre-upgrade backup.
+
+The next native storage increment must bind those digests to actual retained
+rows, source scope and record lineage under lock. Exact retry, revocation,
+retention and recovery of the resulting receipts remain launch gates before
+adding an application entry point. Original19/20 capture stays stopped.
 
 ## Required validation
 

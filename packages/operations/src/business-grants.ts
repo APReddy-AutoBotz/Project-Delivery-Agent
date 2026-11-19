@@ -1,5 +1,17 @@
 import type { Client } from "pg";
 
+export const xlsxReceiptCodecFunctions = Object.freeze([
+  "public.ingestion_xlsx_v1_uuid(jsonb)",
+  "public.ingestion_xlsx_v1_digest(jsonb)",
+  "public.ingestion_xlsx_v1_uint(jsonb,integer)",
+  "public.ingestion_xlsx_v1_text(jsonb,integer)",
+  "public.ingestion_xlsx_v1_scope(jsonb)",
+  "public.ingestion_xlsx_v1_request_hash(jsonb)",
+  "public.ingestion_xlsx_v1_outcome(jsonb,integer,jsonb)",
+  "public.ingestion_xlsx_v1_context_hash(jsonb)",
+  "public.ingestion_xlsx_v1_selection_hash(jsonb,jsonb)",
+]);
+
 export async function assertBusinessTableOwner(client: Pick<Client, "query">) {
   const principals = (
     await client.query(
@@ -100,6 +112,27 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT SELECT,INSERT ON "ProjectUpdateCapturedRequest","ProjectUpdateInvitation","ProjectUpdateResponse","ProjectUpdateRequestContent","ProjectUpdateResponseContent" TO pdaa_api;
     REVOKE ALL ON FUNCTION public.guard_update_issuance_gate(),public.guard_update_capture_birth(),public.guard_update_invitation_birth(),public.guard_update_response_birth(),public.guard_update_capture_content(),public.require_update_capture_complete(),public.lock_update_issuance_gate(uuid),public.purge_update_capture_content(uuid) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT EXECUTE ON FUNCTION public.lock_update_issuance_gate(uuid),public.purge_update_capture_content(uuid) TO pdaa_api;
-    GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup;
+    -- pg_restore --no-acl recreates PUBLIC EXECUTE. Historical rehearsal
+    -- prefixes can omit this family only before the recorded migration.
+    DO $xlsx_acl$
+    DECLARE present integer; owned boolean; recorded boolean := false;
+    BEGIN
+      SELECT count(p.oid), bool_and(p.proowner=current_user::regrole) INTO present, owned
+        FROM unnest(ARRAY[${xlsxReceiptCodecFunctions.map((name) => `'${name}'`).join(",")}]) AS functions(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(signature);
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190001_xlsx_receipt_codec') INTO recorded;
+      END IF;
+      IF present = ${xlsxReceiptCodecFunctions.length} THEN
+        IF current_user = 'pdaa_migrate' AND owned IS NOT TRUE THEN
+          RAISE EXCEPTION 'Unexpected XLSX receipt codec owner';
+        END IF;
+        REVOKE ALL ON FUNCTION ${xlsxReceiptCodecFunctions.join(",")} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      ELSIF present <> 0 OR recorded THEN
+        RAISE EXCEPTION 'Incomplete XLSX receipt codec family';
+      END IF;
+    END $xlsx_acl$
   `);
 }

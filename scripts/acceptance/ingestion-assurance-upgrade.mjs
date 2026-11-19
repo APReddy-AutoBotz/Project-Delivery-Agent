@@ -11,6 +11,7 @@ import { Pool } from "./common.mjs";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
 import {prepareCsvComparisonUpgrade,verifyCsvComparisonUpgrade} from "./csv-comparison-upgrade.mjs";
 import {applyReleased27BusinessGrants} from "./prior-twenty-seven-business-grants.mjs";
+import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
 export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   const locator = assertSyntheticDatabaseUrl(sourceUrl, "pdaa");
   assert.equal(process.env.DATA_MODE, "synthetic"); assert.notEqual(process.env.NODE_ENV, "production");
@@ -23,8 +24,9 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   const config = { host: locator.hostname, port: Number(locator.port), database: name,
     user: decodeURIComponent(locator.username), password: decodeURIComponent(locator.password), ssl: false };
   const migrations = readMigrations("packages/data/prisma/migrations");
-  assert.equal(migrations.length, 29);
+  assert.equal(migrations.length, 30);
   assert.equal(migrations[28].name, "202611180001_csv_comparison_validation_cost");
+  assert.equal(migrations[29].name, "202611190001_xlsx_receipt_codec");
   await migrateDatabase(config, migrations.slice(0, 24));
   const db = createDatabase(locator.toString());
   try {
@@ -133,11 +135,18 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.equal(savedBoundary.length,3);
     const before29Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
     assert.equal(before29Ledger.length,28);
+    await migrateDatabase(config,migrations.slice(0,29));
+    const before30Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    const before30Contexts = await readCsvContexts();
+    const before30Head = await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere});
+    assert.equal(before30Ledger.length,29);
     await migrateDatabase(config,migrations);
     await migrateDatabase(config,migrations);
     assert.deepEqual(await csvFunctionBoundary(),savedBoundary);
     assert.deepEqual(await readCsvContexts(),savedContexts);
     assert.deepEqual(await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere}),savedHead);
+    assert.deepEqual(await readCsvContexts(),before30Contexts);
+    assert.deepEqual(await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere}),before30Head);
     for (const {receiptId} of savedContexts) {
       assert.deepEqual(await db.$queryRaw`SELECT public.valid_ingestion_csv_context(${receiptId}::uuid) AS valid`,[{valid:true}]);
     }
@@ -152,6 +161,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     const csvValidationCostUpgrade = {priorMigrationCount:28,migrationCount:29,retainedPriorChecksums:28,
       preservedPopulatedContexts:2,preservedHead:true,functionBoundaryPreserved:true,repeatAndReplayPassed:true,successorCharged:true};
     const grantPool = new Pool({ connectionString: locator.toString() });
+    let xlsxReceiptCodec;
     try {
       await grantPool.query(`DO $owners$ DECLARE item record; BEGIN
         FOR item IN SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -160,6 +170,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
         LOOP EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname); END LOOP;
       END $owners$`);
       await applyBusinessTableGrants(grantPool);
+      xlsxReceiptCodec = await verifyXlsxReceiptCodec(grantPool);
     } finally { await grantPool.end(); }
     const otherPortfolio = randomUUID(), otherProject = randomUUID(), otherSubject = "upgrade-other-" + randomUUID();
     await db.portfolio.create({ data: { id: otherPortfolio, customerId, name: "Synthetic replacement scope" } });
@@ -248,18 +259,21 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.equal(afterLedger[24].checksum, createHash("sha256").update(migrations[24].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0, 25), before26Ledger);
     assert.deepEqual(afterLedger.slice(0, 26), before27Ledger);
-    assert.equal(afterLedger.length, 29);
+    assert.equal(afterLedger.length, 30);
     assert.equal(afterLedger[25].checksum, createHash("sha256").update(migrations[25].sql).digest("hex"));
     assert.equal(afterLedger[26].checksum, createHash("sha256").update(migrations[26].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0,27),released27.ledger);
     assert.equal(afterLedger[27].checksum,createHash("sha256").update(migrations[27].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0,28),before29Ledger);
     assert.equal(afterLedger[28].checksum,createHash("sha256").update(migrations[28].sql).digest("hex"));
+    assert.deepEqual(afterLedger.slice(0,29),before30Ledger);
+    assert.deepEqual(afterLedger[29],{migration_name:migrations[29].name,checksum:migrations[29].checksum});
     console.log("Populated released-24 upgrade retained all 24 checksums and its exact failure fence; a real available cause remained uncharged, then completed after only that fence was cleared.");
     return { priorMigrationCount: 24, databaseName: name, retainedLegacyFailureFence: true, scanBlockedByFence: true,
       availableCauseUncharged: true, positiveControlCompleted: true, retainedPriorChecksums: 24,
       retentionAuditUpgrade: { priorGuardRejected: true, priorMigrationCount: 26, migrationCount: 27,
         originalAuditPreserved: true, freshRevisionRecorded: true, functionBoundaryPreserved: true },
-      csvComparisonUpgrade,csvValidationCostUpgrade };
+      csvComparisonUpgrade,csvValidationCostUpgrade,
+      xlsxReceiptCodecUpgrade:{...xlsxReceiptCodec, retainedPriorChecksums:29, preservedPopulatedCsv:true} };
   } finally { await db.$disconnect(); }
 }

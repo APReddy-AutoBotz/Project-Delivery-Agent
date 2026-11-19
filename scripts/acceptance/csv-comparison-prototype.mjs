@@ -110,9 +110,9 @@ function assertReleasedSnapshot(before) {
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort();
-  assert.equal(names.length, 29);
+  assert.equal(names.length, 30);
   assert.equal(names[28], "202611180001_csv_comparison_validation_cost");
-  assert.equal(before.ledger.length, 29);
+  assert.equal(before.ledger.length, names.length);
   for (const [i, name] of names.entries()) {
     assert.match(name, /^[0-9]{12}(?:[0-9]{2})?_[a-z0-9_]+$/);
     const row = before.ledger[i];
@@ -324,7 +324,7 @@ export async function verifyCsvComparisonPrototype(
       publicWorkerBackupExecuteDenied: true,
       actualApiRolePositive: true,
       privateApiGuardDenials: privateCsvFunctions.length,
-      migrations: 29,
+      migrations: before.ledger.length,
       businessTables: 87,
     };
   } catch (error) {

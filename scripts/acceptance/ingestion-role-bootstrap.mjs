@@ -2,10 +2,11 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readMigrations, migrateDatabase } from "../../packages/operations/dist/index.js";
-import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
+import { applyBusinessTableGrants, xlsxReceiptCodecFunctions } from "../../packages/operations/dist/business-grants.js";
 import { assertBusinessTableInventory } from "./upgrade-inventory-receipt.mjs";
 import { verifyReassessmentPrivileges } from "./ingestion-reassessment.mjs";
 import { csvComparisonFunctions,csvComparisonApiFunctions,verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
+import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
 const { Pool } = createRequire(new URL("../../packages/data/package.json", import.meta.url))("pg");
 const roles = ["pdaa_api", "pdaa_worker", "pdaa_backup", "pdaa_migrate"];
 const functions = ['valid_ingestion_reassessment_row(public."IngestionProjectReassessment")',
@@ -21,6 +22,7 @@ async function currentRoles(pool) {
 }
 async function privateBoundary(pool, presentRoles) {
   await verifyCsvComparisonPrivileges(pool,presentRoles);
+  await verifyXlsxReceiptCodec(pool,{roles:presentRoles});
   assert.equal((await pool.query("SELECT to_regprocedure('public.guard_ingestion_reconfiguration_scope()') IS NOT NULL AS present")).rows[0].present, true);
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM pg_proc p
     WHERE p.oid=ANY(SELECT to_regprocedure(name) FROM unnest($1::text[]) AS entries(name))
@@ -54,7 +56,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
   const url = new URL(sourceUrl);
   assert(["127.0.0.1", "localhost"].includes(url.hostname)); assert.equal(url.pathname, "/postgres");
   const creator = new Pool({ connectionString: url.toString() });
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 29);
+  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 30);
   try {
     assert.deepEqual((await creator.query("SELECT datname FROM pg_database ORDER BY datname")).rows.map((row) => row.datname), ["postgres", "template0", "template1"]);
     assert.deepEqual(await currentRoles(creator), []);
@@ -92,10 +94,12 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
           LOOP EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname); END LOOP;
         END $owners$`);
         for (const name of functions) await pool.query("ALTER FUNCTION public." + name + " OWNER TO pdaa_migrate");
+        for (const signature of xlsxReceiptCodecFunctions) await pool.query("ALTER FUNCTION " + signature + " OWNER TO pdaa_migrate");
         // Simulate the default function EXECUTE grant introduced by --no-acl
         // restore, plus explicit role grants, before reconstructing the ACL.
         await pool.query("GRANT EXECUTE ON FUNCTION public.guard_ingestion_reconfiguration_scope(),public.guard_ingestion_retention() TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
         await pool.query("GRANT EXECUTE ON FUNCTION "+csvComparisonFunctions.map((name) => "public."+name).join(",")+" TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
+        await pool.query("GRANT EXECUTE ON FUNCTION " + xlsxReceiptCodecFunctions.join(",") + " TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
         await pool.query('GRANT ALL ON public."IngestionCsvHead",public."IngestionCsvContext" TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup');
         await pool.query('GRANT SELECT (dictionary) ON public."IngestionCsvHead" TO PUBLIC; GRANT INSERT (rows),REFERENCES ("receiptId") ON public."IngestionCsvContext" TO pdaa_worker; GRANT UPDATE ("stateHash") ON public."IngestionCsvHead" TO pdaa_backup WITH GRANT OPTION');
         assert.equal((await pool.query("SELECT has_function_privilege('pdaa_worker','public.guard_ingestion_reconfiguration_scope()','EXECUTE') AS allowed")).rows[0].allowed, true);
@@ -103,11 +107,12 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         await verifyReassessmentPrivileges(pool);
         await privateBoundary(pool, roles.slice(0, 3));
         await verifyCsvComparisonPrivileges(pool,roles.slice(0,3),{owner:"pdaa_migrate"});
+        await verifyXlsxReceiptCodec(pool,{roles:roles.slice(0,3),owner:"pdaa_migrate"});
         await inventory(pool, migrations);
       } finally { await pool.end(); }
     }
     return { rolesAbsentBeforeAnyBootstrap: true, rolelessDatabase: first, partialRoleDatabase: second,
-      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 29, businessTables: 87,
+      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 30, businessTables: 87,
       publicPrivilegesDenied: true, finiteAclAfterLaterBootstrap: true, retainedDatabases: true };
   } finally { await creator.end(); }
 }

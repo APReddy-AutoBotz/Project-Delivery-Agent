@@ -91,6 +91,7 @@ import { engagementStorageTables, verifyEngagementStoragePrivileges,
 import { updateCaptureTables, verifyUpdateCapturePrivileges, assertUpdateCaptureRestoreProjection } from "./update-capture-storage.mjs";
 import { seedReassessmentRecovery, verifyRestoredReassessments } from "./ingestion-reassessment.mjs";
 import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
+import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -419,6 +420,7 @@ try {
     );
     const engagementStorage = await verifyUpdateEngagementStorage(adminConfig);
     const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(admin,undefined,{owner:"pdaa_migrate"});
+    const xlsxReceiptCodec = await verifyXlsxReceiptCodec(admin, { owner: "pdaa_migrate" });
     const ingestionReassessment = await seedReassessmentRecovery(admin,
       config("database", "pdaa_api", "api-password").database, process.env.CUSTOMER_ID);
     writeFileSync(
@@ -459,6 +461,7 @@ try {
           businessTableCount: 87,
           csvComparisonTables,
           csvComparisonPrivileges,
+          xlsxReceiptCodec,
           engagementStorageTables,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
@@ -568,6 +571,7 @@ try {
       await verifyUpdateCapturePrivileges(pool);
       await verifyEngagementStoragePrivileges(pool);
       const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(pool,undefined,{owner:"pdaa_migrate"});
+      const xlsxReceiptCodec = await verifyXlsxReceiptCodec(pool, { owner: "pdaa_migrate" });
       await verifyProjectFactPrivileges(pool);
       await verifyImmutableProjectFacts(pool);
       await verifyAuthorityPrivileges(pool);
@@ -625,6 +629,7 @@ try {
       } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
         csvComparisonPrivileges,
+        xlsxReceiptCodec,
         ingestionReassessment: await verifyRestoredReassessments(pool, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,
