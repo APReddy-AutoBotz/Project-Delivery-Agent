@@ -9,6 +9,13 @@
     ]
   },
   {
+    "name": "effect",
+    "version": "3.22.2",
+    "reason": "Prisma CLI configuration dependency pinned to a release that fixes GHSA-7589-6fvf-x4pw",
+    "runtime": false,
+    "consumers": ["prisma tooling via @prisma/config"]
+  },
+  {
     "name": "multer",
     "version": "2.5.0",
     "reason": "NestJS runtime dependency: publisher security update addressing GHSA-q7qp-rjg7-q26m and earlier advisories; preserve CSV multipart limits",

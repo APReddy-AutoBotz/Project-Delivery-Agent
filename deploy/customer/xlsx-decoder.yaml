@@ -1,0 +1,26 @@
+# Opt-in EXEC-045 API/decoder attachment for the customer reference stack.
+services:
+  api:
+    image: ${PDAA_XLSX_API_IMAGE:?}
+    user: "1000:1000"
+    group_add: ["2000"]
+    environment:
+      PDAA_XLSX_DECODER_MODE: isolated
+    volumes:
+      - type: volume
+        source: xlsx-link
+        target: /run/pdaa-xlsx
+        read_only: true
+        volume: {nocopy: true}
+    depends_on:
+      xlsx-decoder: {condition: service_healthy}
+  xlsx-initialize:
+    extends:
+      file: ../xlsx-runtime/compose.yaml
+      service: xlsx-initialize
+  xlsx-decoder:
+    extends:
+      file: ../xlsx-runtime/compose.yaml
+      service: xlsx-decoder
+volumes:
+  xlsx-link: {}

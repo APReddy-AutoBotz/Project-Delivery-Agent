@@ -20,6 +20,8 @@ import { verifyIngestionAssuranceUpgrade } from "./acceptance/ingestion-assuranc
 import { verifyUpdateEngagementStorage } from "./acceptance/update-engagement-storage.mjs";
 import { seedEscalationHistory } from "./acceptance/escalation-history.mjs";
 import { verifyCsvComparisonPrototype } from "./acceptance/csv-comparison-prototype.mjs";
+import { verifyXlsxReceiptCodec } from "./acceptance/xlsx-receipt-codec.mjs";
+import { Pool } from "./acceptance/common.mjs";
 const source = assertSyntheticDatabaseUrl(
   process.env.PDAA_DATABASE_URL ?? "",
   "pdaa",
@@ -150,7 +152,7 @@ try {
     "ProjectUpdateIssuanceGate", "ProjectUpdateCapturedRequest", "ProjectUpdateInvitation",
     "ProjectUpdateResponse", "ProjectUpdateRequestContent", "ProjectUpdateResponseContent",
     "IngestionProjectReassessment",
-    "IngestionCsvHead", "IngestionCsvContext",
+    "IngestionCsvHead", "IngestionCsvContext", "IngestionXlsxHead", "IngestionXlsxContext",
     "ScheduleHealthPolicyRevision",
   ];
   assert.deepEqual(
@@ -320,6 +322,13 @@ try {
 // Test-only DDL in the database this runner created, before synthetic seeding.
 // The helper refuses the initial /pdaa URL and rolls back both pure functions.
 const csvComparisonPrototype = await verifyCsvComparisonPrototype(source.toString());
+const codecPool = new Pool({ connectionString: source.toString() });
+let xlsxReceiptCodec;
+try {
+  xlsxReceiptCodec = await verifyXlsxReceiptCodec(codecPool, { exhaustive: true });
+} finally {
+  await codecPool.end();
+}
 node(["packages/data/dist/seed.js"]);
 
 async function verifyHealthAssessmentRetention(databaseUrl) {
@@ -798,6 +807,7 @@ writeFileSync(
       prefixNineUpgrade,
       ingestionAssuranceUpgrade,
       csvComparisonPrototype,
+      xlsxReceiptCodec,
       raidReopenTables: ["RaidReopenReceipt"],
       blockerAgeThresholdTables: ["BlockerAgeThresholdPolicy"],
       projectUpdateTables: [
@@ -809,7 +819,7 @@ writeFileSync(
       ],
       engagementStorage,
       engagementStorageTables: ["ProjectUpdateEngagement","ProjectUpdateStage","ProjectUpdateOutbox","ProjectUpdateDispatchAttempt"],
-      businessTables: 87,
+      businessTables: 89,
       ingestionReassessmentTables: ["IngestionProjectReassessment"],
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",

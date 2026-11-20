@@ -11,6 +11,7 @@ import { Pool } from "./common.mjs";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
 import {prepareCsvComparisonUpgrade,verifyCsvComparisonUpgrade} from "./csv-comparison-upgrade.mjs";
 import {applyReleased27BusinessGrants} from "./prior-twenty-seven-business-grants.mjs";
+import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
 export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   const locator = assertSyntheticDatabaseUrl(sourceUrl, "pdaa");
   assert.equal(process.env.DATA_MODE, "synthetic"); assert.notEqual(process.env.NODE_ENV, "production");
@@ -23,10 +24,24 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
   const config = { host: locator.hostname, port: Number(locator.port), database: name,
     user: decodeURIComponent(locator.username), password: decodeURIComponent(locator.password), ssl: false };
   const migrations = readMigrations("packages/data/prisma/migrations");
-  assert.equal(migrations.length, 29);
+  assert.equal(migrations.length, 37);
   assert.equal(migrations[28].name, "202611180001_csv_comparison_validation_cost");
+  assert.equal(migrations[29].name, "202611190001_xlsx_receipt_codec");
+  assert.equal(migrations[30].name, "202611190002_xlsx_source_genesis");
+  assert.equal(migrations[31].name, "202611190003_xlsx_preview_context");
+  assert.equal(migrations[32].name, "202611190004_xlsx_preview_retry");
+  assert.equal(migrations[33].name, "202611190005_xlsx_preview_writer");
+  assert.equal(migrations[34].name, "202611190006_xlsx_reviewed_import");
+  assert.equal(migrations[35].name, "202611190007_xlsx_preview_receipt_read");
+  assert.equal(migrations[36].name, "202611190008_xlsx_source_catalogue");
   await migrateDatabase(config, migrations.slice(0, 24));
   const db = createDatabase(locator.toString());
+  // Project released columns explicitly before and after the additive workbook discriminator.
+  const readLegacySource = (id) => db.ingestionSource.findUniqueOrThrow({ where:{id}, select:{
+    id:true,customerId:true,sourceType:true,origin:true,currentConfigRevision:true,mappingRevision:true,
+    cursorRevision:true,syncGeneration:true,cursorEnvelope:true,cursorState:true,healthState:true,healthCode:true,
+    healthCheckedAt:true,lastSuccessReceiptId:true,createdAt:true,
+  }});
   try {
     const customerId = randomUUID(), portfolioId = randomUUID(), sourceId = randomUUID(), service = "legacy-scanner-" + randomUUID();
     const admin = { customerId, subject: "legacy-pmo-" + randomUUID(), roles: ["pmo_admin"] };
@@ -55,7 +70,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     await legacyIngestion.configure(admin, { ...legacyConfiguration,
       projects: [{ projectId, readers: [admin.subject, "legacy-extra-reader"] }] }, randomUUID());
     const legacyBefore = {
-      source: await db.ingestionSource.findUniqueOrThrow({ where: { id: legacySourceId } }),
+      source: await readLegacySource(legacySourceId),
       configurations: await db.ingestionConfigurationRevision.findMany({ where: { sourceId: legacySourceId }, orderBy: { revision: "asc" } }),
       projects: await db.ingestionConfigurationProject.findMany({ where: { sourceId: legacySourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }] }),
       readers: await db.ingestionConfigurationReader.findMany({ where: { sourceId: legacySourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }, { subject: "asc" }] }),
@@ -91,7 +106,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.deepEqual((await db.auditEvent.findUniqueOrThrow({ where: { id: retentionAfter27.auditEventId } })).detail,
       { retentionHours: 48, revision: 2 });
     assert.deepEqual({
-      source: await db.ingestionSource.findUniqueOrThrow({ where: { id: legacySourceId } }),
+      source: await readLegacySource(legacySourceId),
       configurations: await db.ingestionConfigurationRevision.findMany({ where: { sourceId: legacySourceId }, orderBy: { revision: "asc" } }),
       projects: await db.ingestionConfigurationProject.findMany({ where: { sourceId: legacySourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }] }),
       readers: await db.ingestionConfigurationReader.findMany({ where: { sourceId: legacySourceId }, orderBy: [{ configRevision: "asc" }, { projectId: "asc" }, { subject: "asc" }] }),
@@ -113,7 +128,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     const csvHeadWhere = {customerId_sourceId:csvScope};
     const csvHead = await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere});
     assert.equal(csvHead.revision,1n);
-    const csvSource = await db.ingestionSource.findUniqueOrThrow({where:{id:csvSourceId}});
+    const csvSource = await readLegacySource(csvSourceId);
     const emptyInput = {sourceId:csvSourceId,configRevision:csvSource.currentConfigRevision,
       mappingRevision:csvSource.mappingRevision,commandKey:randomUUID(),fileName:"empty.csv",csv:"Key,Project,Forecast\n"};
     const emptyPreview = await legacyIngestion.persistCsvPreview(admin,emptyInput,randomUUID());
@@ -133,11 +148,39 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.equal(savedBoundary.length,3);
     const before29Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
     assert.equal(before29Ledger.length,28);
+    await migrateDatabase(config,migrations.slice(0,29));
+    const before30Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    const before30Contexts = await readCsvContexts();
+    const before30Head = await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere});
+    assert.equal(before30Ledger.length,29);
+    await migrateDatabase(config,migrations.slice(0,30));
+    const before31Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before31Ledger.length,30);
+    await migrateDatabase(config,migrations.slice(0,31));
+    const before32Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before32Ledger.length,31);
+    await migrateDatabase(config,migrations.slice(0,32));
+    const before33Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before33Ledger.length,32);
+    await migrateDatabase(config,migrations.slice(0,33));
+    const before34Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before34Ledger.length,33);
+    await migrateDatabase(config,migrations.slice(0,34));
+    const before35Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before35Ledger.length,34);
+    await migrateDatabase(config,migrations.slice(0,35));
+    const before36Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before36Ledger.length,35);
+    await migrateDatabase(config,migrations.slice(0,36));
+    const before37Ledger = await db.$queryRaw`SELECT migration_name,checksum FROM public."_prisma_migrations" ORDER BY migration_name`;
+    assert.equal(before37Ledger.length,36);
     await migrateDatabase(config,migrations);
     await migrateDatabase(config,migrations);
     assert.deepEqual(await csvFunctionBoundary(),savedBoundary);
     assert.deepEqual(await readCsvContexts(),savedContexts);
     assert.deepEqual(await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere}),savedHead);
+    assert.deepEqual(await readCsvContexts(),before30Contexts);
+    assert.deepEqual(await db.ingestionCsvHead.findUniqueOrThrow({where:csvHeadWhere}),before30Head);
     for (const {receiptId} of savedContexts) {
       assert.deepEqual(await db.$queryRaw`SELECT public.valid_ingestion_csv_context(${receiptId}::uuid) AS valid`,[{valid:true}]);
     }
@@ -152,6 +195,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     const csvValidationCostUpgrade = {priorMigrationCount:28,migrationCount:29,retainedPriorChecksums:28,
       preservedPopulatedContexts:2,preservedHead:true,functionBoundaryPreserved:true,repeatAndReplayPassed:true,successorCharged:true};
     const grantPool = new Pool({ connectionString: locator.toString() });
+    let xlsxReceiptCodec;
     try {
       await grantPool.query(`DO $owners$ DECLARE item record; BEGIN
         FOR item IN SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -160,6 +204,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
         LOOP EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname); END LOOP;
       END $owners$`);
       await applyBusinessTableGrants(grantPool);
+      xlsxReceiptCodec = await verifyXlsxReceiptCodec(grantPool);
     } finally { await grantPool.end(); }
     const otherPortfolio = randomUUID(), otherProject = randomUUID(), otherSubject = "upgrade-other-" + randomUUID();
     await db.portfolio.create({ data: { id: otherPortfolio, customerId, name: "Synthetic replacement scope" } });
@@ -172,7 +217,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     const replacement = { ...legacyConfiguration, projects: [{ projectId: otherProject, readers: [admin.subject] }] };
     await assert.rejects(legacyIngestion.configure({ customerId, subject: otherSubject, roles: ["pmo_admin"] }, replacement, randomUUID()),
       (error) => error?.code === "DENIED");
-    assert.deepEqual(await db.ingestionSource.findUniqueOrThrow({ where: { id: legacySourceId } }), legacyBefore.source);
+    assert.deepEqual(await readLegacySource(legacySourceId), legacyBefore.source);
     const directAudits = [];
     const directReplace = (subject) => db.$transaction(async (tx) => {
       await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
@@ -248,18 +293,35 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.equal(afterLedger[24].checksum, createHash("sha256").update(migrations[24].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0, 25), before26Ledger);
     assert.deepEqual(afterLedger.slice(0, 26), before27Ledger);
-    assert.equal(afterLedger.length, 29);
+    assert.equal(afterLedger.length, 37);
     assert.equal(afterLedger[25].checksum, createHash("sha256").update(migrations[25].sql).digest("hex"));
     assert.equal(afterLedger[26].checksum, createHash("sha256").update(migrations[26].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0,27),released27.ledger);
     assert.equal(afterLedger[27].checksum,createHash("sha256").update(migrations[27].sql).digest("hex"));
     assert.deepEqual(afterLedger.slice(0,28),before29Ledger);
     assert.equal(afterLedger[28].checksum,createHash("sha256").update(migrations[28].sql).digest("hex"));
+    assert.deepEqual(afterLedger.slice(0,29),before30Ledger);
+    assert.deepEqual(afterLedger[29],{migration_name:migrations[29].name,checksum:migrations[29].checksum});
+    assert.deepEqual(afterLedger.slice(0,30),before31Ledger);
+    assert.deepEqual(afterLedger[30],{migration_name:migrations[30].name,checksum:migrations[30].checksum});
+    assert.deepEqual(afterLedger.slice(0,31),before32Ledger);
+    assert.deepEqual(afterLedger[31],{migration_name:migrations[31].name,checksum:migrations[31].checksum});
+    assert.deepEqual(afterLedger.slice(0,32),before33Ledger);
+    assert.deepEqual(afterLedger[32],{migration_name:migrations[32].name,checksum:migrations[32].checksum});
+    assert.deepEqual(afterLedger.slice(0,33),before34Ledger);
+    assert.deepEqual(afterLedger[33],{migration_name:migrations[33].name,checksum:migrations[33].checksum});
+    assert.deepEqual(afterLedger.slice(0,34),before35Ledger);
+    assert.deepEqual(afterLedger[34],{migration_name:migrations[34].name,checksum:migrations[34].checksum});
+    assert.deepEqual(afterLedger.slice(0,35),before36Ledger);
+    assert.deepEqual(afterLedger[35],{migration_name:migrations[35].name,checksum:migrations[35].checksum});
+    assert.deepEqual(afterLedger.slice(0,36),before37Ledger);
+    assert.deepEqual(afterLedger[36],{migration_name:migrations[36].name,checksum:migrations[36].checksum});
     console.log("Populated released-24 upgrade retained all 24 checksums and its exact failure fence; a real available cause remained uncharged, then completed after only that fence was cleared.");
     return { priorMigrationCount: 24, databaseName: name, retainedLegacyFailureFence: true, scanBlockedByFence: true,
       availableCauseUncharged: true, positiveControlCompleted: true, retainedPriorChecksums: 24,
       retentionAuditUpgrade: { priorGuardRejected: true, priorMigrationCount: 26, migrationCount: 27,
         originalAuditPreserved: true, freshRevisionRecorded: true, functionBoundaryPreserved: true },
-      csvComparisonUpgrade,csvValidationCostUpgrade };
+      csvComparisonUpgrade,csvValidationCostUpgrade,
+      xlsxReceiptCodecUpgrade:{...xlsxReceiptCodec, retainedPriorChecksums:29, preservedPopulatedCsv:true} };
   } finally { await db.$disconnect(); }
 }

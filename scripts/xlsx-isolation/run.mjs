@@ -228,7 +228,7 @@ async function exercise(mode, scenario, envFile, fixtureImage) {
   projects.delete(project);
 }
 
-assert.equal(process.platform, "linux", "This fixture requires Linux");
+// Cgroups and Unix sockets belong to the Linux daemon and its containers.
 assert.equal(
   docker(["info", "--format", "{{.OSType}} {{.CgroupVersion}}"]),
   "linux 2",

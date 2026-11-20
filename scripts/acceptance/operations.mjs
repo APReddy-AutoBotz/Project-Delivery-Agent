@@ -91,6 +91,17 @@ import { engagementStorageTables, verifyEngagementStoragePrivileges,
 import { updateCaptureTables, verifyUpdateCapturePrivileges, assertUpdateCaptureRestoreProjection } from "./update-capture-storage.mjs";
 import { seedReassessmentRecovery, verifyRestoredReassessments } from "./ingestion-reassessment.mjs";
 import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
+import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
+import { proveXlsxSourceGenesis, verifyXlsxGenesisPrivileges } from "./xlsx-source-genesis.mjs";
+import {
+  proveNativeXlsxPreviews, verifyNativeXlsxComparisonRuntime, verifyNativeXlsxPreviewRestore,
+  verifyXlsxContextPrivileges, verifyXlsxPreviewSerialization,
+} from "./xlsx-native-preview.mjs";
+import { proveNativeXlsxPreviewRetry, verifyXlsxRetryPrivileges } from "./xlsx-preview-retry.mjs";
+import { proveNativeXlsxPreviewWriter, verifyXlsxWriterPrivileges } from "./xlsx-preview-writer.mjs";
+import { proveNativeXlsxReviewedImport, proveRestoredXlsxReviewedImport } from "./xlsx-reviewed-import.mjs";
+import { proveXlsxSourceProvisioning, verifyRestoredXlsxSourceProvision } from "./xlsx-source-provision.mjs";
+import { verifyImmutableHistoryMutation, verifyXlsxHistoryGuardInstallation } from "./immutable-history.mjs";
 guard();
 const adminConfig = config(
   "database",
@@ -140,7 +151,7 @@ const projection = async (pool) => {
     result[table] = (
       await pool.query(`SELECT * FROM "${table}" ORDER BY 1`)
     ).rows;
-  for (const table of [...projectUpdateTables,...csvComparisonTables, ...scheduleHealthPolicyTables, ...engagementStorageTables, ...updateCaptureTables])
+  for (const table of [...projectUpdateTables,...csvComparisonTables, "IngestionXlsxHead", "IngestionXlsxContext", ...scheduleHealthPolicyTables, ...engagementStorageTables, ...updateCaptureTables])
     result[table] = (
       await pool.query(
         `SELECT * FROM "${table}" ORDER BY to_jsonb("${table}")::text COLLATE "C"`,
@@ -419,6 +430,22 @@ try {
     );
     const engagementStorage = await verifyUpdateEngagementStorage(adminConfig);
     const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(admin,undefined,{owner:"pdaa_migrate"});
+    const xlsxReceiptCodec = await verifyXlsxReceiptCodec(admin, { owner: "pdaa_migrate" });
+    const xlsxGenesis = await proveXlsxSourceGenesis(admin, {
+      existingCustomer: process.env.CUSTOMER_ID, retain: true,
+    });
+    const xlsxNativePreviews = await proveNativeXlsxPreviews(admin);
+    const xlsxComparison = await verifyNativeXlsxComparisonRuntime(admin, adminConfig);
+    const xlsxPreviewSerialization = await verifyXlsxPreviewSerialization(admin);
+    const xlsxPreviewRetry = await proveNativeXlsxPreviewRetry(admin, config("database", "pdaa_api", "api-password").database);
+    const xlsxPreviewWriter = await proveNativeXlsxPreviewWriter(admin, config("database", "pdaa_api", "api-password").database);
+    const xlsxReviewedImport = await proveNativeXlsxReviewedImport(admin,
+      config("database", "pdaa_api", "api-password").database, process.env.CUSTOMER_ID);
+    const xlsxSourceProvision = await proveXlsxSourceProvisioning(admin, {
+      database: config().database,
+      customerId: process.env.CUSTOMER_ID,
+      customerName: process.env.CUSTOMER_NAME,
+    }, config("database", "pdaa_api", "api-password").database);
     const ingestionReassessment = await seedReassessmentRecovery(admin,
       config("database", "pdaa_api", "api-password").database, process.env.CUSTOMER_ID);
     writeFileSync(
@@ -456,9 +483,18 @@ try {
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 87,
+          businessTableCount: 89,
           csvComparisonTables,
           csvComparisonPrivileges,
+          xlsxReceiptCodec,
+          xlsxGenesis,
+          xlsxNativePreviews,
+          xlsxComparison,
+          xlsxPreviewSerialization,
+          xlsxPreviewRetry,
+          xlsxPreviewWriter,
+          xlsxReviewedImport,
+          xlsxSourceProvision,
           engagementStorageTables,
           migrationCount: migrations.length,
           scalarReconciliationWorkerDenied:
@@ -568,6 +604,23 @@ try {
       await verifyUpdateCapturePrivileges(pool);
       await verifyEngagementStoragePrivileges(pool);
       const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(pool,undefined,{owner:"pdaa_migrate"});
+      const xlsxReceiptCodec = await verifyXlsxReceiptCodec(pool, { owner: "pdaa_migrate" });
+      const xlsxGenesisPrivileges = await verifyXlsxGenesisPrivileges(pool,
+        ["pdaa_api","pdaa_worker","pdaa_backup"], { owner:"pdaa_migrate", backupRead:true });
+      assert.equal(expected.IngestionXlsxHead.length, 3);
+      assert.equal(expected.IngestionXlsxContext.length, 8);
+      const xlsxGenesisRestore = await verifyNativeXlsxPreviewRestore(pool, 8);
+      const xlsxComparisonSource = expected.IngestionXlsxHead.find((head) => head.revision === 5);
+      assert(xlsxComparisonSource);
+      const xlsxComparison = await verifyNativeXlsxComparisonRuntime(pool, target("restore_target"), 5, xlsxComparisonSource.sourceId);
+      const xlsxReviewedImportRestore = await proveRestoredXlsxReviewedImport(pool);
+      const xlsxSourceProvisionRestore = await verifyRestoredXlsxSourceProvision(pool);
+      const xlsxRetryPrivileges = await verifyXlsxRetryPrivileges(pool, ["pdaa_api","pdaa_worker","pdaa_backup"],
+        {owner:"pdaa_migrate",apiExecute:true});
+      const xlsxWriterPrivileges = await verifyXlsxWriterPrivileges(pool, ["pdaa_api","pdaa_worker","pdaa_backup"],
+        {owner:"pdaa_migrate",apiExecute:true});
+      const xlsxContextPrivileges = await verifyXlsxContextPrivileges(pool,
+        ["pdaa_api","pdaa_worker","pdaa_backup"],{owner:"pdaa_migrate",backupRead:true});
       await verifyProjectFactPrivileges(pool);
       await verifyImmutableProjectFacts(pool);
       await verifyAuthorityPrivileges(pool);
@@ -606,11 +659,15 @@ try {
       await verifyMilestoneReconciliationIntegrity(pool);
       await verifyScalarReconciliationPrivileges(pool);
       await verifyScalarReconciliationIntegrity(pool);
-      const restoredScalarOwner = createDatabase(target("restore_target"));
+      const restoredHistoryOwner = createDatabase(target("restore_target"));
       try {
-        await verifyScalarReconciliationImmutable(restoredScalarOwner);
+        await verifyScalarReconciliationImmutable(restoredHistoryOwner);
+        await verifyXlsxHistoryGuardInstallation(restoredHistoryOwner);
+        for (const table of ["IngestionXlsxHead", "IngestionXlsxContext"])
+          for (const operation of ["UPDATE", "DELETE", "TRUNCATE"])
+            await verifyImmutableHistoryMutation(restoredHistoryOwner, table, operation);
       } finally {
-        await restoredScalarOwner.$disconnect();
+        await restoredHistoryOwner.$disconnect();
       }
       const scalarReconciliationOriginalProof =
         await verifyRestoredScalarReconciliation(
@@ -625,6 +682,16 @@ try {
       } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
         csvComparisonPrivileges,
+        xlsxReceiptCodec,
+        xlsxGenesisPrivileges,
+        xlsxGenesisRestore,
+        xlsxHistoryGuardsChecked: true,
+        xlsxComparison,
+        xlsxContextPrivileges,
+        xlsxRetryPrivileges,
+        xlsxWriterPrivileges,
+        xlsxReviewedImportRestore,
+        xlsxSourceProvisionRestore,
         ingestionReassessment: await verifyRestoredReassessments(pool, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

@@ -110,9 +110,12 @@ function assertReleasedSnapshot(before) {
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort();
-  assert.equal(names.length, 29);
+  assert.equal(names.length, 37);
   assert.equal(names[28], "202611180001_csv_comparison_validation_cost");
-  assert.equal(before.ledger.length, 29);
+  assert.equal(names[34], "202611190006_xlsx_reviewed_import");
+  assert.equal(names[35], "202611190007_xlsx_preview_receipt_read");
+  assert.equal(names[36], "202611190008_xlsx_source_catalogue");
+  assert.equal(before.ledger.length, names.length);
   for (const [i, name] of names.entries()) {
     assert.match(name, /^[0-9]{12}(?:[0-9]{2})?_[a-z0-9_]+$/);
     const row = before.ledger[i];
@@ -125,7 +128,7 @@ function assertReleasedSnapshot(before) {
       row.finished_at && !row.rolled_back_at && row.applied_steps_count === 1,
     );
   }
-  assert.equal(before.tables.length, 88);
+  assert.equal(before.tables.length, 90);
   assert(before.tables.some((t) => t.relname === "_prisma_migrations"));
   assertBusinessTableInventory(
     before.tables
@@ -324,8 +327,8 @@ export async function verifyCsvComparisonPrototype(
       publicWorkerBackupExecuteDenied: true,
       actualApiRolePositive: true,
       privateApiGuardDenials: privateCsvFunctions.length,
-      migrations: 29,
-      businessTables: 87,
+      migrations: before.ledger.length,
+      businessTables: 89,
     };
   } catch (error) {
     primary = safeFailure(stage, error);

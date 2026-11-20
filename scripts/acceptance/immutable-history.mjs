@@ -7,6 +7,8 @@ import { canonicalTables } from "./canonical-projects.mjs";
 const immutableMessages = {
   IngestionCsvHead: "CSV comparison history is immutable",
   IngestionCsvContext: "CSV comparison history is immutable",
+  IngestionXlsxHead: "Workbook comparison head is retained",
+  IngestionXlsxContext: "Ingestion history is immutable",
   IngestionProjectReassessment: "Reassessment history is immutable",
   AuditEvent: "Audit records are immutable",
   FactSource: "Fact history is immutable",
@@ -56,6 +58,7 @@ const immutableMessages = {
 };
 const sealMessages = {
   IngestionCsvHead: "Invalid CSV comparison advancement",
+  IngestionXlsxHead: "Invalid workbook head advance",
   IngestionProjectReassessment: "Immutable reassessment identity",
   FactAssessment: "Invalid assessment seal",
   CanonicalStateBinding: "Invalid state binding seal",
@@ -75,6 +78,24 @@ const truncateMessages = new Set([
   "Ingestion history is immutable",
   "Connector webhook receipts are immutable",
 ]);
+const xlsxHistoryTables = new Set(["IngestionXlsxHead", "IngestionXlsxContext"]);
+const xlsxTruncateMessages = new Set(["Ingestion history is immutable"]);
+
+export async function verifyXlsxHistoryGuardInstallation(database) {
+  // PostgreSQL encodes BEFORE UPDATE OR DELETE FOR EACH ROW as 27 and
+  // BEFORE TRUNCATE FOR EACH STATEMENT as 34 in pg_trigger.tgtype.
+  const guards = await database.$queryRaw`
+    WITH expected(relation,name,events,handler) AS (VALUES
+      ('public."IngestionXlsxHead"'::regclass,'ingestion_xlsx_head_advance',27,'public.guard_ingestion_xlsx_head_advance()'::regprocedure),
+      ('public."IngestionXlsxHead"'::regclass,'ingestion_xlsx_head_no_truncate',34,'public.guard_ingestion_immutable()'::regprocedure),
+      ('public."IngestionXlsxContext"'::regclass,'ingestion_xlsx_context_immutable',27,'public.guard_ingestion_immutable()'::regprocedure),
+      ('public."IngestionXlsxContext"'::regclass,'ingestion_xlsx_context_no_truncate',34,'public.guard_ingestion_immutable()'::regprocedure))
+    SELECT count(*)::int AS installed
+    FROM expected e JOIN pg_catalog.pg_trigger t ON t.tgrelid=e.relation AND t.tgname=e.name
+      AND t.tgtype=e.events AND t.tgfoid=e.handler
+    WHERE NOT t.tgisinternal AND t.tgenabled='O' AND t.tgqual IS NULL AND t.tgattr::text=''`;
+  assert.deepEqual(guards, [{ installed: 4 }]);
+}
 
 export async function verifyImmutableHistoryMutation(
   database,
@@ -83,9 +104,12 @@ export async function verifyImmutableHistoryMutation(
 ) {
   assert(Object.hasOwn(immutableMessages, table), "Unknown history table");
   assert(["UPDATE", "DELETE", "TRUNCATE"].includes(operation));
+  const xlsxHistory = xlsxHistoryTables.has(table);
   const identity = {
     IngestionCsvHead: "sourceId",
     IngestionCsvContext: "receiptId",
+    IngestionXlsxHead: "sourceId",
+    IngestionXlsxContext: "receiptId",
     MilestoneConsistencyContributorVersion: "assessmentId",
     IngestionConfigurationRevision: "revision",
     IngestionConfigurationProject: "projectId",
@@ -107,7 +131,7 @@ export async function verifyImmutableHistoryMutation(
         : `TRUNCATE "${table}" CASCADE`;
   const expected =
     operation === "TRUNCATE"
-      ? truncateMessages
+      ? (xlsxHistory ? xlsxTruncateMessages : truncateMessages)
       : new Set([
           (operation === "UPDATE" && sealMessages[table]) ||
             immutableMessages[table],
@@ -133,7 +157,7 @@ export async function verifyImmutableHistoryMutation(
             expected.has(cause.originalMessage)) ||
           // New engagement FKs participate in CASCADE truncation. Accept only
           // that exact statement guard; arbitrary SQL failures remain rejected.
-          (operation === "TRUNCATE" && cause.originalCode === "55000" &&
+          (!xlsxHistory && operation === "TRUNCATE" && cause.originalCode === "55000" &&
             cause.code === "55000" &&
             cause.originalMessage === "Engagement storage history is immutable")
         ) &&

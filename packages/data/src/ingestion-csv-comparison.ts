@@ -14,6 +14,7 @@ import {
   type SpreadsheetHashedBaseline,
 } from "@pdaa/domain";
 import type { Prisma } from "./generated/prisma/client.js";
+import { lockRetainedSpreadsheetContent } from "./ingestion-spreadsheet-content.js";
 
 type Tx = Prisma.TransactionClient;
 type Head = {
@@ -38,37 +39,6 @@ const unavailable = (): never => {
   throw new IngestionPersistenceError("INVALID_PREVIEW");
 };
 const digest = (text: string) => createHash("sha256").update(text).digest("hex");
-
-// The caller holds sorted project/grant fences, policy SHARE, then Source UPDATE.
-// Lock and bound whole unique arrays before returning any proposal plaintext.
-async function retainedContent(tx: Tx, customerId: string, sourceId: string, ids: readonly string[]) {
-  const projectionIds = [...new Set(ids)].sort();
-  if (projectionIds.length > CSV_COMPARISON_LIMITS.identities * (CSV_COMPARISON_LIMITS.fields + 1))
-    return unavailable();
-  const content = await tx.$queryRaw<{ projectionId: string; bytes: number | null; live: boolean }[]>`
-    SELECT c."projectionId",octet_length(c.proposals::text) AS bytes,
-      (c.proposals IS NOT NULL AND c."redactedAt" IS NULL
-        AND v."receivedAt"+make_interval(hours=>policy."retentionHours")>clock_timestamp()
-        AND public.valid_ingestion_projection_content(c."projectionId",c.proposals) IS TRUE) AS live
-    FROM public."IngestionProposalContent" c
-    JOIN public."IngestionProposalProjection" p ON p.id=c."projectionId" AND p."customerId"=c."customerId"
-      AND p."sourceId"=c."sourceId" AND p."recordId"=c."recordId"
-    JOIN public."IngestionSourceRevision" v ON v.id=p."sourceRevisionId" AND v."customerId"=p."customerId"
-      AND v."sourceId"=p."sourceId" AND v."recordId"=p."recordId"
-    JOIN public."IngestionRetentionPolicy" policy ON policy."customerId"=c."customerId"
-    WHERE c."customerId"=${customerId}::uuid AND c."sourceId"=${sourceId}::uuid
-      AND c."projectionId"=ANY(${projectionIds}::uuid[])
-    ORDER BY c."projectionId" FOR SHARE OF c`;
-  if (content.length !== projectionIds.length) return unavailable();
-  let bytes = 0;
-  for (const row of content) {
-    if (!row.live || row.bytes === null || !Number.isSafeInteger(row.bytes) || row.bytes < 0)
-      return unavailable();
-    bytes += row.bytes;
-    if (bytes > CSV_COMPARISON_LIMITS.contentUnionBytes) return unavailable();
-  }
-  return projectionIds;
-}
 
 export async function loadCsvComparison(
   tx: Tx,
@@ -123,7 +93,7 @@ export async function loadCsvComparison(
     return unavailable();
   if (state[5].some((row) => !projectIds.has(row[2])) || digest(JSON.stringify(state)) !== head.stateHash)
     return unavailable();
-  const projectionIds = await retainedContent(tx, customerId, sourceId, state[5].flatMap((row) => row[3].map((ref) => ref[1])));
+  const projectionIds = await lockRetainedSpreadsheetContent(tx, customerId, sourceId, state[5].flatMap((row) => row[3].map((ref) => ref[1])));
   const contents = await tx.$queryRaw<{ projectionId: string; proposals: unknown }[]>`
     SELECT "projectionId",proposals FROM public."IngestionProposalContent"
     WHERE "customerId"=${customerId}::uuid AND "sourceId"=${sourceId}::uuid
@@ -151,7 +121,7 @@ export async function saveCsvComparison(
   configRevision: number,
   accepted: readonly { recordKey: string; recordId: string; projectId: string; projectionId: string; proposals: readonly { factType: string }[] }[],
 ) {
-  await retainedContent(tx,prior.customerId,prior.sourceId,[...prior.projectionIds,...accepted.map((row) => row.projectionId)]);
+  await lockRetainedSpreadsheetContent(tx,prior.customerId,prior.sourceId,[...prior.projectionIds,...accepted.map((row) => row.projectionId)]);
   const dictionary = new Map(prior.state[4].map(([factType],index) => [factType,String(index)]));
   const observations: CsvComparisonIdentity[] = accepted.map((row): CsvComparisonIdentity => [row.recordKey,row.recordId,row.projectId,
     row.proposals.map((proposal) => {

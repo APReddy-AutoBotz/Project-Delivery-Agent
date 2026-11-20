@@ -1,5 +1,64 @@
 import type { Client } from "pg";
 
+export const xlsxReceiptCodecFunctions = Object.freeze([
+  "public.ingestion_xlsx_v1_uuid(jsonb)",
+  "public.ingestion_xlsx_v1_digest(jsonb)",
+  "public.ingestion_xlsx_v1_uint(jsonb,integer)",
+  "public.ingestion_xlsx_v1_text(jsonb,integer)",
+  "public.ingestion_xlsx_v1_scope(jsonb)",
+  "public.ingestion_xlsx_v1_request_hash(jsonb)",
+  "public.ingestion_xlsx_v1_outcome(jsonb,integer,jsonb)",
+  "public.ingestion_xlsx_v1_context_hash(jsonb)",
+  "public.ingestion_xlsx_v1_selection_hash(jsonb,jsonb)",
+]);
+
+export const xlsxGenesisFunctions = Object.freeze([
+  "public.ingestion_xlsx_v1_state_text(uuid,uuid,integer,jsonb,jsonb,jsonb,jsonb)",
+  "public.valid_ingestion_xlsx_mapping(jsonb)",
+  "public.guard_ingestion_xlsx_source()",
+  "public.guard_ingestion_xlsx_mapping_family()",
+  "public.initialize_ingestion_xlsx_head()",
+  "public.valid_ingestion_xlsx_genesis(uuid,uuid)",
+  "public.require_ingestion_xlsx_genesis()",
+  "public.guard_ingestion_xlsx_legacy_write()",
+]);
+
+export const xlsxContextFunctions = Object.freeze([
+  "public.ingestion_xlsx_overlay(uuid,jsonb,jsonb)",
+  "public.valid_ingestion_xlsx_context(uuid)",
+  "public.guard_ingestion_xlsx_head_advance()",
+  "public.append_ingestion_xlsx_context()",
+  "public.guard_ingestion_xlsx_graph_owner()",
+  "public.valid_ingestion_xlsx_head(uuid,uuid)",
+]);
+
+export const xlsxRetryFunction = "public.probe_ingestion_xlsx_retry(uuid,uuid,text,text[],text,integer,integer,text,integer,text)";
+export const xlsxWriterApiFunctions = Object.freeze([
+  "public.read_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text)",
+  "public.finalize_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text,integer,text,text,jsonb,jsonb)",
+]);
+export const xlsxWriterCommitFunction = "public.require_ingestion_xlsx_preview_complete()";
+export const xlsxWriterFunctions = Object.freeze([
+  ...xlsxWriterApiFunctions,
+  xlsxWriterCommitFunction,
+  "public.lock_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text)",
+  "public.materialize_ingestion_xlsx_fields(uuid,uuid,integer,text,jsonb)",
+]);
+
+export const xlsxReviewApiFunction = "public.commit_ingestion_xlsx_reviewed_import(uuid,uuid,text,text[],text,uuid,text,integer[],text)";
+export const xlsxReviewFunctions = Object.freeze([
+  xlsxReviewApiFunction,
+  "public.verified_ingestion_xlsx_context(uuid)",
+  "public.valid_ingestion_xlsx_reviewed_import(uuid)",
+  "public.require_ingestion_xlsx_reviewed_import_complete()",
+]);
+export const xlsxReceiptReadApi = "public.read_ingestion_xlsx_preview_receipt(uuid,uuid,text,text[],uuid,integer)";
+export const xlsxReceiptReadFunctions = Object.freeze([
+  xlsxReceiptReadApi,
+  "public.can_read_ingestion_xlsx_preview(uuid,uuid,text,text[],integer,integer,uuid[],uuid[],uuid[])",
+]);
+export const xlsxSourceCatalogueApi = "public.list_ingestion_xlsx_sources(uuid,text,text[],uuid)";
+
 export async function assertBusinessTableOwner(client: Pick<Client, "query">) {
   const principals = (
     await client.query(
@@ -100,6 +159,222 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
     GRANT SELECT,INSERT ON "ProjectUpdateCapturedRequest","ProjectUpdateInvitation","ProjectUpdateResponse","ProjectUpdateRequestContent","ProjectUpdateResponseContent" TO pdaa_api;
     REVOKE ALL ON FUNCTION public.guard_update_issuance_gate(),public.guard_update_capture_birth(),public.guard_update_invitation_birth(),public.guard_update_response_birth(),public.guard_update_capture_content(),public.require_update_capture_complete(),public.lock_update_issuance_gate(uuid),public.purge_update_capture_content(uuid) FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
     GRANT EXECUTE ON FUNCTION public.lock_update_issuance_gate(uuid),public.purge_update_capture_content(uuid) TO pdaa_api;
-    GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO pdaa_backup;
+    -- pg_restore --no-acl recreates PUBLIC EXECUTE. Historical rehearsal
+    -- prefixes can omit this family only before the recorded migration.
+    DO $xlsx_acl$
+    DECLARE present integer; owned boolean; recorded boolean := false;
+    BEGIN
+      SELECT count(p.oid), bool_and(p.proowner=current_user::regrole) INTO present, owned
+        FROM unnest(ARRAY[${xlsxReceiptCodecFunctions.map((name) => `'${name}'`).join(",")}]) AS functions(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(signature);
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190001_xlsx_receipt_codec') INTO recorded;
+      END IF;
+      IF present = ${xlsxReceiptCodecFunctions.length} THEN
+        IF current_user = 'pdaa_migrate' AND owned IS NOT TRUE THEN
+          RAISE EXCEPTION 'Unexpected XLSX receipt codec owner';
+        END IF;
+        REVOKE ALL ON FUNCTION ${xlsxReceiptCodecFunctions.join(",")} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      ELSIF present <> 0 OR recorded THEN
+        RAISE EXCEPTION 'Incomplete XLSX receipt codec family';
+      END IF;
+    END $xlsx_acl$;
+    DO $xlsx_genesis_acl$
+    DECLARE present integer; owned boolean; has_head boolean; recorded boolean := false;
+    BEGIN
+      SELECT count(p.oid), bool_and(p.proowner=current_user::regrole) INTO present, owned
+        FROM unnest(ARRAY[${xlsxGenesisFunctions.map((name) => `'${name}'`).join(",")}]) AS functions(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(signature);
+      has_head := to_regclass('public."IngestionXlsxHead"') IS NOT NULL;
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190002_xlsx_source_genesis') INTO recorded;
+      END IF;
+      IF present = ${xlsxGenesisFunctions.length} AND has_head THEN
+        IF current_user = 'pdaa_migrate' AND owned IS NOT TRUE THEN
+          RAISE EXCEPTION 'Unexpected XLSX genesis function owner';
+        END IF;
+        REVOKE ALL ON FUNCTION ${xlsxGenesisFunctions.join(",")},public.guard_ingestion_configuration() FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL ON TABLE public."IngestionXlsxHead" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL ("customerId","sourceId","activationConfigRevision","mappingRevision",dictionary,"genesisSha256")
+          ON public."IngestionXlsxHead" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        GRANT SELECT ON public."IngestionXlsxHead" TO pdaa_backup;
+      ELSIF present <> 0 OR has_head OR recorded THEN
+        RAISE EXCEPTION 'Incomplete XLSX source genesis family';
+      END IF;
+    END $xlsx_genesis_acl$;
+    DO $xlsx_context_acl$
+    DECLARE present integer; owned boolean; has_context boolean; recorded boolean := false;
+    BEGIN
+      SELECT count(p.oid), bool_and(p.proowner=current_user::regrole) INTO present, owned
+        FROM unnest(ARRAY[${xlsxContextFunctions.map((name) => `'${name}'`).join(",")}]) AS functions(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(signature);
+      has_context := to_regclass('public."IngestionXlsxContext"') IS NOT NULL;
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190003_xlsx_preview_context') INTO recorded;
+      END IF;
+      IF present = ${xlsxContextFunctions.length} AND has_context THEN
+        IF current_user = 'pdaa_migrate' AND owned IS NOT TRUE THEN
+          RAISE EXCEPTION 'Unexpected XLSX context function owner';
+        END IF;
+        REVOKE ALL ON FUNCTION ${xlsxContextFunctions.join(",")} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL ON TABLE public."IngestionXlsxContext" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL ("customerId","sourceId","receiptId",revision,"predecessorReceiptId","predecessorRevision","predecessorSha256",
+          "workbookBytes","workbookSha256","contextSha256",rows,"canonicalBytes","stateSha256")
+          ON public."IngestionXlsxContext" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        REVOKE ALL (revision,"currentReceiptId","stateSha256","canonicalHistoryBytes")
+          ON public."IngestionXlsxHead" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        GRANT SELECT ON public."IngestionXlsxContext" TO pdaa_backup;
+      ELSIF present <> 0 OR has_context OR recorded THEN
+        RAISE EXCEPTION 'Incomplete XLSX context family';
+      END IF;
+    END $xlsx_context_acl$;
+    DO $xlsx_retry_acl$
+    DECLARE target oid; correct boolean; recorded boolean := false;
+    BEGIN
+      target := to_regprocedure('${xlsxRetryFunction}');
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190004_xlsx_preview_retry') INTO recorded;
+      END IF;
+      IF target IS NULL THEN
+        IF recorded THEN RAISE EXCEPTION 'Missing XLSX retry function'; END IF;
+      ELSE
+        SELECT p.prosecdef AND p.provolatile='v' AND p.proretset
+          AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
+          INTO correct FROM pg_catalog.pg_proc p WHERE p.oid=target;
+        IF correct IS NOT TRUE THEN RAISE EXCEPTION 'Unexpected XLSX retry function boundary'; END IF;
+        REVOKE ALL ON FUNCTION ${xlsxRetryFunction} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+        GRANT EXECUTE ON FUNCTION ${xlsxRetryFunction} TO pdaa_api;
+        IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc p,
+          LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+          WHERE p.oid=target AND acl.grantee<>p.proowner
+            AND (acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable)) THEN
+          RAISE EXCEPTION 'Unexpected XLSX retry function privileges';
+        END IF;
+      END IF;
+    END $xlsx_retry_acl$;
+    DO $xlsx_writer_acl$
+    DECLARE present integer; correct boolean; recorded boolean := false;
+    BEGIN
+      SELECT count(*),bool_and(p.prosecdef=(entries.signature=ANY(ARRAY[${[...xlsxWriterApiFunctions, xlsxWriterCommitFunction].map((name) => `'${name}'`).join(",")}]))
+        AND p.provolatile='v' AND NOT p.proretset AND p.prorettype=
+          CASE WHEN entries.signature='${xlsxWriterCommitFunction}' THEN 'trigger'::regtype ELSE 'jsonb'::regtype END
+        AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp'])
+        INTO present,correct
+        FROM unnest(ARRAY[${xlsxWriterFunctions.map((name) => `'${name}'`).join(",")}]) entries(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entries.signature);
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190005_xlsx_preview_writer') INTO recorded;
+      END IF;
+      IF present=0 AND NOT recorded THEN RETURN; END IF;
+      IF present<>${xlsxWriterFunctions.length} OR correct IS NOT TRUE THEN
+        RAISE EXCEPTION 'Unexpected XLSX writer function boundary';
+      END IF;
+      REVOKE ALL ON FUNCTION ${xlsxWriterFunctions.join(",")} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT EXECUTE ON FUNCTION ${xlsxWriterApiFunctions.join(",")} TO pdaa_api;
+      IF EXISTS (SELECT 1 FROM unnest(ARRAY[${xlsxWriterFunctions.map((name) => `'${name}'`).join(",")}]) entries(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entries.signature)
+        CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+        WHERE acl.grantee<>p.proowner
+          AND (entries.signature<>ALL(ARRAY[${xlsxWriterApiFunctions.map((name) => `'${name}'`).join(",")}])
+            OR acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable)) THEN
+        RAISE EXCEPTION 'Unexpected XLSX writer function privileges';
+      END IF;
+    END $xlsx_writer_acl$;
+    DO $xlsx_review_acl$
+    DECLARE
+      present integer;
+      correct boolean;
+      recorded boolean := false;
+    BEGIN
+      SELECT count(*),bool_and(p.prosecdef=entry.definer AND p.provolatile=entry.volatility::"char"
+        AND NOT p.proretset AND p.prorettype=entry.return_type::regtype
+        AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=entry.settings)
+        INTO present,correct
+      FROM (VALUES
+        ('${xlsxReviewApiFunction}',true,'v','jsonb',ARRAY['search_path=pg_catalog, pg_temp']),
+        ('public.verified_ingestion_xlsx_context(uuid)',false,'s','jsonb',ARRAY['search_path=pg_catalog']),
+        ('public.valid_ingestion_xlsx_reviewed_import(uuid)',false,'s','boolean',ARRAY['search_path=pg_catalog, pg_temp']),
+        ('public.require_ingestion_xlsx_reviewed_import_complete()',true,'v','trigger',ARRAY['search_path=pg_catalog, pg_temp'])
+      ) entry(signature,definer,volatility,return_type,settings)
+      JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entry.signature);
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190006_xlsx_reviewed_import') INTO recorded;
+      END IF;
+      IF present=0 AND NOT recorded THEN RETURN; END IF;
+      IF present<>${xlsxReviewFunctions.length} OR correct IS NOT TRUE THEN
+        RAISE EXCEPTION 'Unexpected XLSX review function boundary';
+      END IF;
+      REVOKE ALL ON FUNCTION ${xlsxReviewFunctions.join(",")} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT EXECUTE ON FUNCTION ${xlsxReviewApiFunction} TO pdaa_api;
+      IF EXISTS (
+        SELECT 1 FROM unnest(ARRAY[${xlsxReviewFunctions.map((name) => "'" + name + "'").join(",")}]) entries(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entries.signature)
+        CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+        WHERE acl.grantee<>p.proowner AND (entries.signature<>'${xlsxReviewApiFunction}'
+          OR acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable)
+      ) THEN RAISE EXCEPTION 'Unexpected XLSX review function privileges'; END IF;
+    END $xlsx_review_acl$;
+    DO $xlsx_receipt_read_acl$
+    DECLARE
+      present integer;
+      correct boolean;
+      recorded boolean := false;
+    BEGIN
+      SELECT count(*),bool_and(p.prosecdef=entry.definer AND p.provolatile=entry.volatility::"char"
+        AND NOT p.proretset AND p.prorettype=entry.return_type::regtype
+        AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=entry.settings)
+        INTO present,correct
+      FROM (VALUES
+        ('${xlsxReceiptReadApi}',true,'v','jsonb',ARRAY['search_path=pg_catalog, pg_temp','DateStyle=ISO, YMD','TimeZone=UTC']),
+        ('${xlsxReceiptReadFunctions[1]}',false,'s','boolean',ARRAY['search_path=pg_catalog'])
+      ) entry(signature,definer,volatility,return_type,settings)
+      JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entry.signature);
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190007_xlsx_preview_receipt_read') INTO recorded;
+      END IF;
+      IF present=0 AND NOT recorded THEN RETURN; END IF;
+      IF present<>${xlsxReceiptReadFunctions.length} OR correct IS NOT TRUE THEN
+        RAISE EXCEPTION 'Unexpected XLSX receipt read function boundary';
+      END IF;
+      REVOKE ALL ON FUNCTION ${xlsxReceiptReadFunctions.join(",")} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT EXECUTE ON FUNCTION ${xlsxReceiptReadApi} TO pdaa_api;
+      IF EXISTS (
+        SELECT 1 FROM unnest(ARRAY[${xlsxReceiptReadFunctions.map((name) => "'" + name + "'").join(",")}]) entries(signature)
+        JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(entries.signature)
+        CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+        WHERE acl.grantee<>p.proowner AND (entries.signature<>'${xlsxReceiptReadApi}'
+          OR acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable)
+      ) THEN RAISE EXCEPTION 'Unexpected XLSX receipt read function privileges'; END IF;
+    END $xlsx_receipt_read_acl$;
+    DO $xlsx_catalogue_acl$
+    DECLARE
+      catalogue regprocedure := to_regprocedure('${xlsxSourceCatalogueApi}');
+      recorded boolean := false;
+    BEGIN
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611190008_xlsx_source_catalogue') INTO recorded;
+      END IF;
+      IF catalogue IS NULL AND NOT recorded THEN RETURN; END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid=catalogue
+        AND p.prosecdef AND p.provolatile='s' AND NOT p.proretset AND p.prorettype='jsonb'::regtype
+        AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp'])
+      THEN RAISE EXCEPTION 'Unexpected XLSX source catalogue function boundary'; END IF;
+      REVOKE ALL ON FUNCTION ${xlsxSourceCatalogueApi} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT EXECUTE ON FUNCTION ${xlsxSourceCatalogueApi} TO pdaa_api;
+      IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
+        CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+        WHERE p.oid=catalogue AND acl.grantee<>p.proowner
+          AND (acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable))
+      THEN RAISE EXCEPTION 'Unexpected XLSX source catalogue function privileges'; END IF;
+    END $xlsx_catalogue_acl$
   `);
 }

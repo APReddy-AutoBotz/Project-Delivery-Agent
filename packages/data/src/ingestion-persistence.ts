@@ -23,10 +23,15 @@ import {
   ingestionText,
   parseIngestion,
   parseCsvPreview,
+  parseSpreadsheetGrid,
   persistedSpreadsheetConfigSchema,
+  spreadsheetHashedBaselineSchema,
   previewSpreadsheetCsvHashedBaseline,
   projectFactIdSchema,
   projectFactSubjectSchema,
+  xlsxMappingRevisionSchema,
+  xlsxParserContractSchema,
+  xlsxSheetSchema,
   validateConnectorPage,
   validateConnectorRecord,
   type Actor,
@@ -36,14 +41,17 @@ import {
   type IngestionSyncSnapshot,
   type SpreadsheetRowPreview,
 } from "@pdaa/domain";
-import { CredentialVault } from "@pdaa/platform";
+import { CredentialVault, type XlsxPreviewDecoder } from "@pdaa/platform";
 import type {
   Prisma,
   PrismaClient as Database,
 } from "./generated/prisma/client.js";
 import { actorInput } from "./fact-authorization.js";
+import { authorizeIngestionProjects, currentRoleMatches, ingestionWriteRoles } from "./ingestion-project-authorization.js";
 import { enqueueConnectorReassessments } from "./ingestion-reassessments.js";
 import { loadCsvComparison, saveCsvComparison } from "./ingestion-csv-comparison.js";
+import { captureXlsxPreviewRequest, fingerprintXlsxWorkbook } from "./ingestion-xlsx-binding.js";
+import { mapBoundXlsxPreviewGrid, xlsxSourceRowDigest } from "./ingestion-xlsx-preview.js";
 
 type Tx = Prisma.TransactionClient;
 type MappingRow = { id: string; customerId: string; sourceId: string; sourceType: string; origin: string; currentConfigRevision: number | null; mappingRevision: number; cursorRevision: bigint; syncGeneration: bigint; cursorEnvelope: string | null; cursorState: string; healthState: string; healthCode: string; healthCheckedAt: Date | null; lastSuccessReceiptId: string | null };
@@ -102,6 +110,114 @@ type ReceiptRow = {
 };
 
 const idSchema = projectFactIdSchema;
+const xlsxCatalogueInput = z.strictObject({ afterSourceId: idSchema.nullable() });
+const xlsxCatalogueResult = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("DENIED") }),
+  z.strictObject({
+    status: z.literal("READY"),
+    sources: z.array(z.strictObject({
+      sourceId: idSchema,
+      configRevision: xlsxMappingRevisionSchema,
+      mappingRevision: xlsxMappingRevisionSchema,
+      sheet: xlsxSheetSchema,
+    })).max(50),
+    nextSourceId: idSchema.nullable(),
+  }),
+]);
+const xlsxReceiptOrdinal = z.number().int().min(1).max(1000);
+const xlsxReceiptReadInput = z.strictObject({
+  sourceId: idSchema,
+  previewReceiptId: idSchema,
+  afterOrdinal: z.number().int().min(0).max(1000),
+});
+const xlsxReceiptPage = z.strictObject({
+  sourceId: idSchema,
+  previewReceiptId: idSchema,
+  createdAt: z.iso.datetime(),
+  configRevision: xlsxMappingRevisionSchema,
+  mappingRevision: xlsxMappingRevisionSchema,
+  rowCount: z.number().int().min(0).max(1000),
+  previewContextSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  selectionState: z.enum(["OPEN", "REVIEWED", "STALE"]),
+  outcomes: z.array(z.strictObject({
+    ordinal: xlsxReceiptOrdinal,
+    state: ingestionRowStateSchema,
+    operation: ingestionRowOperationSchema,
+    errorCodes: z.array(ingestionSafeErrorSchema).max(16),
+    projectId: idSchema.nullable(),
+    contentAvailable: z.boolean(),
+    selectable: z.boolean(),
+    proposals: z.array(ingestionProposalSchema).max(32).nullable(),
+  })).max(50),
+  nextOrdinal: xlsxReceiptOrdinal.nullable(),
+});
+const xlsxReceiptReadResult = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("READY"), view: xlsxReceiptPage }),
+  z.strictObject({
+    status: z.enum(["DENIED", "RETRY", "RETENTION_REQUIRED", "INVALID_REQUEST", "INTEGRITY_CONFLICT"]),
+  }),
+]);
+const xlsxReviewInput = ingestionReviewedImportRequestSchema.extend({
+  previewContextSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+});
+const xlsxReviewResult = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.enum(["STORED", "REPLAYED"]),
+    receiptId: idSchema,
+    rowCount: z.number().int().min(1).max(1000),
+  }),
+  z.strictObject({
+    status: z.enum(["DENIED", "RETRY", "CONFLICT", "STALE_CONFIGURATION", "RETENTION_REQUIRED",
+      "INVALID_REQUEST", "INVALID_PREVIEW", "INTEGRITY_CONFLICT"]),
+  }),
+]);
+const xlsxRetryInput = z.strictObject({
+  sourceId: idSchema,
+  commandKey: ingestionCommandKeySchema,
+  configRevision: xlsxMappingRevisionSchema,
+  mappingRevision: xlsxMappingRevisionSchema,
+  sheet: xlsxSheetSchema,
+});
+const xlsxRetryResult = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("REPLAYED"), receipt_id: idSchema, row_count: z.number().int().min(0).max(1000) }),
+  z.strictObject({
+    status: z.enum(["DENIED", "RETRY", "CHECK_BYTES", "ABSENT", "STALE_CONFIGURATION", "INTEGRITY_CONFLICT", "CONFLICT"]),
+    receipt_id: z.null(),
+    row_count: z.null(),
+  }),
+]);
+type XlsxPreviewReplay = Readonly<{ receiptId: string; replayed: true; rowCount: number }>;
+type XlsxPreviewAdmission =
+  | Readonly<{ kind: "FRESH"; parserContract: z.infer<typeof xlsxParserContractSchema> }>
+  | Readonly<{ kind: "REPLAYED"; result: XlsxPreviewReplay }>;
+const xlsxWriterFailure = z.strictObject({ status: z.enum([
+  "DENIED", "RETRY", "RECHECK", "CONFLICT", "STALE_CONFIGURATION", "INVALID_REQUEST", "INVALID_PREVIEW", "INTEGRITY_CONFLICT",
+]) });
+const xlsxWriterRead = z.discriminatedUnion("status", [
+  xlsxWriterFailure,
+  z.strictObject({
+    status: z.literal("READY"),
+    mapping: z.strictObject({
+      kind: z.literal("XLSX"),
+      sheet: xlsxSheetSchema,
+      parserContract: xlsxParserContractSchema,
+      identityColumn: z.string(),
+      projectColumn: z.string(),
+      fields: persistedSpreadsheetConfigSchema.shape.fields,
+    }),
+    projectIds: z.array(idSchema).min(1).max(100),
+    witness: z.strictObject({
+      revision: z.number().int().min(0).max(4095),
+      receiptId: idSchema.nullable(),
+      stateSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    }),
+    baseline: spreadsheetHashedBaselineSchema,
+  }),
+]);
+const xlsxWriterFinal = z.discriminatedUnion("status", [
+  xlsxWriterFailure,
+  z.strictObject({ status: z.literal("STORED"), receiptId: idSchema, rowCount: z.number().int().min(0).max(1000) }),
+]);
 const spreadsheetPreparseSnapshotSchema = z.strictObject({
   binding: connectorBindingSchema,
   subject: projectFactSubjectSchema,
@@ -187,9 +303,6 @@ function parseActor(value: Actor): Actor {
     throw new IngestionPersistenceError("INVALID_REQUEST");
   }
 }
-function currentRoleMatches(actor: Actor, role: string) {
-  return actor.roles.some((candidate) => candidate === role);
-}
 function configMapping(config: IngestionConfiguration) {
   if (config.mapping.kind === "CSV")
     return {
@@ -267,6 +380,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
   constructor(
     private readonly db: Database,
     private readonly vault: CredentialVault,
+    private readonly xlsxDecoder?: XlsxPreviewDecoder,
   ) {}
 
   private async denialAudit(
@@ -290,62 +404,17 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     }
   }
 
-  private async authorizedProjects(
-    tx: Tx,
-    actor: Actor,
-    projectsInput: readonly string[],
-    action: "read" | "write" | "configure",
-    projectLimit = 100,
-  ) {
-    const projectIds = [...new Set(projectsInput)].sort(exactCompare);
-    // Configuration changes must check every historic grant as well as both
-    // configuration scopes. History cannot be truncated to fit a fixed union.
-    if (!projectIds.length || (action !== "configure" && projectIds.length > projectLimit))
-      throw new IngestionPersistenceError("DENIED");
-    const projects = action === "read"
-      ? await tx.$queryRaw<{ id: string; portfolioId: string }[]>`
-          SELECT id,"portfolioId" FROM public."Project"
-          WHERE "customerId"=${actor.customerId}::uuid AND id=ANY(${projectIds}::uuid[])
-          ORDER BY id FOR SHARE`
-      : await tx.$queryRaw<{ id: string; portfolioId: string }[]>`
-          SELECT id,"portfolioId" FROM public."Project"
-          WHERE "customerId"=${actor.customerId}::uuid AND id=ANY(${projectIds}::uuid[])
-          ORDER BY id FOR UPDATE`;
-    if (projects.length !== projectIds.length)
-      throw new IngestionPersistenceError("DENIED");
-    const portfolioIds = [...new Set(projects.map((project) => project.portfolioId))].sort(exactCompare);
-    const grants = await tx.$queryRaw<
-      { id: string; scopeType: string; scopeId: string; role: string }[]
-    >`
-      SELECT id,"scopeType","scopeId",role FROM public."AccessGrant"
-      WHERE "customerId"=${actor.customerId}::uuid AND subject=${actor.subject}
-        AND (("scopeType"='project' AND "scopeId"=ANY(${projectIds}::uuid[]))
-          OR ("scopeType"='portfolio' AND "scopeId"=ANY(${portfolioIds}::uuid[])))
-      ORDER BY id FOR SHARE`;
-    const allowed: readonly string[] =
-      action === "read"
-        ? ["leadership", "project_manager", "portfolio_manager", "pmo_admin"]
-        : action === "write"
-          ? ["project_manager", "portfolio_manager", "pmo_admin"]
-          : ["pmo_admin"];
-    const eligible = grants.filter((grant) =>
-      allowed.includes(grant.role) && currentRoleMatches(actor, grant.role));
-    const allowedProjects = new Set(eligible.filter((grant) => grant.scopeType === "project").map((grant) => grant.scopeId));
-    const allowedPortfolios = new Set(eligible.filter((grant) => grant.scopeType === "portfolio").map((grant) => grant.scopeId));
-    for (const project of projects)
-      if (!allowedProjects.has(project.id) && !allowedPortfolios.has(project.portfolioId))
-        throw new IngestionPersistenceError("DENIED");
-    return { projectIds, projects, grants };
-  }
-
   private async currentSource(tx: Tx, customerId: string, sourceId: string, lock: "UPDATE" | "SHARE" = "UPDATE") {
+    // Whole-row lookup also supports released prefixes in upgrade rehearsals.
     const rows = lock === "UPDATE"
       ? await tx.$queryRaw<MappingRow[]>`
           SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
-          FROM public."IngestionSource" WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid FOR UPDATE`
+          FROM public."IngestionSource" s WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid
+            AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX' FOR UPDATE`
       : await tx.$queryRaw<MappingRow[]>`
           SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
-          FROM public."IngestionSource" WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid FOR SHARE`;
+          FROM public."IngestionSource" s WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid
+            AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX' FOR SHARE`;
     if (!rows[0]) throw new IngestionPersistenceError("NOT_FOUND");
     if (rows[0].currentConfigRevision === null)
       throw new IngestionPersistenceError("STALE_CONFIGURATION");
@@ -397,7 +466,8 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     const sourceId = uuid(sourceIdInput);
     const rows = await this.db.$queryRaw<MappingRow[]>`
       SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
-      FROM public."IngestionSource" WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid`;
+      FROM public."IngestionSource" s WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid
+        AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX'`;
     const source = rows[0];
     if (!source || source.currentConfigRevision === null)
       throw new IngestionPersistenceError("DENIED");
@@ -497,7 +567,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     scope: readonly string[],
     action: "read" | "write",
   ) {
-    await this.authorizedProjects(tx, actor, scope, action);
+    await authorizeIngestionProjects(tx, actor, scope, action);
     const source = await this.currentSource(
       tx,
       actor.customerId,
@@ -556,8 +626,9 @@ export class DatabaseIngestionRepository implements IngestionRepository {
 
   private async csvCommandPlan(tx: Tx, actor: Actor, sourceId: string, kind: string, commandKey: string) {
     const sources = await tx.$queryRaw<{ currentConfigRevision: number | null; mappingRevision: number }[]>`
-      SELECT "currentConfigRevision","mappingRevision" FROM public."IngestionSource"
-      WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid`;
+      SELECT "currentConfigRevision","mappingRevision" FROM public."IngestionSource" s
+      WHERE "customerId"=${actor.customerId}::uuid AND id=${sourceId}::uuid
+        AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX'`;
     const source = sources[0];
     if (!source || source.currentConfigRevision === null) throw new IngestionPersistenceError("DENIED");
     const existing = await this.commandReceipt(tx,actor.customerId,sourceId,actor.subject,kind,commandKey);
@@ -578,7 +649,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
 
   private async lockCsvCommand(tx: Tx, actor: Actor, sourceId: string, kind: string, commandKey: string) {
     const planned = await this.csvCommandPlan(tx,actor,sourceId,kind,commandKey);
-    await this.authorizedProjects(tx,actor,planned.projects,"write",200);
+    await authorizeIngestionProjects(tx,actor,planned.projects,"write",200);
     const policies = await tx.$queryRaw<{ revision: number; retentionHours: number }[]>`
       SELECT revision,"retentionHours" FROM public."IngestionRetentionPolicy"
       WHERE "customerId"=${actor.customerId}::uuid FOR SHARE`;
@@ -1320,10 +1391,12 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       if (configuration.binding.customerId !== actor.customerId)
         throw new IngestionPersistenceError("DENIED");
       return this.db.$transaction(async (tx) => {
-        const found = await tx.$queryRaw<MappingRow[]>`
-          SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId"
-          FROM public."IngestionSource" WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid`;
-        let source = found[0];
+        const found = await tx.$queryRaw<(MappingRow & { inputFamily: string | null })[]>`
+          SELECT id,"customerId","sourceType",origin,"currentConfigRevision","mappingRevision","cursorRevision","syncGeneration","cursorEnvelope","cursorState","healthState","healthCode","healthCheckedAt","lastSuccessReceiptId",
+            to_jsonb(s)->>'inputFamily' AS "inputFamily"
+          FROM public."IngestionSource" s WHERE "customerId"=${actor.customerId}::uuid AND id=${configuration.binding.sourceId}::uuid`;
+        if (found[0]?.inputFamily === "XLSX") throw new IngestionPersistenceError("DENIED");
+        let source: MappingRow | undefined = found[0];
         let previousConfiguration: { mapping: unknown; revision: number; mappingRevision: number } | undefined;
         let previousProjectIds: string[] = [];
         if (source) {
@@ -1353,7 +1426,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           ...previousProjectIds,
           ...previousSyncGrants.map((grant) => grant.projectId),
         ])].sort(exactCompare);
-        await this.authorizedProjects(tx, actor, projectIds, "configure");
+        await authorizeIngestionProjects(tx, actor, projectIds, "configure");
         // Lock all planned projects/grants before Source, then recheck the exact
         // configuration and complete historic sync-grant inventory under it.
         const lockedSources = await tx.$queryRaw<MappingRow[]>`
@@ -1530,8 +1603,9 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     const actor = parseActor(actorInputValue);
     return this.run(actor, "source_list", "ingestion.source.list", "PERSISTENCE_FAILED", async () => {
       const sources = await this.db.$queryRaw<{ id: string }[]>`
-        SELECT id FROM public."IngestionSource"
+        SELECT id FROM public."IngestionSource" s
         WHERE "customerId"=${actor.customerId}::uuid AND "currentConfigRevision" IS NOT NULL
+          AND to_jsonb(s)->>'inputFamily' IS DISTINCT FROM 'XLSX'
         ORDER BY id`;
       const summaries: IngestionSourceSummary[] = [];
       for (const source of sources) {
@@ -1554,6 +1628,25 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         }
       }
       return summaries;
+    });
+  }
+
+  async listXlsxSources(actorInputValue: Actor, inputValue: unknown) {
+    const actor = parseActor(actorInputValue);
+    const { afterSourceId } = parseIngestion(xlsxCatalogueInput, inputValue);
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_source_list", "ingestion.xlsx.source.list", "PERSISTENCE_FAILED", async () => {
+      const [row] = await this.db.$queryRaw<{ result: unknown }[]>`
+        SELECT public.list_ingestion_xlsx_sources(
+          ${actor.customerId}::uuid,${actor.subject}::text,${roles}::text[],${afterSourceId}::uuid) AS result`;
+      const page = xlsxCatalogueResult.safeParse(row?.result);
+      if (!page.success) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+      if (page.data.status === "DENIED") throw new IngestionPersistenceError("DENIED");
+      const { sources, nextSourceId } = page.data;
+      if (sources.some(({ sourceId }, index) => sourceId <= (sources[index - 1]?.sourceId ?? afterSourceId ?? "")) ||
+        (nextSourceId !== null && (sources.length !== 50 || sources.at(-1)?.sourceId !== nextSourceId)))
+        throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+      return { sources, nextSourceId };
     });
   }
 
@@ -1806,6 +1899,165 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     });
   }
 
+  async probeXlsxPreviewRetry(
+    actorInputValue: Actor,
+    input: unknown,
+    originalWorkbook: unknown,
+    correlationInput: string,
+  ): Promise<XlsxPreviewReplay | null> {
+    const decision = await this.prepareXlsxPreview(actorInputValue, input, originalWorkbook, correlationInput);
+    return decision.kind === "REPLAYED" ? decision.result : null;
+  }
+
+  // The fresh decision observes a locked configuration. A later transaction
+  // must reauthorize the actor and recheck the configuration before writing.
+  async prepareXlsxPreview(
+    actorInputValue: Actor,
+    input: unknown,
+    originalWorkbook: unknown,
+    correlationInput: string,
+  ): Promise<XlsxPreviewAdmission> {
+    const actor = parseActor(actorInputValue);
+    const correlationId = contextSchema(correlationInput);
+    const request = parseIngestion(xlsxRetryInput, input);
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_preview_retry", correlationId, "PERSISTENCE_FAILED", async () => {
+      if (!roles.length) throw new IngestionPersistenceError("DENIED");
+      let fingerprint: ReturnType<typeof fingerprintXlsxWorkbook> | undefined;
+      for (let attempt=0; attempt<2; attempt++) {
+        const result = await this.db.$transaction(async (tx) => {
+          const probe = async (bytes: number | null, digest: string | null) => {
+            const rows = await tx.$queryRaw<unknown[]>`
+              SELECT status,receipt_id,row_count FROM public.probe_ingestion_xlsx_retry(
+                ${actor.customerId}::uuid,${request.sourceId}::uuid,${actor.subject}::text,${roles}::text[],
+                ${request.commandKey}::text,${request.configRevision}::integer,${request.mappingRevision}::integer,
+                ${request.sheet}::text,${bytes}::integer,${digest}::text)`;
+            const parsed = xlsxRetryResult.safeParse(rows[0]);
+            if (rows.length !== 1 || !parsed.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+            return parsed.data;
+          };
+          const admission = await probe(null, null);
+          if (admission.status === "ABSENT") {
+            // M33 has locked this source and established the exact current
+            // sealed configuration. Use the same transaction for the profile.
+            const rows = await tx.$queryRaw<{ parserContract: unknown }[]>`
+              SELECT mapping->>'parserContract' AS "parserContract"
+              FROM public."IngestionConfigurationRevision"
+              WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${request.sourceId}::uuid
+                AND revision=${request.configRevision}::integer AND "mappingRevision"=${request.mappingRevision}::integer
+                AND sealed AND mapping->>'kind'='XLSX' AND mapping->>'sheet'=${request.sheet}::text`;
+            const contract = xlsxParserContractSchema.safeParse(rows[0]?.parserContract);
+            if (rows.length !== 1 || !contract.success) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+            return Object.freeze({ kind: "FRESH" as const, parserContract: contract.data });
+          }
+          if (admission.status !== "CHECK_BYTES") {
+            if (admission.status === "REPLAYED") throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+            return admission;
+          }
+          fingerprint ??= fingerprintXlsxWorkbook(originalWorkbook);
+          const exact = await probe(fingerprint.workbookBytes, fingerprint.workbookSha256);
+          if (exact.status === "CHECK_BYTES" || exact.status === "ABSENT")
+            throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+          return exact;
+        }, { isolationLevel:"ReadCommitted", maxWait:5000, timeout:12000 });
+        if ("kind" in result) return result;
+        if (result.status === "REPLAYED") return Object.freeze({
+          kind: "REPLAYED",
+          result: Object.freeze({ receiptId: result.receipt_id, replayed: true, rowCount: result.row_count }),
+        });
+        if (result.status === "RETRY") continue;
+        if (result.status === "CHECK_BYTES" || result.status === "ABSENT") throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+        throw new IngestionPersistenceError(result.status);
+      }
+      throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+    });
+  }
+
+  // Only the trusted composition root supplies the decoder. This method has
+  // no public upload route.
+  async persistXlsxPreview(
+    actorInputValue: Actor,
+    input: unknown,
+    originalWorkbook: unknown,
+    correlationInput: string,
+    signal?: AbortSignal,
+  ): Promise<{ receiptId: string; replayed: boolean; rowCount: number }> {
+    const actor = parseActor(actorInputValue);
+    const correlationId = contextSchema(correlationInput);
+    const request = parseIngestion(xlsxRetryInput, input);
+    const admission = await this.prepareXlsxPreview(actor, request, originalWorkbook, correlationId);
+    if (admission.kind === "REPLAYED") return admission.result;
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_preview", correlationId, "PERSISTENCE_FAILED", async () => {
+      signal?.throwIfAborted();
+      const slot = this.xlsxDecoder?.tryAcquire();
+      if (!slot) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+      try {
+        const bound = captureXlsxPreviewRequest({
+          ...request, customerId: actor.customerId, subject: actor.subject, parserContract: admission.parserContract,
+        }, originalWorkbook);
+        const { sourceId, commandKey, configRevision, mappingRevision, sheet, parserContract, workbookBytes, workbookSha256 } = bound.request;
+        const decoded = await slot.decode({ sheet, parserContract }, bound.copyForDecoder(), signal);
+        const grid = parseSpreadsheetGrid(decoded);
+        for (let attempt = 0; attempt < 2; attempt++) {
+          signal?.throwIfAborted();
+          const result = await this.db.$transaction(async (tx) => {
+            const [read] = await tx.$queryRaw<{ result: unknown }[]>`
+              SELECT public.read_ingestion_xlsx_preview(
+                ${actor.customerId}::uuid,${sourceId}::uuid,${actor.subject}::text,${roles}::text[],${commandKey}::text,
+                ${configRevision}::integer,${mappingRevision}::integer,${sheet}::text,${parserContract}::text) AS result`;
+            const prepared = xlsxWriterRead.safeParse(read?.result);
+            if (!prepared.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+            if (prepared.data.status !== "READY") return prepared.data;
+            const { mapping, projectIds, witness, baseline } = prepared.data;
+            if (mapping.sheet !== sheet || mapping.parserContract !== parserContract)
+              throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+            const preview = mapBoundXlsxPreviewGrid(bound.request, grid, { configRevision, config: {
+              customerId: actor.customerId, sourceId, sheet, mappingRevision: String(mappingRevision),
+              fileName: "preview.xlsx", projectIds, identityColumn: mapping.identityColumn,
+              projectColumn: mapping.projectColumn, fields: mapping.fields,
+            } }, baseline);
+            const allowed = new Set(projectIds);
+            const outcomes = preview.rows.map((row, index) => {
+              const projectId = allowed.has(row.projectId) ? row.projectId : null;
+              if (row.status !== "VALID") return {
+                state: row.status, operation: "NONE", errorCodes: readSafeErrors(row),
+                projectId, keySha256: row.identity !== null && projectId !== null ? row.keyHash : null,
+                sourceContentSha256: null, proposals: null,
+              };
+              if (!projectId || !row.keyHash) throw new IngestionPersistenceError("INVALID_PREVIEW");
+              return {
+                state: "ACCEPTED", operation: row.operation, errorCodes: [], projectId, keySha256: row.keyHash,
+                sourceContentSha256: xlsxSourceRowDigest(bound.request, grid.headers, grid.rows[index]!),
+                proposals: normalizeProposals(row.proposals),
+              };
+            });
+            const [stored] = await tx.$queryRaw<{ result: unknown }[]>`
+              SELECT public.finalize_ingestion_xlsx_preview(
+                ${actor.customerId}::uuid,${sourceId}::uuid,${actor.subject}::text,${roles}::text[],${commandKey}::text,
+                ${configRevision}::integer,${mappingRevision}::integer,${sheet}::text,${parserContract}::text,
+                ${workbookBytes}::integer,${workbookSha256}::text,${correlationId}::text,
+                ${JSON.stringify(witness)}::jsonb,${boundedJson(outcomes)}::jsonb) AS result`;
+            const final = xlsxWriterFinal.safeParse(stored?.result);
+            if (!final.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+            return final.data;
+          }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 12000 });
+          if (result.status === "STORED") return { receiptId: result.receiptId, replayed: false, rowCount: result.rowCount };
+          if (result.status === "RETRY") continue;
+          if (result.status === "RECHECK") {
+            const replay = await this.probeXlsxPreviewRetry(actor, request, bound.copyForDecoder(), correlationId);
+            if (replay) return replay;
+            throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+          }
+          throw new IngestionPersistenceError(result.status);
+        }
+        throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+      } finally {
+        slot.release();
+      }
+    });
+  }
+
   async persistCsvPreview(
     actorInputValue: Actor,
     input: { sourceId: string; configRevision: number; mappingRevision: number; commandKey: string; fileName: string; csv: unknown; baseline?: unknown },
@@ -1924,6 +2176,70 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         await saveCsvComparison(tx,prior,receiptId,revisions.configRevision,prepared);
         return { receiptId, replayed: false, rowCount: outcomes.length };
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 60000 });
+    });
+  }
+
+  async readXlsxPreviewReceipt(actorInputValue: Actor, inputValue: unknown) {
+    const actor = parseActor(actorInputValue);
+    const input = parseIngestion(xlsxReceiptReadInput, inputValue);
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_receipt_read", "ingestion.xlsx.receipt.read", "PERSISTENCE_FAILED", async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const [row] = await this.db.$transaction((tx) => tx.$queryRaw<{ result: unknown }[]>`
+          SELECT public.read_ingestion_xlsx_preview_receipt(
+            ${actor.customerId}::uuid,${input.sourceId}::uuid,${actor.subject}::text,${roles}::text[],
+            ${input.previewReceiptId}::uuid,${input.afterOrdinal}::integer) AS result
+        `, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 12000 });
+        const result = xlsxReceiptReadResult.safeParse(row?.result);
+        if (!result.success) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        if (result.data.status === "RETRY") continue;
+        if (result.data.status !== "READY") throw new IngestionPersistenceError(result.data.status);
+        const view = result.data.view;
+        const last = input.afterOrdinal + view.outcomes.length;
+        if (view.sourceId !== input.sourceId || view.previewReceiptId !== input.previewReceiptId ||
+          (input.afterOrdinal < view.rowCount && view.outcomes.length === 0) ||
+          (view.outcomes.length > 0 && last > view.rowCount) ||
+          view.nextOrdinal !== (last < view.rowCount ? last : null) ||
+          view.outcomes.some((outcome, index) => {
+            const available = outcome.proposals !== null;
+            return outcome.ordinal !== input.afterOrdinal + index + 1 ||
+              outcome.contentAvailable !== available ||
+              (available && (outcome.state !== "ACCEPTED" || outcome.projectId === null || outcome.errorCodes.length > 0)) ||
+              outcome.selectable !== (view.selectionState === "OPEN" && available && outcome.operation !== "NONE");
+          }) ||
+          Buffer.byteLength(JSON.stringify(view), "utf8") > 8 * 1024 * 1024)
+          throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        return view;
+      }
+      throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+    });
+  }
+
+  async commitXlsxReviewedImport(actorInputValue: Actor, inputValue: unknown, correlationInput: string) {
+    const actor = parseActor(actorInputValue);
+    const correlationId = contextSchema(correlationInput);
+    const input = parseIngestion(xlsxReviewInput, inputValue);
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_reviewed_import", correlationId, "PERSISTENCE_FAILED", async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await this.db.$transaction(async (tx) => {
+          const [row] = await tx.$queryRaw<{ result: unknown }[]>`
+            SELECT public.commit_ingestion_xlsx_reviewed_import(
+              ${actor.customerId}::uuid,${input.sourceId}::uuid,${actor.subject}::text,${roles}::text[],${input.commandKey}::text,
+              ${input.previewReceiptId}::uuid,${input.previewContextSha256}::text,${input.rowOrdinals}::integer[],${correlationId}::text
+            ) AS result`;
+          return xlsxReviewResult.safeParse(row?.result);
+        }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 12000 });
+        if (!result.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+        if (result.data.status === "STORED" || result.data.status === "REPLAYED") {
+          return ingestionReviewedImportResultSchema.parse({
+            receiptId: result.data.receiptId, parentPreviewReceiptId: input.previewReceiptId,
+            replayed: result.data.status === "REPLAYED", rowCount: result.data.rowCount,
+          });
+        }
+        if (result.data.status !== "RETRY") throw new IngestionPersistenceError(result.data.status);
+      }
+      throw new IngestionPersistenceError("PERSISTENCE_FAILED");
     });
   }
 
@@ -2123,7 +2439,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     return this.run(actor, "receipt_read", "ingestion.receipt.read", "PERSISTENCE_FAILED", async () => {
       const header = await this.db.$queryRaw<{ configRevision: number; kind: string }[]>`
         SELECT "configRevision",kind FROM public."IngestionOperationReceipt"
-        WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND id=${receiptId}::uuid`;
+        WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND id=${receiptId}::uuid AND kind NOT IN ('XLSX_PREVIEW','XLSX_REVIEWED_IMPORT')`;
       if (!header[0]) throw new IngestionPersistenceError("DENIED");
       const originalScope = await this.db.$queryRaw<{ projectId: string }[]>`
         SELECT "projectId" FROM public."IngestionConfigurationProject"
@@ -2131,7 +2447,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         ORDER BY "projectId"`;
       const originalProjectIds = originalScope.map((row) => row.projectId);
       return this.db.$transaction(async (tx) => {
-        await this.authorizedProjects(tx, actor, originalProjectIds, "read");
+        await authorizeIngestionProjects(tx, actor, originalProjectIds, "read");
         const source = await this.currentSource(tx, actor.customerId, sourceId, "SHARE");
         const config = await this.currentConfiguration(tx, source);
         await this.sourceReaders(tx, actor, source, config, originalProjectIds);

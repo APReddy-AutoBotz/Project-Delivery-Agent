@@ -94,7 +94,7 @@ export function parseCsvPreview(input: unknown): {
 // This validates already-decoded, bounded data; it is not a workbook parser or
 // an isolation boundary for arbitrary in-process Proxy objects. A future file
 // adapter must establish physical row/column, formula and sheet semantics first.
-function parseSpreadsheetGrid(input: unknown): { headers: string[]; rows: string[][] } {
+export function parseSpreadsheetGrid(input: unknown): { headers: string[]; rows: string[][] } {
   const invalid = (): never => { throw new IngestionInputError("GRID_SHAPE"); };
   if (!input || typeof input !== "object" || Array.isArray(input)) return invalid();
   const prototype = Object.getPrototypeOf(input);
@@ -324,6 +324,34 @@ export function previewSpreadsheetCsvHashedBaseline(
   baselineInput: unknown,
   hashIdentity: (sheet: string, rawKey: string) => string,
 ): SpreadsheetHashedPreview {
+  return previewSpreadsheetHashedBaseline(
+    configInput,
+    baselineInput,
+    () => parseCsvPreview(csv),
+    hashIdentity,
+  );
+}
+
+export function previewSpreadsheetGridHashedBaseline(
+  grid: unknown,
+  configInput: unknown,
+  baselineInput: unknown,
+  hashIdentity: (sheet: string, rawKey: string) => string,
+): SpreadsheetHashedPreview {
+  return previewSpreadsheetHashedBaseline(
+    configInput,
+    baselineInput,
+    () => parseSpreadsheetGrid(grid),
+    hashIdentity,
+  );
+}
+
+function previewSpreadsheetHashedBaseline(
+  configInput: unknown,
+  baselineInput: unknown,
+  readGrid: () => { headers: string[]; rows: string[][] },
+  hashIdentity: (sheet: string, rawKey: string) => string,
+): SpreadsheetHashedPreview {
   const invalid = (): never => { throw new IngestionInputError("INVALID_BASELINE"); };
   if (baselineInput === undefined || typeof hashIdentity !== "function") return invalid();
   const hashes = new Map<string, string>();
@@ -356,7 +384,7 @@ export function previewSpreadsheetCsvHashedBaseline(
     },
   };
   const { missingPreviousKeys, ...preview } = previewSpreadsheetParsed(
-    configInput, baselineInput, () => parseCsvPreview(csv), strategy,
+    configInput, baselineInput, readGrid, strategy,
   );
   return { ...preview, missingPreviousKeyHashes: missingPreviousKeys,
     rows: preview.rows.map((row) => ({ ...row, keyHash: hashes.get(row.key) ?? null })) };

@@ -398,16 +398,206 @@ local and central ZIP filenames. These narrow fixtures neither implement XLSX
 nor demonstrate archive security. Validate integrity, relationships, workbook
 semantics and actual deployment isolation before enabling any file adapter.
 
-The existing path labels and hashes CSV. Do not convert a workbook to CSV and
-reuse its receipt as if the original upload were CSV. Design a truthful versioned
-XLSX receipt and request hash binding the original workbook digest, selected
-sheet, parser contract, baseline and configuration/mapping revisions. Preserve
-stable customer/source/sheet/row identity, immutable project binding, replay and
-collision rules, current source-reader authorization, retention and historical
-CSV proofs. Any required database changes must be additive and include runtime
-ACL, upgrade, backup and restore verification. The reviewed import remains an
-explicit selection of eligible proposal rows, not a fact or independent
-verification of the workbook's upstream origin.
+### Immutable XLSX receipt binding
+
+FR-CON-006/007 and Issue #7 require a distinct workbook receipt. The
+server-side binding component uses three versioned UTF-8 JSON tuples
+and SHA-256. Native XLSX storage will use distinct receipt kinds and byte identity.
+Existing CSV receipts retain their original proof contracts.
+
+- The request hash binds the customer, source, authenticated subject, command
+  key, supplied configuration and mapping revisions, exact selected sheet,
+  immutable parser contract, original byte length and original byte digest.
+  A bounded, owned copy provides the input to both hashing and the decoder.
+  The adapter will map the persisted `portable-v1` contract to the offline
+  reader's `portable` selector. `excel-text-v1` has the same name in both.
+  Authorization and admission precede workbook capture. On an existing
+  command, use the original parser contract and original request binding
+  before new-command revision checks. Reauthorize current and original
+  project scope and current source readers before disclosing the result.
+  An exact retry uses the finalized result without parsing again. A different
+  input binding under the same key conflicts after authorization.
+- The preview context hash binds the minted receipt ID, request hash, complete
+  sorted project scope and ordered outcomes to the baseline used under lock.
+  A verified genesis has an explicit tag. A retained baseline pins its receipt
+  ID, sequence and state hash even when it has zero rows. Unavailable,
+  corrupt or expired history blocks a new comparison. An advance of the
+  baseline changes the context hash while the original request hash stays
+  available for replay.
+- The selection hash binds the selecting subject and command key to the
+  finalized parent context, source scope and unique ascending eligible
+  parent ordinals. An eligible ordinal identifies a preview data row, and
+  the dense worksheet's physical row is its ordinal plus one. The
+  selection subject can differ from the preview subject under the existing
+  spreadsheet authorization rules. The transaction checks current grants,
+  exact record/projection lineage, live retained content and current
+  revisions before a new save. Old metadata can remain replayable after
+  lawful redaction if current authorization and proof checks pass.
+
+Contexts store safe row states, ordered error codes, opaque row hashes and
+record, revision and projection references with immutable content digests.
+The binding contains no raw workbook, cell values or mutable authorization
+or availability flags. Values under review remain proposals. Workbook
+identity does not establish the upstream authority of a source.
+
+The local component computes and validates these immutable bindings.
+The companion mapper checks the workbook request against the authorized
+mapping snapshot and uses retained hashed identities with the existing
+spreadsheet comparison rules. Workbook row hashes have their own domain
+and preserve exact sheet and row-key text. Both offline decoder profiles
+exercise this path with actual synthetic workbook bytes. A missing
+baseline fails closed even though a verified empty baseline permits new
+rows. Renamed or moved identities retain the existing review safeguards.
+An accepted identity with only empty optional values can retain a
+`NONE` outcome and an empty proposal hash. Selection excludes that row.
+The local migration adds PostgreSQL equivalents of the three tuple hashes.
+The migration owner can evaluate a bounded receipt projection and compare its
+digest with the TypeScript result. Clean and populated upgrade rehearsals check
+parity, and restore tests exercise the owner-only grants after `pg_restore`
+recreates the functions. The database inventory remains at 87 business tables.
+Customer recovery uses the preceding release and its pre-upgrade backup.
+
+The next native storage increment must bind those digests to actual retained
+rows, source scope and record lineage under lock. Exact retry, revocation,
+retention and recovery of the resulting receipts remain launch gates before
+adding an application entry point. Original19/20 capture stays stopped.
+
+### Native workbook source and initial comparison state
+
+The local migration 31 adds an immutable workbook source family selected by the
+migration owner. The source, workbook mapping, PMO authorization, audit and
+empty comparison state are committed together. Activation binds the exact sheet,
+parser profile and mapping revision. The application role uses the legacy
+source configuration and receipt contracts while workbook activation is dormant.
+
+Workbook comparison state has a dedicated UTF-8 digest domain. Its sorted
+identities and mapped-field projection references use the same structural
+rules as the CSV comparison, including carry-forward and stable record and
+project identity. PostgreSQL computes the empty state directly from the sealed
+mapping. Recovery validates the stored genesis and reconstructs the finite
+function and table grants. The preview receipt writer and comparison history
+append still require a native transaction and dedicated validation.
+
+### Native preview receipts and retained comparison state
+
+Migration 32 adds a private `XLSX_PREVIEW` receipt path for the migration owner.
+Each context binds the workbook digest, its exact predecessor, the captured
+project scope and the stored outcome and projection revisions. It writes the
+context and advances the comparison head in the same transaction. A rejected
+append rolls back the receipt, audit, scope and state. Fresh appends verify
+live retained projection content. Historical validation verifies the immutable
+proof after lawful redaction and walks every context during restore.
+
+The synthetic validation fixture creates a valued result, an update with
+partial field carry-forward, and an empty result that retains the prior state.
+It checks the native hashes against TypeScript, rolls back a forged overlay and
+checks an earlier receipt after later previews advance the head. Receipt birth
+locks projects and grants before retention, source and head. The fixtures verify
+serialization, lawful redaction, grant revocation and restore rejection of
+corruption in an older context or captured project scope.
+
+### Exact native preview retry
+
+Migration 33 adds an internal, read-only receipt probe for the API database
+login. The service checks authenticated actor role claims against live grants
+and source readers for the current and captured project scopes before hashing
+workbook bytes. The retry uses the retained parser contract and submitted
+request fields. It returns the prior receipt only when the fingerprint and
+immutable context match. Advancing the comparison head or changing the source
+configuration leaves an exact retry available while access remains current.
+
+The synthetic acceptance fixture uses a direct API login and checks exact
+retry, changed bytes and request metadata, configuration and grant changes,
+contention, and the absence of comparison writes. Bootstrap and restore
+reconstruct the finite function grant. Packaged restore checks that grant in
+quarantine. A separate synthetic PostgreSQL copy permits a direct API login
+for replay across restore, lawful redaction and context corruption checks.
+
+An internal fresh-command decision reads only the parser contract from the
+exact sealed XLSX configuration while the authorization transaction still
+holds the source lock. The decision uses the existing API database grant and
+leaves workbook bytes untouched. A retry returns the stored receipt metadata.
+The synthetic API-login fixture checks both results, denied access, stale
+request fields and stable comparison state.
+
+### Trusted workbook comparison baseline
+
+The database-owner loader reauthorizes the actor and locks projects, grants,
+retention, source and head in the native append order. It verifies the sealed
+mapping, current predecessor and full captured project scope before loading
+projection values. Genesis and a finalized empty head remain distinct. Each
+returned value binds to an authorized project, exact record and projection,
+and the field and type in the head dictionary. Bounds apply to the referenced
+content and the serialized baseline. A changed configuration, missing proof,
+or expired or redacted value makes the baseline unavailable.
+
+This read uses the existing database-owner transaction and creates no
+receipt. Its result stays inside the transaction that will consume it. Native
+fixtures verify genesis, retained empty state, partial carry-forward, role
+denial, stale configuration, redaction and restore.
+
+### API-role native workbook preview transaction
+
+Migration 34 adds two fixed database calls for the existing API login. The
+repository checks exact replay before reserving a decoder slot. For a fresh
+command it copies the bounded workbook and decodes it outside the database
+transaction. In one short transaction, the first call reauthorizes the actor,
+locks the source and complete comparison scope, and loads the sealed mapping
+and retained fields. The in-process mapper derives safe outcomes and a separate
+versioned row-content digest from normalized cell values.
+
+The finalizer rechecks authorization, exact configuration, live retention
+and the predecessor before writing proposal content, outcomes, audit, receipt
+and head atomically. A command that raced during decode leaves the write
+transaction and repeats exact replay. The database receives only typed
+proposals, safe outcomes and hashes. The native append guard checks the result.
+The acceptance fixture uses the actual API login with a bounded synthetic
+decoder adapter. It exercises capture, deduplication, grant revocation during
+decode, atomic rollback, and reconstruction of the finite grants at restore.
+
+The API-owned client uses the selected sheet, sealed parser profile and
+owned bytes. It checks the decoder credentials before sending bytes, binds
+the bounded response to a one-use correlation ID, and retires after an
+unconfirmed transport or cleanup failure. Exact retry resolves the durable
+receipt ahead of decoder admission.
+
+### Decoder-only runtime package
+
+An allowlisted context stages the parser, worker, supervisor and socket
+service with the four locked parser packages. Its manifest binds the staged
+file contents, package lock and Dockerfile. A separate Compose project
+validates the built image with networking disabled, a read-only root,
+dedicated identity, a private cgroup and fixed resource limits.
+The one-shot initializer prepares the volume before the decoder starts.
+Callers use a read-only socket mount.
+
+The service stops admission on shutdown and removes its ownership marker
+after the active exchange and socket close settle. An abnormal stop leaves
+an occupied volume requiring a trusted replacement. The runtime-image
+check uses synthetic workbooks for both profiles, verifies the manifest
+and the read-only caller boundary, and checks clean and abnormal restart.
+
+### Opt-in customer API attachment
+
+The XLSX customer overlay selects a dedicated API image with the
+root-owned peer-checking executable and mounts the decoder's socket
+volume read-only. The API verifies its service identity and the
+fixed mount and executable metadata at startup. The native bridge
+checks the connected decoder UID and GID before forwarding bytes.
+The decoder carries no network or database configuration. The API
+keeps the existing production database role and uses the sealed
+parser profile.
+
+The synthetic customer rehearsal uses the existing bundled and
+external PostgreSQL configurations. It loads the production API
+composition, uses both workbook profiles over the packaged bridge,
+and checks the database login, TLS, exact retry, mismatched bytes
+and proposal-only persistence. The owner verifier independently
+checks native receipt integrity and canonical fact state. Foundation
+collects finite evidence after both disposable projects are removed.
+
+The customer rehearsals, reviewed row selection and live upload
+remain subject to their validation and release gates.
 
 ## Required validation
 

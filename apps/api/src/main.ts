@@ -26,11 +26,16 @@ import {
 import { createApp } from "./app.js";
 import { JiraRuntimeService } from "./jira-runtime.js";
 import { installConnectorRoutes } from "./connector-routes.js";
+import { createConfiguredXlsxDecoder } from "./xlsx-runtime.js";
 installFatalHandlers("api");
 try {
   const config = loadConfig(process.env);
   const db = createDatabase(config.database);
-  const ingestion = new DatabaseIngestionRepository(db, new CredentialVault(config.ENCRYPTION_KEY));
+  const ingestion = new DatabaseIngestionRepository(
+    db,
+    new CredentialVault(config.ENCRYPTION_KEY),
+    createConfiguredXlsxDecoder(process.env.PDAA_XLSX_DECODER_MODE, config),
+  );
   const healthAssessment = new DatabaseHealthAssessmentRepository(db);
   const projectUpdates = new DatabaseProjectUpdateRepository(
     db,

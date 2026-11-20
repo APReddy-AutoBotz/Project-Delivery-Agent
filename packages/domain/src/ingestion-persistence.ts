@@ -8,6 +8,7 @@ import {
 } from "./connector.js";
 import { projectFactIdSchema } from "./project-facts.js";
 import { spreadsheetPreviewConfigSchema } from "./spreadsheet-preview.js";
+import { xlsxParserContractSchema, xlsxSheetSchema } from "./xlsx-comparison-state.js";
 
 const unique = (items: readonly string[]) => new Set(items).size === items.length;
 const field = z
@@ -18,18 +19,21 @@ const field = z
     required: z.boolean(),
   })
   .strict();
+const mappingColumns = {
+  identityColumn: ingestionText(256),
+  projectColumn: ingestionText(256),
+  fields: ingestionArray(field, 32).refine(
+    (fields) =>
+      fields.length > 0 &&
+      unique(fields.map((item) => item.column)) &&
+      unique(fields.map((item) => item.factType)),
+  ),
+};
 const csvMapping = z
   .object({
     kind: z.literal("CSV"),
     sheet: ingestionText(256),
-    identityColumn: ingestionText(256),
-    projectColumn: ingestionText(256),
-    fields: ingestionArray(field, 32).refine(
-      (fields) =>
-        fields.length > 0 &&
-        unique(fields.map((item) => item.column)) &&
-        unique(fields.map((item) => item.factType)),
-    ),
+    ...mappingColumns,
   })
   .strict()
   .refine((value) => value.identityColumn !== value.projectColumn);
@@ -63,6 +67,17 @@ export const ingestionConfigurationSchema = z
 export type IngestionConfiguration = z.infer<
   typeof ingestionConfigurationSchema
 >;
+export const xlsxSourceProvisionSchema = z.strictObject({
+  binding: connectorBindingSchema.safeExtend({ sourceType: z.literal("xlsx") }),
+  changedBy: ingestionText(256),
+  projects: ingestionConfigurationSchema.shape.projects,
+  mapping: z.strictObject({
+    kind: z.literal("XLSX"),
+    sheet: xlsxSheetSchema,
+    parserContract: xlsxParserContractSchema,
+    ...mappingColumns,
+  }).refine((value) => value.identityColumn !== value.projectColumn),
+});
 export const ingestionCommandKeySchema = z
   .string()
   .min(1)

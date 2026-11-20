@@ -10,6 +10,7 @@ COPY apps/worker/package.json ./apps/worker/package.json
 COPY packages/data/package.json ./packages/data/package.json
 COPY packages/domain/package.json ./packages/domain/package.json
 COPY packages/platform/package.json ./packages/platform/package.json
+COPY packages/connectors-jira/package.json ./packages/connectors-jira/package.json
 COPY packages/operations/package.json ./packages/operations/package.json
 RUN pnpm install --frozen-lockfile
 COPY apps ./apps
@@ -55,6 +56,22 @@ FROM runtime AS api
 COPY --from=build --chown=node:node /out/api ./
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s CMD ["node", "-e", "fetch('http://127.0.0.1:3001/api/health/ready',{signal:AbortSignal.timeout(4000)}).then(r=>{process.exitCode=r.ok?0:1}).catch(()=>{process.exitCode=1})"]
 CMD ["node", "dist/main.js"]
+
+# EXEC-045: compile the peer check in a separate pinned, offline build stage.
+FROM gcc:14.3.0-bookworm@sha256:5e927c284bf55a7dc796262e311a0703344f62f41f5621eb56843111b1d37e15 AS xlsx-bridge-build
+WORKDIR /bridge
+COPY deploy/xlsx-isolation/peer-bridge.c ./
+RUN --network=none gcc -std=c17 -O2 -Wall -Wextra -Werror -fPIE -pie \
+    -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wl,-z,relro,-z,now \
+    peer-bridge.c -o pdaa-xlsx-peer-bridge
+
+FROM api AS api-xlsx
+COPY --from=xlsx-bridge-build --chown=0:0 --chmod=0555 /bridge/pdaa-xlsx-peer-bridge /usr/local/libexec/pdaa-xlsx-peer-bridge
+
+# Disposable XLSX owner fixture. This test target has no browser dependencies.
+FROM build AS xlsx-proof
+COPY scripts/acceptance/common.mjs scripts/acceptance/prepare.mjs scripts/acceptance/prepare-customer.mjs scripts/acceptance/xlsx-source-genesis.mjs scripts/acceptance/xlsx-customer-proof.mjs ./scripts/acceptance/
+CMD ["node", "scripts/acceptance/xlsx-customer-proof.mjs"]
 
 FROM runtime AS worker
 COPY --from=build --chown=node:node /out/worker ./

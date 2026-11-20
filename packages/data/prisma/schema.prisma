@@ -889,6 +889,7 @@ model IngestionSource {
   id String @id @db.Uuid
   customerId String @db.Uuid
   sourceType String @db.VarChar(96)
+  inputFamily String @default("LEGACY")
   origin String @db.VarChar(2048)
   currentConfigRevision Int?
   mappingRevision Int @default(0)
@@ -902,6 +903,38 @@ model IngestionSource {
   lastSuccessReceiptId String? @db.Uuid
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   @@unique([customerId, id], map: "IngestionSource_scope_key")
+}
+
+model IngestionXlsxHead {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  activationConfigRevision Int
+  mappingRevision Int
+  dictionary Json
+  genesisSha256 String @db.Char(64)
+  revision Int @default(0)
+  currentReceiptId String? @db.Uuid
+  stateSha256 String? @db.Char(64)
+  canonicalHistoryBytes BigInt @default(0)
+  @@id([customerId, sourceId], map: "IngestionXlsxHead_pkey")
+}
+
+model IngestionXlsxContext {
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  receiptId String @id @db.Uuid
+  revision Int
+  predecessorReceiptId String? @db.Uuid
+  predecessorRevision Int
+  predecessorSha256 String @db.Char(64)
+  workbookBytes Int
+  workbookSha256 String @db.Char(64)
+  contextSha256 String @db.Char(64)
+  rows Json
+  canonicalBytes Int
+  stateSha256 String @db.Char(64)
+  @@unique([customerId, sourceId, revision], map: "IngestionXlsxContext_revision_key")
+  @@unique([customerId, sourceId, revision, receiptId, stateSha256], map: "IngestionXlsxContext_exact_key")
 }
 
 model IngestionCsvHead {

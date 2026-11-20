@@ -16,6 +16,7 @@ import { archivePath, openArchive, requireRestoreTmpfs } from "./archive.js";
 import { postgresTool } from "./backup.js";
 import { createRestoreDiagnostic } from "./restore-diagnostic.js";
 import { quarantineUpdateIssuance } from "./update-engagement-issuance.js";
+import { assertXlsxGenesisIntegrity, assertXlsxPreviewIntegrity, assertXlsxReviewedImportIntegrity } from "./xlsx-genesis-integrity.js";
 
 async function restoreOwners(client: Awaited<ReturnType<typeof connect>>) {
   // Extension objects retain extension ownership. All first-party objects receive
@@ -190,6 +191,12 @@ async function restoreArchive(
         diagnostic.enter("integrity");
         await purgeExpiredIngestionContent(client, config.customerId);
         await quarantineUpdateIssuance(client, config.customerId);
+        if (applied.some((entry) => entry.migration_name === "202611190002_xlsx_source_genesis"))
+          await assertXlsxGenesisIntegrity(client);
+        if (applied.some((entry) => entry.migration_name === "202611190003_xlsx_preview_context"))
+          await assertXlsxPreviewIntegrity(client);
+        if (applied.some((entry) => entry.migration_name === "202611190006_xlsx_reviewed_import"))
+          await assertXlsxReviewedImportIntegrity(client);
         const authorityIntegrity = (
           await client.query(`SELECT
           (SELECT count(*)::int FROM "AuthorityPolicy" WHERE NOT public.valid_authority_history(id)) +

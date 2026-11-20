@@ -37,6 +37,10 @@ import {
 import { loadDatabaseConfig, CredentialVault } from "../../packages/platform/dist/index.js";
 import { prepareCsvRetention } from "./csv-import-native.mjs";
 import { verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
+import { verifyXlsxReceiptCodec } from "./xlsx-receipt-codec.mjs";
+import { verifyXlsxGenesisPrivileges } from "./xlsx-source-genesis.mjs";
+import { verifyXlsxRetryPrivileges } from "./xlsx-preview-retry.mjs";
+import { verifyXlsxWriterPrivileges } from "./xlsx-preview-writer.mjs";
 import { csvCanonicalTables } from "./csv-import-workflow-receipt.mjs";
 import { exerciseCsvImportWorkflow, replayCsvImportAfterRecreation, snapshotCsvBeforeBackup, verifyRestoredCsvImport } from "./csv-import-workflow.mjs";
 import {exerciseCsvComparisonWorkflow,replayCsvComparisonAfterRecreation,snapshotCsvComparisonBeforeBackup,verifyRestoredCsvComparison} from "./csv-comparison-workflow.mjs";
@@ -189,6 +193,8 @@ async function projection(pool) {
     "_prisma_migrations",
     ...projectUpdateTables,
     ...csvComparisonTables,
+    "IngestionXlsxHead",
+    "IngestionXlsxContext",
     ...scheduleHealthPolicyTables,
     ...engagementStorageTables,
     ...updateCaptureTables,
@@ -567,7 +573,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 29);
+    assert.equal(migrations.length, 37);
     assert.equal(migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
@@ -622,6 +628,7 @@ try {
     save("installed-state", state);
   } else if (phase === "before-upgrade") {
     const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(db,undefined,{owner:"pdaa_migrate"});
+    const xlsxReceiptCodec = await verifyXlsxReceiptCodec(db, { owner: "pdaa_migrate" });
     // Product provisioning was proved empty first. Only this guarded test introduces data.
     assert.deepEqual(await projection(db), read("installed-state"));
     await db.query('INSERT INTO "Portfolio" VALUES ($1,$2,$3)', [
@@ -840,11 +847,12 @@ try {
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 87,
+      businessTableCount: 89,
       csvComparisonTables,
       csvComparisonPrivileges,
+      xlsxReceiptCodec,
       engagementStorageTables,
-      migrationCount: 29,
+      migrationCount: 37,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -928,6 +936,13 @@ try {
       const csvFixture = read("csv-import-workflow-fixture");
       csvFixture.restored = await verifyRestoredCsvImport(restored, csvFixture);
       const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(restored,undefined,{owner:"pdaa_migrate"});
+      const xlsxReceiptCodec = await verifyXlsxReceiptCodec(restored, { owner: "pdaa_migrate" });
+      const xlsxGenesisPrivileges = await verifyXlsxGenesisPrivileges(restored,
+        ["pdaa_api","pdaa_worker","pdaa_backup"], { owner:"pdaa_migrate", backupRead:true });
+      const xlsxRetryPrivileges = await verifyXlsxRetryPrivileges(restored, ["pdaa_api","pdaa_worker","pdaa_backup"],
+        {owner:"pdaa_migrate",apiExecute:true});
+      const xlsxWriterPrivileges = await verifyXlsxWriterPrivileges(restored, ["pdaa_api","pdaa_worker","pdaa_backup"],
+        {owner:"pdaa_migrate",apiExecute:true});
       save("csv-import-workflow-fixture", csvFixture);
       const csvComparison=read("csv-comparison-workflow-fixture");
       csvComparison.restored=await verifyRestoredCsvComparison(restored,csvComparison);
@@ -991,6 +1006,10 @@ try {
       } finally { await restoredEngagementDb.$disconnect(); }
       receipt.restore = {
         csvComparisonPrivileges,
+        xlsxReceiptCodec,
+        xlsxGenesisPrivileges,
+        xlsxRetryPrivileges,
+        xlsxWriterPrivileges,
         ingestionReassessment: await verifyRestoredReassessments(restored, receipt.ingestionReassessment),
         engagementStorageChecked: true,
         engagementSourceSatisfactionChecked: true,

@@ -134,7 +134,44 @@ it("rebuilds finite released and ingestion function boundaries before granting o
   const csvGuards = ["public.guard_ingestion_csv_head()","public.initialize_ingestion_csv_head()",
     "public.guard_ingestion_csv_context()","public.require_ingestion_csv_complete()",
     "public.guard_ingestion_receipt()","public.guard_ingestion_reviewed_import()","public.require_ingestion_receipt_complete()"];
-  expect(revoked).toHaveLength(10);
+  const xlsxCodecFunctions = [
+    "public.ingestion_xlsx_v1_uuid(jsonb)",
+    "public.ingestion_xlsx_v1_digest(jsonb)",
+    "public.ingestion_xlsx_v1_uint(jsonb,integer)",
+    "public.ingestion_xlsx_v1_text(jsonb,integer)",
+    "public.ingestion_xlsx_v1_scope(jsonb)",
+    "public.ingestion_xlsx_v1_request_hash(jsonb)",
+    "public.ingestion_xlsx_v1_outcome(jsonb,integer,jsonb)",
+    "public.ingestion_xlsx_v1_context_hash(jsonb)",
+    "public.ingestion_xlsx_v1_selection_hash(jsonb,jsonb)",
+  ];
+  const xlsxGenesisFunctions = [
+    "public.ingestion_xlsx_v1_state_text(uuid,uuid,integer,jsonb,jsonb,jsonb,jsonb)",
+    "public.valid_ingestion_xlsx_mapping(jsonb)",
+    "public.guard_ingestion_xlsx_source()",
+    "public.guard_ingestion_xlsx_mapping_family()",
+    "public.initialize_ingestion_xlsx_head()",
+    "public.valid_ingestion_xlsx_genesis(uuid,uuid)",
+    "public.require_ingestion_xlsx_genesis()",
+    "public.guard_ingestion_xlsx_legacy_write()",
+  ];
+  const xlsxContextFunctions = [
+    "public.ingestion_xlsx_overlay(uuid,jsonb,jsonb)",
+    "public.valid_ingestion_xlsx_context(uuid)",
+    "public.guard_ingestion_xlsx_head_advance()",
+    "public.append_ingestion_xlsx_context()",
+    "public.guard_ingestion_xlsx_graph_owner()",
+    "public.valid_ingestion_xlsx_head(uuid,uuid)",
+  ];
+  const xlsxRetryFunction = "public.probe_ingestion_xlsx_retry(uuid,uuid,text,text[],text,integer,integer,text,integer,text)";
+  const xlsxWriterApi = [
+    "public.read_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text)",
+    "public.finalize_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text,integer,text,text,jsonb,jsonb)",
+  ];
+  const xlsxReviewApi = "public.commit_ingestion_xlsx_reviewed_import(uuid,uuid,text,text[],text,uuid,text,integer[],text)";
+  const xlsxReceiptReader = "public.read_ingestion_xlsx_preview_receipt(uuid,uuid,text,text[],uuid,integer)";
+  const xlsxCatalogue = "public.list_ingestion_xlsx_sources(uuid,text,text[],uuid)";
+  expect(revoked).toHaveLength(18);
   expect(
     revoked
       .flatMap((match) => splitFunctionSignatures(match[1]!))
@@ -153,12 +190,28 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...captureGuards,
       ...reassessmentValidators, ...reassessmentGuards,
       ...csvValidators,...csvGuards,
+      ...xlsxCodecFunctions,
+      ...xlsxGenesisFunctions,
+      ...xlsxContextFunctions,
+      xlsxRetryFunction,
+      ...xlsxWriterApi,
+      "public.lock_ingestion_xlsx_preview(uuid,uuid,text,text[],text,integer,integer,text,text)",
+      "public.materialize_ingestion_xlsx_fields(uuid,uuid,integer,text,jsonb)",
+      "public.require_ingestion_xlsx_preview_complete()",
+      xlsxReviewApi,
+      "public.verified_ingestion_xlsx_context(uuid)",
+      "public.valid_ingestion_xlsx_reviewed_import(uuid)",
+      "public.require_ingestion_xlsx_reviewed_import_complete()",
+      xlsxReceiptReader,
+      "public.can_read_ingestion_xlsx_preview(uuid,uuid,text,text[],integer,integer,uuid[],uuid[],uuid[])",
+      xlsxCatalogue,
+      "public.guard_ingestion_configuration()",
     ].sort(),
   );
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
   ];
-  expect(granted).toHaveLength(8);
+  expect(granted).toHaveLength(13);
   expect(granted.flatMap((match) => splitFunctionSignatures(match[1]!)).sort()).toEqual(
     [
       "public.valid_canonical_state_binding(uuid)",
@@ -174,6 +227,11 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       ...updateValidators,
       ...reassessmentValidators,
       ...csvValidators,
+      xlsxRetryFunction,
+      ...xlsxWriterApi,
+      xlsxReviewApi,
+      xlsxReceiptReader,
+      xlsxCatalogue,
       "public.lock_update_issuance_gate(uuid)",
       "public.purge_update_capture_content(uuid)",
     ].sort(),
@@ -188,7 +246,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
     }
   expect([
     ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(18);
+  ]).toHaveLength(31);
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {
