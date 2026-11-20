@@ -29,10 +29,15 @@ import {
   previewSpreadsheetCsvHashedBaseline,
   projectFactIdSchema,
   projectFactSubjectSchema,
-  xlsxMappingRevisionSchema,
+  xlsxCatalogueInputSchema,
+  xlsxCataloguePageSchema,
   xlsxParserContractSchema,
+  xlsxPreviewCommandSchema,
+  xlsxPreviewPageInputSchema,
+  xlsxPreviewPageSchema,
   xlsxPreviewReviewDetailsInputSchema,
   xlsxPreviewReviewDetailsSchema,
+  xlsxReviewedImportRequestSchema,
   xlsxSheetSchema,
   validateConnectorPage,
   validateConnectorRecord,
@@ -112,61 +117,21 @@ type ReceiptRow = {
 };
 
 const idSchema = projectFactIdSchema;
-const xlsxCatalogueInput = z.strictObject({ afterSourceId: idSchema.nullable() });
 const xlsxCatalogueResult = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("DENIED") }),
-  z.strictObject({
-    status: z.literal("READY"),
-    sources: z.array(z.strictObject({
-      sourceId: idSchema,
-      configRevision: xlsxMappingRevisionSchema,
-      mappingRevision: xlsxMappingRevisionSchema,
-      sheet: xlsxSheetSchema,
-    })).max(50),
-    nextSourceId: idSchema.nullable(),
-  }),
+  xlsxCataloguePageSchema.extend({ status: z.literal("READY") }),
 ]);
-const xlsxReceiptOrdinal = z.number().int().min(1).max(1000);
-const xlsxReceiptReadInput = z.strictObject({
-  sourceId: idSchema,
-  previewReceiptId: idSchema,
-  afterOrdinal: z.number().int().min(0).max(1000),
-});
-const xlsxReceiptPage = z.strictObject({
-  sourceId: idSchema,
-  previewReceiptId: idSchema,
-  createdAt: z.iso.datetime(),
-  configRevision: xlsxMappingRevisionSchema,
-  mappingRevision: xlsxMappingRevisionSchema,
-  rowCount: z.number().int().min(0).max(1000),
-  previewContextSha256: z.string().regex(/^[a-f0-9]{64}$/u),
-  selectionState: z.enum(["OPEN", "REVIEWED", "STALE"]),
-  outcomes: z.array(z.strictObject({
-    ordinal: xlsxReceiptOrdinal,
-    state: ingestionRowStateSchema,
-    operation: ingestionRowOperationSchema,
-    errorCodes: z.array(ingestionSafeErrorSchema).max(16),
-    projectId: idSchema.nullable(),
-    contentAvailable: z.boolean(),
-    selectable: z.boolean(),
-    proposals: z.array(ingestionProposalSchema).max(32).nullable(),
-  })).max(50),
-  nextOrdinal: xlsxReceiptOrdinal.nullable(),
-});
 const xlsxReceiptReadFailure = z.strictObject({
   status: z.enum(["DENIED", "RETRY", "RETENTION_REQUIRED", "INVALID_REQUEST", "INTEGRITY_CONFLICT"]),
 });
 const xlsxReceiptReadResult = z.discriminatedUnion("status", [
-  z.strictObject({ status: z.literal("READY"), view: xlsxReceiptPage }),
+  z.strictObject({ status: z.literal("READY"), view: xlsxPreviewPageSchema }),
   xlsxReceiptReadFailure,
 ]);
 const xlsxReviewDetailsResult = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("READY"), view: xlsxPreviewReviewDetailsSchema }),
   xlsxReceiptReadFailure,
 ]);
-const xlsxReviewInput = ingestionReviewedImportRequestSchema.extend({
-  previewContextSha256: z.string().regex(/^[a-f0-9]{64}$/u),
-});
 const xlsxReviewResult = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.enum(["STORED", "REPLAYED"]),
@@ -178,13 +143,6 @@ const xlsxReviewResult = z.discriminatedUnion("status", [
       "INVALID_REQUEST", "INVALID_PREVIEW", "INTEGRITY_CONFLICT"]),
   }),
 ]);
-const xlsxRetryInput = z.strictObject({
-  sourceId: idSchema,
-  commandKey: ingestionCommandKeySchema,
-  configRevision: xlsxMappingRevisionSchema,
-  mappingRevision: xlsxMappingRevisionSchema,
-  sheet: xlsxSheetSchema,
-});
 const xlsxRetryResult = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("REPLAYED"), receipt_id: idSchema, row_count: z.number().int().min(0).max(1000) }),
   z.strictObject({
@@ -1640,7 +1598,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
 
   async listXlsxSources(actorInputValue: Actor, inputValue: unknown) {
     const actor = parseActor(actorInputValue);
-    const { afterSourceId } = parseIngestion(xlsxCatalogueInput, inputValue);
+    const { afterSourceId } = parseIngestion(xlsxCatalogueInputSchema, inputValue);
     const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
     return this.run(actor, "xlsx_source_list", "ingestion.xlsx.source.list", "PERSISTENCE_FAILED", async () => {
       // Authorization precedes pagination, so a sparse reader can scan beyond one page.
@@ -1931,7 +1889,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
   ): Promise<XlsxPreviewAdmission> {
     const actor = parseActor(actorInputValue);
     const correlationId = contextSchema(correlationInput);
-    const request = parseIngestion(xlsxRetryInput, input);
+    const request = parseIngestion(xlsxPreviewCommandSchema, input);
     const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
     return this.run(actor, "xlsx_preview_retry", correlationId, "PERSISTENCE_FAILED", async () => {
       if (!roles.length) throw new IngestionPersistenceError("DENIED");
@@ -1985,8 +1943,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     });
   }
 
-  // Only the trusted composition root supplies the decoder. This method has
-  // no public upload route.
+  // Only the trusted composition root supplies the decoder.
   async persistXlsxPreview(
     actorInputValue: Actor,
     input: unknown,
@@ -1996,7 +1953,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
   ): Promise<{ receiptId: string; replayed: boolean; rowCount: number }> {
     const actor = parseActor(actorInputValue);
     const correlationId = contextSchema(correlationInput);
-    const request = parseIngestion(xlsxRetryInput, input);
+    const request = parseIngestion(xlsxPreviewCommandSchema, input);
     const admission = await this.prepareXlsxPreview(actor, request, originalWorkbook, correlationId);
     if (admission.kind === "REPLAYED") return admission.result;
     const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
@@ -2009,7 +1966,11 @@ export class DatabaseIngestionRepository implements IngestionRepository {
           ...request, customerId: actor.customerId, subject: actor.subject, parserContract: admission.parserContract,
         }, originalWorkbook);
         const { sourceId, commandKey, configRevision, mappingRevision, sheet, parserContract, workbookBytes, workbookSha256 } = bound.request;
-        const decoded = await slot.decode({ sheet, parserContract }, bound.copyForDecoder(), signal);
+        signal?.throwIfAborted();
+        // Browser cancellation stops storage. The bounded exchange settles
+        // under its own deadline so a disconnect cannot retire the shared slot.
+        const decoded = await slot.decode({ sheet, parserContract }, bound.copyForDecoder());
+        signal?.throwIfAborted();
         const grid = parseSpreadsheetGrid(decoded);
         for (let attempt = 0; attempt < 2; attempt++) {
           signal?.throwIfAborted();
@@ -2197,7 +2158,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
 
   async readXlsxPreviewReceipt(actorInputValue: Actor, inputValue: unknown) {
     const actor = parseActor(actorInputValue);
-    const input = parseIngestion(xlsxReceiptReadInput, inputValue);
+    const input = parseIngestion(xlsxPreviewPageInputSchema, inputValue);
     const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
     return this.run(actor, "xlsx_receipt_read", "ingestion.xlsx.receipt.read", "PERSISTENCE_FAILED", async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -2259,7 +2220,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
   async commitXlsxReviewedImport(actorInputValue: Actor, inputValue: unknown, correlationInput: string) {
     const actor = parseActor(actorInputValue);
     const correlationId = contextSchema(correlationInput);
-    const input = parseIngestion(xlsxReviewInput, inputValue);
+    const input = parseIngestion(xlsxReviewedImportRequestSchema, inputValue);
     const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
     return this.run(actor, "xlsx_reviewed_import", correlationId, "PERSISTENCE_FAILED", async () => {
       for (let attempt = 0; attempt < 2; attempt++) {

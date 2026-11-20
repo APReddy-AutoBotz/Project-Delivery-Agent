@@ -31,10 +31,14 @@ installFatalHandlers("api");
 try {
   const config = loadConfig(process.env);
   const db = createDatabase(config.database);
+  const xlsxDecoder = createConfiguredXlsxDecoder(process.env.PDAA_XLSX_DECODER_MODE, config);
+  const xlsxImportMode = process.env.PDAA_XLSX_BROWSER_IMPORT ?? "disabled";
+  if (xlsxImportMode !== "disabled" && (xlsxImportMode !== "enabled" || !xlsxDecoder))
+    throw new Error("XLSX_IMPORT_CONFIGURATION");
   const ingestion = new DatabaseIngestionRepository(
     db,
     new CredentialVault(config.ENCRYPTION_KEY),
-    createConfiguredXlsxDecoder(process.env.PDAA_XLSX_DECODER_MODE, config),
+    xlsxDecoder,
   );
   const healthAssessment = new DatabaseHealthAssessmentRepository(db);
   const projectUpdates = new DatabaseProjectUpdateRepository(
@@ -63,6 +67,7 @@ try {
     new DatabaseScalarConflictObservationRepository(db),
     new DatabaseMilestoneStateDisagreementRepository(db),
     new DatabaseMilestoneConflictObservationRepository(db),
+    xlsxImportMode === "enabled" ? ingestion : null,
   );
   app.enableShutdownHooks();
   await app.listen(config.API_PORT, config.API_HOST);

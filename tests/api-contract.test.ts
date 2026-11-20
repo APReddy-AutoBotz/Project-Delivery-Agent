@@ -6,6 +6,8 @@ import { gzipSync } from "node:zlib";
 import { createDisclosureCheck } from "../scripts/acceptance/disclosure.mjs";
 import { createApp } from "../apps/api/dist/app.js";
 import { unavailableIngestionRepository } from "../apps/api/dist/ingestion-controller.js";
+import type { XlsxApplicationRepository } from "../apps/api/dist/xlsx-ingestion-controller.js";
+import { request as httpRequest } from "node:http";
 import {
   scalarContractFixture,
   scalarId,
@@ -188,6 +190,48 @@ const scalarRepository = {
 const ingestionSourceId = "30000000-0000-4000-8000-000000000101";
 const ingestionPreviewId = "30000000-0000-4000-8000-000000000102";
 const ingestionReviewId = "30000000-0000-4000-8000-000000000103";
+const xlsxSourcePath = `/api/ingestion/xlsx/sources/${ingestionSourceId}`;
+const xlsxUploadPath = xlsxSourcePath + "/previews";
+const xlsxPreviewPath = xlsxUploadPath + "/" + ingestionPreviewId;
+const xlsxSheet = "État des projets";
+const xlsxPreviewResult = { receiptId: ingestionPreviewId, replayed: false, rowCount: 1 };
+const xlsxRepository = {
+  listXlsxSources: vi.fn<XlsxApplicationRepository["listXlsxSources"]>(async () => ({
+    sources: [{ sourceId: ingestionSourceId, configRevision: 1, mappingRevision: 1, sheet: xlsxSheet }],
+    nextSourceId: null,
+  })),
+  persistXlsxPreview: vi.fn<XlsxApplicationRepository["persistXlsxPreview"]>(async () => xlsxPreviewResult),
+  readXlsxPreviewReceipt: vi.fn<XlsxApplicationRepository["readXlsxPreviewReceipt"]>(async () => ({
+    sourceId: ingestionSourceId, previewReceiptId: ingestionPreviewId,
+    createdAt: "2026-11-20T00:00:00.000Z", configRevision: 1, mappingRevision: 1,
+    rowCount: 1, previewContextSha256: "a".repeat(64), selectionState: "OPEN",
+    outcomes: [{ ordinal: 1, state: "ACCEPTED", operation: "CREATE", errorCodes: [],
+      projectId: project.id, contentAvailable: true, selectable: true,
+      proposals: [{ factType: "project.status", value: { type: "text", value: "Active" } }] }],
+    nextOrdinal: null,
+  })),
+  readXlsxPreviewReviewDetails: vi.fn<XlsxApplicationRepository["readXlsxPreviewReviewDetails"]>(async () => ({
+    sourceId: ingestionSourceId, previewReceiptId: ingestionPreviewId, configRevision: 1, mappingRevision: 1,
+    mapping: { sheet: xlsxSheet, identityColumn: "Key", projectColumn: "Project",
+      fields: [{ column: "Status", factType: "project.status", type: "text", required: true }] },
+    reviewedImport: null,
+  })),
+  commitXlsxReviewedImport: vi.fn<XlsxApplicationRepository["commitXlsxReviewedImport"]>(async () => ({
+    receiptId: ingestionReviewId, parentPreviewReceiptId: ingestionPreviewId, rowCount: 1, replayed: false,
+  })),
+} satisfies XlsxApplicationRepository;
+
+function xlsxForm(file = new Blob(["synthetic workbook"], {
+  type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+})) {
+  const form = new FormData();
+  form.set("file", file, "synthetic.xlsx");
+  form.set("commandKey", "contract-xlsx-command");
+  form.set("configRevision", "1");
+  form.set("mappingRevision", "1");
+  form.set("sheet", Buffer.from(xlsxSheet).toString("base64url"));
+  return form;
+}
 const ingestionConfiguration = {
   binding: {
     customerId,
@@ -494,6 +538,7 @@ beforeAll(async () => {
           observedAt: "2026-10-20T00:00:00.000Z", versionValidUntil: "2026-10-23T00:00:00.000Z", assessedValidUntil: "2026-10-22T00:00:00.000Z" }] })) })) },
     { readForLeaderManager: vi.fn(async (_actor, projectId, selectedMilestone) => ({ observation: { projectId, milestoneId: selectedMilestone,
       asOf: "2026-10-21T11:00:00.000Z", ruleRevision: "milestone-required-state/v1" as const, outcome: "NOT_DETECTED" as const }, requestStatus: null })) },
+    xlsxRepository,
   ));
   check = compileContract(spec);
   await app.listen(0, "127.0.0.1");
@@ -933,13 +978,24 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   check.request("POST", "/api/ingestion/sources/{sourceId}/reviewed-imports", reviewedImportBody);
   await request(`/api/ingestion/sources/${ingestionSourceId}/reviewed-imports`, 201, pmoPortfolio, "POST", reviewedImportBody);
   await request(`/api/ingestion/sources/${ingestionSourceId}/receipts/${ingestionReviewId}`, 200, pmoPortfolio);
+  await request("/api/ingestion/xlsx/sources", 200, pmoPortfolio);
+  await request(xlsxUploadPath, 201, pmoPortfolio, "POST", xlsxForm());
+  const command = xlsxRepository.persistXlsxPreview.mock.calls.at(-1)!;
+  expect(command[1]).toEqual({ sourceId: ingestionSourceId, commandKey: "contract-xlsx-command",
+    configRevision: 1, mappingRevision: 1, sheet: xlsxSheet });
+  expect(command[2]).toEqual(Buffer.from("synthetic workbook"));
+  await request(xlsxPreviewPath + "?afterOrdinal=0", 200, pmoPortfolio);
+  await request(xlsxPreviewPath + "/review-details", 200, pmoPortfolio);
+  await request(xlsxSourcePath + "/reviewed-imports", 201, pmoPortfolio, "POST", {
+    ...reviewedImportBody, previewContextSha256: "a".repeat(64),
+  });
   const declared = Object.entries(spec.paths).flatMap(([path, item]) =>
     Object.keys(item)
       .filter((method) => ["get", "post", "delete"].includes(method))
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(72);
+  expect(covered.size).toBe(77);
   assertContractSnapshot(
     spec,
     JSON.parse(
@@ -947,6 +1003,127 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     ),
   );
 });
+it("FR-CON-006: XLSX upload is disabled by default and authenticates before body parsing", async () => {
+  const disabled = await createApp(config, repository);
+  await disabled.app.listen(0, "127.0.0.1");
+  try {
+    const response = await fetch(await disabled.app.getUrl() + xlsxUploadPath, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{",
+    });
+    expect(response.status).toBe(404);
+  } finally { await disabled.app.close(); }
+
+  const calls = xlsxRepository.persistXlsxPreview.mock.calls.length;
+  for (const path of [xlsxUploadPath, xlsxUploadPath.toUpperCase() + "/"]) {
+    const unauthenticated = await fetch(base + path, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{",
+    });
+    expect(unauthenticated.status).toBe(401);
+    const wrongMedia = await fetch(base + path, {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + pmoPortfolio }, body: "{",
+    });
+    expect(wrongMedia.status).toBe(415);
+  }
+  await request(xlsxUploadPath, 404, leader, "POST", xlsxForm());
+  expect(xlsxRepository.persistXlsxPreview.mock.calls).toHaveLength(calls);
+});
+
+it("FR-CON-006: XLSX upload bounds original bytes and the complete multipart body", async () => {
+  await request(xlsxUploadPath, 201, pmoPortfolio, "POST", xlsxForm(new Blob([new Uint8Array(1_048_576)])));
+  const calls = xlsxRepository.persistXlsxPreview.mock.calls.length;
+  await request(xlsxUploadPath, 413, pmoPortfolio, "POST", xlsxForm(new Blob([new Uint8Array(1_048_577)])));
+  const duplicate = xlsxForm();
+  duplicate.append("sheet", Buffer.from(xlsxSheet).toString("base64url"));
+  await request(xlsxUploadPath, 400, pmoPortfolio, "POST", duplicate);
+  const invalidSheet = xlsxForm();
+  invalidSheet.set("sheet", "/w==");
+  await request(xlsxUploadPath, 400, pmoPortfolio, "POST", invalidSheet);
+
+  const encoded = new Request(base + xlsxUploadPath, { method: "POST", body: xlsxForm() });
+  const body = Buffer.from(await encoded.arrayBuffer());
+  const status = await new Promise<number | undefined>((resolve, reject) => {
+    const upload = httpRequest(base + xlsxUploadPath, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + pmoPortfolio,
+        "Content-Type": encoded.headers.get("Content-Type")!, "Transfer-Encoding": "chunked" },
+    }, (response) => {
+      response.resume();
+      response.once("end", () => resolve(response.statusCode));
+    });
+    upload.once("error", reject);
+    upload.write(body);
+    upload.end(Buffer.alloc(1_064_960));
+  });
+  expect(status).toBe(413);
+  expect(xlsxRepository.persistXlsxPreview.mock.calls).toHaveLength(calls);
+});
+
+it("FR-CON-006: an incomplete XLSX body reaches its deadline and releases the intake lease", async () => {
+  const calls = xlsxRepository.persistXlsxPreview.mock.calls.length;
+  const status = await new Promise<number | undefined>((resolve, reject) => {
+    const upload = httpRequest(base + xlsxUploadPath, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + pmoPortfolio,
+        "Content-Type": "multipart/form-data; boundary=synthetic-stalled-upload",
+        "Transfer-Encoding": "chunked",
+      },
+    }, (response) => {
+      response.resume();
+      response.once("end", () => {
+        resolve(response.statusCode);
+        upload.destroy();
+      });
+    });
+    upload.once("error", reject);
+    upload.setTimeout(14_000, () => upload.destroy(new Error("XLSX deadline response missing")));
+    upload.write("--synthetic-stalled-upload\r\n");
+  });
+  expect(status).toBe(400);
+  expect(xlsxRepository.persistXlsxPreview.mock.calls).toHaveLength(calls);
+  await request(xlsxUploadPath, 201, pmoPortfolio, "POST", xlsxForm());
+}, 16_000);
+
+it("FR-CON-006: a browser disconnect signals cancellation while the upload keeps its lease", async () => {
+  const release = Promise.withResolvers<void>();
+  const firstStarted = Promise.withResolvers<AbortSignal>();
+  const secondStarted = Promise.withResolvers<AbortSignal>();
+  xlsxRepository.persistXlsxPreview
+    .mockImplementationOnce(async (_actor, _input, _workbook, _correlationId, signal) => {
+      firstStarted.resolve(signal!);
+      await release.promise;
+      return xlsxPreviewResult;
+    })
+    .mockImplementationOnce(async (_actor, _input, _workbook, _correlationId, signal) => {
+      secondStarted.resolve(signal!);
+      await release.promise;
+      return xlsxPreviewResult;
+    });
+  const client = new AbortController();
+  const start = (signal?: AbortSignal) => fetch(base + xlsxUploadPath, {
+    method: "POST", headers: { Authorization: "Bearer " + pmoPortfolio }, body: xlsxForm(),
+    ...(signal ? { signal } : {}),
+  });
+  const first = start(client.signal).catch(() => null);
+  let second: Promise<Response> | undefined;
+  try {
+    const firstSignal = await firstStarted.promise;
+    second = start();
+    const secondSignal = await secondStarted.promise;
+    expect(firstSignal.aborted).toBe(false);
+    expect(secondSignal.aborted).toBe(false);
+    await request(xlsxUploadPath, 429, pmoPortfolio, "POST", xlsxForm());
+    client.abort();
+    await vi.waitFor(() => expect(firstSignal.aborted).toBe(true));
+    await request(xlsxUploadPath, 429, pmoPortfolio, "POST", xlsxForm());
+  } finally {
+    release.resolve();
+    await first;
+    if (second) expect((await second).status).toBe(201);
+  }
+  await request(xlsxUploadPath, 201, pmoPortfolio, "POST", xlsxForm());
+});
+
 it("EXEC-022: suggestions require authentication and keep scope denials private", async () => {
   const path = `/api/projects/${project.id}/delivery-suggestions`;
   await request(path, 401);

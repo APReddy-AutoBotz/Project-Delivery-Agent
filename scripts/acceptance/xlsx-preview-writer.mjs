@@ -31,7 +31,7 @@ export async function verifyXlsxWriterPrivileges(pool, roles, { owner, apiExecut
 async function verifyWriterCancellation(db, vault, actor, config, workbook, grid) {
   // Signal at specific await boundaries while preserving the real SQL and transaction.
   const cancelledKeys = [];
-  for (const boundary of ["start", "read", "finalize"]) {
+  for (const boundary of ["decode", "start", "read", "finalize"]) {
     const controller = new AbortController();
     const observed = [];
     let decoded = false;
@@ -61,8 +61,10 @@ async function verifyWriterCancellation(db, vault, actor, config, workbook, grid
       vault,
       {
         tryAcquire: () => ({
-          async decode() {
+          async decode(_input, _workbook, transportSignal) {
+            assert.equal(transportSignal, undefined);
             decoded = true;
+            if (boundary === "decode") controller.abort();
             return grid;
           },
           release() { released = true; },
@@ -76,6 +78,7 @@ async function verifyWriterCancellation(db, vault, actor, config, workbook, grid
     );
     assert(controller.signal.aborted && released);
     assert.deepEqual(observed, {
+      decode: [],
       start: [],
       read: [["read", "READY"]],
       finalize: [["read", "READY"], ["finalize", "STORED"]],

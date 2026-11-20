@@ -2,6 +2,35 @@
   "reviewDate": "2026-09-06",
   "entries": [
     {
+      "name": "busboy",
+      "version": "1.6.0",
+      "runtime": true,
+      "consumers": ["@pdaa/api"],
+      "license": "MIT",
+      "repository": "https://github.com/mscdex/busboy",
+      "source": "https://registry.npmjs.org/busboy/1.6.0",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "EXEC-045 bounded input design; independent exact-candidate review required",
+      "reviewDate": "2026-11-20",
+      "replacementPath": "Replace behind the XLSX multipart intake boundary",
+      "reason": "Reuse the pinned multipart parser already present in the API graph with a whole-request budget before parsing"
+    },
+    {
+      "name": "@types/busboy",
+      "version": "1.5.5",
+      "runtime": false,
+      "consumers": ["@pdaa/api"],
+      "license": "MIT",
+      "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/busboy",
+      "source": "https://registry.npmjs.org/@types/busboy/1.5.5",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "EXEC-045 bounded input design; independent exact-candidate review required",
+      "reviewDate": "2026-11-20",
+      "replacementPath": "Remove with the multipart parser dependency"
+    },
+    {
       "name": "@ryotsu/picomatch",
       "version": "4.0.7-a",
       "reason": "Temporary development tooling security replacement for picomatch 4.0.7 under ADR-016",

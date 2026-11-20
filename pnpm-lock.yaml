@@ -95,6 +95,9 @@ importers:
       '@pdaa/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      busboy:
+        specifier: 1.6.0
+        version: 1.6.0
       reflect-metadata:
         specifier: 0.2.2
         version: 0.2.2
@@ -104,6 +107,10 @@ importers:
       zod:
         specifier: 4.6.6
         version: 4.6.6
+    devDependencies:
+      '@types/busboy':
+        specifier: 1.5.5
+        version: 1.5.5
 
   apps/web:
     dependencies:
@@ -1075,6 +1082,9 @@ packages:
 
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
+
+  '@types/busboy@1.5.5':
+    resolution: {integrity: sha512-IwqrfVFxWa23c4WeE7uZswssCqGfvnl5Q7b1pdshbT3HaQDa3UIbJx5BAxtcj9nZYX9tVDArM9TUv9SpvORbpQ==}
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -3458,6 +3468,10 @@ snapshots:
   '@types/babel__traverse@7.28.0':
     dependencies:
       '@babel/types': 7.29.8
+
+  '@types/busboy@1.5.5':
+    dependencies:
+      '@types/node': 24.0.0
 
   '@types/chai@5.2.3':
     dependencies:
