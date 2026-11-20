@@ -1,0 +1,25 @@
+# EXEC-045 disposable browser verifier. Product services and database access are
+# defined by the customer composition and the existing owner fixture.
+services:
+  xlsx-browser:
+    profiles: [test]
+    image: ${PDAA_XLSX_BROWSER_EVIDENCE_IMAGE:?}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    environment:
+      NODE_ENV: production
+      PDAA_XLSX_BROWSER_PROOF: isolated-customer
+      PDAA_CUSTOMER_PROFILE: ${PDAA_CUSTOMER_PROFILE:?}
+      NODE_EXTRA_CA_CERTS: /run/secrets/xlsx-browser-ca.crt
+    secrets: [xlsx-browser-ca.crt, xlsx-browser-login]
+    volumes:
+      - ${PDAA_XLSX_BROWSER_FIXTURE_DIR:?}:/xlsx-browser:ro
+    command: [node, scripts/acceptance/xlsx-customer-browser.mjs]
+
+secrets:
+  xlsx-browser-ca.crt:
+    file: "${PDAA_SECRET_DIR:?}/ca.crt"
+  xlsx-browser-login:
+    file: "${PDAA_SECRET_DIR:?}/login-password"

@@ -2,7 +2,10 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
-import { assertXlsxPreviewIntegrity } from "../../packages/operations/dist/xlsx-genesis-integrity.js";
+import {
+  assertXlsxPreviewIntegrity,
+  assertXlsxReviewedImportIntegrity,
+} from "../../packages/operations/dist/xlsx-genesis-integrity.js";
 import { Pool, secret } from "./common.mjs";
 import { proveXlsxSourceGenesis } from "./xlsx-source-genesis.mjs";
 
@@ -11,6 +14,8 @@ const customerId = "10000000-0000-4000-8000-000000000002";
 const customerName = "Controlled customer installation";
 const profiles = ["portable-v1", "excel-text-v1"];
 const command = "fixture-packaged-xlsx-preview";
+const bridgeSubject = "synthetic-workbook-pmo";
+const browserSubject = "pmo-atlas";
 const phase = process.argv[2];
 let pool;
 let step = "environment";
@@ -22,9 +27,9 @@ async function cases() {
        ON r."customerId"=h."customerId" AND r."sourceId"=h."sourceId" AND r."configRevision"=1
      JOIN public."IngestionConfigurationRevision" c
        ON c."customerId"=h."customerId" AND c."sourceId"=h."sourceId" AND c.revision=1
-     WHERE h."customerId"=$1 AND c.mapping->>'sheet'='Portfolio'
+     WHERE h."customerId"=$1 AND r.subject=$2 AND c.mapping->>'sheet'='Portfolio'
      ORDER BY c.mapping->>'parserContract'`,
-    [customerId],
+    [customerId, bridgeSubject],
   );
   assert.deepEqual(rows.map((row) => row.profile).sort(), [...profiles].sort());
   return rows;
@@ -67,6 +72,7 @@ async function prepare() {
       existingCustomer: customerId,
       sheet: "Portfolio",
       parserContract,
+      reviewer: browserSubject,
     });
   const bindings = await cases();
   step = "retention-fixture";
@@ -162,9 +168,78 @@ async function verify(expected) {
   };
 }
 
+async function verifyBrowser(expected) {
+  step = "browser-receipt-verification";
+  assert.match(expected.canonicalSha256, /^[a-f0-9]{64}$/u);
+  assert.deepEqual(expected.results.map(({ profile }) => profile).sort(), [...profiles].sort());
+  assert.deepEqual(expected.bridge.map(({ profile }) => profile).sort(), [...profiles].sort());
+  await assertXlsxPreviewIntegrity(pool);
+  await assertXlsxReviewedImportIntegrity(pool);
+  assert.equal(await canonicalDigest(), expected.canonicalSha256);
+  for (const { profile, sourceId, projectId } of await cases()) {
+    const wanted = expected.results.find((result) => result.profile === profile);
+    const predecessor = expected.bridge.find((result) => result.profile === profile);
+    assert.equal(wanted.sourceId, sourceId);
+    assert.match(wanted.workbookSha256, /^[a-f0-9]{64}$/u);
+    assert.match(wanted.previewContextSha256, /^[a-f0-9]{64}$/u);
+    const { rows: contexts } = await pool.query(
+      `SELECT x."receiptId",x."predecessorReceiptId",x."workbookSha256",x."contextSha256",
+         x.revision,r.subject,r."outcomeCount",r."executionMode",
+         (SELECT count(*)::int FROM public."IngestionXlsxContext" c
+          WHERE c."customerId"=h."customerId" AND c."sourceId"=h."sourceId") AS contexts,
+         (SELECT count(*)::int FROM public."IngestionOperationReceipt" p
+          WHERE p."customerId"=h."customerId" AND p."sourceId"=h."sourceId"
+            AND p.kind='XLSX_PREVIEW') AS previews
+       FROM public."IngestionXlsxHead" h
+       JOIN public."IngestionXlsxContext" x ON x."customerId"=h."customerId"
+         AND x."sourceId"=h."sourceId" AND x."receiptId"=h."currentReceiptId" AND x.revision=h.revision
+       JOIN public."IngestionOperationReceipt" r ON r."customerId"=x."customerId"
+         AND r."sourceId"=x."sourceId" AND r.id=x."receiptId" AND r.kind='XLSX_PREVIEW'
+       WHERE h."customerId"=$1 AND h."sourceId"=$2`,
+      [customerId, sourceId],
+    );
+    assert.deepEqual(contexts, [{
+      receiptId: wanted.previewReceiptId,
+      predecessorReceiptId: predecessor.receiptId,
+      workbookSha256: wanted.workbookSha256,
+      contextSha256: wanted.previewContextSha256,
+      revision: 2,
+      subject: browserSubject,
+      outcomeCount: 52,
+      executionMode: "HUMAN",
+      contexts: 2,
+      previews: 2,
+    }]);
+    const { rows: reviews } = await pool.query(
+      `SELECT i."receiptId",i."previewReceiptId",r.subject,r."outcomeCount",r."executionMode",
+         (SELECT array_agg(s."previewOrdinal" ORDER BY s.ordinal) FROM public."IngestionReviewedImportRow" s
+          WHERE s."customerId"=i."customerId" AND s."sourceId"=i."sourceId"
+            AND s."receiptId"=i."receiptId" AND s."previewReceiptId"=i."previewReceiptId") AS selected,
+         (SELECT array_agg(o."projectId" ORDER BY o.ordinal) FROM public."IngestionRowOutcome" o
+          WHERE o."customerId"=i."customerId" AND o."sourceId"=i."sourceId"
+            AND o."receiptId"=i."receiptId" AND o.state='ACCEPTED' AND o."projectionId" IS NOT NULL) AS projects
+       FROM public."IngestionOperationReceipt" r
+       JOIN public."IngestionReviewedImport" i ON i."customerId"=r."customerId"
+         AND i."sourceId"=r."sourceId" AND i."receiptId"=r.id
+       WHERE r."customerId"=$1 AND r."sourceId"=$2 AND r.kind='XLSX_REVIEWED_IMPORT'`,
+      [customerId, sourceId],
+    );
+    assert.deepEqual(reviews, [{
+      receiptId: wanted.reviewedReceiptId,
+      previewReceiptId: wanted.previewReceiptId,
+      subject: browserSubject,
+      outcomeCount: 2,
+      executionMode: "HUMAN",
+      selected: [1, 51],
+      projects: [projectId, projectId],
+    }]);
+  }
+  return { canonicalStateUnchanged: true, verifiedReviewedImports: profiles.length };
+}
+
 try {
   const profile = env.PDAA_CUSTOMER_PROFILE;
-  assert(["prepare", "verify"].includes(phase));
+  assert(["prepare", "verify", "verify-browser"].includes(phase));
   assert(["bundled", "external"].includes(profile));
   assert.equal(env.PDAA_ACCEPTANCE, "customer-composition");
   assert.equal(env.NODE_ENV, "production");
@@ -182,10 +257,8 @@ try {
   assert.equal(env.PDAA_DB_PASSWORD_FILE, "/run/secrets/admin-password");
   assert.equal(secret("customer-ready"), "isolated customer composition\n");
   pool = new Pool(loadDatabaseConfig(env).database);
-  const result =
-    phase === "prepare"
-      ? await prepare()
-      : await verify(JSON.parse(process.argv[3]));
+  const result = phase === "prepare" ? await prepare()
+    : await (phase === "verify" ? verify : verifyBrowser)(JSON.parse(process.argv[3]));
   process.stdout.write(JSON.stringify(result) + "\n");
 } catch {
   process.stderr.write("XLSX_CUSTOMER_PROOF_FAILED " + step + "\n");

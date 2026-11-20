@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   copyFileSync,
   mkdirSync,
@@ -11,6 +11,7 @@ import {
 import { join } from "node:path";
 import {
   book,
+  customerBrowserBook,
   excelTextParts,
   fixtureParts,
 } from "../../tests/fixtures/xlsx-test-worksheet.ts";
@@ -31,7 +32,7 @@ const inherited = Object.fromEntries(
     ([key]) => !/^(DOCKER_|COMPOSE_|PDAA_)/u.test(key),
   ),
 );
-const targetNames = ["api-xlsx", "operations", "xlsx-proof", "xlsx-decoder"];
+const targetNames = ["api-xlsx", "operations", "web", "xlsx-proof", "acceptance", "xlsx-decoder"];
 const names = Object.fromEntries(
   targetNames.map((name) => [name, "pdaa-" + name + ":" + run]),
 );
@@ -61,7 +62,7 @@ function docker(step, args, env = {}, timeout = 120_000) {
   );
   if (child.status !== 0 || child.error) {
     const proofStep = child.stderr?.match(
-      /^XLSX_CUSTOMER_PROOF_FAILED (environment|provisioned-customer|source-genesis|retention-fixture|receipt-verification)\r?$/mu,
+      /^XLSX_CUSTOMER_(?:PROOF|BROWSER)_FAILED (environment|provisioned-customer|source-genesis|retention-fixture|receipt-verification|browser-receipt-verification|identity-readiness|browser-toolchain|sign-in|workbook-import|receipt-reload|scope-denial)\r?$/mu,
     )?.[1];
     const detail = proofStep ? step + " (" + proofStep + ")" : step;
     throw new Error("XLSX customer rehearsal failed at " + detail, {
@@ -109,8 +110,9 @@ function exercise(profile) {
   const folder = join(local, profile);
   const secrets = join(folder, "secrets");
   const proof = join(folder, "proof");
+  const browserProof = join(proof, "browser");
   mkdirSync(secrets, { recursive: true, mode: 0o700 });
-  mkdirSync(proof, { mode: 0o755 });
+  mkdirSync(browserProof, { recursive: true, mode: 0o755 });
   const env = {
     CUSTOMER_ID: "10000000-0000-4000-8000-000000000002",
     CUSTOMER_NAME: "Controlled customer installation",
@@ -130,14 +132,17 @@ function exercise(profile) {
     OIDC_CLIENT_ID: "pdaa-web",
     OIDC_AUDIENCE: "pdaa-api",
     OIDC_SCOPE: "openid pdaa.read",
-    OIDC_GROUP_ROLE_MAP: "{}",
+    OIDC_GROUP_ROLE_MAP: '{"project-managers":["project_manager"],"pmo-admins":["pmo_admin"]}',
     PDAA_API_IMAGE: "unused-api:base",
     PDAA_WORKER_IMAGE: "unused-worker:base",
-    PDAA_WEB_IMAGE: "unused-web:base",
+    PDAA_WEB_IMAGE: images.web,
     PDAA_OPERATIONS_IMAGE: images.operations,
     PDAA_ACCEPTANCE_IMAGE: images["xlsx-proof"],
     PDAA_XLSX_API_IMAGE: images["api-xlsx"],
     PDAA_XLSX_DECODER_IMAGE: images["xlsx-decoder"],
+    PDAA_XLSX_BROWSER_IMPORT: "enabled",
+    PDAA_XLSX_BROWSER_EVIDENCE_IMAGE: images.acceptance,
+    PDAA_XLSX_BROWSER_FIXTURE_DIR: hostPath(browserProof),
     PDAA_ACCEPTANCE_RUN_ID: run,
     PDAA_CUSTOMER_PROFILE: profile,
     PDAA_ARTIFACT_DIR: "/workspace/artifacts/" + run + "/" + profile,
@@ -163,15 +168,17 @@ function exercise(profile) {
     "operations",
     ...(profile === "external" ? ["--profile", "external"] : []),
   ];
-  const call = (step, args) => docker(profile + "-" + step, args, env);
-  const compose = (step, ...args) =>
-    call(step, [
-      ...base,
-      "-f",
-      "deploy/customer/xlsx-decoder.yaml",
-      ...fixture,
-      ...args,
-    ]);
+  const call = (step, args, timeout) => docker(profile + "-" + step, args, env, timeout);
+  const composeArgs = (...args) => [
+    ...base,
+    "-f",
+    "deploy/customer/xlsx-decoder.yaml",
+    ...fixture,
+    "-f",
+    "deploy/acceptance/xlsx-browser-fixture.yaml",
+    ...args,
+  ];
+  const compose = (step, ...args) => call(step, composeArgs(...args));
   const defaultModel = JSON.parse(
     call("default-config", [...base, ...fixture, "config", "--format", "json"]),
   );
@@ -180,6 +187,7 @@ function exercise(profile) {
     defaultModel.services.api.environment.PDAA_XLSX_DECODER_MODE,
     undefined,
   );
+  assert.equal(defaultModel.services.api.environment.PDAA_XLSX_BROWSER_IMPORT, undefined);
   const model = JSON.parse(
     compose("opt-in-config", "config", "--format", "json"),
   );
@@ -197,6 +205,9 @@ function exercise(profile) {
     model.services.api.depends_on["xlsx-decoder"].condition,
     "service_healthy",
   );
+  assert.equal(model.services.api.environment.PDAA_XLSX_BROWSER_IMPORT, "enabled");
+  assert.deepEqual(model.services["xlsx-browser"].secrets.map(({ source }) => source).sort(),
+    ["xlsx-browser-ca.crt", "xlsx-browser-login"]);
 
   let composed = false;
   const fixtureMount = "type=bind,src=" + hostPath(secrets) + ",dst=/fixture";
@@ -272,6 +283,7 @@ function exercise(profile) {
     "excel-text-v1",
     "portable-v1",
   ]);
+  const workbookHashes = new Map();
   for (const { profile, projectId } of seed.bindings) {
     assert.match(projectId, /^[0-9a-f-]{36}$/u);
     const values = [
@@ -279,11 +291,16 @@ function exercise(profile) {
       ["0001", projectId, "On track", "2027-03-02"],
       ["0002", projectId, "At risk", "2027-04-15"],
     ];
-    const parts =
-      profile === "portable-v1" ? fixtureParts(values) : excelTextParts(values);
-    writeFileSync(join(proof, profile + ".xlsx"), book(parts));
+    const parts = profile === "portable-v1" ? fixtureParts : excelTextParts;
+    writeFileSync(join(proof, profile + ".xlsx"), book(parts(values)));
+    const workbook = customerBrowserBook(profile, projectId);
+    writeFileSync(join(browserProof, profile + ".xlsx"), workbook);
+    workbookHashes.set(profile, createHash("sha256").update(workbook).digest("hex"));
   }
   writeFileSync(join(proof, "bindings.json"), JSON.stringify(seed.bindings));
+  writeFileSync(join(browserProof, "bindings.json"), JSON.stringify(
+    seed.bindings.map(({ sourceId, profile }) => ({ sourceId, profile })),
+  ));
   copyFileSync(
     join(root, "scripts/xlsx-runtime/api-client-proof.mjs"),
     join(proof, "api-client-proof.mjs"),
@@ -341,6 +358,21 @@ function exercise(profile) {
     canonicalStateUnchanged: true,
     verifiedContexts: 2,
   });
+  compose("start-web-and-identity", "up", "-d", "--wait", "--wait-timeout", "90", "web", "identity-ingress");
+  assert.equal(container("web").Image, images.web);
+  const browser = JSON.parse(call(
+    "packaged-browser",
+    composeArgs("run", "--rm", "--no-deps", "xlsx-browser"),
+    240_000,
+  ));
+  const browserVerified = ownerProof("verify-browser-receipts", "verify-browser", JSON.stringify({
+    canonicalSha256: seed.canonicalSha256,
+    bridge: client.results,
+    results: browser.results.map((result) => ({
+      ...result, workbookSha256: workbookHashes.get(result.profile),
+    })),
+  }));
+  assert.deepEqual(browserVerified, { canonicalStateUnchanged: true, verifiedReviewedImports: 2 });
   active.get(project)();
   active.delete(project);
   return {
@@ -355,6 +387,16 @@ function exercise(profile) {
     exactReplayWithoutAdmission: true,
     wrongPeerDenied: true,
     readOnlySocket: true,
+    browser: {
+      webImage: images.web,
+      verifierImage: images.acceptance,
+      toolchain: browser.toolchain,
+      bothParserProfiles: true,
+      trustedTlsAndOidc: true,
+      exactHttpReplay: true,
+      protectedReloadAndDenial: true,
+      ...browserVerified,
+    },
   };
 }
 

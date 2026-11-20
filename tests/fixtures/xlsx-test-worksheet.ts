@@ -164,6 +164,18 @@ export function book(parts: Map<string, string>): Buffer {
   );
 }
 
+export function customerBrowserBook(profile: "portable-v1" | "excel-text-v1", projectId: string) {
+  const values = [
+    ["Key", "Project", "Status", "Forecast"],
+    ["0001", projectId, "On track", "2027-03-03"],
+    ["0002", projectId, "At risk", "invalid date"],
+    ...Array.from({ length: 50 }, (_, index) => [
+      String(index + 3).padStart(4, "0"), projectId, "On track", "2027-07-01",
+    ]),
+  ];
+  return book(profile === "portable-v1" ? fixtureParts(values) : excelTextParts(values));
+}
+
 export function modify(
   parts: Map<string, string>,
   part: string,
