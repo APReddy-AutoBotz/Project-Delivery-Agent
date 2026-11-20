@@ -317,6 +317,21 @@
       "replacementPath": "Replace development tooling"
     },
     {
+      "name": "effect",
+      "version": "3.22.2",
+      "reason": "Prisma CLI configuration dependency pinned to a release that fixes GHSA-7589-6fvf-x4pw",
+      "runtime": false,
+      "consumers": ["prisma tooling via @prisma/config"],
+      "license": "MIT",
+      "repository": "git+https://github.com/Effect-TS/effect.git",
+      "source": "https://registry.npmjs.org/effect/3.22.2",
+      "modified": false,
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated implementation controller and independent review",
+      "reviewDate": "2026-11-20",
+      "replacementPath": "Remove the override after Prisma pins a patched Effect release"
+    },
+    {
       "name": "eslint",
       "version": "10.10.0",
       "runtime": false,
