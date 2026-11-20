@@ -28,6 +28,63 @@ export async function verifyXlsxWriterPrivileges(pool, roles, { owner, apiExecut
   return { finiteWriterGrant: true };
 }
 
+async function verifyWriterCancellation(db, vault, actor, config, workbook, grid) {
+  // Signal at specific await boundaries while preserving the real SQL and transaction.
+  const cancelledKeys = [];
+  for (const boundary of ["start", "read", "finalize"]) {
+    const controller = new AbortController();
+    const observed = [];
+    let decoded = false;
+    let released = false;
+    const repository = new DatabaseIngestionRepository(
+      new Proxy(db, {
+        get(target, name) {
+          if (name === "$transaction") return (callback, options) =>
+            target.$transaction(async (tx) => {
+              if (!decoded) return callback(tx);
+              if (boundary === "start") controller.abort();
+              return callback({
+                async $queryRaw(parts, ...values) {
+                  const phase = /public\.(read|finalize)_ingestion_xlsx_preview\(/u.exec(parts.join(""))?.[1];
+                  assert(phase);
+                  const rows = await tx.$queryRaw(parts, ...values);
+                  observed.push([phase, rows[0]?.result?.status]);
+                  if (phase === boundary) controller.abort();
+                  return rows;
+                },
+              });
+            }, options);
+          const value = Reflect.get(target, name);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }),
+      vault,
+      {
+        tryAcquire: () => ({
+          async decode() {
+            decoded = true;
+            return grid;
+          },
+          release() { released = true; },
+        }),
+      },
+    );
+    const commandKey = "fixture-writer-cancel-" + boundary;
+    await assert.rejects(
+      repository.persistXlsxPreview(actor, { ...config, commandKey }, workbook, randomUUID(), controller.signal),
+      { code: "PERSISTENCE_FAILED" },
+    );
+    assert(controller.signal.aborted && released);
+    assert.deepEqual(observed, {
+      start: [],
+      read: [["read", "READY"]],
+      finalize: [["read", "READY"], ["finalize", "STORED"]],
+    }[boundary]);
+    cancelledKeys.push(commandKey);
+  }
+  return cancelledKeys;
+}
+
 export async function proveNativeXlsxPreviewWriter(pool, apiConnection) {
   const { rows } = await pool.query(`SELECT s."customerId",s.id AS "sourceId",s."currentConfigRevision" AS "configRevision",
     s."mappingRevision",c.mapping->>'sheet' AS sheet,e."projectId",h.revision,h."currentReceiptId"
@@ -111,6 +168,7 @@ export async function proveNativeXlsxPreviewWriter(pool, apiConnection) {
       await pool.query(`UPDATE public."AccessGrant" SET role='pmo_admin' WHERE id=$1`, [firstLockingGrant]);
     }
 
+    const cancelledKeys = await verifyWriterCancellation(db, vault, actor, config, workbook, grid);
     const failedKey = "fixture-writer-invalid-operation";
     const keyHash = createHash("sha256").update(JSON.stringify(["pdaa.xlsx.row-key.v1",config.sheet,"Fixture-1"])).digest("hex");
     const byteHash = createHash("sha256").update(workbook).digest("hex");
@@ -139,7 +197,7 @@ export async function proveNativeXlsxPreviewWriter(pool, apiConnection) {
         WHERE "sourceId"=$1 AND "commandKey"=ANY($2::text[])) AS receipts,
       (SELECT count(*)::integer FROM public."IngestionSourceRevision" WHERE "sourceId"=$1) AS revisions,
       (SELECT count(*)::integer FROM public."IngestionProposalProjection" WHERE "sourceId"=$1) AS projections`,
-      [config.sourceId, [failedKey, "fixture-writer-revoked"]]);
+      [config.sourceId, [failedKey, "fixture-writer-revoked", ...cancelledKeys]]);
     assert.deepEqual(rolledBack.rows, [{ receipts: 0, revisions: 3, projections: 3 }]);
 
     const stored = await pool.query(`SELECT h.revision,h."currentReceiptId",x."predecessorReceiptId",r."commandKey",o.operation,p."factTypes"
@@ -155,6 +213,6 @@ export async function proveNativeXlsxPreviewWriter(pool, apiConnection) {
         commandKey: race.commandKey, operation: "UNCHANGED", factTypes: ["project.forecast", "project.status"] },
     ]);
     return { apiWroteNativePreview: true, exactRetrySkippedDecoder: true, concurrentDecodeReplayed: true,
-      revokedDuringDecodeDenied: true, failedAppendRolledBack: true, retainedContexts: 5 };
+      revokedDuringDecodeDenied: true, cancelledWritesRolledBack: true, failedAppendRolledBack: true, retainedContexts: 5 };
   } finally { await db.$disconnect(); }
 }

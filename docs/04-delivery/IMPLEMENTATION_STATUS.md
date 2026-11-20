@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-11-18
+Updated: 2026-11-20
 
 ## Accepted implementation completion
 
@@ -32,6 +32,16 @@ and R1 5/33. Issues #7/#8/#9, unfinished stories and all five release holds
 remain open. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
+
+[PR #176](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/176)
+merged native XLSX source provisioning, preview receipts, exact retry, reviewed
+proposal persistence and the packaged customer decoder bridge as
+`4ac6f7e3b8a94263179a9d1eba7a1611added8df`. The reviewed candidate,
+hosted checks and post-merge results are recorded in
+[EXEC-045](exec-plans/EXEC-045-xlsx-proposal-preview.md#native-xlsx-integration-evidence).
+The bridge exercised both workbook profiles on bundled and external PostgreSQL.
+The user-facing upload and selected-row save journey still needs implementation
+and browser proof. Issue #7 and the customer-release holds remain open.
 
 Trusted CSV comparison and reviewed import merged in
 [PR #168](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/168)

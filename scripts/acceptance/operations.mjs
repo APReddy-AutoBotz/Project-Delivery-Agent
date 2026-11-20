@@ -607,7 +607,7 @@ try {
       const xlsxReceiptCodec = await verifyXlsxReceiptCodec(pool, { owner: "pdaa_migrate" });
       const xlsxGenesisPrivileges = await verifyXlsxGenesisPrivileges(pool,
         ["pdaa_api","pdaa_worker","pdaa_backup"], { owner:"pdaa_migrate", backupRead:true });
-      assert.equal(expected.IngestionXlsxHead.length, 3);
+      assert.equal(expected.IngestionXlsxHead.length, 55);
       assert.equal(expected.IngestionXlsxContext.length, 8);
       const xlsxGenesisRestore = await verifyNativeXlsxPreviewRestore(pool, 8);
       const xlsxComparisonSource = expected.IngestionXlsxHead.find((head) => head.revision === 5);
