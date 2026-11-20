@@ -31,6 +31,8 @@ import {
   projectFactSubjectSchema,
   xlsxMappingRevisionSchema,
   xlsxParserContractSchema,
+  xlsxPreviewReviewDetailsInputSchema,
+  xlsxPreviewReviewDetailsSchema,
   xlsxSheetSchema,
   validateConnectorPage,
   validateConnectorRecord,
@@ -151,11 +153,16 @@ const xlsxReceiptPage = z.strictObject({
   })).max(50),
   nextOrdinal: xlsxReceiptOrdinal.nullable(),
 });
+const xlsxReceiptReadFailure = z.strictObject({
+  status: z.enum(["DENIED", "RETRY", "RETENTION_REQUIRED", "INVALID_REQUEST", "INTEGRITY_CONFLICT"]),
+});
 const xlsxReceiptReadResult = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("READY"), view: xlsxReceiptPage }),
-  z.strictObject({
-    status: z.enum(["DENIED", "RETRY", "RETENTION_REQUIRED", "INVALID_REQUEST", "INTEGRITY_CONFLICT"]),
-  }),
+  xlsxReceiptReadFailure,
+]);
+const xlsxReviewDetailsResult = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("READY"), view: xlsxPreviewReviewDetailsSchema }),
+  xlsxReceiptReadFailure,
 ]);
 const xlsxReviewInput = ingestionReviewedImportRequestSchema.extend({
   previewContextSha256: z.string().regex(/^[a-f0-9]{64}$/u),
@@ -2217,6 +2224,31 @@ export class DatabaseIngestionRepository implements IngestionRepository {
               outcome.selectable !== (view.selectionState === "OPEN" && available && outcome.operation !== "NONE");
           }) ||
           Buffer.byteLength(JSON.stringify(view), "utf8") > 8 * 1024 * 1024)
+          throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        return view;
+      }
+      throw new IngestionPersistenceError("PERSISTENCE_FAILED");
+    });
+  }
+
+  async readXlsxPreviewReviewDetails(actorInputValue: Actor, inputValue: unknown) {
+    const actor = parseActor(actorInputValue);
+    const { sourceId, previewReceiptId } = parseIngestion(xlsxPreviewReviewDetailsInputSchema, inputValue);
+    const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
+    return this.run(actor, "xlsx_review_details", "ingestion.xlsx.review.details", "PERSISTENCE_FAILED", async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const [row] = await this.db.$transaction((tx) => tx.$queryRaw<{ result: unknown }[]>`
+          SELECT public.read_ingestion_xlsx_preview_review_details(
+            ${actor.customerId}::uuid,${sourceId}::uuid,${actor.subject}::text,${roles}::text[],${previewReceiptId}::uuid
+          ) AS result
+        `, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 12000 });
+        const result = xlsxReviewDetailsResult.safeParse(row?.result);
+        if (!result.success) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
+        if (result.data.status === "RETRY") continue;
+        if (result.data.status !== "READY") throw new IngestionPersistenceError(result.data.status);
+        const view = result.data.view;
+        if (view.sourceId !== sourceId || view.previewReceiptId !== previewReceiptId ||
+          view.reviewedImport?.receiptId === previewReceiptId)
           throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
         return view;
       }

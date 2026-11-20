@@ -58,6 +58,7 @@ export const xlsxReceiptReadFunctions = Object.freeze([
   "public.can_read_ingestion_xlsx_preview(uuid,uuid,text,text[],integer,integer,uuid[],uuid[],uuid[])",
 ]);
 export const xlsxSourceCatalogueApi = "public.list_ingestion_xlsx_sources(uuid,text,text[],uuid)";
+export const xlsxReviewDetailsApi = "public.read_ingestion_xlsx_preview_review_details(uuid,uuid,text,text[],uuid)";
 
 export async function assertBusinessTableOwner(client: Pick<Client, "query">) {
   const principals = (
@@ -375,6 +376,29 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         WHERE p.oid=catalogue AND acl.grantee<>p.proowner
           AND (acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable))
       THEN RAISE EXCEPTION 'Unexpected XLSX source catalogue function privileges'; END IF;
-    END $xlsx_catalogue_acl$
+    END $xlsx_catalogue_acl$;
+    DO $xlsx_review_details_acl$
+    DECLARE
+      review_details regprocedure := to_regprocedure('${xlsxReviewDetailsApi}');
+      recorded boolean := false;
+    BEGIN
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611200001_xlsx_preview_review_details') INTO recorded;
+      END IF;
+      IF review_details IS NULL AND NOT recorded THEN RETURN; END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid=review_details
+        AND p.prosecdef AND p.provolatile='v' AND NOT p.proretset AND p.prorettype='jsonb'::regtype
+        AND p.proowner=to_regrole('pdaa_migrate')
+        AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp','DateStyle=ISO, YMD','TimeZone=UTC'])
+      THEN RAISE EXCEPTION 'Unexpected XLSX review details function boundary'; END IF;
+      REVOKE ALL ON FUNCTION ${xlsxReviewDetailsApi} FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT EXECUTE ON FUNCTION ${xlsxReviewDetailsApi} TO pdaa_api;
+      IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
+        CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+        WHERE p.oid=review_details AND acl.grantee<>p.proowner
+          AND (acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable))
+      THEN RAISE EXCEPTION 'Unexpected XLSX review details function privileges'; END IF;
+    END $xlsx_review_details_acl$
   `);
 }
