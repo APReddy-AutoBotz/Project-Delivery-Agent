@@ -62,7 +62,7 @@ function docker(step, args, env = {}, timeout = 120_000) {
   );
   if (child.status !== 0 || child.error) {
     const proofStep = child.stderr?.match(
-      /^XLSX_CUSTOMER_(?:PROOF|BROWSER)_FAILED (environment|provisioned-customer|source-genesis|retention-fixture|receipt-verification|browser-receipt-verification|identity-readiness|browser-toolchain|sign-in|workbook-import|receipt-reload|scope-denial)\r?$/mu,
+      /^XLSX_CUSTOMER_(?:PROOF|BROWSER)_FAILED (environment|provisioned-customer|source-genesis|retention-fixture|receipt-verification|browser-receipt-verification|identity-readiness|browser-toolchain|sign-in|workbook-import|receipt-reload|scope-denial|restore-target|restore-quarantine)\r?$/mu,
     )?.[1];
     const detail = proofStep ? step + " (" + proofStep + ")" : step;
     throw new Error("XLSX customer rehearsal failed at " + detail, {
@@ -70,6 +70,16 @@ function docker(step, args, env = {}, timeout = 120_000) {
     });
   }
   return child.stdout.trim();
+}
+
+function operationResult(output, operation, customerId) {
+  const lines = output.split("\n").filter((line) => line.startsWith('{"operation":"' + operation + '",'));
+  assert.equal(lines.length, 1);
+  const receipt = JSON.parse(lines[0]);
+  assert.equal(receipt.operation, operation);
+  assert.equal(receipt.status, "passed");
+  assert.equal(receipt.result.customerId, customerId);
+  return receipt.result;
 }
 
 function checkSocketBoundary(api, decoder, project) {
@@ -367,14 +377,32 @@ function exercise(profile) {
     composeArgs("run", "--rm", "--no-deps", "xlsx-browser"),
     240_000,
   ));
-  const browserVerified = ownerProof("verify-browser-receipts", "verify-browser", JSON.stringify({
+  const browserExpectation = JSON.stringify({
     canonicalSha256: seed.canonicalSha256,
     bridge: client.results,
     results: browser.results.map((result) => ({
       ...result, workbookSha256: workbookHashes.get(result.profile),
     })),
-  }));
+  });
+  const browserVerified = ownerProof("verify-browser-receipts", "verify-browser", browserExpectation);
   assert.deepEqual(browserVerified, { canonicalStateUnchanged: true, verifiedReviewedImports: 2 });
+  const backup = operationResult(compose("backup-browser-receipts", "run", "--rm", "--no-deps", "backup"),
+    "backup", env.CUSTOMER_ID);
+  assert.equal(backup.encrypted, true);
+  assert.match(backup.file, /^backup-[a-zA-Z0-9-]+\.pdaa$/u);
+  assert.deepEqual(ownerProof("create-restore-target", "create-restore-target"), { restoreTargetCreated: true });
+  const restore = operationResult(compose(
+    "restore-browser-receipts", "run", "--rm", "--no-deps",
+    "-e", "PDAA_DB_NAME=pdaa_xlsx_restore",
+    "-e", "PDAA_OPS_TARGET=" + database + ":5432/pdaa_xlsx_restore",
+    "operations", "restore", backup.file,
+  ), "restore", env.CUSTOMER_ID);
+  assert.equal(restore.quarantine, true);
+  assert.equal(restore.applicationStarted, false);
+  const recovery = ownerProof("verify-restored-browser", "verify-restored-browser", browserExpectation);
+  assert.deepEqual(recovery, {
+    canonicalStateUnchanged: true, verifiedReviewedImports: 2, quarantined: true, finiteReceiptReadGrants: true,
+  });
   active.get(project)();
   active.delete(project);
   return {
@@ -399,6 +427,7 @@ function exercise(profile) {
       protectedReloadAndDenial: true,
       ...browserVerified,
     },
+    recovery: { encrypted: true, ...recovery },
   };
 }
 

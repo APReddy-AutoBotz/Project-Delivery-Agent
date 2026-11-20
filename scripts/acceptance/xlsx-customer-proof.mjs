@@ -6,6 +6,7 @@ import {
   assertXlsxPreviewIntegrity,
   assertXlsxReviewedImportIntegrity,
 } from "../../packages/operations/dist/xlsx-genesis-integrity.js";
+import { xlsxReceiptReadApi, xlsxReviewDetailsApi } from "../../packages/operations/dist/business-grants.js";
 import { Pool, secret } from "./common.mjs";
 import { proveXlsxSourceGenesis } from "./xlsx-source-genesis.mjs";
 
@@ -16,6 +17,7 @@ const profiles = ["portable-v1", "excel-text-v1"];
 const command = "fixture-packaged-xlsx-preview";
 const bridgeSubject = "synthetic-workbook-pmo";
 const browserSubject = "pmo-atlas";
+const restoreDatabase = "pdaa_xlsx_restore";
 const phase = process.argv[2];
 let pool;
 let step = "environment";
@@ -217,7 +219,11 @@ async function verifyBrowser(expected) {
             AND s."receiptId"=i."receiptId" AND s."previewReceiptId"=i."previewReceiptId") AS selected,
          (SELECT array_agg(o."projectId" ORDER BY o.ordinal) FROM public."IngestionRowOutcome" o
           WHERE o."customerId"=i."customerId" AND o."sourceId"=i."sourceId"
-            AND o."receiptId"=i."receiptId" AND o.state='ACCEPTED' AND o."projectionId" IS NOT NULL) AS projects
+            AND o."receiptId"=i."receiptId" AND o.state='ACCEPTED' AND o."projectionId" IS NOT NULL) AS projects,
+         (SELECT count(*)::int FROM public."IngestionRowOutcome" o
+          JOIN public."IngestionProposalContent" c ON c."customerId"=o."customerId" AND c."projectionId"=o."projectionId"
+          WHERE o."customerId"=i."customerId" AND o."sourceId"=i."sourceId"
+            AND o."receiptId"=i."receiptId" AND c.proposals IS NOT NULL) AS retained
        FROM public."IngestionOperationReceipt" r
        JOIN public."IngestionReviewedImport" i ON i."customerId"=r."customerId"
          AND i."sourceId"=r."sourceId" AND i."receiptId"=r.id
@@ -232,14 +238,44 @@ async function verifyBrowser(expected) {
       executionMode: "HUMAN",
       selected: [1, 51],
       projects: [projectId, projectId],
+      retained: 2,
     }]);
   }
   return { canonicalStateUnchanged: true, verifiedReviewedImports: profiles.length };
 }
 
+async function verifyRestoredBrowser(expected) {
+  step = "restore-quarantine";
+  const { rows } = await pool.query(
+    `SELECT current_database() AS database, shobj_description(oid,'pg_database') AS marker,
+       has_database_privilege('pdaa_api',oid,'CONNECT') AS api,
+       has_database_privilege('pdaa_worker',oid,'CONNECT') AS worker,
+       has_database_privilege('pdaa_backup',oid,'CONNECT') AS backup
+     FROM pg_database WHERE datname=current_database()`,
+  );
+  assert.deepEqual(rows, [{
+    database: restoreDatabase, marker: "pdaa.restore.quarantine.v1:" + customerId,
+    api: false, worker: false, backup: true,
+  }]);
+  const { rows: readers } = await pool.query(
+    `SELECT pg_get_userbyid(p.proowner) AS owner, p.prosecdef AS definer,
+       ARRAY(SELECT a.grantee::regrole::text FROM aclexplode(p.proacl) a
+         WHERE a.grantee<>p.proowner AND a.privilege_type='EXECUTE' ORDER BY a.grantee) AS executors,
+       EXISTS(SELECT 1 FROM aclexplode(p.proacl) a
+         WHERE a.grantee<>p.proowner AND a.is_grantable) AS grantable
+     FROM unnest($1::text[]) AS wanted(signature)
+     JOIN pg_proc p ON p.oid=to_regprocedure(wanted.signature)`,
+    [[xlsxReceiptReadApi, xlsxReviewDetailsApi]],
+  );
+  assert.deepEqual(readers, Array.from({ length: 2 }, () => ({
+    owner: "pdaa_migrate", definer: true, executors: ["pdaa_api"], grantable: false,
+  })));
+  return { ...await verifyBrowser(expected), quarantined: true, finiteReceiptReadGrants: true };
+}
+
 try {
   const profile = env.PDAA_CUSTOMER_PROFILE;
-  assert(["prepare", "verify", "verify-browser"].includes(phase));
+  assert(["prepare", "verify", "verify-browser", "create-restore-target", "verify-restored-browser"].includes(phase));
   assert(["bundled", "external"].includes(profile));
   assert.equal(env.PDAA_ACCEPTANCE, "customer-composition");
   assert.equal(env.NODE_ENV, "production");
@@ -256,9 +292,19 @@ try {
   assert.equal(env.PDAA_DB_USER, "postgres");
   assert.equal(env.PDAA_DB_PASSWORD_FILE, "/run/secrets/admin-password");
   assert.equal(secret("customer-ready"), "isolated customer composition\n");
-  pool = new Pool(loadDatabaseConfig(env).database);
-  const result = phase === "prepare" ? await prepare()
-    : await (phase === "verify" ? verify : verifyBrowser)(JSON.parse(process.argv[3]));
+  const database = loadDatabaseConfig(env).database;
+  pool = new Pool(phase === "verify-restored-browser" ? { ...database, database: restoreDatabase } : database);
+  let result;
+  if (phase === "create-restore-target") {
+    step = "restore-target";
+    await pool.query("CREATE DATABASE pdaa_xlsx_restore TEMPLATE template0");
+    result = { restoreTargetCreated: true };
+  } else if (phase === "prepare") {
+    result = await prepare();
+  } else {
+    const check = { verify, "verify-browser": verifyBrowser, "verify-restored-browser": verifyRestoredBrowser }[phase];
+    result = await check(JSON.parse(process.argv[3]));
+  }
   process.stdout.write(JSON.stringify(result) + "\n");
 } catch {
   process.stderr.write("XLSX_CUSTOMER_PROOF_FAILED " + step + "\n");
