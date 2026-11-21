@@ -101,7 +101,7 @@ const releases = [
   ["IngestionCsvHead", "IngestionCsvContext"],
   ["IngestionXlsxHead"],
   ["IngestionXlsxContext"],
-  ["ConnectorPageDispatch"],
+  ["ConnectorPageDispatch", "SourceObservationWitness"],
 ];
 export function assertBusinessTableInventory(names) {
   assert.deepEqual([...names].sort(), releases.flat().sort());
@@ -112,7 +112,7 @@ export function assertUpgradeInventory(receipt, prefix) {
   assert.equal(receipt.priorMigrationCount, prefix);
   const oldTables = releases.slice(0, prefix).flat().sort();
   const addedTables = releases.slice(prefix).flat().sort();
-  assert.equal(receipt.businessTableCount, 90);
+  assert.equal(receipt.businessTableCount, 91);
   assert.deepEqual(receipt.scheduleHealthPolicyTables, [
     "ScheduleHealthPolicyRevision",
   ]);

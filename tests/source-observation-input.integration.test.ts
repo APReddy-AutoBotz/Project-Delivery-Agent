@@ -1,9 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { afterAll, expect, it } from "vitest";
-import { createDatabase, DatabaseIngestionRepository } from "../packages/data/src/index.js";
+import {
+  createDatabase,
+  DatabaseCanonicalProjectRepository,
+  DatabaseIngestionRepository,
+  DatabaseMilestoneConsistencyRepository,
+} from "../packages/data/src/index.js";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
 import { CredentialVault } from "../packages/platform/src/index.js";
+import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 import { proveXlsxSourceGenesis } from "../scripts/acceptance/xlsx-source-genesis.mjs";
 
 const connection = process.env.PDAA_DATABASE_URL;
@@ -20,16 +26,37 @@ afterAll(async () => {
   await pool.end();
 });
 
-it("uses the sealed reviewed row and its explicit workbook snapshot time", async () => {
+it("appends a verified workbook observation with an exact native witness", async () => {
+  const customerId = randomUUID();
+  const portfolioId = randomUUID();
+  const pmo = { customerId, subject: "synthetic-binding-pmo", roles: ["pmo_admin" as const] };
+  const pm = { customerId, subject: "synthetic-binding-pm", roles: ["project_manager" as const] };
+  await db.customer.create({ data: { id: customerId, name: "Synthetic observation tenant" } });
+  await db.portfolio.create({ data: { id: portfolioId, customerId, name: "Synthetic observation portfolio" } });
+  await db.accessGrant.createMany({ data: [pmo, pm].map((actor) => ({
+    customerId, subject: actor.subject, role: actor.roles[0]!, scopeType: "portfolio", scopeId: portfolioId,
+  })) });
+  const { id: projectId } = await new DatabaseCanonicalProjectRepository(db)
+    .createProject(pmo, canonicalFixture(portfolioId), randomUUID());
+  const milestone = await db.milestone.findFirstOrThrow({ where: { customerId, projectId }, orderBy: { key: "asc" } });
+  const binding = await new DatabaseMilestoneConsistencyRepository(db).createStateBinding(pm, {
+    projectId, targetKind: "MILESTONE", targetId: milestone.id,
+    idempotencyKey: randomUUID(), initialState: "OPEN", validUntil: null,
+    effectiveAt: new Date(Date.now() - 60_000).toISOString(),
+    originalStatement: "Initial synthetic milestone status",
+  }, { correlationId: randomUUID() });
   const sheet = "Snapshot " + randomUUID().slice(0, 12);
-  await proveXlsxSourceGenesis(pool, { retain: true, sheet, snapshotRequired: true });
+  await proveXlsxSourceGenesis(pool, {
+    retain: true, existingCustomer: customerId, existingProject: projectId, sheet, snapshotRequired: true,
+  });
   const [scope] = await db.$queryRaw<{ customerId: string; sourceId: string; projectId: string }[]>`
     SELECT p."customerId",p."sourceId",p."projectId" FROM public."IngestionConfigurationProject" p
     JOIN public."IngestionConfigurationRevision" c
       ON (c."customerId",c."sourceId",c.revision)=(p."customerId",p."sourceId",p."configRevision")
     WHERE c.mapping->>'sheet'=${sheet} AND c.sealed`;
   expect(scope).toBeDefined();
-  const { customerId, projectId, sourceId } = scope!;
+  expect(scope).toMatchObject({ customerId, projectId });
+  const { sourceId } = scope!;
   const actor = { customerId, subject: "synthetic-workbook-pmo", roles: ["pmo_admin"] as const };
   const administrator = { customerId, subject: "synthetic-source-admin", roles: ["system_admin"] as const };
   await db.accessGrant.create({ data: {
@@ -107,5 +134,48 @@ it("uses the sealed reviewed row and its explicit workbook snapshot time", async
   expect(await resolve(review.receiptId, 2)).toEqual([{ input: null }]);
   expect(await resolve(review.receiptId, 1, streams[0]!.id, "project.forecast")).toEqual([{ input: null }]);
   expect(await resolve(review.receiptId, 1, streams[0]!.id, "source.snapshot_at", randomUUID())).toEqual([{ input: null }]);
-  expect(await db.projectFactVersion.count({ where: { customerId } })).toBe(0);
+  expect(await db.projectFactVersion.count({ where: { customerId } })).toBe(1);
+
+  const append = (
+    tx: Prisma.TransactionClient,
+    bindingId = binding.id,
+    expiry = inFuture,
+    receiptId = review.receiptId,
+  ) => tx.$queryRaw<{ id: string | null }[]>`
+    SELECT public.append_source_observation(
+      ${customerId}::uuid,${projectId}::uuid,${bindingId}::uuid,${sourceId}::uuid,${streams[0]!.id}::uuid,
+      ${receiptId}::uuid,1,'source.snapshot_at','{"Complete":"COMPLETE"}'::jsonb,${expiry}::timestamptz
+    ) AS id`;
+  const asOwner = <T>(operation: (tx: Prisma.TransactionClient) => Promise<T>) => db.$transaction(async (tx) => {
+    await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
+    return operation(tx);
+  });
+  await expect(asApi((tx) => append(tx))).rejects.toThrow(/permission denied/iu);
+  expect(await asOwner((tx) => append(tx, randomUUID()))).toEqual([{ id: null }]);
+  expect(await asOwner((tx) => append(tx, binding.id, inFuture, preview.receiptId))).toEqual([{ id: null }]);
+  const result = await asOwner((tx) => append(tx));
+  const versionId = result[0]?.id;
+  expect(versionId).toEqual(expect.any(String));
+  expect(await asOwner((tx) => append(tx))).toEqual(result);
+  await expect(asOwner((tx) => append(tx, binding.id, new Date(Date.now() + 3_600_000).toISOString())))
+    .rejects.toThrow(/different commitments/iu);
+
+  const versions = await db.projectFactVersion.findMany({
+    where: { factId: binding.factId }, include: { evidence: { include: { source: true } } }, orderBy: { revision: "asc" },
+  });
+  expect(versions).toMatchObject([
+    { revision: 1, provenance: "HUMAN_CONFIRMED", evidence: { providedBy: pm.subject, originalStatement: "Initial synthetic milestone status" } },
+    {
+      id: versionId, revision: 2, provenance: "SYSTEM_VERIFIED", value: { type: "text", value: "COMPLETE" },
+      effectiveAt: new Date(effectiveAt), effectiveAtValidated: true, validUntil: new Date(inFuture),
+      evidence: { originalStatement: null, providedBy: null, source: { sourceType: "xlsx", ingestionStreamId: streams[0]!.id, providedBy: null } },
+    },
+  ]);
+  const witness = await db.sourceObservationWitness.findUniqueOrThrow({ where: { versionId: versionId! } });
+  expect(witness.input).toEqual(proof[0]?.input);
+  expect(witness.admittedAt.getTime()).toBeGreaterThanOrEqual(versions[1]!.evidence.observedAt.getTime());
+  expect(await asOwner((tx) => tx.$queryRaw`
+    SELECT public.valid_source_observation_witness(${versionId}::uuid) AS valid,
+      public.valid_canonical_state_binding(${binding.id}::uuid) AS "humanBirthValid"
+  `)).toEqual([{ valid: true, humanBirthValid: true }]);
 });

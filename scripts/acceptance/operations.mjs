@@ -483,7 +483,7 @@ try {
           milestonePersistenceTables,
           milestoneReconciliationTables,
           scalarReconciliationTables,
-          businessTableCount: 90,
+          businessTableCount: 91,
           csvComparisonTables,
           csvComparisonPrivileges,
           xlsxReceiptCodec,

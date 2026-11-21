@@ -124,7 +124,8 @@ export class DatabaseProjectFactRepository implements ProjectFactRepository {
       evidenceId: row.evidenceId,
       sourceAccessRevision: access?.revision ?? 0,
     };
-    if (!access || access.state !== "AVAILABLE" || access.readers.length !== 1)
+    if (row.provenance !== "HUMAN_CONFIRMED" || row.evidence.providedBy === null ||
+        row.evidence.originalStatement === null || !access || access.state !== "AVAILABLE" || access.readers.length !== 1)
       return {
         ...metadata,
         visibility: "restricted",

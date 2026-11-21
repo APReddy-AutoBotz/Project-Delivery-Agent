@@ -177,6 +177,7 @@ try {
     "ConnectorWebhookReceipt",
     "ConnectorTaskReceipt",
     "ConnectorPageDispatch",
+    "SourceObservationWitness",
     "IngestionSyncReceiptProjectScope",
     "HealthAssessmentRetentionPolicy",
     "HealthAssessment",

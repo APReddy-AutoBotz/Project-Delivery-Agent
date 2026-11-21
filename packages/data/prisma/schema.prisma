@@ -123,15 +123,19 @@ model FactSource {
   customerId String @db.Uuid
   projectId String @db.Uuid
   factId String @db.Uuid
-  providedBy String @db.VarChar(256)
+  providedBy String? @db.VarChar(256)
   sourceType String @default("human_statement") @db.VarChar(96)
+  ingestionStreamId String? @db.Uuid
+  ingestionStream IngestionFactStream? @relation(fields: [ingestionStreamId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   fact ProjectFact @relation(fields: [customerId, projectId, factId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
   access FactSourceAccess?
-  evidence FactEvidence[]
+  evidence FactEvidence[] @relation("ScopedFactSource")
+  statementEvidence FactEvidence[] @relation("StatementFactSource")
   canonicalStateBindingReceipts CanonicalStateBindingReceipt[]
   @@unique([customerId, projectId, factId, id])
   @@unique([customerId, projectId, factId, id, providedBy], map: "FactSource_author_key")
   @@unique([customerId, projectId, factId, providedBy])
+  @@unique([factId, ingestionStreamId], map: "FactSource_observation_stream_key")
 }
 model FactSourceAccess {
   sourceId String @id @db.Uuid
@@ -159,10 +163,11 @@ model FactEvidence {
   projectId String @db.Uuid
   factId String @db.Uuid
   sourceId String @db.Uuid
-  providedBy String @db.VarChar(256)
+  providedBy String? @db.VarChar(256)
   observedAt DateTime @db.Timestamptz(3)
-  originalStatement String @db.VarChar(8192)
-  source FactSource @relation(fields: [customerId, projectId, factId, sourceId, providedBy], references: [customerId, projectId, factId, id, providedBy], onDelete: Restrict, onUpdate: Restrict, map: "FactEvidence_source_author_fkey")
+  originalStatement String? @db.VarChar(8192)
+  source FactSource @relation("ScopedFactSource", fields: [customerId, projectId, factId, sourceId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict, map: "FactEvidence_source_scope_fkey")
+  statementSource FactSource? @relation("StatementFactSource", fields: [customerId, projectId, factId, sourceId, providedBy], references: [customerId, projectId, factId, id, providedBy], onDelete: Restrict, onUpdate: Restrict, map: "FactEvidence_source_author_fkey")
   version ProjectFactVersion?
   canonicalStateBindingReceipts CanonicalStateBindingReceipt[]
   milestoneConsistencyContributors MilestoneConsistencyContributorVersion[]
@@ -1031,8 +1036,26 @@ model IngestionFactStream {
   recordId String @db.Uuid
   factType String @db.VarChar(96)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  canonicalSources FactSource[]
   @@unique([customerId, sourceId, recordId, factType], map: "IngestionFactStream_identity_key")
   @@unique([customerId, sourceId, recordId, id], map: "IngestionFactStream_scope_key")
+}
+
+model SourceObservationWitness {
+  versionId String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  bindingId String @db.Uuid
+  factId String @db.Uuid
+  sourceId String @db.Uuid
+  evidenceId String @unique @db.Uuid
+  ingestionStreamId String @db.Uuid
+  sourceRevisionId String @db.Uuid
+  auditEventId String @unique @db.Uuid
+  admittedAt DateTime @db.Timestamptz(3)
+  input Json
+  @@unique([factId, ingestionStreamId, sourceRevisionId], map: "SourceObservationWitness_revision_key")
+  @@index([sourceId], map: "SourceObservationWitness_source_idx")
 }
 
 model IngestionSourceRevision {

@@ -528,6 +528,7 @@ export async function verifyFoundationUpgrade(
       "ConnectorWebhookReceipt",
       "ConnectorTaskReceipt",
       "ConnectorPageDispatch",
+      "SourceObservationWitness",
       "IngestionSyncReceiptProjectScope",
       "HealthAssessment",
       "HealthAssessmentCommandReceipt",

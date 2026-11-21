@@ -4,12 +4,15 @@ import { promisify } from "node:util";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   createDatabase,
+  DatabaseCanonicalProjectRepository,
   DatabaseConnectorRuntimeRepository,
   DatabaseIngestionRepository,
+  DatabaseMilestoneConsistencyRepository,
 } from "../packages/data/src/index.js";
 import { CredentialKeyRingVault, CredentialVault } from "../packages/platform/src/index.js";
 import type { Actor } from "../packages/domain/src/index.js";
 import { JiraRuntimeService } from "../apps/api/src/jira-runtime.js";
+import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
@@ -492,7 +495,6 @@ describe("durable Jira connector runtime", () => {
   it("recovers a missed Jira update and exposes safe health detail to an authorized administrator", async () => {
     const isolatedCustomerId = randomUUID();
     const portfolioId = randomUUID();
-    const projectId = randomUUID();
     const sourceId = randomUUID();
     const pmo: Actor = {
       customerId: isolatedCustomerId,
@@ -515,17 +517,17 @@ describe("durable Jira connector runtime", () => {
     await db.portfolio.create({
       data: { id: portfolioId, customerId: isolatedCustomerId, name: "Reconciliation fixture" },
     });
-    await db.project.create({
+    await db.accessGrant.create({
       data: {
-        id: projectId,
         customerId: isolatedCustomerId,
-        portfolioId,
-        code: "JR-" + projectId.slice(0, 8).toUpperCase(),
-        name: "Jira reconciliation fixture",
-        description: "Synthetic Jira source for scheduled recovery",
-        reportedStatus: "UNKNOWN",
+        subject: pmo.subject,
+        scopeType: "portfolio",
+        scopeId: portfolioId,
+        role: "pmo_admin",
       },
     });
+    const { id: projectId } = await new DatabaseCanonicalProjectRepository(db)
+      .createProject(pmo, canonicalFixture(portfolioId), randomUUID());
     for (const grant of [
       { subject: pmo.subject, role: "pmo_admin" },
       { subject: manager.subject, role: "project_manager" },
@@ -795,6 +797,34 @@ describe("durable Jira connector runtime", () => {
     }]);
     expect(await observation(receipt.id, { "To Do": "unapproved" })).toEqual([{ input: null }]);
     expect(await observation(randomUUID(), { "To Do": "OPEN" })).toEqual([{ input: null }]);
+
+    const work = await db.requiredWorkItem.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, projectId },
+      orderBy: { id: "asc" },
+    });
+    const canonicalBinding = await new DatabaseMilestoneConsistencyRepository(db).createStateBinding(manager, {
+      projectId, targetKind: "WORK_ITEM", targetId: work.workItemId,
+      idempotencyKey: randomUUID(), initialState: "IN_PROGRESS", validUntil: null,
+      effectiveAt: initialObservedAt, originalStatement: "Initial synthetic required work status",
+    }, { correlationId: randomUUID() });
+    expect(await db.projectFactVersion.count({ where: { factId: canonicalBinding.factId } })).toBe(1);
+    const expiry = new Date(Date.now() + 86_400_000).toISOString();
+    const [admitted] = await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT public.append_source_observation(
+          ${isolatedCustomerId}::uuid,${projectId}::uuid,${canonicalBinding.id}::uuid,${sourceId}::uuid,
+          ${stream.id}::uuid,${receipt.id}::uuid,1,NULL,'{"To Do":"OPEN"}'::jsonb,${expiry}::timestamptz
+        ) AS id`;
+    });
+    expect(await db.projectFactVersion.findUniqueOrThrow({
+      where: { id: admitted?.id }, include: { evidence: { include: { source: true } } },
+    })).toMatchObject({
+      factId: canonicalBinding.factId, revision: 2, provenance: "SYSTEM_VERIFIED",
+      value: { type: "text", value: "OPEN" },
+      effectiveAt: new Date(initialObservedAt),
+      evidence: { providedBy: null, originalStatement: null, observedAt: revision.remoteObservedAt, source: { sourceType: "jira", ingestionStreamId: stream.id } },
+    });
     const sourceState = await db.ingestionSource.findFirstOrThrow({
       where: { customerId: isolatedCustomerId, id: sourceId },
     });

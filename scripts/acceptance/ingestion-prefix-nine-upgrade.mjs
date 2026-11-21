@@ -65,6 +65,7 @@ const introducedTables = [
   "IngestionProjectReassessment",
   "IngestionCsvHead", "IngestionCsvContext", "IngestionXlsxHead", "IngestionXlsxContext",
   "ConnectorPageDispatch",
+  "SourceObservationWitness",
 ];
 
 async function assignSyntheticTableOwners(pool) {

@@ -406,6 +406,10 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       record_page regprocedure := to_regprocedure('public.record_connector_page_dispatch(uuid)');
       validate_page regprocedure := to_regprocedure('public.valid_connector_page_dispatch(uuid)');
       source_input regprocedure := to_regprocedure('public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb)');
+      append_observation regprocedure := to_regprocedure('public.append_source_observation(uuid,uuid,uuid,uuid,uuid,uuid,integer,text,jsonb,timestamptz)');
+      validate_witness regprocedure := to_regprocedure('public.valid_source_observation_witness(uuid)');
+      guard_observation regprocedure := to_regprocedure('public.guard_source_observation_insert()');
+      require_witness regprocedure := to_regprocedure('public.require_source_observation_witness()');
       recorded boolean := false;
     BEGIN
       IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
@@ -413,8 +417,10 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
           WHERE migration_name='202611210001_connector_page_dispatch') INTO recorded;
       END IF;
       IF bind_claim IS NULL AND record_page IS NULL AND validate_page IS NULL AND source_input IS NULL
-         AND to_regclass('public."ConnectorPageDispatch"') IS NULL AND NOT recorded THEN RETURN; END IF;
-      IF to_regclass('public."ConnectorPageDispatch"') IS NULL OR 2<>(
+         AND append_observation IS NULL AND validate_witness IS NULL AND guard_observation IS NULL AND require_witness IS NULL
+         AND to_regclass('public."ConnectorPageDispatch"') IS NULL AND to_regclass('public."SourceObservationWitness"') IS NULL
+         AND NOT recorded THEN RETURN; END IF;
+      IF to_regclass('public."ConnectorPageDispatch"') IS NULL OR to_regclass('public."SourceObservationWitness"') IS NULL OR 2<>(
         SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid IN (bind_claim,record_page)
           AND p.prosecdef AND p.provolatile='v' AND NOT p.proretset AND p.prorettype='void'::regtype
           AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
@@ -427,14 +433,29 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
           AND NOT p.prosecdef AND p.provolatile='v' AND NOT p.proretset AND p.prorettype='jsonb'::regtype
           AND p.proowner=to_regrole('pdaa_migrate')
           AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp','TimeZone=UTC','DateStyle=ISO, YMD']
-      ) THEN RAISE EXCEPTION 'Unexpected connector page dispatch boundary'; END IF;
+      ) OR 4<>(
+        SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.proowner=to_regrole('pdaa_migrate')
+          AND NOT p.proretset AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
+          AND ((p.oid=append_observation AND NOT p.prosecdef AND p.provolatile='v' AND p.prorettype='uuid'::regtype)
+            OR (p.oid=validate_witness AND NOT p.prosecdef AND p.provolatile='s' AND p.prorettype='boolean'::regtype)
+            OR (p.oid IN (guard_observation,require_witness) AND p.prorettype='trigger'::regtype
+              AND p.prosecdef=(p.oid=require_witness)))
+      ) THEN RAISE EXCEPTION 'Unexpected connector dispatch or source observation boundary'; END IF;
       REVOKE ALL ON "ConnectorPageDispatch" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       REVOKE ALL ("receiptId","customerId","sourceId","jobId","claimGeneration","taskDigest")
         ON "ConnectorPageDispatch" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       GRANT SELECT ON "ConnectorPageDispatch" TO pdaa_backup;
+      REVOKE ALL ON "SourceObservationWitness" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      REVOKE ALL ("versionId","customerId","projectId","bindingId","factId","sourceId","evidenceId",
+        "ingestionStreamId","sourceRevisionId","auditEventId","admittedAt",input)
+        ON "SourceObservationWitness" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT SELECT ON "SourceObservationWitness" TO pdaa_backup;
       REVOKE ALL ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
         public.record_connector_page_dispatch(uuid),public.valid_connector_page_dispatch(uuid),
-        public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb)
+        public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb),
+        public.append_source_observation(uuid,uuid,uuid,uuid,uuid,uuid,integer,text,jsonb,timestamptz),
+        public.valid_source_observation_witness(uuid),public.guard_source_observation_insert(),
+        public.require_source_observation_witness()
         FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       GRANT EXECUTE ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
         public.record_connector_page_dispatch(uuid) TO pdaa_api;
