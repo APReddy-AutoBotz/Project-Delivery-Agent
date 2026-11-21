@@ -46,7 +46,17 @@ const dispatchFunctions = [
   "public.valid_source_admission_command(uuid)",
   'public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer)',
   "public.valid_source_authority_publication(uuid)",
+  "public.source_observation_read_allowed(uuid,text,timestamptz)",
+  "public.guard_mixed_assessment_access()",
+  "public.read_source_authority_origins(uuid,uuid,text,text[],uuid[])",
+  "public.valid_fact_assessment(uuid)",
 ];
+const dispatchApiFunctions = new Set([
+  "public.bind_connector_task_claim(uuid,uuid,integer,uuid)",
+  "public.record_connector_page_dispatch(uuid)",
+  "public.read_source_authority_origins(uuid,uuid,text,text[],uuid[])",
+  "public.valid_fact_assessment(uuid)",
+]);
 const controls = new Set(["state", "attemptCount", "totalAttempts", "recoveryRevision", "availableAt", "lastReason",
   "claimedGeneration", "assessmentId", "obligationId", "previewId", "completedAt", "auditEventId"]);
 async function currentRoles(pool) {
@@ -93,12 +103,12 @@ async function dispatchBoundary(pool, presentRoles, apiExecute) {
   assert.equal(new Set(acl.map(({ signature }) => signature)).size, dispatchFunctions.length);
   assert(acl.every((row) => !row.public));
   for (const role of presentRoles) {
-    for (const [index, signature] of dispatchFunctions.entries()) {
+    for (const signature of dispatchFunctions) {
       const { allowed } = (await pool.query(
         "SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed",
         [role, signature],
       )).rows[0];
-      assert.equal(allowed, apiExecute && role === "pdaa_api" && index < 2);
+      assert.equal(allowed, apiExecute && role === "pdaa_api" && dispatchApiFunctions.has(signature));
     }
     for (const table of ['public."ConnectorPageDispatch"', 'public."SourceObservationWitness"',
       'public."SourceAdmissionBindingRevision"', 'public."SourceAdmissionCommand"']) {

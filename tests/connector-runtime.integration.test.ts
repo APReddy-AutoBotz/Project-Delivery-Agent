@@ -4,10 +4,13 @@ import { promisify } from "node:util";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   createDatabase,
+  DatabaseAuthorityRepository,
   DatabaseCanonicalProjectRepository,
   DatabaseConnectorRuntimeRepository,
   DatabaseIngestionRepository,
+  DatabaseProjectFactRepository,
 } from "../packages/data/src/index.js";
+import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
 import { CredentialKeyRingVault, CredentialVault } from "../packages/platform/src/index.js";
 import type { Actor } from "../packages/domain/src/index.js";
 import { JiraRuntimeService } from "../apps/api/src/jira-runtime.js";
@@ -859,6 +862,25 @@ describe("durable Jira connector runtime", () => {
       effectiveAt: new Date(initialObservedAt),
       evidence: { providedBy: null, originalStatement: null, observedAt: revision.remoteObservedAt, source: { sourceType: "jira", ingestionStreamId: stream.id } },
     });
+    const asApi = <T>(operation: (tx: Prisma.TransactionClient) => Promise<T>) => db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_api`;
+      return operation(tx);
+    });
+    const api = { $transaction: asApi } as never;
+    await new DatabaseProjectFactRepository(api).setSourceAccess(pmo, {
+      projectId, sourceId: factSource, expectedRevision: 1, state: "AVAILABLE", readers: [manager.subject],
+    }, { correlationId: randomUUID() });
+    const authority = new DatabaseAuthorityRepository(api);
+    const assessed = await authority.captureAssessment(manager, {
+      projectId, factType: canonicalBinding.factType, idempotencyKey: randomUUID(),
+    }, { correlationId: randomUUID() });
+    expect(assessed).toMatchObject({ visibility: "available", result: {
+      status: "RESOLVED", resolvedValue: { type: "text", value: "OPEN" },
+      versions: [expect.objectContaining({ provenance: "SYSTEM_VERIFIED", source: {
+        instanceId: factSource, recordType: "jira.issue", recordId: stream.id, revision: revision.id,
+      } })],
+    } });
+    expect(await db.factAssessment.findUniqueOrThrow({ where: { id: assessed.assessmentId } })).toMatchObject({ evaluatorVersion: 2 });
     const sourceState = await db.ingestionSource.findFirstOrThrow({
       where: { customerId: isolatedCustomerId, id: sourceId },
     });

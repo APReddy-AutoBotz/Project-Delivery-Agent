@@ -56,6 +56,18 @@ type FactPrefix = {
   conflictThroughRevision: number;
 };
 type Scope = SourceAuthoritySnapshot["scope"];
+type SourceOrigin = {
+  versionId: string;
+  sourceKind: "jira.issue" | "xlsx.row";
+  streamId: string;
+  sourceRevisionId: string;
+  admittedAt: Date;
+  authorized: boolean;
+};
+type MixedPrefix = {
+  factRevision: number;
+  origins: ReadonlyMap<string, SourceOrigin>;
+};
 const transactionOptions = {
   isolationLevel: "ReadCommitted" as const,
   maxWait: 5000,
@@ -109,7 +121,14 @@ export function buildSourceAuthoritySnapshot(
   conflicts: Conflict[],
   access: Access[],
   complete: boolean,
+  mixed?: MixedPrefix,
 ): SourceAuthoritySnapshot {
+  if (mixed && versions.length !== mixed.factRevision) complete = false;
+  if (complete && versions.some((row) => {
+    if (row.provenance !== "SYSTEM_VERIFIED") return false;
+    const origin = mixed?.origins.get(row.id);
+    return !origin || origin.admittedAt.toISOString() > asOf;
+  })) complete = false;
   if (!complete)
     return {
       scope,
@@ -122,8 +141,6 @@ export function buildSourceAuthoritySnapshot(
       evidence: [],
     };
   const bySource = new Map(access.map((row) => [row.sourceId, row]));
-  // Carry source identity and the per-version validation marker. Supported writers do not
-  // establish a connector validation receipt; reviewed spreadsheet rows remain proposals.
   const sourceTypeBySource = new Map(
     versions.map((row) => [row.sourceId, row.evidence.source.sourceType] as const),
   );
@@ -135,32 +152,43 @@ export function buildSourceAuthoritySnapshot(
     asOf,
     policy,
     complete,
+    ...(mixed ? { committedFactRevision: mixed.factRevision } : {}),
     sources,
-    versions: versions.map((row) => ({
-      id: row.id,
-      scope,
-      source: {
-        instanceId: row.sourceId,
-        recordType: row.evidence.source.sourceType,
-        recordId: row.sourceId,
-        revision: row.evidenceId,
-      },
-      value: projectFactValueSchema.parse(row.value),
-      provenance: provenanceSchema.parse(row.provenance),
-      effectiveAtValidated: row.effectiveAtValidated,
-      effectiveAt: row.effectiveAt.toISOString(),
-      observedAt: row.evidence.observedAt.toISOString(),
-      validUntil: row.validUntil?.toISOString() ?? null,
-      evidenceIds: [row.evidenceId],
-      approval: { state: "NOT_REQUIRED", decisionAt: null, decisionId: null },
-    })),
+    versions: versions.map((row) => {
+      const origin = mixed?.origins.get(row.id);
+      const admittedAt = origin?.admittedAt.toISOString();
+      return {
+        id: row.id,
+        scope,
+        ...(mixed ? { ledgerRevision: row.revision } : {}),
+        ...(admittedAt ? { admittedAt } : {}),
+        source: {
+          instanceId: row.sourceId,
+          recordType: origin?.sourceKind ?? row.evidence.source.sourceType,
+          recordId: origin?.streamId ?? row.sourceId,
+          revision: origin?.sourceRevisionId ?? row.evidenceId,
+        },
+        value: projectFactValueSchema.parse(row.value),
+        provenance: provenanceSchema.parse(row.provenance),
+        effectiveAtValidated: row.effectiveAtValidated,
+        effectiveAt: row.effectiveAt.toISOString(),
+        observedAt: row.evidence.observedAt.toISOString(),
+        validUntil: row.validUntil?.toISOString() ?? null,
+        evidenceIds: [row.evidenceId],
+        approval: admittedAt
+          ? { state: "APPROVED", decisionAt: admittedAt, decisionId: row.id }
+          : { state: "NOT_REQUIRED", decisionAt: null, decisionId: null },
+      };
+    }),
     evidence: versions.map((row) => {
       const current = bySource.get(row.sourceId);
       const state = current?.state;
+      const canRead = current?.readers.length === 1 &&
+        (row.provenance !== "SYSTEM_VERIFIED" || mixed?.origins.get(row.id)?.authorized === true);
       return {
         id: row.evidenceId,
         scope,
-        access: current?.readers.length === 1 ? "AUTHORIZED" : "RESTRICTED",
+        access: canRead ? "AUTHORIZED" : "RESTRICTED",
         verification:
           state === "AVAILABLE"
             ? "VALID"
@@ -189,9 +217,10 @@ export function resolveStoredAuthorityPrefix(
   conflicts: Conflict[],
   access: Access[],
   complete: boolean,
+  mixed?: MixedPrefix,
 ) {
   const snapshot = buildSourceAuthoritySnapshot(
-    scope, asOf.toISOString(), resolverPolicy(event), versions, conflicts, access, complete,
+    scope, asOf.toISOString(), resolverPolicy(event), versions, conflicts, access, complete, mixed,
   );
   return { snapshot, result: resolveSourceAuthority(snapshot) };
 }
@@ -205,6 +234,13 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       { now: Date }[]
     >`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
     return rows[0]!.now;
+  }
+  private async sourceOrigins(tx: Tx, actor: Actor, projectId: string, versionIds: string[]) {
+    const rows = await tx.$queryRaw<SourceOrigin[]>`
+      SELECT * FROM public.read_source_authority_origins(
+        ${actor.customerId}::uuid,${projectId}::uuid,${actor.subject},${actor.roles}::text[],${versionIds}::uuid[])
+    `;
+    return new Map(rows.map((row) => [row.versionId, row]));
   }
   private async audit(
     tx: Pick<Tx, "auditEvent">,
@@ -447,7 +483,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       // The stored result is the proof; these rows are only the current-access
       // dependencies. Native validation below still checks the complete graph.
       include: {
-        versions: { select: { version: { select: { sourceId: true } } } },
+        versions: { select: { version: { select: { id: true, sourceId: true, provenance: true } } } },
       },
     });
     if (!row) return null;
@@ -474,6 +510,12 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         )
         .map((item) => item.sourceId),
     );
+    const sourceVersions = row.evaluatorVersion === 2
+      ? row.versions.filter(({ version }) => version.provenance === "SYSTEM_VERIFIED").map(({ version }) => version.id)
+      : [];
+    const origins = sourceVersions.length
+      ? await this.sourceOrigins(tx, actor, projectId, sourceVersions)
+      : undefined;
     const metadata = {
       assessmentId: row.id,
       factId: row.factId,
@@ -481,7 +523,8 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       historical: true as const,
       replayed,
     };
-    if (row.versions.some((item) => !allowed.has(item.version.sourceId)))
+    if (row.versions.some((item) => !allowed.has(item.version.sourceId)) ||
+      sourceVersions.some((id) => origins?.get(id)?.authorized !== true))
       return detached({
         ...metadata,
         visibility: "restricted",
@@ -573,6 +616,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       fact: { id: string; factType: string; revision: number };
       asOf: Date;
       prefix?: FactPrefix;
+      allowSourceObservations?: boolean;
     },
   ) {
     const { projectId, fact, asOf } = input;
@@ -639,7 +683,12 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
           })
         : []);
     const policy = resolverPolicy(event);
-    const stored = resolveStoredAuthorityPrefix(scope, asOf, event, versions, conflicts, access, complete);
+    const sourceVersions = versions.filter((row) => row.provenance === "SYSTEM_VERIFIED").map((row) => row.id);
+    const mixed = complete && input.allowSourceObservations && sourceVersions.length
+      ? { factRevision: fact.revision, origins: await this.sourceOrigins(tx, actor, projectId, sourceVersions) }
+      : undefined;
+    const stored = resolveStoredAuthorityPrefix(scope, asOf, event, versions, conflicts, access, complete, mixed);
+    complete = stored.snapshot.complete;
     let authoritySnapshot = stored.snapshot;
     let result = stored.result;
     let newConflicts: Conflict[] = [];
@@ -715,6 +764,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         conflicts,
         access,
         complete,
+        mixed,
       );
       result = resolveSourceAuthority(authoritySnapshot);
     }
@@ -730,6 +780,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       conflictThroughRevision,
       access,
       complete,
+      evaluatorVersion: complete && mixed ? 2 : 1,
       snapshot: authoritySnapshot,
       result,
     };
@@ -778,6 +829,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
         idempotencyKey: input.idempotencyKey,
         requestHash: input.requestHash,
         captureKind: input.captureKind,
+        evaluatorVersion: prepared.evaluatorVersion,
         milestoneAssessmentId: input.milestoneAssessmentId,
         ...(input.scalarReconciliationCheckId === undefined
           ? {}
@@ -851,7 +903,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
     const prepared = await this.prepareAssessmentInTransaction(
       tx,
       actor,
-      input,
+      { ...input, allowSourceObservations: input.captureKind === "SCALAR" },
     );
     return this.persistPreparedAssessmentInTransaction(tx, actor, {
       prepared,

@@ -413,6 +413,8 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       validate_witness regprocedure := to_regprocedure('public.valid_source_observation_witness(uuid)');
       guard_observation regprocedure := to_regprocedure('public.guard_source_observation_insert()');
       require_witness regprocedure := to_regprocedure('public.require_source_observation_witness()');
+      read_origins regprocedure := to_regprocedure('public.read_source_authority_origins(uuid,uuid,text,text[],uuid[])');
+      assessment_validator regprocedure := to_regprocedure('public.valid_fact_assessment(uuid)');
       admission_functions text[] := ARRAY[
         'public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer,text,uuid)',
         'public.valid_source_observation_structure(uuid)',
@@ -427,7 +429,9 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         'public.require_source_admission_command()',
         'public.valid_source_admission_command(uuid)',
         'public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer)',
-        'public.valid_source_authority_publication(uuid)'
+        'public.valid_source_authority_publication(uuid)',
+        'public.source_observation_read_allowed(uuid,text,timestamptz)',
+        'public.guard_mixed_assessment_access()'
       ];
       signature text;
       recorded boolean := false;
@@ -438,6 +442,7 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       END IF;
       IF bind_claim IS NULL AND record_page IS NULL AND validate_page IS NULL AND source_input IS NULL
          AND admit_observation IS NULL AND validate_witness IS NULL AND guard_observation IS NULL AND require_witness IS NULL
+         AND read_origins IS NULL
          AND to_regclass('public."ConnectorPageDispatch"') IS NULL AND to_regclass('public."SourceObservationWitness"') IS NULL
          AND to_regclass('public."SourceAdmissionBindingRevision"') IS NULL AND to_regclass('public."SourceAdmissionCommand"') IS NULL
          AND NOT EXISTS (SELECT 1 FROM unnest(admission_functions) f WHERE to_regprocedure(f) IS NOT NULL)
@@ -456,12 +461,17 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
           AND NOT p.prosecdef AND p.provolatile='v' AND NOT p.proretset AND p.prorettype='jsonb'::regtype
           AND p.proowner=to_regrole('pdaa_migrate')
           AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp','TimeZone=UTC','DateStyle=ISO, YMD']
-      ) OR 7<>(
+      ) OR NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid=read_origins AND p.prosecdef AND p.provolatile='v'
+          AND p.proretset AND p.prorettype='record'::regtype AND p.proowner=to_regrole('pdaa_migrate')
+          AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
+      ) OR 8<>(
         SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.proowner=to_regrole('pdaa_migrate')
           AND NOT p.proretset AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
           AND ((p.oid=admit_observation AND p.prosecdef AND p.provolatile='v' AND p.prorettype='jsonb'::regtype)
             OR (p.oid=validate_witness AND NOT p.prosecdef AND p.provolatile='s' AND p.prorettype='boolean'::regtype)
             OR (p.oid=canonical_validator AND p.prosecdef AND p.provolatile='s' AND p.prorettype='boolean'::regtype)
+            OR (p.oid=assessment_validator AND p.prosecdef AND p.provolatile='s' AND p.prorettype='boolean'::regtype)
             OR (p.oid IN (guard_observation,require_witness,authority_commit,canonical_commit) AND p.prorettype='trigger'::regtype
               AND p.prosecdef=(p.oid<>guard_observation)))
       ) THEN RAISE EXCEPTION 'Unexpected connector dispatch or source observation boundary'; END IF;
@@ -488,7 +498,8 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       FOREACH signature IN ARRAY admission_functions LOOP
         IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid=to_regprocedure(signature)
           AND p.proowner=to_regrole('pdaa_migrate')
-          AND p.prosecdef=(signature IN ('public.require_source_admission_command()','public.require_source_authority_witness()'))
+          AND p.prosecdef=(signature IN ('public.require_source_admission_command()','public.require_source_authority_witness()',
+            'public.guard_mixed_assessment_access()'))
           AND p.proretset=(signature='public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer)')
           AND p.proconfig[1]='search_path=pg_catalog, pg_temp')
         THEN RAISE EXCEPTION 'Unexpected source admission helper boundary'; END IF;
@@ -499,13 +510,15 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb),
         public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid),
         public.valid_source_observation_witness(uuid),public.guard_source_observation_insert(),
-        public.require_source_observation_witness(),public.require_authority_published(),public.require_canonical_state_binding_sealed()
+        public.require_source_observation_witness(),public.require_authority_published(),public.require_canonical_state_binding_sealed(),
+        public.read_source_authority_origins(uuid,uuid,text,text[],uuid[]),public.valid_fact_assessment(uuid)
         FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       IF to_regrole('pdaa_source_acceptance') IS NOT NULL THEN
         REVOKE ALL ON FUNCTION public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid) FROM pdaa_source_acceptance;
       END IF;
       GRANT EXECUTE ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
-        public.record_connector_page_dispatch(uuid) TO pdaa_api;
+        public.record_connector_page_dispatch(uuid),public.read_source_authority_origins(uuid,uuid,text,text[],uuid[]),
+        public.valid_fact_assessment(uuid) TO pdaa_api;
     END $connector_page_dispatch_acl$
   `);
 }

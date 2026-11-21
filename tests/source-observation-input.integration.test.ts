@@ -7,6 +7,7 @@ import {
   DatabaseCanonicalProjectRepository,
   DatabaseIngestionRepository,
   DatabaseMilestoneConsistencyRepository,
+  DatabaseProjectFactRepository,
 } from "../packages/data/src/index.js";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
 import { CredentialVault } from "../packages/platform/src/index.js";
@@ -56,11 +57,16 @@ it("appends a verified workbook observation and replays its receipt after conten
   const milestone = await db.milestone.findFirstOrThrow({ where: { customerId, projectId }, orderBy: { key: "asc" } });
   const binding = await new DatabaseMilestoneConsistencyRepository(db).createStateBinding(pm, {
     projectId, targetKind: "MILESTONE", targetId: milestone.id,
-    idempotencyKey: randomUUID(), initialState: "OPEN", validUntil: null,
+    idempotencyKey: randomUUID(), initialState: "OPEN", validUntil: new Date(Date.now() + 86_400_000).toISOString(),
     effectiveAt: new Date(Date.now() - 60_000).toISOString(),
     originalStatement: "Initial synthetic milestone status",
   }, { correlationId: randomUUID() });
-  const humanRule = await new DatabaseAuthorityRepository({ $transaction: asApi } as never).appendPolicy(pmo, {
+  const authority = new DatabaseAuthorityRepository({ $transaction: asApi } as never);
+  const assessmentRequest = { projectId, factType: binding.factType };
+  const assessmentContext = { correlationId: randomUUID() };
+  const capture = (reader: { customerId: string; subject: string; roles: ("pmo_admin" | "project_manager")[] }, idempotencyKey = randomUUID()) =>
+    authority.captureAssessment(reader, { ...assessmentRequest, idempotencyKey }, assessmentContext);
+  const humanRule = await authority.appendPolicy(pmo, {
     projectId, factType: binding.factType, expectedRevision: 0, idempotencyKey: randomUUID(),
     effectiveAt: new Date(Date.now() - 60_000).toISOString(),
     definition: {
@@ -68,6 +74,9 @@ it("appends a verified workbook observation and replays its receipt after conten
       tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null, requiredApproval: "NOT_REQUIRED", validity: null }] }],
     },
   }, { correlationId: randomUUID() });
+  const legacy = await capture(pm);
+  expect(legacy).toMatchObject({ visibility: "available", result: { status: "RESOLVED", resolvedValue: { value: "OPEN" } } });
+  expect(await db.factAssessment.findUniqueOrThrow({ where: { id: legacy.assessmentId } })).toMatchObject({ evaluatorVersion: 1 });
   const sheet = "Snapshot " + randomUUID().slice(0, 12);
   await proveXlsxSourceGenesis(pool, {
     retain: true, existingCustomer: customerId, existingProject: projectId, sheet, snapshotRequired: true,
@@ -81,7 +90,7 @@ it("appends a verified workbook observation and replays its receipt after conten
   expect(scope).toBeDefined();
   expect(scope).toMatchObject({ customerId, projectId });
   const { sourceId } = scope!;
-  const actor = { customerId, subject: "synthetic-workbook-pmo", roles: ["pmo_admin"] as const };
+  const actor = { customerId, subject: "synthetic-workbook-pmo", roles: ["pmo_admin" as const] };
   const administrator = { customerId, subject: "synthetic-source-admin", roles: ["system_admin"] as const };
   await db.accessGrant.create({ data: {
     customerId, scopeId: projectId, scopeType: "project",
@@ -207,11 +216,18 @@ it("appends a verified workbook observation and replays its receipt after conten
       validity: { basis: "effectiveAt", durationMs: 86_400_000 },
     }] }],
   };
+  const mixedRule = {
+    ...definition,
+    tiers: [{ selectors: [
+      ...definition.tiers[0]!.selectors,
+      { sourceType: "human_statement", instanceId: null, requiredApproval: "NOT_REQUIRED", validity: null },
+    ] }],
+  };
   const configure = (
     tx: Prisma.TransactionClient,
     approver: string,
     stream = streams[0]!.id,
-    rule = definition,
+    rule: unknown = mixedRule,
     currentRevision = 1,
   ) =>
     tx.$queryRaw<{ id: string | null }[]>`
@@ -229,7 +245,7 @@ it("appends a verified workbook observation and replays its receipt after conten
   expect(approval?.id).toEqual(expect.any(String));
   const proofId = approval!.id!;
   const bindingApproval = await db.sourceAdmissionBindingRevision.findUniqueOrThrow({ where: { id: proofId } });
-  expect(bindingApproval).toMatchObject({ bindingId: binding.id, factSourceId: factSource, streamId: streams[0]!.id, definition });
+  expect(bindingApproval).toMatchObject({ bindingId: binding.id, factSourceId: factSource, streamId: streams[0]!.id, definition: mixedRule });
   expect(bindingApproval.reservationId).toBe(proofId);
   await expect(asOwner((tx) => configure(tx, actor.subject, streams[1]!.id)))
     .rejects.toThrow(/SourceAdmissionBindingRevision_source_reservation_key/iu);
@@ -256,7 +272,7 @@ it("appends a verified workbook observation and replays its receipt after conten
   expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "REPLAYED", receiptId } }]);
   expect(await asOperator((tx) => append(tx, proofId, review.receiptId, 2))).toEqual([{ result: { status: "CONFLICT" } }]);
   const activated = await db.authorityPolicyRevision.findUniqueOrThrow({ where: { id: bindingApproval.policyRevisionId } });
-  expect(activated).toMatchObject({ factType: binding.factType, definition, recordedBy: actor.subject, state: "ENABLED", revision: 2 });
+  expect(activated).toMatchObject({ factType: binding.factType, definition: mixedRule, recordedBy: actor.subject, state: "ENABLED", revision: 2 });
   const originalRule = await db.authorityPolicyRevision.findUniqueOrThrow({ where: { id: humanRule.event.id } });
   expect(originalRule).toMatchObject({ revision: 1, definition: humanRule.event.definition });
   await expect(asApi((tx) => tx.$executeRaw`
@@ -292,11 +308,46 @@ it("appends a verified workbook observation and replays its receipt after conten
       public.valid_canonical_state_binding(${binding.id}::uuid) AS "humanBirthValid"
   `)).toEqual([{ valid: true, humanBirthValid: true }]);
 
+  const facts = new DatabaseProjectFactRepository({ $transaction: asApi } as never);
+  const humanAccess = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: versions[0]!.sourceId } });
+  await facts.setSourceAccess(pmo, {
+    projectId, sourceId: humanAccess.sourceId, expectedRevision: humanAccess.revision,
+    state: "AVAILABLE", readers: [actor.subject, pm.subject],
+  }, assessmentContext);
+  expect(await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: factSource }, include: { readers: true } }))
+    .toMatchObject({ state: "AVAILABLE", revision: 1, readers: [] });
+  expect(await capture(actor)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+  const available = await facts.setSourceAccess(pmo, {
+    projectId, sourceId: factSource, expectedRevision: 1, state: "AVAILABLE", readers: [actor.subject, pm.subject],
+  }, assessmentContext);
+  expect(await capture(pm)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+  const assessmentKey = randomUUID();
+  const mixed = await capture(actor, assessmentKey);
+  expect(mixed).toMatchObject({
+    visibility: "available",
+    result: { status: "CONFLICTING", resolvedValue: null, versions: expect.arrayContaining([
+      expect.objectContaining({ provenance: "HUMAN_CONFIRMED", value: { type: "text", value: "OPEN" } }),
+      expect.objectContaining({ id: versionId, provenance: "SYSTEM_VERIFIED", value: { type: "text", value: "COMPLETE" },
+        source: { instanceId: factSource, recordType: "xlsx.row", recordId: streams[0]!.id, revision: witness.sourceRevisionId } }),
+    ]) },
+  });
+  expect(await db.factAssessment.findUniqueOrThrow({ where: { id: mixed.assessmentId } })).toMatchObject({ evaluatorVersion: 2 });
+  const readMixed = () => authority.getAssessment(actor, { projectId, assessmentId: mixed.assessmentId });
+  const revoked = await facts.setSourceAccess(pmo, {
+    projectId, sourceId: factSource, expectedRevision: available.revision, state: "REVOKED", readers: [],
+  }, assessmentContext);
+  expect(await readMixed()).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+  await facts.setSourceAccess(pmo, {
+    projectId, sourceId: factSource, expectedRevision: revoked.revision, state: "AVAILABLE", readers: [actor.subject, pm.subject],
+  }, assessmentContext);
+
   await repository.setRetention({ ...administrator, roles: [...administrator.roles] }, { retentionHours: 1 }, randomUUID());
   expect(await repository.purgeExpired({ ...administrator, roles: [...administrator.roles] })).toBeGreaterThan(0);
   const redacted = await db.ingestionProposalContent.findUniqueOrThrow({ where: { projectionId: outcomes[0]!.projectionId! } });
   expect(redacted).toMatchObject({ proposals: null, redactedAt: expect.any(Date), redactionAuditEventId: expect.any(String) });
   expect(await resolve(review.receiptId)).toEqual([{ input: null }]);
+  expect(await readMixed()).toEqual(mixed);
+  expect(await capture(actor, assessmentKey)).toEqual({ ...mixed, replayed: true });
   expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "REPLAYED", receiptId } }]);
   const aliasKey = randomUUID();
   expect(await asOperator((tx) => append(tx, proofId, equivalentReview.receiptId)))
@@ -316,6 +367,11 @@ it("appends a verified workbook observation and replays its receipt after conten
   changedValidity.tiers[0]!.selectors[0]!.validity.durationMs = 3_600_000;
   const [superseding] = await asOwner((tx) => configure(tx, actor.subject, streams[0]!.id, changedValidity, 2));
   expect(superseding?.id).toEqual(expect.any(String));
+  expect(await readMixed()).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+  expect(await capture(actor, assessmentKey)).toMatchObject({
+    assessmentId: mixed.assessmentId, visibility: "restricted", replayed: true, result: null,
+  });
+  expect(await authority.getAssessment(pm, { projectId, assessmentId: legacy.assessmentId })).toEqual(legacy);
   expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "DENIED" } }]);
   expect(await asOperator((tx) => append(tx, superseding!.id!, review.receiptId, 1, randomUUID())))
     .toEqual([{ result: { status: "CONFLICT" } }]);
@@ -411,4 +467,4 @@ it("appends a verified workbook observation and replays its receipt after conten
   expect(await db.projectFact.count({ where: { id: contested.factId } })).toBe(0);
   expect(await db.canonicalStateBinding.findUniqueOrThrow({ where: { id: humanWinner.id } }))
     .toMatchObject({ sealed: true, milestoneId: contestedTarget.id, sourceBirthCommandId: null });
-});
+}, 45_000);

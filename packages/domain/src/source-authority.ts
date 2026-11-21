@@ -273,8 +273,9 @@ function resolveSnapshot(input: unknown) {
       ? selectors.find(
           ({ selector }) =>
             selector.sourceType === type &&
-            (selector.instanceId === null ||
-              selector.instanceId === version.source.instanceId),
+            (selector.instanceId === version.source.instanceId ||
+              (selector.instanceId === null &&
+                (snapshot.committedFactRevision === undefined || version.provenance === "HUMAN_CONFIRMED"))),
         )
       : undefined;
     const selectorValidity = match?.selector.validity ?? null;
