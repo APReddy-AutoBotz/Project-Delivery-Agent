@@ -71,6 +71,7 @@ COPY --from=xlsx-bridge-build --chown=0:0 --chmod=0555 /bridge/pdaa-xlsx-peer-br
 # Disposable XLSX owner fixture. This test target has no browser dependencies.
 FROM build AS xlsx-proof
 COPY scripts/acceptance/common.mjs scripts/acceptance/prepare.mjs scripts/acceptance/prepare-customer.mjs scripts/acceptance/xlsx-source-genesis.mjs scripts/acceptance/xlsx-customer-proof.mjs ./scripts/acceptance/
+COPY scripts/acceptance/canonical-projects.mjs scripts/acceptance/golden-source-observations.mjs ./scripts/acceptance/
 CMD ["node", "scripts/acceptance/xlsx-customer-proof.mjs"]
 
 FROM runtime AS worker
