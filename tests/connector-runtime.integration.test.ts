@@ -532,8 +532,11 @@ describe("durable Jira connector runtime", () => {
         role: "pmo_admin",
       },
     });
+    const projectFixture = canonicalFixture(portfolioId);
+    projectFixture.workItems.push({ ...projectFixture.workItems[0]!, key: "WI-2", title: "Human-confirmed required work" });
+    projectFixture.requiredWorkItems.push({ milestoneKey: "MS-1", workItemKey: "WI-2" });
     const { id: projectId } = await new DatabaseCanonicalProjectRepository(db)
-      .createProject(pmo, canonicalFixture(portfolioId), randomUUID());
+      .createProject(pmo, projectFixture, randomUUID());
     for (const grant of [
       { subject: pmo.subject, role: "pmo_admin" },
       { subject: manager.subject, role: "project_manager" },
@@ -818,8 +821,7 @@ describe("durable Jira connector runtime", () => {
     expect(await observation(randomUUID(), { "To Do": "OPEN" })).toEqual([{ input: null }]);
 
     const work = await db.requiredWorkItem.findFirstOrThrow({
-      where: { customerId: isolatedCustomerId, projectId },
-      orderBy: { id: "asc" },
+      where: { customerId: isolatedCustomerId, projectId, workItem: { key: "WI-1" } },
     });
     expect(await db.canonicalStateBinding.count({ where: { customerId: isolatedCustomerId, workItemId: work.workItemId } })).toBe(0);
     const factSource = randomUUID();
@@ -970,30 +972,53 @@ describe("durable Jira connector runtime", () => {
       projectId, sourceId: workbookFactSource, expectedRevision: 1, state: "AVAILABLE", readers: factReaders,
     }, { correlationId: randomUUID() });
     const milestones = new DatabaseMilestoneConsistencyRepository(api);
+    const humanWork = await db.workItem.findFirstOrThrow({ where: { customerId: isolatedCustomerId, projectId, key: "WI-2" } });
+    const humanBinding = await milestones.createStateBinding(workbookReader, {
+      projectId, targetKind: "WORK_ITEM", targetId: humanWork.id, initialState: "COMPLETE",
+      effectiveAt: workbookSnapshotAt, validUntil: new Date(Date.now() + 86_400_000).toISOString(),
+      idempotencyKey: randomUUID(), originalStatement: "Synthetic human work completion",
+    }, { correlationId: randomUUID() });
+    await facts.setSourceAccess(pmo, {
+      projectId, sourceId: humanBinding.entry.sourceId, expectedRevision: humanBinding.entry.sourceAccessRevision,
+      state: "AVAILABLE", readers: factReaders,
+    }, { correlationId: randomUUID() });
+    await authority.appendPolicy(workbookReader, {
+      projectId, factType: humanBinding.factType, effectiveAt: workbookSnapshotAt,
+      expectedRevision: 0, idempotencyKey: randomUUID(),
+      definition: {
+        conflictBehavior: "REQUEST_RECONCILIATION",
+        tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null, requiredApproval: "NOT_REQUIRED", validity: null }] }],
+      },
+    }, { correlationId: randomUUID() });
     const milestoneRequest = {
       projectId, milestoneId: work.milestoneId, ruleRevision: "milestone-required-state/v1" as const,
       enabled: true, idempotencyKey: randomUUID(),
     };
     const captureMilestone = () => milestones.captureMilestoneConsistency(workbookReader, milestoneRequest, { correlationId: randomUUID() });
     const mixedMilestone = await captureMilestone();
-    expect(mixedMilestone).toMatchObject({ visibility: "available", result: {
-      status: "CONFLICTING",
-      evaluations: expect.arrayContaining([
-        expect.objectContaining({ targetKind: "MILESTONE", assessment: {
-          status: "RESOLVED", resolvedValue: { type: "text", value: "COMPLETE" }, versions: [expect.objectContaining({
-            id: workbookCommand.versionId, provenance: "SYSTEM_VERIFIED", source: expect.objectContaining({ recordType: "xlsx.row" }),
-          })],
-        } }),
-        expect.objectContaining({ targetKind: "WORK_ITEM", assessment: {
-          status: "RESOLVED", resolvedValue: { type: "text", value: "OPEN" }, versions: [expect.objectContaining({
-            id: admittedReceipt.versionId, provenance: "SYSTEM_VERIFIED", source: expect.objectContaining({ recordType: "jira.issue" }),
-          })],
-        } }),
-      ]),
-    } });
+    expect(mixedMilestone).toMatchObject({ visibility: "available", result: { status: "CONFLICTING" } });
+    if (mixedMilestone.visibility !== "available" || mixedMilestone.result.status !== "CONFLICTING")
+      throw new Error("Expected a captured source-backed milestone contradiction");
+    const evaluations = mixedMilestone.result.evaluations;
+    expect(evaluations).toHaveLength(3);
+    for (const expected of [
+      { targetId: work.milestoneId, versionId: workbookCommand.versionId, recordType: "xlsx.row", value: "COMPLETE", provenance: "SYSTEM_VERIFIED" },
+      { targetId: work.workItemId, versionId: admittedReceipt.versionId, recordType: "jira.issue", value: "OPEN", provenance: "SYSTEM_VERIFIED" },
+      { targetId: humanWork.id, versionId: humanBinding.entry.id, recordType: "human_statement", value: "COMPLETE", provenance: "HUMAN_CONFIRMED" },
+    ]) {
+      expect(evaluations.find(({ targetId }) => targetId === expected.targetId)).toMatchObject({ assessment: {
+        status: "RESOLVED", resolvedValue: { type: "text", value: expected.value },
+        versions: [{ id: expected.versionId, provenance: expected.provenance, source: { recordType: expected.recordType } }],
+      } });
+    }
+    expect(mixedMilestone.result.contributors.flatMap(({ supportingVersionIds }) => supportingVersionIds).sort())
+      .toEqual([workbookCommand.versionId, admittedReceipt.versionId].sort());
     const children = await db.factAssessment.findMany({ where: { milestoneAssessmentId: mixedMilestone.assessmentId } });
-    expect(children).toHaveLength(2);
-    for (const child of children) expect(child).toMatchObject({ evaluatorVersion: 2, subject: workbookReader.subject });
+    expect(children).toHaveLength(3);
+    for (const child of children) expect(child).toMatchObject({
+      evaluatorVersion: child.factId === humanBinding.factId ? 1 : 2,
+      subject: workbookReader.subject,
+    });
     const readMilestone = (actor: Actor) => milestones.getMilestoneConsistency(actor, { projectId, assessmentId: mixedMilestone.assessmentId });
     expect(await readMilestone(workbookReader)).toEqual(mixedMilestone);
     expect(await readMilestone(manager)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
@@ -1007,6 +1032,12 @@ describe("durable Jira connector runtime", () => {
       projectId, sourceId: workbookFactSource, expectedRevision: revokedWorkbook.revision, state: "AVAILABLE", readers: factReaders,
     }, { correlationId: randomUUID() });
     expect(await captureMilestone()).toEqual({ ...mixedMilestone, replayed: true });
+    const projectGrant = await db.accessGrant.findFirstOrThrow({ where: {
+      customerId: isolatedCustomerId, subject: workbookReader.subject, role: "pmo_admin", scopeType: "project", scopeId: projectId,
+    } });
+    await db.accessGrant.delete({ where: { id: projectGrant.id } });
+    expect(await readMilestone(workbookReader)).toBeNull();
+    await db.accessGrant.create({ data: projectGrant });
     const sourceState = await db.ingestionSource.findFirstOrThrow({
       where: { customerId: isolatedCustomerId, id: sourceId },
     });
@@ -1234,6 +1265,25 @@ describe("durable Jira connector runtime", () => {
     expect(redactedAdminAction).not.toContain(revokedAccessToken);
     expect(redactedAdminAction).not.toContain("invalid_grant");
     expect(redactedAdminAction).not.toContain("revoked");
+
+    // Change the live Jira scope while the stored parent and its fact grants remain valid.
+    await asApi(async (tx) => {
+      const grant = await tx.connectorSyncGrant.findFirstOrThrow({ where: { customerId: isolatedCustomerId, projectId, sourceId } });
+      const changedAt = new Date();
+      const revision = grant.revision + 1;
+      const audit = await tx.auditEvent.create({ data: {
+        customerId: isolatedCustomerId, actor: pmo.subject, event: "ingestion.sync_scope.revoked",
+        correlationId: randomUUID(), occurredAt: changedAt,
+        detail: { sourceId, projectId, configRevision: grant.configRevision, revision, active: false },
+      } });
+      await tx.connectorSyncGrant.update({ where: { id: grant.id }, data: {
+        active: false, revision, changedAt, changedBy: pmo.subject, auditEventId: audit.id,
+      } });
+    });
+    expect(await readMilestone(workbookReader)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+    expect(await asApi((tx) => tx.$queryRaw`
+      SELECT public.valid_milestone_consistency_assessment(${mixedMilestone.assessmentId}::uuid) AS valid
+    `)).toEqual([{ valid: true }]);
   }, 75_000);
 
 });

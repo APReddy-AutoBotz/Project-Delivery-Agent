@@ -1295,11 +1295,11 @@ BEGIN
     OR a."factRevision">(SELECT revision FROM public."ProjectFact" WHERE id=a."factId") THEN RETURN false; END IF;
   mixed := a."evaluatorVersion"=2;
   IF mixed AND (NOT a.complete OR a."captureKind" NOT IN ('SCALAR','MILESTONE')) THEN RETURN false; END IF;
-  IF mixed AND a."captureKind"='MILESTONE' AND NOT EXISTS (
+  IF a."captureKind"='MILESTONE' AND NOT EXISTS (
     SELECT 1 FROM public."MilestoneConsistencyAssessment" parent
     WHERE (parent."customerId",parent."projectId",parent.id,parent.subject,parent."asOf")
       =(a."customerId",a."projectId",a."milestoneAssessmentId",a.subject,a."asOf")
-      AND parent."reconciliationCheckId" IS NULL
+      AND (NOT mixed OR parent."reconciliationCheckId" IS NULL)
   ) THEN RETURN false; END IF;
   IF a.complete AND mixed IS DISTINCT FROM EXISTS (
     SELECT 1 FROM public."ProjectFactVersion" fv WHERE fv."factId"=a."factId" AND fv.revision<=a."factRevision"
@@ -1550,12 +1550,6 @@ DECLARE
   source_versions uuid[];
   source_access jsonb;
 BEGIN
-  IF NEW."captureKind"='MILESTONE' AND NOT EXISTS (
-    SELECT 1 FROM public."MilestoneConsistencyAssessment" parent
-    WHERE (parent."customerId",parent."projectId",parent.id,parent.subject,parent."asOf")
-      =(NEW."customerId",NEW."projectId",NEW."milestoneAssessmentId",NEW.subject,NEW."asOf")
-      AND NOT parent.sealed AND parent."reconciliationCheckId" IS NULL
-  ) THEN RAISE EXCEPTION 'Mixed assessment parent unavailable'; END IF;
   SELECT array_agg(v.id ORDER BY v.id) INTO source_versions
   FROM public."FactAssessmentVersion" av JOIN public."ProjectFactVersion" v ON v.id=av."versionId"
   WHERE av."assessmentId"=NEW.id AND v.provenance='SYSTEM_VERIFIED';
