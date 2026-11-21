@@ -709,7 +709,7 @@ export class DatabaseMilestoneConsistencyRepository
             fact,
             asOf,
             prefix: prefixes!.get(fact.id)!,
-            allowSourceObservations: reconciliationCheckId === null,
+            allowSourceObservations: true,
           },
         );
         prepared.set(binding.id, plan);

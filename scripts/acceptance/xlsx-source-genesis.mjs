@@ -56,7 +56,7 @@ export async function verifyXlsxGenesisPrivileges(
 export async function proveXlsxSourceGenesis(
   pool,
   { retain = false, existingCustomer, existingProject, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1",
-    reviewer, reviewerRole = "pmo_admin", forecastRequired = true, snapshotRequired = false } = {},
+    reviewer, reviewerRole = "pmo_admin", additionalReaders = [], forecastRequired = true, snapshotRequired = false } = {},
 ) {
   const client = await pool.connect();
   const [fixtureCustomer, source, portfolio, fixtureProject, auditId] = Array.from(
@@ -209,6 +209,12 @@ export async function proveXlsxSourceGenesis(
       await client.query(
         `INSERT INTO public."IngestionConfigurationReader" VALUES ($1,$2,1,$3,$4)`,
         [customer, source, project, reviewer],
+      );
+    }
+    for (const reader of additionalReaders) {
+      await client.query(
+        `INSERT INTO public."IngestionConfigurationReader" VALUES ($1,$2,1,$3,$4)`,
+        [customer, source, project, reader],
       );
     }
     await client.query(

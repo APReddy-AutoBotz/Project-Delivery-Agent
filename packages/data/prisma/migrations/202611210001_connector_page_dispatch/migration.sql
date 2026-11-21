@@ -1299,7 +1299,6 @@ BEGIN
     SELECT 1 FROM public."MilestoneConsistencyAssessment" parent
     WHERE (parent."customerId",parent."projectId",parent.id,parent.subject,parent."asOf")
       =(a."customerId",a."projectId",a."milestoneAssessmentId",a.subject,a."asOf")
-      AND (NOT mixed OR parent."reconciliationCheckId" IS NULL)
   ) THEN RETURN false; END IF;
   IF a.complete AND mixed IS DISTINCT FROM EXISTS (
     SELECT 1 FROM public."ProjectFactVersion" fv WHERE fv."factId"=a."factId" AND fv.revision<=a."factRevision"

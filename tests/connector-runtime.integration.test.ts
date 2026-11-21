@@ -10,6 +10,7 @@ import {
   DatabaseConnectorRuntimeRepository,
   DatabaseIngestionRepository,
   DatabaseMilestoneConsistencyRepository,
+  DatabaseMilestoneReconciliationRepository,
   DatabaseProjectFactRepository,
 } from "../packages/data/src/index.js";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
@@ -512,6 +513,11 @@ describe("durable Jira connector runtime", () => {
       subject: "reconciliation-manager-" + randomUUID(),
       roles: ["project_manager"],
     };
+    const otherManager: Actor = {
+      customerId: isolatedCustomerId,
+      subject: "other-reconciliation-manager-" + randomUUID(),
+      roles: ["project_manager"],
+    };
     const systemAdmin: Actor = {
       customerId: isolatedCustomerId,
       subject: "reconciliation-system-admin-" + randomUUID(),
@@ -533,6 +539,9 @@ describe("durable Jira connector runtime", () => {
       },
     });
     const projectFixture = canonicalFixture(portfolioId);
+    for (const responsibility of projectFixture.responsibilities) {
+      if (responsibility.role === "PROJECT_MANAGER") responsibility.subject = manager.subject;
+    }
     projectFixture.workItems.push({ ...projectFixture.workItems[0]!, key: "WI-2", title: "Human-confirmed required work" });
     projectFixture.requiredWorkItems.push({ milestoneKey: "MS-1", workItemKey: "WI-2" });
     const { id: projectId } = await new DatabaseCanonicalProjectRepository(db)
@@ -540,6 +549,7 @@ describe("durable Jira connector runtime", () => {
     for (const grant of [
       { subject: pmo.subject, role: "pmo_admin" },
       { subject: manager.subject, role: "project_manager" },
+      { subject: otherManager.subject, role: "project_manager" },
       { subject: systemAdmin.subject, role: "system_admin" },
     ] as const) {
       await db.accessGrant.create({
@@ -569,6 +579,7 @@ describe("durable Jira connector runtime", () => {
       await proveXlsxSourceGenesis(pool, {
         retain: true, existingCustomer: isolatedCustomerId, existingProject: projectId, sheet,
         snapshotRequired: true, reviewer: sourceAdmissionSubject, reviewerRole: "project_manager",
+        additionalReaders: [manager.subject, otherManager.subject],
       });
     } finally { await pool.end(); }
 
@@ -582,7 +593,7 @@ describe("durable Jira connector runtime", () => {
       pmo,
       {
         binding,
-        projects: [{ projectId, readers: [manager.subject, pmo.subject, sourceAdmissionSubject, workbookReader.subject] }],
+        projects: [{ projectId, readers: [manager.subject, otherManager.subject, pmo.subject, sourceAdmissionSubject, workbookReader.subject] }],
         mapping: {
           kind: "CONNECTOR",
           factTypes: ["jira.status"],
@@ -888,7 +899,7 @@ describe("durable Jira connector runtime", () => {
     }, options);
     const api = { $transaction: asApi } as never;
     const facts = new DatabaseProjectFactRepository(api);
-    const factReaders = [manager.subject, workbookReader.subject];
+    const factReaders = [manager.subject, otherManager.subject, pmo.subject, workbookReader.subject];
     await facts.setSourceAccess(pmo, {
       projectId, sourceId: factSource, expectedRevision: 1, state: "AVAILABLE", readers: factReaders,
     }, { correlationId: randomUUID() });
@@ -1021,17 +1032,65 @@ describe("durable Jira connector runtime", () => {
     });
     const readMilestone = (actor: Actor) => milestones.getMilestoneConsistency(actor, { projectId, assessmentId: mixedMilestone.assessmentId });
     expect(await readMilestone(workbookReader)).toEqual(mixedMilestone);
-    expect(await readMilestone(manager)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+    expect(await readMilestone(pmo)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+    expect(await readMilestone(otherManager)).toEqual(mixedMilestone);
+
+    const requests = new DatabaseMilestoneReconciliationRepository(api);
+    const check = { ...milestoneRequest, idempotencyKey: randomUUID() };
+    const checked = await requests.check(workbookReader, check, { correlationId: randomUUID() });
+    expect(checked).toMatchObject({
+      outcome: "CREATED", replayed: false,
+      request: { assignment: { reason: "ASSIGNED", recipientSubject: manager.subject, revision: 1 } },
+      assessment: { visibility: "available", result: {
+        status: "CONFLICTING", contributorIdentity: mixedMilestone.result.contributorIdentity,
+      } },
+    });
+    if (!checked.request) throw new Error("Expected one durable milestone request");
+    const requestId = checked.request.id;
+    const requestScope = { projectId, requestId };
+    const replayed = await requests.check(workbookReader, check, { correlationId: randomUUID() });
+    expect(replayed).toEqual({ ...checked, replayed: true, assessment: { ...checked.assessment, replayed: true } });
+    const checkedAgain = await requests.check(workbookReader, { ...check, idempotencyKey: randomUUID() }, { correlationId: randomUUID() });
+    expect(checkedAgain).toMatchObject({ outcome: "REUSED", replayed: false, request: { id: requestId } });
+    expect(await db.milestoneReconciliationRequest.count({ where: { projectId, milestoneId: work.milestoneId } })).toBe(1);
+    expect(await db.milestoneReconciliationCheck.count({ where: { projectId, requestId } })).toBe(2);
+    expect(await requests.list(manager, { projectId }, "recipient")).toMatchObject({ requests: [{ id: requestId }] });
+    expect(await requests.get(manager, requestScope)).toMatchObject({ request: { id: requestId }, assessment: checked.assessment });
+    expect(await requests.get(otherManager, requestScope)).toBeNull();
+
     const revokedWorkbook = await facts.setSourceAccess(pmo, {
       projectId, sourceId: workbookFactSource, expectedRevision: visibleWorkbook.revision, state: "REVOKED", readers: [],
     }, { correlationId: randomUUID() });
     expect(await captureMilestone()).toMatchObject({
       assessmentId: mixedMilestone.assessmentId, visibility: "restricted", replayed: true, result: null,
     });
+    expect(await requests.get(manager, requestScope)).toMatchObject({ assessment: {
+      assessmentId: checked.assessment.assessmentId, visibility: "restricted", revalidationRequired: true, result: null,
+    } });
+    expect(await requests.check(workbookReader, check, { correlationId: randomUUID() })).toMatchObject({
+      checkId: checked.checkId, replayed: true, request: { id: requestId },
+      assessment: { visibility: "restricted", revalidationRequired: true, result: null },
+    });
     await facts.setSourceAccess(pmo, {
       projectId, sourceId: workbookFactSource, expectedRevision: revokedWorkbook.revision, state: "AVAILABLE", readers: factReaders,
     }, { correlationId: randomUUID() });
     expect(await captureMilestone()).toEqual({ ...mixedMilestone, replayed: true });
+    const managerGrant = await db.accessGrant.findFirstOrThrow({ where: {
+      customerId: isolatedCustomerId, subject: manager.subject, role: "project_manager", scopeType: "project", scopeId: projectId,
+    } });
+    await db.accessGrant.delete({ where: { id: managerGrant.id } });
+    expect(await requests.get(manager, requestScope)).toBeNull();
+    expect(await requests.list(manager, { projectId }, "recipient")).toBeNull();
+    const refresh = (expectedAssignmentRevision: number) => requests.refreshAssignment(workbookReader, {
+      ...requestScope, idempotencyKey: randomUUID(), expectedAssignmentRevision,
+    }, { correlationId: randomUUID() });
+    expect(await refresh(1)).toMatchObject({ assignment: { reason: "PM_SCOPE_UNAVAILABLE", revision: 2 } });
+    await db.accessGrant.create({ data: managerGrant });
+    expect(await requests.get(manager, requestScope)).toBeNull();
+    expect(await refresh(2)).toMatchObject({ assignment: { reason: "ASSIGNED", revision: 3, recipientSubject: manager.subject } });
+    expect(await requests.get(manager, requestScope)).toMatchObject({
+      request: { id: requestId, assignment: { revision: 3 } }, assessment: checked.assessment,
+    });
     const projectGrant = await db.accessGrant.findFirstOrThrow({ where: {
       customerId: isolatedCustomerId, subject: workbookReader.subject, role: "pmo_admin", scopeType: "project", scopeId: projectId,
     } });
@@ -1281,9 +1340,12 @@ describe("durable Jira connector runtime", () => {
       } });
     });
     expect(await readMilestone(workbookReader)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+    expect(await requests.get(manager, requestScope)).toMatchObject({ assessment: { visibility: "restricted", result: null } });
     expect(await asApi((tx) => tx.$queryRaw`
-      SELECT public.valid_milestone_consistency_assessment(${mixedMilestone.assessmentId}::uuid) AS valid
-    `)).toEqual([{ valid: true }]);
-  }, 75_000);
+      SELECT public.valid_milestone_consistency_assessment(${mixedMilestone.assessmentId}::uuid) AS valid,
+        public.valid_milestone_reconciliation_request(${requestId}::uuid) AS "requestValid",
+        public.valid_milestone_reconciliation_check(${checked.checkId}::uuid) AS "checkValid"
+    `)).toEqual([{ valid: true, requestValid: true, checkValid: true }]);
+  }, 90_000);
 
 });
