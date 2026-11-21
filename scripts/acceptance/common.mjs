@@ -1,22 +1,21 @@
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { loadDatabaseConfig } from "../../packages/platform/dist/index.js";
+import { assertSyntheticDatabaseUrl, loadDatabaseConfig } from "../../packages/platform/dist/index.js";
 export const { Pool } = createRequire(
   new URL("../../packages/data/package.json", import.meta.url),
 )("pg");
 
 export async function alignSyntheticFixtureOwnership(connection) {
-  const target = new URL(connection);
+  const target = assertSyntheticDatabaseUrl(connection);
   if (
     process.env.NODE_ENV === "production" ||
     process.env.DATA_MODE !== "synthetic" ||
-    !["localhost", "127.0.0.1"].includes(target.hostname) ||
     !/^\/pdaa_test_[0-9]+$/.test(target.pathname)
   )
     throw new Error("Ownership alignment requires an isolated synthetic database");
 
-  const pool = new Pool({ connectionString: connection });
+  const pool = new Pool({ connectionString: target.href });
   try {
     const { rows: [database] } = await pool.query("SELECT current_database() AS name");
     if (database.name !== target.pathname.slice(1))
