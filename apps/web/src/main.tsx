@@ -30,6 +30,7 @@ import { decodeProjectList, decodeProjectSetup } from "./canonical-creation-deco
 import { ProjectUpdates } from "./project-updates.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
 import { CsvIngestion } from "./csv-ingestion.js";
+import { XlsxIngestion } from "./xlsx-ingestion.js";
 import { savedScalarReconciliationLink } from "./scalar-reconciliation.js";
 import {
   MilestoneReconciliation,
@@ -42,6 +43,9 @@ import { projectPolicyOwner } from "./project-policy-write-registry.js";
 import { accessGrantOwner, accessGrantWrites } from "./access-grant-write-registry.js";
 import { ManagedReadRegistry } from "./managed-read-registry.js";
 import { managedRead } from "./managed-read.js";
+
+const canImportXlsx = (actor: Actor | undefined) => Boolean(actor?.roles.some((role) =>
+  role === "project_manager" || role === "portfolio_manager" || role === "pmo_admin"));
 
 function evidenceLocation() {
   const query = new URLSearchParams(window.location.search);
@@ -299,6 +303,14 @@ function App() {
   const advanceQueueView = () => { queueViewRevisionRef.current++; setQueueViewRevision(queueViewRevisionRef.current); };
   const [view, setView] = useState<"projects" | "platform" | "ingestion">("projects");
   const viewRef = React.useRef<"projects" | "platform" | "ingestion">("projects");
+  const [importFormat, setImportFormat] = useState<"csv" | "xlsx">("csv");
+  const importFormatRef = React.useRef<"csv" | "xlsx">("csv");
+  const changeImportFormat = (format: "csv" | "xlsx") => {
+    if (importFormatRef.current === format) return;
+    importFormatRef.current = format;
+    if (viewRef.current === "ingestion") advanceQueueView();
+    setImportFormat(format);
+  };
   const [selected, setSelected] = useState<string | null>(null);
   const selectedRef = React.useRef<string | null>(null);
   const selectionEpochRef = React.useRef(0);
@@ -568,9 +580,16 @@ function App() {
   const platformRequest = React.useMemo(() => bindSessionRequest(identityRequest, platformViewCurrent),
     [identityRequest, platformViewCurrent]);
   const csvViewCurrent = () => Boolean(identityCurrent() && isCurrentProjectList() && renderedActor?.roles.includes("pmo_admin") &&
-    viewRef.current === "ingestion" && queueViewRevisionRef.current === queueViewRevision && updateLocatorRef.current === null);
+    viewRef.current === "ingestion" && importFormatRef.current === "csv" &&
+    queueViewRevisionRef.current === queueViewRevision && updateLocatorRef.current === null);
   const csvRequest = React.useMemo(() => bindSessionRequest(identityRequest, csvViewCurrent),
     [identityRequest, renderedProjects, queueViewRevision]);
+  const xlsxViewCurrent = React.useCallback(() => Boolean(identityCurrent() && canImportXlsx(renderedActor) &&
+    viewRef.current === "ingestion" && queueViewRevisionRef.current === queueViewRevision &&
+    updateLocatorRef.current === null && (!renderedActor?.roles.includes("pmo_admin") || importFormatRef.current === "xlsx")),
+  [identityCurrent, renderedActor, queueViewRevision]);
+  const xlsxRequest = React.useMemo(() => bindSessionRequest(identityRequest, xlsxViewCurrent),
+    [identityRequest, xlsxViewCurrent]);
   const retrySetup = () => {
     if (identityCurrent()) void client.invalidateQueries({ queryKey: setupKey, exact: true });
   };
@@ -864,11 +883,12 @@ function App() {
               <span aria-hidden="true">⚙</span> Platform & access
             </Button>
           )}
-          {pmoAdmin && (
+          {canImportXlsx(me.data) && (
             <Button
               className={view === "ingestion" ? "active" : ""}
               onClick={() => {
                 if (!identityCurrent()) return;
+                if (viewRef.current !== "ingestion") changeImportFormat("csv");
                 navigateProject();
                 changeView("ingestion");
               }}
@@ -916,7 +936,7 @@ function App() {
                 {view === "platform"
                   ? "Service health, scoped access, and a record of administrative changes."
                   : view === "ingestion"
-                    ? "Configure a CSV source, review its preview, and save selected proposals."
+                    ? "Preview spreadsheet mappings and save selected proposals."
                   : selected
                     ? "A shared starting point for project evidence and decisions."
                     : "A focused view of the projects you have permission to access."}
@@ -959,13 +979,22 @@ function App() {
                   request={platformRequest} isCurrentScope={platformViewCurrent} />
               </div>
             </>
-          ) : view === "ingestion" && retainedActor && setupOwnerKey && retainedActor.roles.includes("pmo_admin") ? (
+          ) : view === "ingestion" && retainedActor && setupOwnerKey && canImportXlsx(retainedActor) ? (
             <>
-              {!csvViewCurrent() && <p role="status">Checking account and project access…</p>}
-              <div hidden={!csvViewCurrent()}>
-                <CsvIngestion key={JSON.stringify([setupOwnerKey, queueViewRevision])} request={csvRequest}
-                  projects={visibleProjects ?? []} actor={retainedActor} isCurrentScope={csvViewCurrent} />
-              </div>
+              {retainedActor.roles.includes("pmo_admin") && identityCurrent() && <div className="mb-4 flex gap-2" role="group" aria-label="Spreadsheet format">
+                <Button className="secondary" aria-pressed={importFormat === "csv"} onClick={() => changeImportFormat("csv")}>CSV imports</Button>
+                <Button className="secondary" aria-pressed={importFormat === "xlsx"} onClick={() => changeImportFormat("xlsx")}>Excel imports</Button>
+              </div>}
+              {retainedActor.roles.includes("pmo_admin") && importFormat === "csv" ? <>
+                {!csvViewCurrent() && <p role="status">Checking account and project access…</p>}
+                <div hidden={!csvViewCurrent()}>
+                  <CsvIngestion key={JSON.stringify([setupOwnerKey, queueViewRevision])} request={csvRequest}
+                    projects={visibleProjects ?? []} actor={retainedActor} isCurrentScope={csvViewCurrent} />
+                </div>
+              </> : xlsxViewCurrent()
+                ? <XlsxIngestion key={JSON.stringify([setupOwnerKey, queueViewRevision, renderedIdentityIssuance])}
+                  request={xlsxRequest} isCurrent={xlsxViewCurrent} />
+                : <p role="status">Checking Excel import access…</p>}
             </>
           ) : creating && retainedSetup ? (
             <>

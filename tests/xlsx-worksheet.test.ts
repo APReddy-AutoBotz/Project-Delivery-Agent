@@ -10,6 +10,7 @@ import { writeTestArchive } from "./fixtures/xlsx-test-archive.js";
 import {
   appPart,
   book,
+  customerBrowserBook,
   excelTextParts,
   fixtureParts,
   id,
@@ -43,6 +44,24 @@ const config = {
 };
 
 const reject = /^XLSX_WORKSHEET_REJECTED$/u;
+
+it.each(["portable-v1", "excel-text-v1"] as const)(
+  "decodes the packaged browser fixture for %s with selectable rows across two pages",
+  async (profile) => {
+    const decoderProfile = profile === "portable-v1" ? "portable" : profile;
+    const grid = await readXlsxWorksheet(customerBrowserBook(profile, id(3)), config.sheet, decoderProfile);
+    const preview = previewSpreadsheetGrid(grid, {
+      ...config, identityColumn: "Key",
+      fields: [...config.fields, { column: "Status", factType: "project.status", type: "text", required: true }],
+    });
+    expect(preview.rows).toHaveLength(52);
+    expect(preview.rows[0]).toMatchObject({ key: "0001", status: "VALID", operation: "CREATE" });
+    expect(preview.rows[1]).toMatchObject({ key: "0002", status: "INVALID", errors: ["INVALID_FIELDS"] });
+    expect(preview.rows[1]?.fields).toContainEqual(expect.objectContaining({ state: "INVALID", code: "INVALID_VALUE" }));
+    expect(preview.rows[50]).toMatchObject({ key: "0051", status: "VALID", operation: "CREATE" });
+  },
+);
+
 describe("FR-CON-006/007 explicit offline Excel text profile", () => {
   const profile = "excel-text-v1";
 

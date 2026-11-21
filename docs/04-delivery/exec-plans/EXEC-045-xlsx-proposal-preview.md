@@ -691,6 +691,41 @@ admitted decoder exchange settles under its own deadline and cleanup rules.
 Exact authorized retry can return the durable receipt ahead of fresh decoder
 admission. The release still requires packaged route and browser proofs.
 
+### Browser upload and review
+
+Data imports offers Excel to API-eligible project managers, portfolio managers
+and PMO administrators. PMO administrators can switch between the existing CSV
+workflow and Excel. Access to the source catalogue and receipts remains scoped
+by the server. A disabled API returns the generic unavailable state.
+
+An authorized user selects a configured source, previews the workbook, reads
+the sealed mapping and validation outcomes, and selects rows across receipt
+pages. The save stores reviewed proposals for the existing approval path.
+Uncertain writes can be retried with the original in-memory command, workbook
+bytes or selection. Changing source or authenticated view aborts the old
+request and clears its local draft. The browser submits a fixed workbook
+filename and keeps bytes, display values and command keys out of browser
+storage. To reopen a retained preview after reload, select its source and
+enter its preview receipt ID. The protected details call can recover a linked
+reviewed import receipt using that ID.
+
+The browser contract tests exercise the UI and intercepted API responses.
+The isolated customer rehearsal keeps the direct bridge checks and adds a
+Chromium journey through the packaged Caddy proxy, OIDC sign-in, API and
+decoder. The verifier receives a synthetic CA, login and workbooks. For each
+database profile and each workbook parser profile, the journey previews a
+changed workbook, checks an invalid row, selects across two pages, saves
+reviewed proposals and reopens the linked receipt. A temporary browser
+observer forwards the original upload and save unchanged. The rehearsal
+verifies the captured workbook bytes, replays both requests over HTTPS and
+checks receipt denial under an authenticated account outside the source scope.
+
+A separate owner process verifies that each profile has exactly one new
+preview and reviewed receipt despite replay. It checks the exact workbook
+digest, parent receipt, selected rows and unchanged canonical fact digest.
+The job publishes finite results after both customer database profiles pass.
+Execution of this rehearsal on the exact hosted candidate remains required.
+
 ## Required validation
 
 PR #153 Foundation run [41262214531](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41262214531)
