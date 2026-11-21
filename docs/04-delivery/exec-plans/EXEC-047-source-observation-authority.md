@@ -410,6 +410,12 @@ connectivity. No destructive downgrade or default development database use.
   reconciliation. The acceptance role is created and removed in the same
   synthetic database transaction. Both packaged profiles and the coupled
   release gates remain subject to successful execution and exact review.
+  The native rehearsal verified the reviewed workbook after one lawful
+  proposal purge. The fixture stages an aged receipt before admission and
+  restores its immutability guard before commit. A repeat purge found no
+  further expired content. The
+  admitted witness, original PM proof, exact replay, and earlier human proof
+  survived logical restore with API database connections revoked.
 
 ## Decisions made
 

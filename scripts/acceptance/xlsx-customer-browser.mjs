@@ -381,7 +381,10 @@ async function goldenReconciliation(fixture) {
   });
   await goldenHistory(pm, project, workbook, true);
   assert.deepEqual((await goldenApi(pm, copied)).assessment, checked.assessment);
-  return { requestId, checkId: checked.checkId, reusedCheckId: reused.checkId, command, projectAndFactRevocations: true };
+  return {
+    requestId, assessmentId: checked.assessment.assessmentId, checkId: checked.checkId,
+    reusedCheckId: reused.checkId, command, projectAndFactRevocations: true,
+  };
 }
 
 async function goldenJiraDenial(fixture) {
@@ -405,6 +408,7 @@ async function goldenRedelivery(fixture) {
   const project = "/api/projects/" + fixture.projectId;
   const delivery = await goldenApi(pm, project + "/reconciliation-requests/" + fixture.requestId);
   assert.equal(delivery.request.id, fixture.requestId);
+  assert.equal(delivery.assessment.assessmentId, fixture.assessmentId);
   verifyMixedAssessment(delivery.assessment, fixture);
   return { originalEvidenceRedelivered: true };
 }

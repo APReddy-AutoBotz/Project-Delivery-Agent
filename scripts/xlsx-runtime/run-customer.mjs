@@ -62,7 +62,7 @@ function docker(step, args, env = {}, timeout = 120_000) {
   );
   if (child.status !== 0 || child.error) {
     const proofStep = child.stderr?.match(
-      /^XLSX_CUSTOMER_(?:PROOF|BROWSER)_FAILED (environment|provisioned-customer|source-genesis|retention-fixture|receipt-verification|browser-receipt-verification|identity-readiness|browser-toolchain|sign-in|workbook-import|receipt-reload|scope-denial|restore-target|restore-quarantine|golden-project|golden-workbook|golden-admit|golden-reconciliation|golden-withdraw-jira|golden-jira-denial|golden-regrant-jira|golden-redelivery|golden-verify)\r?$/mu,
+      /^XLSX_CUSTOMER_(?:PROOF|BROWSER)_FAILED (environment|provisioned-customer|source-genesis|retention-fixture|receipt-verification|browser-receipt-verification|identity-readiness|browser-toolchain|sign-in|workbook-import|receipt-reload|scope-denial|restore-target|restore-quarantine|golden-project|golden-workbook|golden-admit|golden-reconciliation|golden-withdraw-jira|golden-jira-denial|golden-regrant-jira|golden-purge-workbook|golden-redelivery|golden-verify)\r?$/mu,
     )?.[1];
     const detail = proofStep ? step + " (" + proofStep + ")" : step;
     throw new Error("XLSX customer rehearsal failed at " + detail, {
@@ -311,7 +311,7 @@ function exercise(profile) {
   assert.equal(seed.golden.sheet, "Portfolio");
   const goldenWorkbook = book(fixtureParts([
     ["Key", "Project", "Status", "Forecast", "Snapshot"],
-    ["release-golden", seed.golden.projectId, "Complete", "2027-03-02", new Date(Date.now() - 30_000).toISOString()],
+    ["release-golden", seed.golden.projectId, "Complete", "2027-03-02", new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()],
   ]));
   const goldenSha256 = createHash("sha256").update(goldenWorkbook).digest("hex");
   writeFileSync(join(browserProof, "golden.xlsx"), goldenWorkbook);
@@ -413,11 +413,12 @@ function exercise(profile) {
   assert.deepEqual(ownerProof("golden-withdraw-jira", "golden-withdraw-jira", JSON.stringify(golden)), { active: false });
   assert.deepEqual(goldenBrowser("golden-jira-denial", golden), { jiraScopeRevocation: true });
   assert.deepEqual(ownerProof("golden-regrant-jira", "golden-regrant-jira", JSON.stringify(golden)), { active: true });
+  assert.deepEqual(ownerProof("golden-purge-workbook", "golden-purge-workbook", JSON.stringify(golden)), { redactedProposals: 1 });
   assert.deepEqual(goldenBrowser("golden-redelivery", golden), { originalEvidenceRedelivered: true });
   const { canonicalSha256, ...goldenProof } = ownerProof("golden-verify", "golden-verify", JSON.stringify(golden));
   assert.match(canonicalSha256, /^[a-f0-9]{64}$/u);
   assert.notEqual(canonicalSha256, seed.canonicalSha256);
-  assert.deepEqual(goldenProof, { verifiedSourceWitnesses: 4, durablePmRequests: 1, verifiedChecks: 2, legacyProofs: 1 });
+  assert.deepEqual(goldenProof, { verifiedSourceWitnesses: 4, durablePmRequests: 1, verifiedChecks: 2, legacyProofs: 1, redactedProposals: 1 });
   const backup = operationResult(compose("backup-browser-receipts", "run", "--rm", "--no-deps", "backup"),
     "backup", env.CUSTOMER_ID);
   assert.equal(backup.encrypted, true);

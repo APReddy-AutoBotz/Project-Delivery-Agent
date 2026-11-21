@@ -13,6 +13,7 @@ import {
   admitGoldenSources,
   changeGoldenJiraScope,
   prepareGoldenWorkbook,
+  purgeGoldenWorkbook,
   verifyGoldenProof,
   verifyGoldenQuarantineDelivery,
 } from "./golden-source-observations.mjs";
@@ -288,7 +289,7 @@ async function verifyRestoredBrowser(expected, database) {
 
 try {
   const profile = env.PDAA_CUSTOMER_PROFILE;
-  assert(["prepare", "verify", "verify-browser", "golden-admit", "golden-verify",
+  assert(["prepare", "verify", "verify-browser", "golden-admit", "golden-purge-workbook", "golden-verify",
     "golden-withdraw-jira", "golden-regrant-jira", "create-restore-target", "verify-restored-browser"].includes(phase));
   assert(["bundled", "external"].includes(profile));
   assert.equal(env.PDAA_ACCEPTANCE, "customer-composition");
@@ -326,6 +327,8 @@ try {
     if (phase === "golden-admit") {
       assert.equal(await canonicalDigest(), expected.canonicalSha256);
       result = await admitGoldenSources(pool, database, customerId, expected);
+    } else if (phase === "golden-purge-workbook") {
+      result = await purgeGoldenWorkbook(pool, database, customerId, expected);
     } else if (phase === "golden-verify") {
       result = { ...await verifyGoldenProof(pool, customerId, expected), canonicalSha256: await canonicalDigest() };
     } else {

@@ -21,6 +21,7 @@ import { proveXlsxSourceGenesis } from "./xlsx-source-genesis.mjs";
 const manager = "pm-atlas";
 const leader = "leader-atlas";
 const pmo = "pmo-atlas";
+const retentionAdmin = "synthetic-workbook-retention";
 const admissionSubject = "synthetic:source-admission";
 const readers = [pmo, manager, leader];
 const sheet = "Portfolio";
@@ -292,7 +293,7 @@ async function requiredTargets(pool, customerId, projectId) {
 async function projectedInputs(pool, customerId, fixture, jiraSourceId) {
   const { rows } = await pool.query(
     `SELECT r.id AS "receiptId",o.ordinal,r.kind,rec."recordKey",s.id AS "streamId",
-       x."workbookSha256",public.valid_connector_page_dispatch(r.id) AS dispatch
+       o."sourceRevisionId",x."workbookSha256",public.valid_connector_page_dispatch(r.id) AS dispatch
      FROM public."IngestionOperationReceipt" r
      JOIN public."IngestionRowOutcome" o ON (o."customerId",o."sourceId",o."receiptId")=(r."customerId",r."sourceId",r.id)
      JOIN public."IngestionExternalRecord" rec ON (rec."customerId",rec."sourceId",rec.id)=(o."customerId",o."sourceId",o."recordId")
@@ -325,6 +326,52 @@ async function projectedInputs(pool, customerId, fixture, jiraSourceId) {
   assert.equal(workbook[0].ordinal, 1);
   assert.equal(workbook[0].workbookSha256, fixture.workbookSha256);
   return { jira, workbook: workbook[0] };
+}
+
+async function ageReviewedWorkbook(pool, customerId, fixture, workbook) {
+  const tx = await pool.connect();
+  try {
+    await tx.query(
+      "BEGIN; SET LOCAL lock_timeout='3s'; SET LOCAL ROLE pdaa_migrate",
+    );
+    const revisionGuard = `SELECT tgenabled AS enabled FROM pg_trigger
+      WHERE tgrelid='public."IngestionSourceRevision"'::regclass AND tgname='ingestion_revision_guard' AND NOT tgisinternal`;
+    assert.deepEqual((await tx.query(revisionGuard)).rows, [{ enabled: "O" }]);
+    // Stage the exact reviewed synthetic revision before admission. The schema
+    // fence and the timestamp change are atomic, and expiry uses the real clock.
+    await tx.query(
+      'ALTER TABLE public."IngestionSourceRevision" DISABLE TRIGGER ingestion_revision_guard',
+    );
+    const changed = await tx.query(
+      `UPDATE public."IngestionSourceRevision" v
+        SET "receivedAt"=date_trunc('milliseconds',clock_timestamp()-interval '2 hours')
+        FROM public."IngestionRowOutcome" o
+        WHERE (v."customerId",v."sourceId",v."recordId",v.id)=(o."customerId",o."sourceId",o."recordId",o."sourceRevisionId")
+          AND (o."customerId",o."sourceId",o."projectId",o."receiptId",o.ordinal,o."sourceRevisionId")=($1,$2,$3,$4,1,$5)
+          AND o.state='ACCEPTED' AND v."receivedAt">clock_timestamp()-interval '1 hour'
+          AND NOT EXISTS (SELECT 1 FROM public."SourceObservationWitness" w
+            WHERE (w."customerId",w."projectId",w."sourceRevisionId")=(o."customerId",o."projectId",v.id))`,
+      [
+        customerId,
+        fixture.sourceId,
+        fixture.projectId,
+        workbook.receiptId,
+        workbook.sourceRevisionId,
+      ],
+    );
+    assert.equal(changed.rowCount, 1);
+    await tx.query(
+      'ALTER TABLE public."IngestionSourceRevision" ENABLE TRIGGER ingestion_revision_guard',
+    );
+    assert.deepEqual((await tx.query(revisionGuard)).rows, [{ enabled: "O" }]);
+    await tx.query("COMMIT");
+  } finally {
+    try {
+      await tx.query("ROLLBACK");
+    } finally {
+      tx.release();
+    }
+  }
 }
 
 async function admitInputs(pool, customerId, projectId, inputs) {
@@ -431,6 +478,7 @@ export async function admitGoldenSources(pool, database, customerId, fixture) {
       fixture,
       jiraSourceId,
     );
+    await ageReviewedWorkbook(pool, customerId, fixture, workbook);
     const admitted = await admitInputs(pool, customerId, fixture.projectId, [
       ...jira.map((input, index) => ({
         ...input,
@@ -563,6 +611,36 @@ export async function changeGoldenJiraScope(pool, customerId, fixture, active) {
   }
 }
 
+export async function purgeGoldenWorkbook(pool, database, customerId, fixture) {
+  await requiredTargets(pool, customerId, fixture.projectId);
+  const db = createDatabase(database);
+  try {
+    const api = {
+      $transaction: (operation, options) =>
+        db.$transaction(async (tx) => {
+          await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_api`;
+          return operation(tx);
+        }, options),
+    };
+    const repository = new DatabaseIngestionRepository(
+      api,
+      new CredentialVault(randomBytes(32).toString("base64")),
+    );
+    const actor = {
+      customerId,
+      subject: retentionAdmin,
+      roles: ["system_admin"],
+    };
+    assert.equal(await repository.purgeExpired(actor), 0);
+    await repository.setRetention(actor, { retentionHours: 1 }, randomUUID());
+    assert.equal(await repository.purgeExpired(actor), 1);
+    assert.equal(await repository.purgeExpired(actor), 0);
+    return { redactedProposals: 1 };
+  } finally {
+    await db.$disconnect();
+  }
+}
+
 export async function verifyGoldenProof(pool, customerId, expected) {
   const targets = await requiredTargets(pool, customerId, expected.projectId);
   assert.equal(targets[0].milestoneId, expected.milestoneId);
@@ -628,11 +706,38 @@ export async function verifyGoldenProof(pool, customerId, expected) {
       grantable: false,
     },
   ]);
+  const workbook = expected.positions.find(({ type }) => type === "xlsx.row");
+  assert(workbook);
+  const { rows: purged } = await pool.query(
+    `SELECT c.proposals IS NULL AND c."redactedAt" IS NOT NULL AS redacted,
+       a.event='ingestion.content.purged' AND a.actor=$4
+         AND a.detail=jsonb_build_object('redactedCount',1) AS audited,
+       public.resolve_source_observation_input(w."customerId",w."projectId",b."ingestionSourceId",
+         w."ingestionStreamId",command."inputReceiptId",command.ordinal,b."snapshotField",b."stateMapping") IS NULL AS no_source_input,
+       public.valid_source_observation_witness(w."versionId") AS witness_valid
+     FROM public."SourceObservationWitness" w
+     JOIN public."SourceAdmissionBindingRevision" b ON b.id=w."admissionRevisionId"
+     JOIN public."SourceAdmissionCommand" command ON command.id=w."rootCommandId"
+     JOIN public."IngestionProposalContent" c ON (c."customerId",c."sourceId",c."projectionId")
+       =(w."customerId",b."ingestionSourceId",(w.input->>'projectionId')::uuid)
+     JOIN public."AuditEvent" a ON (a."customerId",a.id)=(c."customerId",c."redactionAuditEventId")
+     WHERE (w."customerId",w."projectId",w."versionId")=($1,$2,$3) AND b."sourceKind"='xlsx.row'`,
+    [customerId, expected.projectId, workbook.versionId, retentionAdmin],
+  );
+  assert.deepEqual(purged, [
+    {
+      redacted: true,
+      audited: true,
+      no_source_input: true,
+      witness_valid: true,
+    },
+  ]);
   return {
     verifiedSourceWitnesses: 4,
     durablePmRequests: 1,
     verifiedChecks: 2,
     legacyProofs: 1,
+    redactedProposals: 1,
   };
 }
 
