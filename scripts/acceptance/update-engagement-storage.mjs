@@ -90,6 +90,20 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
   const pool = new Pool(typeof databaseConnection === "string"
     ? { connectionString: databaseConnection } : databaseConnection);
   try {
+    if (typeof databaseConnection === "string") {
+      // The synthetic Prisma path creates tables as the local superuser.
+      // Match the packaged migration owner before the fixture appends facts,
+      // so the definer checks can read the tables they protect.
+      await pool.query(`DO $owners$ DECLARE item record; BEGIN
+        FOR item IN
+          SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+          WHERE n.nspname='public' AND c.relkind IN ('r','p')
+            AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
+        LOOP
+          EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname);
+        END LOOP;
+      END $owners$`);
+    }
     const customerId = process.env.CUSTOMER_ID;
     assert(customerId);
     const portfolioId = randomUUID();
@@ -281,18 +295,6 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
     if (typeof databaseConnection === "string") {
       for (const name of engagementStorageFunctions)
         await pool.query(`GRANT EXECUTE ON FUNCTION public.${name}() TO PUBLIC`);
-      // Prisma's isolated synthetic deployment runs as the local superuser.
-      // Match the native migration-owner layout before reconstructing finite ACLs.
-      // The isolated pdaa_test URL guard above prevents this fixture setup elsewhere.
-      await pool.query(`DO $owners$ DECLARE item record; BEGIN
-        FOR item IN
-          SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-          WHERE n.nspname='public' AND c.relkind IN ('r','p')
-            AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
-        LOOP
-          EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname);
-        END LOOP;
-      END $owners$`);
       await applyBusinessTableGrants(pool);
     }
     const captureOperatorControls = await verifyCaptureOperatorControls(pool, databaseConnection, customerId);
