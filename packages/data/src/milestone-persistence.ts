@@ -34,6 +34,14 @@ type StoredMilestoneResult = Extract<
   MilestoneConsistencyDelivery,
   { visibility: "available" }
 >["result"];
+type AssessmentRecord = {
+  id: string;
+  projectId: string;
+  milestoneId: string;
+  asOf: Date;
+  result: unknown;
+};
+type AssessmentDependency = { id: string; factId: string; sourceId: string; provenance: string };
 const transactionOptions = {
   isolationLevel: "ReadCommitted" as const,
   maxWait: 5000,
@@ -462,6 +470,16 @@ export class DatabaseMilestoneConsistencyRepository
     const dependencies = row.scalarAssessments.flatMap((assessment) =>
       assessment.versions.map((item) => item.version),
     );
+    return this.delivery(tx, actor, row, dependencies, replayed);
+  }
+
+  private async delivery(
+    tx: Tx,
+    actor: Actor,
+    row: AssessmentRecord,
+    dependencies: AssessmentDependency[],
+    replayed: boolean,
+  ): Promise<MilestoneConsistencyDelivery> {
     const metadata = {
       assessmentId: row.id,
       projectId: row.projectId,
@@ -470,7 +488,7 @@ export class DatabaseMilestoneConsistencyRepository
       historical: true as const,
       replayed,
     };
-    if (!await assessmentDependenciesReadable(tx, actor, request.projectId, dependencies))
+    if (!await assessmentDependenciesReadable(tx, actor, row.projectId, dependencies))
       return {
         ...metadata,
         visibility: "restricted",
@@ -481,7 +499,7 @@ export class DatabaseMilestoneConsistencyRepository
       ...metadata,
       visibility: "available",
       revalidationRequired: false,
-      result: row.result as unknown as StoredMilestoneResult,
+      result: row.result as StoredMilestoneResult,
     };
   }
 
@@ -910,19 +928,15 @@ export class DatabaseMilestoneConsistencyRepository
         },
       },
     });
-    await tx.milestoneConsistencyAssessment.update({
+    const sealed = await tx.milestoneConsistencyAssessment.update({
       where: { id: assessmentId },
       data: { sealed: true },
-      select: { id: true },
+      select: { id: true, projectId: true, milestoneId: true, asOf: true, result: true },
     });
-    const delivery = await this.deliverInTransaction(
-      tx,
-      actor,
-      { projectId: request.projectId, assessmentId },
-      false,
-    );
-    if (!delivery) throw new Error("Milestone assessment unavailable");
-    return delivery;
+    // The seal trigger verified the stored graph in this transaction. Use the
+    // exact sealed result and recheck delivery access for its compiled dependencies.
+    const dependencies = [...captured.values()].flatMap((child) => child.versions);
+    return this.delivery(tx, actor, sealed, dependencies, false);
   }
 
   async getMilestoneConsistency(

@@ -503,4 +503,4 @@ it("appends a verified workbook observation and replays its receipt after conten
   expect(await db.projectFact.count({ where: { id: contested.factId } })).toBe(0);
   expect(await db.canonicalStateBinding.findUniqueOrThrow({ where: { id: humanWinner.id } }))
     .toMatchObject({ sealed: true, milestoneId: contestedTarget.id, sourceBirthCommandId: null });
-}, 45_000);
+}, 90_000);

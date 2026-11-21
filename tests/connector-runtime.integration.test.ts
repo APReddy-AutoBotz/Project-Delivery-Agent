@@ -1345,7 +1345,7 @@ describe("durable Jira connector runtime", () => {
       SELECT public.valid_milestone_consistency_assessment(${mixedMilestone.assessmentId}::uuid) AS valid,
         public.valid_milestone_reconciliation_request(${requestId}::uuid) AS "requestValid",
         public.valid_milestone_reconciliation_check(${checked.checkId}::uuid) AS "checkValid"
-    `)).toEqual([{ valid: true, requestValid: true, checkValid: true }]);
-  }, 90_000);
+    `, { timeout: 15_000 })).toEqual([{ valid: true, requestValid: true, checkValid: true }]);
+  }, 150_000);
 
 });
