@@ -4,6 +4,7 @@ import {
   factHistoryPageSchema,
   assessmentDeliverySchema,
   factCatalogueRequestSchema,
+  humanStatementResultSchema,
 } from "../packages/domain/src/index.js";
 import {
   evidenceContractFixture,
@@ -40,6 +41,28 @@ it("FR-EVD-009: authorized absence and zero access revision are valid without a 
       content: { value: "private" },
     }).success,
   ).toBe(false);
+});
+it.each(["jira.issue", "xlsx.row"])("FR-EVD-003/009: history accepts typed %s evidence and excludes upstream details", (recordType) => {
+  const at = "2026-09-07T00:00:00.000Z";
+  const content = {
+    value: { type: "text", value: "OPEN" }, provenance: "SYSTEM_VERIFIED",
+    effectiveAt: at, observedAt: at, admittedAt: at, validUntil: at,
+    source: { instanceId: evidenceId, recordType, recordId: evidenceId, revision: evidenceId },
+    evidenceIds: [evidenceId],
+  };
+  const entry = {
+    id: evidenceId, sourceId: evidenceId, evidenceId,
+    revision: 1, sourceAccessRevision: 2, visibility: "available", revalidationRequired: false, content,
+  };
+  expect(factHistoryEntrySchema.parse(entry)).toEqual(entry);
+  expect(humanStatementResultSchema.safeParse({ factId: evidenceId, replayed: false, entry }).success).toBe(false);
+  for (const patch of [
+    { originalStatement: "unreviewed source payload" },
+    { admittedBy: "private principal" },
+    { source: { ...content.source, url: "https://private.example" } },
+    { source: { ...content.source, recordType: "custom.source" } },
+  ])
+    expect(factHistoryEntrySchema.safeParse({ ...entry, content: { ...content, ...patch } }).success).toBe(false);
 });
 it("FR-EVD-003/009: saved assessment envelopes reject leaked content, changed clock and current labeling", () => {
   const { delivery } = evidenceContractFixture();

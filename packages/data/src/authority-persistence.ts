@@ -32,6 +32,7 @@ import {
   Prisma,
   type PrismaClient as Database,
 } from "./generated/prisma/client.js";
+import { readSourceOrigins, sourceOriginReference, type SourceOrigin } from "./source-authority-reads.js";
 
 type Tx = Prisma.TransactionClient;
 type Event = Prisma.AuthorityPolicyRevisionGetPayload<Record<string, never>>;
@@ -56,14 +57,6 @@ type FactPrefix = {
   conflictThroughRevision: number;
 };
 type Scope = SourceAuthoritySnapshot["scope"];
-type SourceOrigin = {
-  versionId: string;
-  sourceKind: "jira.issue" | "xlsx.row";
-  streamId: string;
-  sourceRevisionId: string;
-  admittedAt: Date;
-  authorized: boolean;
-};
 type MixedPrefix = {
   factRevision: number;
   origins: ReadonlyMap<string, SourceOrigin>;
@@ -162,11 +155,11 @@ export function buildSourceAuthoritySnapshot(
         scope,
         ...(mixed ? { ledgerRevision: row.revision } : {}),
         ...(admittedAt ? { admittedAt } : {}),
-        source: {
+        source: origin ? sourceOriginReference(row.sourceId, origin) : {
           instanceId: row.sourceId,
-          recordType: origin?.sourceKind ?? row.evidence.source.sourceType,
-          recordId: origin?.streamId ?? row.sourceId,
-          revision: origin?.sourceRevisionId ?? row.evidenceId,
+          recordType: row.evidence.source.sourceType,
+          recordId: row.sourceId,
+          revision: row.evidenceId,
         },
         value: projectFactValueSchema.parse(row.value),
         provenance: provenanceSchema.parse(row.provenance),
@@ -234,13 +227,6 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       { now: Date }[]
     >`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
     return rows[0]!.now;
-  }
-  private async sourceOrigins(tx: Tx, actor: Actor, projectId: string, versionIds: string[]) {
-    const rows = await tx.$queryRaw<SourceOrigin[]>`
-      SELECT * FROM public.read_source_authority_origins(
-        ${actor.customerId}::uuid,${projectId}::uuid,${actor.subject},${actor.roles}::text[],${versionIds}::uuid[])
-    `;
-    return new Map(rows.map((row) => [row.versionId, row]));
   }
   private async audit(
     tx: Pick<Tx, "auditEvent">,
@@ -513,9 +499,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
     const sourceVersions = row.evaluatorVersion === 2
       ? row.versions.filter(({ version }) => version.provenance === "SYSTEM_VERIFIED").map(({ version }) => version.id)
       : [];
-    const origins = sourceVersions.length
-      ? await this.sourceOrigins(tx, actor, projectId, sourceVersions)
-      : undefined;
+    const origins = await readSourceOrigins(tx, actor, projectId, sourceVersions);
     const metadata = {
       assessmentId: row.id,
       factId: row.factId,
@@ -524,7 +508,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       replayed,
     };
     if (row.versions.some((item) => !allowed.has(item.version.sourceId)) ||
-      sourceVersions.some((id) => origins?.get(id)?.authorized !== true))
+      sourceVersions.some((id) => origins.get(id)?.authorized !== true))
       return detached({
         ...metadata,
         visibility: "restricted",
@@ -685,7 +669,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
     const policy = resolverPolicy(event);
     const sourceVersions = versions.filter((row) => row.provenance === "SYSTEM_VERIFIED").map((row) => row.id);
     const mixed = complete && input.allowSourceObservations && sourceVersions.length
-      ? { factRevision: fact.revision, origins: await this.sourceOrigins(tx, actor, projectId, sourceVersions) }
+      ? { factRevision: fact.revision, origins: await readSourceOrigins(tx, actor, projectId, sourceVersions) }
       : undefined;
     const stored = resolveStoredAuthorityPrefix(scope, asOf, event, versions, conflicts, access, complete, mixed);
     complete = stored.snapshot.complete;

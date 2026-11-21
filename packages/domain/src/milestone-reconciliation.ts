@@ -15,7 +15,7 @@ import {
 } from "./milestone-persistence.js";
 import {
   authorityAssessmentSchema,
-  factHistoryEntrySchema,
+  humanFactHistoryEntrySchema,
 } from "./evidence-responses.js";
 
 // FR-EVD-007/009/012, FR-HLT-008/009, NFR-REL-001/002: a pending
@@ -141,7 +141,7 @@ export const stateBindingViewSchema = z.strictObject({
   factType,
   createdAt: instant,
   replayed: z.boolean(),
-  entry: factHistoryEntrySchema,
+  entry: humanFactHistoryEntrySchema,
 });
 export const reconciliationContextReadSchema = z.strictObject({
   projectId: id,

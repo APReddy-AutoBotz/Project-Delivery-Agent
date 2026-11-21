@@ -9,6 +9,11 @@ import type {
 import { Button } from "./components.js";
 import { savedEvidenceLink } from "./evidence-state.js";
 
+const sourceSnapshotLabels: Record<string, string> = {
+  "jira.issue": "Jira issue snapshot",
+  "xlsx.row": "Reviewed Excel row snapshot",
+};
+
 type SelectorValidity = NonNullable<
   AuthorityDefinition["tiers"][number]["selectors"][number]["validity"]
 >;
@@ -35,47 +40,62 @@ export function HistoryEntry({
   configure: boolean;
   onSource: (sourceId: string) => void;
 }) {
+  const content = entry.visibility === "available" ? entry.content : null;
   return (
     <article
       className="evidence-entry"
       aria-label={`History revision ${entry.revision}`}
     >
       <h4>Revision {entry.revision}</h4>
-      {entry.visibility === "restricted" ? (
+      {content === null ? (
         <p className="evidence-warning">
           Source restricted. Content withheld; revalidation required.
         </p>
       ) : (
         <>
-          <FactValue value={entry.content.value} />
-          <blockquote>{entry.content.originalStatement}</blockquote>
-          <p className="pill neutral">HUMAN_CONFIRMED · Historical statement</p>
+          <FactValue value={content.value} />
+          {content.provenance === "HUMAN_CONFIRMED" ? (
+            <>
+              <blockquote>{content.originalStatement}</blockquote>
+              <p className="pill neutral">HUMAN_CONFIRMED · Historical statement</p>
+            </>
+          ) : (
+            <p className="pill neutral">SYSTEM_VERIFIED · {sourceSnapshotLabels[content.source.recordType]}</p>
+          )}
           <dl className="evidence-metadata">
-            <div>
-              <dt>Confirmed by</dt>
-              <dd>{entry.content.providedBy}</dd>
-            </div>
-            <div>
-              <dt>Confirmed at</dt>
-              <dd>{entry.content.confirmedAt}</dd>
-            </div>
+            {content.provenance === "HUMAN_CONFIRMED" ? (
+              <>
+                <div>
+                  <dt>Confirmed by</dt>
+                  <dd>{content.providedBy}</dd>
+                </div>
+                <div>
+                  <dt>Confirmed at</dt>
+                  <dd>{content.confirmedAt}</dd>
+                </div>
+              </>
+            ) : (
+              <div>
+                <dt>Admitted at</dt>
+                <dd>{content.admittedAt}</dd>
+              </div>
+            )}
             <div>
               <dt>Effective at</dt>
-              <dd>{entry.content.effectiveAt}</dd>
+              <dd>{content.effectiveAt}</dd>
             </div>
             <div>
               <dt>Observed at</dt>
-              <dd>{entry.content.observedAt}</dd>
+              <dd>{content.observedAt}</dd>
             </div>
             <div>
               <dt>Explicit validity ends</dt>
-              <dd>{entry.content.validUntil ?? "Not specified"}</dd>
+              <dd>{content.validUntil ?? "Not specified"}</dd>
             </div>
             <div>
               <dt>Source record / revision</dt>
               <dd>
-                {entry.content.source.recordId} /{" "}
-                {entry.content.source.revision}
+                {content.source.recordId} / {content.source.revision}
               </dd>
             </div>
           </dl>
@@ -292,6 +312,10 @@ export function AssessmentView({
                       {version.eligibilityReasons.join(", ") ||
                         "Eligible at capture"}
                     </p>
+                    {version.provenance === "SYSTEM_VERIFIED" &&
+                      Object.hasOwn(sourceSnapshotLabels, version.source.recordType) && (
+                        <p>{sourceSnapshotLabels[version.source.recordType]}</p>
+                      )}
                     <p>
                       Source record: {version.source.recordId} · Source
                       revision: {version.source.revision}

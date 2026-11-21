@@ -884,6 +884,14 @@ describe("durable Jira connector runtime", () => {
       } })],
     } });
     expect(await db.factAssessment.findUniqueOrThrow({ where: { id: assessed.assessmentId } })).toMatchObject({ evaluatorVersion: 2 });
+    const jiraHistory = await new DatabaseProjectFactRepository(api).getHistory(manager, {
+      projectId, factType: canonicalBinding.factType,
+    });
+    expect(jiraHistory?.entries).toMatchObject([{ id: admittedReceipt.versionId, visibility: "available", content: {
+      provenance: "SYSTEM_VERIFIED", value: { type: "text", value: "OPEN" },
+      source: { instanceId: factSource, recordType: "jira.issue", recordId: stream.id, revision: revision.id },
+    } }]);
+    expect(JSON.stringify(jiraHistory)).not.toContain("SAFE-77");
     const sourceState = await db.ingestionSource.findFirstOrThrow({
       where: { customerId: isolatedCustomerId, id: sourceId },
     });

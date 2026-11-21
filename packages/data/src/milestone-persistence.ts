@@ -9,7 +9,7 @@ import {
   ProjectFactError,
   type Actor,
   type CanonicalStateBindingView,
-  type FactHistoryEntry,
+  type HumanFactHistoryEntry,
   type FactMutationContext,
   type MilestoneConsistencyCapture,
   type MilestoneConsistencyDelivery,
@@ -68,7 +68,7 @@ export class DatabaseMilestoneConsistencyRepository
     actor: Actor,
     projectId: string,
     versionId: string,
-  ): Promise<FactHistoryEntry> {
+  ): Promise<HumanFactHistoryEntry> {
     const row = await tx.projectFactVersion.findFirst({
       where: { id: versionId, customerId: actor.customerId, projectId },
       include: { evidence: true },

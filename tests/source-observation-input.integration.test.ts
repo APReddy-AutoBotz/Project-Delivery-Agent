@@ -11,6 +11,7 @@ import {
 } from "../packages/data/src/index.js";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
 import { CredentialVault } from "../packages/platform/src/index.js";
+import { factHistoryPageSchema } from "../packages/domain/src/index.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 import { proveXlsxSourceGenesis } from "../scripts/acceptance/xlsx-source-genesis.mjs";
 import { sourceAdmissionSubject } from "../scripts/acceptance/source-admission-role.mjs";
@@ -324,6 +325,9 @@ it("appends a verified workbook observation and replays its receipt after conten
   expect(await db.factAuthorityConflict.count({ where: { factId: binding.factId } })).toBe(0);
 
   const facts = new DatabaseProjectFactRepository({ $transaction: asApi } as never);
+  const history = async (reader: typeof pm | typeof actor) => factHistoryPageSchema.parse(await facts.getHistory(reader, {
+    ...assessmentRequest, afterRevision: 1, throughRevision: 2, limit: 1,
+  }));
   const humanAccess = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: versions[0]!.sourceId } });
   await facts.setSourceAccess(pmo, {
     projectId, sourceId: humanAccess.sourceId, expectedRevision: humanAccess.revision,
@@ -331,11 +335,25 @@ it("appends a verified workbook observation and replays its receipt after conten
   }, assessmentContext);
   expect(await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: factSource }, include: { readers: true } }))
     .toMatchObject({ state: "AVAILABLE", revision: 1, readers: [] });
+  expect((await history(actor)).entries[0]).toMatchObject({ visibility: "restricted", revalidationRequired: true });
   expect(await capture(actor)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
   const available = await facts.setSourceAccess(pmo, {
     projectId, sourceId: factSource, expectedRevision: 1, state: "AVAILABLE", readers: [actor.subject, pm.subject],
   }, assessmentContext);
   expect(await capture(pm)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+  expect((await history(pm)).entries[0]).toMatchObject({ visibility: "restricted", revalidationRequired: true });
+  const workbookHistory = await history(actor);
+  const workbookEntry = workbookHistory.entries[0];
+  if (workbookEntry?.visibility !== "available") throw new Error("Expected visible workbook history");
+  expect(workbookHistory).toMatchObject({
+    factId: binding.factId, throughRevision: 2, next: null,
+    entries: [{ id: versionId, revision: 2, visibility: "available", content: {
+      provenance: "SYSTEM_VERIFIED", value: { type: "text", value: "COMPLETE" },
+      effectiveAt, observedAt: historicalReceipt.toISOString(), admittedAt: witness.admittedAt.toISOString(),
+      source: { instanceId: factSource, recordType: "xlsx.row", recordId: streams[0]!.id, revision: witness.sourceRevisionId },
+    } }],
+  });
+  expect(JSON.stringify(workbookHistory)).not.toContain(review.receiptId);
   const assessmentKey = randomUUID();
   const mixed = await capture(actor, assessmentKey);
   expect(mixed).toMatchObject({
@@ -352,6 +370,7 @@ it("appends a verified workbook observation and replays its receipt after conten
     projectId, sourceId: factSource, expectedRevision: available.revision, state: "REVOKED", readers: [],
   }, assessmentContext);
   expect(await readMixed()).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+  expect((await history(actor)).entries[0]).toMatchObject({ visibility: "restricted", revalidationRequired: true });
   await facts.setSourceAccess(pmo, {
     projectId, sourceId: factSource, expectedRevision: revoked.revision, state: "AVAILABLE", readers: [actor.subject, pm.subject],
   }, assessmentContext);
@@ -362,6 +381,7 @@ it("appends a verified workbook observation and replays its receipt after conten
   expect(redacted).toMatchObject({ proposals: null, redactedAt: expect.any(Date), redactionAuditEventId: expect.any(String) });
   expect(await resolve(review.receiptId)).toEqual([{ input: null }]);
   expect(await readMixed()).toEqual(mixed);
+  expect((await history(actor)).entries[0]).toMatchObject({ visibility: "available", content: workbookEntry.content });
   expect(await capture(actor, assessmentKey)).toEqual({ ...mixed, replayed: true });
   expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "REPLAYED", receiptId } }]);
   const aliasKey = randomUUID();
@@ -383,6 +403,7 @@ it("appends a verified workbook observation and replays its receipt after conten
   const [superseding] = await asOwner((tx) => configure(tx, actor.subject, streams[0]!.id, changedValidity, 2));
   expect(superseding?.id).toEqual(expect.any(String));
   expect(await readMixed()).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+  expect((await history(actor)).entries[0]).toMatchObject({ visibility: "restricted", revalidationRequired: true });
   expect(await capture(actor, assessmentKey)).toMatchObject({
     assessmentId: mixed.assessmentId, visibility: "restricted", replayed: true, result: null,
   });

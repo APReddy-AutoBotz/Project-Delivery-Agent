@@ -13,6 +13,7 @@ import {
   projectFactInstantSchema as instant,
   projectFactSubjectSchema as subject,
   humanStatementSchema,
+  verifiedSourceKindSchema,
 } from "./project-facts.js";
 
 // FR-EVD-003/009/010 / TR-API-001: strict wire envelopes cannot carry restricted content.
@@ -26,33 +27,60 @@ const historyMetadata = {
   evidenceId: id,
   sourceAccessRevision: counter,
 };
-export const factHistoryEntrySchema = z.discriminatedUnion("visibility", [
-  z.strictObject({
-    ...historyMetadata,
-    visibility: z.literal("restricted"),
-    revalidationRequired: z.literal(true),
+const restrictedHistoryEntry = z.strictObject({
+  ...historyMetadata,
+  visibility: z.literal("restricted"),
+  revalidationRequired: z.literal(true),
+});
+const availableHistory = {
+  ...historyMetadata,
+  visibility: z.literal("available"),
+  revalidationRequired: z.literal(false),
+};
+const humanHistoryContent = z.strictObject({
+  value: humanStatementSchema.shape.value,
+  originalStatement: humanStatementSchema.shape.originalStatement,
+  providedBy: subject,
+  provenance: z.literal("HUMAN_CONFIRMED"),
+  effectiveAt: instant,
+  observedAt: instant,
+  confirmedAt: instant,
+  validUntil: instant.nullable(),
+  source: z.strictObject({
+    instanceId: id,
+    recordType: z.literal("human_statement"),
+    recordId: id,
+    revision: id,
   }),
+  evidenceIds: z.array(id).length(1),
+});
+const verifiedHistoryContent = z.strictObject({
+  value: humanStatementSchema.shape.value,
+  provenance: z.literal("SYSTEM_VERIFIED"),
+  effectiveAt: instant,
+  observedAt: instant,
+  admittedAt: instant,
+  validUntil: instant,
+  source: z.strictObject({
+    instanceId: id,
+    recordType: verifiedSourceKindSchema,
+    recordId: id,
+    revision: id,
+  }),
+  evidenceIds: z.array(id).length(1),
+});
+export const humanFactHistoryEntrySchema = z.discriminatedUnion("visibility", [
+  restrictedHistoryEntry,
+  z.strictObject({ ...availableHistory, content: humanHistoryContent }),
+]);
+export const factHistoryEntrySchema = z.discriminatedUnion("visibility", [
+  restrictedHistoryEntry,
   z.strictObject({
-    ...historyMetadata,
-    visibility: z.literal("available"),
-    revalidationRequired: z.literal(false),
-    content: z.strictObject({
-      value: humanStatementSchema.shape.value,
-      originalStatement: humanStatementSchema.shape.originalStatement,
-      providedBy: subject,
-      provenance: z.literal("HUMAN_CONFIRMED"),
-      effectiveAt: instant,
-      observedAt: instant,
-      confirmedAt: instant,
-      validUntil: instant.nullable(),
-      source: z.strictObject({
-        instanceId: id,
-        recordType: z.literal("human_statement"),
-        recordId: id,
-        revision: id,
-      }),
-      evidenceIds: z.array(id).length(1),
-    }),
+    ...availableHistory,
+    content: z.discriminatedUnion("provenance", [
+      humanHistoryContent,
+      verifiedHistoryContent,
+    ]),
   }),
 ]);
 export const factHistoryPageSchema = z
@@ -76,7 +104,7 @@ export const factHistoryPageSchema = z
 export const humanStatementResultSchema = z.strictObject({
   factId: id,
   replayed: z.boolean(),
-  entry: factHistoryEntrySchema,
+  entry: humanFactHistoryEntrySchema,
 });
 const eventMetadata = {
   id,
