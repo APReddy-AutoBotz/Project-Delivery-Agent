@@ -710,6 +710,7 @@ node([
   "tests/milestone-reconciliation.integration.test.ts",
   "tests/scalar-reconciliation.integration.test.ts",
   "tests/ingestion-persistence.integration.test.ts",
+  "tests/source-observation-input.integration.test.ts",
   "tests/csv-reviewed-import-api-role.integration.test.ts",
   "tests/csv-comparison-persistence.integration.test.ts",
   "tests/spreadsheet-preparse.integration.test.ts",

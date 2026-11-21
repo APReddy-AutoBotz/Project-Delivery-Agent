@@ -55,7 +55,8 @@ export async function verifyXlsxGenesisPrivileges(
 
 export async function proveXlsxSourceGenesis(
   pool,
-  { retain = false, existingCustomer, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1", reviewer, forecastRequired = true } = {},
+  { retain = false, existingCustomer, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1",
+    reviewer, forecastRequired = true, snapshotRequired = false } = {},
 ) {
   const client = await pool.connect();
   const [fixtureCustomer, source, portfolio, project, auditId] = Array.from(
@@ -83,6 +84,12 @@ export async function proveXlsxSourceGenesis(
         type: "date",
         required: forecastRequired,
       },
+      ...(snapshotRequired ? [{
+        column: "Snapshot",
+        factType: "source.snapshot_at",
+        type: "text",
+        required: true,
+      }] : []),
     ],
   };
   let started = false;
@@ -215,6 +222,7 @@ export async function proveXlsxSourceGenesis(
       [
         ["project.forecast", "date"],
         ["project.status", "text"],
+        ...(snapshotRequired ? [["source.snapshot_at", "text"]] : []),
       ],
       [],
     ];

@@ -25,6 +25,7 @@ const dispatchFunctions = [
   "public.bind_connector_task_claim(uuid,uuid,integer,uuid)",
   "public.record_connector_page_dispatch(uuid)",
   "public.valid_connector_page_dispatch(uuid)",
+  "public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb)",
 ];
 const controls = new Set(["state", "attemptCount", "totalAttempts", "recoveryRevision", "availableAt", "lastReason",
   "claimedGeneration", "assessmentId", "obligationId", "previewId", "completedAt", "auditEventId"]);

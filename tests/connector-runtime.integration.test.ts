@@ -776,6 +776,25 @@ describe("durable Jira connector runtime", () => {
     });
     expect(receipt.outcomeCount).toBe(1);
     expect(receipt.cursorRevisionAfter).toBeGreaterThan(0n);
+    const stream = await db.ingestionFactStream.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, sourceId, recordId: record.id, factType: "jira.status" },
+    });
+    const observation = (id: string, stateMapping: Record<string, string>) => db.$queryRaw`
+      SELECT public.resolve_source_observation_input(
+        ${isolatedCustomerId}::uuid,${projectId}::uuid,${sourceId}::uuid,${stream.id}::uuid,
+        ${id}::uuid,1,NULL,${JSON.stringify(stateMapping)}::jsonb
+      ) AS input`;
+    expect(await observation(receipt.id, { "To Do": "OPEN" })).toMatchObject([{
+      input: {
+        sourceKind: "jira.issue", field: "jira.status", streamId: stream.id,
+        sourceRevisionId: revision.id, effectiveAt: initialObservedAt,
+        observedAt: revision.remoteObservedAt?.toISOString(),
+        value: { type: "text", value: "OPEN" },
+        fieldSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+    }]);
+    expect(await observation(receipt.id, { "To Do": "unapproved" })).toEqual([{ input: null }]);
+    expect(await observation(randomUUID(), { "To Do": "OPEN" })).toEqual([{ input: null }]);
     const sourceState = await db.ingestionSource.findFirstOrThrow({
       where: { customerId: isolatedCustomerId, id: sourceId },
     });
