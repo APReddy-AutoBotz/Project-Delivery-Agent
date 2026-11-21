@@ -91,9 +91,9 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
     ? { connectionString: databaseConnection } : databaseConnection);
   try {
     if (typeof databaseConnection === "string") {
-      // The synthetic Prisma path creates tables as the local superuser.
-      // Match the packaged migration owner before the fixture appends facts,
-      // so the definer checks can read the tables they protect.
+      // Prisma creates public objects as the local superuser in this fixture.
+      // Match packaged ownership before exercising the definer and workbook
+      // checks. Keep PostgreSQL extension functions under their own owners.
       await pool.query(`DO $owners$ DECLARE item record; BEGIN
         FOR item IN
           SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -101,6 +101,17 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
             AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
         LOOP
           EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname);
+        END LOOP;
+        FOR item IN
+          SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS args
+          FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+          WHERE n.nspname='public' AND p.prokind='f' AND p.proowner=current_user::regrole
+            AND NOT EXISTS (
+              SELECT 1 FROM pg_depend d
+              WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e'
+            )
+        LOOP
+          EXECUTE format('ALTER FUNCTION %I.%I(%s) OWNER TO pdaa_migrate','public',item.proname,item.args);
         END LOOP;
       END $owners$`);
     }
