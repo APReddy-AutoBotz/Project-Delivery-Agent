@@ -576,10 +576,12 @@ CREATE TABLE public."SourceObservationWitness" (
   "ingestionStreamId" uuid NOT NULL,
   "sourceRevisionId" uuid NOT NULL,
   "auditEventId" uuid NOT NULL UNIQUE,
+  "rootCommandId" uuid NOT NULL UNIQUE,
   "admittedAt" timestamptz(3) NOT NULL,
   "admittedBy" varchar(256) NOT NULL CHECK (public.nonblank_fact_text("admittedBy")),
   input jsonb NOT NULL CHECK (jsonb_typeof(input)='object' AND octet_length(input::text)<=8192),
   CONSTRAINT "SourceObservationWitness_revision_key" UNIQUE ("factId","ingestionStreamId","sourceRevisionId"),
+  CONSTRAINT "SourceObservationWitness_command_scope_key" UNIQUE ("customerId","projectId","admissionRevisionId","versionId"),
   CONSTRAINT "SourceObservationWitness_admission_fkey" FOREIGN KEY
     ("customerId","projectId","admissionRevisionId","bindingId","factId","ingestionStreamId","sourceId")
     REFERENCES public."SourceAdmissionBindingRevision" ("customerId","projectId",id,"bindingId","factId","streamId","factSourceId")
@@ -598,6 +600,53 @@ CREATE TRIGGER source_observation_witness_immutable BEFORE UPDATE OR DELETE ON p
 CREATE TRIGGER source_observation_witness_no_truncate BEFORE TRUNCATE ON public."SourceObservationWitness"
   FOR EACH STATEMENT EXECUTE FUNCTION public.reject_fact_history_mutation();
 
+CREATE TABLE public."SourceAdmissionCommand" (
+  id uuid PRIMARY KEY,
+  "customerId" uuid NOT NULL,
+  "projectId" uuid NOT NULL,
+  "admissionRevisionId" uuid NOT NULL,
+  "versionId" uuid NOT NULL,
+  "inputReceiptId" uuid NOT NULL,
+  ordinal integer NOT NULL CHECK (ordinal BETWEEN 1 AND 1000),
+  "commandKey" varchar(128) NOT NULL CHECK ("commandKey" COLLATE "C" ~ '^[A-Za-z0-9_-]{1,128}$'),
+  "correlationId" uuid NOT NULL,
+  UNIQUE ("customerId","projectId","commandKey"),
+  FOREIGN KEY ("customerId","projectId","admissionRevisionId","versionId")
+    REFERENCES public."SourceObservationWitness" ("customerId","projectId","admissionRevisionId","versionId")
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+  FOREIGN KEY ("inputReceiptId",ordinal) REFERENCES public."IngestionRowOutcome" ("receiptId",ordinal)
+    ON DELETE RESTRICT ON UPDATE RESTRICT
+);
+ALTER TABLE public."SourceObservationWitness" ADD CONSTRAINT "SourceObservationWitness_root_command_fkey"
+  FOREIGN KEY ("rootCommandId") REFERENCES public."SourceAdmissionCommand"(id)
+  ON DELETE RESTRICT ON UPDATE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+CREATE TRIGGER source_admission_command_immutable BEFORE UPDATE OR DELETE ON public."SourceAdmissionCommand"
+  FOR EACH ROW EXECUTE FUNCTION public.reject_fact_history_mutation();
+CREATE TRIGGER source_admission_command_no_truncate BEFORE TRUNCATE ON public."SourceAdmissionCommand"
+  FOR EACH STATEMENT EXECUTE FUNCTION public.reject_fact_history_mutation();
+
+-- The outcome reference and lineage remain verifiable after content redaction.
+CREATE FUNCTION public.source_admission_outcome(
+  approved public."SourceAdmissionBindingRevision", receipt_id uuid, row_ordinal integer
+) RETURNS TABLE ("sourceRevisionId" uuid,"projectionId" uuid)
+LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
+  SELECT o."sourceRevisionId",o."projectionId"
+  FROM public."IngestionOperationReceipt" r
+  JOIN public."IngestionRowOutcome" o
+    ON (o."customerId",o."sourceId",o."receiptId")=(r."customerId",r."sourceId",r.id)
+  JOIN public."IngestionProposalProjection" p ON p.id=o."projectionId"
+  JOIN public."IngestionFactStream" s ON s.id=(approved)."streamId"
+  WHERE r.id=receipt_id AND r."customerId"=(approved)."customerId" AND r."sourceId"=(approved)."ingestionSourceId"
+    AND (r."configRevision",r."mappingRevision")=((approved)."configRevision",(approved)."mappingRevision")
+    AND o."projectId"=(approved)."projectId" AND o."recordId"=(approved)."recordId" AND o.ordinal=row_ordinal
+    AND o.state='ACCEPTED' AND o.operation IN ('CREATE','UPDATE','UNCHANGED') AND cardinality(o."errorCodes")=0
+    AND p."mappingRevision"=r."mappingRevision" AND s."factType"=ANY(p."factTypes")
+    AND CASE (approved)."sourceKind"
+      WHEN 'jira.issue' THEN public.valid_ingestion_receipt(r.id) AND public.valid_connector_page_dispatch(r.id)
+      WHEN 'xlsx.row' THEN public.valid_ingestion_xlsx_reviewed_import(r.id)
+      ELSE false END
+$$;
+
 -- Historical verification deliberately uses immutable metadata and the
 -- captured commitment. It needs neither live grants nor retained plaintext.
 CREATE FUNCTION public.valid_source_observation_witness(target uuid) RETURNS boolean
@@ -609,6 +658,9 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
     JOIN public."FactSource" s ON s.id=w."sourceId"
     JOIN public."CanonicalStateBinding" binding ON binding.id=w."bindingId"
     JOIN public."SourceAdmissionBindingRevision" approved ON approved.id=w."admissionRevisionId"
+    JOIN public."SourceAdmissionCommand" command ON command.id=w."rootCommandId"
+      AND (command."customerId",command."projectId",command."admissionRevisionId",command."versionId")
+        =(w."customerId",w."projectId",w."admissionRevisionId",w."versionId")
     JOIN public."AuthorityPolicyRevision" policy
       ON (policy."customerId",policy."projectId",policy."factType",policy.id)
         =(approved."customerId",approved."projectId",approved."factType",approved."policyRevisionId")
@@ -658,11 +710,37 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
       AND w.input->>'fieldSha256'=encode(sha256(convert_to(
         jsonb_build_array('pdaa.source-observation-input.v1',w.input-'fieldSha256')::text,'UTF8')),'hex')
       AND a.event='fact.source_observation.admitted' AND a."occurredAt"=w."admittedAt" AT TIME ZONE 'UTC'
-      AND a.actor=w."admittedBy" AND a."correlationId"=w."versionId"::text
+      AND (command."inputReceiptId",command.ordinal)=(r.id,o.ordinal)
+      AND a.actor=w."admittedBy" AND w."admittedBy"='synthetic:source-admission'
+      AND a."correlationId"=command."correlationId"::text
       AND a.detail=jsonb_build_object('bindingId',w."bindingId",'bindingRevisionId',approved.id,'versionId',w."versionId",
+        'admissionReceiptId',command.id,
         'fieldSha256',w.input->>'fieldSha256','validUntil',public.authority_instant(v."validUntil"))
   );
 $$;
+
+CREATE FUNCTION public.valid_source_admission_command(target uuid) RETURNS boolean
+LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public."SourceAdmissionCommand" c
+    JOIN public."SourceObservationWitness" w ON w."versionId"=c."versionId"
+    JOIN public."SourceAdmissionBindingRevision" a ON a.id=c."admissionRevisionId"
+    CROSS JOIN LATERAL public.source_admission_outcome(a,c."inputReceiptId",c.ordinal) outcome
+    WHERE c.id=target AND outcome."sourceRevisionId"=w."sourceRevisionId"
+      AND outcome."projectionId"::text=w.input->>'projectionId'
+      AND public.valid_source_observation_witness(w."versionId")
+  )
+$$;
+
+CREATE FUNCTION public.require_source_admission_command() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+  IF public.valid_source_admission_command(NEW.id) IS NOT TRUE
+  THEN RAISE EXCEPTION 'Source admission command lacks its matching witness'; END IF;
+  RETURN NULL;
+END $$;
+CREATE CONSTRAINT TRIGGER source_admission_command_complete AFTER INSERT ON public."SourceAdmissionCommand"
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.require_source_admission_command();
 
 -- Before a separate synthetic publication capability is installed, the
 -- migration owner is the only principal allowed to write the new origin.
@@ -732,7 +810,7 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
 $$;
 
 CREATE FUNCTION public.require_source_authority_witness() RETURNS trigger
-LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
   IF public.valid_authority_definition(NEW.definition) AND EXISTS (
     SELECT 1 FROM jsonb_array_elements(NEW.definition->'tiers') tier
@@ -747,16 +825,31 @@ END $$;
 CREATE CONSTRAINT TRIGGER source_authority_witness_complete AFTER INSERT ON public."AuthorityPolicyRevision"
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.require_source_authority_witness();
 
--- Private append uses only persisted approval and an exact outcome reference.
--- A separate capability will add constrained execution and operational replay.
-CREATE FUNCTION public.append_source_observation(approval_id uuid, receipt_id uuid, row_ordinal integer) RETURNS uuid
-LANGUAGE plpgsql VOLATILE SET search_path=pg_catalog,pg_temp AS $$
+-- The deferred authority check runs after the admission definer returns.
+-- Keep the acceptance principal unable to read the underlying ledger.
+ALTER FUNCTION public.require_authority_published() SECURITY DEFINER;
+ALTER FUNCTION public.require_authority_published() SET search_path=pg_catalog,pg_temp;
+REVOKE ALL ON FUNCTION public.require_authority_published() FROM PUBLIC;
+
+-- This capability is executable only in the isolated acceptance database.
+-- Role membership alone cannot change the authenticated database principal.
+CREATE FUNCTION public.admit_source_observation(
+  customer uuid, project uuid, approval_id uuid, receipt_id uuid, row_ordinal integer,
+  command_key text, correlation uuid
+) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE
+  denied CONSTANT jsonb := '{"status":"DENIED"}';
+  conflict CONSTANT jsonb := '{"status":"CONFLICT"}';
+  actor CONSTANT text := 'synthetic:source-admission';
   approved public."SourceAdmissionBindingRevision"%ROWTYPE;
   existing public."SourceObservationWitness"%ROWTYPE;
+  command public."SourceAdmissionCommand"%ROWTYPE;
   policy public."AuthorityPolicy"%ROWTYPE;
+  source_row public."IngestionSource"%ROWTYPE;
+  outcome record;
+  live_grant uuid;
   proof jsonb;
-  source_revision uuid;
   fact_revision integer;
   effective_at timestamptz;
   observed_at timestamptz;
@@ -764,57 +857,109 @@ DECLARE
   version_id uuid := gen_random_uuid();
   evidence_id uuid := gen_random_uuid();
   audit_id uuid := gen_random_uuid();
+  command_id uuid := gen_random_uuid();
   admitted_at timestamptz;
+  authorized_subjects integer;
 BEGIN
-  SELECT a.* INTO approved FROM public."SourceAdmissionBindingRevision" a WHERE a.id=approval_id;
-  IF NOT FOUND THEN RETURN NULL; END IF;
-  -- Match the project's established fence and decline busy grant/content
-  -- tuples before any ledger write. The approved row itself is immutable.
-  PERFORM 1 FROM public."Project" p WHERE (p."customerId",p.id)=(approved."customerId",approved."projectId") FOR UPDATE NOWAIT;
+  IF session_user<>'pdaa_source_acceptance' OR customer IS NULL OR project IS NULL OR approval_id IS NULL
+    OR receipt_id IS NULL OR row_ordinal IS NULL OR row_ordinal NOT BETWEEN 1 AND 1000 OR correlation IS NULL
+    OR command_key IS NULL OR command_key COLLATE "C" !~ '^[A-Za-z0-9_-]{1,128}$'
+  THEN RETURN denied; END IF;
+  SELECT a.* INTO approved FROM public."SourceAdmissionBindingRevision" a
+    WHERE (a."customerId",a."projectId",a.id)=(customer,project,approval_id);
+  IF NOT FOUND THEN RETURN denied; END IF;
+
+  -- The project fence serializes approval, authority, commands and versions.
+  -- NOWAIT also avoids waiting behind writers whose triggers lock the project.
+  PERFORM 1 FROM public."Project" p WHERE (p."customerId",p.id)=(customer,project) FOR UPDATE NOWAIT;
   IF NOT FOUND OR EXISTS (SELECT 1 FROM public."SourceAdmissionBindingRevision" a
     WHERE a."streamId"=approved."streamId" AND a.revision>approved.revision)
     OR public.valid_source_admission_binding(approval_id) IS NOT TRUE
     OR public.valid_canonical_state_binding(approved."bindingId") IS NOT TRUE
-  THEN RETURN NULL; END IF;
-  PERFORM g.id FROM public."AccessGrant" g JOIN public."Project" p ON (p."customerId",p.id)=(approved."customerId",approved."projectId")
-    WHERE g."customerId"=p."customerId" AND g.subject=approved."approvedBy" AND g.role='pmo_admin'
-      AND ((g."scopeType"='project' AND g."scopeId"=p.id) OR (g."scopeType"='portfolio' AND g."scopeId"=p."portfolioId"))
-    ORDER BY g.id LIMIT 1 FOR SHARE OF g NOWAIT;
-  IF NOT FOUND THEN RETURN NULL; END IF;
-  PERFORM 1 FROM public."IngestionRetentionPolicy" p WHERE p."customerId"=approved."customerId" FOR SHARE NOWAIT;
-  IF NOT FOUND THEN RETURN NULL; END IF;
-  PERFORM 1 FROM public."IngestionSource" src WHERE
+  THEN RETURN denied; END IF;
+  SELECT count(DISTINCT g.subject)::integer INTO authorized_subjects FROM (
+    SELECT g.subject FROM public."AccessGrant" g JOIN public."Project" p ON (p."customerId",p.id)=(customer,project)
+    WHERE g."customerId"=customer AND (
+      (g.subject=actor AND g.role='project_manager' AND g."scopeType"='project' AND g."scopeId"=project)
+      OR (g.subject=approved."approvedBy" AND g.role='pmo_admin'
+        AND ((g."scopeType"='project' AND g."scopeId"=project)
+          OR (g."scopeType"='portfolio' AND g."scopeId"=p."portfolioId"))))
+    ORDER BY g.id FOR SHARE OF g NOWAIT
+  ) g;
+  IF authorized_subjects<>2 THEN RETURN denied; END IF;
+  PERFORM 1 FROM public."IngestionRetentionPolicy" p WHERE p."customerId"=customer FOR SHARE NOWAIT;
+  IF NOT FOUND THEN RETURN denied; END IF;
+  SELECT src.* INTO source_row FROM public."IngestionSource" src WHERE
     (src."customerId",src.id,src."currentConfigRevision",src."mappingRevision")
-      =(approved."customerId",approved."ingestionSourceId",approved."configRevision",approved."mappingRevision") FOR SHARE NOWAIT;
-  IF NOT FOUND THEN RETURN NULL; END IF;
+      =(customer,approved."ingestionSourceId",approved."configRevision",approved."mappingRevision")
+    FOR SHARE NOWAIT;
+  IF NOT FOUND OR NOT EXISTS (
+    SELECT 1 FROM public."IngestionConfigurationReader" reader
+    WHERE (reader."customerId",reader."sourceId",reader."configRevision",reader."projectId",reader.subject)
+      =(customer,approved."ingestionSourceId",approved."configRevision",project,actor)
+  ) THEN RETURN denied; END IF;
 
-  proof := public.resolve_source_observation_input(approved."customerId",approved."projectId",
+  IF approved."sourceKind"='jira.issue' THEN
+    SELECT g.id INTO live_grant FROM public."ConnectorSyncGrant" g
+      WHERE (g."customerId",g."projectId",g."sourceId",g."configRevision")
+        =(customer,project,approved."ingestionSourceId",approved."configRevision") AND g.active
+      FOR SHARE NOWAIT;
+    IF NOT FOUND THEN RETURN denied; END IF;
+  END IF;
+  SELECT p.* INTO policy FROM public."AuthorityPolicy" p
+    WHERE (p."customerId",p."projectId",p."factType")=(customer,project,approved."factType") FOR UPDATE;
+  IF coalesce(policy.revision,0)<>approved."previousPolicyRevision" AND NOT EXISTS (
+    SELECT 1 FROM public."AuthorityPolicyRevision" event WHERE event.id=approved."policyRevisionId"
+      AND event."policyId"=policy.id AND event.revision=policy.revision AND event.state='ENABLED'
+      AND event."effectiveAt"<=clock_timestamp()
+  ) THEN RETURN denied; END IF;
+
+  SELECT c.* INTO command FROM public."SourceAdmissionCommand" c
+    WHERE (c."customerId",c."projectId",c."commandKey")=(customer,project,command_key);
+  IF FOUND AND (command."admissionRevisionId",command."inputReceiptId",command.ordinal)
+    IS DISTINCT FROM (approval_id,receipt_id,row_ordinal)
+  THEN RETURN conflict; END IF;
+  SELECT * INTO outcome FROM public.source_admission_outcome(approved,receipt_id,row_ordinal);
+  IF NOT FOUND OR (approved."sourceKind"='jira.issue' AND NOT EXISTS (
+    SELECT 1 FROM public."IngestionOperationReceipt" r
+    JOIN public."IngestionSyncReceiptProjectScope" scope
+      ON (scope."customerId",scope."sourceId",scope."receiptId")=(r."customerId",r."sourceId",r.id)
+    WHERE r.id=receipt_id AND r."generationAfter"=source_row."syncGeneration"
+      AND scope."projectId"=project AND scope."syncGrantId"=live_grant
+  )) THEN RETURN denied; END IF;
+
+  -- Replay depends on the immutable outcome and witness. It never retrieves
+  -- retained proposal content or computes a new observation or expiry time.
+  SELECT w.* INTO existing FROM public."SourceObservationWitness" w
+    WHERE (w."factId",w."ingestionStreamId",w."sourceRevisionId")
+      =(approved."factId",approved."streamId",outcome."sourceRevisionId");
+  IF FOUND THEN
+    IF existing."admissionRevisionId"<>approval_id OR outcome."projectionId"::text<>existing.input->>'projectionId'
+    THEN RETURN conflict; END IF;
+    IF public.valid_source_observation_witness(existing."versionId") IS NOT TRUE THEN RETURN denied; END IF;
+    IF command.id IS NULL THEN
+      INSERT INTO public."SourceAdmissionCommand"
+        (id,"customerId","projectId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
+        VALUES (command_id,customer,project,approval_id,existing."versionId",receipt_id,row_ordinal,command_key,correlation);
+    ELSIF command."versionId"<>existing."versionId" THEN
+      RETURN denied;
+    END IF;
+    RETURN jsonb_build_object('status','REPLAYED','receiptId',existing."rootCommandId");
+  END IF;
+  IF command.id IS NOT NULL THEN RETURN denied; END IF;
+
+  proof := public.resolve_source_observation_input(customer,project,
     approved."ingestionSourceId",approved."streamId",receipt_id,row_ordinal,approved."snapshotField",approved."stateMapping");
-  IF proof IS NULL OR proof->>'sourceKind'<>approved."sourceKind" THEN RETURN NULL; END IF;
-  source_revision := (proof->>'sourceRevisionId')::uuid;
+  IF proof IS NULL OR proof->>'sourceKind'<>approved."sourceKind"
+    OR proof->>'projectionId'<>outcome."projectionId"::text OR proof->>'sourceRevisionId'<>outcome."sourceRevisionId"::text
+  THEN RETURN denied; END IF;
   effective_at := (proof->>'effectiveAt')::timestamptz;
   observed_at := (proof->>'observedAt')::timestamptz;
   valid_until := public.source_admission_expiry(
     public.source_admission_selector(approved.definition,approved."sourceKind",approved."factSourceId"),
     effective_at,observed_at);
   admitted_at := date_trunc('milliseconds',clock_timestamp());
-
-  SELECT p.* INTO policy FROM public."AuthorityPolicy" p
-    WHERE (p."customerId",p."projectId",p."factType")=(approved."customerId",approved."projectId",approved."factType") FOR UPDATE;
-  IF coalesce(policy.revision,0)<>approved."previousPolicyRevision" AND NOT EXISTS (
-    SELECT 1 FROM public."AuthorityPolicyRevision" event WHERE event.id=approved."policyRevisionId"
-      AND event."policyId"=policy.id AND event.revision=policy.revision
-  ) THEN RETURN NULL; END IF;
-
-  SELECT w.* INTO existing FROM public."SourceObservationWitness" w
-    WHERE (w."factId",w."ingestionStreamId",w."sourceRevisionId")=(approved."factId",approved."streamId",source_revision);
-  IF FOUND THEN
-    IF existing."admissionRevisionId"<>approval_id OR existing.input IS DISTINCT FROM proof
-    THEN RAISE EXCEPTION 'Source revision is already admitted with different commitments'; END IF;
-    RETURN existing."versionId";
-  END IF;
-  IF valid_until IS NULL OR valid_until<=admitted_at OR valid_until>=TIMESTAMPTZ '10000-01-01 00:00:00+00'
-  THEN RETURN NULL; END IF;
+  IF valid_until IS NULL OR valid_until<=admitted_at THEN RETURN denied; END IF;
 
   SELECT f.revision INTO STRICT fact_revision FROM public."ProjectFact" f
     WHERE (f."customerId",f."projectId",f.id)=(approved."customerId",approved."projectId",approved."factId") FOR UPDATE;
@@ -842,26 +987,31 @@ BEGIN
     VALUES (version_id,approved."customerId",approved."projectId",approved."factId",approved."factSourceId",
       evidence_id,fact_revision+1,proof->'value','SYSTEM_VERIFIED',true,effective_at,valid_until);
   INSERT INTO public."AuditEvent" (id,"customerId",actor,event,"correlationId",detail,"occurredAt")
-    VALUES (audit_id,approved."customerId",current_user,'fact.source_observation.admitted',version_id::text,
+    VALUES (audit_id,customer,actor,'fact.source_observation.admitted',correlation::text,
       jsonb_build_object('bindingId',approved."bindingId",'bindingRevisionId',approval_id,'versionId',version_id,
-        'fieldSha256',proof->>'fieldSha256','validUntil',public.authority_instant(valid_until)),
+        'admissionReceiptId',command_id,'fieldSha256',proof->>'fieldSha256','validUntil',public.authority_instant(valid_until)),
       admitted_at AT TIME ZONE 'UTC');
   INSERT INTO public."SourceObservationWitness"
     ("versionId","customerId","projectId","bindingId","admissionRevisionId","factId","sourceId","evidenceId",
-      "ingestionStreamId","sourceRevisionId","auditEventId","admittedAt","admittedBy",input)
-    VALUES (version_id,approved."customerId",approved."projectId",approved."bindingId",approval_id,approved."factId",
-      approved."factSourceId",evidence_id,approved."streamId",source_revision,audit_id,admitted_at,current_user,proof);
-  RETURN version_id;
+      "ingestionStreamId","sourceRevisionId","auditEventId","rootCommandId","admittedAt","admittedBy",input)
+    VALUES (version_id,customer,project,approved."bindingId",approval_id,approved."factId",
+      approved."factSourceId",evidence_id,approved."streamId",outcome."sourceRevisionId",audit_id,command_id,admitted_at,actor,proof);
+  INSERT INTO public."SourceAdmissionCommand"
+    (id,"customerId","projectId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
+    VALUES (command_id,customer,project,approval_id,version_id,receipt_id,row_ordinal,command_key,correlation);
+  RETURN jsonb_build_object('status','ADMITTED','receiptId',command_id);
 END $$;
 
 REVOKE ALL ON TABLE public."ConnectorPageDispatch" FROM PUBLIC;
-REVOKE ALL ON TABLE public."SourceObservationWitness",public."SourceAdmissionBindingRevision" FROM PUBLIC;
+REVOKE ALL ON TABLE public."SourceObservationWitness",public."SourceAdmissionBindingRevision",public."SourceAdmissionCommand" FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
   public.record_connector_page_dispatch(uuid),public.valid_connector_page_dispatch(uuid),
   public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb),
   public.valid_source_observation_witness(uuid),public.guard_source_observation_insert(),
   public.require_source_observation_witness(),
-  public.append_source_observation(uuid,uuid,integer),
+  public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid),
+  public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer),
+  public.valid_source_admission_command(uuid),public.require_source_admission_command(),
   public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer),
   public.valid_source_admission_binding(uuid),public.source_admission_selector(jsonb,text,uuid),
   public.source_admission_expiry(jsonb,timestamptz,timestamptz),public.guard_source_admission_binding(),
@@ -877,7 +1027,10 @@ BEGIN
     ALTER FUNCTION public.valid_source_observation_witness(uuid) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.guard_source_observation_insert() OWNER TO pdaa_migrate;
     ALTER FUNCTION public.require_source_observation_witness() OWNER TO pdaa_migrate;
-    ALTER FUNCTION public.append_source_observation(uuid,uuid,integer) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.valid_source_admission_command(uuid) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.require_source_admission_command() OWNER TO pdaa_migrate;
     ALTER FUNCTION public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.valid_source_admission_binding(uuid) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.source_admission_selector(jsonb,text,uuid) OWNER TO pdaa_migrate;
@@ -887,6 +1040,7 @@ BEGIN
     ALTER FUNCTION public.guard_source_authority_activation() OWNER TO pdaa_migrate;
     ALTER FUNCTION public.require_source_authority_witness() OWNER TO pdaa_migrate;
     ALTER FUNCTION public.valid_source_authority_publication(uuid) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.require_authority_published() OWNER TO pdaa_migrate;
     IF to_regrole('pdaa_api') IS NOT NULL THEN
       GRANT EXECUTE ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
         public.record_connector_page_dispatch(uuid) TO pdaa_api;

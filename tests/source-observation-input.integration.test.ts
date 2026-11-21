@@ -12,6 +12,7 @@ import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
 import { CredentialVault } from "../packages/platform/src/index.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 import { proveXlsxSourceGenesis } from "../scripts/acceptance/xlsx-source-genesis.mjs";
+import { sourceAdmissionSubject } from "../scripts/acceptance/source-admission-role.mjs";
 
 const connection = process.env.PDAA_DATABASE_URL;
 const target = connection ? new URL(connection) : null;
@@ -27,7 +28,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-it("appends a verified workbook observation with an exact native witness", async () => {
+it("appends a verified workbook observation and replays its receipt after content purge", async () => {
   const asApi = <T>(
     operation: (tx: Prisma.TransactionClient) => Promise<T>,
     options?: { isolationLevel?: "ReadCommitted"; maxWait?: number; timeout?: number },
@@ -65,6 +66,7 @@ it("appends a verified workbook observation with an exact native witness", async
   const sheet = "Snapshot " + randomUUID().slice(0, 12);
   await proveXlsxSourceGenesis(pool, {
     retain: true, existingCustomer: customerId, existingProject: projectId, sheet, snapshotRequired: true,
+    reviewer: sourceAdmissionSubject, reviewerRole: "project_manager",
   });
   const [scope] = await db.$queryRaw<{ customerId: string; sourceId: string; projectId: string }[]>`
     SELECT p."customerId",p."sourceId",p."projectId" FROM public."IngestionConfigurationProject" p
@@ -80,7 +82,8 @@ it("appends a verified workbook observation with an exact native witness", async
     customerId, scopeId: projectId, scopeType: "project",
     subject: administrator.subject, role: administrator.roles[0],
   } });
-  const effectiveAt = new Date(Date.now() - 30_000).toISOString();
+  const historicalReceipt = new Date(Date.now() - 7_200_000);
+  const effectiveAt = new Date(historicalReceipt.getTime() - 30_000).toISOString();
   const inFuture = new Date(Date.now() + 86_400_000).toISOString();
   const repository = new DatabaseIngestionRepository(
     {
@@ -118,6 +121,17 @@ it("appends a verified workbook observation with an exact native witness", async
     where: { receiptId: review.receiptId }, orderBy: { ordinal: "asc" },
   });
   expect(outcomes.map((row) => row.state)).toEqual(["ACCEPTED", "ACCEPTED"]);
+  // Age the owned synthetic fixture before admission to exercise normal purge
+  // after reducing retention. All admission and replay guards remain active.
+  await db.$transaction(async (tx) => {
+    await tx.$executeRaw`ALTER TABLE public."IngestionSourceRevision" DISABLE TRIGGER ingestion_revision_guard`;
+    try {
+      expect(await tx.$executeRaw`UPDATE public."IngestionSourceRevision" SET "receivedAt"=${historicalReceipt}
+        WHERE id=${outcomes[0]!.sourceRevisionId}::uuid AND "customerId"=${customerId}::uuid`).toBe(1);
+    } finally {
+      await tx.$executeRaw`ALTER TABLE public."IngestionSourceRevision" ENABLE TRIGGER ingestion_revision_guard`;
+    }
+  });
   const streams = await Promise.all(outcomes.map((row) => db.ingestionFactStream.findFirstOrThrow({
     where: { customerId, sourceId, recordId: row.recordId!, factType: "project.status" },
   })));
@@ -132,7 +146,7 @@ it("appends a verified workbook observation with an exact native witness", async
     input: {
       sourceKind: "xlsx.row", field: "project.status", snapshotField: "source.snapshot_at",
       receiptId: review.receiptId, rowOrdinal: 1, projectionId: outcomes[0]?.projectionId,
-      effectiveAt, value: { type: "text", value: "COMPLETE" },
+      effectiveAt, observedAt: historicalReceipt.toISOString(), value: { type: "text", value: "COMPLETE" },
       fieldSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     },
   }]);
@@ -144,13 +158,23 @@ it("appends a verified workbook observation with an exact native witness", async
   expect(await resolve(review.receiptId, 1, streams[0]!.id, "source.snapshot_at", randomUUID())).toEqual([{ input: null }]);
   expect(await db.projectFactVersion.count({ where: { customerId } })).toBe(1);
 
+  const key = randomUUID();
+  const correlation = randomUUID();
+  type AdmissionResult = { status: "ADMITTED" | "REPLAYED" | "DENIED" | "CONFLICT"; receiptId?: string };
   const append = (
     tx: Prisma.TransactionClient,
     approvalId: string,
     receiptId = review.receiptId,
     ordinal = 1,
-  ) => tx.$queryRaw<{ id: string | null }[]>`
-    SELECT public.append_source_observation(${approvalId}::uuid,${receiptId}::uuid,${ordinal}::integer) AS id`;
+    commandKey = key,
+    customer = customerId,
+  ) => tx.$queryRaw<{ result: AdmissionResult }[]>`
+    SELECT public.admit_source_observation(${customer}::uuid,${projectId}::uuid,${approvalId}::uuid,
+      ${receiptId}::uuid,${ordinal}::integer,${commandKey},${correlation}::uuid) AS result`;
+  const asOperator = <T>(operation: (tx: Prisma.TransactionClient) => Promise<T>) => db.$transaction(async (tx) => {
+    await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_source_acceptance`;
+    return operation(tx);
+  });
   const asOwner = <T>(operation: (tx: Prisma.TransactionClient) => Promise<T>) => db.$transaction(async (tx) => {
     await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
     return operation(tx);
@@ -192,13 +216,25 @@ it("appends a verified workbook observation with an exact native witness", async
   expect(await db.authorityPolicyRevision.count({ where: { id: bindingApproval.policyRevisionId } })).toBe(0);
   expect(await db.factSource.count({ where: { id: factSource } })).toBe(0);
   await expect(asApi((tx) => append(tx, proofId))).rejects.toThrow(/permission denied/iu);
-  expect(await asOwner((tx) => append(tx, randomUUID()))).toEqual([{ id: null }]);
-  expect(await asOwner((tx) => append(tx, proofId, preview.receiptId))).toEqual([{ id: null }]);
-  expect(await asOwner((tx) => append(tx, proofId, review.receiptId, 2))).toEqual([{ id: null }]);
-  const result = await asOwner((tx) => append(tx, proofId));
-  const versionId = result[0]?.id;
-  expect(versionId).toEqual(expect.any(String));
-  expect(await asOwner((tx) => append(tx, proofId))).toEqual(result);
+  await expect(asOperator((tx) => tx.$queryRaw`SELECT id FROM public."SourceAdmissionCommand"`))
+    .rejects.toThrow(/permission denied/iu);
+  expect(await db.$transaction(async (tx) => {
+    await tx.$executeRaw`SET LOCAL ROLE pdaa_source_acceptance`;
+    return append(tx, proofId);
+  })).toEqual([{ result: { status: "DENIED" } }]);
+  expect(await asOperator((tx) => append(tx, randomUUID()))).toEqual([{ result: { status: "DENIED" } }]);
+  expect(await asOperator((tx) => append(tx, proofId, preview.receiptId))).toEqual([{ result: { status: "DENIED" } }]);
+  expect(await asOperator((tx) => append(tx, proofId, review.receiptId, 2))).toEqual([{ result: { status: "DENIED" } }]);
+  expect(await asOperator((tx) => append(tx, proofId, review.receiptId, 1, key, randomUUID())))
+    .toEqual([{ result: { status: "DENIED" } }]);
+  const [result] = await asOperator((tx) => append(tx, proofId));
+  expect(result).toEqual({ result: { status: "ADMITTED", receiptId: expect.any(String) } });
+  const receiptId = result!.result.receiptId!;
+  const command = await db.sourceAdmissionCommand.findUniqueOrThrow({ where: { id: receiptId } });
+  const versionId = command.versionId;
+  expect(command).toMatchObject({ commandKey: key, correlationId: correlation, inputReceiptId: review.receiptId });
+  expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "REPLAYED", receiptId } }]);
+  expect(await asOperator((tx) => append(tx, proofId, review.receiptId, 2))).toEqual([{ result: { status: "CONFLICT" } }]);
   const activated = await db.authorityPolicyRevision.findUniqueOrThrow({ where: { id: bindingApproval.policyRevisionId } });
   expect(activated).toMatchObject({ factType: binding.factType, definition, recordedBy: actor.subject, state: "ENABLED", revision: 2 });
   const originalRule = await db.authorityPolicyRevision.findUniqueOrThrow({ where: { id: humanRule.event.id } });
@@ -224,7 +260,11 @@ it("appends a verified workbook observation with an exact native witness", async
   ]);
   const witness = await db.sourceObservationWitness.findUniqueOrThrow({ where: { versionId: versionId! } });
   expect(witness.admissionRevisionId).toBe(proofId);
-  expect(witness.admittedBy).toBe("pdaa_migrate");
+  expect(witness.admittedBy).toBe(sourceAdmissionSubject);
+  expect(witness.rootCommandId).toBe(receiptId);
+  expect(await db.auditEvent.findUniqueOrThrow({ where: { id: witness.auditEventId } })).toMatchObject({
+    actor: sourceAdmissionSubject, correlationId: correlation, detail: { admissionReceiptId: receiptId },
+  });
   expect(witness.input).toEqual(proof[0]?.input);
   expect(witness.admittedAt.getTime()).toBeGreaterThanOrEqual(versions[1]!.evidence.observedAt.getTime());
   expect(await asOwner((tx) => tx.$queryRaw`
@@ -232,12 +272,29 @@ it("appends a verified workbook observation with an exact native witness", async
       public.valid_canonical_state_binding(${binding.id}::uuid) AS "humanBirthValid"
   `)).toEqual([{ valid: true, humanBirthValid: true }]);
 
+  await repository.setRetention({ ...administrator, roles: [...administrator.roles] }, { retentionHours: 1 }, randomUUID());
+  expect(await repository.purgeExpired({ ...administrator, roles: [...administrator.roles] })).toBeGreaterThan(0);
+  const redacted = await db.ingestionProposalContent.findUniqueOrThrow({ where: { projectionId: outcomes[0]!.projectionId! } });
+  expect(redacted).toMatchObject({ proposals: null, redactedAt: expect.any(Date), redactionAuditEventId: expect.any(String) });
+  expect(await resolve(review.receiptId)).toEqual([{ input: null }]);
+  expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "REPLAYED", receiptId } }]);
+  const aliasKey = randomUUID();
+  expect(await asOperator((tx) => append(tx, proofId, review.receiptId, 1, aliasKey)))
+    .toEqual([{ result: { status: "REPLAYED", receiptId } }]);
+  expect(await db.sourceAdmissionCommand.count({ where: { versionId } })).toBe(2);
+  expect(await db.sourceObservationWitness.findUniqueOrThrow({ where: { versionId } })).toEqual(witness);
+  const operatorGrant = await db.accessGrant.findFirstOrThrow({ where: { customerId, subject: sourceAdmissionSubject } });
+  await db.accessGrant.delete({ where: { id: operatorGrant.id } });
+  expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "DENIED" } }]);
+  await db.accessGrant.create({ data: operatorGrant });
+
   const changedValidity = structuredClone(definition);
   changedValidity.tiers[0]!.selectors[0]!.validity.durationMs = 3_600_000;
   const [superseding] = await asOwner((tx) => configure(tx, actor.subject, streams[0]!.id, changedValidity, 2));
   expect(superseding?.id).toEqual(expect.any(String));
-  expect(await asOwner((tx) => append(tx, proofId))).toEqual([{ id: null }]);
-  await expect(asOwner((tx) => append(tx, superseding!.id!))).rejects.toThrow(/different commitments/iu);
+  expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "DENIED" } }]);
+  expect(await asOperator((tx) => append(tx, superseding!.id!, review.receiptId, 1, randomUUID())))
+    .toEqual([{ result: { status: "CONFLICT" } }]);
   const pending = await db.sourceAdmissionBindingRevision.findUniqueOrThrow({ where: { id: superseding!.id! } });
   expect(pending.reservationId).toBe(proofId);
   await expect(asOwner(async (tx) => {

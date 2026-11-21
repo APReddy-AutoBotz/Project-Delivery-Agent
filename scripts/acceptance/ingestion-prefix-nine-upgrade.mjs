@@ -67,6 +67,7 @@ const introducedTables = [
   "ConnectorPageDispatch",
   "SourceObservationWitness",
   "SourceAdmissionBindingRevision",
+  "SourceAdmissionCommand",
 ];
 
 async function assignSyntheticTableOwners(pool) {

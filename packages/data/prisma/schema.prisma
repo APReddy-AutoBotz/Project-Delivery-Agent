@@ -1053,12 +1053,27 @@ model SourceObservationWitness {
   ingestionStreamId String @db.Uuid
   sourceRevisionId String @db.Uuid
   auditEventId String @unique @db.Uuid
+  rootCommandId String @unique @db.Uuid
   admittedAt DateTime @db.Timestamptz(3)
   admittedBy String @db.VarChar(256)
   input Json
   @@unique([factId, ingestionStreamId, sourceRevisionId], map: "SourceObservationWitness_revision_key")
+  @@unique([customerId, projectId, admissionRevisionId, versionId], map: "SourceObservationWitness_command_scope_key")
   @@index([sourceId], map: "SourceObservationWitness_source_idx")
   @@index([admissionRevisionId], map: "SourceObservationWitness_admission_idx")
+}
+
+model SourceAdmissionCommand {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  admissionRevisionId String @db.Uuid
+  versionId String @db.Uuid
+  inputReceiptId String @db.Uuid
+  ordinal Int
+  commandKey String @db.VarChar(128)
+  correlationId String @db.Uuid
+  @@unique([customerId, projectId, commandKey])
 }
 
 model SourceAdmissionBindingRevision {

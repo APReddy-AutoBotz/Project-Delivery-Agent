@@ -88,10 +88,11 @@ const added = [
   "ConnectorPageDispatch",
   "SourceObservationWitness",
   "SourceAdmissionBindingRevision",
+  "SourceAdmissionCommand",
 ];
 const receipt = () => ({
   priorMigrationCount: 1,
-  businessTableCount: 92,
+  businessTableCount: 93,
   scheduleHealthPolicyTables: ["ScheduleHealthPolicyRevision"],
   scheduleHealthPolicyBackfill: {
     project_count: 1,
@@ -110,9 +111,9 @@ const receipt = () => ({
       ].includes(table),
   ),
 });
-it("NFR-REL-001: validates all 92 bootstrap tables independently and rejects omissions, duplicates and substitutions", () => {
+it("NFR-REL-001: validates all 93 bootstrap tables independently and rejects omissions, duplicates and substitutions", () => {
   const tables = [...old, ...added];
-  expect(tables).toHaveLength(92);
+  expect(tables).toHaveLength(93);
   expect(assertBusinessTableInventory(tables)).toBe(true);
   expect(() => assertBusinessTableInventory(tables.slice(1))).toThrow();
   expect(() => assertBusinessTableInventory([...tables, tables[0]!])).toThrow();
@@ -197,6 +198,7 @@ it("NFR-REL-001: accepts project update and seeded schedule policy release addit
     "ConnectorPageDispatch",
     "SourceObservationWitness",
     "SourceAdmissionBindingRevision",
+    "SourceAdmissionCommand",
   ]);
   expect(assertUpgradeInventory(value, 8)).toBe(true);
 });

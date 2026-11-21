@@ -406,7 +406,8 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       record_page regprocedure := to_regprocedure('public.record_connector_page_dispatch(uuid)');
       validate_page regprocedure := to_regprocedure('public.valid_connector_page_dispatch(uuid)');
       source_input regprocedure := to_regprocedure('public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb)');
-      append_observation regprocedure := to_regprocedure('public.append_source_observation(uuid,uuid,integer)');
+      admit_observation regprocedure := to_regprocedure('public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid)');
+      authority_commit regprocedure := to_regprocedure('public.require_authority_published()');
       validate_witness regprocedure := to_regprocedure('public.valid_source_observation_witness(uuid)');
       guard_observation regprocedure := to_regprocedure('public.guard_source_observation_insert()');
       require_witness regprocedure := to_regprocedure('public.require_source_observation_witness()');
@@ -419,6 +420,9 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         'public.require_source_admission_binding()',
         'public.guard_source_authority_activation()',
         'public.require_source_authority_witness()',
+        'public.require_source_admission_command()',
+        'public.valid_source_admission_command(uuid)',
+        'public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer)',
         'public.valid_source_authority_publication(uuid)'
       ];
       signature text;
@@ -429,13 +433,13 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
           WHERE migration_name='202611210001_connector_page_dispatch') INTO recorded;
       END IF;
       IF bind_claim IS NULL AND record_page IS NULL AND validate_page IS NULL AND source_input IS NULL
-         AND append_observation IS NULL AND validate_witness IS NULL AND guard_observation IS NULL AND require_witness IS NULL
+         AND admit_observation IS NULL AND validate_witness IS NULL AND guard_observation IS NULL AND require_witness IS NULL
          AND to_regclass('public."ConnectorPageDispatch"') IS NULL AND to_regclass('public."SourceObservationWitness"') IS NULL
-         AND to_regclass('public."SourceAdmissionBindingRevision"') IS NULL
+         AND to_regclass('public."SourceAdmissionBindingRevision"') IS NULL AND to_regclass('public."SourceAdmissionCommand"') IS NULL
          AND NOT EXISTS (SELECT 1 FROM unnest(admission_functions) f WHERE to_regprocedure(f) IS NOT NULL)
          AND NOT recorded THEN RETURN; END IF;
       IF to_regclass('public."ConnectorPageDispatch"') IS NULL OR to_regclass('public."SourceObservationWitness"') IS NULL
-         OR to_regclass('public."SourceAdmissionBindingRevision"') IS NULL OR 2<>(
+         OR to_regclass('public."SourceAdmissionBindingRevision"') IS NULL OR to_regclass('public."SourceAdmissionCommand"') IS NULL OR 2<>(
         SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid IN (bind_claim,record_page)
           AND p.prosecdef AND p.provolatile='v' AND NOT p.proretset AND p.prorettype='void'::regtype
           AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
@@ -448,13 +452,13 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
           AND NOT p.prosecdef AND p.provolatile='v' AND NOT p.proretset AND p.prorettype='jsonb'::regtype
           AND p.proowner=to_regrole('pdaa_migrate')
           AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp','TimeZone=UTC','DateStyle=ISO, YMD']
-      ) OR 4<>(
+      ) OR 5<>(
         SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.proowner=to_regrole('pdaa_migrate')
           AND NOT p.proretset AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
-          AND ((p.oid=append_observation AND NOT p.prosecdef AND p.provolatile='v' AND p.prorettype='uuid'::regtype)
+          AND ((p.oid=admit_observation AND p.prosecdef AND p.provolatile='v' AND p.prorettype='jsonb'::regtype)
             OR (p.oid=validate_witness AND NOT p.prosecdef AND p.provolatile='s' AND p.prorettype='boolean'::regtype)
-            OR (p.oid IN (guard_observation,require_witness) AND p.prorettype='trigger'::regtype
-              AND p.prosecdef=(p.oid=require_witness)))
+            OR (p.oid IN (guard_observation,require_witness,authority_commit) AND p.prorettype='trigger'::regtype
+              AND p.prosecdef=(p.oid<>guard_observation)))
       ) THEN RAISE EXCEPTION 'Unexpected connector dispatch or source observation boundary'; END IF;
       REVOKE ALL ON "ConnectorPageDispatch" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       REVOKE ALL ("receiptId","customerId","sourceId","jobId","claimGeneration","taskDigest")
@@ -462,7 +466,7 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       GRANT SELECT ON "ConnectorPageDispatch" TO pdaa_backup;
       REVOKE ALL ON "SourceObservationWitness" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       REVOKE ALL ("versionId","customerId","projectId","bindingId","admissionRevisionId","factId","sourceId","evidenceId",
-        "ingestionStreamId","sourceRevisionId","auditEventId","admittedAt","admittedBy",input)
+        "ingestionStreamId","sourceRevisionId","auditEventId","rootCommandId","admittedAt","admittedBy",input)
         ON "SourceObservationWitness" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       GRANT SELECT ON "SourceObservationWitness" TO pdaa_backup;
       REVOKE ALL ON "SourceAdmissionBindingRevision" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
@@ -471,9 +475,15 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         "factSourceId","reservationId","previousPolicyRevision","policyRevisionId",definition,"approvedBy","approvedAt","approvalAuditId")
         ON "SourceAdmissionBindingRevision" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       GRANT SELECT ON "SourceAdmissionBindingRevision" TO pdaa_backup;
+      REVOKE ALL ON "SourceAdmissionCommand" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      REVOKE ALL (id,"customerId","projectId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
+        ON "SourceAdmissionCommand" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT SELECT ON "SourceAdmissionCommand" TO pdaa_backup;
       FOREACH signature IN ARRAY admission_functions LOOP
         IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid=to_regprocedure(signature)
-          AND p.proowner=to_regrole('pdaa_migrate') AND NOT p.prosecdef AND NOT p.proretset
+          AND p.proowner=to_regrole('pdaa_migrate')
+          AND p.prosecdef=(signature IN ('public.require_source_admission_command()','public.require_source_authority_witness()'))
+          AND p.proretset=(signature='public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer)')
           AND p.proconfig[1]='search_path=pg_catalog, pg_temp')
         THEN RAISE EXCEPTION 'Unexpected source admission helper boundary'; END IF;
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup',to_regprocedure(signature));
@@ -481,10 +491,13 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       REVOKE ALL ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
         public.record_connector_page_dispatch(uuid),public.valid_connector_page_dispatch(uuid),
         public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb),
-        public.append_source_observation(uuid,uuid,integer),
+        public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid),
         public.valid_source_observation_witness(uuid),public.guard_source_observation_insert(),
-        public.require_source_observation_witness()
+        public.require_source_observation_witness(),public.require_authority_published()
         FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      IF to_regrole('pdaa_source_acceptance') IS NOT NULL THEN
+        REVOKE ALL ON FUNCTION public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid) FROM pdaa_source_acceptance;
+      END IF;
       GRANT EXECUTE ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
         public.record_connector_page_dispatch(uuid) TO pdaa_api;
     END $connector_page_dispatch_acl$

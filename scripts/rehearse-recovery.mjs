@@ -179,6 +179,7 @@ try {
     "ConnectorPageDispatch",
     "SourceObservationWitness",
     "SourceAdmissionBindingRevision",
+    "SourceAdmissionCommand",
     "IngestionSyncReceiptProjectScope",
     "HealthAssessmentRetentionPolicy",
     "HealthAssessment",

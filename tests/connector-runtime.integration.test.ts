@@ -13,6 +13,7 @@ import { CredentialKeyRingVault, CredentialVault } from "../packages/platform/sr
 import type { Actor } from "../packages/domain/src/index.js";
 import { JiraRuntimeService } from "../apps/api/src/jira-runtime.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
+import { sourceAdmissionSubject } from "../scripts/acceptance/source-admission-role.mjs";
 
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
@@ -532,6 +533,7 @@ describe("durable Jira connector runtime", () => {
       { subject: pmo.subject, role: "pmo_admin" },
       { subject: manager.subject, role: "project_manager" },
       { subject: systemAdmin.subject, role: "system_admin" },
+      { subject: sourceAdmissionSubject, role: "project_manager" },
     ] as const) {
       await db.accessGrant.create({
         data: {
@@ -560,7 +562,7 @@ describe("durable Jira connector runtime", () => {
       pmo,
       {
         binding,
-        projects: [{ projectId, readers: [manager.subject, pmo.subject] }],
+        projects: [{ projectId, readers: [manager.subject, pmo.subject, sourceAdmissionSubject] }],
         mapping: {
           kind: "CONNECTOR",
           factTypes: ["jira.status"],
@@ -825,10 +827,13 @@ describe("durable Jira connector runtime", () => {
         ) AS id`;
     });
     expect(approval?.id).toEqual(expect.any(String));
+    const commandKey = randomUUID();
+    const correlation = randomUUID();
     const appendJiraObservation = () => db.$transaction(async (tx) => {
-      await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
-      return tx.$queryRaw<{ id: string }[]>`
-        SELECT public.append_source_observation(${approval?.id}::uuid,${receipt.id}::uuid,1) AS id`;
+      await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_source_acceptance`;
+      return tx.$queryRaw<{ result: { status: string; receiptId?: string } }[]>`
+        SELECT public.admit_source_observation(${isolatedCustomerId}::uuid,${projectId}::uuid,${approval?.id}::uuid,
+          ${receipt.id}::uuid,1,${commandKey},${correlation}::uuid) AS result`;
     });
     // The grant mutation trigger acquires the project after the grant tuple.
     // Admission must release its project lock promptly when that tuple is busy.
@@ -842,8 +847,11 @@ describe("durable Jira connector runtime", () => {
     });
     expect(await db.projectFactVersion.count({ where: { factId: canonicalBinding.factId } })).toBe(1);
     const [admitted] = await appendJiraObservation();
+    expect(admitted).toEqual({ result: { status: "ADMITTED", receiptId: expect.any(String) } });
+    const admittedReceipt = await db.sourceAdmissionCommand.findUniqueOrThrow({ where: { id: admitted!.result.receiptId } });
+    expect(await appendJiraObservation()).toEqual([{ result: { status: "REPLAYED", receiptId: admittedReceipt.id } }]);
     expect(await db.projectFactVersion.findUniqueOrThrow({
-      where: { id: admitted?.id }, include: { evidence: { include: { source: true } } },
+      where: { id: admittedReceipt.versionId }, include: { evidence: { include: { source: true } } },
     })).toMatchObject({
       factId: canonicalBinding.factId, revision: 2, provenance: "SYSTEM_VERIFIED",
       value: { type: "text", value: "OPEN" },
