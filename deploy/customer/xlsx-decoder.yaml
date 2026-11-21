@@ -6,6 +6,7 @@ services:
     group_add: ["2000"]
     environment:
       PDAA_XLSX_DECODER_MODE: isolated
+      PDAA_XLSX_BROWSER_IMPORT: ${PDAA_XLSX_BROWSER_IMPORT:-disabled}
     volumes:
       - type: volume
         source: xlsx-link

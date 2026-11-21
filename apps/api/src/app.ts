@@ -54,6 +54,10 @@ import {
   accessOperationWireSchema,
 } from "./contract.js";
 import { ResponseContractInterceptor } from "./response-contract.js";
+import { installXlsxIngestionBoundary } from "./xlsx-ingestion-boundary.js";
+import {
+  XLSX_APPLICATION_REPOSITORY, XlsxIngestionController, type XlsxApplicationRepository,
+} from "./xlsx-ingestion-controller.js";
 import { ExceptionContractFilter } from "./exception-contract.js";
 import { randomUUID } from "node:crypto";
 import {
@@ -75,7 +79,7 @@ import {
   HttpException,
 } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import type { NestExpressApplication } from "@nestjs/platform-express";
+import { ExpressAdapter, type NestExpressApplication } from "@nestjs/platform-express";
 import {
   SwaggerModule,
   DocumentBuilder,
@@ -290,6 +294,7 @@ export async function createApp(
   scalarConflictObservation: import("@pdaa/domain").ScalarConflictObservationRepository = unavailableScalarConflictObservationRepository,
   milestoneStateDisagreement: import("@pdaa/domain").MilestoneStateDisagreementRepository = unavailableMilestoneStateDisagreementRepository,
   milestoneRequestObservation: import("@pdaa/domain").MilestoneRequestObservationRepository = unavailableMilestoneRequestObservationRepository,
+  xlsxRepository: XlsxApplicationRepository | null = null,
 ) {
   @Module({
     controllers: [
@@ -299,6 +304,7 @@ export async function createApp(
       MilestoneController,
       ScalarReconciliationController,
       IngestionController,
+      XlsxIngestionController,
       HealthAssessmentController,
       ProjectUpdateController,
       ProjectUpdateInvitationController,
@@ -322,6 +328,7 @@ export async function createApp(
       },
       { provide: IdentityService, useValue: identity },
       { provide: INGESTION_REPOSITORY, useValue: ingestion },
+      { provide: XLSX_APPLICATION_REPOSITORY, useValue: xlsxRepository },
       { provide: HEALTH_ASSESSMENT_REPOSITORY, useValue: healthAssessment },
       { provide: PROJECT_UPDATE_REPOSITORY, useValue: projectUpdates },
       { provide: PM_ACTION_QUEUE_REPOSITORY, useValue: pmActionQueue },
@@ -334,7 +341,11 @@ export async function createApp(
     ],
   })
   class AppModule {}
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: false, rawBody: true, bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, new ExpressAdapter(), {
+    logger: false,
+    rawBody: true,
+    bodyParser: false,
+  });
   app.useGlobalInterceptors(new ResponseContractInterceptor());
   app.useGlobalFilters(new ExceptionContractFilter(app.getHttpAdapter()));
   app.enableCors({
@@ -369,6 +380,7 @@ export async function createApp(
       next();
     },
   );
+  installXlsxIngestionBoundary(app, identity, xlsxRepository !== null);
   app.use(rejectZstdForParser(isInternalTextRequest));
   app.useBodyParser("text", {
     limit: "1mb",

@@ -5,6 +5,7 @@ import type {
   OperationObject,
 } from "@nestjs/swagger";
 import { z } from "zod";
+import { xlsxContractPath } from "./xlsx-ingestion-routes.js";
 import {
   roleSchema,
   canonicalSetupSchema,
@@ -47,6 +48,10 @@ import {
   ingestionSafeErrorSchema,
   ingestionRowOperationSchema,
   ingestionRowStateSchema,
+  xlsxCataloguePageSchema,
+  xlsxPreviewPageSchema,
+  xlsxPreviewReviewDetailsSchema,
+  xlsxReviewedImportRequestSchema,
   healthAssessmentCommandSchema,
   healthAssessmentRetentionPolicySchema,
   healthAssessmentRetentionViewSchema,
@@ -334,6 +339,57 @@ export const contracts: Record<string, RouteContract> = {
     response: ingestionReceiptReadResultWireSchema,
     parameters: { sourceId: z.uuid(), receiptId: z.uuid() },
     errors: [400, 404, 409, 503],
+  },
+  [`get ${xlsxContractPath("sources")}`]: {
+    status: 200,
+    query: { afterSourceId: z.uuid() },
+    response: xlsxCataloguePageSchema,
+    errors: [404, 503],
+  },
+  [`post ${xlsxContractPath("previews")}`]: {
+    status: 201,
+    response: ingestionCsvPreviewResultSchema,
+    parameters: { sourceId: z.uuid() },
+    requestContent: {
+      "multipart/form-data": {
+        schema: {
+          type: "object",
+          required: ["file", "commandKey", "configRevision", "mappingRevision", "sheet"],
+          properties: {
+            file: { type: "string", format: "binary" },
+            commandKey: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9_-]+$" },
+            configRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
+            mappingRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
+            sheet: { type: "string", minLength: 1, maxLength: 124, pattern: "^[A-Za-z0-9_-]+$",
+              description: "Canonical base64url encoding of the exact UTF-8 worksheet name." },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    errors: [404, 409, 429, 503],
+  },
+  [`get ${xlsxContractPath("preview")}`]: {
+    status: 200,
+    response: xlsxPreviewPageSchema,
+    parameters: { sourceId: z.uuid(), previewReceiptId: z.uuid() },
+    query: { afterOrdinal: z.number().int().min(0).max(1000) },
+    errors: [404, 503],
+  },
+  [`get ${xlsxContractPath("details")}`]: {
+    status: 200,
+    response: xlsxPreviewReviewDetailsSchema,
+    parameters: { sourceId: z.uuid(), previewReceiptId: z.uuid() },
+    errors: [404, 503],
+  },
+  [`post ${xlsxContractPath("review")}`]: {
+    status: 201,
+    request: ingestionReviewedImportBodyWireSchema.extend({
+      previewContextSha256: xlsxReviewedImportRequestSchema.shape.previewContextSha256,
+    }),
+    response: ingestionReviewedImportResultSchema,
+    parameters: { sourceId: z.uuid() },
+    errors: [404, 409, 503],
   },
   "post /api/projects/{id}/scalar-reconciliation-checks": {
     status: 201,

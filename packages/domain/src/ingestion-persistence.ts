@@ -19,15 +19,14 @@ const field = z
     required: z.boolean(),
   })
   .strict();
+const distinctMappingFields = (fields: z.infer<typeof field>[]) =>
+  fields.length > 0 &&
+  unique(fields.map((item) => item.column)) &&
+  unique(fields.map((item) => item.factType));
 const mappingColumns = {
   identityColumn: ingestionText(256),
   projectColumn: ingestionText(256),
-  fields: ingestionArray(field, 32).refine(
-    (fields) =>
-      fields.length > 0 &&
-      unique(fields.map((item) => item.column)) &&
-      unique(fields.map((item) => item.factType)),
-  ),
+  fields: ingestionArray(field, 32).refine(distinctMappingFields),
 };
 const csvMapping = z
   .object({
@@ -85,7 +84,9 @@ export const xlsxPreviewReviewDetailsInputSchema = z.strictObject({
 export const xlsxPreviewReviewDetailsSchema = xlsxPreviewReviewDetailsInputSchema.extend({
   configRevision: xlsxMappingRevisionSchema,
   mappingRevision: xlsxMappingRevisionSchema,
-  mapping: z.strictObject({ sheet: xlsxSheetSchema, ...mappingColumns })
+  mapping: z.strictObject({ sheet: xlsxSheetSchema, ...mappingColumns,
+    fields: z.array(field).min(1).max(32).refine(distinctMappingFields),
+  })
     .refine((value) => value.identityColumn !== value.projectColumn),
   reviewedImport: z.strictObject({
     receiptId: projectFactIdSchema,
@@ -203,6 +204,50 @@ export const ingestionReviewedImportResultSchema = z
     rowCount: z.number().int().min(1).max(1000),
   })
   .strict();
+export const xlsxCatalogueInputSchema = z.strictObject({ afterSourceId: projectFactIdSchema.nullable() });
+export const xlsxCataloguePageSchema = z.strictObject({
+  sources: z.array(z.strictObject({
+    sourceId: projectFactIdSchema,
+    configRevision: xlsxMappingRevisionSchema,
+    mappingRevision: xlsxMappingRevisionSchema,
+    sheet: xlsxSheetSchema,
+  })).max(50),
+  nextSourceId: projectFactIdSchema.nullable(),
+});
+export const xlsxPreviewCommandSchema = z.strictObject({
+  sourceId: projectFactIdSchema,
+  commandKey: ingestionCommandKeySchema,
+  configRevision: xlsxMappingRevisionSchema,
+  mappingRevision: xlsxMappingRevisionSchema,
+  sheet: xlsxSheetSchema,
+});
+export const xlsxPreviewPageInputSchema = xlsxPreviewReviewDetailsInputSchema.extend({
+  afterOrdinal: z.number().int().min(0).max(1000),
+});
+const xlsxReceiptOrdinal = z.number().int().min(1).max(1000);
+const xlsxPreviewContextSha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
+export const xlsxPreviewPageSchema = xlsxPreviewReviewDetailsInputSchema.extend({
+  createdAt: z.iso.datetime(),
+  configRevision: xlsxMappingRevisionSchema,
+  mappingRevision: xlsxMappingRevisionSchema,
+  rowCount: z.number().int().min(0).max(1000),
+  previewContextSha256: xlsxPreviewContextSha256Schema,
+  selectionState: z.enum(["OPEN", "REVIEWED", "STALE"]),
+  outcomes: z.array(z.strictObject({
+    ordinal: xlsxReceiptOrdinal,
+    state: ingestionRowStateSchema,
+    operation: ingestionRowOperationSchema,
+    errorCodes: z.array(ingestionSafeErrorSchema).max(16),
+    projectId: projectFactIdSchema.nullable(),
+    contentAvailable: z.boolean(),
+    selectable: z.boolean(),
+    proposals: z.array(ingestionProposalSchema).max(32).nullable(),
+  })).max(50),
+  nextOrdinal: xlsxReceiptOrdinal.nullable(),
+});
+export const xlsxReviewedImportRequestSchema = ingestionReviewedImportRequestSchema.extend({
+  previewContextSha256: xlsxPreviewContextSha256Schema,
+});
 const receiptOrdinal = z.number().int().min(1).max(1000);
 export const ingestionReceiptReadResultSchema = z
   .object({

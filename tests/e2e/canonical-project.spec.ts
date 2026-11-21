@@ -407,7 +407,11 @@ test("A programme retry retains its request and selection when the setup list om
   await page
     .getByRole("button", { name: "Create programme", exact: true })
     .click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(
+    page.getByText("The same programme request can be retried with its original key.", {
+      exact: true,
+    }),
+  ).toBeVisible();
   await page
     .getByLabel("Programme name", { exact: true })
     .fill("Temporary edit");

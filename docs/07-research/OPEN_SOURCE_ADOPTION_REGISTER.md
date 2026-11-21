@@ -351,6 +351,16 @@ No first-party source or runtime dependency is newly adopted; remove the overrid
 when reviewed upstream development tooling incorporates the patch. No release
 security disposition or commercial/customer gate is waived.
 
+## XLSX API multipart intake
+
+The XLSX upload boundary uses Busboy 1.6.0 (MIT), already present in the locked
+Multer graph. The API now pins it directly to count complete request bytes
+before forwarding them into the multipart parser. The API holds a local
+intake lease through parser and workbook settlement. The independent decoder
+continues to own workbook interpretation. The package inventory records the
+runtime pin and the MIT TypeScript declarations. Independent exact-candidate
+review and packaged checks are required before release.
+
 ## Required CI dependency patches, 2026-10-21
 
 NFR-MNT-004 / CI-MNT-004: normal PR #110 CI found three existing blocking package

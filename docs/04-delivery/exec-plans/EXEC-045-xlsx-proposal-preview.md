@@ -673,6 +673,24 @@ The details database call is available only to the API login. Clean,
 partial-role, upgrade, and restore paths retain their finite grant checks.
 This step prepares the read model for the application routes.
 
+### Application API and upload intake
+
+The XLSX-specific catalogue, preview, outcome pages, mapping and review
+details, and explicit save routes share the published API contract. HTTP
+activation is separately default-off. An enabled customer API must initialize
+the existing isolated decoder and peer checks successfully.
+
+Authentication and the eligible role check run before upload intake. The
+streaming parser accepts a single workbook of at most 1,048,576 bytes and
+four unique command fields. The encoded body cap is 1,064,960 bytes. Two
+per-process leases and a ten-second upload deadline bound local buffering.
+The selected sheet travels as canonical base64url of its exact UTF-8 bytes.
+The repository rechecks sealed mapping and project scope before decode and
+before writing. A disconnect cancels the request's write path while an
+admitted decoder exchange settles under its own deadline and cleanup rules.
+Exact authorized retry can return the durable receipt ahead of fresh decoder
+admission. The release still requires packaged route and browser proofs.
+
 ## Required validation
 
 PR #153 Foundation run [41262214531](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41262214531)
