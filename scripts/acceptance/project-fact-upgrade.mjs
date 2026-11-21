@@ -282,7 +282,7 @@ export async function verifyFoundationUpgrade(
         "prior-canonical",
         databaseFactory,
       );
-      await verifyAuthorityPrivileges(owner);
+      await verifyAuthorityPrivileges(owner, { legacy: true });
       await verifyAuthorityImmutable(owner);
       await verifyAuthorityIntegrity(owner);
     }
@@ -317,7 +317,7 @@ export async function verifyFoundationUpgrade(
         "prior-reconciliation",
         { databaseFactory, reserveForRestore: true },
       );
-      await verifyMilestonePersistencePrivileges(owner);
+      await verifyMilestonePersistencePrivileges(owner, { legacy: true });
       await verifyMilestonePersistenceImmutable(owner);
       await verifyMilestonePersistenceIntegrity(owner);
     }
