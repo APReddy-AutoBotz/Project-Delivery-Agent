@@ -12,6 +12,7 @@ import type {
 import type { RequestFn } from "./canonical-project.js";
 import { Button, TextField, SelectField, Message } from "./components.js";
 import { FactValue } from "./evidence-display.js";
+import { sourceSnapshotLabel } from "./source-snapshot-label.js";
 import { bindSessionRequest } from "./session-bound-request.js";
 import {
   denied,
@@ -129,6 +130,8 @@ function Proof({
                             {version.assessedValidUntil ?? "Unknown"}
                           </p>
                           <p>
+                            {version.provenance === "SYSTEM_VERIFIED" && sourceSnapshotLabel(version.source.recordType) &&
+                              <>{sourceSnapshotLabel(version.source.recordType)} · </>}
                             Source record: {version.source.recordId} · Source
                             revision: {version.source.revision}
                           </p>

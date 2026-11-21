@@ -4,6 +4,7 @@ import { decodeMilestoneConflict, decodeMilestoneRequestObservation } from "./mi
 import { decodeMilestoneStateDisagreement } from "./milestone-state-disagreement-decoder.js";
 import type { RequestFn } from "./request-types.js";
 import { milestoneQuestionExample, supportsMilestoneQuestion } from "./milestone-question.js";
+import { sourceSnapshotLabel } from "./source-snapshot-label.js";
 import { Button, Message } from "./components.js";
 import { createPmQueueResource, type PmQueueResourceState, type ReadReserve } from "./pm-queue-resource.js";
 
@@ -174,14 +175,15 @@ function Observation({ projectId, milestoneId, scope, milestones, workItems, req
         <p>At this check, a request was recorded for these contributing positions. This does not confirm a current assignment or delivery.</p>}
       {mode === "request" && display.data.requestStatus === "NO_MATCHING_REQUEST_RECORDED" &&
         <p>At this check, no request was recorded for these contributing positions. An older request may exist.</p>}
-      <p className="muted">Provenance labels are stored with the evidence; this check does not independently verify a source or a person's confirmation.</p>
       {display.data.observation.positions.map((position) => {
         const target = (position.targetKind === "MILESTONE" ? milestones : workItems).find((item) => item.id === position.targetId);
         return <div className="canonical-review-row" key={position.bindingId}>
           <p><strong>{target?.key ?? "Authorized item"}</strong> · {position.targetKind === "MILESTONE" ? "Milestone" : "Required work item"} · {position.state.replaceAll("_", " ")}</p>
           <p className="muted">Policy revision: {position.policyRevisionId}</p>
           <ul>{position.supports.map((support) => <li key={support.versionId}>
-            Evidence {support.evidenceId} · version {support.versionId} · source {support.sourceId} · stored provenance: {support.provenance.replaceAll("_", " ")} · observed {support.observedAt} · valid until {support.assessedValidUntil}
+            Evidence {support.evidenceId} · version {support.versionId} · source {support.sourceId} · stored provenance: {support.provenance.replaceAll("_", " ")}
+            {support.provenance === "SYSTEM_VERIFIED" && <> · {sourceSnapshotLabel(support.sourceKind)}</>}
+            {" · observed "}{support.observedAt} · valid until {support.assessedValidUntil}
           </li>)}</ul>
         </div>;
       })}

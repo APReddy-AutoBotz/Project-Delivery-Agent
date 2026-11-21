@@ -40,12 +40,16 @@ export function decodeMilestoneConflict(value: unknown, projectId: string, miles
     const supports = array(item.supports, 1, 1000); count += supports.length; if (count > 1000) fail();
     for (const rawSupport of supports) {
       const row = object(rawSupport);
-      keys(row, ["versionId", "evidenceId", "sourceId", "provenance", "freshness", "validity", "effectiveAt", "observedAt", "versionValidUntil", "assessedValidUntil"]);
+      const verified = row.provenance === "SYSTEM_VERIFIED";
+      keys(row, ["versionId", "evidenceId", "sourceId", "provenance", "freshness", "validity", "effectiveAt", "observedAt", "versionValidUntil", "assessedValidUntil",
+        ...(verified ? ["sourceKind"] : []),
+      ]);
       const version = id(row.versionId), proof = id(row.evidenceId); id(row.sourceId);
       if (versions.has(version) || evidence.has(proof)) fail(); versions.add(version); evidence.add(proof);
-      if ((row.provenance !== "HUMAN_CONFIRMED" && row.provenance !== "SYSTEM_VERIFIED") || row.freshness !== "CURRENT" || row.validity !== "FINITE") fail();
+      if ((!verified && row.provenance !== "HUMAN_CONFIRMED") || row.freshness !== "CURRENT" || row.validity !== "FINITE") fail();
+      if (verified && row.sourceKind !== "jira.issue" && row.sourceKind !== "xlsx.row") fail();
       const effective = instant(row.effectiveAt), observed = instant(row.observedAt), adjusted = instant(row.assessedValidUntil);
-      const original = row.versionValidUntil === null ? null : instant(row.versionValidUntil);
+      const original = !verified && row.versionValidUntil === null ? null : instant(row.versionValidUntil);
       if (effective > asOf || observed > asOf || adjusted <= asOf || (original !== null && (original <= asOf || adjusted > original))) fail();
     }
   }
@@ -64,5 +68,5 @@ export function decodeMilestoneRequestObservation(value: unknown, projectId: str
   }
   if (wrapper.requestStatus !== "MATCHING_REQUEST_RECORDED" && wrapper.requestStatus !== "NO_MATCHING_REQUEST_RECORDED") return fail();
   if (observation.positions.some((position) => position.supports.some((support) => support.provenance !== "HUMAN_CONFIRMED"))) fail();
-  return { observation, requestStatus: wrapper.requestStatus };
+  return { observation, requestStatus: wrapper.requestStatus } as MilestoneRequestObservation;
 }

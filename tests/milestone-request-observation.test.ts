@@ -30,7 +30,8 @@ describe("matched milestone request presentation contract", () => {
     expect(schema.safeParse({ observation, requestStatus: "NO_MATCHING_REQUEST_RECORDED" }).success).toBe(false);
   });
   it("rejects unsupported origin, expired proof and caller-supplied internal details", () => {
-    const external = conflict(); external.positions[0]!.supports[0]!.provenance = "SYSTEM_VERIFIED";
+    const external = conflict();
+    Object.assign(external.positions[0]!.supports[0]!, { provenance: "SYSTEM_VERIFIED", sourceKind: "xlsx.row" });
     const stale = conflict(); stale.positions[0]!.supports[0]!.assessedValidUntil = stale.asOf;
     for (const input of [
       { observation: external, requestStatus: "MATCHING_REQUEST_RECORDED" },

@@ -9,6 +9,7 @@ import {
   DatabaseCanonicalProjectRepository,
   DatabaseConnectorRuntimeRepository,
   DatabaseIngestionRepository,
+  DatabaseMilestoneConflictObservationRepository,
   DatabaseMilestoneConsistencyRepository,
   DatabaseMilestoneReconciliationRepository,
   DatabaseProjectFactRepository,
@@ -546,6 +547,10 @@ describe("durable Jira connector runtime", () => {
     projectFixture.requiredWorkItems.push({ milestoneKey: "MS-1", workItemKey: "WI-2" });
     const { id: projectId } = await new DatabaseCanonicalProjectRepository(db)
       .createProject(pmo, projectFixture, randomUUID());
+    const leaderGrant = await db.accessGrant.create({ data: {
+      customerId: isolatedCustomerId, subject: otherManager.subject,
+      scopeType: "portfolio", scopeId: portfolioId, role: "leadership",
+    } });
     for (const grant of [
       { subject: pmo.subject, role: "pmo_admin" },
       { subject: manager.subject, role: "project_manager" },
@@ -1035,6 +1040,31 @@ describe("durable Jira connector runtime", () => {
     expect(await readMilestone(pmo)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
     expect(await readMilestone(otherManager)).toEqual(mixedMilestone);
 
+    const leadership = new DatabaseMilestoneConflictObservationRepository(api);
+    const leader: Actor = { ...otherManager, roles: ["leadership"] };
+    const observe = () => leadership.readLeadership(leader, projectId, work.milestoneId);
+    const savedCount = await db.milestoneConsistencyAssessment.count({ where: { projectId } });
+    const answer = await observe();
+    expect(answer).toMatchObject({ outcome: "CONFLICTING", ruleRevision: "milestone-required-state/v1" });
+    if (answer.outcome !== "CONFLICTING") throw new Error("Expected a current source-backed leadership answer");
+    expect(answer.positions).toMatchObject([
+      { targetKind: "MILESTONE", targetId: work.milestoneId, state: "COMPLETE", supports: [{
+        versionId: workbookCommand.versionId, provenance: "SYSTEM_VERIFIED", sourceKind: "xlsx.row", freshness: "CURRENT",
+      }] },
+      { targetKind: "WORK_ITEM", targetId: work.workItemId, state: "OPEN", supports: [{
+        versionId: admittedReceipt.versionId, provenance: "SYSTEM_VERIFIED", sourceKind: "jira.issue", freshness: "CURRENT",
+      }] },
+    ]);
+    await expect(leadership.readForLeaderManager({ ...otherManager, roles: ["leadership", "project_manager"] }, projectId, work.milestoneId))
+      .rejects.toMatchObject({ code: "UNAVAILABLE" });
+    expect(await db.milestoneConsistencyAssessment.count({ where: { projectId } })).toBe(savedCount);
+    const presented = JSON.stringify(answer);
+    for (const privateValue of ["SAFE-77", reviewed.receiptId, manager.subject, otherManager.subject])
+      expect(presented).not.toContain(privateValue);
+    await db.accessGrant.delete({ where: { id: leaderGrant.id } });
+    await expect(observe()).rejects.toMatchObject({ code: "DENIED" });
+    await db.accessGrant.create({ data: leaderGrant });
+
     const requests = new DatabaseMilestoneReconciliationRepository(api);
     const check = { ...milestoneRequest, idempotencyKey: randomUUID() };
     const checked = await requests.check(workbookReader, check, { correlationId: randomUUID() });
@@ -1067,6 +1097,7 @@ describe("durable Jira connector runtime", () => {
     expect(await requests.get(manager, requestScope)).toMatchObject({ assessment: {
       assessmentId: checked.assessment.assessmentId, visibility: "restricted", revalidationRequired: true, result: null,
     } });
+    await expect(observe()).rejects.toMatchObject({ code: "UNAVAILABLE" });
     expect(await requests.check(workbookReader, check, { correlationId: randomUUID() })).toMatchObject({
       checkId: checked.checkId, replayed: true, request: { id: requestId },
       assessment: { visibility: "restricted", revalidationRequired: true, result: null },
@@ -1341,6 +1372,7 @@ describe("durable Jira connector runtime", () => {
     });
     expect(await readMilestone(workbookReader)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
     expect(await requests.get(manager, requestScope)).toMatchObject({ assessment: { visibility: "restricted", result: null } });
+    await expect(observe()).rejects.toMatchObject({ code: "UNAVAILABLE" });
     expect(await asApi((tx) => tx.$queryRaw`
       SELECT public.valid_milestone_consistency_assessment(${mixedMilestone.assessmentId}::uuid) AS valid,
         public.valid_milestone_reconciliation_request(${requestId}::uuid) AS "requestValid",

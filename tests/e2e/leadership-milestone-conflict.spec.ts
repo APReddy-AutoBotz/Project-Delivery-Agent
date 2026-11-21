@@ -23,6 +23,11 @@ const conflict = { ...base, milestoneId: id(2), outcome: "CONFLICTING", position
 
 test("milestone observation hides old details when selection, access and session change", async ({ page }) => {
   test.setTimeout(90000);
+  const typedConflict = { ...conflict, positions: conflict.positions.map((position, index) => ({
+    ...position, supports: position.supports.map((row) => ({
+      ...row, provenance: "SYSTEM_VERIFIED", sourceKind: index === 0 ? "xlsx.row" : "jira.issue",
+    })),
+  })) };
   let persona = "", denied = false, hold = false, holdEdit = false, holdMe = false, holdCanonical = false, demoted = false, reads = 0;
   let canonicalArrived!: () => void, releaseCanonical!: () => void;
   const canonicalEntered = new Promise<void>((resolve) => { canonicalArrived = resolve; });
@@ -92,7 +97,7 @@ test("milestone observation hides old details when selection, access and session
           try { await route.fulfill({ json: conflict, headers: { "x-synthetic-hold": "edit" } }); editDelivered = true; } finally { settledEdit(); }
           return;
         }
-        return route.fulfill({ json: conflict }).catch(() => {});
+        return route.fulfill({ json: typedConflict }).catch(() => {});
       }
       return route.fulfill({ json: { ...base, milestoneId: id(3), outcome: "NOT_DETECTED" } }).catch(() => {});
     }
@@ -142,6 +147,8 @@ test("milestone observation hides old details when selection, access and session
   await ask(); await expect(page.getByText("Completion is not established", { exact: false })).toBeVisible();
   await expect(page.getByText(/Evidence .*version .*source/).first()).toBeVisible();
   const panel = page.getByRole("region", { name: "Ask about milestone completion" });
+  await expect(panel.getByText("Reviewed Excel row snapshot", { exact: false })).toBeVisible();
+  await expect(panel.getByText("Jira issue snapshot", { exact: false })).toBeVisible();
   await expect(panel.getByRole("button", { name: "Check for a recorded request" })).toHaveCount(0);
   for (const [index, position] of conflict.positions.entries()) {
     const row = panel.locator(".canonical-review-row").filter({ hasText: index === 0 ? "MS-1" : "WI-1" });
@@ -156,6 +163,8 @@ test("milestone observation hides old details when selection, access and session
   denied = true; await page.getByRole("button", { name: "Refresh completion check" }).click();
   await expect(page.getByText("Completion check is unavailable", { exact: false })).toBeVisible();
   await expect(page.getByText("Completion is not established", { exact: false })).toHaveCount(0);
+  await expect(panel.getByText("Reviewed Excel row snapshot", { exact: false })).toHaveCount(0);
+  await expect(panel.getByText("Jira issue snapshot", { exact: false })).toHaveCount(0);
   denied = false; hold = true; await page.getByRole("button", { name: "Refresh completion check" }).click(); await entered;
   try {
     await select.selectOption(id(3));

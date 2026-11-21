@@ -8,11 +8,7 @@ import type {
 } from "@pdaa/domain";
 import { Button } from "./components.js";
 import { savedEvidenceLink } from "./evidence-state.js";
-
-const sourceSnapshotLabels: Record<string, string> = {
-  "jira.issue": "Jira issue snapshot",
-  "xlsx.row": "Reviewed Excel row snapshot",
-};
+import { sourceSnapshotLabel } from "./source-snapshot-label.js";
 
 type SelectorValidity = NonNullable<
   AuthorityDefinition["tiers"][number]["selectors"][number]["validity"]
@@ -60,7 +56,7 @@ export function HistoryEntry({
               <p className="pill neutral">HUMAN_CONFIRMED · Historical statement</p>
             </>
           ) : (
-            <p className="pill neutral">SYSTEM_VERIFIED · {sourceSnapshotLabels[content.source.recordType]}</p>
+            <p className="pill neutral">SYSTEM_VERIFIED · {sourceSnapshotLabel(content.source.recordType)}</p>
           )}
           <dl className="evidence-metadata">
             {content.provenance === "HUMAN_CONFIRMED" ? (
@@ -313,8 +309,8 @@ export function AssessmentView({
                         "Eligible at capture"}
                     </p>
                     {version.provenance === "SYSTEM_VERIFIED" &&
-                      Object.hasOwn(sourceSnapshotLabels, version.source.recordType) && (
-                        <p>{sourceSnapshotLabels[version.source.recordType]}</p>
+                      sourceSnapshotLabel(version.source.recordType) && (
+                        <p>{sourceSnapshotLabel(version.source.recordType)}</p>
                       )}
                     <p>
                       Source record: {version.source.recordId} · Source
