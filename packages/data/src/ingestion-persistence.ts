@@ -1636,9 +1636,14 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     const { afterSourceId } = parseIngestion(xlsxCatalogueInput, inputValue);
     const roles = actor.roles.filter((role) => ingestionWriteRoles.includes(role));
     return this.run(actor, "xlsx_source_list", "ingestion.xlsx.source.list", "PERSISTENCE_FAILED", async () => {
-      const [row] = await this.db.$queryRaw<{ result: unknown }[]>`
-        SELECT public.list_ingestion_xlsx_sources(
-          ${actor.customerId}::uuid,${actor.subject}::text,${roles}::text[],${afterSourceId}::uuid) AS result`;
+      // Authorization precedes pagination, so a sparse reader can scan beyond one page.
+      const [row] = await this.db.$transaction(async (tx) => {
+        await tx.$executeRaw`SET LOCAL statement_timeout = '3s'`;
+        await tx.$executeRaw`SET LOCAL lock_timeout = '2s'`;
+        return tx.$queryRaw<{ result: unknown }[]>`
+          SELECT public.list_ingestion_xlsx_sources(
+            ${actor.customerId}::uuid,${actor.subject}::text,${roles}::text[],${afterSourceId}::uuid) AS result`;
+      }, { isolationLevel: "ReadCommitted", maxWait: 2000, timeout: 5000 });
       const page = xlsxCatalogueResult.safeParse(row?.result);
       if (!page.success) throw new IngestionPersistenceError("INTEGRITY_CONFLICT");
       if (page.data.status === "DENIED") throw new IngestionPersistenceError("DENIED");
@@ -2002,10 +2007,12 @@ export class DatabaseIngestionRepository implements IngestionRepository {
         for (let attempt = 0; attempt < 2; attempt++) {
           signal?.throwIfAborted();
           const result = await this.db.$transaction(async (tx) => {
+            signal?.throwIfAborted();
             const [read] = await tx.$queryRaw<{ result: unknown }[]>`
               SELECT public.read_ingestion_xlsx_preview(
                 ${actor.customerId}::uuid,${sourceId}::uuid,${actor.subject}::text,${roles}::text[],${commandKey}::text,
                 ${configRevision}::integer,${mappingRevision}::integer,${sheet}::text,${parserContract}::text) AS result`;
+            signal?.throwIfAborted();
             const prepared = xlsxWriterRead.safeParse(read?.result);
             if (!prepared.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
             if (prepared.data.status !== "READY") return prepared.data;
@@ -2038,6 +2045,8 @@ export class DatabaseIngestionRepository implements IngestionRepository {
                 ${configRevision}::integer,${mappingRevision}::integer,${sheet}::text,${parserContract}::text,
                 ${workbookBytes}::integer,${workbookSha256}::text,${correlationId}::text,
                 ${JSON.stringify(witness)}::jsonb,${boundedJson(outcomes)}::jsonb) AS result`;
+            // Roll back if cancellation arrived while the finalizer was in flight.
+            signal?.throwIfAborted();
             const final = xlsxWriterFinal.safeParse(stored?.result);
             if (!final.success) throw new IngestionPersistenceError("PERSISTENCE_FAILED");
             return final.data;

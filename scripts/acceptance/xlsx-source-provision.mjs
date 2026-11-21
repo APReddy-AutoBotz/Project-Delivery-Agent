@@ -12,6 +12,8 @@ const ownerSubject = "synthetic-xlsx-provision-pmo";
 const reader = "synthetic-xlsx-catalogue-reader";
 const partialReader = "synthetic-xlsx-partial-reader";
 const sheet = "Operator Workbook";
+const paginationSheet = "Catalogue Pagination";
+const paginationSourceCount = 52;
 
 export async function verifyXlsxCataloguePrivileges(
   pool,
@@ -262,11 +264,65 @@ export async function proveXlsxSourceProvisioning(
     }
     assert.deepEqual(await catalogue(reader, ["project_manager"]), visible);
     assert.deepEqual(await evidence(pool, sourceId), once);
+
+    const pageReader = "synthetic-xlsx-pagination-reader";
+    await grant(pageReader, "project_manager", "project", firstProject);
+    const sourceIds = Array.from({ length: paginationSourceCount }, () =>
+      randomUUID(),
+    ).sort();
+    for (const [index, pageSourceId] of sourceIds.entries()) {
+      await provisionXlsxSource(operator, {
+        ...input,
+        binding: { ...input.binding, sourceId: pageSourceId },
+        projects: [{
+          projectId: firstProject,
+          readers: index === 0 ? [] : [pageReader],
+        }],
+        mapping: { ...input.mapping, sheet: paginationSheet },
+      });
+    }
+    const expectedSources = sourceIds.slice(1).map((pageSourceId) => ({
+      sourceId: pageSourceId,
+      configRevision: 1,
+      mappingRevision: 1,
+      sheet: paginationSheet,
+    }));
+    const firstPage = {
+      sources: expectedSources.slice(0, 50),
+      nextSourceId: expectedSources[49].sourceId,
+    };
+    assert.deepEqual(await catalogue(pageReader, ["project_manager"]), firstPage);
+    assert.deepEqual(
+      await catalogue(pageReader, ["project_manager"], firstPage.nextSourceId),
+      { sources: expectedSources.slice(50), nextSourceId: null },
+    );
+
+    const locker = await pool.connect();
+    try {
+      await locker.query("BEGIN");
+      await locker.query("SET LOCAL statement_timeout = '5s'");
+      await locker.query('LOCK TABLE public."IngestionXlsxHead" IN ACCESS EXCLUSIVE MODE');
+      const started = performance.now();
+      await assert.rejects(catalogue(pageReader, ["project_manager"]), {
+        code: "PERSISTENCE_FAILED",
+      });
+      assert(performance.now() - started < 8_000, "Catalogue lock wait must be bounded");
+    } finally {
+      try {
+        await locker.query("ROLLBACK");
+      } finally {
+        locker.release();
+      }
+    }
+    assert.deepEqual(await catalogue(pageReader, ["project_manager"]), firstPage);
+
     return {
       sourceId,
       operatorGenesis: true,
       exactConcurrentReplay: true,
       fullScopeCatalogue: true,
+      boundedCataloguePagination: true,
+      catalogueContentionRecovery: true,
     };
   } finally {
     await db.$disconnect();
@@ -292,6 +348,15 @@ export async function verifyRestoredXlsxSourceProvision(pool, apiConnection) {
     audits: 1,
     receipts: 0,
   });
+  const { rows: pageSources } = await pool.query(
+    `SELECT count(*)::int AS count,
+      bool_and(h.revision=0 AND public.valid_ingestion_xlsx_head(h."customerId",h."sourceId")) AS valid
+     FROM public."IngestionXlsxHead" h JOIN public."IngestionConfigurationRevision" c
+       ON c."customerId"=h."customerId" AND c."sourceId"=h."sourceId" AND c.revision=h."activationConfigRevision"
+     WHERE h."customerId"=$1 AND c.mapping->>'sheet'=$2`,
+    [customerId, paginationSheet],
+  );
+  assert.deepEqual(pageSources, [{ count: paginationSourceCount, valid: true }]);
   if (apiConnection) {
     const db = createDatabase(apiConnection);
     try {
@@ -313,5 +378,9 @@ export async function verifyRestoredXlsxSourceProvision(pool, apiConnection) {
       await db.$disconnect();
     }
   }
-  return { operatorGenesisRestored: true, finiteCatalogueGrantRestored: true };
+  return {
+    operatorGenesisRestored: true,
+    paginationGenesisRestored: true,
+    finiteCatalogueGrantRestored: true,
+  };
 }

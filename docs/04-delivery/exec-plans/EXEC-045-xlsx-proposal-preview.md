@@ -4,10 +4,9 @@ Status: implementation in progress; not accepted. This extends the approved
 spreadsheet journey under FR-CON-006/007 and Issue #7. AC-CON-005's CSV
 alternative is accepted at the software-behavior level; this work adds no
 criterion or story credit.
-The local candidate will be reconciled to current main and independently
-reviewed before publication. Original19/20
-capture remains stopped, and OD-013/014 remain in force. Spreadsheet saves
-remain reviewed import proposals and do not publish canonical facts.
+Original19/20 capture remains stopped, and OD-013/014 remain in force.
+Spreadsheet saves remain reviewed import proposals. Canonical facts retain
+their existing source-authority and approval rules.
 
 ## Current increment
 
@@ -555,6 +554,16 @@ The acceptance fixture uses the actual API login with a bounded synthetic
 decoder adapter. It exercises capture, deduplication, grant revocation during
 decode, atomic rollback, and reconstruction of the finite grants at restore.
 
+The preview writer checks cancellation when its write transaction begins,
+after the locked snapshot is available and after the finalizer returns
+inside that transaction. Cancellation observed at these points leaves no
+preview receipt or head advance. If cancellation arrives after the
+transaction callback returns, resolve an uncertain outcome through the
+existing exact retry. The database deadlines still bound pending SQL.
+The native fixture signals cancellation at each boundary, including after
+the finalizer has written a receipt inside the transaction, and checks
+that the transaction rolls back.
+
 The API-owned client uses the selected sheet, sealed parser profile and
 owned bytes. It checks the decoder credentials before sending bytes, binds
 the bounded response to a one-use correlation ID, and retires after an
@@ -596,8 +605,59 @@ and proposal-only persistence. The owner verifier independently
 checks native receipt integrity and canonical fact state. Foundation
 collects finite evidence after both disposable projects are removed.
 
-The customer rehearsals, reviewed row selection and live upload
-remain subject to their validation and release gates.
+## Native XLSX integration evidence
+
+[PR #176](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/176)
+merged reviewed head `e0b14d6d509de9e0d3a2e7369e0746a45884513e` into
+`main` as `4ac6f7e3b8a94263179a9d1eba7a1611added8df`. The hosted test merge
+`02eb8f9d8a75803c63613bb9207f8baf54262dea` and the actual merge have tree
+`bdc1de96ae89c6ac4e2a810968ed748dc75458ee` and ordered parents
+`3a36bfaedab6c55bf96edee3cbd3ced9ed74b113` and the reviewed head.
+Independent source and packaged-evidence reviews passed. Candidate
+[Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44651027234)
+and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44651027190)
+passed, as did post-merge
+[Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44654290914)
+and [Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44654290969).
+
+The native repository provides a bounded, authorized source catalogue, a safe
+preview receipt reader and idempotent selected-row proposal persistence.
+Migration 35 adds the reviewed-import path, migration 36 adds the preview
+receipt read path and migration 37 adds the source catalogue. Hosted checks
+cover migrations, standalone recovery and production-boundary recovery. The
+[packaged bridge evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44651027234/artifacts/14591027931)
+verifies both workbook profiles under bundled and external PostgreSQL, API-role
+TLS, read-only socket access, wrong-peer denial, exact replay and unchanged
+canonical facts. The separate
+[isolation evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44651027234/artifacts/14590457441)
+covers resource limits, caller identity and decoder restart behavior.
+
+Earlier [Foundation run 44576485049](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44576485049)
+failed bundled bridge preparation after provisioning and stopped standalone
+recovery on an unregistered XLSX history table. The fixture correction checks
+the provisioned customer and verifies the XLSX history guards in standalone
+and populated packaged restore. The same initial run also failed the external
+restore session guard after reporting one autovacuum worker. The guard stayed
+strict. The successful final run establishes recovery for that run.
+The [next bridge run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44598797090/job/135824265543)
+reported a failure at the provisioned-customer check. Passing the verified
+database transport to the fixture pool corrected that configuration error.
+[Run 44639876834](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44639876834)
+passed the bridge and failed the dependency audit. The final candidate pins
+patched Effect `3.22.2` for Prisma tooling and passes the same audit.
+
+### Catalogue query deadlines
+
+The source catalogue applies authorization before its 50-source page boundary.
+A sparse reader can therefore scan beyond one page. The repository applies
+fixed statement and lock deadlines in a read transaction and returns a finite
+persistence failure on contention. The synthetic operations rehearsal adds 52
+genesis sources, skips the first for the test reader, and verifies both pages,
+read recovery after the test lock clears, and restored genesis validity.
+
+The application still needs a workbook upload and selected-row save journey
+with authorization, cancellation and stale-session browser coverage. Issue #7,
+XLSX acceptance and the customer-release holds remain open.
 
 ## Required validation
 
