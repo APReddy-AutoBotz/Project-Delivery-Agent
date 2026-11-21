@@ -809,7 +809,7 @@ describe("durable Jira connector runtime", () => {
     }, { correlationId: randomUUID() });
     expect(await db.projectFactVersion.count({ where: { factId: canonicalBinding.factId } })).toBe(1);
     const expiry = new Date(Date.now() + 86_400_000).toISOString();
-    const [admitted] = await db.$transaction(async (tx) => {
+    const appendJiraObservation = () => db.$transaction(async (tx) => {
       await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
       return tx.$queryRaw<{ id: string }[]>`
         SELECT public.append_source_observation(
@@ -817,6 +817,18 @@ describe("durable Jira connector runtime", () => {
           ${stream.id}::uuid,${receipt.id}::uuid,1,NULL,'{"To Do":"OPEN"}'::jsonb,${expiry}::timestamptz
         ) AS id`;
     });
+    // The grant mutation trigger acquires the project after the grant tuple.
+    // Admission must release its project lock promptly when that tuple is busy.
+    await db.$transaction(async (locker) => {
+      const locked = await locker.$queryRaw`
+        SELECT id FROM public."ConnectorSyncGrant"
+        WHERE ("customerId","projectId","sourceId")=(${isolatedCustomerId}::uuid,${projectId}::uuid,${sourceId}::uuid)
+        FOR UPDATE`;
+      expect(locked).toHaveLength(1);
+      await expect(appendJiraObservation()).rejects.toThrow(/could not obtain lock on row/iu);
+    });
+    expect(await db.projectFactVersion.count({ where: { factId: canonicalBinding.factId } })).toBe(1);
+    const [admitted] = await appendJiraObservation();
     expect(await db.projectFactVersion.findUniqueOrThrow({
       where: { id: admitted?.id }, include: { evidence: { include: { source: true } } },
     })).toMatchObject({

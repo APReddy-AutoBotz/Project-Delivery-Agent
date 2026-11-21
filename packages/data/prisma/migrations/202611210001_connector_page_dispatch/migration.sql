@@ -208,7 +208,7 @@ BEGIN
         ON (scope."customerId",scope."sourceId",scope."projectId",scope."syncGrantId")=(g."customerId",g."sourceId",g."projectId",g.id)
       WHERE scope."receiptId"=receipt_id AND g."customerId"=customer AND g."sourceId"=source
         AND g."projectId"=project AND g.active AND g."configRevision"=receipt."configRevision"
-      FOR SHARE OF g;
+      FOR SHARE OF g NOWAIT;
     IF NOT FOUND THEN RETURN NULL; END IF;
     source_kind := 'jira.issue';
     effective_at := captured.remote_effective;
@@ -235,7 +235,7 @@ BEGIN
   SELECT c.proposals INTO retained FROM public."IngestionProposalContent" c
     WHERE c."customerId"=customer AND c."sourceId"=source AND c."recordId"=captured.record_id
       AND c."projectionId"=captured.projection_id AND c.proposals IS NOT NULL AND c."redactedAt" IS NULL
-    FOR SHARE;
+    FOR SHARE NOWAIT;
   IF NOT FOUND OR captured.received_at+make_interval(hours=>policy."retentionHours")<=clock_timestamp()
     OR public.valid_ingestion_projection_content(captured.projection_id,retained) IS NOT TRUE
   THEN RETURN NULL; END IF;
@@ -446,8 +446,9 @@ DECLARE
   admitted_at timestamptz;
 BEGIN
   IF valid_until IS NULL THEN RETURN NULL; END IF;
-  -- Jira result writers can already hold the source lock when they touch
-  -- the project. The conflicting lock request fails without waiting.
+  -- Jira result writers can hold the source while waiting on the project.
+  -- Grant and content updates can also acquire their tuple before a trigger
+  -- takes other locks. A busy input is retried in a new transaction.
   PERFORM 1 FROM public."Project" WHERE "customerId"=customer AND id=project FOR UPDATE NOWAIT;
   IF NOT FOUND THEN RETURN NULL; END IF;
   PERFORM 1 FROM public."IngestionRetentionPolicy" WHERE "customerId"=customer FOR SHARE NOWAIT;
