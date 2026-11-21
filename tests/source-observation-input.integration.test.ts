@@ -317,8 +317,8 @@ it("appends a verified workbook observation and replays its receipt after conten
   const [leftVersionId, rightVersionId] = [versions[0]!.id, witness.versionId].sort();
   await expect(asApi((tx) => tx.$executeRaw`
     INSERT INTO public."FactAuthorityConflict"
-      (id,"customerId","projectId","factId",revision,"leftVersionId","rightVersionId","policyRevisionId","detectedAt")
-    VALUES (${randomUUID()}::uuid,${customerId}::uuid,${projectId}::uuid,${binding.factId}::uuid,1,
+      (id,"customerId","projectId","factId","factType",revision,"leftVersionId","rightVersionId","policyRevisionId","detectedAt")
+    VALUES (${randomUUID()}::uuid,${customerId}::uuid,${projectId}::uuid,${binding.factId}::uuid,${binding.factType},1,
       ${leftVersionId}::uuid,${rightVersionId}::uuid,${humanRule.event.id}::uuid,${earlyDetection})
   `)).rejects.toThrow(/Invalid authority conflict/iu);
   expect(await db.factAuthorityConflict.count({ where: { factId: binding.factId } })).toBe(0);
