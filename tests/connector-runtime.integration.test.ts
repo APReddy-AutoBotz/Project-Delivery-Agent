@@ -862,10 +862,13 @@ describe("durable Jira connector runtime", () => {
       effectiveAt: new Date(initialObservedAt),
       evidence: { providedBy: null, originalStatement: null, observedAt: revision.remoteObservedAt, source: { sourceType: "jira", ingestionStreamId: stream.id } },
     });
-    const asApi = <T>(operation: (tx: Prisma.TransactionClient) => Promise<T>) => db.$transaction(async (tx) => {
+    const asApi = <T>(
+      operation: (tx: Prisma.TransactionClient) => Promise<T>,
+      options?: { isolationLevel?: "ReadCommitted"; maxWait?: number; timeout?: number },
+    ) => db.$transaction(async (tx) => {
       await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_api`;
       return operation(tx);
-    });
+    }, options);
     const api = { $transaction: asApi } as never;
     await new DatabaseProjectFactRepository(api).setSourceAccess(pmo, {
       projectId, sourceId: factSource, expectedRevision: 1, state: "AVAILABLE", readers: [manager.subject],

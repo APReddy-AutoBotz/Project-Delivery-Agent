@@ -308,6 +308,21 @@ it("appends a verified workbook observation and replays its receipt after conten
       public.valid_canonical_state_binding(${binding.id}::uuid) AS "humanBirthValid"
   `)).toEqual([{ valid: true, humanBirthValid: true }]);
 
+  // The original human rule and both snapshot timestamps predate this
+  // detection time. A conflict still requires both versions to be admitted.
+  const earlyDetection = new Date(witness.admittedAt.getTime() - 1);
+  expect(earlyDetection.getTime()).toBeGreaterThanOrEqual(Date.parse(humanRule.event.recordedAt));
+  for (const version of versions)
+    expect(earlyDetection.getTime()).toBeGreaterThanOrEqual(version.evidence.observedAt.getTime());
+  const [leftVersionId, rightVersionId] = [versions[0]!.id, witness.versionId].sort();
+  await expect(asApi((tx) => tx.$executeRaw`
+    INSERT INTO public."FactAuthorityConflict"
+      (id,"customerId","projectId","factId",revision,"leftVersionId","rightVersionId","policyRevisionId","detectedAt")
+    VALUES (${randomUUID()}::uuid,${customerId}::uuid,${projectId}::uuid,${binding.factId}::uuid,1,
+      ${leftVersionId}::uuid,${rightVersionId}::uuid,${humanRule.event.id}::uuid,${earlyDetection})
+  `)).rejects.toThrow(/Invalid authority conflict/iu);
+  expect(await db.factAuthorityConflict.count({ where: { factId: binding.factId } })).toBe(0);
+
   const facts = new DatabaseProjectFactRepository({ $transaction: asApi } as never);
   const humanAccess = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: versions[0]!.sourceId } });
   await facts.setSourceAccess(pmo, {

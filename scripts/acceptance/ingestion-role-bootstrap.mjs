@@ -50,12 +50,14 @@ const dispatchFunctions = [
   "public.guard_mixed_assessment_access()",
   "public.read_source_authority_origins(uuid,uuid,text,text[],uuid[])",
   "public.valid_fact_assessment(uuid)",
+  "public.valid_authority_conflict(uuid)",
 ];
 const dispatchApiFunctions = new Set([
   "public.bind_connector_task_claim(uuid,uuid,integer,uuid)",
   "public.record_connector_page_dispatch(uuid)",
   "public.read_source_authority_origins(uuid,uuid,text,text[],uuid[])",
   "public.valid_fact_assessment(uuid)",
+  "public.valid_authority_conflict(uuid)",
 ]);
 const controls = new Set(["state", "attemptCount", "totalAttempts", "recoveryRevision", "availableAt", "lastReason",
   "claimedGeneration", "assessmentId", "obligationId", "previewId", "completedAt", "auditEventId"]);

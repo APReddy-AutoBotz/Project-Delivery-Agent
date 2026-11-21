@@ -1260,6 +1260,27 @@ ALTER TABLE public."FactAssessment" DROP CONSTRAINT "FactAssessment_evaluatorVer
 ALTER TABLE public."FactAssessment" ADD CONSTRAINT "FactAssessment_evaluatorVersion_check"
   CHECK ("evaluatorVersion"=1 OR ("evaluatorVersion"=2 AND "captureKind"='SCALAR'));
 
+CREATE OR REPLACE FUNCTION public.valid_authority_conflict(cid uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+  SELECT EXISTS (SELECT 1 FROM public."FactAuthorityConflict" c
+    JOIN public."ProjectFactVersion" l ON l.id=c."leftVersionId"
+    JOIN public."ProjectFactVersion" r ON r.id=c."rightVersionId"
+    JOIN public."FactEvidence" le ON le.id=l."evidenceId"
+    JOIN public."FactEvidence" re ON re.id=r."evidenceId"
+    JOIN public."AuthorityPolicyRevision" p ON p.id=c."policyRevisionId"
+    WHERE c.id=cid AND l.value IS DISTINCT FROM r.value
+      AND le."observedAt"<=c."detectedAt" AND re."observedAt"<=c."detectedAt"
+      AND l."effectiveAt"<=c."detectedAt" AND r."effectiveAt"<=c."detectedAt"
+      AND p.state='ENABLED' AND p."recordedAt"<=c."detectedAt" AND p."effectiveAt"<=c."detectedAt"
+      AND NOT EXISTS (
+        SELECT 1 FROM (VALUES (l.id,l.provenance),(r.id,r.provenance)) participant(id,provenance)
+        LEFT JOIN public."SourceObservationWitness" w ON w."versionId"=participant.id
+        WHERE participant.provenance='SYSTEM_VERIFIED'
+          AND (w."versionId" IS NULL OR w."admittedAt">c."detectedAt"
+            OR NOT public.valid_source_observation_witness(participant.id))
+      ));
+$$;
+
 CREATE OR REPLACE FUNCTION public.valid_fact_assessment(aid uuid) RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE mixed boolean; origin_type text; origin_ref jsonb; approval jsonb; approval_state text;
   temporal_by_version jsonb; recorded_by_version jsonb; result_versions jsonb; result_conflicts jsonb; a public."FactAssessment"%ROWTYPE; pol public."AuthorityPolicyRevision"%ROWTYPE;
@@ -1447,10 +1468,7 @@ BEGIN
     JOIN public."ProjectFactVersion" l ON l.id=c."leftVersionId" JOIN public."ProjectFactVersion" r ON r.id=c."rightVersionId"
     JOIN public."FactAssessmentVersion" al ON al."assessmentId"=aid AND al."versionId"=l.id
     JOIN public."FactAssessmentVersion" ar ON ar."assessmentId"=aid AND ar."versionId"=r.id
-    WHERE ac."assessmentId"=aid AND c."detectedAt"<=a."asOf" AND public.valid_authority_conflict(c.id)
-      AND (NOT mixed OR NOT EXISTS (
-        SELECT 1 FROM public."SourceObservationWitness" w WHERE w."versionId" IN (l.id,r.id) AND w."admittedAt">c."detectedAt"
-      ));
+    WHERE ac."assessmentId"=aid AND c."detectedAt"<=a."asOf" AND public.valid_authority_conflict(c.id);
   SELECT COALESCE(jsonb_agg(value ORDER BY value->>'recordedConflictId'),'[]'::jsonb) INTO output_ids
     FROM jsonb_array_elements(result_conflicts) WHERE value->>'kind'='RECORDED';
   IF actual_ids IS DISTINCT FROM output_ids OR EXISTS (SELECT 1 FROM jsonb_array_elements(result_conflicts) WHERE jsonb_typeof(value->'kind') IS DISTINCT FROM 'string') THEN RETURN false; END IF;
@@ -1578,7 +1596,8 @@ REVOKE ALL ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
   public.require_source_authority_witness(),public.valid_source_authority_publication(uuid),
   public.source_observation_read_allowed(uuid,text,timestamptz),
   public.read_source_authority_origins(uuid,uuid,text,text[],uuid[]),
-  public.guard_mixed_assessment_access(),public.valid_fact_assessment(uuid) FROM PUBLIC;
+  public.guard_mixed_assessment_access(),public.valid_fact_assessment(uuid),
+  public.valid_authority_conflict(uuid) FROM PUBLIC;
 DO $roles$
 BEGIN
   IF to_regrole('pdaa_migrate') IS NOT NULL THEN
@@ -1611,10 +1630,11 @@ BEGIN
     ALTER FUNCTION public.read_source_authority_origins(uuid,uuid,text,text[],uuid[]) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.guard_mixed_assessment_access() OWNER TO pdaa_migrate;
     ALTER FUNCTION public.valid_fact_assessment(uuid) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.valid_authority_conflict(uuid) OWNER TO pdaa_migrate;
     IF to_regrole('pdaa_api') IS NOT NULL THEN
       GRANT EXECUTE ON FUNCTION public.valid_canonical_state_binding(uuid) TO pdaa_api;
       GRANT EXECUTE ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
-        public.record_connector_page_dispatch(uuid),public.valid_fact_assessment(uuid),
+        public.record_connector_page_dispatch(uuid),public.valid_fact_assessment(uuid),public.valid_authority_conflict(uuid),
         public.read_source_authority_origins(uuid,uuid,text,text[],uuid[]) TO pdaa_api;
     END IF;
   END IF;
