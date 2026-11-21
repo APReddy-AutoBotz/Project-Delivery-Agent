@@ -418,7 +418,8 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         'public.guard_source_admission_binding()',
         'public.require_source_admission_binding()',
         'public.guard_source_authority_activation()',
-        'public.require_source_authority_witness()'
+        'public.require_source_authority_witness()',
+        'public.valid_source_authority_publication(uuid)'
       ];
       signature text;
       recorded boolean := false;
@@ -461,13 +462,13 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       GRANT SELECT ON "ConnectorPageDispatch" TO pdaa_backup;
       REVOKE ALL ON "SourceObservationWitness" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       REVOKE ALL ("versionId","customerId","projectId","bindingId","admissionRevisionId","factId","sourceId","evidenceId",
-        "ingestionStreamId","sourceRevisionId","auditEventId","admittedAt",input)
+        "ingestionStreamId","sourceRevisionId","auditEventId","admittedAt","admittedBy",input)
         ON "SourceObservationWitness" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       GRANT SELECT ON "SourceObservationWitness" TO pdaa_backup;
       REVOKE ALL ON "SourceAdmissionBindingRevision" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       REVOKE ALL (id,"customerId","projectId","bindingId","factId","factType","ingestionSourceId","recordId",
         "streamId","sourceKind","configRevision","mappingRevision",revision,"snapshotField","stateMapping",
-        "factSourceId","previousPolicyRevision","policyRevisionId",definition,"approvedBy","approvedAt","approvalAuditId")
+        "factSourceId","reservationId","previousPolicyRevision","policyRevisionId",definition,"approvedBy","approvedAt","approvalAuditId")
         ON "SourceAdmissionBindingRevision" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       GRANT SELECT ON "SourceAdmissionBindingRevision" TO pdaa_backup;
       FOREACH signature IN ARRAY admission_functions LOOP

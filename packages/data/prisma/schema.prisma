@@ -1054,6 +1054,7 @@ model SourceObservationWitness {
   sourceRevisionId String @db.Uuid
   auditEventId String @unique @db.Uuid
   admittedAt DateTime @db.Timestamptz(3)
+  admittedBy String @db.VarChar(256)
   input Json
   @@unique([factId, ingestionStreamId, sourceRevisionId], map: "SourceObservationWitness_revision_key")
   @@index([sourceId], map: "SourceObservationWitness_source_idx")
@@ -1077,6 +1078,7 @@ model SourceAdmissionBindingRevision {
   snapshotField String? @db.VarChar(96)
   stateMapping Json
   factSourceId String @db.Uuid
+  reservationId String @db.Uuid
   previousPolicyRevision Int
   policyRevisionId String @unique @db.Uuid
   definition Json

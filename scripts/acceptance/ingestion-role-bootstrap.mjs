@@ -38,6 +38,7 @@ const dispatchFunctions = [
   "public.require_source_admission_binding()",
   "public.guard_source_authority_activation()",
   "public.require_source_authority_witness()",
+  "public.valid_source_authority_publication(uuid)",
 ];
 const controls = new Set(["state", "attemptCount", "totalAttempts", "recoveryRevision", "availableAt", "lastReason",
   "claimedGeneration", "assessmentId", "obligationId", "previewId", "completedAt", "auditEventId"]);

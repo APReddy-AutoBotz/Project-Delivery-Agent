@@ -173,7 +173,9 @@ it("appends a verified workbook observation with an exact native witness", async
     tx.$queryRaw<{ id: string | null }[]>`
       SELECT public.approve_source_observation(
         ${customerId}::uuid,${projectId}::uuid,${binding.id}::uuid,${stream}::uuid,${factSource}::uuid,
-        'source.snapshot_at','{"Complete":"COMPLETE"}'::jsonb,${JSON.stringify(rule)}::jsonb,${approver},${currentRevision}::integer
+        'source.snapshot_at','{"Complete":"COMPLETE"}'::jsonb,
+        ${JSON.stringify(rule).replace('"durationMs":86400000', '"durationMs":86400000.0')}::jsonb,
+        ${approver},${currentRevision}::integer
       ) AS id`;
   await expect(asApi((tx) => configure(tx, actor.subject))).rejects.toThrow(/permission denied/iu);
   await expect(asOwner((tx) => configure(tx, pm.subject))).rejects.toThrow(/requires a scoped approval/iu);
@@ -184,6 +186,9 @@ it("appends a verified workbook observation with an exact native witness", async
   const proofId = approval!.id!;
   const bindingApproval = await db.sourceAdmissionBindingRevision.findUniqueOrThrow({ where: { id: proofId } });
   expect(bindingApproval).toMatchObject({ bindingId: binding.id, factSourceId: factSource, streamId: streams[0]!.id, definition });
+  expect(bindingApproval.reservationId).toBe(proofId);
+  await expect(asOwner((tx) => configure(tx, actor.subject, streams[1]!.id)))
+    .rejects.toThrow(/SourceAdmissionBindingRevision_source_reservation_key/iu);
   expect(await db.authorityPolicyRevision.count({ where: { id: bindingApproval.policyRevisionId } })).toBe(0);
   expect(await db.factSource.count({ where: { id: factSource } })).toBe(0);
   await expect(asApi((tx) => append(tx, proofId))).rejects.toThrow(/permission denied/iu);
@@ -219,6 +224,7 @@ it("appends a verified workbook observation with an exact native witness", async
   ]);
   const witness = await db.sourceObservationWitness.findUniqueOrThrow({ where: { versionId: versionId! } });
   expect(witness.admissionRevisionId).toBe(proofId);
+  expect(witness.admittedBy).toBe("pdaa_migrate");
   expect(witness.input).toEqual(proof[0]?.input);
   expect(witness.admittedAt.getTime()).toBeGreaterThanOrEqual(versions[1]!.evidence.observedAt.getTime());
   expect(await asOwner((tx) => tx.$queryRaw`
@@ -232,5 +238,18 @@ it("appends a verified workbook observation with an exact native witness", async
   expect(superseding?.id).toEqual(expect.any(String));
   expect(await asOwner((tx) => append(tx, proofId))).toEqual([{ id: null }]);
   await expect(asOwner((tx) => append(tx, superseding!.id!))).rejects.toThrow(/different commitments/iu);
+  const pending = await db.sourceAdmissionBindingRevision.findUniqueOrThrow({ where: { id: superseding!.id! } });
+  expect(pending.reservationId).toBe(proofId);
+  await expect(asOwner(async (tx) => {
+    await tx.$executeRaw`
+      WITH time AS (SELECT date_trunc('milliseconds',clock_timestamp()) AS at)
+      INSERT INTO public."AuthorityPolicyRevision"
+        (id,"customerId","projectId","factType","policyId",revision,"recordedAt","recordedBy","effectiveAt",state,definition)
+      SELECT ${pending.policyRevisionId}::uuid,${customerId}::uuid,${projectId}::uuid,${binding.factType},
+        ${activated.policyId}::uuid,3,time.at,${actor.subject},time.at,'ENABLED',${JSON.stringify(changedValidity)}::jsonb
+      FROM time`;
+    await tx.$executeRaw`SET CONSTRAINTS source_authority_witness_complete IMMEDIATE`;
+  })).rejects.toThrow(/cannot activate without an admitted observation/iu);
+  expect(await db.authorityPolicyRevision.count({ where: { id: pending.policyRevisionId } })).toBe(0);
   expect(await db.projectFactVersion.count({ where: { factId: binding.factId } })).toBe(2);
 });
