@@ -711,8 +711,11 @@ $$;
 
 -- Historical verification deliberately uses immutable metadata and the
 -- captured commitment. It needs neither live grants nor retained plaintext.
+-- Start with the one witness selected by its version key, then follow its
+-- indexed references. Limit join reordering here to bound planning work
+-- when seal and commit checks revisit this proof.
 CREATE FUNCTION public.valid_source_observation_structure(target uuid) RETURNS boolean
-LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
+LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp SET join_collapse_limit=1 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public."SourceObservationWitness" w
     JOIN public."ProjectFactVersion" v ON v.id=w."versionId"
