@@ -722,7 +722,11 @@ checks receipt denial under an authenticated account outside the source scope.
 
 A separate owner process verifies that each profile has exactly one new
 preview and reviewed receipt despite replay. It checks the exact workbook
-digest, parent receipt, selected rows and unchanged canonical fact digest.
+digest, parent receipt, selected rows, retained proposals and unchanged
+canonical fact digest. The shipped backup client encrypts that database and
+the shipped restore client restores it to a fresh database on the same
+disposable server. The owner repeats the receipt checks against the restored
+database and verifies quarantine and the finite receipt-reader grants.
 The job publishes finite results after both customer database profiles pass.
 Execution of this rehearsal on the exact hosted candidate remains required.
 
