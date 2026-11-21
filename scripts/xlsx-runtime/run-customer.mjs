@@ -358,7 +358,9 @@ function exercise(profile) {
     canonicalStateUnchanged: true,
     verifiedContexts: 2,
   });
-  compose("start-web-and-identity", "up", "-d", "--wait", "--wait-timeout", "90", "web", "identity-ingress");
+  // The API and decoder are running. The initializer rejects their live socket.
+  compose("start-web-and-identity", "up", "-d", "--no-deps", "--wait", "--wait-timeout", "90",
+    "web", "identity", "identity-ingress");
   assert.equal(container("web").Image, images.web);
   const browser = JSON.parse(call(
     "packaged-browser",
