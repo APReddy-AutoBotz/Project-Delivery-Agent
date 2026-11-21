@@ -130,8 +130,10 @@ function assertReleasedSnapshot(before) {
       row.finished_at && !row.rolled_back_at && row.applied_steps_count === 1,
     );
   }
-  assert.equal(before.tables.length, 93);
-  assert(before.tables.some((t) => t.relname === "_prisma_migrations"));
+  assert.equal(
+    before.tables.filter((t) => t.relname === "_prisma_migrations").length,
+    1,
+  );
   assertBusinessTableInventory(
     before.tables
       .filter((t) => t.relname !== "_prisma_migrations")
@@ -330,7 +332,7 @@ export async function verifyCsvComparisonPrototype(
       actualApiRolePositive: true,
       privateApiGuardDenials: privateCsvFunctions.length,
       migrations: before.ledger.length,
-      businessTables: 93,
+      businessTables: before.tables.length - 1,
     };
   } catch (error) {
     primary = safeFailure(stage, error);

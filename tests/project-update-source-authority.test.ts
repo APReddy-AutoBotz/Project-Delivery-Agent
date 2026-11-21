@@ -13,27 +13,32 @@ const observedAt = new Date("2026-06-09T00:00:00.000Z");
 const effectiveAt = new Date("2026-05-01T00:00:00.000Z");
 const asOf = new Date("2026-06-10T00:00:00.000Z");
 
-function snapshot(input: {
-  sourceType: string;
-  effectiveAtValidated: boolean;
-  provenance: string;
-  sourceId: string;
-  versionId: string;
-  evidenceId: string;
-}): SourceAuthoritySnapshot {
+function snapshot(
+  input: {
+    sourceType: string;
+    effectiveAtValidated: boolean;
+    provenance: string;
+    sourceId: string;
+    versionId: string;
+    evidenceId: string;
+    validUntil?: Date;
+  },
+  mixed?: Parameters<typeof buildSourceAuthoritySnapshot>[7],
+): SourceAuthoritySnapshot {
   return buildSourceAuthoritySnapshot(
     { customerId, projectId, factId, factType: "project.status" } as never,
     asOf.toISOString(),
     null,
     [{
       id: input.versionId,
+      revision: 1,
       sourceId: input.sourceId,
       evidenceId: input.evidenceId,
       value: { type: "text", value: "In progress" },
       provenance: input.provenance,
       effectiveAtValidated: input.effectiveAtValidated,
       effectiveAt,
-      validUntil: null,
+      validUntil: input.validUntil ?? null,
       evidence: {
         observedAt,
         source: { sourceType: input.sourceType },
@@ -46,6 +51,7 @@ function snapshot(input: {
       readers: [{ subject: "reviewer@example.invalid" }],
     }] as never,
     true,
+    mixed,
   );
 }
 
@@ -79,18 +85,37 @@ describe("Project update timestamp authority boundary", () => {
       timestamp: observedAt,
     });
 
-    const validatedConnectorSnapshot = snapshot({
-      sourceType: "jira_connector",
+    const connectorInput = {
+      sourceType: "jira",
       effectiveAtValidated: true,
       provenance: "SYSTEM_VERIFIED",
       sourceId: "50000000-0000-4000-8000-000000000002",
       versionId: "60000000-0000-4000-8000-000000000002",
       evidenceId: "70000000-0000-4000-8000-000000000002",
+      validUntil: new Date("2026-06-12T00:00:00.000Z"),
+    };
+    const unwitnessed = snapshot(connectorInput);
+    expect(unwitnessed).toMatchObject({ complete: false, versions: [] });
+    const validatedConnectorSnapshot = snapshot(connectorInput, {
+      factRevision: 1,
+      origins: new Map([
+        [
+          connectorInput.versionId,
+          {
+            versionId: connectorInput.versionId,
+            sourceKind: "jira.issue",
+            streamId: "80000000-0000-4000-8000-000000000002",
+            sourceRevisionId: "90000000-0000-4000-8000-000000000002",
+            admittedAt: new Date("2026-06-09T01:00:00.000Z"),
+            authorized: true,
+          },
+        ],
+      ]),
     });
     const connector = resolveSourceAuthority(validatedConnectorSnapshot).versions[0]!;
     const connectorVersion = validatedConnectorSnapshot.versions[0]!;
     expect(connector).toMatchObject({
-      sourceType: "jira_connector",
+      sourceType: "jira",
       visibility: "available",
     });
     expect(connector).not.toHaveProperty("effectiveAtValidated");
@@ -108,7 +133,7 @@ describe("Project update timestamp authority boundary", () => {
     });
 
     const unvalidated = selectCanonicalProjectUpdateTimestamp({
-      sourceType: "jira_connector",
+      sourceType: "jira",
       selectedBasis: "effectiveAt",
       observedAt,
       effectiveAt,
