@@ -1067,13 +1067,14 @@ model SourceAdmissionCommand {
   id String @id @db.Uuid
   customerId String @db.Uuid
   projectId String @db.Uuid
+  ingestionSourceId String @db.Uuid
   admissionRevisionId String @db.Uuid
   versionId String @db.Uuid
   inputReceiptId String @db.Uuid
   ordinal Int
   commandKey String @db.VarChar(128)
   correlationId String @db.Uuid
-  @@unique([customerId, projectId, commandKey])
+  @@unique([customerId, projectId, ingestionSourceId, commandKey], map: "SourceAdmissionCommand_source_key")
 }
 
 model SourceAdmissionBindingRevision {
@@ -1101,6 +1102,7 @@ model SourceAdmissionBindingRevision {
   approvedAt DateTime @db.Timestamptz(3)
   approvalAuditId String @unique @db.Uuid
   @@unique([streamId, revision])
+  @@unique([customerId, projectId, id, ingestionSourceId], map: "SourceAdmissionBindingRevision_command_scope_key")
   @@unique([customerId, projectId, id, bindingId, factId, streamId, factSourceId], map: "SourceAdmissionBindingRevision_exact_key")
 }
 

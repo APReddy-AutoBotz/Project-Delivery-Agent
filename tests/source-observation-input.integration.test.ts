@@ -117,10 +117,23 @@ it("appends a verified workbook observation and replays its receipt after conten
     sourceId, previewReceiptId: preview.receiptId, previewContextSha256: context.contextSha256,
     rowOrdinals: [1, 2], commandKey: randomUUID(),
   }, randomUUID());
+  const laterPreview = await repository.persistXlsxPreview(caller, {
+    sourceId, configRevision: 1, mappingRevision: 1, sheet, commandKey: randomUUID(),
+  }, Buffer.from("synthetic workbook bytes"), randomUUID());
+  const laterContext = await db.ingestionXlsxContext.findUniqueOrThrow({ where: { receiptId: laterPreview.receiptId } });
+  const equivalentReview = await repository.commitXlsxReviewedImport(caller, {
+    sourceId, previewReceiptId: laterPreview.receiptId, previewContextSha256: laterContext.contextSha256,
+    rowOrdinals: [1], commandKey: randomUUID(),
+  }, randomUUID());
+  expect(equivalentReview.receiptId).not.toBe(review.receiptId);
   const outcomes = await db.ingestionRowOutcome.findMany({
     where: { receiptId: review.receiptId }, orderBy: { ordinal: "asc" },
   });
   expect(outcomes.map((row) => row.state)).toEqual(["ACCEPTED", "ACCEPTED"]);
+  const equivalentOutcome = await db.ingestionRowOutcome.findFirstOrThrow({ where: { receiptId: equivalentReview.receiptId, ordinal: 1 } });
+  expect(equivalentOutcome).toMatchObject({
+    sourceRevisionId: outcomes[0]!.sourceRevisionId, projectionId: outcomes[0]!.projectionId, operation: "UNCHANGED",
+  });
   // Age the owned synthetic fixture before admission to exercise normal purge
   // after reducing retention. All admission and replay guards remain active.
   await db.$transaction(async (tx) => {
@@ -232,7 +245,7 @@ it("appends a verified workbook observation and replays its receipt after conten
   const receiptId = result!.result.receiptId!;
   const command = await db.sourceAdmissionCommand.findUniqueOrThrow({ where: { id: receiptId } });
   const versionId = command.versionId;
-  expect(command).toMatchObject({ commandKey: key, correlationId: correlation, inputReceiptId: review.receiptId });
+  expect(command).toMatchObject({ commandKey: key, correlationId: correlation, inputReceiptId: review.receiptId, ingestionSourceId: sourceId });
   expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "REPLAYED", receiptId } }]);
   expect(await asOperator((tx) => append(tx, proofId, review.receiptId, 2))).toEqual([{ result: { status: "CONFLICT" } }]);
   const activated = await db.authorityPolicyRevision.findUniqueOrThrow({ where: { id: bindingApproval.policyRevisionId } });
@@ -279,9 +292,13 @@ it("appends a verified workbook observation and replays its receipt after conten
   expect(await resolve(review.receiptId)).toEqual([{ input: null }]);
   expect(await asOperator((tx) => append(tx, proofId))).toEqual([{ result: { status: "REPLAYED", receiptId } }]);
   const aliasKey = randomUUID();
-  expect(await asOperator((tx) => append(tx, proofId, review.receiptId, 1, aliasKey)))
+  expect(await asOperator((tx) => append(tx, proofId, equivalentReview.receiptId)))
+    .toEqual([{ result: { status: "CONFLICT" } }]);
+  expect(await asOperator((tx) => append(tx, proofId, equivalentReview.receiptId, 1, aliasKey)))
     .toEqual([{ result: { status: "REPLAYED", receiptId } }]);
   expect(await db.sourceAdmissionCommand.count({ where: { versionId } })).toBe(2);
+  expect(await db.sourceAdmissionCommand.findFirstOrThrow({ where: { versionId, commandKey: aliasKey } }))
+    .toMatchObject({ inputReceiptId: equivalentReview.receiptId, ingestionSourceId: sourceId });
   expect(await db.sourceObservationWitness.findUniqueOrThrow({ where: { versionId } })).toEqual(witness);
   const operatorGrant = await db.accessGrant.findFirstOrThrow({ where: { customerId, subject: sourceAdmissionSubject } });
   await db.accessGrant.delete({ where: { id: operatorGrant.id } });

@@ -476,7 +476,7 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         ON "SourceAdmissionBindingRevision" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       GRANT SELECT ON "SourceAdmissionBindingRevision" TO pdaa_backup;
       REVOKE ALL ON "SourceAdmissionCommand" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
-      REVOKE ALL (id,"customerId","projectId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
+      REVOKE ALL (id,"customerId","projectId","ingestionSourceId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
         ON "SourceAdmissionCommand" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       GRANT SELECT ON "SourceAdmissionCommand" TO pdaa_backup;
       FOREACH signature IN ARRAY admission_functions LOOP

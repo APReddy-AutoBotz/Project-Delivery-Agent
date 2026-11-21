@@ -323,6 +323,7 @@ CREATE TABLE public."SourceAdmissionBindingRevision" (
   UNIQUE ("streamId",revision),
   CONSTRAINT "SourceAdmissionBindingRevision_exact_key" UNIQUE
     ("customerId","projectId",id,"bindingId","factId","streamId","factSourceId"),
+  CONSTRAINT "SourceAdmissionBindingRevision_command_scope_key" UNIQUE ("customerId","projectId",id,"ingestionSourceId"),
   CONSTRAINT "SourceAdmissionBindingRevision_reservation_fkey" FOREIGN KEY
     ("customerId","projectId","reservationId","bindingId","factId","streamId","factSourceId")
     REFERENCES public."SourceAdmissionBindingRevision" ("customerId","projectId",id,"bindingId","factId","streamId","factSourceId")
@@ -604,13 +605,17 @@ CREATE TABLE public."SourceAdmissionCommand" (
   id uuid PRIMARY KEY,
   "customerId" uuid NOT NULL,
   "projectId" uuid NOT NULL,
+  "ingestionSourceId" uuid NOT NULL,
   "admissionRevisionId" uuid NOT NULL,
   "versionId" uuid NOT NULL,
   "inputReceiptId" uuid NOT NULL,
   ordinal integer NOT NULL CHECK (ordinal BETWEEN 1 AND 1000),
   "commandKey" varchar(128) NOT NULL CHECK ("commandKey" COLLATE "C" ~ '^[A-Za-z0-9_-]{1,128}$'),
   "correlationId" uuid NOT NULL,
-  UNIQUE ("customerId","projectId","commandKey"),
+  CONSTRAINT "SourceAdmissionCommand_source_key" UNIQUE ("customerId","projectId","ingestionSourceId","commandKey"),
+  FOREIGN KEY ("customerId","projectId","admissionRevisionId","ingestionSourceId")
+    REFERENCES public."SourceAdmissionBindingRevision" ("customerId","projectId",id,"ingestionSourceId")
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
   FOREIGN KEY ("customerId","projectId","admissionRevisionId","versionId")
     REFERENCES public."SourceObservationWitness" ("customerId","projectId","admissionRevisionId","versionId")
     ON DELETE RESTRICT ON UPDATE RESTRICT,
@@ -661,6 +666,7 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
     JOIN public."SourceAdmissionCommand" command ON command.id=w."rootCommandId"
       AND (command."customerId",command."projectId",command."admissionRevisionId",command."versionId")
         =(w."customerId",w."projectId",w."admissionRevisionId",w."versionId")
+      AND command."ingestionSourceId"=approved."ingestionSourceId"
     JOIN public."AuthorityPolicyRevision" policy
       ON (policy."customerId",policy."projectId",policy."factType",policy.id)
         =(approved."customerId",approved."projectId",approved."factType",approved."policyRevisionId")
@@ -724,7 +730,9 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
   SELECT EXISTS (
     SELECT 1 FROM public."SourceAdmissionCommand" c
     JOIN public."SourceObservationWitness" w ON w."versionId"=c."versionId"
-    JOIN public."SourceAdmissionBindingRevision" a ON a.id=c."admissionRevisionId"
+    JOIN public."SourceAdmissionBindingRevision" a
+      ON (a."customerId",a."projectId",a.id,a."ingestionSourceId")
+        =(c."customerId",c."projectId",c."admissionRevisionId",c."ingestionSourceId")
     CROSS JOIN LATERAL public.source_admission_outcome(a,c."inputReceiptId",c.ordinal) outcome
     WHERE c.id=target AND outcome."sourceRevisionId"=w."sourceRevisionId"
       AND outcome."projectionId"::text=w.input->>'projectionId'
@@ -915,7 +923,8 @@ BEGIN
   ) THEN RETURN denied; END IF;
 
   SELECT c.* INTO command FROM public."SourceAdmissionCommand" c
-    WHERE (c."customerId",c."projectId",c."commandKey")=(customer,project,command_key);
+    WHERE (c."customerId",c."projectId",c."ingestionSourceId",c."commandKey")
+      =(customer,project,approved."ingestionSourceId",command_key);
   IF FOUND AND (command."admissionRevisionId",command."inputReceiptId",command.ordinal)
     IS DISTINCT FROM (approval_id,receipt_id,row_ordinal)
   THEN RETURN conflict; END IF;
@@ -939,8 +948,9 @@ BEGIN
     IF public.valid_source_observation_witness(existing."versionId") IS NOT TRUE THEN RETURN denied; END IF;
     IF command.id IS NULL THEN
       INSERT INTO public."SourceAdmissionCommand"
-        (id,"customerId","projectId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
-        VALUES (command_id,customer,project,approval_id,existing."versionId",receipt_id,row_ordinal,command_key,correlation);
+        (id,"customerId","projectId","ingestionSourceId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
+        VALUES (command_id,customer,project,approved."ingestionSourceId",approval_id,
+          existing."versionId",receipt_id,row_ordinal,command_key,correlation);
     ELSIF command."versionId"<>existing."versionId" THEN
       RETURN denied;
     END IF;
@@ -997,8 +1007,9 @@ BEGIN
     VALUES (version_id,customer,project,approved."bindingId",approval_id,approved."factId",
       approved."factSourceId",evidence_id,approved."streamId",outcome."sourceRevisionId",audit_id,command_id,admitted_at,actor,proof);
   INSERT INTO public."SourceAdmissionCommand"
-    (id,"customerId","projectId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
-    VALUES (command_id,customer,project,approval_id,version_id,receipt_id,row_ordinal,command_key,correlation);
+    (id,"customerId","projectId","ingestionSourceId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
+    VALUES (command_id,customer,project,approved."ingestionSourceId",approval_id,
+      version_id,receipt_id,row_ordinal,command_key,correlation);
   RETURN jsonb_build_object('status','ADMITTED','receiptId',command_id);
 END $$;
 
