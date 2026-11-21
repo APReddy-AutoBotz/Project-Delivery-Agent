@@ -320,6 +320,10 @@ CREATE TABLE public."SourceAdmissionBindingRevision" (
   "approvedBy" varchar(256) NOT NULL,
   "approvedAt" timestamptz(3) NOT NULL,
   "approvalAuditId" uuid NOT NULL UNIQUE,
+  "existingBindingId" uuid,
+  "targetKind" varchar(16) NOT NULL,
+  "targetMilestoneId" uuid,
+  "targetWorkItemId" uuid,
   UNIQUE ("streamId",revision),
   CONSTRAINT "SourceAdmissionBindingRevision_exact_key" UNIQUE
     ("customerId","projectId",id,"bindingId","factId","streamId","factSourceId"),
@@ -328,10 +332,12 @@ CREATE TABLE public."SourceAdmissionBindingRevision" (
     ("customerId","projectId","reservationId","bindingId","factId","streamId","factSourceId")
     REFERENCES public."SourceAdmissionBindingRevision" ("customerId","projectId",id,"bindingId","factId","streamId","factSourceId")
     ON DELETE RESTRICT ON UPDATE RESTRICT,
-  FOREIGN KEY ("customerId","projectId","bindingId","factId")
+  FOREIGN KEY ("customerId","projectId","existingBindingId","factId")
     REFERENCES public."CanonicalStateBinding" ("customerId","projectId",id,"factId") ON DELETE RESTRICT ON UPDATE RESTRICT,
-  FOREIGN KEY ("customerId","projectId","factId","factType")
-    REFERENCES public."ProjectFact" ("customerId","projectId",id,"factType") ON DELETE RESTRICT ON UPDATE RESTRICT,
+  FOREIGN KEY ("customerId","projectId","targetMilestoneId")
+    REFERENCES public."Milestone" ("customerId","projectId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  FOREIGN KEY ("customerId","projectId","targetWorkItemId")
+    REFERENCES public."WorkItem" ("customerId","projectId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   FOREIGN KEY ("customerId","ingestionSourceId","configRevision","projectId")
     REFERENCES public."IngestionConfigurationProject" ("customerId","sourceId","configRevision","projectId") ON DELETE RESTRICT ON UPDATE RESTRICT,
   FOREIGN KEY ("customerId","ingestionSourceId","projectId","recordId")
@@ -339,6 +345,11 @@ CREATE TABLE public."SourceAdmissionBindingRevision" (
   FOREIGN KEY ("customerId","ingestionSourceId","recordId","streamId")
     REFERENCES public."IngestionFactStream" ("customerId","sourceId","recordId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   FOREIGN KEY ("customerId","approvalAuditId") REFERENCES public."AuditEvent" ("customerId",id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CHECK (("existingBindingId" IS NOT NULL AND "existingBindingId"="bindingId")
+    OR ("existingBindingId" IS NULL AND "previousPolicyRevision"=0
+      AND "factType"='canonical.state.'||replace("bindingId"::text,'-',''))),
+  CHECK (("targetKind"='MILESTONE' AND "targetMilestoneId" IS NOT NULL AND "targetWorkItemId" IS NULL)
+    OR ("targetKind"='WORK_ITEM' AND "targetWorkItemId" IS NOT NULL AND "targetMilestoneId" IS NULL)),
   CHECK (("sourceKind"='jira.issue' AND "snapshotField" IS NULL)
     OR ("sourceKind"='xlsx.row' AND "snapshotField" COLLATE "C" ~ '^[a-z][a-z0-9_.-]{0,95}$'
       AND "snapshotField" IS NOT NULL))
@@ -347,6 +358,13 @@ CREATE UNIQUE INDEX "SourceAdmissionBindingRevision_source_reservation_key"
   ON public."SourceAdmissionBindingRevision" ("factSourceId") WHERE id="reservationId";
 CREATE UNIQUE INDEX "SourceAdmissionBindingRevision_fact_stream_reservation_key"
   ON public."SourceAdmissionBindingRevision" ("factId","streamId") WHERE id="reservationId";
+CREATE UNIQUE INDEX "SourceAdmissionBindingRevision_birth_binding_key"
+  ON public."SourceAdmissionBindingRevision" ("bindingId") WHERE "existingBindingId" IS NULL AND id="reservationId";
+CREATE UNIQUE INDEX "SourceAdmissionBindingRevision_birth_fact_key"
+  ON public."SourceAdmissionBindingRevision" ("factId") WHERE "existingBindingId" IS NULL AND id="reservationId";
+CREATE UNIQUE INDEX "SourceAdmissionBindingRevision_birth_target_stream_key"
+  ON public."SourceAdmissionBindingRevision" ("streamId","targetKind",coalesce("targetMilestoneId","targetWorkItemId"))
+  WHERE "existingBindingId" IS NULL AND id="reservationId";
 CREATE TRIGGER source_admission_binding_immutable BEFORE UPDATE OR DELETE ON public."SourceAdmissionBindingRevision"
   FOR EACH ROW EXECUTE FUNCTION public.reject_fact_history_mutation();
 CREATE TRIGGER source_admission_binding_no_truncate BEFORE TRUNCATE ON public."SourceAdmissionBindingRevision"
@@ -365,13 +383,15 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
   SELECT EXISTS (
     SELECT 1 FROM public."SourceAdmissionBindingRevision" a
     JOIN public."AuditEvent" event ON (event."customerId",event.id)=(a."customerId",a."approvalAuditId")
-    JOIN public."CanonicalStateBinding" b ON b.id=a."bindingId" AND b.sealed
+    LEFT JOIN public."CanonicalStateBinding" b ON b.id=a."existingBindingId"
     JOIN public."IngestionConfigurationRevision" config
       ON (config."customerId",config."sourceId",config.revision)=(a."customerId",a."ingestionSourceId",a."configRevision")
     JOIN public."IngestionFactStream" s ON s.id=a."streamId"
     JOIN public."IngestionExternalRecord" rec ON rec.id=a."recordId"
     JOIN public."SourceAdmissionBindingRevision" reservation ON reservation.id=a."reservationId"
     WHERE a.id=target AND reservation.id=reservation."reservationId"
+      AND (a."existingBindingId" IS NULL OR (b.sealed AND b."factType"=a."factType" AND b."targetKind"=a."targetKind"
+        AND (b."milestoneId",b."workItemId") IS NOT DISTINCT FROM (a."targetMilestoneId",a."targetWorkItemId")))
       AND config.sealed AND config."mappingRevision"=a."mappingRevision"
       AND event.event='fact.source_admission.approved' AND event.actor=a."approvedBy"
       AND event."occurredAt"=a."approvedAt" AT TIME ZONE 'UTC'
@@ -383,10 +403,10 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
       AND public.source_admission_selector(a.definition,a."sourceKind",a."factSourceId") IS NOT NULL
       AND ((a."sourceKind"='jira.issue' AND rec."recordType"='jira.issue'
         AND config.mapping->>'kind'='CONNECTOR' AND config.mapping->'factTypes' ? s."factType"
-        AND b."targetKind"='WORK_ITEM' AND EXISTS (SELECT 1 FROM public."RequiredWorkItem" link
-          WHERE (link."customerId",link."projectId",link."workItemId")=(a."customerId",a."projectId",b."workItemId")))
+        AND a."targetKind"='WORK_ITEM' AND EXISTS (SELECT 1 FROM public."RequiredWorkItem" link
+          WHERE (link."customerId",link."projectId",link."workItemId")=(a."customerId",a."projectId",a."targetWorkItemId")))
        OR (a."sourceKind"='xlsx.row' AND rec."recordType"='xlsx:'||(config.mapping->>'sheet')
-        AND config.mapping->>'kind'='XLSX' AND b."targetKind"='MILESTONE' AND a."snapshotField"<>s."factType"
+        AND config.mapping->>'kind'='XLSX' AND a."targetKind"='MILESTONE' AND a."snapshotField"<>s."factType"
         AND EXISTS (SELECT 1 FROM jsonb_array_elements(config.mapping->'fields') f
           WHERE f->>'factType'=a."snapshotField" AND f->>'type'='text')
         AND EXISTS (SELECT 1 FROM jsonb_array_elements(config.mapping->'fields') f
@@ -442,34 +462,61 @@ CREATE CONSTRAINT TRIGGER source_admission_binding_complete AFTER INSERT ON publ
 
 CREATE FUNCTION public.approve_source_observation(
   customer uuid, project uuid, binding_id uuid, stream_id uuid, fact_source uuid,
-  snapshot_field text, state_mapping jsonb, authority_definition jsonb, approver text, expected_policy_revision integer
+  snapshot_field text, state_mapping jsonb, authority_definition jsonb, approver text, expected_policy_revision integer,
+  target_kind text DEFAULT NULL, target_id uuid DEFAULT NULL
 ) RETURNS uuid
 LANGUAGE plpgsql VOLATILE SET search_path=pg_catalog,pg_temp AS $$
 DECLARE
   a public."SourceAdmissionBindingRevision"%ROWTYPE;
+  binding public."CanonicalStateBinding"%ROWTYPE;
+  reservation public."SourceAdmissionBindingRevision"%ROWTYPE;
   approval_id uuid := gen_random_uuid();
 BEGIN
   -- Acquire the project fence before observing the source and next revision.
   PERFORM 1 FROM public."Project" WHERE "customerId"=customer AND id=project FOR UPDATE NOWAIT;
   IF NOT FOUND THEN RETURN NULL; END IF;
-  SELECT approval_id,b."customerId",b."projectId",b.id,b."factId",b."factType",
+  IF binding_id IS NOT NULL THEN
+    SELECT b.* INTO binding FROM public."CanonicalStateBinding" b
+      WHERE (b."customerId",b."projectId",b.id)=(customer,project,binding_id) AND b.sealed;
+    IF NOT FOUND OR target_kind IS NOT NULL OR target_id IS NOT NULL
+      OR public.valid_canonical_state_binding(binding_id) IS NOT TRUE
+    THEN RETURN NULL; END IF;
+  ELSE
+    IF target_kind IS NULL OR target_kind NOT IN ('MILESTONE','WORK_ITEM') OR target_id IS NULL
+      OR expected_policy_revision IS DISTINCT FROM 0
+      OR EXISTS (SELECT 1 FROM public."CanonicalStateBinding" b
+        WHERE (b."customerId",b."projectId",b."targetKind")=(customer,project,target_kind)
+          AND coalesce(b."milestoneId",b."workItemId")=target_id)
+    THEN RETURN NULL; END IF;
+    SELECT root.* INTO reservation FROM public."SourceAdmissionBindingRevision" root
+      WHERE (root."customerId",root."projectId",root."streamId",root."targetKind")=(customer,project,stream_id,target_kind)
+        AND root.id=root."reservationId" AND root."existingBindingId" IS NULL
+        AND coalesce(root."targetMilestoneId",root."targetWorkItemId")=target_id;
+    binding.id := coalesce(reservation."bindingId",gen_random_uuid());
+    binding."factId" := coalesce(reservation."factId",gen_random_uuid());
+    binding."factType" := 'canonical.state.'||replace(binding.id::text,'-','');
+    binding."targetKind" := target_kind;
+    binding."milestoneId" := CASE WHEN target_kind='MILESTONE' THEN target_id END;
+    binding."workItemId" := CASE WHEN target_kind='WORK_ITEM' THEN target_id END;
+  END IF;
+  SELECT approval_id,customer,project,binding.id,binding."factId",binding."factType",
     s."sourceId",s."recordId",s.id,CASE src."sourceType" WHEN 'jira' THEN 'jira.issue' WHEN 'xlsx' THEN 'xlsx.row' END,
     src."currentConfigRevision",src."mappingRevision",
     (SELECT coalesce(max(history.revision),0)+1 FROM public."SourceAdmissionBindingRevision" history WHERE history."streamId"=s.id),
     snapshot_field,state_mapping,fact_source,
     coalesce((SELECT root.id FROM public."SourceAdmissionBindingRevision" root
-      WHERE (root."factId",root."streamId")=(b."factId",s.id) AND root.id=root."reservationId"),approval_id),
+      WHERE (root."factId",root."streamId")=(binding."factId",s.id) AND root.id=root."reservationId"),approval_id),
     expected_policy_revision,gen_random_uuid(),authority_definition,
-    approver,date_trunc('milliseconds',clock_timestamp()),gen_random_uuid()
+    approver,date_trunc('milliseconds',clock_timestamp()),gen_random_uuid(),
+    binding_id,binding."targetKind",binding."milestoneId",binding."workItemId"
   INTO a
-  FROM public."CanonicalStateBinding" b
-  JOIN public."IngestionFactStream" s ON s."customerId"=b."customerId" AND s.id=stream_id
+  FROM public."IngestionFactStream" s
   JOIN public."IngestionExternalRecord" record
     ON (record."customerId",record."sourceId",record."projectId",record.id)
-      =(b."customerId",s."sourceId",b."projectId",s."recordId")
+      =(customer,s."sourceId",project,s."recordId")
   JOIN public."IngestionSource" src ON (src."customerId",src.id)=(s."customerId",s."sourceId")
-  WHERE (b."customerId",b."projectId",b.id)=(customer,project,binding_id) AND b.sealed;
-  IF NOT FOUND OR a."sourceKind" IS NULL OR public.valid_canonical_state_binding(binding_id) IS NOT TRUE
+  WHERE s."customerId"=customer AND s.id=stream_id;
+  IF NOT FOUND OR a."sourceKind" IS NULL
     OR NOT public.valid_authority_definition(authority_definition)
   THEN RETURN NULL; END IF;
   IF jsonb_typeof(state_mapping) IS DISTINCT FROM 'object' OR octet_length(state_mapping::text)>32768
@@ -625,6 +672,14 @@ CREATE TABLE public."SourceAdmissionCommand" (
 ALTER TABLE public."SourceObservationWitness" ADD CONSTRAINT "SourceObservationWitness_root_command_fkey"
   FOREIGN KEY ("rootCommandId") REFERENCES public."SourceAdmissionCommand"(id)
   ON DELETE RESTRICT ON UPDATE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+-- Only the source birth variant points to its admission command. The human
+-- binding receipt and all existing human identifiers keep their original shape.
+ALTER TABLE public."CanonicalStateBinding" ADD COLUMN "sourceBirthCommandId" uuid;
+ALTER TABLE public."CanonicalStateBinding" ADD CONSTRAINT "CanonicalStateBinding_source_birth_key" UNIQUE ("sourceBirthCommandId");
+ALTER TABLE public."CanonicalStateBinding" ADD CONSTRAINT "CanonicalStateBinding_source_birth_fkey"
+  FOREIGN KEY ("sourceBirthCommandId") REFERENCES public."SourceAdmissionCommand"(id)
+  ON DELETE RESTRICT ON UPDATE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+
 CREATE TRIGGER source_admission_command_immutable BEFORE UPDATE OR DELETE ON public."SourceAdmissionCommand"
   FOR EACH ROW EXECUTE FUNCTION public.reject_fact_history_mutation();
 CREATE TRIGGER source_admission_command_no_truncate BEFORE TRUNCATE ON public."SourceAdmissionCommand"
@@ -654,7 +709,7 @@ $$;
 
 -- Historical verification deliberately uses immutable metadata and the
 -- captured commitment. It needs neither live grants nor retained plaintext.
-CREATE FUNCTION public.valid_source_observation_witness(target uuid) RETURNS boolean
+CREATE FUNCTION public.valid_source_observation_structure(target uuid) RETURNS boolean
 LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
   SELECT EXISTS (
     SELECT 1 FROM public."SourceObservationWitness" w
@@ -667,9 +722,6 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
       AND (command."customerId",command."projectId",command."admissionRevisionId",command."versionId")
         =(w."customerId",w."projectId",w."admissionRevisionId",w."versionId")
       AND command."ingestionSourceId"=approved."ingestionSourceId"
-    JOIN public."AuthorityPolicyRevision" policy
-      ON (policy."customerId",policy."projectId",policy."factType",policy.id)
-        =(approved."customerId",approved."projectId",approved."factType",approved."policyRevisionId")
     JOIN public."IngestionFactStream" stream ON stream.id=w."ingestionStreamId"
     JOIN public."IngestionExternalRecord" rec
       ON (rec."customerId",rec."sourceId",rec.id)=(stream."customerId",stream."sourceId",stream."recordId")
@@ -693,13 +745,16 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
       AND public.valid_source_admission_binding(approved.id) AND approved."approvedAt"<=w."admittedAt"
       AND (r."configRevision",r."mappingRevision")=(approved."configRevision",approved."mappingRevision")
       AND (w.input->>'snapshotField') IS NOT DISTINCT FROM approved."snapshotField"
-      AND policy.definition=approved.definition AND policy.state='ENABLED'
-      AND policy.revision=approved."previousPolicyRevision"+1 AND policy."effectiveAt"=policy."recordedAt"
-      AND policy."recordedBy"=approved."approvedBy" AND policy."recordedAt"<=w."admittedAt"
       AND v."validUntil"=public.source_admission_expiry(
         public.source_admission_selector(approved.definition,approved."sourceKind",approved."factSourceId"),
         v."effectiveAt",e."observedAt")
-      AND binding.sealed AND ((s."sourceType"='jira' AND binding."targetKind"='WORK_ITEM' AND rec."recordType"='jira.issue'
+      AND binding."factType"=approved."factType" AND binding."targetKind"=approved."targetKind"
+      AND (binding."milestoneId",binding."workItemId")
+        IS NOT DISTINCT FROM (approved."targetMilestoneId",approved."targetWorkItemId")
+      AND (approved."existingBindingId"=binding.id
+        OR (approved."existingBindingId" IS NULL AND binding."sourceBirthCommandId" IS NOT NULL))
+      AND (v.revision>1 OR (approved."existingBindingId" IS NULL AND binding."sourceBirthCommandId"=command.id))
+      AND ((s."sourceType"='jira' AND binding."targetKind"='WORK_ITEM' AND rec."recordType"='jira.issue'
         AND v."effectiveAt"=rev."remoteEffectiveAt" AND e."observedAt"=rev."remoteObservedAt"
         AND rev.revision=public.authority_instant(v."effectiveAt")
         AND public.valid_connector_page_dispatch(r.id) AND public.valid_ingestion_receipt(r.id))
@@ -724,6 +779,76 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
         'fieldSha256',w.input->>'fieldSha256','validUntil',public.authority_instant(v."validUntil"))
   );
 $$;
+
+-- The structural witness can seal a source-born binding before its first
+-- authority row exists. The full witness is mandatory at transaction commit.
+CREATE FUNCTION public.valid_source_observation_witness(target uuid) RETURNS boolean
+LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public."SourceObservationWitness" w
+    JOIN public."SourceAdmissionBindingRevision" a ON a.id=w."admissionRevisionId"
+    JOIN public."CanonicalStateBinding" b ON b.id=w."bindingId"
+    JOIN public."AuthorityPolicyRevision" p
+      ON (p."customerId",p."projectId",p."factType",p.id)=(a."customerId",a."projectId",a."factType",a."policyRevisionId")
+    WHERE w."versionId"=target AND b.sealed
+      AND p.definition=a.definition AND p.state='ENABLED'
+      AND p.revision=a."previousPolicyRevision"+1 AND p."effectiveAt"=p."recordedAt"
+      AND p."recordedBy"=a."approvedBy" AND p."recordedAt"<=w."admittedAt"
+      AND public.valid_source_observation_structure(target)
+  )
+$$;
+
+CREATE FUNCTION public.valid_source_canonical_birth(target uuid) RETURNS boolean
+LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public."CanonicalStateBinding" b
+    JOIN public."ProjectFact" f ON (f."customerId",f."projectId",f.id,f."factType",f."bindingBirthId")
+      =(b."customerId",b."projectId",b."factId",b."factType",b.id)
+    JOIN public."SourceAdmissionCommand" cmd ON cmd.id=b."sourceBirthCommandId"
+    JOIN public."SourceObservationWitness" w ON w."versionId"=cmd."versionId"
+    JOIN public."SourceAdmissionBindingRevision" a ON a.id=w."admissionRevisionId"
+    JOIN public."ProjectFactVersion" v ON v.id=w."versionId"
+    WHERE b.id=target AND a."existingBindingId" IS NULL
+      AND (w."customerId",w."projectId",w."bindingId",w."factId",w."rootCommandId")
+        =(b."customerId",b."projectId",b.id,b."factId",cmd.id)
+      AND b."createdBy"=w."admittedBy" AND b."createdAt"=w."admittedAt" AND f."createdAt"=w."admittedAt"
+      AND v.revision=1 AND f.revision>=1
+      AND NOT EXISTS (SELECT 1 FROM public."CanonicalStateBindingReceipt" h WHERE h."bindingId"=b.id)
+      AND public.valid_source_observation_structure(w."versionId")
+  )
+$$;
+
+CREATE OR REPLACE FUNCTION public.valid_canonical_state_binding(target uuid) RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE b public."CanonicalStateBinding"%ROWTYPE; r public."CanonicalStateBindingReceipt"%ROWTYPE;
+BEGIN
+  SELECT * INTO b FROM public."CanonicalStateBinding" WHERE id=target;
+  IF NOT FOUND THEN RETURN false; END IF;
+  IF b."sourceBirthCommandId" IS NOT NULL THEN RETURN public.valid_source_canonical_birth(b.id); END IF;
+  SELECT * INTO r FROM public."CanonicalStateBindingReceipt" WHERE "bindingId"=target;
+  IF NOT FOUND OR r."factId"<>b."factId" OR r.subject<>b."createdBy" OR r."initialSourceAccessRevision"<>2 OR r."initialSourceAccessState"<>'AVAILABLE' OR r."initialReaderSubject"<>r.subject THEN RETURN false; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public."ProjectFact" f WHERE f.id=b."factId" AND f."customerId"=b."customerId" AND f."projectId"=b."projectId" AND f."factType"=b."factType" AND f."bindingBirthId"=b.id AND f.revision>=1) THEN RETURN false; END IF;
+  IF EXISTS (SELECT 1 FROM public."ProjectFactVersion" v WHERE v."factId"=b."factId" AND v.value NOT IN (
+    '{"type":"text","value":"OPEN"}'::jsonb,'{"type":"text","value":"IN_PROGRESS"}'::jsonb,
+    '{"type":"text","value":"COMPLETE"}'::jsonb,'{"type":"text","value":"CANCELLED"}'::jsonb)) THEN RETURN false; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public."ProjectFactVersion" v JOIN public."FactEvidence" e ON e.id=v."evidenceId" JOIN public."FactSource" s ON s.id=v."sourceId" WHERE v.id=r."versionId" AND v."factId"=b."factId" AND v.revision=1 AND v.provenance='HUMAN_CONFIRMED' AND v."evidenceId"=r."evidenceId" AND v."sourceId"=r."sourceId" AND e."providedBy"=b."createdBy" AND s."providedBy"=b."createdBy") THEN RETURN false; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public."FactSourceAccess" a WHERE a."sourceId"=r."sourceId" AND a.revision>=2) THEN RETURN false; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public."AuditEvent" a WHERE a.id=r."auditEventId" AND a."customerId"=b."customerId" AND a.actor=b."createdBy" AND a.event='fact.binding.created' AND a.detail @> jsonb_build_object('projectId',b."projectId",'bindingId',b.id,'factId',b."factId",'versionId',r."versionId",'evidenceId',r."evidenceId")) THEN RETURN false; END IF;
+  RETURN (b."targetKind"='MILESTONE' AND EXISTS (SELECT 1 FROM public."Milestone" m WHERE m.id=b."milestoneId" AND m."customerId"=b."customerId" AND m."projectId"=b."projectId"))
+    OR (b."targetKind"='WORK_ITEM' AND EXISTS (SELECT 1 FROM public."WorkItem" w WHERE w.id=b."workItemId" AND w."customerId"=b."customerId" AND w."projectId"=b."projectId"));
+EXCEPTION WHEN OTHERS THEN RETURN false;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.require_canonical_state_binding_sealed() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public."CanonicalStateBinding" WHERE id=NEW.id AND sealed) OR NOT public.valid_canonical_state_binding(NEW.id) THEN RAISE EXCEPTION 'Unsealed state binding cannot commit'; END IF;
+  IF NEW."sourceBirthCommandId" IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public."SourceAdmissionCommand" cmd
+    WHERE cmd.id=NEW."sourceBirthCommandId" AND public.valid_source_observation_witness(cmd."versionId")
+  ) THEN RAISE EXCEPTION 'Source-born state binding requires its published authority'; END IF;
+  RETURN NULL;
+END $$;
 
 CREATE FUNCTION public.valid_source_admission_command(target uuid) RETURNS boolean
 LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
@@ -759,6 +884,8 @@ BEGIN
   THEN RAISE EXCEPTION 'Source observation writer unavailable'; END IF;
   RETURN NEW;
 END $$;
+CREATE TRIGGER canonical_source_birth_writer BEFORE INSERT ON public."CanonicalStateBinding"
+  FOR EACH ROW WHEN (NEW."sourceBirthCommandId" IS NOT NULL) EXECUTE FUNCTION public.guard_source_observation_insert();
 CREATE TRIGGER fact_source_observation_writer BEFORE INSERT ON public."FactSource"
   FOR EACH ROW WHEN (NEW."ingestionStreamId" IS NOT NULL) EXECUTE FUNCTION public.guard_source_observation_insert();
 CREATE TRIGGER fact_evidence_observation_writer BEFORE INSERT ON public."FactEvidence"
@@ -852,6 +979,8 @@ DECLARE
   actor CONSTANT text := 'synthetic:source-admission';
   approved public."SourceAdmissionBindingRevision"%ROWTYPE;
   existing public."SourceObservationWitness"%ROWTYPE;
+  binding public."CanonicalStateBinding"%ROWTYPE;
+  source_birth boolean;
   command public."SourceAdmissionCommand"%ROWTYPE;
   policy public."AuthorityPolicy"%ROWTYPE;
   source_row public."IngestionSource"%ROWTYPE;
@@ -883,7 +1012,6 @@ BEGIN
   IF NOT FOUND OR EXISTS (SELECT 1 FROM public."SourceAdmissionBindingRevision" a
     WHERE a."streamId"=approved."streamId" AND a.revision>approved.revision)
     OR public.valid_source_admission_binding(approval_id) IS NOT TRUE
-    OR public.valid_canonical_state_binding(approved."bindingId") IS NOT TRUE
   THEN RETURN denied; END IF;
   SELECT count(DISTINCT g.subject)::integer INTO authorized_subjects FROM (
     SELECT g.subject FROM public."AccessGrant" g JOIN public."Project" p ON (p."customerId",p.id)=(customer,project)
@@ -921,6 +1049,21 @@ BEGIN
       AND event."policyId"=policy.id AND event.revision=policy.revision AND event.state='ENABLED'
       AND event."effectiveAt"<=clock_timestamp()
   ) THEN RETURN denied; END IF;
+
+  -- A prospective approval reserves identities, but does not occupy the target.
+  -- The project lock and the canonical target key arbitrate the actual birth.
+  SELECT b.* INTO binding FROM public."CanonicalStateBinding" b
+    WHERE (b."customerId",b."projectId",b."targetKind")=(customer,project,approved."targetKind")
+      AND (b."milestoneId",b."workItemId")
+        IS NOT DISTINCT FROM (approved."targetMilestoneId",approved."targetWorkItemId");
+  source_birth := NOT FOUND;
+  IF source_birth THEN
+    IF approved."existingBindingId" IS NOT NULL OR policy.id IS NOT NULL THEN RETURN denied; END IF;
+  ELSIF binding.id<>approved."bindingId" THEN
+    RETURN conflict;
+  ELSIF NOT binding.sealed OR public.valid_canonical_state_binding(binding.id) IS NOT TRUE THEN
+    RETURN denied;
+  END IF;
 
   SELECT c.* INTO command FROM public."SourceAdmissionCommand" c
     WHERE (c."customerId",c."projectId",c."ingestionSourceId",c."commandKey")
@@ -971,6 +1114,16 @@ BEGIN
   admitted_at := date_trunc('milliseconds',clock_timestamp());
   IF valid_until IS NULL OR valid_until<=admitted_at THEN RETURN denied; END IF;
 
+  IF source_birth THEN
+    INSERT INTO public."ProjectFact" (id,"customerId","projectId","factType","bindingBirthId","createdAt")
+      VALUES (approved."factId",customer,project,approved."factType",approved."bindingId",admitted_at);
+    INSERT INTO public."CanonicalStateBinding"
+      (id,"customerId","projectId","targetKind","milestoneId","workItemId","factId","factType",
+        "createdBy","createdAt","sourceBirthCommandId")
+      VALUES (approved."bindingId",customer,project,approved."targetKind",approved."targetMilestoneId",
+        approved."targetWorkItemId",approved."factId",approved."factType",actor,admitted_at,command_id);
+  END IF;
+
   SELECT f.revision INTO STRICT fact_revision FROM public."ProjectFact" f
     WHERE (f."customerId",f."projectId",f.id)=(approved."customerId",approved."projectId",approved."factId") FOR UPDATE;
   IF NOT EXISTS (SELECT 1 FROM public."FactSource" s WHERE s.id=approved."factSourceId") THEN
@@ -978,17 +1131,6 @@ BEGIN
       VALUES (approved."factSourceId",approved."customerId",approved."projectId",approved."factId",
         split_part(approved."sourceKind",'.',1),approved."streamId");
   END IF;
-  IF policy.id IS NULL THEN
-    INSERT INTO public."AuthorityPolicy" (id,"customerId","projectId","factType")
-      VALUES (gen_random_uuid(),approved."customerId",approved."projectId",approved."factType") RETURNING * INTO policy;
-  END IF;
-  IF policy.revision=approved."previousPolicyRevision" THEN
-    INSERT INTO public."AuthorityPolicyRevision"
-      (id,"customerId","projectId","factType","policyId",revision,"recordedAt","recordedBy","effectiveAt",state,definition)
-      VALUES (approved."policyRevisionId",approved."customerId",approved."projectId",approved."factType",policy.id,
-        policy.revision+1,admitted_at,approved."approvedBy",admitted_at,'ENABLED',approved.definition);
-  END IF;
-
   INSERT INTO public."FactEvidence" (id,"customerId","projectId","factId","sourceId","observedAt")
     VALUES (evidence_id,approved."customerId",approved."projectId",approved."factId",approved."factSourceId",observed_at);
   INSERT INTO public."ProjectFactVersion"
@@ -1010,6 +1152,21 @@ BEGIN
     (id,"customerId","projectId","ingestionSourceId","admissionRevisionId","versionId","inputReceiptId",ordinal,"commandKey","correlationId")
     VALUES (command_id,customer,project,approved."ingestionSourceId",approval_id,
       version_id,receipt_id,row_ordinal,command_key,correlation);
+  IF source_birth THEN
+    UPDATE public."CanonicalStateBinding" SET sealed=true
+      WHERE ("customerId","projectId",id)=(customer,project,approved."bindingId");
+  END IF;
+  IF policy.id IS NULL THEN
+    INSERT INTO public."AuthorityPolicy" (id,"customerId","projectId","factType")
+      VALUES (gen_random_uuid(),approved."customerId",approved."projectId",approved."factType") RETURNING * INTO policy;
+  END IF;
+  IF policy.revision=approved."previousPolicyRevision" THEN
+    INSERT INTO public."AuthorityPolicyRevision"
+      (id,"customerId","projectId","factType","policyId",revision,"recordedAt","recordedBy","effectiveAt",state,definition)
+      VALUES (approved."policyRevisionId",approved."customerId",approved."projectId",approved."factType",policy.id,
+        policy.revision+1,admitted_at,approved."approvedBy",admitted_at,'ENABLED',approved.definition);
+  END IF;
+
   RETURN jsonb_build_object('status','ADMITTED','receiptId',command_id);
 END $$;
 
@@ -1018,12 +1175,14 @@ REVOKE ALL ON TABLE public."SourceObservationWitness",public."SourceAdmissionBin
 REVOKE ALL ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
   public.record_connector_page_dispatch(uuid),public.valid_connector_page_dispatch(uuid),
   public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb),
-  public.valid_source_observation_witness(uuid),public.guard_source_observation_insert(),
+  public.valid_source_observation_witness(uuid),public.valid_source_observation_structure(uuid),
+  public.valid_source_canonical_birth(uuid),public.valid_canonical_state_binding(uuid),
+  public.require_canonical_state_binding_sealed(),public.guard_source_observation_insert(),
   public.require_source_observation_witness(),
   public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid),
   public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer),
   public.valid_source_admission_command(uuid),public.require_source_admission_command(),
-  public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer),
+  public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer,text,uuid),
   public.valid_source_admission_binding(uuid),public.source_admission_selector(jsonb,text,uuid),
   public.source_admission_expiry(jsonb,timestamptz,timestamptz),public.guard_source_admission_binding(),
   public.require_source_admission_binding(),public.guard_source_authority_activation(),
@@ -1042,7 +1201,7 @@ BEGIN
     ALTER FUNCTION public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.valid_source_admission_command(uuid) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.require_source_admission_command() OWNER TO pdaa_migrate;
-    ALTER FUNCTION public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer,text,uuid) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.valid_source_admission_binding(uuid) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.source_admission_selector(jsonb,text,uuid) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.source_admission_expiry(jsonb,timestamptz,timestamptz) OWNER TO pdaa_migrate;
@@ -1052,7 +1211,12 @@ BEGIN
     ALTER FUNCTION public.require_source_authority_witness() OWNER TO pdaa_migrate;
     ALTER FUNCTION public.valid_source_authority_publication(uuid) OWNER TO pdaa_migrate;
     ALTER FUNCTION public.require_authority_published() OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.valid_source_observation_structure(uuid) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.valid_source_canonical_birth(uuid) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.valid_canonical_state_binding(uuid) OWNER TO pdaa_migrate;
+    ALTER FUNCTION public.require_canonical_state_binding_sealed() OWNER TO pdaa_migrate;
     IF to_regrole('pdaa_api') IS NOT NULL THEN
+      GRANT EXECUTE ON FUNCTION public.valid_canonical_state_binding(uuid) TO pdaa_api;
       GRANT EXECUTE ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
         public.record_connector_page_dispatch(uuid) TO pdaa_api;
     END IF;

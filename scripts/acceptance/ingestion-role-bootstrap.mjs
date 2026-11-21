@@ -30,7 +30,10 @@ const dispatchFunctions = [
   "public.valid_source_observation_witness(uuid)",
   "public.guard_source_observation_insert()",
   "public.require_source_observation_witness()",
-  "public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer)",
+  "public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer,text,uuid)",
+  "public.valid_source_observation_structure(uuid)",
+  "public.valid_source_canonical_birth(uuid)",
+  "public.require_canonical_state_binding_sealed()",
   "public.valid_source_admission_binding(uuid)",
   "public.source_admission_selector(jsonb,text,uuid)",
   "public.source_admission_expiry(jsonb,timestamptz,timestamptz)",
@@ -169,6 +172,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         await pool.query("ALTER FUNCTION " + xlsxSourceCatalogueApi + " OWNER TO pdaa_migrate");
         await pool.query("ALTER FUNCTION " + xlsxReviewDetailsApi + " OWNER TO pdaa_migrate");
         for (const signature of dispatchFunctions) await pool.query("ALTER FUNCTION " + signature + " OWNER TO pdaa_migrate");
+        await pool.query("ALTER FUNCTION public.valid_canonical_state_binding(uuid) OWNER TO pdaa_migrate");
         await pool.query("GRANT EXECUTE ON FUNCTION " + dispatchFunctions.join(",") + " TO PUBLIC,pdaa_worker,pdaa_backup");
         // Simulate the default function EXECUTE grant introduced by --no-acl
         // restore, plus explicit role grants, before reconstructing the ACL.

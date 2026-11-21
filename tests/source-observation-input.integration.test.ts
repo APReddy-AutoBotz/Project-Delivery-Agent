@@ -46,8 +46,13 @@ it("appends a verified workbook observation and replays its receipt after conten
   await db.accessGrant.createMany({ data: [pmo, pm].map((actor) => ({
     customerId, subject: actor.subject, role: actor.roles[0]!, scopeType: "portfolio", scopeId: portfolioId,
   })) });
+  const fixture = canonicalFixture(portfolioId);
+  fixture.milestones.push(
+    { ...fixture.milestones[0]!, key: "MS-2", name: "Source-born milestone" },
+    { ...fixture.milestones[0]!, key: "MS-3", name: "Contested milestone" },
+  );
   const { id: projectId } = await new DatabaseCanonicalProjectRepository(db)
-    .createProject(pmo, canonicalFixture(portfolioId), randomUUID());
+    .createProject(pmo, fixture, randomUUID());
   const milestone = await db.milestone.findFirstOrThrow({ where: { customerId, projectId }, orderBy: { key: "asc" } });
   const binding = await new DatabaseMilestoneConsistencyRepository(db).createStateBinding(pm, {
     projectId, targetKind: "MILESTONE", targetId: milestone.id,
@@ -101,6 +106,8 @@ it("appends a verified workbook observation and replays its receipt after conten
           rows: [
             ["Current", projectId, "Complete", "2027-01-01", effectiveAt],
             ["Future", projectId, "Complete", "2027-01-01", inFuture],
+            ["Birth", projectId, "Complete", "2027-01-01", effectiveAt],
+            ["Contested", projectId, "Complete", "2027-01-01", effectiveAt],
           ],
         }),
         release() {},
@@ -115,7 +122,7 @@ it("appends a verified workbook observation and replays its receipt after conten
   const context = await db.ingestionXlsxContext.findUniqueOrThrow({ where: { receiptId: preview.receiptId } });
   const review = await repository.commitXlsxReviewedImport(caller, {
     sourceId, previewReceiptId: preview.receiptId, previewContextSha256: context.contextSha256,
-    rowOrdinals: [1, 2], commandKey: randomUUID(),
+    rowOrdinals: [1, 2, 3, 4], commandKey: randomUUID(),
   }, randomUUID());
   const laterPreview = await repository.persistXlsxPreview(caller, {
     sourceId, configRevision: 1, mappingRevision: 1, sheet, commandKey: randomUUID(),
@@ -129,7 +136,7 @@ it("appends a verified workbook observation and replays its receipt after conten
   const outcomes = await db.ingestionRowOutcome.findMany({
     where: { receiptId: review.receiptId }, orderBy: { ordinal: "asc" },
   });
-  expect(outcomes.map((row) => row.state)).toEqual(["ACCEPTED", "ACCEPTED"]);
+  expect(outcomes.map((row) => row.state)).toEqual(["ACCEPTED", "ACCEPTED", "ACCEPTED", "ACCEPTED"]);
   const equivalentOutcome = await db.ingestionRowOutcome.findFirstOrThrow({ where: { receiptId: equivalentReview.receiptId, ordinal: 1 } });
   expect(equivalentOutcome).toMatchObject({
     sourceRevisionId: outcomes[0]!.sourceRevisionId, projectionId: outcomes[0]!.projectionId, operation: "UNCHANGED",
@@ -326,4 +333,67 @@ it("appends a verified workbook observation and replays its receipt after conten
   })).rejects.toThrow(/cannot activate without an admitted observation/iu);
   expect(await db.authorityPolicyRevision.count({ where: { id: pending.policyRevisionId } })).toBe(0);
   expect(await db.projectFactVersion.count({ where: { factId: binding.factId } })).toBe(2);
+
+  const targets = await db.milestone.findMany({ where: { customerId, projectId }, orderBy: { key: "asc" } });
+  const bornTarget = targets[1]!;
+  const contestedTarget = targets[2]!;
+  const birthSourceId = randomUUID();
+  const birthDefinition = structuredClone(definition);
+  birthDefinition.tiers[0]!.selectors[0]!.instanceId = birthSourceId;
+  const invalidPolicy = {
+    ...birthDefinition,
+    tiers: [...birthDefinition.tiers, { selectors: [{
+      sourceType: "human_statement", instanceId: randomUUID(), requiredApproval: "NOT_REQUIRED", validity: null,
+    }] }],
+  };
+  const approveBirth = async (targetId: string, streamId: string, source: string, rule: unknown) => {
+    const [result] = await asOwner((tx) => tx.$queryRaw<{ id: string }[]>`
+      SELECT public.approve_source_observation(${customerId}::uuid,${projectId}::uuid,NULL::uuid,${streamId}::uuid,
+        ${source}::uuid,'source.snapshot_at','{"Complete":"COMPLETE"}'::jsonb,
+        ${JSON.stringify(rule)}::jsonb,${actor.subject},0,'MILESTONE',${targetId}::uuid) AS id`);
+    return db.sourceAdmissionBindingRevision.findUniqueOrThrow({ where: { id: result?.id } });
+  };
+  const invalidBirth = await approveBirth(bornTarget.id, streams[2]!.id, birthSourceId, invalidPolicy);
+  const birthKey = randomUUID();
+  expect(await db.projectFact.count({ where: { id: invalidBirth.factId } })).toBe(0);
+  expect(await db.canonicalStateBinding.count({ where: { id: invalidBirth.bindingId } })).toBe(0);
+  await expect(asOperator((tx) => append(tx, invalidBirth.id, review.receiptId, 3, birthKey)))
+    .rejects.toThrow(/Invalid authority revision/iu);
+  expect(await db.projectFact.count({ where: { id: invalidBirth.factId } })).toBe(0);
+  expect(await db.canonicalStateBinding.count({ where: { id: invalidBirth.bindingId } })).toBe(0);
+  expect(await db.factSource.count({ where: { id: birthSourceId } })).toBe(0);
+  expect(await db.sourceAdmissionCommand.count({ where: { commandKey: birthKey } })).toBe(0);
+  expect(await db.authorityPolicyRevision.count({ where: { id: invalidBirth.policyRevisionId } })).toBe(0);
+
+  const validBirth = await approveBirth(bornTarget.id, streams[2]!.id, birthSourceId, birthDefinition);
+  expect(validBirth).toMatchObject({
+    bindingId: invalidBirth.bindingId, factId: invalidBirth.factId, reservationId: invalidBirth.reservationId,
+  });
+  const [birthResult] = await asOperator((tx) => append(tx, validBirth.id, review.receiptId, 3, birthKey));
+  expect(birthResult).toEqual({ result: { status: "ADMITTED", receiptId: expect.any(String) } });
+  const birthCommand = await db.sourceAdmissionCommand.findUniqueOrThrow({ where: { id: birthResult!.result.receiptId } });
+  expect(await db.canonicalStateBinding.findUniqueOrThrow({ where: { id: validBirth.bindingId } })).toMatchObject({
+    sealed: true, milestoneId: bornTarget.id, factId: validBirth.factId, sourceBirthCommandId: birthCommand.id,
+  });
+  expect(await db.canonicalStateBindingReceipt.count({ where: { bindingId: validBirth.bindingId } })).toBe(0);
+  expect(await db.projectFactVersion.findUniqueOrThrow({ where: { id: birthCommand.versionId }, include: { evidence: true } }))
+    .toMatchObject({ revision: 1, provenance: "SYSTEM_VERIFIED", evidence: { providedBy: null, originalStatement: null } });
+  expect(await asApi((tx) => tx.$queryRaw`SELECT public.valid_canonical_state_binding(${validBirth.bindingId}::uuid) AS valid`))
+    .toEqual([{ valid: true }]);
+  expect(await asOperator((tx) => append(tx, validBirth.id, review.receiptId, 3, birthKey)))
+    .toEqual([{ result: { status: "REPLAYED", receiptId: birthCommand.id } }]);
+
+  const contestedSourceId = randomUUID();
+  const contestedDefinition = structuredClone(definition);
+  contestedDefinition.tiers[0]!.selectors[0]!.instanceId = contestedSourceId;
+  const contested = await approveBirth(contestedTarget.id, streams[3]!.id, contestedSourceId, contestedDefinition);
+  const humanWinner = await new DatabaseMilestoneConsistencyRepository({ $transaction: asApi } as never).createStateBinding(pm, {
+    projectId, targetKind: "MILESTONE", targetId: contestedTarget.id, initialState: "OPEN", validUntil: null,
+    effectiveAt, idempotencyKey: randomUUID(), originalStatement: "Human state established before source admission",
+  }, { correlationId: randomUUID() });
+  expect(await asOperator((tx) => append(tx, contested.id, review.receiptId, 4, randomUUID())))
+    .toEqual([{ result: { status: "CONFLICT" } }]);
+  expect(await db.projectFact.count({ where: { id: contested.factId } })).toBe(0);
+  expect(await db.canonicalStateBinding.findUniqueOrThrow({ where: { id: humanWinner.id } }))
+    .toMatchObject({ sealed: true, milestoneId: contestedTarget.id, sourceBirthCommandId: null });
 });

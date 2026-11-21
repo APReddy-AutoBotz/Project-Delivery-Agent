@@ -593,6 +593,7 @@ model CanonicalStateBinding {
   factType String @db.VarChar(96)
   createdBy String @db.VarChar(256)
   createdAt DateTime @db.Timestamptz(3)
+  sourceBirthCommandId String? @unique(map: "CanonicalStateBinding_source_birth_key") @db.Uuid
   sealed Boolean @default(false)
   project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
   milestone Milestone? @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
@@ -1101,6 +1102,10 @@ model SourceAdmissionBindingRevision {
   approvedBy String @db.VarChar(256)
   approvedAt DateTime @db.Timestamptz(3)
   approvalAuditId String @unique @db.Uuid
+  existingBindingId String? @db.Uuid
+  targetKind String @db.VarChar(16)
+  targetMilestoneId String? @db.Uuid
+  targetWorkItemId String? @db.Uuid
   @@unique([streamId, revision])
   @@unique([customerId, projectId, id, ingestionSourceId], map: "SourceAdmissionBindingRevision_command_scope_key")
   @@unique([customerId, projectId, id, bindingId, factId, streamId, factSourceId], map: "SourceAdmissionBindingRevision_exact_key")

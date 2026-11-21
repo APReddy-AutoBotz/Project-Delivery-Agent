@@ -7,7 +7,6 @@ import {
   DatabaseCanonicalProjectRepository,
   DatabaseConnectorRuntimeRepository,
   DatabaseIngestionRepository,
-  DatabaseMilestoneConsistencyRepository,
 } from "../packages/data/src/index.js";
 import { CredentialKeyRingVault, CredentialVault } from "../packages/platform/src/index.js";
 import type { Actor } from "../packages/domain/src/index.js";
@@ -804,12 +803,7 @@ describe("durable Jira connector runtime", () => {
       where: { customerId: isolatedCustomerId, projectId },
       orderBy: { id: "asc" },
     });
-    const canonicalBinding = await new DatabaseMilestoneConsistencyRepository(db).createStateBinding(manager, {
-      projectId, targetKind: "WORK_ITEM", targetId: work.workItemId,
-      idempotencyKey: randomUUID(), initialState: "IN_PROGRESS", validUntil: null,
-      effectiveAt: initialObservedAt, originalStatement: "Initial synthetic required work status",
-    }, { correlationId: randomUUID() });
-    expect(await db.projectFactVersion.count({ where: { factId: canonicalBinding.factId } })).toBe(1);
+    expect(await db.canonicalStateBinding.count({ where: { customerId: isolatedCustomerId, workItemId: work.workItemId } })).toBe(0);
     const factSource = randomUUID();
     const definition = {
       conflictBehavior: "REQUEST_RECONCILIATION",
@@ -822,11 +816,15 @@ describe("durable Jira connector runtime", () => {
       await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
       return tx.$queryRaw<{ id: string }[]>`
         SELECT public.approve_source_observation(
-          ${isolatedCustomerId}::uuid,${projectId}::uuid,${canonicalBinding.id}::uuid,${stream.id}::uuid,
-          ${factSource}::uuid,NULL,'{"To Do":"OPEN"}'::jsonb,${JSON.stringify(definition)}::jsonb,${pmo.subject},0
+          ${isolatedCustomerId}::uuid,${projectId}::uuid,NULL::uuid,${stream.id}::uuid,
+          ${factSource}::uuid,NULL,'{"To Do":"OPEN"}'::jsonb,${JSON.stringify(definition)}::jsonb,${pmo.subject},0,
+          'WORK_ITEM',${work.workItemId}::uuid
         ) AS id`;
     });
     expect(approval?.id).toEqual(expect.any(String));
+    const prospective = await db.sourceAdmissionBindingRevision.findUniqueOrThrow({ where: { id: approval!.id } });
+    expect(prospective).toMatchObject({ existingBindingId: null, targetKind: "WORK_ITEM", targetWorkItemId: work.workItemId });
+    expect(await db.projectFact.count({ where: { id: prospective.factId } })).toBe(0);
     const commandKey = randomUUID();
     const correlation = randomUUID();
     const appendJiraObservation = () => db.$transaction(async (tx) => {
@@ -845,15 +843,18 @@ describe("durable Jira connector runtime", () => {
       expect(locked).toHaveLength(1);
       await expect(appendJiraObservation()).rejects.toThrow(/could not obtain lock on row/iu);
     });
-    expect(await db.projectFactVersion.count({ where: { factId: canonicalBinding.factId } })).toBe(1);
+    expect(await db.projectFactVersion.count({ where: { factId: prospective.factId } })).toBe(0);
     const [admitted] = await appendJiraObservation();
     expect(admitted).toEqual({ result: { status: "ADMITTED", receiptId: expect.any(String) } });
     const admittedReceipt = await db.sourceAdmissionCommand.findUniqueOrThrow({ where: { id: admitted!.result.receiptId } });
     expect(await appendJiraObservation()).toEqual([{ result: { status: "REPLAYED", receiptId: admittedReceipt.id } }]);
+    const canonicalBinding = await db.canonicalStateBinding.findUniqueOrThrow({ where: { id: prospective.bindingId } });
+    expect(canonicalBinding).toMatchObject({ sealed: true, factId: prospective.factId, sourceBirthCommandId: admittedReceipt.id });
+    expect(await db.canonicalStateBindingReceipt.count({ where: { bindingId: canonicalBinding.id } })).toBe(0);
     expect(await db.projectFactVersion.findUniqueOrThrow({
       where: { id: admittedReceipt.versionId }, include: { evidence: { include: { source: true } } },
     })).toMatchObject({
-      factId: canonicalBinding.factId, revision: 2, provenance: "SYSTEM_VERIFIED",
+      factId: canonicalBinding.factId, revision: 1, provenance: "SYSTEM_VERIFIED",
       value: { type: "text", value: "OPEN" },
       effectiveAt: new Date(initialObservedAt),
       evidence: { providedBy: null, originalStatement: null, observedAt: revision.remoteObservedAt, source: { sourceType: "jira", ingestionStreamId: stream.id } },

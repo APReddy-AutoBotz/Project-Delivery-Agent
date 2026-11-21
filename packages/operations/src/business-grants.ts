@@ -408,11 +408,15 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       source_input regprocedure := to_regprocedure('public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb)');
       admit_observation regprocedure := to_regprocedure('public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid)');
       authority_commit regprocedure := to_regprocedure('public.require_authority_published()');
+      canonical_commit regprocedure := to_regprocedure('public.require_canonical_state_binding_sealed()');
+      canonical_validator regprocedure := to_regprocedure('public.valid_canonical_state_binding(uuid)');
       validate_witness regprocedure := to_regprocedure('public.valid_source_observation_witness(uuid)');
       guard_observation regprocedure := to_regprocedure('public.guard_source_observation_insert()');
       require_witness regprocedure := to_regprocedure('public.require_source_observation_witness()');
       admission_functions text[] := ARRAY[
-        'public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer)',
+        'public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer,text,uuid)',
+        'public.valid_source_observation_structure(uuid)',
+        'public.valid_source_canonical_birth(uuid)',
         'public.valid_source_admission_binding(uuid)',
         'public.source_admission_selector(jsonb,text,uuid)',
         'public.source_admission_expiry(jsonb,timestamptz,timestamptz)',
@@ -452,12 +456,13 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
           AND NOT p.prosecdef AND p.provolatile='v' AND NOT p.proretset AND p.prorettype='jsonb'::regtype
           AND p.proowner=to_regrole('pdaa_migrate')
           AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp','TimeZone=UTC','DateStyle=ISO, YMD']
-      ) OR 5<>(
+      ) OR 7<>(
         SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.proowner=to_regrole('pdaa_migrate')
           AND NOT p.proretset AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
           AND ((p.oid=admit_observation AND p.prosecdef AND p.provolatile='v' AND p.prorettype='jsonb'::regtype)
             OR (p.oid=validate_witness AND NOT p.prosecdef AND p.provolatile='s' AND p.prorettype='boolean'::regtype)
-            OR (p.oid IN (guard_observation,require_witness,authority_commit) AND p.prorettype='trigger'::regtype
+            OR (p.oid=canonical_validator AND p.prosecdef AND p.provolatile='s' AND p.prorettype='boolean'::regtype)
+            OR (p.oid IN (guard_observation,require_witness,authority_commit,canonical_commit) AND p.prorettype='trigger'::regtype
               AND p.prosecdef=(p.oid<>guard_observation)))
       ) THEN RAISE EXCEPTION 'Unexpected connector dispatch or source observation boundary'; END IF;
       REVOKE ALL ON "ConnectorPageDispatch" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
@@ -472,7 +477,8 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
       REVOKE ALL ON "SourceAdmissionBindingRevision" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       REVOKE ALL (id,"customerId","projectId","bindingId","factId","factType","ingestionSourceId","recordId",
         "streamId","sourceKind","configRevision","mappingRevision",revision,"snapshotField","stateMapping",
-        "factSourceId","reservationId","previousPolicyRevision","policyRevisionId",definition,"approvedBy","approvedAt","approvalAuditId")
+        "factSourceId","reservationId","previousPolicyRevision","policyRevisionId",definition,"approvedBy","approvedAt","approvalAuditId",
+        "existingBindingId","targetKind","targetMilestoneId","targetWorkItemId")
         ON "SourceAdmissionBindingRevision" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       GRANT SELECT ON "SourceAdmissionBindingRevision" TO pdaa_backup;
       REVOKE ALL ON "SourceAdmissionCommand" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
@@ -493,7 +499,7 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb),
         public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid),
         public.valid_source_observation_witness(uuid),public.guard_source_observation_insert(),
-        public.require_source_observation_witness(),public.require_authority_published()
+        public.require_source_observation_witness(),public.require_authority_published(),public.require_canonical_state_binding_sealed()
         FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
       IF to_regrole('pdaa_source_acceptance') IS NOT NULL THEN
         REVOKE ALL ON FUNCTION public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid) FROM pdaa_source_acceptance;
