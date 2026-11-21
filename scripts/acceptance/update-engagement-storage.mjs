@@ -9,6 +9,7 @@ import {
   DatabaseProjectFactRepository, DatabaseAuthorityRepository,
 } from "../../packages/data/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
+import { alignSyntheticFixtureOwnership } from "./common.mjs";
 import { applyBusinessTableGrants } from "../../packages/operations/dist/business-grants.js";
 import { completeCapturedFixture, verifyUpdateCapturePrivileges, verifyRestoredCaptureRows, verifyCaptureOperatorControls } from "./update-capture-storage.mjs";
 
@@ -90,31 +91,8 @@ export async function verifyUpdateEngagementStorage(databaseConnection) {
   const pool = new Pool(typeof databaseConnection === "string"
     ? { connectionString: databaseConnection } : databaseConnection);
   try {
-    if (typeof databaseConnection === "string") {
-      // Prisma creates public objects as the local superuser in this fixture.
-      // Match packaged ownership before exercising the definer and workbook
-      // checks. Keep PostgreSQL extension functions under their own owners.
-      await pool.query(`DO $owners$ DECLARE item record; BEGIN
-        FOR item IN
-          SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-          WHERE n.nspname='public' AND c.relkind IN ('r','p')
-            AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
-        LOOP
-          EXECUTE format('ALTER TABLE %I.%I OWNER TO pdaa_migrate','public',item.relname);
-        END LOOP;
-        FOR item IN
-          SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS args
-          FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-          WHERE n.nspname='public' AND p.prokind='f' AND p.proowner=current_user::regrole
-            AND NOT EXISTS (
-              SELECT 1 FROM pg_depend d
-              WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e'
-            )
-        LOOP
-          EXECUTE format('ALTER FUNCTION %I.%I(%s) OWNER TO pdaa_migrate','public',item.proname,item.args);
-        END LOOP;
-      END $owners$`);
-    }
+    if (typeof databaseConnection === "string")
+      await alignSyntheticFixtureOwnership(databaseConnection);
     const customerId = process.env.CUSTOMER_ID;
     assert(customerId);
     const portfolioId = randomUUID();

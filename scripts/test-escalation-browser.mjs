@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createDatabase } from "../packages/data/dist/index.js";
+import { alignSyntheticFixtureOwnership } from "./acceptance/common.mjs";
 import { seedEscalationHistory } from "./acceptance/escalation-history.mjs";
 
 const source = new URL(process.env.PDAA_DATABASE_URL ?? "");
@@ -82,6 +83,7 @@ async function ready(url, child) {
 }
 try {
   await complete(start(["../../node_modules/prisma/build/index.js", "migrate", "deploy"], "migrate", resolve("packages/data")));
+  await alignSyntheticFixtureOwnership(source.toString());
   await complete(start(["packages/data/dist/seed.js"], "seed"));
   const fixture = await seedEscalationHistory(source.toString(), { isolatedCustomer: true });
   const privateFile = (name, value) => {
