@@ -1169,6 +1169,19 @@ model ConnectorTaskReceipt {
   requestTime DateTime @db.Timestamptz(3)
   bodyHash String @db.Char(64)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  dispatchCustomerId String? @db.Uuid
+  dispatchJobId String? @db.Uuid
+  dispatchGeneration Int?
+  @@unique([dispatchJobId, dispatchGeneration], map: "ConnectorTaskReceipt_dispatch_claim_key")
+}
+
+model ConnectorPageDispatch {
+  receiptId String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  jobId String @unique @db.Uuid
+  claimGeneration Int
+  taskDigest String @unique @db.Char(64)
 }
 
 model IngestionSyncReceiptProjectScope {

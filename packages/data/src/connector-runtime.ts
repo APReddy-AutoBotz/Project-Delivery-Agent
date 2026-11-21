@@ -127,8 +127,17 @@ export class DatabaseConnectorRuntimeRepository {
     return id;
   }
 
-  async acceptTaskNonce(input: { nonce: string; keyId: string; timestampSeconds: string; body: Uint8Array }, now = new Date()) {
+  async acceptTaskNonce(input: {
+    nonce: string;
+    keyId: string;
+    timestampSeconds: string;
+    body: Uint8Array;
+    dispatchCustomerId?: string;
+  }, now = new Date()) {
     const nonce = safeUuid(input.nonce);
+    const dispatchCustomerId = input.dispatchCustomerId === undefined
+      ? null
+      : safeUuid(input.dispatchCustomerId);
     const keyId = z.string().min(1).max(64).regex(/^[A-Za-z0-9._-]+$/).parse(input.keyId);
     if (!/^\d{10}$/.test(input.timestampSeconds)) return false;
     const timestamp = Number(input.timestampSeconds);
@@ -139,8 +148,8 @@ export class DatabaseConnectorRuntimeRepository {
       await tx.$executeRaw`
         DELETE FROM public."ConnectorTaskReceipt" WHERE "createdAt"<${addSeconds(now, -600)}::timestamptz`;
       const rows = await tx.$queryRaw<{ nonce: string }[]>`
-        INSERT INTO public."ConnectorTaskReceipt" (nonce,"keyId","requestTime","bodyHash","createdAt")
-        VALUES (${nonce}::uuid,${keyId},${new Date(timestamp * 1000)},${bodyHash},${now})
+        INSERT INTO public."ConnectorTaskReceipt" (nonce,"keyId","requestTime","bodyHash","createdAt","dispatchCustomerId")
+        VALUES (${nonce}::uuid,${keyId},${new Date(timestamp * 1000)},${bodyHash},${now},${dispatchCustomerId}::uuid)
         ON CONFLICT (nonce) DO NOTHING RETURNING nonce`;
       return rows.length === 1;
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 15000 });
@@ -597,8 +606,9 @@ export class DatabaseConnectorRuntimeRepository {
     }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
   }
 
-  async claimNextJob(customerIdInput: string) {
+  async claimNextJob(customerIdInput: string, dispatchNonceInput?: string) {
     const customerId = safeUuid(customerIdInput);
+    const dispatchNonce = dispatchNonceInput === undefined ? null : safeUuid(dispatchNonceInput);
     return this.db.$transaction(async (tx) => {
       await tx.$executeRaw`
         UPDATE public."ConnectorSyncJob" SET state='EXPIRED',"leaseUntil"=NULL
@@ -652,6 +662,12 @@ export class DatabaseConnectorRuntimeRepository {
             AND (state='READY' OR (state='RUNNING' AND "leaseUntil"<=CURRENT_TIMESTAMP))
           RETURNING id,attempts`;
         if (!claimed[0]) continue;
+        if (dispatchNonce !== null) {
+          await tx.$executeRaw`
+            SELECT public.bind_connector_task_claim(
+              ${customerId}::uuid,${job.id}::uuid,${claimed[0].attempts}::integer,${dispatchNonce}::uuid
+            )`;
+        }
         return { jobId: job.id, customerId, sourceId: source.id, claimGeneration: claimed[0].attempts };
       }
       return null;

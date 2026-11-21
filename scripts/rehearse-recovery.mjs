@@ -176,6 +176,7 @@ try {
     "ConnectorSyncJob",
     "ConnectorWebhookReceipt",
     "ConnectorTaskReceipt",
+    "ConnectorPageDispatch",
     "IngestionSyncReceiptProjectScope",
     "HealthAssessmentRetentionPolicy",
     "HealthAssessment",

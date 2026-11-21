@@ -546,7 +546,7 @@ try {
     assert.equal(upgrade.status, "passed");
     assert.equal(upgrade.priorMigrationCount, index + 1);
     assert.equal(upgrade.retainedPriorLedgerRows.length, index + 1);
-    assert.equal(upgrade.migrations.length, 38);
+    assert.equal(upgrade.migrations.length, 39);
     assert.equal(upgrade.migrations[28].name, "202611180001_csv_comparison_validation_cost");
     assert.equal(upgrade.migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(upgrade.migrations[20].name, "202609290002_project_update_cadence");
@@ -574,7 +574,7 @@ try {
       assert.equal(row.rolled_back_at, null);
       assert.equal(row.applied_steps_count, 1);
     }
-    assert.equal(upgrade.businessTableCount, 89);
+    assert.equal(upgrade.businessTableCount, 90);
     assert.deepEqual(
       Object.keys(upgrade.retainedPriorRowCounts).sort(),
       [...upgrade.retainedPriorBusinessTables].sort(),
@@ -641,6 +641,7 @@ try {
         "ConnectorSyncJob",
         "ConnectorWebhookReceipt",
         "ConnectorTaskReceipt",
+        "ConnectorPageDispatch",
         "IngestionSyncReceiptProjectScope",
         "HealthAssessment",
         "HealthAssessmentCommandReceipt",

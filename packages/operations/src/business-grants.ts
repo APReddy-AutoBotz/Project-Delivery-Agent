@@ -399,6 +399,38 @@ export async function applyBusinessTableGrants(client: Pick<Client, "query">) {
         WHERE p.oid=review_details AND acl.grantee<>p.proowner
           AND (acl.grantee<>to_regrole('pdaa_api') OR acl.is_grantable))
       THEN RAISE EXCEPTION 'Unexpected XLSX review details function privileges'; END IF;
-    END $xlsx_review_details_acl$
+    END $xlsx_review_details_acl$;
+    DO $connector_page_dispatch_acl$
+    DECLARE
+      bind_claim regprocedure := to_regprocedure('public.bind_connector_task_claim(uuid,uuid,integer,uuid)');
+      record_page regprocedure := to_regprocedure('public.record_connector_page_dispatch(uuid)');
+      validate_page regprocedure := to_regprocedure('public.valid_connector_page_dispatch(uuid)');
+      recorded boolean := false;
+    BEGIN
+      IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+        SELECT EXISTS (SELECT 1 FROM public."_prisma_migrations"
+          WHERE migration_name='202611210001_connector_page_dispatch') INTO recorded;
+      END IF;
+      IF bind_claim IS NULL AND record_page IS NULL AND validate_page IS NULL
+         AND to_regclass('public."ConnectorPageDispatch"') IS NULL AND NOT recorded THEN RETURN; END IF;
+      IF to_regclass('public."ConnectorPageDispatch"') IS NULL OR 2<>(
+        SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid IN (bind_claim,record_page)
+          AND p.prosecdef AND p.provolatile='v' AND NOT p.proretset AND p.prorettype='void'::regtype
+          AND p.proowner=to_regrole('pdaa_migrate') AND p.proconfig=ARRAY['search_path=pg_catalog, pg_temp']
+      ) OR NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid=validate_page
+          AND NOT p.prosecdef AND p.provolatile='s' AND NOT p.proretset AND p.prorettype='boolean'::regtype
+          AND p.proowner=to_regrole('pdaa_migrate')
+      ) THEN RAISE EXCEPTION 'Unexpected connector page dispatch boundary'; END IF;
+      REVOKE ALL ON "ConnectorPageDispatch" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      REVOKE ALL ("receiptId","customerId","sourceId","jobId","claimGeneration","taskDigest")
+        ON "ConnectorPageDispatch" FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT SELECT ON "ConnectorPageDispatch" TO pdaa_backup;
+      REVOKE ALL ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
+        public.record_connector_page_dispatch(uuid),public.valid_connector_page_dispatch(uuid)
+        FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup;
+      GRANT EXECUTE ON FUNCTION public.bind_connector_task_claim(uuid,uuid,integer,uuid),
+        public.record_connector_page_dispatch(uuid) TO pdaa_api;
+    END $connector_page_dispatch_acl$
   `);
 }

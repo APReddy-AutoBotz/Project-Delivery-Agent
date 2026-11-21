@@ -58,6 +58,7 @@ type ConnectorRuntimePort = {
   ): Promise<string[]>;
   claimNextJob(
     customerId: string,
+    dispatchNonce?: string,
   ): Promise<{ jobId: string; customerId: string; sourceId: string; claimGeneration: number } | null>;
   accessOrBeginRotation(
     customerId: string,
@@ -135,9 +136,9 @@ export class JiraRuntimeService {
     private readonly jiraClientFactory: typeof createJiraOAuthCloudClient = createJiraOAuthCloudClient,
   ) {}
 
-  async runOne() {
+  async runOne(dispatchNonce?: string) {
     await this.runtime.enqueueDueJobs(this.config.CUSTOMER_ID, 15, 20);
-    const job = await this.runtime.claimNextJob(this.config.CUSTOMER_ID);
+    const job = await this.runtime.claimNextJob(this.config.CUSTOMER_ID, dispatchNonce);
     if (!job) return { status: "idle" as const };
     const failRunningJob = (failure: { code: RuntimeFailureCode; retryAfterMs?: number | null }) =>
       this.runtime.failRunningJob({

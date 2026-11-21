@@ -214,6 +214,7 @@ async function restoreArchive(
           (SELECT count(*)::int FROM "ScalarReconciliationCheck" WHERE public.valid_scalar_reconciliation_check(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "ScalarReconciliationAssignment" WHERE public.valid_scalar_reconciliation_assignment(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionOperationReceipt" WHERE public.valid_ingestion_receipt(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "ConnectorPageDispatch" WHERE public.valid_connector_page_dispatch("receiptId") IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionCsvContext" WHERE public.valid_ingestion_csv_context("receiptId") IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionCsvHead" WHERE public.valid_ingestion_csv_head("customerId","sourceId") IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionSource" s JOIN "IngestionConfigurationRevision" c

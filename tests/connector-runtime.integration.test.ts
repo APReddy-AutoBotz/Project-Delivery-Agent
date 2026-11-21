@@ -350,6 +350,8 @@ describe("durable Jira connector runtime", () => {
       page,
     }, finalReclaimedAt);
     expect(committed.terminal).toBe(true);
+    expect(await db.$queryRaw`SELECT public.valid_connector_page_dispatch(${committed.receiptId}::uuid) AS valid`)
+      .toEqual([{ valid: false }]);
     const persistedJob = await db.$queryRaw<{ state: string; completedAt: Date | null }[]>`
       SELECT state,"completedAt" FROM public."ConnectorSyncJob" WHERE id=${readyJob.jobId}::uuid`;
     expect(persistedJob[0]).toMatchObject({ state: "COMPLETED" });
@@ -690,7 +692,29 @@ describe("durable Jira connector runtime", () => {
 
     // A scheduled pass starts with a fenced reset, then reads Jira independently of webhook payloads.
     await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
-    const scheduledResult = await service.runOne();
+    const unrelatedNonce = randomUUID();
+    expect(await runtime.acceptTaskNonce({
+      nonce: unrelatedNonce,
+      keyId: keyRing.currentKeyId,
+      timestampSeconds: String(Math.floor(Date.now() / 1000)),
+      body: Buffer.from("{}"),
+      dispatchCustomerId: randomUUID(),
+    })).toBe(true);
+    const readyWhere = { customerId: isolatedCustomerId, sourceId, state: "READY" };
+    const beforeRejectedClaim = await db.connectorSyncJob.findFirstOrThrow({ where: readyWhere });
+    await expect(runtime.claimNextJob(isolatedCustomerId, unrelatedNonce)).rejects.toThrow(
+      /Connector task claim unavailable/u,
+    );
+    expect(await db.connectorSyncJob.findFirstOrThrow({ where: readyWhere })).toEqual(beforeRejectedClaim);
+    const dispatchNonce = randomUUID();
+    expect(await runtime.acceptTaskNonce({
+      nonce: dispatchNonce,
+      keyId: keyRing.currentKeyId,
+      timestampSeconds: String(Math.floor(Date.now() / 1000)),
+      body: Buffer.from("{}"),
+      dispatchCustomerId: isolatedCustomerId,
+    })).toBe(true);
+    const scheduledResult = await service.runOne(dispatchNonce);
     if (scheduledResult.status === "deferred")
       throw new Error(`Scheduled Jira reconciliation deferred: ${observedFailures.join(", ") || "no runtime failure code recorded"}; resourceLookups=${resourceLookups}; jiraClientCreated=${jiraClientCreated}; searches=${searchCalls.length}; pagePersistenceReached=${pagePersistenceReached}; pagePersistenceError=${pagePersistenceError}`);
     expect(scheduledResult).toEqual({ status: "page_committed" });
@@ -709,6 +733,18 @@ describe("durable Jira connector runtime", () => {
     });
     expect(job).toMatchObject({ kind: "SCHEDULED", state: "COMPLETED" });
     expect(job.completedAt).toBeInstanceOf(Date);
+    const pageReceipt = await db.ingestionOperationReceipt.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, sourceId, syncJobId: job.id, kind: "CONNECTOR_PAGE" },
+    });
+    const pageDispatch = await db.connectorPageDispatch.findUniqueOrThrow({
+      where: { receiptId: pageReceipt.id },
+    });
+    expect(pageDispatch).toEqual({
+      receiptId: pageReceipt.id, customerId: isolatedCustomerId, sourceId, jobId: job.id,
+      claimGeneration: job.attempts, taskDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(await db.$queryRaw`SELECT public.valid_connector_page_dispatch(${pageReceipt.id}::uuid) AS valid`)
+      .toEqual([{ valid: true }]);
     const record = await db.ingestionExternalRecord.findFirstOrThrow({
       where: {
         customerId: isolatedCustomerId,
