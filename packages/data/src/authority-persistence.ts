@@ -55,6 +55,7 @@ type FactPrefix = {
   conflicts: Conflict[];
   access: Access[];
   conflictThroughRevision: number;
+  origins?: ReadonlyMap<string, SourceOrigin>;
 };
 type Scope = SourceAuthoritySnapshot["scope"];
 type MixedPrefix = {
@@ -500,19 +501,19 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
     });
   }
   // A single bounded history load for the entire cross-fact capture. Capture
-  // callers hold Project and all fact locks before taking asOf. A read-only v1
-  // caller may instead hold Project SHARE throughout, but only where every
-  // supported writer is fenced by Project UPDATE and it rechecks its graph.
-  // This does not cover privileged trigger-bypassing maintenance or future
-  // source-origin writers. No conflicts or assessment rows are written here.
+  // callers hold Project and all fact locks before taking asOf. Read-only
+  // callers hold Project SHARE and recheck their graph. Mixed reads also use
+  // the native ingestion locks. No conflicts or assessments are written here.
   async loadAssessmentPrefixesInTransaction(
     tx: Tx,
     actor: Actor,
     projectId: string,
     facts: { id: string; factType: string; revision: number }[],
     asOf: Date,
+    includeSourceObservations = false,
   ): Promise<Map<string, FactPrefix> | null> {
     if (facts.reduce((sum, fact) => sum + fact.revision, 0) > 1000) return null;
+    if (!facts.length) return new Map();
     const scope = { customerId: actor.customerId, projectId };
     const factId = { in: facts.map((fact) => fact.id) };
     const [versions, conflicts] = await Promise.all([
@@ -544,17 +545,35 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       include: { readers: { where: { subject: actor.subject } } },
     });
     if (access.length > 1000) return null;
+    const factTypes = facts.map((fact) => fact.factType);
+    const [aggregates, events] = await Promise.all([
+      tx.authorityPolicy.findMany({ where: { ...scope, factType: { in: factTypes } } }),
+      tx.$queryRaw<Event[]>`
+        SELECT active.* FROM public."AuthorityPolicy" policy
+        JOIN LATERAL (
+          SELECT event.* FROM public."AuthorityPolicyRevision" event
+          WHERE (event."customerId",event."projectId",event."factType",event."policyId")
+            =(policy."customerId",policy."projectId",policy."factType",policy.id)
+            AND event.revision<=policy.revision
+            AND event."recordedAt"<=${asOf} AND event."effectiveAt"<=${asOf}
+          ORDER BY event.revision DESC LIMIT 1
+        ) active ON true
+        WHERE (policy."customerId",policy."projectId")=(${actor.customerId}::uuid,${projectId}::uuid)
+          AND policy."factType"=ANY(${factTypes}::text[])
+      `,
+    ]);
+    const aggregatesByType = new Map(aggregates.map((row) => [row.factType, row]));
+    const eventsByType = new Map(events.map((row) => [row.factType, row]));
+    const origins = includeSourceObservations
+      ? await readSourceOrigins(tx, actor, projectId, versions.filter((row) => row.provenance === "SYSTEM_VERIFIED").map((row) => row.id))
+      : undefined;
     const prefixes = new Map<string, FactPrefix>();
     for (const fact of facts) {
-      const policy = await this.active(
-        tx,
-        actor,
-        { projectId, factType: fact.factType },
-        asOf,
-      );
       const factConflicts = conflicts.filter((row) => row.factId === fact.id);
       prefixes.set(fact.id, {
-        ...policy,
+        aggregate: aggregatesByType.get(fact.factType) ?? null,
+        event: eventsByType.get(fact.factType) ?? null,
+        ...(origins ? { origins } : {}),
         versions: versions.filter((row) => row.factId === fact.id),
         conflicts: factConflicts,
         access: access.filter((row) => row.factId === fact.id),
@@ -646,7 +665,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
     const policy = resolverPolicy(event);
     const sourceVersions = versions.filter((row) => row.provenance === "SYSTEM_VERIFIED").map((row) => row.id);
     const mixed = complete && input.allowSourceObservations && sourceVersions.length
-      ? { factRevision: fact.revision, origins: await readSourceOrigins(tx, actor, projectId, sourceVersions) }
+      ? { factRevision: fact.revision, origins: input.prefix?.origins ?? await readSourceOrigins(tx, actor, projectId, sourceVersions) }
       : undefined;
     const stored = resolveStoredAuthorityPrefix(scope, asOf, event, versions, conflicts, access, complete, mixed);
     complete = stored.snapshot.complete;

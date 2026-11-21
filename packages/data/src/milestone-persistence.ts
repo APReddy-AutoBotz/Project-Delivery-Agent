@@ -711,6 +711,7 @@ export class DatabaseMilestoneConsistencyRepository
           request.projectId,
           facts,
           asOf,
+          true,
         )
       : null;
     complete = complete && prefixes !== null;
