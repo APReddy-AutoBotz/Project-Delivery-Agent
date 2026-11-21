@@ -1,9 +1,9 @@
 # EXEC-045: XLSX preview and reviewed proposals
 
-Status: implementation in progress; not accepted. This extends the approved
-spreadsheet journey under FR-CON-006/007 and Issue #7. AC-CON-005's CSV
-alternative is accepted at the software-behavior level; this work adds no
-criterion or story credit.
+Status: the packaged XLSX browser and recovery stages have merged. This
+extends the approved spreadsheet journey under FR-CON-006/007 and Issue #7.
+The existing software acceptance of AC-CON-005 uses the CSV alternative.
+Customer-release review remains open.
 Original19/20 capture remains stopped, and OD-013/014 remain in force.
 Spreadsheet saves remain reviewed import proposals. Canonical facts retain
 their existing source-authority and approval rules.
@@ -655,9 +655,8 @@ persistence failure on contention. The synthetic operations rehearsal adds 52
 genesis sources, skips the first for the test reader, and verifies both pages,
 read recovery after the test lock clears, and restored genesis validity.
 
-The application still needs a workbook upload and selected-row save journey
-with authorization, cancellation and stale-session browser coverage. Issue #7,
-XLSX acceptance and the customer-release holds remain open.
+The application API and browser stages below cover workbook upload and
+selected-row save with authorization, cancellation and stale-session tests.
 
 ### Mapping and reviewed receipt details
 
@@ -689,7 +688,7 @@ The repository rechecks sealed mapping and project scope before decode and
 before writing. A disconnect cancels the request's write path while an
 admitted decoder exchange settles under its own deadline and cleanup rules.
 Exact authorized retry can return the durable receipt ahead of fresh decoder
-admission. The release still requires packaged route and browser proofs.
+admission. The packaged browser rehearsal below exercises the opt-in routes.
 
 ### Browser upload and review
 
@@ -728,7 +727,54 @@ the shipped restore client restores it to a fresh database on the same
 disposable server. The owner repeats the receipt checks against the restored
 database and verifies quarantine and the finite receipt-reader grants.
 The job publishes finite results after both customer database profiles pass.
-Execution of this rehearsal on the exact hosted candidate remains required.
+
+## Merged browser and recovery evidence
+
+Each stage had independent source and coverage reviews. Foundation and
+Documentation passed on every reviewed head and actual merge listed below.
+The merge trees matched the reviewed trees with the expected ordered parents.
+
+| Stage | Reviewed head | Main merge | Candidate checks | Main checks |
+| --- | --- | --- | --- | --- |
+| Catalogue bounds and preview cancellation [#177](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/177) | [181cd30](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/181cd30ee432e403bdd1aad7152eea8b0044949a) | [85768aa](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/85768aa5ac1d98aa7ba35936052b7337028d05f2) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44867239290), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44867239287) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44869457654), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44869457585) |
+| Sealed mapping and receipt details [#178](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/178) | [3ac8531](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/3ac85315129d247eca4dd5874ef5a060947e818c) | [6b527b4](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/6b527b424eac18ce30fdde00f3cff23a155dfe63) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44879060430), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44879060444) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44881511254), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44881511180) |
+| Authenticated XLSX routes [#179](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/179) | [9bb0b9c](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/9bb0b9cdc44a4d18a301e523ec80970bbb6b24b0) | [d7db36f](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/d7db36f3b83601e3eda0504333e577788bf149ac) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44887188241), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44887188276) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44889455771), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44889455723) |
+| Packaged browser workflow [#180](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/180) | [49bce1c](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/49bce1ceedbaebcaa4a5e1faf35e722c7f75168b) | [4c11ee0](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/4c11ee06caad5dcedd3d3644ffe9730898f88284) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44894152563), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44894152513) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44896563394), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44896563418) |
+| Encrypted browser receipt recovery [#181](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/181) | [23d6f14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/23d6f145d63d331c8990c21df7987f58e0909dff) | [a900a1a](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/commit/a900a1ab71fc7ead3c1da593c17b1794d80ce015) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44898740467), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44898740430) | [Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44901175712), [Docs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44901175691) |
+
+PR #181's recovery merge `a900a1ab71fc7ead3c1da593c17b1794d80ce015` has
+tree `84bf7c1a74def642f8a605390271c4799b58a05c`. Its first parent is the
+browser merge `4c11ee06caad5dcedd3d3644ffe9730898f88284` and its second
+parent is reviewed head `23d6f145d63d331c8990c21df7987f58e0909dff`.
+
+The packaged Chromium run used trusted synthetic TLS and OIDC, the customer
+proxy, the restricted API role, and the isolated decoder. In bundled and
+external PostgreSQL, it exercised both supported workbook profiles and two
+reviewed imports per database profile. The journey showed the sealed mapping,
+an invalid row and selectable proposal rows before saving. It verified exact
+upload and save replay, protected receipt reload, out-of-scope denial, and unchanged
+canonical facts. The packaged receipt before adding recovery records the
+browser-specific results. [PR #180 main browser artifact](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44896563394/artifacts/14704657165).
+
+The backup and restore used the shipped clients. The independent owner
+verified receipt linkage, selected rows, retained proposals, workbook and
+context integrity, canonical facts, quarantine, and finite reader grants in
+each fresh restored database. The exact-head and actual-merge ZIP digests
+were checked against GitHub's metadata and both finite results were read.
+[PR #181 candidate recovery artifact](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44898740467/artifacts/14704879237) ·
+[PR #181 main recovery artifact](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44901175712/artifacts/14706361228).
+
+The first PR #179 run passed 323 browser cases and failed the programme
+retry test when its generic alert locator matched two messages. The
+reviewed test update waited for the original-key retry state, and the full
+suite passed on the updated head and merge. The historical restore failures
+below retain their recorded scope. [First PR #179 Foundation run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44885405382).
+
+The XLSX results extend the software evidence for the configured
+spreadsheet workflow. The accepted story count uses the existing CSV
+acceptance. The XLSX HTTP switch defaults to disabled. Issue #7,
+customer-release review and all five distribution holds remain open.
+Original19/20 capture remains stopped.
 
 ## Required validation
 

@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-11-20
+Updated: 2026-11-21
 
 ## Accepted implementation completion
 
@@ -33,6 +33,15 @@ remain open. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
 
+[PR #181](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/181)
+merged the packaged recovery proof for browser-reviewed XLSX receipts as
+`a900a1ab71fc7ead3c1da593c17b1794d80ce015`. The verified sequence covers
+configured upload, preview, reviewed proposal save, exact retry, protected
+receipt reload, and encrypted recovery in the bundled and external database
+profiles. The HTTP feature defaults to disabled. The existing STORY-009
+CSV acceptance remains the basis for the accepted story count. Issue #7 and
+the five customer-release holds remain open. [EXEC-045 evidence](exec-plans/EXEC-045-xlsx-proposal-preview.md#merged-browser-and-recovery-evidence).
+
 [PR #176](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/176)
 merged native XLSX source provisioning, preview receipts, exact retry, reviewed
 proposal persistence and the packaged customer decoder bridge as
@@ -40,8 +49,8 @@ proposal persistence and the packaged customer decoder bridge as
 hosted checks and post-merge results are recorded in
 [EXEC-045](exec-plans/EXEC-045-xlsx-proposal-preview.md#native-xlsx-integration-evidence).
 The bridge exercised both workbook profiles on bundled and external PostgreSQL.
-The user-facing upload and selected-row save journey still needs implementation
-and browser proof. Issue #7 and the customer-release holds remain open.
+That merge established the decoder and storage prerequisites for the later
+user-facing upload and selected-row save stages.
 
 Trusted CSV comparison and reviewed import merged in
 [PR #168](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/168)
