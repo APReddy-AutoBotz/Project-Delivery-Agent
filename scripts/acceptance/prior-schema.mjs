@@ -158,6 +158,7 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
     // by this fixture and must be absent from its pre-upgrade operations.
     "factSource",
     "projectFactVersion",
+    ...(preMilestone ? [] : ["canonicalStateBinding"]),
   ];
 
   // Current generated clients implicitly read all scalar fields, including in
@@ -215,8 +216,14 @@ export function createPriorReleaseDatabase(connection, prefixCount) {
                   `Unsupported prior fixture operation: ${String(property)}.${String(operation)}`,
                 );
                 const args = globalThis.structuredClone(input);
-                if (property === "factSource")
+                if (property === "canonicalStateBinding") {
+                  omitAbsent(args, "sourceBirthCommandId");
+                  return delegate[operation](args);
+                }
+                if (property === "factSource") {
                   omitAbsent(args, "sourceType");
+                  omitAbsent(args, "ingestionStreamId");
+                }
                 let supplyLegacySourceType = false;
                 if (property === "projectFactVersion") {
                   omitAbsent(args, "effectiveAtValidated");
