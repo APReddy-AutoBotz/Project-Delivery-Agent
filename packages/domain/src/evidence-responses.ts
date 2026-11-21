@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { temporalFactSnapshotSchema } from "./temporal-facts.js";
+import {
+  temporalFactSnapshotSchema,
+  temporalFactVersionSchema,
+} from "./temporal-facts.js";
 import {
   sourceAuthorityPolicySchema,
   sourceAuthoritySnapshotSchema,
@@ -154,7 +157,7 @@ export const authorityAssessmentSchema = z.strictObject({
           visibility: z.literal("restricted"),
           revalidationRequired: z.literal(true),
         }),
-        temporal.versions.element.extend({
+        temporalFactVersionSchema.extend({
           temporalApplicability: z.enum([
             "NOT_YET_OBSERVED",
             "NOT_YET_EFFECTIVE",

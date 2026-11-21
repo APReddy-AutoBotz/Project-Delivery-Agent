@@ -96,6 +96,94 @@ describe("FR-EVD-001/002/003/004/006/007/010/012: internal temporal history", ()
     expect(out.applicableVersionIds).toEqual([id(11)]);
   });
 
+  it("keeps a source snapshot tie unresolved independently of retrieval order", () => {
+    const earlier = version(10, {
+      provenance: "SYSTEM_VERIFIED",
+      source: {
+        instanceId: id(4),
+        recordType: "jira.issue",
+        recordId: id(20),
+        revision: id(21),
+      },
+      observedAt: time(2),
+      admittedAt: time(3),
+      ledgerRevision: 1,
+    });
+    const later = version(11, {
+      ...earlier,
+      id: id(11),
+      source: { ...earlier.source, revision: id(22) },
+      value: { type: "text", value: "Open" },
+      observedAt: time(3),
+      admittedAt: time(4),
+      ledgerRevision: 2,
+    });
+    const input = { ...snapshot([later, earlier]), committedFactRevision: 2 };
+    const assessed = assessTemporalFactHistory(input);
+    expect(assessed.applicableVersionIds).toEqual([]);
+    expect(assessed.ambiguousStreams[0]?.versionIds).toEqual([id(10), id(11)]);
+
+    earlier.observedAt = time(3);
+    later.observedAt = time(2);
+    input.versions.reverse();
+    expect(assessTemporalFactHistory(input).ambiguousStreams).toEqual(
+      assessed.ambiguousStreams,
+    );
+    later.source.recordId = id(23);
+    expect(() => assessTemporalFactHistory(input)).toThrow(
+      "Invalid temporal fact snapshot",
+    );
+  });
+
+  it("requires a committed prefix and never backdates workbook admission", () => {
+    const human = version(10, {
+      ledgerRevision: 1,
+      source: {
+        instanceId: id(4),
+        recordType: "human_statement",
+        recordId: id(4),
+        revision: id(90),
+      },
+    });
+    const workbook = version(11, {
+      provenance: "SYSTEM_VERIFIED",
+      source: {
+        instanceId: id(6),
+        recordType: "xlsx.row",
+        recordId: id(20),
+        revision: id(21),
+      },
+      ledgerRevision: 2,
+      observedAt: time(2),
+      admittedAt: time(4),
+    });
+    const beforeAdmission = {
+      ...snapshot([human]),
+      committedFactRevision: 1,
+      asOf: time(3),
+    };
+    const input = { ...snapshot([workbook, human]), committedFactRevision: 2 };
+    expect(assessTemporalFactHistory(beforeAdmission).applicableVersionIds).toEqual([
+      id(10),
+    ]);
+    expect(assessTemporalFactHistory(input).applicableVersionIds).toEqual([
+      id(10),
+      id(11),
+    ]);
+    expect(() =>
+      assessTemporalFactHistory({ ...input, asOf: beforeAdmission.asOf }),
+    ).toThrow("Invalid temporal fact snapshot");
+    expect(() =>
+      assessTemporalFactHistory({ ...input, committedFactRevision: 1 }),
+    ).toThrow("Invalid temporal fact snapshot");
+    expect(() =>
+      assessTemporalFactHistory({
+        ...input,
+        versions: [workbook, { ...human, ledgerRevision: 2 }],
+      }),
+    ).toThrow("Invalid temporal fact snapshot");
+  });
+
   it("does not use a future observation or future-effective revision to replace historical truth", () => {
     const input = snapshot([
       version(10),
