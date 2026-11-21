@@ -276,7 +276,7 @@ async function goldenHistory(session, project, item, available) {
 async function goldenAnswer(leader, fixture, status) {
   const path = `/api/projects/${fixture.projectId}/milestones/${fixture.milestoneId}/leadership-conflict-observation`;
   const page = leader.page;
-  await page.getByRole("button", { name: /^Leadership / }).click();
+  await page.getByRole("navigation", { name: "Main navigation" }).getByRole("button", { name: "Projects", exact: true }).click();
   await page.getByRole("button", { name: /Source-backed milestone disagreement/ }).click();
   await page.getByLabel("Milestone", { exact: true }).selectOption(fixture.milestoneId);
   await page.getByLabel("Question", { exact: true }).fill(
