@@ -79,7 +79,7 @@ import {
   HttpException,
 } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import type { NestExpressApplication } from "@nestjs/platform-express";
+import { ExpressAdapter, type NestExpressApplication } from "@nestjs/platform-express";
 import {
   SwaggerModule,
   DocumentBuilder,
@@ -341,7 +341,11 @@ export async function createApp(
     ],
   })
   class AppModule {}
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: false, rawBody: true, bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, new ExpressAdapter(), {
+    logger: false,
+    rawBody: true,
+    bodyParser: false,
+  });
   app.useGlobalInterceptors(new ResponseContractInterceptor());
   app.useGlobalFilters(new ExceptionContractFilter(app.getHttpAdapter()));
   app.enableCors({
