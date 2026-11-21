@@ -1046,6 +1046,7 @@ model SourceObservationWitness {
   customerId String @db.Uuid
   projectId String @db.Uuid
   bindingId String @db.Uuid
+  admissionRevisionId String @db.Uuid
   factId String @db.Uuid
   sourceId String @db.Uuid
   evidenceId String @unique @db.Uuid
@@ -1056,6 +1057,34 @@ model SourceObservationWitness {
   input Json
   @@unique([factId, ingestionStreamId, sourceRevisionId], map: "SourceObservationWitness_revision_key")
   @@index([sourceId], map: "SourceObservationWitness_source_idx")
+  @@index([admissionRevisionId], map: "SourceObservationWitness_admission_idx")
+}
+
+model SourceAdmissionBindingRevision {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  bindingId String @db.Uuid
+  factId String @db.Uuid
+  factType String @db.VarChar(96)
+  ingestionSourceId String @db.Uuid
+  recordId String @db.Uuid
+  streamId String @db.Uuid
+  sourceKind String @db.VarChar(16)
+  configRevision Int
+  mappingRevision Int
+  revision Int
+  snapshotField String? @db.VarChar(96)
+  stateMapping Json
+  factSourceId String @db.Uuid
+  previousPolicyRevision Int
+  policyRevisionId String @unique @db.Uuid
+  definition Json
+  approvedBy String @db.VarChar(256)
+  approvedAt DateTime @db.Timestamptz(3)
+  approvalAuditId String @unique @db.Uuid
+  @@unique([streamId, revision])
+  @@unique([customerId, projectId, id, bindingId, factId, streamId, factSourceId], map: "SourceAdmissionBindingRevision_exact_key")
 }
 
 model IngestionSourceRevision {

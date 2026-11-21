@@ -26,10 +26,18 @@ const dispatchFunctions = [
   "public.record_connector_page_dispatch(uuid)",
   "public.valid_connector_page_dispatch(uuid)",
   "public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb)",
-  "public.append_source_observation(uuid,uuid,uuid,uuid,uuid,uuid,integer,text,jsonb,timestamptz)",
+  "public.append_source_observation(uuid,uuid,integer)",
   "public.valid_source_observation_witness(uuid)",
   "public.guard_source_observation_insert()",
   "public.require_source_observation_witness()",
+  "public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer)",
+  "public.valid_source_admission_binding(uuid)",
+  "public.source_admission_selector(jsonb,text,uuid)",
+  "public.source_admission_expiry(jsonb,timestamptz,timestamptz)",
+  "public.guard_source_admission_binding()",
+  "public.require_source_admission_binding()",
+  "public.guard_source_authority_activation()",
+  "public.require_source_authority_witness()",
 ];
 const controls = new Set(["state", "attemptCount", "totalAttempts", "recoveryRevision", "availableAt", "lastReason",
   "claimedGeneration", "assessmentId", "obligationId", "previewId", "completedAt", "auditEventId"]);
@@ -84,7 +92,7 @@ async function dispatchBoundary(pool, presentRoles, apiExecute) {
       )).rows[0];
       assert.equal(allowed, apiExecute && role === "pdaa_api" && index < 2);
     }
-    for (const table of ['public."ConnectorPageDispatch"', 'public."SourceObservationWitness"']) {
+    for (const table of ['public."ConnectorPageDispatch"', 'public."SourceObservationWitness"', 'public."SourceAdmissionBindingRevision"']) {
       const { canRead, canInsert } = (await pool.query(
         `SELECT has_any_column_privilege($1,$2::text,'SELECT') AS "canRead",
           has_any_column_privilege($1,$2::text,'INSERT') AS "canInsert"`,
@@ -192,7 +200,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
       } finally { await pool.end(); }
     }
     return { rolesAbsentBeforeAnyBootstrap: true, rolelessDatabase: first, partialRoleDatabase: second,
-      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 39, businessTables: 91,
+      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 39, businessTables: 92,
       publicPrivilegesDenied: true, finiteAclAfterLaterBootstrap: true, retainedDatabases: true };
   } finally { await creator.end(); }
 }

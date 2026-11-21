@@ -130,7 +130,7 @@ function assertReleasedSnapshot(before) {
       row.finished_at && !row.rolled_back_at && row.applied_steps_count === 1,
     );
   }
-  assert.equal(before.tables.length, 91);
+  assert.equal(before.tables.length, 92);
   assert(before.tables.some((t) => t.relname === "_prisma_migrations"));
   assertBusinessTableInventory(
     before.tables
@@ -330,7 +330,7 @@ export async function verifyCsvComparisonPrototype(
       actualApiRolePositive: true,
       privateApiGuardDenials: privateCsvFunctions.length,
       migrations: before.ledger.length,
-      businessTables: 91,
+      businessTables: 92,
     };
   } catch (error) {
     primary = safeFailure(stage, error);

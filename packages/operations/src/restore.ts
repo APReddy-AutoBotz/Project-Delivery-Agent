@@ -216,6 +216,10 @@ async function restoreArchive(
           (SELECT count(*)::int FROM "IngestionOperationReceipt" WHERE public.valid_ingestion_receipt(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "ConnectorPageDispatch" WHERE public.valid_connector_page_dispatch("receiptId") IS NOT TRUE) +
           (SELECT count(*)::int FROM "SourceObservationWitness" WHERE public.valid_source_observation_witness("versionId") IS NOT TRUE) +
+          (SELECT count(*)::int FROM "SourceAdmissionBindingRevision" WHERE public.valid_source_admission_binding(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "SourceAdmissionBindingRevision" a
+            JOIN "AuthorityPolicyRevision" p ON p.id=a."policyRevisionId"
+            WHERE NOT EXISTS (SELECT 1 FROM "SourceObservationWitness" w WHERE w."admissionRevisionId"=a.id)) +
           (SELECT count(*)::int FROM "ProjectFactVersion" v JOIN "FactEvidence" e ON e.id=v."evidenceId"
             WHERE (e."providedBy" IS NULL)<>(v.provenance='SYSTEM_VERIFIED')
               OR (v.provenance='SYSTEM_VERIFIED' AND NOT EXISTS (

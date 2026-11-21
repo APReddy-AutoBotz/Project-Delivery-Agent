@@ -574,7 +574,7 @@ try {
       assert.equal(row.rolled_back_at, null);
       assert.equal(row.applied_steps_count, 1);
     }
-    assert.equal(upgrade.businessTableCount, 91);
+    assert.equal(upgrade.businessTableCount, 92);
     assert.deepEqual(
       Object.keys(upgrade.retainedPriorRowCounts).sort(),
       [...upgrade.retainedPriorBusinessTables].sort(),
@@ -643,6 +643,7 @@ try {
         "ConnectorTaskReceipt",
         "ConnectorPageDispatch",
         "SourceObservationWitness",
+        "SourceAdmissionBindingRevision",
         "IngestionSyncReceiptProjectScope",
         "HealthAssessment",
         "HealthAssessmentCommandReceipt",

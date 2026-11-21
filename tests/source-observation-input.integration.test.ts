@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { afterAll, expect, it } from "vitest";
 import {
   createDatabase,
+  DatabaseAuthorityRepository,
   DatabaseCanonicalProjectRepository,
   DatabaseIngestionRepository,
   DatabaseMilestoneConsistencyRepository,
@@ -27,6 +28,14 @@ afterAll(async () => {
 });
 
 it("appends a verified workbook observation with an exact native witness", async () => {
+  const asApi = <T>(
+    operation: (tx: Prisma.TransactionClient) => Promise<T>,
+    options?: { isolationLevel?: "ReadCommitted"; maxWait?: number; timeout?: number },
+  ) => db.$transaction(async (tx) => {
+    // Owned synthetic fixture only. XLSX's native gate checks session_user.
+    await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_api`;
+    return operation(tx);
+  }, options);
   const customerId = randomUUID();
   const portfolioId = randomUUID();
   const pmo = { customerId, subject: "synthetic-binding-pmo", roles: ["pmo_admin" as const] };
@@ -44,6 +53,14 @@ it("appends a verified workbook observation with an exact native witness", async
     idempotencyKey: randomUUID(), initialState: "OPEN", validUntil: null,
     effectiveAt: new Date(Date.now() - 60_000).toISOString(),
     originalStatement: "Initial synthetic milestone status",
+  }, { correlationId: randomUUID() });
+  const humanRule = await new DatabaseAuthorityRepository({ $transaction: asApi } as never).appendPolicy(pmo, {
+    projectId, factType: binding.factType, expectedRevision: 0, idempotencyKey: randomUUID(),
+    effectiveAt: new Date(Date.now() - 60_000).toISOString(),
+    definition: {
+      conflictBehavior: "REQUEST_RECONCILIATION",
+      tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null, requiredApproval: "NOT_REQUIRED", validity: null }] }],
+    },
   }, { correlationId: randomUUID() });
   const sheet = "Snapshot " + randomUUID().slice(0, 12);
   await proveXlsxSourceGenesis(pool, {
@@ -65,15 +82,6 @@ it("appends a verified workbook observation with an exact native witness", async
   } });
   const effectiveAt = new Date(Date.now() - 30_000).toISOString();
   const inFuture = new Date(Date.now() + 86_400_000).toISOString();
-  const asApi = <T>(
-    operation: (tx: Prisma.TransactionClient) => Promise<T>,
-    options?: { isolationLevel?: "ReadCommitted"; maxWait?: number; timeout?: number },
-  ) => db.$transaction(async (tx) => {
-    // Owned synthetic fixture only. XLSX's native gate checks session_user,
-    // and the change is discarded with this transaction.
-    await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_api`;
-    return operation(tx);
-  }, options);
   const repository = new DatabaseIngestionRepository(
     {
       $queryRaw: (query: TemplateStringsArray, ...values: unknown[]) =>
@@ -138,27 +146,65 @@ it("appends a verified workbook observation with an exact native witness", async
 
   const append = (
     tx: Prisma.TransactionClient,
-    bindingId = binding.id,
-    expiry = inFuture,
+    approvalId: string,
     receiptId = review.receiptId,
+    ordinal = 1,
   ) => tx.$queryRaw<{ id: string | null }[]>`
-    SELECT public.append_source_observation(
-      ${customerId}::uuid,${projectId}::uuid,${bindingId}::uuid,${sourceId}::uuid,${streams[0]!.id}::uuid,
-      ${receiptId}::uuid,1,'source.snapshot_at','{"Complete":"COMPLETE"}'::jsonb,${expiry}::timestamptz
-    ) AS id`;
+    SELECT public.append_source_observation(${approvalId}::uuid,${receiptId}::uuid,${ordinal}::integer) AS id`;
   const asOwner = <T>(operation: (tx: Prisma.TransactionClient) => Promise<T>) => db.$transaction(async (tx) => {
     await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
     return operation(tx);
   });
-  await expect(asApi((tx) => append(tx))).rejects.toThrow(/permission denied/iu);
+  const factSource = randomUUID();
+  const definition = {
+    conflictBehavior: "REQUEST_RECONCILIATION",
+    tiers: [{ selectors: [{
+      sourceType: "xlsx", instanceId: factSource, requiredApproval: "APPROVED",
+      validity: { basis: "effectiveAt", durationMs: 86_400_000 },
+    }] }],
+  };
+  const configure = (
+    tx: Prisma.TransactionClient,
+    approver: string,
+    stream = streams[0]!.id,
+    rule = definition,
+    currentRevision = 1,
+  ) =>
+    tx.$queryRaw<{ id: string | null }[]>`
+      SELECT public.approve_source_observation(
+        ${customerId}::uuid,${projectId}::uuid,${binding.id}::uuid,${stream}::uuid,${factSource}::uuid,
+        'source.snapshot_at','{"Complete":"COMPLETE"}'::jsonb,${JSON.stringify(rule)}::jsonb,${approver},${currentRevision}::integer
+      ) AS id`;
+  await expect(asApi((tx) => configure(tx, actor.subject))).rejects.toThrow(/permission denied/iu);
+  await expect(asOwner((tx) => configure(tx, pm.subject))).rejects.toThrow(/requires a scoped approval/iu);
+  await expect(asOwner((tx) => configure(tx, pmo.subject))).rejects.toThrow(/requires current source scope/iu);
+  expect(await asOwner((tx) => configure(tx, actor.subject, randomUUID()))).toEqual([{ id: null }]);
+  const [approval] = await asOwner((tx) => configure(tx, actor.subject));
+  expect(approval?.id).toEqual(expect.any(String));
+  const proofId = approval!.id!;
+  const bindingApproval = await db.sourceAdmissionBindingRevision.findUniqueOrThrow({ where: { id: proofId } });
+  expect(bindingApproval).toMatchObject({ bindingId: binding.id, factSourceId: factSource, streamId: streams[0]!.id, definition });
+  expect(await db.authorityPolicyRevision.count({ where: { id: bindingApproval.policyRevisionId } })).toBe(0);
+  expect(await db.factSource.count({ where: { id: factSource } })).toBe(0);
+  await expect(asApi((tx) => append(tx, proofId))).rejects.toThrow(/permission denied/iu);
   expect(await asOwner((tx) => append(tx, randomUUID()))).toEqual([{ id: null }]);
-  expect(await asOwner((tx) => append(tx, binding.id, inFuture, preview.receiptId))).toEqual([{ id: null }]);
-  const result = await asOwner((tx) => append(tx));
+  expect(await asOwner((tx) => append(tx, proofId, preview.receiptId))).toEqual([{ id: null }]);
+  expect(await asOwner((tx) => append(tx, proofId, review.receiptId, 2))).toEqual([{ id: null }]);
+  const result = await asOwner((tx) => append(tx, proofId));
   const versionId = result[0]?.id;
   expect(versionId).toEqual(expect.any(String));
-  expect(await asOwner((tx) => append(tx))).toEqual(result);
-  await expect(asOwner((tx) => append(tx, binding.id, new Date(Date.now() + 3_600_000).toISOString())))
-    .rejects.toThrow(/different commitments/iu);
+  expect(await asOwner((tx) => append(tx, proofId))).toEqual(result);
+  const activated = await db.authorityPolicyRevision.findUniqueOrThrow({ where: { id: bindingApproval.policyRevisionId } });
+  expect(activated).toMatchObject({ factType: binding.factType, definition, recordedBy: actor.subject, state: "ENABLED", revision: 2 });
+  const originalRule = await db.authorityPolicyRevision.findUniqueOrThrow({ where: { id: humanRule.event.id } });
+  expect(originalRule).toMatchObject({ revision: 1, definition: humanRule.event.definition });
+  await expect(asApi((tx) => tx.$executeRaw`
+    INSERT INTO public."AuthorityPolicyRevision"
+      (id,"customerId","projectId","factType","policyId",revision,"recordedAt","recordedBy","effectiveAt",state,definition)
+      VALUES (${randomUUID()}::uuid,${customerId}::uuid,${projectId}::uuid,${binding.factType},
+        ${activated.policyId}::uuid,3,clock_timestamp(),${pmo.subject},clock_timestamp(),'ENABLED',
+        ${JSON.stringify(definition)}::jsonb)
+  `)).rejects.toThrow(/Source authority activation unavailable/iu);
 
   const versions = await db.projectFactVersion.findMany({
     where: { factId: binding.factId }, include: { evidence: { include: { source: true } } }, orderBy: { revision: "asc" },
@@ -167,15 +213,24 @@ it("appends a verified workbook observation with an exact native witness", async
     { revision: 1, provenance: "HUMAN_CONFIRMED", evidence: { providedBy: pm.subject, originalStatement: "Initial synthetic milestone status" } },
     {
       id: versionId, revision: 2, provenance: "SYSTEM_VERIFIED", value: { type: "text", value: "COMPLETE" },
-      effectiveAt: new Date(effectiveAt), effectiveAtValidated: true, validUntil: new Date(inFuture),
+      effectiveAt: new Date(effectiveAt), effectiveAtValidated: true, validUntil: new Date(Date.parse(effectiveAt) + 86_400_000),
       evidence: { originalStatement: null, providedBy: null, source: { sourceType: "xlsx", ingestionStreamId: streams[0]!.id, providedBy: null } },
     },
   ]);
   const witness = await db.sourceObservationWitness.findUniqueOrThrow({ where: { versionId: versionId! } });
+  expect(witness.admissionRevisionId).toBe(proofId);
   expect(witness.input).toEqual(proof[0]?.input);
   expect(witness.admittedAt.getTime()).toBeGreaterThanOrEqual(versions[1]!.evidence.observedAt.getTime());
   expect(await asOwner((tx) => tx.$queryRaw`
     SELECT public.valid_source_observation_witness(${versionId}::uuid) AS valid,
       public.valid_canonical_state_binding(${binding.id}::uuid) AS "humanBirthValid"
   `)).toEqual([{ valid: true, humanBirthValid: true }]);
+
+  const changedValidity = structuredClone(definition);
+  changedValidity.tiers[0]!.selectors[0]!.validity.durationMs = 3_600_000;
+  const [superseding] = await asOwner((tx) => configure(tx, actor.subject, streams[0]!.id, changedValidity, 2));
+  expect(superseding?.id).toEqual(expect.any(String));
+  expect(await asOwner((tx) => append(tx, proofId))).toEqual([{ id: null }]);
+  await expect(asOwner((tx) => append(tx, superseding!.id!))).rejects.toThrow(/different commitments/iu);
+  expect(await db.projectFactVersion.count({ where: { factId: binding.factId } })).toBe(2);
 });

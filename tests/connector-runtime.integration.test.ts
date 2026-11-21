@@ -808,14 +808,27 @@ describe("durable Jira connector runtime", () => {
       effectiveAt: initialObservedAt, originalStatement: "Initial synthetic required work status",
     }, { correlationId: randomUUID() });
     expect(await db.projectFactVersion.count({ where: { factId: canonicalBinding.factId } })).toBe(1);
-    const expiry = new Date(Date.now() + 86_400_000).toISOString();
+    const factSource = randomUUID();
+    const definition = {
+      conflictBehavior: "REQUEST_RECONCILIATION",
+      tiers: [{ selectors: [{
+        sourceType: "jira", instanceId: factSource, requiredApproval: "APPROVED",
+        validity: { basis: "observedAt", durationMs: 86_400_000 },
+      }] }],
+    };
+    const [approval] = await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT public.approve_source_observation(
+          ${isolatedCustomerId}::uuid,${projectId}::uuid,${canonicalBinding.id}::uuid,${stream.id}::uuid,
+          ${factSource}::uuid,NULL,'{"To Do":"OPEN"}'::jsonb,${JSON.stringify(definition)}::jsonb,${pmo.subject},0
+        ) AS id`;
+    });
+    expect(approval?.id).toEqual(expect.any(String));
     const appendJiraObservation = () => db.$transaction(async (tx) => {
       await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
       return tx.$queryRaw<{ id: string }[]>`
-        SELECT public.append_source_observation(
-          ${isolatedCustomerId}::uuid,${projectId}::uuid,${canonicalBinding.id}::uuid,${sourceId}::uuid,
-          ${stream.id}::uuid,${receipt.id}::uuid,1,NULL,'{"To Do":"OPEN"}'::jsonb,${expiry}::timestamptz
-        ) AS id`;
+        SELECT public.append_source_observation(${approval?.id}::uuid,${receipt.id}::uuid,1) AS id`;
     });
     // The grant mutation trigger acquires the project after the grant tuple.
     // Admission must release its project lock promptly when that tuple is busy.
