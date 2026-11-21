@@ -1,6 +1,6 @@
 // GOLDEN-003 fixture. Only the disposable customer proof image runs this code.
 import assert from "node:assert/strict";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { JiraRuntimeService } from "../../apps/api/dist/jira-runtime.js";
 import {
   createDatabase,
@@ -8,6 +8,7 @@ import {
   DatabaseCanonicalProjectRepository,
   DatabaseConnectorRuntimeRepository,
   DatabaseIngestionRepository,
+  DatabaseMilestoneReconciliationRepository,
   DatabaseProjectFactRepository,
 } from "../../packages/data/dist/index.js";
 import {
@@ -34,11 +35,51 @@ function pmOffice(customerId) {
   return { customerId, subject: pmo, roles: ["pmo_admin"] };
 }
 
+const digest = (value) =>
+  createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+async function captureLegacyProof(db, customerId, projectId) {
+  const factType = "delivery.note";
+  const context = { correlationId: randomUUID() };
+  const fact = await new DatabaseProjectFactRepository(db).appendHumanStatement(
+    pmOffice(customerId),
+    {
+      projectId,
+      factType,
+      expectedRevision: 0,
+      idempotencyKey: randomUUID(),
+      effectiveAt: new Date().toISOString(),
+      value: { type: "text", value: "Synthetic earlier human observation" },
+      originalStatement: "Synthetic earlier human observation",
+    },
+    context,
+  );
+  const proof = await new DatabaseAuthorityRepository(db).captureAssessment(
+    pmOffice(customerId),
+    {
+      projectId,
+      factType,
+      idempotencyKey: randomUUID(),
+    },
+    { correlationId: randomUUID() },
+  );
+  assert.equal(proof.visibility, "available");
+  return {
+    factId: fact.factId,
+    assessmentId: proof.assessmentId,
+    resultSha256: digest(proof.result),
+  };
+}
+
 export async function prepareGoldenWorkbook(pool, database, customerId) {
   const db = createDatabase(database);
   try {
     const portfolio = await db.portfolio.create({
-      data: { id: randomUUID(), customerId, name: "GOLDEN-003 source observations" },
+      data: {
+        id: randomUUID(),
+        customerId,
+        name: "GOLDEN-003 source observations",
+      },
     });
     await db.accessGrant.create({
       data: {
@@ -105,7 +146,8 @@ export async function prepareGoldenWorkbook(pool, database, customerId) {
       [customerId, projectId, pmo, sheet],
     );
     assert.equal(rows.length, 1);
-    return { projectId, sourceId: rows[0].sourceId, sheet };
+    const legacy = await captureLegacyProof(db, customerId, projectId);
+    return { projectId, sourceId: rows[0].sourceId, sheet, legacy };
   } finally {
     await db.$disconnect();
   }
@@ -441,36 +483,12 @@ export async function admitGoldenSources(pool, database, customerId, fixture) {
         sourceAccessRevision: grant.revision,
       });
     }
-    const legacy = await facts.appendHumanStatement(
-      pmOffice(customerId),
-      {
-        projectId: fixture.projectId,
-        factType: "delivery.note",
-        expectedRevision: 0,
-        idempotencyKey: randomUUID(),
-        effectiveAt: new Date().toISOString(),
-        value: { type: "text", value: "Synthetic earlier human observation" },
-        originalStatement: "Synthetic earlier human observation",
-      },
-      { correlationId: randomUUID() },
-    );
-    const legacyProof = await new DatabaseAuthorityRepository(
-      db,
-    ).captureAssessment(
-      pmOffice(customerId),
-      {
-        projectId: fixture.projectId,
-        factType: "delivery.note",
-        idempotencyKey: randomUUID(),
-      },
-      { correlationId: randomUUID() },
-    );
     return {
       projectId: fixture.projectId,
       milestoneId,
       jiraSourceId,
       positions,
-      legacy: { factId: legacy.factId, assessmentId: legacyProof.assessmentId },
+      legacy: fixture.legacy,
     };
   } finally {
     await db.$disconnect();
@@ -588,10 +606,101 @@ export async function verifyGoldenProof(pool, customerId, expected) {
     witnesses: 4,
     capability_absent: true,
   });
+  const origins =
+    "public.read_source_authority_origins(uuid,uuid,text,text[],uuid[])";
+  const { rows: permissions } = await pool.query(
+    `SELECT wanted.signature, p.proowner=to_regrole('pdaa_migrate') AS owner,
+       ARRAY(SELECT CASE a.grantee WHEN 0 THEN 'PUBLIC' ELSE a.grantee::regrole::text END
+         FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+         WHERE a.grantee<>p.proowner AND a.privilege_type='EXECUTE' ORDER BY a.grantee) AS executors,
+       EXISTS(SELECT 1 FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+         WHERE a.grantee<>p.proowner AND a.is_grantable) AS grantable
+     FROM unnest($1::text[]) WITH ORDINALITY AS wanted(signature, ordinal)
+     JOIN pg_proc p ON p.oid=to_regprocedure(wanted.signature) ORDER BY wanted.ordinal`,
+    [[admission, origins]],
+  );
+  assert.deepEqual(permissions, [
+    { signature: admission, owner: true, executors: [], grantable: false },
+    {
+      signature: origins,
+      owner: true,
+      executors: ["pdaa_api"],
+      grantable: false,
+    },
+  ]);
   return {
     verifiedSourceWitnesses: 4,
     durablePmRequests: 1,
     verifiedChecks: 2,
     legacyProofs: 1,
   };
+}
+
+// Use the API database principal while CONNECT stays revoked and the application stays stopped.
+export async function verifyGoldenQuarantineDelivery(
+  database,
+  customerId,
+  fixture,
+) {
+  const db = createDatabase(database);
+  try {
+    const api = {
+      $transaction: (operation, options) =>
+        db.$transaction(async (tx) => {
+          await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_api`;
+          const [boundary] = await tx.$queryRaw`
+        SELECT session_user::text AS principal, has_database_privilege(current_database(), 'CONNECT') AS connect`;
+          assert.deepEqual(boundary, { principal: "pdaa_api", connect: false });
+          return operation(tx);
+        }, options),
+    };
+    const authorized = {
+      customerId,
+      subject: manager,
+      roles: ["project_manager"],
+    };
+    const unauthorized = { customerId, subject: leader, roles: ["leadership"] };
+    const requests = new DatabaseMilestoneReconciliationRepository(api);
+    const target = {
+      projectId: fixture.projectId,
+      requestId: fixture.requestId,
+    };
+    const delivery = await requests.get(authorized, target);
+    assert.equal(delivery?.request.id, fixture.requestId);
+    assert.equal(delivery.assessment.visibility, "available");
+    assert.equal(delivery.assessment.result.status, "CONFLICTING");
+    assert.deepEqual(
+      delivery.assessment.result.contributors
+        .flatMap(({ supportingVersionIds }) => supportingVersionIds)
+        .sort(),
+      fixture.positions.map(({ versionId }) => versionId).sort(),
+    );
+    assert.equal(await requests.get(unauthorized, target), null);
+    const replay = await requests.check(pmOffice(customerId), fixture.command, {
+      correlationId: randomUUID(),
+    });
+    assert.equal(replay.checkId, fixture.checkId);
+    assert.equal(replay.replayed, true);
+    assert.deepEqual(replay.assessment, {
+      ...delivery.assessment,
+      replayed: true,
+    });
+    const legacy = await new DatabaseAuthorityRepository(api).getAssessment(
+      pmOffice(customerId),
+      {
+        projectId: fixture.projectId,
+        assessmentId: fixture.legacy.assessmentId,
+      },
+    );
+    assert.equal(legacy?.visibility, "available");
+    assert.equal(digest(legacy.result), fixture.legacy.resultSha256);
+    return {
+      scopedPmRedelivery: true,
+      deniedNonRecipient: true,
+      exactReplay: true,
+      priorLegacyProofUnchanged: true,
+    };
+  } finally {
+    await db.$disconnect();
+  }
 }

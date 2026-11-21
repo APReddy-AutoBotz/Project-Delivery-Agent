@@ -344,6 +344,8 @@ async function goldenReconciliation(fixture) {
   const panel = pm.page.getByRole("region", { name: "PM reconciliation request", exact: true });
   await expect(panel.getByText("Reviewed Excel row snapshot", { exact: false })).toBeVisible();
   await expect(panel.getByText("Jira issue snapshot", { exact: false })).toHaveCount(3);
+  const savedLink = await panel.getByRole("link", { name: "Open saved reconciliation link" }).getAttribute("href");
+  assert.equal(savedLink, `/?project=${fixture.projectId}&reconciliation=${requestId}`);
 
   const answer = await goldenAnswer(leader, fixture, 200);
   const workbook = fixture.positions.find(({ type }) => type === "xlsx.row");
@@ -364,6 +366,10 @@ async function goldenReconciliation(fixture) {
   });
   await goldenHistory(pm, project, workbook, false);
   withheld((await goldenApi(pm, copied)).assessment);
+  await pm.page.goto(base + savedLink);
+  pm.authorization = await signIn(pm.page, "pm-atlas", "project_manager");
+  await expect(panel.getByText("Proof withheld. Source access or verification changed", { exact: false })).toBeVisible();
+  await expect(panel.getByText("Reviewed Excel row snapshot", { exact: false })).toHaveCount(0);
   const restrictedReplay = await goldenApi(pmo, checkPath, 201, "POST", command);
   assert.equal(restrictedReplay.checkId, checked.checkId);
   assert.equal(restrictedReplay.replayed, true);

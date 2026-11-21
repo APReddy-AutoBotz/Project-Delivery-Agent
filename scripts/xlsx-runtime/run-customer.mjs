@@ -315,7 +315,7 @@ function exercise(profile) {
   ]));
   const goldenSha256 = createHash("sha256").update(goldenWorkbook).digest("hex");
   writeFileSync(join(browserProof, "golden.xlsx"), goldenWorkbook);
-  writeFileSync(join(browserProof, "golden.json"), JSON.stringify(seed.golden));
+  writeFileSync(join(browserProof, "golden.json"), JSON.stringify({ sourceId: seed.golden.sourceId, sheet: seed.golden.sheet }));
   writeFileSync(join(proof, "bindings.json"), JSON.stringify(seed.bindings));
   writeFileSync(join(browserProof, "bindings.json"), JSON.stringify(
     seed.bindings.map(({ sourceId, profile }) => ({ sourceId, profile })),
@@ -436,6 +436,7 @@ function exercise(profile) {
   assert.deepEqual(recovery, {
     canonicalStateUnchanged: true, verifiedReviewedImports: 2, quarantined: true, finiteReceiptReadGrants: true,
     golden: goldenProof,
+    restoredDelivery: { scopedPmRedelivery: true, deniedNonRecipient: true, exactReplay: true, priorLegacyProofUnchanged: true },
   });
   active.get(project)();
   active.delete(project);

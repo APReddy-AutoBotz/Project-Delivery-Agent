@@ -9,7 +9,13 @@ import {
 import { xlsxReceiptReadApi, xlsxReviewDetailsApi } from "../../packages/operations/dist/business-grants.js";
 import { Pool, secret } from "./common.mjs";
 import { proveXlsxSourceGenesis } from "./xlsx-source-genesis.mjs";
-import { admitGoldenSources, prepareGoldenWorkbook, verifyGoldenProof, changeGoldenJiraScope } from "./golden-source-observations.mjs";
+import {
+  admitGoldenSources,
+  changeGoldenJiraScope,
+  prepareGoldenWorkbook,
+  verifyGoldenProof,
+  verifyGoldenQuarantineDelivery,
+} from "./golden-source-observations.mjs";
 
 const env = process.env;
 const customerId = "10000000-0000-4000-8000-000000000002";
@@ -248,7 +254,7 @@ async function verifyBrowser(expected, canonicalSha256 = expected.canonicalSha25
   return { canonicalStateUnchanged: true, verifiedReviewedImports: profiles.length };
 }
 
-async function verifyRestoredBrowser(expected) {
+async function verifyRestoredBrowser(expected, database) {
   step = "restore-quarantine";
   const { rows } = await pool.query(
     `SELECT current_database() AS database, shobj_description(oid,'pg_database') AS marker,
@@ -276,7 +282,8 @@ async function verifyRestoredBrowser(expected) {
   })));
   const browser = await verifyBrowser(expected, expected.golden.canonicalSha256);
   const golden = await verifyGoldenProof(pool, customerId, expected.golden);
-  return { ...browser, quarantined: true, finiteReceiptReadGrants: true, golden };
+  const restoredDelivery = await verifyGoldenQuarantineDelivery(database, customerId, expected.golden);
+  return { ...browser, quarantined: true, finiteReceiptReadGrants: true, golden, restoredDelivery };
 }
 
 try {
@@ -300,7 +307,8 @@ try {
   assert.equal(env.PDAA_DB_PASSWORD_FILE, "/run/secrets/admin-password");
   assert.equal(secret("customer-ready"), "isolated customer composition\n");
   const database = loadDatabaseConfig(env).database;
-  pool = new Pool(phase === "verify-restored-browser" ? { ...database, database: restoreDatabase } : database);
+  const target = phase === "verify-restored-browser" ? { ...database, database: restoreDatabase } : database;
+  pool = new Pool(target);
   let result;
   if (phase === "create-restore-target") {
     step = "restore-target";
@@ -324,7 +332,9 @@ try {
       result = await changeGoldenJiraScope(pool, customerId, expected, phase === "golden-regrant-jira");
     }
   } else {
-    const check = { verify, "verify-browser": verifyBrowser, "verify-restored-browser": verifyRestoredBrowser }[phase];
+    const check = { verify, "verify-browser": verifyBrowser,
+      "verify-restored-browser": (expected) => verifyRestoredBrowser(expected, target),
+    }[phase];
     result = await check(JSON.parse(process.argv[3]));
   }
   process.stdout.write(JSON.stringify(result) + "\n");
