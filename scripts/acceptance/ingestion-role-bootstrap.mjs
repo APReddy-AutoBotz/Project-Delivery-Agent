@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readMigrations, migrateDatabase } from "../../packages/operations/dist/index.js";
-import { applyBusinessTableGrants, xlsxReceiptCodecFunctions, xlsxGenesisFunctions, xlsxContextFunctions, xlsxRetryFunction, xlsxWriterFunctions, xlsxReviewFunctions, xlsxReceiptReadFunctions, xlsxSourceCatalogueApi } from "../../packages/operations/dist/business-grants.js";
+import { applyBusinessTableGrants, xlsxReceiptCodecFunctions, xlsxGenesisFunctions, xlsxContextFunctions, xlsxRetryFunction, xlsxWriterFunctions, xlsxReviewFunctions, xlsxReceiptReadFunctions, xlsxSourceCatalogueApi, xlsxReviewDetailsApi } from "../../packages/operations/dist/business-grants.js";
 import { assertBusinessTableInventory } from "./upgrade-inventory-receipt.mjs";
 import { verifyReassessmentPrivileges } from "./ingestion-reassessment.mjs";
 import { csvComparisonFunctions,csvComparisonApiFunctions,verifyCsvComparisonPrivileges } from "./csv-comparison-privileges.mjs";
@@ -62,7 +62,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
   const url = new URL(sourceUrl);
   assert(["127.0.0.1", "localhost"].includes(url.hostname)); assert.equal(url.pathname, "/postgres");
   const creator = new Pool({ connectionString: url.toString() });
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 37);
+  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 38);
   try {
     assert.deepEqual((await creator.query("SELECT datname FROM pg_database ORDER BY datname")).rows.map((row) => row.datname), ["postgres", "template0", "template1"]);
     assert.deepEqual(await currentRoles(creator), []);
@@ -84,7 +84,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         await verifyXlsxContextPrivileges(pool,presentRoles);
         await verifyXlsxRetryPrivileges(pool,presentRoles);
         await verifyXlsxWriterPrivileges(pool,presentRoles);
-        await verifyXlsxReviewPrivileges(pool,presentRoles,{owner:config.user,apiExecute:false});
+        await verifyXlsxReviewPrivileges(pool,presentRoles,{owner:config.user,apiExecute:false,reviewDetails:true});
         await verifyXlsxCataloguePrivileges(pool,presentRoles,{owner:config.user,apiExecute:false});
         await migrateDatabase(config, migrations);
         assert.deepEqual(await inventory(pool, migrations), before);
@@ -114,6 +114,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         for (const signature of xlsxReviewFunctions) await pool.query("ALTER FUNCTION " + signature + " OWNER TO pdaa_migrate");
         for (const signature of xlsxReceiptReadFunctions) await pool.query("ALTER FUNCTION " + signature + " OWNER TO pdaa_migrate");
         await pool.query("ALTER FUNCTION " + xlsxSourceCatalogueApi + " OWNER TO pdaa_migrate");
+        await pool.query("ALTER FUNCTION " + xlsxReviewDetailsApi + " OWNER TO pdaa_migrate");
         // Simulate the default function EXECUTE grant introduced by --no-acl
         // restore, plus explicit role grants, before reconstructing the ACL.
         await pool.query("GRANT EXECUTE ON FUNCTION public.guard_ingestion_reconfiguration_scope(),public.guard_ingestion_retention() TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
@@ -127,6 +128,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         await pool.query("GRANT EXECUTE ON FUNCTION " + xlsxReviewFunctions.join(",") + " TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
         await pool.query("GRANT EXECUTE ON FUNCTION " + xlsxReceiptReadFunctions.join(",") + " TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
         await pool.query("GRANT EXECUTE ON FUNCTION " + xlsxSourceCatalogueApi + " TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
+        await pool.query("GRANT EXECUTE ON FUNCTION " + xlsxReviewDetailsApi + " TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
         await pool.query('GRANT ALL ON public."IngestionXlsxContext" TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup');
         await pool.query('GRANT ALL ON public."IngestionCsvHead",public."IngestionCsvContext" TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup');
         await pool.query('GRANT SELECT (dictionary) ON public."IngestionCsvHead" TO PUBLIC; GRANT INSERT (rows),REFERENCES ("receiptId") ON public."IngestionCsvContext" TO pdaa_worker; GRANT UPDATE ("stateHash") ON public."IngestionCsvHead" TO pdaa_backup WITH GRANT OPTION');
@@ -140,7 +142,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         await verifyXlsxContextPrivileges(pool,roles.slice(0,3),{owner:"pdaa_migrate",backupRead:true});
         await verifyXlsxRetryPrivileges(pool,roles.slice(0,3),{owner:"pdaa_migrate",apiExecute:true});
         await verifyXlsxWriterPrivileges(pool,roles.slice(0,3),{owner:"pdaa_migrate",apiExecute:true});
-        await verifyXlsxReviewPrivileges(pool);
+        await verifyXlsxReviewPrivileges(pool, undefined, { reviewDetails: true });
         await verifyXlsxCataloguePrivileges(pool);
         await proveXlsxSourceGenesis(pool,{retain:true});
         await verifyXlsxGenesisRestoreDenials(pool);
@@ -148,7 +150,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
       } finally { await pool.end(); }
     }
     return { rolesAbsentBeforeAnyBootstrap: true, rolelessDatabase: first, partialRoleDatabase: second,
-      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 37, businessTables: 89,
+      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 38, businessTables: 89,
       publicPrivilegesDenied: true, finiteAclAfterLaterBootstrap: true, retainedDatabases: true };
   } finally { await creator.end(); }
 }

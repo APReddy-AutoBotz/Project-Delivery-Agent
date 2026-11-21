@@ -659,6 +659,20 @@ The application still needs a workbook upload and selected-row save journey
 with authorization, cancellation and stale-session browser coverage. Issue #7,
 XLSX acceptance and the customer-release holds remain open.
 
+### Mapping and reviewed receipt details
+
+The application needs the sealed column-to-field mapping associated with the
+preview rather than the source's latest configuration. Migration 38 adds a
+bounded details read by source and preview receipt. It reuses the native page
+reader's current and captured scope checks, lock order, retention-policy check,
+and integrity validation. The read returns the exact mapping revision and a
+finite mapping projection. If the preview has a reviewed import, it also
+returns the linked receipt ID, creation time, and reviewed row count. Reopening
+the preview can recover that summary without retaining the import command key.
+The details database call is available only to the API login. Clean,
+partial-role, upgrade, and restore paths retain their finite grant checks.
+This step prepares the read model for the application routes.
+
 ## Required validation
 
 PR #153 Foundation run [41262214531](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/41262214531)

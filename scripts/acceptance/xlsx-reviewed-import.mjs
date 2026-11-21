@@ -15,6 +15,7 @@ import {
   xlsxReceiptReadApi,
   xlsxReceiptReadFunctions,
   xlsxReviewApiFunction,
+  xlsxReviewDetailsApi,
   xlsxReviewFunctions,
 } from "../../packages/operations/dist/business-grants.js";
 import { proveXlsxSourceGenesis } from "./xlsx-source-genesis.mjs";
@@ -50,10 +51,10 @@ async function context(pool, receiptId) {
 export async function verifyXlsxReviewPrivileges(
   pool,
   roles = ["pdaa_api", "pdaa_worker", "pdaa_backup"],
-  { owner = "pdaa_migrate", apiExecute = true, receiptReader = true } = {},
+  { owner = "pdaa_migrate", apiExecute = true, receiptReader = true, reviewDetails = false } = {},
 ) {
   const signatures = receiptReader
-    ? [...xlsxReviewFunctions, ...xlsxReceiptReadFunctions]
+    ? [...xlsxReviewFunctions, ...xlsxReceiptReadFunctions, ...(reviewDetails ? [xlsxReviewDetailsApi] : [])]
     : xlsxReviewFunctions;
   for (const signature of signatures) {
     const { rows } = await pool.query(
@@ -66,7 +67,7 @@ export async function verifyXlsxReviewPrivileges(
       [signature],
     );
     const exposed =
-      signature === xlsxReviewApiFunction || signature === xlsxReceiptReadApi;
+      signature === xlsxReviewApiFunction || signature === xlsxReceiptReadApi || signature === xlsxReviewDetailsApi;
     const granted = exposed && apiExecute;
     assert.deepEqual(rows, [
       {
@@ -80,7 +81,7 @@ export async function verifyXlsxReviewPrivileges(
           signature === xlsxReceiptReadFunctions[1]
             ? "search_path=pg_catalog"
             : "search_path=pg_catalog, pg_temp",
-          ...(signature === xlsxReceiptReadApi
+          ...(signature === xlsxReceiptReadApi || signature === xlsxReviewDetailsApi
             ? ["DateStyle=ISO, YMD", "TimeZone=UTC"]
             : []),
         ],
@@ -211,12 +212,16 @@ export async function proveNativeXlsxReviewedImport(
       previewReceiptId,
       afterOrdinal,
     });
+  const details = (previewReceiptId, subject = reviewer) =>
+    repository.readXlsxPreviewReviewDetails(actor(subject), {
+      sourceId: source.sourceId, previewReceiptId,
+    });
 
   try {
     assert.deepEqual(await db.$queryRaw`SELECT session_user::text AS name`, [
       { name: "pdaa_api" },
     ]);
-    await verifyXlsxReviewPrivileges(pool);
+    await verifyXlsxReviewPrivileges(pool, undefined, { reviewDetails: true });
     await preview(cases[0], "fixture-review-baseline");
     const selected = await preview(cases[1], "fixture-review-preview");
     const advanced = await preview(cases[1], "fixture-review-head-advance");
@@ -229,6 +234,24 @@ export async function proveNativeXlsxReviewedImport(
     };
     const before = await state(pool, source);
     const open = await read(selected.receiptId);
+    const openDetails = await details(selected.receiptId);
+    assert.deepEqual(openDetails, {
+      sourceId: source.sourceId,
+      previewReceiptId: selected.receiptId,
+      configRevision: 1,
+      mappingRevision: 1,
+      mapping: {
+        sheet,
+        identityColumn: "Key",
+        projectColumn: "Project",
+        fields: [
+          { column: "Status", factType: "project.status", type: "text", required: false },
+          { column: "Forecast", factType: "project.forecast", type: "date", required: false },
+        ],
+      },
+      reviewedImport: null,
+    });
+    await assert.rejects(details(selected.receiptId, "unentitled-workbook-reviewer"), { code: "DENIED" });
     const directRead = (client, tenant) => client.$queryRaw`
       SELECT public.read_ingestion_xlsx_preview_receipt(
         ${tenant}::uuid,${source.sourceId}::uuid,${reviewer}::text,
@@ -305,6 +328,13 @@ export async function proveNativeXlsxReviewedImport(
     try {
       const crossTenant = await directRead(db, otherCustomer);
       assert.deepEqual(crossTenant, [{ result: { status: "DENIED" } }]);
+      const crossTenantDetails = await db.$queryRaw`
+        SELECT public.read_ingestion_xlsx_preview_review_details(
+          ${otherCustomer}::uuid,${source.sourceId}::uuid,${reviewer}::text,
+          ARRAY['pmo_admin']::text[],${selected.receiptId}::uuid
+        ) AS result
+      `;
+      assert.deepEqual(crossTenantDetails, [{ result: { status: "DENIED" } }]);
     } finally {
       // Keep the packaged customer fixture single-tenant at backup time.
       await pool.query('DELETE FROM public."Customer" WHERE id=$1', [
@@ -389,6 +419,24 @@ export async function proveNativeXlsxReviewedImport(
     const reviewed = await read(selected.receiptId);
     assert.equal(reviewed.selectionState, "REVIEWED");
     assert(reviewed.outcomes.every(({ selectable }) => !selectable));
+    const reviewedDetails = await details(selected.receiptId);
+    const reviewedTime = await pool.query(
+      'SELECT "createdAt" FROM public."IngestionOperationReceipt" WHERE id=$1',
+      [saved.receiptId],
+    );
+    assert.deepEqual(reviewedDetails, {
+      ...openDetails,
+      reviewedImport: {
+        receiptId: saved.receiptId,
+        createdAt: reviewedTime.rows[0].createdAt.toISOString(),
+        rowCount: 3,
+      },
+    });
+    await assert.rejects(details(saved.receiptId), { code: "DENIED" });
+    await assert.rejects(repository.readXlsxPreviewReviewDetails(
+      actor(reviewer),
+      { sourceId: randomUUID(), previewReceiptId: selected.receiptId },
+    ), { code: "DENIED" });
     await assert.rejects(read(saved.receiptId), { code: "DENIED" });
     await assert.rejects(commit({ ...input, rowOrdinals: [2, 3] }), {
       code: "CONFLICT",
@@ -447,6 +495,7 @@ export async function proveNativeXlsxReviewedImport(
     try {
       await assert.rejects(commit(input), { code: "DENIED" });
       await assert.rejects(read(selected.receiptId), { code: "DENIED" });
+      await assert.rejects(details(selected.receiptId), { code: "DENIED" });
       await assert.rejects(commit({ ...input, rowOrdinals: [1] }), {
         code: "DENIED",
       });
@@ -600,6 +649,9 @@ export async function proveNativeXlsxReviewedImport(
     assert.equal(stale.selectionState, "STALE");
     assert(stale.outcomes.every(({ selectable }) => !selectable));
     assert.equal((await read(selected.receiptId)).selectionState, "REVIEWED");
+    assert.deepEqual(await details(selected.receiptId), reviewedDetails);
+    await assert.rejects(details(selected.receiptId, previewAuthor), { code: "DENIED" });
+    await assert.rejects(details(selected.receiptId, newReviewer), { code: "DENIED" });
     await assert.rejects(read(advanced.receiptId, 0, previewAuthor), {
       code: "DENIED",
     });
@@ -634,7 +686,7 @@ export async function proveRestoredXlsxReviewedImport(pool, apiConnection) {
     commandKey: "fixture-review-commit",
   };
   await assertXlsxReviewedImportIntegrity(pool);
-  await verifyXlsxReviewPrivileges(pool);
+  await verifyXlsxReviewPrivileges(pool, undefined, { reviewDetails: true });
   // Customer restore remains quarantined. Exercise a real API login only in
   // the disposable native upgrade and no-ACL restore fixture.
   if (apiConnection) {
@@ -657,6 +709,14 @@ export async function proveRestoredXlsxReviewedImport(pool, apiConnection) {
       assert.equal(receipt.nextOrdinal, 50);
       assert.equal(receipt.outcomes[0].proposals, null);
       assert.deepEqual(receipt.outcomes[1].proposals, []);
+      const details = await repository.readXlsxPreviewReviewDetails(
+        { customerId: source.customerId, subject: reviewer, roles: ["pmo_admin"] },
+        { sourceId: source.sourceId, previewReceiptId },
+      );
+      assert.equal(details.mapping.sheet, sheet);
+      assert.equal(details.configRevision, 1);
+      assert.equal(details.reviewedImport?.receiptId, id);
+      assert.equal(details.reviewedImport.rowCount, 3);
       assert.deepEqual(
         await repository.commitXlsxReviewedImport(
           {

@@ -8,7 +8,7 @@ import {
 } from "./connector.js";
 import { projectFactIdSchema } from "./project-facts.js";
 import { spreadsheetPreviewConfigSchema } from "./spreadsheet-preview.js";
-import { xlsxParserContractSchema, xlsxSheetSchema } from "./xlsx-comparison-state.js";
+import { xlsxMappingRevisionSchema, xlsxParserContractSchema, xlsxSheetSchema } from "./xlsx-comparison-state.js";
 
 const unique = (items: readonly string[]) => new Set(items).size === items.length;
 const field = z
@@ -77,6 +77,21 @@ export const xlsxSourceProvisionSchema = z.strictObject({
     parserContract: xlsxParserContractSchema,
     ...mappingColumns,
   }).refine((value) => value.identityColumn !== value.projectColumn),
+});
+export const xlsxPreviewReviewDetailsInputSchema = z.strictObject({
+  sourceId: projectFactIdSchema,
+  previewReceiptId: projectFactIdSchema,
+});
+export const xlsxPreviewReviewDetailsSchema = xlsxPreviewReviewDetailsInputSchema.extend({
+  configRevision: xlsxMappingRevisionSchema,
+  mappingRevision: xlsxMappingRevisionSchema,
+  mapping: z.strictObject({ sheet: xlsxSheetSchema, ...mappingColumns })
+    .refine((value) => value.identityColumn !== value.projectColumn),
+  reviewedImport: z.strictObject({
+    receiptId: projectFactIdSchema,
+    createdAt: z.iso.datetime(),
+    rowCount: z.number().int().min(1).max(1000),
+  }).nullable(),
 });
 export const ingestionCommandKeySchema = z
   .string()
