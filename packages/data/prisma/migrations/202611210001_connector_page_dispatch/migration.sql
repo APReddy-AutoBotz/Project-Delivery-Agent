@@ -390,6 +390,8 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
     JOIN public."IngestionExternalRecord" rec ON rec.id=a."recordId"
     JOIN public."SourceAdmissionBindingRevision" reservation ON reservation.id=a."reservationId"
     WHERE a.id=target AND reservation.id=reservation."reservationId"
+      AND (a."targetKind",a."targetMilestoneId",a."targetWorkItemId")
+        IS NOT DISTINCT FROM (reservation."targetKind",reservation."targetMilestoneId",reservation."targetWorkItemId")
       AND (a."existingBindingId" IS NULL OR (b.sealed AND b."factType"=a."factType" AND b."targetKind"=a."targetKind"
         AND (b."milestoneId",b."workItemId") IS NOT DISTINCT FROM (a."targetMilestoneId",a."targetWorkItemId")))
       AND config.sealed AND config."mappingRevision"=a."mappingRevision"
@@ -794,6 +796,7 @@ LANGUAGE sql STABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
       AND p.definition=a.definition AND p.state='ENABLED'
       AND p.revision=a."previousPolicyRevision"+1 AND p."effectiveAt"=p."recordedAt"
       AND p."recordedBy"=a."approvedBy" AND p."recordedAt"<=w."admittedAt"
+      AND (b."sourceBirthCommandId" IS DISTINCT FROM w."rootCommandId" OR p."recordedAt"=w."admittedAt")
       AND public.valid_source_observation_structure(target)
   )
 $$;

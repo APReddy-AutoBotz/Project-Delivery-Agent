@@ -355,6 +355,8 @@ it("appends a verified workbook observation and replays its receipt after conten
   };
   const invalidBirth = await approveBirth(bornTarget.id, streams[2]!.id, birthSourceId, invalidPolicy);
   const birthKey = randomUUID();
+  const admissionAuditCount = () => db.auditEvent.count({ where: { customerId, event: "fact.source_observation.admitted" } });
+  const priorAuditCount = await admissionAuditCount();
   expect(await db.projectFact.count({ where: { id: invalidBirth.factId } })).toBe(0);
   expect(await db.canonicalStateBinding.count({ where: { id: invalidBirth.bindingId } })).toBe(0);
   await expect(asOperator((tx) => append(tx, invalidBirth.id, review.receiptId, 3, birthKey)))
@@ -364,14 +366,27 @@ it("appends a verified workbook observation and replays its receipt after conten
   expect(await db.factSource.count({ where: { id: birthSourceId } })).toBe(0);
   expect(await db.sourceAdmissionCommand.count({ where: { commandKey: birthKey } })).toBe(0);
   expect(await db.authorityPolicyRevision.count({ where: { id: invalidBirth.policyRevisionId } })).toBe(0);
+  expect(await admissionAuditCount()).toBe(priorAuditCount);
 
   const validBirth = await approveBirth(bornTarget.id, streams[2]!.id, birthSourceId, birthDefinition);
   expect(validBirth).toMatchObject({
     bindingId: invalidBirth.bindingId, factId: invalidBirth.factId, reservationId: invalidBirth.reservationId,
   });
-  const [birthResult] = await asOperator((tx) => append(tx, validBirth.id, review.receiptId, 3, birthKey));
+  const [birthResult] = await asOperator(async (tx) => {
+    const results = await append(tx, validBirth.id, review.receiptId, 3, birthKey);
+    // A separate connection still sees the pre-admission state while the
+    // operation's fact, binding and authority are waiting for commit.
+    expect(await db.projectFact.findUnique({ where: { id: validBirth.factId } })).toBeNull();
+    expect(await db.canonicalStateBinding.findUnique({ where: { id: validBirth.bindingId } })).toBeNull();
+    expect(await db.authorityPolicyRevision.findUnique({ where: { id: validBirth.policyRevisionId } })).toBeNull();
+    return results;
+  });
   expect(birthResult).toEqual({ result: { status: "ADMITTED", receiptId: expect.any(String) } });
   const birthCommand = await db.sourceAdmissionCommand.findUniqueOrThrow({ where: { id: birthResult!.result.receiptId } });
+  const birthWitness = await db.sourceObservationWitness.findUniqueOrThrow({ where: { versionId: birthCommand.versionId } });
+  const birthPolicy = await db.authorityPolicyRevision.findUniqueOrThrow({ where: { id: validBirth.policyRevisionId } });
+  expect(birthPolicy.recordedAt).toEqual(birthWitness.admittedAt);
+  expect(await admissionAuditCount()).toBe(priorAuditCount + 1);
   expect(await db.canonicalStateBinding.findUniqueOrThrow({ where: { id: validBirth.bindingId } })).toMatchObject({
     sealed: true, milestoneId: bornTarget.id, factId: validBirth.factId, sourceBirthCommandId: birthCommand.id,
   });
