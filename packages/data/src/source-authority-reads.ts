@@ -33,3 +33,26 @@ export function sourceOriginReference(instanceId: string, origin: SourceOrigin) 
     revision: origin.sourceRevisionId,
   };
 }
+
+export async function assessmentDependenciesReadable(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  projectId: string,
+  versions: { id: string; factId: string; sourceId: string; provenance: string }[],
+) {
+  if (!versions.length) return true;
+  const sources = await tx.factSourceAccess.findMany({
+    where: {
+      customerId: actor.customerId,
+      projectId,
+      sourceId: { in: [...new Set(versions.map(({ sourceId }) => sourceId))] },
+      state: "AVAILABLE",
+    },
+    select: { sourceId: true, factId: true, readers: { where: { subject: actor.subject } } },
+  });
+  const allowed = new Map(sources.filter((source) => source.readers.length === 1).map((source) => [source.sourceId, source.factId]));
+  if (versions.some(({ sourceId, factId }) => allowed.get(sourceId) !== factId)) return false;
+  const sourceVersions = versions.filter(({ provenance }) => provenance === "SYSTEM_VERIFIED").map(({ id }) => id);
+  const origins = await readSourceOrigins(tx, actor, projectId, sourceVersions);
+  return sourceVersions.every((id) => origins.get(id)?.authorized === true);
+}

@@ -32,7 +32,7 @@ import {
   Prisma,
   type PrismaClient as Database,
 } from "./generated/prisma/client.js";
-import { readSourceOrigins, sourceOriginReference, type SourceOrigin } from "./source-authority-reads.js";
+import { assessmentDependenciesReadable, readSourceOrigins, sourceOriginReference, type SourceOrigin } from "./source-authority-reads.js";
 
 type Tx = Prisma.TransactionClient;
 type Event = Prisma.AuthorityPolicyRevisionGetPayload<Record<string, never>>;
@@ -469,7 +469,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       // The stored result is the proof; these rows are only the current-access
       // dependencies. Native validation below still checks the complete graph.
       include: {
-        versions: { select: { version: { select: { id: true, sourceId: true, provenance: true } } } },
+        versions: { select: { version: { select: { id: true, factId: true, sourceId: true, provenance: true } } } },
       },
     });
     if (!row) return null;
@@ -478,28 +478,6 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
     >`SELECT public.valid_fact_assessment(${row.id}::uuid) AS valid`;
     if (valid[0]?.valid !== true)
       throw new Error("Stored assessment integrity failed");
-    const access = await tx.factSourceAccess.findMany({
-      where: {
-        customerId: actor.customerId,
-        projectId,
-        factId: row.factId,
-        sourceId: {
-          in: [...new Set(row.versions.map((item) => item.version.sourceId))],
-        },
-      },
-      include: { readers: { where: { subject: actor.subject } } },
-    });
-    const allowed = new Set(
-      access
-        .filter(
-          (item) => item.state === "AVAILABLE" && item.readers.length === 1,
-        )
-        .map((item) => item.sourceId),
-    );
-    const sourceVersions = row.evaluatorVersion === 2
-      ? row.versions.filter(({ version }) => version.provenance === "SYSTEM_VERIFIED").map(({ version }) => version.id)
-      : [];
-    const origins = await readSourceOrigins(tx, actor, projectId, sourceVersions);
     const metadata = {
       assessmentId: row.id,
       factId: row.factId,
@@ -507,8 +485,7 @@ export class DatabaseAuthorityRepository implements AuthorityRepository {
       historical: true as const,
       replayed,
     };
-    if (row.versions.some((item) => !allowed.has(item.version.sourceId)) ||
-      sourceVersions.some((id) => origins.get(id)?.authorized !== true))
+    if (!await assessmentDependenciesReadable(tx, actor, projectId, row.versions.map(({ version }) => version)))
       return detached({
         ...metadata,
         visibility: "restricted",

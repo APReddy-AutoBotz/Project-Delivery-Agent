@@ -1258,7 +1258,7 @@ END $$;
 
 ALTER TABLE public."FactAssessment" DROP CONSTRAINT "FactAssessment_evaluatorVersion_check";
 ALTER TABLE public."FactAssessment" ADD CONSTRAINT "FactAssessment_evaluatorVersion_check"
-  CHECK ("evaluatorVersion"=1 OR ("evaluatorVersion"=2 AND "captureKind"='SCALAR'));
+  CHECK ("evaluatorVersion"=1 OR ("evaluatorVersion"=2 AND "captureKind" IN ('SCALAR','MILESTONE')));
 
 CREATE OR REPLACE FUNCTION public.valid_authority_conflict(cid uuid) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
@@ -1294,7 +1294,13 @@ BEGIN
   IF NOT FOUND OR a."evaluatorVersion" NOT IN (1,2) OR octet_length(a.result::text)>33554432
     OR a."factRevision">(SELECT revision FROM public."ProjectFact" WHERE id=a."factId") THEN RETURN false; END IF;
   mixed := a."evaluatorVersion"=2;
-  IF mixed AND (NOT a.complete OR a."captureKind"<>'SCALAR') THEN RETURN false; END IF;
+  IF mixed AND (NOT a.complete OR a."captureKind" NOT IN ('SCALAR','MILESTONE')) THEN RETURN false; END IF;
+  IF mixed AND a."captureKind"='MILESTONE' AND NOT EXISTS (
+    SELECT 1 FROM public."MilestoneConsistencyAssessment" parent
+    WHERE (parent."customerId",parent."projectId",parent.id,parent.subject,parent."asOf")
+      =(a."customerId",a."projectId",a."milestoneAssessmentId",a.subject,a."asOf")
+      AND parent."reconciliationCheckId" IS NULL
+  ) THEN RETURN false; END IF;
   IF a.complete AND mixed IS DISTINCT FROM EXISTS (
     SELECT 1 FROM public."ProjectFactVersion" fv WHERE fv."factId"=a."factId" AND fv.revision<=a."factRevision"
       AND fv.provenance='SYSTEM_VERIFIED'
@@ -1544,6 +1550,12 @@ DECLARE
   source_versions uuid[];
   source_access jsonb;
 BEGIN
+  IF NEW."captureKind"='MILESTONE' AND NOT EXISTS (
+    SELECT 1 FROM public."MilestoneConsistencyAssessment" parent
+    WHERE (parent."customerId",parent."projectId",parent.id,parent.subject,parent."asOf")
+      =(NEW."customerId",NEW."projectId",NEW."milestoneAssessmentId",NEW.subject,NEW."asOf")
+      AND NOT parent.sealed AND parent."reconciliationCheckId" IS NULL
+  ) THEN RAISE EXCEPTION 'Mixed assessment parent unavailable'; END IF;
   SELECT array_agg(v.id ORDER BY v.id) INTO source_versions
   FROM public."FactAssessmentVersion" av JOIN public."ProjectFactVersion" v ON v.id=av."versionId"
   WHERE av."assessmentId"=NEW.id AND v.provenance='SYSTEM_VERIFIED';

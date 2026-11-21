@@ -27,6 +27,7 @@ import {
   factInput,
 } from "./fact-authorization.js";
 import { DatabaseAuthorityRepository } from "./authority-persistence.js";
+import { assessmentDependenciesReadable } from "./source-authority-reads.js";
 
 type Tx = Prisma.TransactionClient;
 type StoredMilestoneResult = Extract<
@@ -441,12 +442,12 @@ export class DatabaseMilestoneConsistencyRepository
       },
       include: {
         scalarAssessments: {
-          // Delivery needs only dependency source IDs. Loading every child's
+          // Delivery needs only dependency references. Loading every child's
           // frozen result and full version content duplicates the parent proof
           // at the 1000-version boundary without adding an integrity check.
           select: {
             versions: {
-              select: { version: { select: { sourceId: true } } },
+              select: { version: { select: { id: true, factId: true, sourceId: true, provenance: true } } },
             },
           },
         },
@@ -461,23 +462,6 @@ export class DatabaseMilestoneConsistencyRepository
     const dependencies = row.scalarAssessments.flatMap((assessment) =>
       assessment.versions.map((item) => item.version),
     );
-    const access = await tx.factSourceAccess.findMany({
-      where: {
-        customerId: actor.customerId,
-        projectId: request.projectId,
-        sourceId: {
-          in: [...new Set(dependencies.map((item) => item.sourceId))],
-        },
-      },
-      include: { readers: { where: { subject: actor.subject } } },
-    });
-    const allowed = new Set(
-      access
-        .filter(
-          (item) => item.state === "AVAILABLE" && item.readers.length === 1,
-        )
-        .map((item) => item.sourceId),
-    );
     const metadata = {
       assessmentId: row.id,
       projectId: row.projectId,
@@ -486,7 +470,7 @@ export class DatabaseMilestoneConsistencyRepository
       historical: true as const,
       replayed,
     };
-    if (dependencies.some((item) => !allowed.has(item.sourceId)))
+    if (!await assessmentDependenciesReadable(tx, actor, request.projectId, dependencies))
       return {
         ...metadata,
         visibility: "restricted",
@@ -725,6 +709,7 @@ export class DatabaseMilestoneConsistencyRepository
             fact,
             asOf,
             prefix: prefixes!.get(fact.id)!,
+            allowSourceObservations: reconciliationCheckId === null,
           },
         );
         prepared.set(binding.id, plan);
