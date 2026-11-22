@@ -276,7 +276,7 @@ stories:
   - AC-ADM-003
   - AC-EVD-003
   - AC-EVD-004
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/6
   pull_requests:
@@ -285,10 +285,12 @@ stories:
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/50
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/51
   - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/54
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/184
   implementation_evidence:
   - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
   - docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md
   - docs/05-quality/SCALAR_RECONCILIATION_VALIDATION.md
+  - docs/05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md
 - id: STORY-013
   epic: EPIC-04
   title: Implement freshness and completeness rules

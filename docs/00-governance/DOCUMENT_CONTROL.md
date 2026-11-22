@@ -1,5 +1,16 @@
 # Document Control
 
+## STORY-012 source-authority software acceptance, 2026-11-22
+
+Under the Product Owner's existing controller delegation, approve the
+STORY-012 software scope and the shared criterion decisions for AC-EVD-004,
+AC-HLT-005 and AC-QA-005. The implementation evidence is the reviewed
+PR #184 head and actual merge `8247eb17701432b7596e926f278e76bf9f13ede6`.
+The audit preserves the separate INT-EVD-004, INT-HLT-005 and FAIL-009
+owners. This decision takes effect after independent exact-source review,
+required checks and verified merge of this acceptance record.
+[Evidence and scope](../05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md)
+
 ## STORY-009 reviewed CSV import software acceptance, 2026-11-18
 
 Under the Product Owner's existing controller delegation, approve the

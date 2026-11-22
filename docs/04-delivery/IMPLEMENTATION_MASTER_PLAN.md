@@ -155,9 +155,9 @@ Report separately what is implemented locally and what is accepted/merged.
 
 Fixed denominators: R0 has 5 stories; R1 has 33. Completion is merged accepted
 stories divided by that denominator, not a count of files or planned tests. A
-scope change updates the approved denominator explicitly. Current accepted
-completion after this acceptance increment merges is R0 3/5 (60%) and R1 5/33
-(15.2%), or 8/38 combined (21.1%). STORY-001/002/003 are accepted
+scope change updates the approved denominator explicitly. The
+[implementation status](IMPLEMENTATION_STATUS.md#accepted-implementation-completion)
+records the accepted counts and their effective gates. STORY-001/002/003 are accepted
 with exact review, CI and merged evidence in FOUNDATION_CONTRACT_VALIDATION.md
 and CUSTOMER_COMPOSITION_VALIDATION.md. STORY-010 and STORY-011 are accepted in
 the current requirements/traceability/stories.yaml registry, with implementation

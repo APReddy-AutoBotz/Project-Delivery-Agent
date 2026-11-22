@@ -4,10 +4,13 @@ Updated: 2026-11-22
 
 ## Accepted implementation completion
 
+The counts include STORY-012 once its acceptance record passes independent
+review and required checks and merges.
+
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
-| R1      |                       5 |                     33 |      15.2% |
+| R1      |                       6 |                     33 |      18.2% |
 
 STORY-001 (TypeScript workspace and runtime/API contracts) and STORY-002
 (PostgreSQL foundation and repository interfaces) are accepted under delegated
@@ -26,10 +29,11 @@ Foundation39734257139/Documentation39734257119 all pass. See the [webhook accept
 and [freshness acceptance](../05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md) records.
 PR #113 brought the accepted total to 7/38 (18.4%). The
 [STORY-009 CSV acceptance](../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md)
-brings it to **8/38 (21.1%)** after this evidence increment passes independent
-review and required checks and merges. The release totals then are R0 3/5
-and R1 5/33. Issues #7/#8/#9, unfinished stories and all five release holds
-remain open. Original19/20 research capture remains stopped.
+brought it to **8/38 (21.1%)**. [STORY-012 source-authority acceptance](../05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md)
+brings it to **9/38 (23.7%)** once the acceptance record passes independent
+review and required checks and merges. R0 is 3/5 and R1 is then 6/33.
+Unfinished stories and all five customer release holds remain open.
+Original19/20 capture is stopped.
 
 ## Latest merged result and current work
 
@@ -38,8 +42,9 @@ merged EXEC-047 as `8247eb17701432b7596e926f278e76bf9f13ede6`. The
 reviewed head and actual main passed both packaged profiles with a reviewed
 workbook, three synthetic Jira records, one PM reconciliation request and
 the leadership conflict answer. The [EXEC-047 ledger](exec-plans/EXEC-047-source-observation-authority.md#validation-evidence)
-records the exact checks, receipts and the external restore retry. The next
-stage audits GOLDEN-003 and the separately mapped tests for acceptance.
+records the exact checks, receipts and the external restore retry. The
+[acceptance audit](../05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md)
+maps GOLDEN-003 and its separate prerequisite tests to the approved criteria.
 
 [PR #181](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/181)
 merged the packaged recovery proof for browser-reviewed XLSX receipts as
