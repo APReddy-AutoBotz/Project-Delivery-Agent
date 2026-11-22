@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated: 2026-11-21
+Updated: 2026-11-22
 
 ## Accepted implementation completion
 
@@ -32,6 +32,14 @@ and R1 5/33. Issues #7/#8/#9, unfinished stories and all five release holds
 remain open. Original19/20 research capture remains stopped.
 
 ## Latest merged result and current work
+
+[PR #184](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/184)
+merged EXEC-047 as `8247eb17701432b7596e926f278e76bf9f13ede6`. The
+reviewed head and actual main passed both packaged profiles with a reviewed
+workbook, three synthetic Jira records, one PM reconciliation request and
+the leadership conflict answer. The [EXEC-047 ledger](exec-plans/EXEC-047-source-observation-authority.md#validation-evidence)
+records the exact checks, receipts and the external restore retry. The next
+stage audits GOLDEN-003 and the separately mapped tests for acceptance.
 
 [PR #181](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/181)
 merged the packaged recovery proof for browser-reviewed XLSX receipts as

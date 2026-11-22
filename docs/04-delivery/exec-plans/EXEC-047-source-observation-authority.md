@@ -1,6 +1,6 @@
 # EXEC-047: Source observations in the fact ledger
 
-Status: Draft
+Status: implementation merged and verified. Acceptance review is a separate increment.
 Owner: Implementation controller
 Requirement IDs: FR-EVD-003/004/006/007/009/010/012, FR-ADM-005, FR-HLT-008/009, FR-QA-002/007, FR-CON-003/006/007
 GitHub issues: #6, #7, #8, #12
@@ -416,6 +416,8 @@ connectivity. No destructive downgrade or default development database use.
   further expired content. The
   admitted witness, original PM proof, exact replay, and earlier human proof
   survived logical restore with API database connections revoked.
+- 2026-11-22: PR #184 merged the reviewed implementation. Both packaged
+  profiles passed on the reviewed head and on the actual main merge.
 
 ## Decisions made
 
@@ -433,11 +435,48 @@ snapshot to avoid treating missing data as a settled value.
 
 ## Validation evidence
 
-Draft stage. Review and validation results will identify the exact candidate
-and actual main merge where applicable.
+[PR #184](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/184)
+merged reviewed head `e8f140d2048b41a7556667bab7349c2e60fac8c3` as
+`8247eb17701432b7596e926f278e76bf9f13ede6`. The tested and merged tree
+is `3d55779ca2f1c8f7dbf76bd849d24d76e6853eb0`. The merge parents, in
+order, are `808753eea6401524f42d644ae4c2549d03129d77` and the reviewed
+head. Independent review approved both the source implementation and the
+final acceptance-fixture fixes.
+
+| Verified revision | Foundation | Documentation |
+| --- | --- | --- |
+| Reviewed PR head | [44962936149](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44962936149) | [44962936648](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44962936648) |
+| Actual main merge | [44965342840, attempt 2](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44965342840?attempt=2) | [44965342845](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44965342845) |
+
+Both revisions passed 3,024 unit tests, 392 database integration tests
+with one optional case skipped, 329 browser tests, the separate saved PM
+escalation browser test, and the high-severity dependency audit. Production
+acceptance covered the populated historical upgrades, finite function
+grants, TLS, OIDC and encrypted recovery.
+
+The packaged XLSX receipts bind to artifact 14730572583 on the reviewed head
+and 14730748914 on the main merge. Both bundled and external profiles verified
+four stored source witnesses, one durable PM request, exact retry and reuse,
+the leadership answer, project and source revocations, lawful workbook
+proposal purge and redelivery from quarantined encrypted recovery.
+
+The [first PR Foundation run](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44960054582)
+failed on outdated upgrade privilege assertions and on the saved escalation
+fixture's database ownership. The corrected head passed both cases. The
+[first main production job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44965342840/job/137032972123)
+stopped at the external restore commit check when PostgreSQL reported one
+autovacuum worker and no client session. The
+[same-commit retry](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/44965342840/job/137038914280)
+passed with the strict restore guard in place.
 
 ## Completion summary
 
-The design addresses the prerequisite for genuine source evidence in the
-shared golden journey. Existing story and criterion status remains open
-pending implementation and verified end-to-end evidence.
+Migration 39 and the scoped runtime paths preserve mixed-origin evidence
+and the earlier human proof formats. The synthetic admission role is
+available only during the isolated rehearsal. OD-013 and OD-014 govern
+live Jira onboarding and comment handling. CSV and XLSX import commits
+continue to save reviewed proposals. Original19/20 capture is stopped.
+
+The next stage is the separately reviewed acceptance and traceability audit.
+It must reconcile GOLDEN-003 with INT-EVD-004, INT-HLT-005 and FAIL-009
+before recording criterion or story acceptance.
