@@ -40,3 +40,14 @@ checks. Other story/criterion ownership and shared GOLDEN-003 remain unchanged.
 | Story | Requirement/criterion chain | Implementation and complete acceptance record |
 | --- | --- | --- |
 | STORY-009 / Issue #7 | FR-CON-006/007 -> AC-CON-005 -> E2E-CON-005 and FAIL-006 | PR #168; [reviewed CSV import acceptance](../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md) |
+
+## STORY-012 source-authority acceptance evidence, 2026-11-22
+
+| Story or criterion | Required evidence | Implementation |
+| --- | --- | --- |
+| STORY-012 / Issue #6 | AC-ADM-003, AC-EVD-003, AC-EVD-004. INT-ADM-003, UNIT-EVD-003, E2E-EVD-003, INT-EVD-004, GOLDEN-003 and FAIL-009. | PR #47, #54 and #184. [Source-authority acceptance](../05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md) |
+| AC-HLT-005 / Issue #8 | INT-HLT-005 and GOLDEN-003. | PR #184 and the prior milestone integration. [Source-authority acceptance](../05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md) |
+| AC-QA-005 / Issue #12 | GOLDEN-003. | PR #184. [Source-authority acceptance](../05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md) |
+
+Acceptance takes effect when this increment passes independent review and
+required checks and merges.

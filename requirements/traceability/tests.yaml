@@ -747,7 +747,7 @@ tests:
   evidence: []
 - id: GOLDEN-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-004
   - AC-HLT-005
@@ -758,6 +758,10 @@ tests:
     action. The answer describes both conflicting values and does not silently choose one.
   evidence:
   - docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md
+  - docs/05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md
+  - scripts/acceptance/golden-source-observations.mjs
+  - scripts/acceptance/xlsx-customer-browser.mjs
+  - scripts/xlsx-runtime/run-customer.mjs
 - id: GOLDEN-004
   release: R1
   status: planned
