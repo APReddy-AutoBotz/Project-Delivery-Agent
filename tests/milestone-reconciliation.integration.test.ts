@@ -26,7 +26,10 @@ import type {
 } from "../packages/domain/src/index.js";
 
 const url = process.env.PDAA_DATABASE_URL!;
-if (!url || !/^\/pdaa_test_\d+$/.test(new URL(url).pathname))
+const target = url ? new URL(url) : null;
+if (!target || !["postgres:", "postgresql:"].includes(target.protocol) || target.hostname !== "127.0.0.1" ||
+    target.username !== "pdaa" || !target.password || !target.port || target.search || target.hash ||
+    !/^\/pdaa_test_\d+$/.test(target.pathname))
   throw new Error(
     "Reconciliation integration requires an isolated synthetic database",
   );
@@ -52,7 +55,16 @@ const definition: AuthorityDefinition = {
   ],
   conflictBehavior: "REQUEST_RECONCILIATION",
 };
-const config = loadConfig(process.env);
+// This suite injects its repositories and an owned loopback test database.
+// Validate the development configuration independently of its assigned port.
+const developmentTarget = new URL(target);
+developmentTarget.port = "55432";
+const developmentConfig = loadConfig({ ...process.env, PDAA_DATABASE_URL: developmentTarget.toString() });
+const config = {
+  ...developmentConfig,
+  PDAA_DATABASE_URL: target.toString(),
+  database: { ...developmentConfig.database, port: Number(target.port) },
+};
 let app: Awaited<ReturnType<typeof createApp>>["app"],
   spec: Awaited<ReturnType<typeof createApp>>["spec"],
   validate: ReturnType<typeof compileContract>,

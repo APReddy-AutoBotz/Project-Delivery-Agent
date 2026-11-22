@@ -9,11 +9,12 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createDatabase } from "../packages/data/dist/index.js";
+import { assertSyntheticDatabaseUrl } from "../packages/platform/dist/index.js";
+import { alignSyntheticFixtureOwnership } from "./acceptance/common.mjs";
 import { seedEscalationHistory } from "./acceptance/escalation-history.mjs";
 
-const source = new URL(process.env.PDAA_DATABASE_URL ?? "");
+const source = assertSyntheticDatabaseUrl(process.env.PDAA_DATABASE_URL ?? "");
 assert(process.env.NODE_ENV !== "production" && process.env.DATA_MODE === "synthetic");
-assert(["127.0.0.1", "localhost"].includes(source.hostname));
 const hosted = process.argv.includes("--hosted-foundation");
 if (hosted) {
   assert.equal(process.env.GITHUB_ACTIONS, "true");
@@ -82,6 +83,7 @@ async function ready(url, child) {
 }
 try {
   await complete(start(["../../node_modules/prisma/build/index.js", "migrate", "deploy"], "migrate", resolve("packages/data")));
+  await alignSyntheticFixtureOwnership(source.toString());
   await complete(start(["packages/data/dist/seed.js"], "seed"));
   const fixture = await seedEscalationHistory(source.toString(), { isolatedCustomer: true });
   const privateFile = (name, value) => {

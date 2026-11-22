@@ -118,9 +118,24 @@ describe("milestone conflict observation contract", () => {
     expect(schema.safeParse(v).success).toBe(false);
     expect(() => decodeMilestoneConflict(v, v.projectId, v.milestoneId)).toThrow();
   });
-  it("allows separately sourced provenance without combining it into a single claim", () => {
-    const v = conflict(), second = support(999); second.provenance = "SYSTEM_VERIFIED";
-    v.positions[0]!.supports.push(second);
-    expect(schema.parse(v)).toEqual(v);
+  it("requires typed verified provenance and keeps both source observations separate", () => {
+    const v = conflict();
+    const excel = { ...support(999), provenance: "SYSTEM_VERIFIED", sourceKind: "xlsx.row" };
+    const jira = { ...support(998), provenance: "SYSTEM_VERIFIED", sourceKind: "jira.issue" };
+    v.positions[0]!.supports.push(excel);
+    v.positions[1]!.supports.push(jira);
+    expect(decodeMilestoneConflict(schema.parse(v), v.projectId, v.milestoneId)).toEqual(v);
+    for (const malformed of [
+      { ...excel, sourceKind: undefined },
+      { ...jira, sourceKind: "arbitrary.connector" },
+      { ...excel, provenance: "HUMAN_CONFIRMED" },
+      { ...excel, versionValidUntil: null },
+      { ...jira, sourceUrl: "https://private.example" },
+    ]) {
+      const bad = conflict();
+      const input = { ...bad, positions: [{ ...bad.positions[0], supports: [malformed] }, bad.positions[1]] };
+      expect(schema.safeParse(input).success).toBe(false);
+      expect(() => decodeMilestoneConflict(input, input.projectId, input.milestoneId)).toThrow();
+    }
   });
 });

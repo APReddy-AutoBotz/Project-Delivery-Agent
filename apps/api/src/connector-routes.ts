@@ -25,6 +25,7 @@ type ConnectorHttpRuntimePort = {
     keyId: string;
     timestampSeconds: string;
     body: Uint8Array;
+    dispatchCustomerId?: string;
   }): Promise<boolean>;
   acceptWebhook(input: {
     sourceId: string;
@@ -101,11 +102,14 @@ export function installConnectorRoutes(
         const nonce = req.get("x-pdaa-task-nonce") ?? "";
         const keyId = req.get("x-pdaa-task-key") ?? "";
         const timestampSeconds = req.get("x-pdaa-task-time") ?? "";
-        if (!(await runtime.acceptTaskNonce({ nonce, keyId, timestampSeconds, body: rawBody }))) {
+        if (!(await runtime.acceptTaskNonce({
+          nonce, keyId, timestampSeconds, body: rawBody,
+          dispatchCustomerId: config.CUSTOMER_ID,
+        }))) {
           fixedError(response, 409, "Task request already used");
           return;
         }
-        response.status(200).json(await jira.runOne());
+        response.status(200).json(await jira.runOne(nonce));
       } catch {
         fixedError(response, 503, "Service unavailable");
       }

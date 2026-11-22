@@ -62,7 +62,7 @@ function docker(step, args, env = {}, timeout = 120_000) {
   );
   if (child.status !== 0 || child.error) {
     const proofStep = child.stderr?.match(
-      /^XLSX_CUSTOMER_(?:PROOF|BROWSER)_FAILED (environment|provisioned-customer|source-genesis|retention-fixture|receipt-verification|browser-receipt-verification|identity-readiness|browser-toolchain|sign-in|workbook-import|receipt-reload|scope-denial|restore-target|restore-quarantine)\r?$/mu,
+      /^XLSX_CUSTOMER_(?:PROOF|BROWSER)_FAILED (environment|provisioned-customer|source-genesis|retention-fixture|receipt-verification|browser-receipt-verification|identity-readiness|browser-toolchain|sign-in|workbook-import|receipt-reload|scope-denial|restore-target|restore-quarantine|golden-project|golden-workbook|golden-admit|golden-reconciliation|golden-withdraw-jira|golden-jira-denial|golden-regrant-jira|golden-purge-workbook|golden-redelivery|golden-verify)\r?$/mu,
     )?.[1];
     const detail = proofStep ? step + " (" + proofStep + ")" : step;
     throw new Error("XLSX customer rehearsal failed at " + detail, {
@@ -142,7 +142,7 @@ function exercise(profile) {
     OIDC_CLIENT_ID: "pdaa-web",
     OIDC_AUDIENCE: "pdaa-api",
     OIDC_SCOPE: "openid pdaa.read",
-    OIDC_GROUP_ROLE_MAP: '{"project-managers":["project_manager"],"pmo-admins":["pmo_admin"]}',
+    OIDC_GROUP_ROLE_MAP: '{"project-managers":["project_manager"],"pmo-admins":["pmo_admin"],"leadership":["leadership"],"operators":["system_admin"]}',
     PDAA_API_IMAGE: "unused-api:base",
     PDAA_WORKER_IMAGE: "unused-worker:base",
     PDAA_WEB_IMAGE: images.web,
@@ -307,6 +307,15 @@ function exercise(profile) {
     writeFileSync(join(browserProof, profile + ".xlsx"), workbook);
     workbookHashes.set(profile, createHash("sha256").update(workbook).digest("hex"));
   }
+  assert.match(seed.golden.projectId, /^[0-9a-f-]{36}$/u);
+  assert.equal(seed.golden.sheet, "Portfolio");
+  const goldenWorkbook = book(fixtureParts([
+    ["Key", "Project", "Status", "Forecast", "Snapshot"],
+    ["release-golden", seed.golden.projectId, "Complete", "2027-03-02", new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()],
+  ]));
+  const goldenSha256 = createHash("sha256").update(goldenWorkbook).digest("hex");
+  writeFileSync(join(browserProof, "golden.xlsx"), goldenWorkbook);
+  writeFileSync(join(browserProof, "golden.json"), JSON.stringify({ sourceId: seed.golden.sourceId, sheet: seed.golden.sheet }));
   writeFileSync(join(proof, "bindings.json"), JSON.stringify(seed.bindings));
   writeFileSync(join(browserProof, "bindings.json"), JSON.stringify(
     seed.bindings.map(({ sourceId, profile }) => ({ sourceId, profile })),
@@ -377,15 +386,39 @@ function exercise(profile) {
     composeArgs("run", "--rm", "--no-deps", "xlsx-browser"),
     240_000,
   ));
-  const browserExpectation = JSON.stringify({
+  const browserExpectation = {
     canonicalSha256: seed.canonicalSha256,
     bridge: client.results,
     results: browser.results.map((result) => ({
       ...result, workbookSha256: workbookHashes.get(result.profile),
     })),
-  });
-  const browserVerified = ownerProof("verify-browser-receipts", "verify-browser", browserExpectation);
+  };
+  const browserVerified = ownerProof("verify-browser-receipts", "verify-browser", JSON.stringify(browserExpectation));
   assert.deepEqual(browserVerified, { canonicalStateUnchanged: true, verifiedReviewedImports: 2 });
+  assert.equal(browser.golden.sourceId, seed.golden.sourceId);
+  assert.match(browser.golden.reviewedReceiptId, /^[0-9a-f-]{36}$/u);
+  const admitted = ownerProof("golden-admit-sources", "golden-admit", JSON.stringify({
+    ...seed.golden, reviewedReceiptId: browser.golden.reviewedReceiptId,
+    workbookSha256: goldenSha256, canonicalSha256: seed.canonicalSha256,
+  }));
+  assert.equal(admitted.projectId, seed.golden.projectId);
+  assert.deepEqual(admitted.positions.map(({ type }) => type).sort(), ["jira.issue", "jira.issue", "jira.issue", "xlsx.row"]);
+  const goldenBrowser = (phase, fixture) => JSON.parse(call(
+    phase, composeArgs("run", "--rm", "--no-deps", "xlsx-browser",
+      "node", "scripts/acceptance/xlsx-customer-browser.mjs", phase, JSON.stringify(fixture)), 240_000,
+  ));
+  const journey = goldenBrowser("golden-reconciliation", admitted);
+  assert.equal(journey.projectAndFactRevocations, true);
+  const golden = { ...admitted, ...journey };
+  assert.deepEqual(ownerProof("golden-withdraw-jira", "golden-withdraw-jira", JSON.stringify(golden)), { active: false });
+  assert.deepEqual(goldenBrowser("golden-jira-denial", golden), { jiraScopeRevocation: true });
+  assert.deepEqual(ownerProof("golden-regrant-jira", "golden-regrant-jira", JSON.stringify(golden)), { active: true });
+  assert.deepEqual(ownerProof("golden-purge-workbook", "golden-purge-workbook", JSON.stringify(golden)), { redactedProposals: 1 });
+  assert.deepEqual(goldenBrowser("golden-redelivery", golden), { originalEvidenceRedelivered: true });
+  const { canonicalSha256, ...goldenProof } = ownerProof("golden-verify", "golden-verify", JSON.stringify(golden));
+  assert.match(canonicalSha256, /^[a-f0-9]{64}$/u);
+  assert.notEqual(canonicalSha256, seed.canonicalSha256);
+  assert.deepEqual(goldenProof, { verifiedSourceWitnesses: 4, durablePmRequests: 1, verifiedChecks: 2, legacyProofs: 1, redactedProposals: 1 });
   const backup = operationResult(compose("backup-browser-receipts", "run", "--rm", "--no-deps", "backup"),
     "backup", env.CUSTOMER_ID);
   assert.equal(backup.encrypted, true);
@@ -399,9 +432,12 @@ function exercise(profile) {
   ), "restore", env.CUSTOMER_ID);
   assert.equal(restore.quarantine, true);
   assert.equal(restore.applicationStarted, false);
-  const recovery = ownerProof("verify-restored-browser", "verify-restored-browser", browserExpectation);
+  const recovery = ownerProof("verify-restored-browser", "verify-restored-browser",
+    JSON.stringify({ ...browserExpectation, golden: { ...golden, canonicalSha256 } }));
   assert.deepEqual(recovery, {
     canonicalStateUnchanged: true, verifiedReviewedImports: 2, quarantined: true, finiteReceiptReadGrants: true,
+    golden: goldenProof,
+    restoredDelivery: { scopedPmRedelivery: true, deniedNonRecipient: true, exactReplay: true, priorLegacyProofUnchanged: true },
   });
   active.get(project)();
   active.delete(project);
@@ -426,6 +462,9 @@ function exercise(profile) {
       exactHttpReplay: true,
       protectedReloadAndDenial: true,
       ...browserVerified,
+    },
+    golden003: {
+      ...goldenProof, projectAndFactRevocations: true, jiraScopeRevocation: true, originalEvidenceRedelivered: true,
     },
     recovery: { encrypted: true, ...recovery },
   };

@@ -167,6 +167,44 @@ describe("FR-EVD-004/009/010/012: internal milestone contradiction (partial AC-E
     expect(out).not.toHaveProperty("recipient");
     expect(out).not.toHaveProperty("settled");
   });
+
+  it("retains workbook and Jira positions from a committed source snapshot", () => {
+    const input = fixture();
+    for (const [index, target] of input.targets.entries()) {
+      const snapshot = target.snapshot!;
+      const workbook = target.targetKind === "MILESTONE";
+      const sourceType = workbook ? "xlsx" : "jira";
+      const row = snapshot.versions[0]!;
+      snapshot.committedFactRevision = 1;
+      row.ledgerRevision = 1;
+      row.admittedAt = time(2);
+      row.provenance = "SYSTEM_VERIFIED";
+      row.source.recordType = workbook ? "xlsx.row" : "jira.issue";
+      row.source.recordId = id(800 + index);
+      row.source.revision = id(810 + index);
+      snapshot.sources[0]!.sourceType = sourceType;
+      const selector = snapshot.policy!.tiers[0]!.selectors[0]!;
+      selector.sourceType = sourceType;
+      selector.instanceId = row.source.instanceId;
+    }
+
+    const checked = evaluate(input);
+    expect(checked.status).toBe("CONFLICTING");
+    expect(checked.contributors).toHaveLength(4);
+    expect(checked.evaluations?.map((row) => row.assessment?.resolvedValue?.value))
+      .toEqual(["COMPLETE", "OPEN", "OPEN", "OPEN"]);
+    expect(checked.evaluations?.map((row) => row.assessment?.versions[0]))
+      .toMatchObject([
+        { provenance: "SYSTEM_VERIFIED", sourceType: "xlsx" },
+        { provenance: "SYSTEM_VERIFIED", sourceType: "jira" },
+        { provenance: "SYSTEM_VERIFIED", sourceType: "jira" },
+        { provenance: "SYSTEM_VERIFIED", sourceType: "jira" },
+      ]);
+
+    fact(input, 2).evidence[0]!.access = "RESTRICTED";
+    expect(evaluate(input)).toEqual(minimal(input, "REVALIDATION_REQUIRED"));
+  });
+
   it("includes IN_PROGRESS and all agreeing sources; complete noncontributors remain dependencies", () => {
     const input = fixture(["IN_PROGRESS", "OPEN", "COMPLETE"]);
     addVersion(fact(input), 700);

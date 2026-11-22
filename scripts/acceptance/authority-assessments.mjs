@@ -47,7 +47,7 @@ export async function verifyAuthorityIntegrity(pool) {
   assert.equal(invalid, 0);
   return true;
 }
-export async function verifyAuthorityPrivileges(pool) {
+export async function verifyAuthorityPrivileges(pool, { legacy = false } = {}) {
   guard();
   for (const table of authorityTables) {
     for (const role of ["pdaa_api", "pdaa_worker", "pdaa_backup"]) {
@@ -158,14 +158,29 @@ export async function verifyAuthorityPrivileges(pool) {
   ];
   const functions = (
     await pool.query(
-      "SELECT p.proname,p.prosecdef,pg_get_userbyid(p.proowner) AS owner FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname=ANY($1)",
+      `SELECT p.proname,p.prosecdef,p.proconfig,pg_get_userbyid(p.proowner) AS owner,
+        ARRAY(SELECT (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee)::text END)
+            || CASE WHEN a.is_grantable THEN ':grantable' ELSE '' END
+          FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+          WHERE a.grantee<>p.proowner AND a.privilege_type='EXECUTE' ORDER BY 1) AS executors
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public' AND p.proname=ANY($1)`,
       [names],
     )
   ).rows;
-  assert.equal(functions.length, names.length);
-  assert(
-    functions.every((row) => !row.prosecdef && row.owner === "pdaa_migrate"),
-  );
+  assert.deepEqual(functions.map((row) => row.proname).sort(), names.sort());
+  const validators = ["valid_authority_conflict", "valid_fact_assessment"];
+  for (const row of functions) {
+    const definer = !legacy && (
+      row.proname === "require_authority_published" || validators.includes(row.proname)
+    );
+    assert.equal(row.owner, "pdaa_migrate", row.proname);
+    assert.equal(row.prosecdef, definer, row.proname);
+    if (definer) {
+      assert.deepEqual(row.proconfig, ["search_path=pg_catalog, pg_temp"], row.proname);
+      assert.deepEqual(row.executors, validators.includes(row.proname) ? ["pdaa_api"] : [], row.proname);
+    }
+  }
   return true;
 }
 async function deniedSql(pool, sql) {

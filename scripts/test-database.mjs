@@ -21,6 +21,7 @@ import { verifyUpdateEngagementStorage } from "./acceptance/update-engagement-st
 import { seedEscalationHistory } from "./acceptance/escalation-history.mjs";
 import { verifyCsvComparisonPrototype } from "./acceptance/csv-comparison-prototype.mjs";
 import { verifyXlsxReceiptCodec } from "./acceptance/xlsx-receipt-codec.mjs";
+import { withSourceAdmissionRole } from "./acceptance/source-admission-role.mjs";
 import { Pool } from "./acceptance/common.mjs";
 const source = assertSyntheticDatabaseUrl(
   process.env.PDAA_DATABASE_URL ?? "",
@@ -135,6 +136,10 @@ try {
     "ConnectorSyncJob",
     "ConnectorWebhookReceipt",
     "ConnectorTaskReceipt",
+    "ConnectorPageDispatch",
+    "SourceObservationWitness",
+    "SourceAdmissionBindingRevision",
+    "SourceAdmissionCommand",
     "IngestionSyncReceiptProjectScope",
     "HealthAssessmentRetentionPolicy",
     "HealthAssessment",
@@ -688,7 +693,7 @@ writeFileSync(escalationFixturePath, JSON.stringify(escalationFixture),
 env.PDAA_ESCALATION_FIXTURE_PATH = escalationFixturePath;
 env.PDAA_ESCALATION_CUSTOMER_ID = escalationFixture.customerId;
 
-node([
+await withSourceAdmissionRole(source.toString(), () => node([
   "node_modules/vitest/vitest.mjs",
   "run",
   "tests/database.integration.test.ts",
@@ -709,6 +714,7 @@ node([
   "tests/milestone-reconciliation.integration.test.ts",
   "tests/scalar-reconciliation.integration.test.ts",
   "tests/ingestion-persistence.integration.test.ts",
+  "tests/source-observation-input.integration.test.ts",
   "tests/csv-reviewed-import-api-role.integration.test.ts",
   "tests/csv-comparison-persistence.integration.test.ts",
   "tests/spreadsheet-preparse.integration.test.ts",
@@ -716,7 +722,7 @@ node([
   "tests/ingestion-reassessment.integration.test.ts",
   "tests/project-evidence.integration.test.ts",
   "--no-file-parallelism",
-]);
+]));
 console.log(
   "Isolated database migration, repeat deployment, seed and integration checks passed.",
 );
@@ -801,6 +807,10 @@ writeFileSync(
         "ConnectorSyncJob",
         "ConnectorWebhookReceipt",
         "ConnectorTaskReceipt",
+        "ConnectorPageDispatch",
+        "SourceObservationWitness",
+        "SourceAdmissionBindingRevision",
+        "SourceAdmissionCommand",
         "IngestionSyncReceiptProjectScope",
       ],
       ingestionPersistenceChecks: "passed",
@@ -819,7 +829,7 @@ writeFileSync(
       ],
       engagementStorage,
       engagementStorageTables: ["ProjectUpdateEngagement","ProjectUpdateStage","ProjectUpdateOutbox","ProjectUpdateDispatchAttempt"],
-      businessTables: 89,
+      businessTables: 93,
       ingestionReassessmentTables: ["IngestionProjectReassessment"],
       healthAssessmentRetentionChecks: "passed",
       authorityRepositoryChecks: "passed",

@@ -1543,6 +1543,54 @@ test("INT-EVD-001: a lost statement response retains the same reviewed request t
   expect(history.entries[2].id).toBe(savedIds[0]);
 });
 
+test("FR-EVD-003/009: fact history displays typed source snapshots and withholds restricted content", async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request);
+  const human = await f.append("pmo-portfolio", 0, "Human forecast");
+  const verified = (["jira.issue", "xlsx.row"] as const).map((recordType, index) => {
+    const id = randomUUID(), evidenceId = randomUUID(), sourceId = randomUUID();
+    return {
+      id, evidenceId, sourceId, revision: index + 2, sourceAccessRevision: 2,
+      visibility: "available", revalidationRequired: false,
+      content: {
+        value: { type: "text", value: index === 0 ? "Jira forecast" : "Workbook forecast" },
+        provenance: "SYSTEM_VERIFIED", effectiveAt: f.effectiveAt,
+        observedAt: f.effectiveAt, admittedAt: f.effectiveAt, validUntil: f.effectiveAt,
+        source: { instanceId: sourceId, recordType, recordId: randomUUID(), revision: randomUUID() },
+        evidenceIds: [evidenceId],
+      },
+    };
+  });
+  let restricted = false;
+  await page.route(`**/api${f.prefix}/facts/${f.factType}/history*`, (route) => route.fulfill({
+    json: {
+      factId: human.factId, factType: f.factType, throughRevision: 3, next: null, historical: true,
+      entries: [human.entry, ...verified.map(({ content, ...metadata }) => restricted
+        ? { ...metadata, visibility: "restricted", revalidationRequired: true }
+        : { ...metadata, content })],
+    },
+  }));
+  await open(page, f.payload.name);
+  await openFact(page, f.factType);
+  await expect(page.getByRole("article", { name: "History revision 1", exact: true })).toContainText("Human forecast");
+  const jira = page.getByRole("article", { name: "History revision 2", exact: true });
+  const workbook = page.getByRole("article", { name: "History revision 3", exact: true });
+  await expect(jira).toContainText("Jira issue snapshot");
+  await expect(jira).toContainText("Jira forecast");
+  await expect(jira).toContainText("Admitted at");
+  await expect(workbook).toContainText("Reviewed Excel row snapshot");
+  await expect(workbook).toContainText("Workbook forecast");
+  await expect(workbook.getByText("Confirmed by", { exact: true })).toHaveCount(0);
+  restricted = true;
+  await page.getByRole("button", { name: "Refresh history", exact: true }).click();
+  await expect(jira).toContainText("Source restricted");
+  await expect(jira).not.toContainText("Jira forecast");
+  await expect(workbook).toContainText("Source restricted");
+  await expect(workbook).not.toContainText("Workbook forecast");
+});
+
 test("GOLDEN-013 / E2E-EVD-003: authority changes show human, stale and conflicting dimensions while the old saved link stays frozen", async ({
   page,
   request,

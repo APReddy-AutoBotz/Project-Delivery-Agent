@@ -9,6 +9,14 @@ import {
 import { xlsxReceiptReadApi, xlsxReviewDetailsApi } from "../../packages/operations/dist/business-grants.js";
 import { Pool, secret } from "./common.mjs";
 import { proveXlsxSourceGenesis } from "./xlsx-source-genesis.mjs";
+import {
+  admitGoldenSources,
+  changeGoldenJiraScope,
+  prepareGoldenWorkbook,
+  purgeGoldenWorkbook,
+  verifyGoldenProof,
+  verifyGoldenQuarantineDelivery,
+} from "./golden-source-observations.mjs";
 
 const env = process.env;
 const customerId = "10000000-0000-4000-8000-000000000002";
@@ -30,6 +38,7 @@ async function cases() {
      JOIN public."IngestionConfigurationRevision" c
        ON c."customerId"=h."customerId" AND c."sourceId"=h."sourceId" AND c.revision=1
      WHERE h."customerId"=$1 AND r.subject=$2 AND c.mapping->>'sheet'='Portfolio'
+       AND NOT c.mapping->'fields' @> '[{"factType":"source.snapshot_at"}]'::jsonb
      ORDER BY c.mapping->>'parserContract'`,
     [customerId, bridgeSubject],
   );
@@ -49,7 +58,7 @@ async function canonicalDigest() {
   return createHash("sha256").update(row.state).digest("hex");
 }
 
-async function prepare() {
+async function prepare(database) {
   step = "provisioned-customer";
   const { rows: databases } = await pool.query(
     `SELECT shobj_description(oid,'pg_database') AS marker
@@ -115,7 +124,9 @@ async function prepare() {
       client.release();
     }
   }
-  return { bindings, canonicalSha256: await canonicalDigest() };
+  step = "golden-project";
+  const golden = await prepareGoldenWorkbook(pool, database, customerId);
+  return { bindings, golden, canonicalSha256: await canonicalDigest() };
 }
 
 async function verify(expected) {
@@ -170,14 +181,14 @@ async function verify(expected) {
   };
 }
 
-async function verifyBrowser(expected) {
+async function verifyBrowser(expected, canonicalSha256 = expected.canonicalSha256) {
   step = "browser-receipt-verification";
   assert.match(expected.canonicalSha256, /^[a-f0-9]{64}$/u);
   assert.deepEqual(expected.results.map(({ profile }) => profile).sort(), [...profiles].sort());
   assert.deepEqual(expected.bridge.map(({ profile }) => profile).sort(), [...profiles].sort());
   await assertXlsxPreviewIntegrity(pool);
   await assertXlsxReviewedImportIntegrity(pool);
-  assert.equal(await canonicalDigest(), expected.canonicalSha256);
+  assert.equal(await canonicalDigest(), canonicalSha256);
   for (const { profile, sourceId, projectId } of await cases()) {
     const wanted = expected.results.find((result) => result.profile === profile);
     const predecessor = expected.bridge.find((result) => result.profile === profile);
@@ -244,7 +255,7 @@ async function verifyBrowser(expected) {
   return { canonicalStateUnchanged: true, verifiedReviewedImports: profiles.length };
 }
 
-async function verifyRestoredBrowser(expected) {
+async function verifyRestoredBrowser(expected, database) {
   step = "restore-quarantine";
   const { rows } = await pool.query(
     `SELECT current_database() AS database, shobj_description(oid,'pg_database') AS marker,
@@ -270,12 +281,16 @@ async function verifyRestoredBrowser(expected) {
   assert.deepEqual(readers, Array.from({ length: 2 }, () => ({
     owner: "pdaa_migrate", definer: true, executors: ["pdaa_api"], grantable: false,
   })));
-  return { ...await verifyBrowser(expected), quarantined: true, finiteReceiptReadGrants: true };
+  const browser = await verifyBrowser(expected, expected.golden.canonicalSha256);
+  const golden = await verifyGoldenProof(pool, customerId, expected.golden);
+  const restoredDelivery = await verifyGoldenQuarantineDelivery(database, customerId, expected.golden);
+  return { ...browser, quarantined: true, finiteReceiptReadGrants: true, golden, restoredDelivery };
 }
 
 try {
   const profile = env.PDAA_CUSTOMER_PROFILE;
-  assert(["prepare", "verify", "verify-browser", "create-restore-target", "verify-restored-browser"].includes(phase));
+  assert(["prepare", "verify", "verify-browser", "golden-admit", "golden-purge-workbook", "golden-verify",
+    "golden-withdraw-jira", "golden-regrant-jira", "create-restore-target", "verify-restored-browser"].includes(phase));
   assert(["bundled", "external"].includes(profile));
   assert.equal(env.PDAA_ACCEPTANCE, "customer-composition");
   assert.equal(env.NODE_ENV, "production");
@@ -293,16 +308,36 @@ try {
   assert.equal(env.PDAA_DB_PASSWORD_FILE, "/run/secrets/admin-password");
   assert.equal(secret("customer-ready"), "isolated customer composition\n");
   const database = loadDatabaseConfig(env).database;
-  pool = new Pool(phase === "verify-restored-browser" ? { ...database, database: restoreDatabase } : database);
+  const target = phase === "verify-restored-browser" ? { ...database, database: restoreDatabase } : database;
+  pool = new Pool(target);
   let result;
   if (phase === "create-restore-target") {
     step = "restore-target";
     await pool.query("CREATE DATABASE pdaa_xlsx_restore TEMPLATE template0");
     result = { restoreTargetCreated: true };
   } else if (phase === "prepare") {
-    result = await prepare();
+    result = await prepare(database);
+  } else if (phase.startsWith("golden-")) {
+    step = phase;
+    const expected = JSON.parse(process.argv[3]);
+    const { rows } = await pool.query(
+      "SELECT shobj_description(oid,'pg_database') AS marker FROM pg_database WHERE datname=current_database()",
+    );
+    assert.deepEqual(rows, [{ marker: "pdaa.foundation.v1:" + customerId }]);
+    if (phase === "golden-admit") {
+      assert.equal(await canonicalDigest(), expected.canonicalSha256);
+      result = await admitGoldenSources(pool, database, customerId, expected);
+    } else if (phase === "golden-purge-workbook") {
+      result = await purgeGoldenWorkbook(pool, database, customerId, expected);
+    } else if (phase === "golden-verify") {
+      result = { ...await verifyGoldenProof(pool, customerId, expected), canonicalSha256: await canonicalDigest() };
+    } else {
+      result = await changeGoldenJiraScope(pool, customerId, expected, phase === "golden-regrant-jira");
+    }
   } else {
-    const check = { verify, "verify-browser": verifyBrowser, "verify-restored-browser": verifyRestoredBrowser }[phase];
+    const check = { verify, "verify-browser": verifyBrowser,
+      "verify-restored-browser": (expected) => verifyRestoredBrowser(expected, target),
+    }[phase];
     result = await check(JSON.parse(process.argv[3]));
   }
   process.stdout.write(JSON.stringify(result) + "\n");

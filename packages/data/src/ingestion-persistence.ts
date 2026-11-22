@@ -1333,6 +1333,7 @@ export class DatabaseIngestionRepository implements IngestionRepository {
       await tx.$executeRaw`
         UPDATE public."ConnectorSyncJob" SET state='COMPLETED',"leaseUntil"=NULL,"completedAt"=${now}
         WHERE "customerId"=${customerId}::uuid AND "sourceId"=${source.id}::uuid AND id=${jobId}::uuid AND state='RUNNING'`;
+      await tx.$executeRaw`SELECT public.record_connector_page_dispatch(${receiptId}::uuid)`;
       await enqueueConnectorReassessments(tx, {
         customerId, sourceId: source.id, receiptId,
         configRevision: job.configRevision, mappingRevision: job.mappingRevision, now,

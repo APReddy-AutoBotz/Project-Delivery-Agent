@@ -172,7 +172,24 @@ it("rebuilds finite released and ingestion function boundaries before granting o
   const xlsxReceiptReader = "public.read_ingestion_xlsx_preview_receipt(uuid,uuid,text,text[],uuid,integer)";
   const xlsxCatalogue = "public.list_ingestion_xlsx_sources(uuid,text,text[],uuid)";
   const xlsxReviewDetails = "public.read_ingestion_xlsx_preview_review_details(uuid,uuid,text,text[],uuid)";
-  expect(revoked).toHaveLength(19);
+  const sourceObservationApi = [
+    "public.bind_connector_task_claim(uuid,uuid,integer,uuid)",
+    "public.record_connector_page_dispatch(uuid)",
+    "public.read_source_authority_origins(uuid,uuid,text,text[],uuid[])",
+    "public.valid_fact_assessment(uuid)",
+    "public.valid_authority_conflict(uuid)",
+  ];
+  const sourceObservationOwner = [
+    "public.valid_connector_page_dispatch(uuid)",
+    "public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb)",
+    "public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid)",
+    "public.valid_source_observation_witness(uuid)",
+    "public.guard_source_observation_insert()",
+    "public.require_source_observation_witness()",
+    "public.require_authority_published()",
+    "public.require_canonical_state_binding_sealed()",
+  ];
+  expect(revoked).toHaveLength(20);
   expect(
     revoked
       .flatMap((match) => splitFunctionSignatures(match[1]!))
@@ -208,12 +225,14 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       xlsxCatalogue,
       xlsxReviewDetails,
       "public.guard_ingestion_configuration()",
+      ...sourceObservationApi,
+      ...sourceObservationOwner,
     ].sort(),
   );
   const granted = [
     ...sql.matchAll(/GRANT EXECUTE ON FUNCTION ([^;]+) TO pdaa_api;/g),
   ];
-  expect(granted).toHaveLength(14);
+  expect(granted).toHaveLength(15);
   expect(granted.flatMap((match) => splitFunctionSignatures(match[1]!)).sort()).toEqual(
     [
       "public.valid_canonical_state_binding(uuid)",
@@ -237,6 +256,7 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       xlsxReviewDetails,
       "public.lock_update_issuance_gate(uuid)",
       "public.purge_update_capture_content(uuid)",
+      ...sourceObservationApi,
     ].sort(),
   );
   for (const grant of granted)
@@ -248,8 +268,14 @@ it("rebuilds finite released and ingestion function boundaries before granting o
       expect(revoke!.index).toBeLessThan(grant.index!);
     }
   expect([
-    ...sql.matchAll(/(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/g),
-  ]).toHaveLength(33);
+    ...sql.matchAll(/^\s*(?:GRANT|REVOKE) [^;]*ON FUNCTION [^;]+;/gm),
+  ]).toHaveLength(36);
+  expect(sql).toContain(
+    "REVOKE ALL ON FUNCTION public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid) FROM pdaa_source_acceptance;",
+  );
+  expect(sql).toContain(
+    "EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,pdaa_api,pdaa_worker,pdaa_backup',to_regprocedure(signature));",
+  );
 });
 
 it("removes independent column ACL drift before the finite least-privilege grants", async () => {

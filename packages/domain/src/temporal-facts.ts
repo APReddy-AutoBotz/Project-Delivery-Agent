@@ -52,7 +52,8 @@ const valueSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("date"), value: calendarDate }).strict(),
   z.object({ type: z.literal("empty"), value: z.null() }).strict(),
 ]);
-const versionSchema = z
+const maximumVersions = 1000;
+export const temporalFactVersionSchema = z
   .object({
     id,
     scope: scopeSchema,
@@ -72,6 +73,10 @@ const versionSchema = z
     evidenceIds: z.array(id).min(1).max(64),
   })
   .strict();
+const versionSchema = temporalFactVersionSchema.extend({
+  ledgerRevision: z.number().int().min(1).max(maximumVersions).optional(),
+  admittedAt: instant.optional(),
+});
 
 const finiteValidityRuleSchema = z
   .object({
@@ -88,6 +93,7 @@ export const temporalFactSnapshotSchema = z
   .object({
     scope: scopeSchema,
     asOf: instant,
+    committedFactRevision: z.number().int().min(0).max(maximumVersions).optional(),
     validityPolicy: z
       .object({
         revisionId: id,
@@ -97,7 +103,7 @@ export const temporalFactSnapshotSchema = z
         validity: factValidityRuleSchema.nullable(),
       })
       .strict(),
-    versions: z.array(versionSchema).max(1000),
+    versions: z.array(versionSchema).max(maximumVersions),
     conflicts: z
       .array(
         z
@@ -150,7 +156,7 @@ export function assessTemporalFactHistory(input: unknown) {
   const parsed = temporalFactSnapshotSchema.safeParse(input);
   requireValid(parsed.success);
   const snapshot = parsed.data;
-  const { scope, validityPolicy, asOf } = snapshot;
+  const { scope, validityPolicy, asOf, committedFactRevision } = snapshot;
   requireValid(
     validityPolicy.customerId === scope.customerId &&
       validityPolicy.projectId === scope.projectId &&
@@ -159,11 +165,56 @@ export function assessTemporalFactHistory(input: unknown) {
   const versions = [...snapshot.versions].sort((a, b) => compare(a.id, b.id));
   const byId = new Map<string, Version>();
   const revisions = new Set<string>();
+  const ledgerRevisions = new Set<number>();
+  const ledgerStreams = new Map<string, string>();
   const streams = new Map<string, Version[]>();
   const applicability = new Map<string, Applicability>();
+  requireValid(
+    committedFactRevision === undefined ||
+      versions.length === committedFactRevision,
+  );
   for (const version of versions) {
+    const stream = streamKey(version);
     requireValid(scopeKey(version.scope) === scopeKey(scope));
     requireValid(!byId.has(version.id));
+    const isSourceObservation =
+      version.source.recordType === "jira.issue" ||
+      version.source.recordType === "xlsx.row";
+    if (committedFactRevision === undefined) {
+      requireValid(
+        !isSourceObservation &&
+          version.ledgerRevision === undefined &&
+          version.admittedAt === undefined,
+      );
+    } else {
+      const revision = version.ledgerRevision;
+      requireValid(
+        revision !== undefined &&
+          revision <= committedFactRevision &&
+          !ledgerRevisions.has(revision),
+      );
+      ledgerRevisions.add(revision);
+      const previousStream = ledgerStreams.get(version.source.instanceId);
+      requireValid(previousStream === undefined || previousStream === stream);
+      ledgerStreams.set(version.source.instanceId, stream);
+      if (version.admittedAt === undefined) {
+        requireValid(
+          version.provenance === "HUMAN_CONFIRMED" &&
+            version.source.recordType === "human_statement",
+        );
+      } else {
+        requireValid(
+          version.provenance === "SYSTEM_VERIFIED" &&
+            isSourceObservation &&
+            id.safeParse(version.source.recordId).success &&
+            id.safeParse(version.source.revision).success &&
+            version.validUntil !== null &&
+            version.effectiveAt <= version.observedAt &&
+            version.observedAt <= version.admittedAt &&
+            version.admittedAt <= asOf,
+        );
+      }
+    }
     requireValid(
       new Set(version.evidenceIds).size === version.evidenceIds.length,
     );
@@ -171,7 +222,7 @@ export function assessTemporalFactHistory(input: unknown) {
       version.validUntil === null || version.validUntil >= version.effectiveAt,
     );
     const revisionKey = JSON.stringify([
-      streamKey(version),
+      stream,
       version.source.revision,
     ]);
     requireValid(!revisions.has(revisionKey));
@@ -182,10 +233,9 @@ export function assessTemporalFactHistory(input: unknown) {
     else if (version.effectiveAt > asOf)
       applicability.set(version.id, "NOT_YET_EFFECTIVE");
     else {
-      const key = streamKey(version);
-      const group = streams.get(key) ?? [];
+      const group = streams.get(stream) ?? [];
       group.push(version);
-      streams.set(key, group);
+      streams.set(stream, group);
     }
   }
 
@@ -196,17 +246,20 @@ export function assessTemporalFactHistory(input: unknown) {
     versionIds: string[];
   }[] = [];
   for (const group of streams.values()) {
+    // An authenticated source snapshot's retrieval time does not settle a
+    // tie in source order. Existing human history retains its comparator.
+    const orderByObservation = group[0]!.admittedAt === undefined;
     group.sort(
       (a, b) =>
         compare(b.effectiveAt, a.effectiveAt) ||
-        compare(b.observedAt, a.observedAt) ||
+        (orderByObservation ? compare(b.observedAt, a.observedAt) : 0) ||
         compare(a.id, b.id),
     );
     const latest = group[0]!;
     const tied = group.filter(
       (v) =>
         v.effectiveAt === latest.effectiveAt &&
-        v.observedAt === latest.observedAt,
+        (!orderByObservation || v.observedAt === latest.observedAt),
     );
     for (const version of group) {
       applicability.set(
@@ -251,7 +304,9 @@ export function assessTemporalFactHistory(input: unknown) {
       requireValid(version !== undefined);
       requireValid(
         conflict.detectedAt >= version.observedAt &&
-          conflict.detectedAt >= version.effectiveAt,
+          conflict.detectedAt >= version.effectiveAt &&
+          (version.admittedAt === undefined ||
+            conflict.detectedAt >= version.admittedAt),
       );
       if (
         conflict.detectedAt <= asOf &&
@@ -264,7 +319,12 @@ export function assessTemporalFactHistory(input: unknown) {
     }
   }
 
-  const assessed = versions.map((version) => {
+  // Admission metadata is a validation input, not an evidence response field.
+  const assessed = versions.map(({
+    ledgerRevision: _ledger,
+    admittedAt: _admitted,
+    ...version
+  }) => {
     const expiries: string[] =
       version.validUntil === null ? [] : [version.validUntil];
     if (

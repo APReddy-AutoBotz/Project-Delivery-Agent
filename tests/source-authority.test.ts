@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { authorityAssessmentSchema } from "../packages/domain/src/evidence-responses.js";
 import {
   resolveSourceAuthority,
   type SourceAuthoritySnapshot,
@@ -96,6 +97,87 @@ const rejected = (input: unknown) =>
   );
 
 describe("FR-ADM-005 / FR-EVD-003/004/006/007/009/010/012: historical authority", () => {
+  it("requires the committed source type and omits admission internals from the response", () => {
+    const admitted = version(10, {
+      source: {
+        instanceId: id(110),
+        recordType: "jira.issue",
+        recordId: id(20),
+        revision: id(21),
+      },
+      observedAt: time(2),
+      admittedAt: time(3),
+      ledgerRevision: 1,
+      value: { type: "text", value: "OPEN" },
+      approval: { state: "NOT_REQUIRED", decisionId: null, decisionAt: null },
+    });
+    const input = { ...snapshot([admitted]), committedFactRevision: 1 };
+    input.sources[0]!.sourceType = "jira";
+    input.policy!.tiers[0]!.selectors = [
+      rule("jira", {
+        instanceId: admitted.source.instanceId,
+        requiredApproval: "NOT_REQUIRED",
+      }),
+    ];
+    const resolved = resolveSourceAuthority(input);
+    expect(resolved.status).toBe("RESOLVED");
+    expect(row(resolved)).toMatchObject({
+      sourceType: "jira",
+      source: admitted.source,
+    });
+    expect(row(resolved)).not.toHaveProperty("admittedAt");
+    expect(row(resolved)).not.toHaveProperty("ledgerRevision");
+    expect(authorityAssessmentSchema.safeParse(resolved).success).toBe(true);
+    expect(
+      authorityAssessmentSchema.safeParse({
+        ...resolved,
+        versions: [{ ...row(resolved), admittedAt: time(3), ledgerRevision: 1 }],
+      }).success,
+    ).toBe(false);
+    rejected({ ...input, committedFactRevision: undefined });
+    rejected({
+      ...input,
+      committedFactRevision: undefined,
+      versions: [{ ...admitted, admittedAt: undefined, ledgerRevision: undefined }],
+    });
+    rejected({ ...input, sources: [{ instanceId: id(110), sourceType: "xlsx" }] });
+    rejected({ ...input, versions: [{ ...admitted, validUntil: null }] });
+
+    input.policy!.tiers[0]!.selectors[0]!.validity = {
+      basis: "observedAt",
+      durationMs: 864000000,
+    };
+    const stale = resolveSourceAuthority({
+      ...input,
+      versions: [{ ...admitted, validUntil: time(4) }],
+    });
+    expect(stale.status).toBe("UNKNOWN");
+    expect(row(stale)).toMatchObject({
+      assessedValidUntil: time(4),
+      assessment: { freshness: "STALE" },
+    });
+  });
+
+  it("binds committed human statements to the human source selector", () => {
+    const human = version(10, {
+      source: {
+        instanceId: id(110),
+        recordType: "human_statement",
+        recordId: id(110),
+        revision: id(20),
+      },
+      provenance: "HUMAN_CONFIRMED",
+      ledgerRevision: 1,
+    });
+    const input = { ...snapshot([human]), committedFactRevision: 1 };
+    input.sources[0]!.sourceType = "jira";
+    input.policy!.tiers[0]!.selectors = [rule("jira")];
+    rejected(input);
+    input.sources[0]!.sourceType = "human_statement";
+    input.policy!.tiers[0]!.selectors = [rule("human_statement")];
+    expect(resolveSourceAuthority(input).status).toBe("RESOLVED");
+  });
+
   it("resolves explicit policy with complete supporting versions, evidence and dimensions", () => {
     const input = snapshot();
     const out = resolveSourceAuthority(input);

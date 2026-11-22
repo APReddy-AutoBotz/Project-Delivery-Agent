@@ -55,14 +55,16 @@ export async function verifyXlsxGenesisPrivileges(
 
 export async function proveXlsxSourceGenesis(
   pool,
-  { retain = false, existingCustomer, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1", reviewer, forecastRequired = true } = {},
+  { retain = false, existingCustomer, existingProject, sheet = 'Portfolio 🧪 "1"', parserContract = "excel-text-v1",
+    reviewer, reviewerRole = "pmo_admin", additionalReaders = [], forecastRequired = true, snapshotRequired = false } = {},
 ) {
   const client = await pool.connect();
-  const [fixtureCustomer, source, portfolio, project, auditId] = Array.from(
+  const [fixtureCustomer, source, portfolio, fixtureProject, auditId] = Array.from(
     { length: 5 },
     () => randomUUID(),
   );
   const customer = existingCustomer ?? fixtureCustomer;
+  const project = existingProject ?? fixtureProject;
   const subject = "synthetic-workbook-pmo";
   const mapping = {
     kind: "XLSX",
@@ -83,6 +85,12 @@ export async function proveXlsxSourceGenesis(
         type: "date",
         required: forecastRequired,
       },
+      ...(snapshotRequired ? [{
+        column: "Snapshot",
+        factType: "source.snapshot_at",
+        type: "text",
+        required: true,
+      }] : []),
     ],
   };
   let started = false;
@@ -106,15 +114,23 @@ export async function proveXlsxSourceGenesis(
         [customer],
       );
     }
-    await client.query(
-      'INSERT INTO public."Portfolio" (id,"customerId",name) VALUES ($1,$2,\'Synthetic workbook portfolio\')',
-      [portfolio, customer],
-    );
-    await client.query(
-      `INSERT INTO public."Project" (id,"customerId","portfolioId",code,name,description,"reportedStatus")
-      VALUES ($1,$2,$3,$4,'Synthetic workbook project','Genesis fixture','UNKNOWN')`,
-      [project, customer, portfolio, project],
-    );
+    if (existingProject) {
+      const canonical = await client.query(
+        'SELECT id FROM public."CanonicalProject" WHERE ("customerId",id)=($1,$2) AND sealed',
+        [customer, project],
+      );
+      assert.equal(canonical.rowCount, 1);
+    } else {
+      await client.query(
+        'INSERT INTO public."Portfolio" (id,"customerId",name) VALUES ($1,$2,\'Synthetic workbook portfolio\')',
+        [portfolio, customer],
+      );
+      await client.query(
+        `INSERT INTO public."Project" (id,"customerId","portfolioId",code,name,description,"reportedStatus")
+        VALUES ($1,$2,$3,$4,'Synthetic workbook project','Genesis fixture','UNKNOWN')`,
+        [project, customer, portfolio, project],
+      );
+    }
     await client.query(
       `INSERT INTO public."AccessGrant" (id,"customerId",subject,"scopeType","scopeId",role)
       VALUES ($1,$2,$3,'project',$4,'pmo_admin')`,
@@ -187,12 +203,18 @@ export async function proveXlsxSourceGenesis(
     if (reviewer !== undefined) {
       await client.query(
         `INSERT INTO public."AccessGrant" (id,"customerId",subject,"scopeType","scopeId",role)
-        VALUES ($1,$2,$3,'project',$4,'pmo_admin')`,
-        [randomUUID(), customer, reviewer, project],
+        VALUES ($1,$2,$3,'project',$4,$5)`,
+        [randomUUID(), customer, reviewer, project, reviewerRole],
       );
       await client.query(
         `INSERT INTO public."IngestionConfigurationReader" VALUES ($1,$2,1,$3,$4)`,
         [customer, source, project, reviewer],
+      );
+    }
+    for (const reader of additionalReaders) {
+      await client.query(
+        `INSERT INTO public."IngestionConfigurationReader" VALUES ($1,$2,1,$3,$4)`,
+        [customer, source, project, reader],
       );
     }
     await client.query(
@@ -215,6 +237,7 @@ export async function proveXlsxSourceGenesis(
       [
         ["project.forecast", "date"],
         ["project.status", "text"],
+        ...(snapshotRequired ? [["source.snapshot_at", "text"]] : []),
       ],
       [],
     ];

@@ -275,6 +275,7 @@ export class DatabaseMilestoneReconciliationRepository
         const occurredAt = new Date(assessment.asOf);
         let requestId: string | null = null;
         let outcome: ReconciliationCheckResult["outcome"] = "NO_REQUEST";
+        let created: ReconciliationRequestSummary | null = null;
         if (
           assessment.visibility === "available" &&
           assessment.result.status === "CONFLICTING"
@@ -335,7 +336,7 @@ export class DatabaseMilestoneReconciliationRepository
                 },
               },
             });
-            await this.assign(
+            const assignment = await this.assign(
               tx,
               actor,
               request.projectId,
@@ -346,6 +347,14 @@ export class DatabaseMilestoneReconciliationRepository
               null,
               null,
             );
+            created = {
+              id: requestId,
+              projectId: request.projectId,
+              milestoneId: request.milestoneId,
+              createdAt: assessment.asOf,
+              state: "OPEN",
+              assignment,
+            };
           }
         }
         const auditEventId = this.idFactory();
@@ -382,20 +391,21 @@ export class DatabaseMilestoneReconciliationRepository
           await tx.milestoneReconciliationRequest.update({
             where: { id: requestId! },
             data: { sealed: true },
+            select: { id: true },
           });
         return {
           checkId,
           outcome,
           replayed: false,
           assessment: milestoneConsistencyDeliverySchema.parse(assessment),
-          request: requestId
+          request: created ?? (requestId
             ? await this.summary(
                 tx,
                 actor.customerId,
                 request.projectId,
                 requestId,
               )
-            : null,
+            : null),
         };
       }, options);
     } catch (error) {

@@ -10,6 +10,7 @@ import {
   ProjectFactError,
   type Actor,
   type FactHistoryEntry,
+  type HumanFactHistoryEntry,
   type FactHistoryRequest,
   type FactMutationContext,
   type HumanStatement,
@@ -27,8 +28,71 @@ import {
   factInput as input,
   authorizeFactProject,
 } from "./fact-authorization.js";
+import { readSourceOrigins, sourceOriginReference, type SourceOrigin } from "./source-authority-reads.js";
 
 type Tx = Prisma.TransactionClient;
+type HistoryVersion = Prisma.ProjectFactVersionGetPayload<{ include: { evidence: true } }>;
+type HistoryAccess = Prisma.FactSourceAccessGetPayload<{ include: { readers: true } }>;
+
+function entryMetadata(row: HistoryVersion, access: HistoryAccess | null | undefined) {
+  return {
+    id: row.id,
+    revision: row.revision,
+    sourceId: row.sourceId,
+    evidenceId: row.evidenceId,
+    sourceAccessRevision: access?.revision ?? 0,
+  };
+}
+
+function humanHistoryEntry(row: HistoryVersion, access: HistoryAccess | null | undefined): HumanFactHistoryEntry {
+  const metadata = entryMetadata(row, access);
+  if (row.provenance !== "HUMAN_CONFIRMED" || row.evidence.providedBy === null ||
+      row.evidence.originalStatement === null || access?.state !== "AVAILABLE" || access.readers.length !== 1)
+    return { ...metadata, visibility: "restricted", revalidationRequired: true };
+  return {
+    ...metadata,
+    visibility: "available",
+    revalidationRequired: false,
+    content: {
+      value: projectFactValueSchema.parse(row.value),
+      originalStatement: row.evidence.originalStatement,
+      providedBy: row.evidence.providedBy,
+      provenance: "HUMAN_CONFIRMED",
+      effectiveAt: row.effectiveAt.toISOString(),
+      observedAt: row.evidence.observedAt.toISOString(),
+      confirmedAt: row.evidence.observedAt.toISOString(),
+      validUntil: row.validUntil?.toISOString() ?? null,
+      source: {
+        instanceId: row.sourceId,
+        recordType: "human_statement",
+        recordId: row.sourceId,
+        revision: row.evidenceId,
+      },
+      evidenceIds: [row.evidenceId],
+    },
+  };
+}
+
+function historyEntry(row: HistoryVersion, access: HistoryAccess | undefined, origin: SourceOrigin | undefined): FactHistoryEntry {
+  if (row.provenance !== "SYSTEM_VERIFIED" || !origin?.authorized || !row.validUntil ||
+      access?.state !== "AVAILABLE" || access.readers.length !== 1)
+    return humanHistoryEntry(row, access);
+  return {
+    ...entryMetadata(row, access),
+    visibility: "available",
+    revalidationRequired: false,
+    content: {
+      value: projectFactValueSchema.parse(row.value),
+      provenance: "SYSTEM_VERIFIED",
+      effectiveAt: row.effectiveAt.toISOString(),
+      observedAt: row.evidence.observedAt.toISOString(),
+      admittedAt: origin.admittedAt.toISOString(),
+      validUntil: row.validUntil.toISOString(),
+      source: sourceOriginReference(row.sourceId, origin),
+      evidenceIds: [row.evidenceId],
+    },
+  };
+}
 // The repository owns SQL/transactions. Requests supply neither authentication,
 // provenance, a clock nor a DB client. FR-EVD-001/002/003/004/005/009.
 export class DatabaseProjectFactRepository implements ProjectFactRepository {
@@ -102,7 +166,7 @@ export class DatabaseProjectFactRepository implements ProjectFactRepository {
     actor: Actor,
     projectId: string,
     versionId: string,
-  ): Promise<FactHistoryEntry> {
+  ): Promise<HumanFactHistoryEntry> {
     const row = await tx.projectFactVersion.findFirst({
       where: { id: versionId, customerId: actor.customerId, projectId },
       include: { evidence: true },
@@ -117,41 +181,7 @@ export class DatabaseProjectFactRepository implements ProjectFactRepository {
       },
       include: { readers: { where: { subject: actor.subject } } },
     });
-    const metadata = {
-      id: row.id,
-      revision: row.revision,
-      sourceId: row.sourceId,
-      evidenceId: row.evidenceId,
-      sourceAccessRevision: access?.revision ?? 0,
-    };
-    if (!access || access.state !== "AVAILABLE" || access.readers.length !== 1)
-      return {
-        ...metadata,
-        visibility: "restricted",
-        revalidationRequired: true,
-      };
-    return {
-      ...metadata,
-      visibility: "available",
-      revalidationRequired: false,
-      content: {
-        value: projectFactValueSchema.parse(row.value),
-        originalStatement: row.evidence.originalStatement,
-        providedBy: row.evidence.providedBy,
-        provenance: "HUMAN_CONFIRMED",
-        effectiveAt: row.effectiveAt.toISOString(),
-        observedAt: row.evidence.observedAt.toISOString(),
-        confirmedAt: row.evidence.observedAt.toISOString(),
-        validUntil: row.validUntil?.toISOString() ?? null,
-        source: {
-          instanceId: row.sourceId,
-          recordType: "human_statement",
-          recordId: row.sourceId,
-          revision: row.evidenceId,
-        },
-        evidenceIds: [row.evidenceId],
-      },
-    };
+    return humanHistoryEntry(row, access);
   }
   async appendHumanStatement(
     actorValue: Actor,
@@ -332,13 +362,21 @@ export class DatabaseProjectFactRepository implements ProjectFactRepository {
             },
             orderBy: { revision: "asc" },
             take: request.limit,
-            select: { id: true, revision: true },
+            include: { evidence: true },
           });
-          const entries: FactHistoryEntry[] = [];
-          for (const row of rows)
-            entries.push(
-              await this.entry(tx, actor, request.projectId, row.id),
-            );
+          const sourceVersions = rows.filter((row) => row.provenance === "SYSTEM_VERIFIED").map((row) => row.id);
+          const origins = await readSourceOrigins(tx, actor, request.projectId, sourceVersions);
+          const access = rows.length ? await tx.factSourceAccess.findMany({
+            where: {
+              customerId: actor.customerId,
+              projectId: request.projectId,
+              factId: fact.id,
+              sourceId: { in: [...new Set(rows.map((row) => row.sourceId))] },
+            },
+            include: { readers: { where: { subject: actor.subject } } },
+          }) : [];
+          const bySource = new Map(access.map((record) => [record.sourceId, record]));
+          const entries = rows.map((row) => historyEntry(row, bySource.get(row.sourceId), origins.get(row.id)));
           const afterRevision = rows.at(-1)?.revision ?? request.afterRevision;
           return {
             factId: fact.id,

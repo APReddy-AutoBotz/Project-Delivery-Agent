@@ -6422,208 +6422,404 @@
                                 ]
                               },
                               "content": {
-                                "type": "object",
-                                "properties": {
-                                  "value": {
-                                    "oneOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "text"
-                                            ]
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "maxLength": 4096
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "number"
-                                            ]
-                                          },
-                                          "value": {
-                                            "type": "number"
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "boolean"
-                                            ]
-                                          },
-                                          "value": {
-                                            "type": "boolean"
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "date"
-                                            ]
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "minLength": 10,
-                                            "maxLength": 10
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "type": {
-                                            "type": "string",
-                                            "enum": [
-                                              "empty"
-                                            ]
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "nullable": true,
-                                            "enum": [
-                                              null
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "type",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      }
-                                    ]
-                                  },
-                                  "originalStatement": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 8192
-                                  },
-                                  "providedBy": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 256
-                                  },
-                                  "provenance": {
-                                    "type": "string",
-                                    "enum": [
-                                      "HUMAN_CONFIRMED"
-                                    ]
-                                  },
-                                  "effectiveAt": {
-                                    "type": "string",
-                                    "minLength": 24,
-                                    "maxLength": 24
-                                  },
-                                  "observedAt": {
-                                    "type": "string",
-                                    "minLength": 24,
-                                    "maxLength": 24
-                                  },
-                                  "confirmedAt": {
-                                    "type": "string",
-                                    "minLength": 24,
-                                    "maxLength": 24
-                                  },
-                                  "validUntil": {
-                                    "nullable": true,
-                                    "type": "string",
-                                    "minLength": 24,
-                                    "maxLength": 24
-                                  },
-                                  "source": {
+                                "oneOf": [
+                                  {
                                     "type": "object",
                                     "properties": {
-                                      "instanceId": {
-                                        "type": "string",
-                                        "format": "uuid",
-                                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                                      },
-                                      "recordType": {
-                                        "type": "string",
-                                        "enum": [
-                                          "human_statement"
+                                      "value": {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "text"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "string",
+                                                "maxLength": 4096
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "number"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "number"
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "boolean"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "boolean"
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "date"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "string",
+                                                "minLength": 10,
+                                                "maxLength": 10
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "empty"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "string",
+                                                "nullable": true,
+                                                "enum": [
+                                                  null
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          }
                                         ]
                                       },
-                                      "recordId": {
+                                      "originalStatement": {
                                         "type": "string",
-                                        "format": "uuid",
-                                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                        "minLength": 1,
+                                        "maxLength": 8192
                                       },
-                                      "revision": {
+                                      "providedBy": {
                                         "type": "string",
-                                        "format": "uuid",
-                                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                        "minLength": 1,
+                                        "maxLength": 256
+                                      },
+                                      "provenance": {
+                                        "type": "string",
+                                        "enum": [
+                                          "HUMAN_CONFIRMED"
+                                        ]
+                                      },
+                                      "effectiveAt": {
+                                        "type": "string",
+                                        "minLength": 24,
+                                        "maxLength": 24
+                                      },
+                                      "observedAt": {
+                                        "type": "string",
+                                        "minLength": 24,
+                                        "maxLength": 24
+                                      },
+                                      "confirmedAt": {
+                                        "type": "string",
+                                        "minLength": 24,
+                                        "maxLength": 24
+                                      },
+                                      "validUntil": {
+                                        "nullable": true,
+                                        "type": "string",
+                                        "minLength": 24,
+                                        "maxLength": 24
+                                      },
+                                      "source": {
+                                        "type": "object",
+                                        "properties": {
+                                          "instanceId": {
+                                            "type": "string",
+                                            "format": "uuid",
+                                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                          },
+                                          "recordType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "human_statement"
+                                            ]
+                                          },
+                                          "recordId": {
+                                            "type": "string",
+                                            "format": "uuid",
+                                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                          },
+                                          "revision": {
+                                            "type": "string",
+                                            "format": "uuid",
+                                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                          }
+                                        },
+                                        "required": [
+                                          "instanceId",
+                                          "recordType",
+                                          "recordId",
+                                          "revision"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "evidenceIds": {
+                                        "minItems": 1,
+                                        "maxItems": 1,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "format": "uuid",
+                                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                        }
                                       }
                                     },
                                     "required": [
-                                      "instanceId",
-                                      "recordType",
-                                      "recordId",
-                                      "revision"
+                                      "value",
+                                      "originalStatement",
+                                      "providedBy",
+                                      "provenance",
+                                      "effectiveAt",
+                                      "observedAt",
+                                      "confirmedAt",
+                                      "validUntil",
+                                      "source",
+                                      "evidenceIds"
                                     ],
                                     "additionalProperties": false
                                   },
-                                  "evidenceIds": {
-                                    "minItems": 1,
-                                    "maxItems": 1,
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string",
-                                      "format": "uuid",
-                                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                                    }
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "value": {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "text"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "string",
+                                                "maxLength": 4096
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "number"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "number"
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "boolean"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "boolean"
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "date"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "string",
+                                                "minLength": 10,
+                                                "maxLength": 10
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "empty"
+                                                ]
+                                              },
+                                              "value": {
+                                                "type": "string",
+                                                "nullable": true,
+                                                "enum": [
+                                                  null
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        ]
+                                      },
+                                      "provenance": {
+                                        "type": "string",
+                                        "enum": [
+                                          "SYSTEM_VERIFIED"
+                                        ]
+                                      },
+                                      "effectiveAt": {
+                                        "type": "string",
+                                        "minLength": 24,
+                                        "maxLength": 24
+                                      },
+                                      "observedAt": {
+                                        "type": "string",
+                                        "minLength": 24,
+                                        "maxLength": 24
+                                      },
+                                      "admittedAt": {
+                                        "type": "string",
+                                        "minLength": 24,
+                                        "maxLength": 24
+                                      },
+                                      "validUntil": {
+                                        "type": "string",
+                                        "minLength": 24,
+                                        "maxLength": 24
+                                      },
+                                      "source": {
+                                        "type": "object",
+                                        "properties": {
+                                          "instanceId": {
+                                            "type": "string",
+                                            "format": "uuid",
+                                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                          },
+                                          "recordType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "jira.issue",
+                                              "xlsx.row"
+                                            ]
+                                          },
+                                          "recordId": {
+                                            "type": "string",
+                                            "format": "uuid",
+                                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                          },
+                                          "revision": {
+                                            "type": "string",
+                                            "format": "uuid",
+                                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                          }
+                                        },
+                                        "required": [
+                                          "instanceId",
+                                          "recordType",
+                                          "recordId",
+                                          "revision"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "evidenceIds": {
+                                        "minItems": 1,
+                                        "maxItems": 1,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "format": "uuid",
+                                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "value",
+                                      "provenance",
+                                      "effectiveAt",
+                                      "observedAt",
+                                      "admittedAt",
+                                      "validUntil",
+                                      "source",
+                                      "evidenceIds"
+                                    ],
+                                    "additionalProperties": false
                                   }
-                                },
-                                "required": [
-                                  "value",
-                                  "originalStatement",
-                                  "providedBy",
-                                  "provenance",
-                                  "effectiveAt",
-                                  "observedAt",
-                                  "confirmedAt",
-                                  "validUntil",
-                                  "source",
-                                  "evidenceIds"
-                                ],
-                                "additionalProperties": false
+                                ]
                               }
                             },
                             "required": [
@@ -51120,105 +51316,215 @@
                                     "maxItems": 1000,
                                     "type": "array",
                                     "items": {
-                                      "type": "object",
-                                      "properties": {
-                                        "versionId": {
-                                          "type": "string",
-                                          "allOf": [
-                                            {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "versionId": {
                                               "type": "string",
-                                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
                                             },
-                                            {
+                                            "evidenceId": {
                                               "type": "string",
-                                              "pattern": "^[0-9a-f-]+$"
-                                            }
-                                          ]
-                                        },
-                                        "evidenceId": {
-                                          "type": "string",
-                                          "allOf": [
-                                            {
-                                              "type": "string",
-                                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
                                             },
-                                            {
+                                            "sourceId": {
                                               "type": "string",
-                                              "pattern": "^[0-9a-f-]+$"
-                                            }
-                                          ]
-                                        },
-                                        "sourceId": {
-                                          "type": "string",
-                                          "allOf": [
-                                            {
-                                              "type": "string",
-                                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
                                             },
-                                            {
+                                            "freshness": {
                                               "type": "string",
-                                              "pattern": "^[0-9a-f-]+$"
+                                              "enum": [
+                                                "CURRENT"
+                                              ]
+                                            },
+                                            "validity": {
+                                              "type": "string",
+                                              "enum": [
+                                                "FINITE"
+                                              ]
+                                            },
+                                            "effectiveAt": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "observedAt": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "versionValidUntil": {
+                                              "nullable": true,
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "assessedValidUntil": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "provenance": {
+                                              "type": "string",
+                                              "enum": [
+                                                "HUMAN_CONFIRMED"
+                                              ]
                                             }
-                                          ]
+                                          },
+                                          "required": [
+                                            "versionId",
+                                            "evidenceId",
+                                            "sourceId",
+                                            "freshness",
+                                            "validity",
+                                            "effectiveAt",
+                                            "observedAt",
+                                            "versionValidUntil",
+                                            "assessedValidUntil",
+                                            "provenance"
+                                          ],
+                                          "additionalProperties": false
                                         },
-                                        "provenance": {
-                                          "type": "string",
-                                          "enum": [
-                                            "SYSTEM_VERIFIED",
-                                            "HUMAN_CONFIRMED"
-                                          ]
-                                        },
-                                        "freshness": {
-                                          "type": "string",
-                                          "enum": [
-                                            "CURRENT"
-                                          ]
-                                        },
-                                        "validity": {
-                                          "type": "string",
-                                          "enum": [
-                                            "FINITE"
-                                          ]
-                                        },
-                                        "effectiveAt": {
-                                          "type": "string",
-                                          "minLength": 24,
-                                          "maxLength": 24,
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
-                                        },
-                                        "observedAt": {
-                                          "type": "string",
-                                          "minLength": 24,
-                                          "maxLength": 24,
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
-                                        },
-                                        "versionValidUntil": {
-                                          "nullable": true,
-                                          "type": "string",
-                                          "minLength": 24,
-                                          "maxLength": 24,
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
-                                        },
-                                        "assessedValidUntil": {
-                                          "type": "string",
-                                          "minLength": 24,
-                                          "maxLength": 24,
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "versionId": {
+                                              "type": "string",
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
+                                            },
+                                            "evidenceId": {
+                                              "type": "string",
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
+                                            },
+                                            "sourceId": {
+                                              "type": "string",
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
+                                            },
+                                            "freshness": {
+                                              "type": "string",
+                                              "enum": [
+                                                "CURRENT"
+                                              ]
+                                            },
+                                            "validity": {
+                                              "type": "string",
+                                              "enum": [
+                                                "FINITE"
+                                              ]
+                                            },
+                                            "effectiveAt": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "observedAt": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "versionValidUntil": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "assessedValidUntil": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "provenance": {
+                                              "type": "string",
+                                              "enum": [
+                                                "SYSTEM_VERIFIED"
+                                              ]
+                                            },
+                                            "sourceKind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "jira.issue",
+                                                "xlsx.row"
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "versionId",
+                                            "evidenceId",
+                                            "sourceId",
+                                            "freshness",
+                                            "validity",
+                                            "effectiveAt",
+                                            "observedAt",
+                                            "versionValidUntil",
+                                            "assessedValidUntil",
+                                            "provenance",
+                                            "sourceKind"
+                                          ],
+                                          "additionalProperties": false
                                         }
-                                      },
-                                      "required": [
-                                        "versionId",
-                                        "evidenceId",
-                                        "sourceId",
-                                        "provenance",
-                                        "freshness",
-                                        "validity",
-                                        "effectiveAt",
-                                        "observedAt",
-                                        "versionValidUntil",
-                                        "assessedValidUntil"
-                                      ],
-                                      "additionalProperties": false
+                                      ]
                                     }
                                   },
                                   "targetKind": {
@@ -51312,105 +51618,215 @@
                                     "maxItems": 1000,
                                     "type": "array",
                                     "items": {
-                                      "type": "object",
-                                      "properties": {
-                                        "versionId": {
-                                          "type": "string",
-                                          "allOf": [
-                                            {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "versionId": {
                                               "type": "string",
-                                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
                                             },
-                                            {
+                                            "evidenceId": {
                                               "type": "string",
-                                              "pattern": "^[0-9a-f-]+$"
-                                            }
-                                          ]
-                                        },
-                                        "evidenceId": {
-                                          "type": "string",
-                                          "allOf": [
-                                            {
-                                              "type": "string",
-                                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
                                             },
-                                            {
+                                            "sourceId": {
                                               "type": "string",
-                                              "pattern": "^[0-9a-f-]+$"
-                                            }
-                                          ]
-                                        },
-                                        "sourceId": {
-                                          "type": "string",
-                                          "allOf": [
-                                            {
-                                              "type": "string",
-                                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
                                             },
-                                            {
+                                            "freshness": {
                                               "type": "string",
-                                              "pattern": "^[0-9a-f-]+$"
+                                              "enum": [
+                                                "CURRENT"
+                                              ]
+                                            },
+                                            "validity": {
+                                              "type": "string",
+                                              "enum": [
+                                                "FINITE"
+                                              ]
+                                            },
+                                            "effectiveAt": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "observedAt": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "versionValidUntil": {
+                                              "nullable": true,
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "assessedValidUntil": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "provenance": {
+                                              "type": "string",
+                                              "enum": [
+                                                "HUMAN_CONFIRMED"
+                                              ]
                                             }
-                                          ]
+                                          },
+                                          "required": [
+                                            "versionId",
+                                            "evidenceId",
+                                            "sourceId",
+                                            "freshness",
+                                            "validity",
+                                            "effectiveAt",
+                                            "observedAt",
+                                            "versionValidUntil",
+                                            "assessedValidUntil",
+                                            "provenance"
+                                          ],
+                                          "additionalProperties": false
                                         },
-                                        "provenance": {
-                                          "type": "string",
-                                          "enum": [
-                                            "SYSTEM_VERIFIED",
-                                            "HUMAN_CONFIRMED"
-                                          ]
-                                        },
-                                        "freshness": {
-                                          "type": "string",
-                                          "enum": [
-                                            "CURRENT"
-                                          ]
-                                        },
-                                        "validity": {
-                                          "type": "string",
-                                          "enum": [
-                                            "FINITE"
-                                          ]
-                                        },
-                                        "effectiveAt": {
-                                          "type": "string",
-                                          "minLength": 24,
-                                          "maxLength": 24,
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
-                                        },
-                                        "observedAt": {
-                                          "type": "string",
-                                          "minLength": 24,
-                                          "maxLength": 24,
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
-                                        },
-                                        "versionValidUntil": {
-                                          "nullable": true,
-                                          "type": "string",
-                                          "minLength": 24,
-                                          "maxLength": 24,
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
-                                        },
-                                        "assessedValidUntil": {
-                                          "type": "string",
-                                          "minLength": 24,
-                                          "maxLength": 24,
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "versionId": {
+                                              "type": "string",
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
+                                            },
+                                            "evidenceId": {
+                                              "type": "string",
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
+                                            },
+                                            "sourceId": {
+                                              "type": "string",
+                                              "allOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^[0-9a-f-]+$"
+                                                }
+                                              ]
+                                            },
+                                            "freshness": {
+                                              "type": "string",
+                                              "enum": [
+                                                "CURRENT"
+                                              ]
+                                            },
+                                            "validity": {
+                                              "type": "string",
+                                              "enum": [
+                                                "FINITE"
+                                              ]
+                                            },
+                                            "effectiveAt": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "observedAt": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "versionValidUntil": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "assessedValidUntil": {
+                                              "type": "string",
+                                              "minLength": 24,
+                                              "maxLength": 24,
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "provenance": {
+                                              "type": "string",
+                                              "enum": [
+                                                "SYSTEM_VERIFIED"
+                                              ]
+                                            },
+                                            "sourceKind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "jira.issue",
+                                                "xlsx.row"
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "versionId",
+                                            "evidenceId",
+                                            "sourceId",
+                                            "freshness",
+                                            "validity",
+                                            "effectiveAt",
+                                            "observedAt",
+                                            "versionValidUntil",
+                                            "assessedValidUntil",
+                                            "provenance",
+                                            "sourceKind"
+                                          ],
+                                          "additionalProperties": false
                                         }
-                                      },
-                                      "required": [
-                                        "versionId",
-                                        "evidenceId",
-                                        "sourceId",
-                                        "provenance",
-                                        "freshness",
-                                        "validity",
-                                        "effectiveAt",
-                                        "observedAt",
-                                        "versionValidUntil",
-                                        "assessedValidUntil"
-                                      ],
-                                      "additionalProperties": false
+                                      ]
                                     }
                                   },
                                   "targetKind": {
@@ -51970,13 +52386,6 @@
                                                 }
                                               ]
                                             },
-                                            "provenance": {
-                                              "type": "string",
-                                              "enum": [
-                                                "SYSTEM_VERIFIED",
-                                                "HUMAN_CONFIRMED"
-                                              ]
-                                            },
                                             "freshness": {
                                               "type": "string",
                                               "enum": [
@@ -52013,19 +52422,25 @@
                                               "minLength": 24,
                                               "maxLength": 24,
                                               "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "provenance": {
+                                              "type": "string",
+                                              "enum": [
+                                                "HUMAN_CONFIRMED"
+                                              ]
                                             }
                                           },
                                           "required": [
                                             "versionId",
                                             "evidenceId",
                                             "sourceId",
-                                            "provenance",
                                             "freshness",
                                             "validity",
                                             "effectiveAt",
                                             "observedAt",
                                             "versionValidUntil",
-                                            "assessedValidUntil"
+                                            "assessedValidUntil",
+                                            "provenance"
                                           ],
                                           "additionalProperties": false
                                         }
@@ -52162,13 +52577,6 @@
                                                 }
                                               ]
                                             },
-                                            "provenance": {
-                                              "type": "string",
-                                              "enum": [
-                                                "SYSTEM_VERIFIED",
-                                                "HUMAN_CONFIRMED"
-                                              ]
-                                            },
                                             "freshness": {
                                               "type": "string",
                                               "enum": [
@@ -52205,19 +52613,25 @@
                                               "minLength": 24,
                                               "maxLength": 24,
                                               "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                                            },
+                                            "provenance": {
+                                              "type": "string",
+                                              "enum": [
+                                                "HUMAN_CONFIRMED"
+                                              ]
                                             }
                                           },
                                           "required": [
                                             "versionId",
                                             "evidenceId",
                                             "sourceId",
-                                            "provenance",
                                             "freshness",
                                             "validity",
                                             "effectiveAt",
                                             "observedAt",
                                             "versionValidUntil",
-                                            "assessedValidUntil"
+                                            "assessedValidUntil",
+                                            "provenance"
                                           ],
                                           "additionalProperties": false
                                         }

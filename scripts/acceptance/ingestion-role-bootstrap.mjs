@@ -21,6 +21,44 @@ const functions = ['valid_ingestion_reassessment_row(public."IngestionProjectRea
   "reject_ingestion_reassessment_history()", "valid_ingestion_mapping(jsonb)",
   "guard_ingestion_reconfiguration_scope()", "guard_ingestion_retention()",...csvComparisonFunctions];
 const apiFunctions = new Set([functions[0], functions[1], functions[6],...csvComparisonApiFunctions]);
+const dispatchFunctions = [
+  "public.bind_connector_task_claim(uuid,uuid,integer,uuid)",
+  "public.record_connector_page_dispatch(uuid)",
+  "public.valid_connector_page_dispatch(uuid)",
+  "public.resolve_source_observation_input(uuid,uuid,uuid,uuid,uuid,integer,text,jsonb)",
+  "public.admit_source_observation(uuid,uuid,uuid,uuid,integer,text,uuid)",
+  "public.valid_source_observation_witness(uuid)",
+  "public.guard_source_observation_insert()",
+  "public.require_source_observation_witness()",
+  "public.approve_source_observation(uuid,uuid,uuid,uuid,uuid,text,jsonb,jsonb,text,integer,text,uuid)",
+  "public.valid_source_observation_structure(uuid)",
+  "public.valid_source_canonical_birth(uuid)",
+  "public.require_canonical_state_binding_sealed()",
+  "public.valid_source_admission_binding(uuid)",
+  "public.source_admission_selector(jsonb,text,uuid)",
+  "public.source_admission_expiry(jsonb,timestamptz,timestamptz)",
+  "public.guard_source_admission_binding()",
+  "public.require_source_admission_binding()",
+  "public.guard_source_authority_activation()",
+  "public.require_source_authority_witness()",
+  "public.require_authority_published()",
+  "public.require_source_admission_command()",
+  "public.valid_source_admission_command(uuid)",
+  'public.source_admission_outcome(public."SourceAdmissionBindingRevision",uuid,integer)',
+  "public.valid_source_authority_publication(uuid)",
+  "public.source_observation_read_allowed(uuid,text,timestamptz)",
+  "public.guard_mixed_assessment_access()",
+  "public.read_source_authority_origins(uuid,uuid,text,text[],uuid[])",
+  "public.valid_fact_assessment(uuid)",
+  "public.valid_authority_conflict(uuid)",
+];
+const dispatchApiFunctions = new Set([
+  "public.bind_connector_task_claim(uuid,uuid,integer,uuid)",
+  "public.record_connector_page_dispatch(uuid)",
+  "public.read_source_authority_origins(uuid,uuid,text,text[],uuid[])",
+  "public.valid_fact_assessment(uuid)",
+  "public.valid_authority_conflict(uuid)",
+]);
 const controls = new Set(["state", "attemptCount", "totalAttempts", "recoveryRevision", "availableAt", "lastReason",
   "claimedGeneration", "assessmentId", "obligationId", "previewId", "completedAt", "auditEventId"]);
 async function currentRoles(pool) {
@@ -57,12 +95,41 @@ async function inventory(pool, migrations) {
   assert.deepEqual(ledger, migrations.map((migration) => ({ migration_name: migration.name, checksum: migration.checksum })));
   return { names, ledger };
 }
+async function dispatchBoundary(pool, presentRoles, apiExecute) {
+  const acl = (await pool.query(`
+    SELECT signature, a.grantee=0 AS public
+    FROM unnest($1::text[]) AS entry(signature)
+    JOIN pg_catalog.pg_proc p ON p.oid=to_regprocedure(signature)
+    CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+  `, [dispatchFunctions])).rows;
+  assert.equal(new Set(acl.map(({ signature }) => signature)).size, dispatchFunctions.length);
+  assert(acl.every((row) => !row.public));
+  for (const role of presentRoles) {
+    for (const signature of dispatchFunctions) {
+      const { allowed } = (await pool.query(
+        "SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed",
+        [role, signature],
+      )).rows[0];
+      assert.equal(allowed, apiExecute && role === "pdaa_api" && dispatchApiFunctions.has(signature));
+    }
+    for (const table of ['public."ConnectorPageDispatch"', 'public."SourceObservationWitness"',
+      'public."SourceAdmissionBindingRevision"', 'public."SourceAdmissionCommand"']) {
+      const { canRead, canInsert } = (await pool.query(
+        `SELECT has_any_column_privilege($1,$2::text,'SELECT') AS "canRead",
+          has_any_column_privilege($1,$2::text,'INSERT') AS "canInsert"`,
+        [role, table],
+      )).rows[0];
+      assert.equal(canRead, apiExecute && role === "pdaa_backup");
+      assert.equal(canInsert, false);
+    }
+  }
+}
 export async function verifyIngestionRoleBootstrap(sourceUrl) {
   assert.equal(process.env.DATA_MODE, "synthetic"); assert.notEqual(process.env.NODE_ENV, "production");
   const url = new URL(sourceUrl);
   assert(["127.0.0.1", "localhost"].includes(url.hostname)); assert.equal(url.pathname, "/postgres");
   const creator = new Pool({ connectionString: url.toString() });
-  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 38);
+  const migrations = readMigrations("packages/data/prisma/migrations"); assert.equal(migrations.length, 39);
   try {
     assert.deepEqual((await creator.query("SELECT datname FROM pg_database ORDER BY datname")).rows.map((row) => row.datname), ["postgres", "template0", "template1"]);
     assert.deepEqual(await currentRoles(creator), []);
@@ -80,6 +147,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         assert.deepEqual(await currentRoles(pool), presentRoles);
         const before = await inventory(pool, migrations);
         await privateBoundary(pool, presentRoles);
+        await dispatchBoundary(pool, presentRoles, false);
         await verifyXlsxGenesisPrivileges(pool,presentRoles);
         await verifyXlsxContextPrivileges(pool,presentRoles);
         await verifyXlsxRetryPrivileges(pool,presentRoles);
@@ -115,6 +183,9 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         for (const signature of xlsxReceiptReadFunctions) await pool.query("ALTER FUNCTION " + signature + " OWNER TO pdaa_migrate");
         await pool.query("ALTER FUNCTION " + xlsxSourceCatalogueApi + " OWNER TO pdaa_migrate");
         await pool.query("ALTER FUNCTION " + xlsxReviewDetailsApi + " OWNER TO pdaa_migrate");
+        for (const signature of dispatchFunctions) await pool.query("ALTER FUNCTION " + signature + " OWNER TO pdaa_migrate");
+        await pool.query("ALTER FUNCTION public.valid_canonical_state_binding(uuid) OWNER TO pdaa_migrate");
+        await pool.query("GRANT EXECUTE ON FUNCTION " + dispatchFunctions.join(",") + " TO PUBLIC,pdaa_worker,pdaa_backup");
         // Simulate the default function EXECUTE grant introduced by --no-acl
         // restore, plus explicit role grants, before reconstructing the ACL.
         await pool.query("GRANT EXECUTE ON FUNCTION public.guard_ingestion_reconfiguration_scope(),public.guard_ingestion_retention() TO PUBLIC,pdaa_api,pdaa_worker,pdaa_backup");
@@ -134,6 +205,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
         await pool.query('GRANT SELECT (dictionary) ON public."IngestionCsvHead" TO PUBLIC; GRANT INSERT (rows),REFERENCES ("receiptId") ON public."IngestionCsvContext" TO pdaa_worker; GRANT UPDATE ("stateHash") ON public."IngestionCsvHead" TO pdaa_backup WITH GRANT OPTION');
         assert.equal((await pool.query("SELECT has_function_privilege('pdaa_worker','public.guard_ingestion_reconfiguration_scope()','EXECUTE') AS allowed")).rows[0].allowed, true);
         await applyBusinessTableGrants(pool);
+        await dispatchBoundary(pool, roles.slice(0, 3), true);
         await verifyReassessmentPrivileges(pool);
         await privateBoundary(pool, roles.slice(0, 3));
         await verifyCsvComparisonPrivileges(pool,roles.slice(0,3),{owner:"pdaa_migrate"});
@@ -150,7 +222,7 @@ export async function verifyIngestionRoleBootstrap(sourceUrl) {
       } finally { await pool.end(); }
     }
     return { rolesAbsentBeforeAnyBootstrap: true, rolelessDatabase: first, partialRoleDatabase: second,
-      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 38, businessTables: 89,
+      partialRoles: ["pdaa_api"], cleanAndRepeatPassed: true, migrationCount: 39, businessTables: 93,
       publicPrivilegesDenied: true, finiteAclAfterLaterBootstrap: true, retainedDatabases: true };
   } finally { await creator.end(); }
 }

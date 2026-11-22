@@ -65,6 +65,7 @@ export const sourceAuthoritySnapshotSchema = z
   .object({
     scope: temporal.scope,
     asOf: instant,
+    committedFactRevision: temporal.committedFactRevision,
     complete: z.boolean(),
     policy: sourceAuthorityPolicySchema.nullable(),
     versions: z
@@ -218,6 +219,15 @@ function resolveSnapshot(input: unknown) {
   const usedEvidence = new Set<string>();
   for (const version of snapshot.versions) {
     requireValid(sourceTypes.has(version.source.instanceId));
+    if (snapshot.committedFactRevision !== undefined) {
+      const type = sourceTypes.get(version.source.instanceId);
+      requireValid(
+        (version.source.recordType === "jira.issue" && type === "jira") ||
+          (version.source.recordType === "xlsx.row" && type === "xlsx") ||
+          (version.source.recordType === "human_statement" &&
+            type === "human_statement"),
+      );
+    }
     usedSources.add(version.source.instanceId);
     for (const evidenceId of version.evidenceIds) {
       requireValid(evidence.has(evidenceId));
@@ -238,6 +248,7 @@ function resolveSnapshot(input: unknown) {
   const history = assessTemporalFactHistory({
     scope,
     asOf,
+    committedFactRevision: snapshot.committedFactRevision,
     validityPolicy: {
       // Temporal plumbing only; a null authority policy stays null in output.
       // This surrogate is never returned as an authority policy revision.
@@ -262,8 +273,9 @@ function resolveSnapshot(input: unknown) {
       ? selectors.find(
           ({ selector }) =>
             selector.sourceType === type &&
-            (selector.instanceId === null ||
-              selector.instanceId === version.source.instanceId),
+            (selector.instanceId === version.source.instanceId ||
+              (selector.instanceId === null &&
+                (snapshot.committedFactRevision === undefined || version.provenance === "HUMAN_CONFIRMED"))),
         )
       : undefined;
     const selectorValidity = match?.selector.validity ?? null;

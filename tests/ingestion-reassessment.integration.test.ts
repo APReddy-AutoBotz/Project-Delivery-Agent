@@ -83,14 +83,15 @@ async function fixture(options: { current?: boolean; service?: string; enabled?:
     if (name === "enqueueDueJobs") return async () => [];
     const value = Reflect.get(target, name); return typeof value === "function" ? value.bind(target) : value;
   } });
-  const jira = new JiraRuntimeService({ CUSTOMER_ID: customerId } as never, scopedRuntime, ingestion,
+  const runtimeConfig = { CUSTOMER_ID: customerId, projectUpdateTaskKeys: keys, connectorTaskKeys: keys };
+  const jira = new JiraRuntimeService(runtimeConfig as never, scopedRuntime, ingestion,
     async () => new Response(JSON.stringify([{ id: "cloud-1", url: binding.origin, scopes: ["read:jira-work"] }]),
       { status: 200, headers: { "content-type": "application/json" } }),
     () => ({ getProject: async ({ projectIdOrKey }: { projectIdOrKey: string }) => ({ key: projectIdOrKey }), searchIssues: provider }) as never);
   type Handler = (req: unknown, res: unknown, next: () => void) => Promise<void>;
   let handler: Handler;
   installConnectorRoutes({ use: (fn: Handler) => { handler = fn; } } as never,
-    { projectUpdateTaskKeys: keys, connectorTaskKeys: keys } as never, runtime, jira, updates);
+    runtimeConfig as never, runtime, jira, updates);
   const invoke = async (path: string, body = Buffer.from("{}"), suppliedHeaders?: Record<string, string>) => {
     const headers = { "content-type": "application/json", ...(suppliedHeaders ?? signConnectorTaskRequest({ method: "POST", path, body, keyRing: keys })) };
     let status = 0, result: unknown;

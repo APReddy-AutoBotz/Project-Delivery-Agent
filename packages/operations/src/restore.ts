@@ -214,6 +214,21 @@ async function restoreArchive(
           (SELECT count(*)::int FROM "ScalarReconciliationCheck" WHERE public.valid_scalar_reconciliation_check(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "ScalarReconciliationAssignment" WHERE public.valid_scalar_reconciliation_assignment(id) IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionOperationReceipt" WHERE public.valid_ingestion_receipt(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "ConnectorPageDispatch" WHERE public.valid_connector_page_dispatch("receiptId") IS NOT TRUE) +
+          (SELECT count(*)::int FROM "SourceObservationWitness" WHERE public.valid_source_observation_witness("versionId") IS NOT TRUE) +
+          (SELECT count(*)::int FROM "SourceAdmissionBindingRevision" WHERE public.valid_source_admission_binding(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "SourceAdmissionCommand" WHERE public.valid_source_admission_command(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "AuthorityPolicyRevision" WHERE public.valid_source_authority_publication(id) IS NOT TRUE) +
+          (SELECT count(*)::int FROM "ProjectFactVersion" v JOIN "FactEvidence" e ON e.id=v."evidenceId"
+            WHERE (e."providedBy" IS NULL)<>(v.provenance='SYSTEM_VERIFIED')
+              OR (v.provenance='SYSTEM_VERIFIED' AND NOT EXISTS (
+                SELECT 1 FROM "SourceObservationWitness" w WHERE w."versionId"=v.id))) +
+          (SELECT count(*)::int FROM "FactEvidence" e JOIN "FactSource" s ON s.id=e."sourceId"
+            WHERE (e."providedBy" IS NULL)<>(s."ingestionStreamId" IS NOT NULL)
+              OR (e."providedBy" IS NULL AND NOT EXISTS (
+                SELECT 1 FROM "SourceObservationWitness" w WHERE w."evidenceId"=e.id))) +
+          (SELECT count(*)::int FROM "FactSource" s WHERE s."ingestionStreamId" IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM "SourceObservationWitness" w WHERE w."sourceId"=s.id)) +
           (SELECT count(*)::int FROM "IngestionCsvContext" WHERE public.valid_ingestion_csv_context("receiptId") IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionCsvHead" WHERE public.valid_ingestion_csv_head("customerId","sourceId") IS NOT TRUE) +
           (SELECT count(*)::int FROM "IngestionSource" s JOIN "IngestionConfigurationRevision" c

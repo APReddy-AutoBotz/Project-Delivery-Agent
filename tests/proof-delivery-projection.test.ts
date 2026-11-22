@@ -9,8 +9,21 @@ const actor = {
   subject: "pm",
   roles: ["project_manager"],
 };
-const dependency = { version: { sourceId: "source" } };
-const versions = { select: { version: { select: { sourceId: true } } } };
+const dependency = {
+  version: {
+    id: "version",
+    factId: "fact",
+    sourceId: "source",
+    provenance: "HUMAN_CONFIRMED",
+  },
+};
+const versions = {
+  select: {
+    version: {
+      select: { id: true, factId: true, sourceId: true, provenance: true },
+    },
+  },
+};
 
 it.each(["scalar", "milestone"])(
   "%s delivery fetches only source dependencies and still rechecks native integrity/access",
@@ -30,7 +43,7 @@ it.each(["scalar", "milestone"])(
     const findMany = vi.fn(async () => [
       {
         sourceId: "source",
-        state: "AVAILABLE",
+        factId: "fact",
         readers: [{ subject: actor.subject }],
       },
     ]);
@@ -74,13 +87,18 @@ it.each(["scalar", "milestone"])(
           : { scalarAssessments: { select: { versions } } },
     });
     expect(integrity).toHaveBeenCalledOnce();
-    expect(findMany.mock.calls[0]![0]).toMatchObject({
+    expect(findMany.mock.calls[0]![0]).toEqual({
       where: {
         customerId: "customer",
         projectId: "project",
         sourceId: { in: ["source"] },
+        state: "AVAILABLE",
       },
-      include: { readers: { where: { subject: "pm" } } },
+      select: {
+        sourceId: true,
+        factId: true,
+        readers: { where: { subject: "pm" } },
+      },
     });
     findMany.mockResolvedValueOnce([]);
     expect(await deliver()).toMatchObject({

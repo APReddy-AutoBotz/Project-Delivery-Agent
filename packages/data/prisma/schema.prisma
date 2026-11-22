@@ -123,15 +123,19 @@ model FactSource {
   customerId String @db.Uuid
   projectId String @db.Uuid
   factId String @db.Uuid
-  providedBy String @db.VarChar(256)
+  providedBy String? @db.VarChar(256)
   sourceType String @default("human_statement") @db.VarChar(96)
+  ingestionStreamId String? @db.Uuid
+  ingestionStream IngestionFactStream? @relation(fields: [ingestionStreamId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   fact ProjectFact @relation(fields: [customerId, projectId, factId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
   access FactSourceAccess?
-  evidence FactEvidence[]
+  evidence FactEvidence[] @relation("ScopedFactSource")
+  statementEvidence FactEvidence[] @relation("StatementFactSource")
   canonicalStateBindingReceipts CanonicalStateBindingReceipt[]
   @@unique([customerId, projectId, factId, id])
   @@unique([customerId, projectId, factId, id, providedBy], map: "FactSource_author_key")
   @@unique([customerId, projectId, factId, providedBy])
+  @@unique([factId, ingestionStreamId], map: "FactSource_observation_stream_key")
 }
 model FactSourceAccess {
   sourceId String @id @db.Uuid
@@ -159,10 +163,11 @@ model FactEvidence {
   projectId String @db.Uuid
   factId String @db.Uuid
   sourceId String @db.Uuid
-  providedBy String @db.VarChar(256)
+  providedBy String? @db.VarChar(256)
   observedAt DateTime @db.Timestamptz(3)
-  originalStatement String @db.VarChar(8192)
-  source FactSource @relation(fields: [customerId, projectId, factId, sourceId, providedBy], references: [customerId, projectId, factId, id, providedBy], onDelete: Restrict, onUpdate: Restrict, map: "FactEvidence_source_author_fkey")
+  originalStatement String? @db.VarChar(8192)
+  source FactSource @relation("ScopedFactSource", fields: [customerId, projectId, factId, sourceId], references: [customerId, projectId, factId, id], onDelete: Restrict, onUpdate: Restrict, map: "FactEvidence_source_scope_fkey")
+  statementSource FactSource? @relation("StatementFactSource", fields: [customerId, projectId, factId, sourceId, providedBy], references: [customerId, projectId, factId, id, providedBy], onDelete: Restrict, onUpdate: Restrict, map: "FactEvidence_source_author_fkey")
   version ProjectFactVersion?
   canonicalStateBindingReceipts CanonicalStateBindingReceipt[]
   milestoneConsistencyContributors MilestoneConsistencyContributorVersion[]
@@ -588,6 +593,7 @@ model CanonicalStateBinding {
   factType String @db.VarChar(96)
   createdBy String @db.VarChar(256)
   createdAt DateTime @db.Timestamptz(3)
+  sourceBirthCommandId String? @unique(map: "CanonicalStateBinding_source_birth_key") @db.Uuid
   sealed Boolean @default(false)
   project CanonicalProject @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict)
   milestone Milestone? @relation(fields: [customerId, projectId, milestoneId], references: [customerId, projectId, id], onDelete: Restrict, onUpdate: Restrict)
@@ -1031,8 +1037,78 @@ model IngestionFactStream {
   recordId String @db.Uuid
   factType String @db.VarChar(96)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  canonicalSources FactSource[]
   @@unique([customerId, sourceId, recordId, factType], map: "IngestionFactStream_identity_key")
   @@unique([customerId, sourceId, recordId, id], map: "IngestionFactStream_scope_key")
+}
+
+model SourceObservationWitness {
+  versionId String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  bindingId String @db.Uuid
+  admissionRevisionId String @db.Uuid
+  factId String @db.Uuid
+  sourceId String @db.Uuid
+  evidenceId String @unique @db.Uuid
+  ingestionStreamId String @db.Uuid
+  sourceRevisionId String @db.Uuid
+  auditEventId String @unique @db.Uuid
+  rootCommandId String @unique @db.Uuid
+  admittedAt DateTime @db.Timestamptz(3)
+  admittedBy String @db.VarChar(256)
+  input Json
+  @@unique([factId, ingestionStreamId, sourceRevisionId], map: "SourceObservationWitness_revision_key")
+  @@unique([customerId, projectId, admissionRevisionId, versionId], map: "SourceObservationWitness_command_scope_key")
+  @@index([sourceId], map: "SourceObservationWitness_source_idx")
+  @@index([admissionRevisionId], map: "SourceObservationWitness_admission_idx")
+}
+
+model SourceAdmissionCommand {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  ingestionSourceId String @db.Uuid
+  admissionRevisionId String @db.Uuid
+  versionId String @db.Uuid
+  inputReceiptId String @db.Uuid
+  ordinal Int
+  commandKey String @db.VarChar(128)
+  correlationId String @db.Uuid
+  @@unique([customerId, projectId, ingestionSourceId, commandKey], map: "SourceAdmissionCommand_source_key")
+}
+
+model SourceAdmissionBindingRevision {
+  id String @id @db.Uuid
+  customerId String @db.Uuid
+  projectId String @db.Uuid
+  bindingId String @db.Uuid
+  factId String @db.Uuid
+  factType String @db.VarChar(96)
+  ingestionSourceId String @db.Uuid
+  recordId String @db.Uuid
+  streamId String @db.Uuid
+  sourceKind String @db.VarChar(16)
+  configRevision Int
+  mappingRevision Int
+  revision Int
+  snapshotField String? @db.VarChar(96)
+  stateMapping Json
+  factSourceId String @db.Uuid
+  reservationId String @db.Uuid
+  previousPolicyRevision Int
+  policyRevisionId String @unique @db.Uuid
+  definition Json
+  approvedBy String @db.VarChar(256)
+  approvedAt DateTime @db.Timestamptz(3)
+  approvalAuditId String @unique @db.Uuid
+  existingBindingId String? @db.Uuid
+  targetKind String @db.VarChar(16)
+  targetMilestoneId String? @db.Uuid
+  targetWorkItemId String? @db.Uuid
+  @@unique([streamId, revision])
+  @@unique([customerId, projectId, id, ingestionSourceId], map: "SourceAdmissionBindingRevision_command_scope_key")
+  @@unique([customerId, projectId, id, bindingId, factId, streamId, factSourceId], map: "SourceAdmissionBindingRevision_exact_key")
 }
 
 model IngestionSourceRevision {
@@ -1169,6 +1245,19 @@ model ConnectorTaskReceipt {
   requestTime DateTime @db.Timestamptz(3)
   bodyHash String @db.Char(64)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+  dispatchCustomerId String? @db.Uuid
+  dispatchJobId String? @db.Uuid
+  dispatchGeneration Int?
+  @@unique([dispatchJobId, dispatchGeneration], map: "ConnectorTaskReceipt_dispatch_claim_key")
+}
+
+model ConnectorPageDispatch {
+  receiptId String @id @db.Uuid
+  customerId String @db.Uuid
+  sourceId String @db.Uuid
+  jobId String @unique @db.Uuid
+  claimGeneration Int
+  taskDigest String @unique @db.Char(64)
 }
 
 model IngestionSyncReceiptProjectScope {

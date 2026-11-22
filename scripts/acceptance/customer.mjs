@@ -573,7 +573,7 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 38);
+    assert.equal(migrations.length, 39);
     assert.equal(migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
@@ -847,12 +847,12 @@ try {
       milestonePersistenceTables,
       milestoneReconciliationTables,
       scalarReconciliationTables,
-      businessTableCount: 89,
+      businessTableCount: 93,
       csvComparisonTables,
       csvComparisonPrivileges,
       xlsxReceiptCodec,
       engagementStorageTables,
-      migrationCount: 38,
+      migrationCount: 39,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({

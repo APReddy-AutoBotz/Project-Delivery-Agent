@@ -1,15 +1,26 @@
 import { execFile } from "node:child_process";
 import { createHmac, randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { promisify } from "node:util";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   createDatabase,
+  DatabaseAuthorityRepository,
+  DatabaseCanonicalProjectRepository,
   DatabaseConnectorRuntimeRepository,
   DatabaseIngestionRepository,
+  DatabaseMilestoneConflictObservationRepository,
+  DatabaseMilestoneConsistencyRepository,
+  DatabaseMilestoneReconciliationRepository,
+  DatabaseProjectFactRepository,
 } from "../packages/data/src/index.js";
+import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
 import { CredentialKeyRingVault, CredentialVault } from "../packages/platform/src/index.js";
 import type { Actor } from "../packages/domain/src/index.js";
 import { JiraRuntimeService } from "../apps/api/src/jira-runtime.js";
+import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
+import { proveXlsxSourceGenesis } from "../scripts/acceptance/xlsx-source-genesis.mjs";
+import { sourceAdmissionSubject } from "../scripts/acceptance/source-admission-role.mjs";
 
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
@@ -350,6 +361,8 @@ describe("durable Jira connector runtime", () => {
       page,
     }, finalReclaimedAt);
     expect(committed.terminal).toBe(true);
+    expect(await db.$queryRaw`SELECT public.valid_connector_page_dispatch(${committed.receiptId}::uuid) AS valid`)
+      .toEqual([{ valid: false }]);
     const persistedJob = await db.$queryRaw<{ state: string; completedAt: Date | null }[]>`
       SELECT state,"completedAt" FROM public."ConnectorSyncJob" WHERE id=${readyJob.jobId}::uuid`;
     expect(persistedJob[0]).toMatchObject({ state: "COMPLETED" });
@@ -490,7 +503,6 @@ describe("durable Jira connector runtime", () => {
   it("recovers a missed Jira update and exposes safe health detail to an authorized administrator", async () => {
     const isolatedCustomerId = randomUUID();
     const portfolioId = randomUUID();
-    const projectId = randomUUID();
     const sourceId = randomUUID();
     const pmo: Actor = {
       customerId: isolatedCustomerId,
@@ -500,6 +512,11 @@ describe("durable Jira connector runtime", () => {
     const manager: Actor = {
       customerId: isolatedCustomerId,
       subject: "reconciliation-manager-" + randomUUID(),
+      roles: ["project_manager"],
+    };
+    const otherManager: Actor = {
+      customerId: isolatedCustomerId,
+      subject: "other-reconciliation-manager-" + randomUUID(),
       roles: ["project_manager"],
     };
     const systemAdmin: Actor = {
@@ -513,20 +530,31 @@ describe("durable Jira connector runtime", () => {
     await db.portfolio.create({
       data: { id: portfolioId, customerId: isolatedCustomerId, name: "Reconciliation fixture" },
     });
-    await db.project.create({
+    await db.accessGrant.create({
       data: {
-        id: projectId,
         customerId: isolatedCustomerId,
-        portfolioId,
-        code: "JR-" + projectId.slice(0, 8).toUpperCase(),
-        name: "Jira reconciliation fixture",
-        description: "Synthetic Jira source for scheduled recovery",
-        reportedStatus: "UNKNOWN",
+        subject: pmo.subject,
+        scopeType: "portfolio",
+        scopeId: portfolioId,
+        role: "pmo_admin",
       },
     });
+    const projectFixture = canonicalFixture(portfolioId);
+    for (const responsibility of projectFixture.responsibilities) {
+      if (responsibility.role === "PROJECT_MANAGER") responsibility.subject = manager.subject;
+    }
+    projectFixture.workItems.push({ ...projectFixture.workItems[0]!, key: "WI-2", title: "Human-confirmed required work" });
+    projectFixture.requiredWorkItems.push({ milestoneKey: "MS-1", workItemKey: "WI-2" });
+    const { id: projectId } = await new DatabaseCanonicalProjectRepository(db)
+      .createProject(pmo, projectFixture, randomUUID());
+    const leaderGrant = await db.accessGrant.create({ data: {
+      customerId: isolatedCustomerId, subject: otherManager.subject,
+      scopeType: "portfolio", scopeId: portfolioId, role: "leadership",
+    } });
     for (const grant of [
       { subject: pmo.subject, role: "pmo_admin" },
       { subject: manager.subject, role: "project_manager" },
+      { subject: otherManager.subject, role: "project_manager" },
       { subject: systemAdmin.subject, role: "system_admin" },
     ] as const) {
       await db.accessGrant.create({
@@ -546,6 +574,20 @@ describe("durable Jira connector runtime", () => {
       "scheduled-reconciliation-retention-" + sourceId,
     );
 
+    const workbookReader: Actor = {
+      customerId: isolatedCustomerId, subject: "synthetic-workbook-pmo", roles: ["pmo_admin"],
+    };
+    const sheet = "Milestone " + randomUUID().slice(0, 12);
+    const { Pool } = createRequire(new URL("../packages/data/package.json", import.meta.url))("pg");
+    const pool = new Pool({ connectionString: url });
+    try {
+      await proveXlsxSourceGenesis(pool, {
+        retain: true, existingCustomer: isolatedCustomerId, existingProject: projectId, sheet,
+        snapshotRequired: true, reviewer: sourceAdmissionSubject, reviewerRole: "project_manager",
+        additionalReaders: [manager.subject, otherManager.subject],
+      });
+    } finally { await pool.end(); }
+
     const binding = {
       customerId: isolatedCustomerId,
       sourceId,
@@ -556,7 +598,7 @@ describe("durable Jira connector runtime", () => {
       pmo,
       {
         binding,
-        projects: [{ projectId, readers: [manager.subject, pmo.subject] }],
+        projects: [{ projectId, readers: [manager.subject, otherManager.subject, pmo.subject, sourceAdmissionSubject, workbookReader.subject] }],
         mapping: {
           kind: "CONNECTOR",
           factTypes: ["jira.status"],
@@ -690,7 +732,29 @@ describe("durable Jira connector runtime", () => {
 
     // A scheduled pass starts with a fenced reset, then reads Jira independently of webhook payloads.
     await expect(service.runOne()).resolves.toEqual({ status: "cursor_reset" });
-    const scheduledResult = await service.runOne();
+    const unrelatedNonce = randomUUID();
+    expect(await runtime.acceptTaskNonce({
+      nonce: unrelatedNonce,
+      keyId: keyRing.currentKeyId,
+      timestampSeconds: String(Math.floor(Date.now() / 1000)),
+      body: Buffer.from("{}"),
+      dispatchCustomerId: randomUUID(),
+    })).toBe(true);
+    const readyWhere = { customerId: isolatedCustomerId, sourceId, state: "READY" };
+    const beforeRejectedClaim = await db.connectorSyncJob.findFirstOrThrow({ where: readyWhere });
+    await expect(runtime.claimNextJob(isolatedCustomerId, unrelatedNonce)).rejects.toThrow(
+      /Connector task claim unavailable/u,
+    );
+    expect(await db.connectorSyncJob.findFirstOrThrow({ where: readyWhere })).toEqual(beforeRejectedClaim);
+    const dispatchNonce = randomUUID();
+    expect(await runtime.acceptTaskNonce({
+      nonce: dispatchNonce,
+      keyId: keyRing.currentKeyId,
+      timestampSeconds: String(Math.floor(Date.now() / 1000)),
+      body: Buffer.from("{}"),
+      dispatchCustomerId: isolatedCustomerId,
+    })).toBe(true);
+    const scheduledResult = await service.runOne(dispatchNonce);
     if (scheduledResult.status === "deferred")
       throw new Error(`Scheduled Jira reconciliation deferred: ${observedFailures.join(", ") || "no runtime failure code recorded"}; resourceLookups=${resourceLookups}; jiraClientCreated=${jiraClientCreated}; searches=${searchCalls.length}; pagePersistenceReached=${pagePersistenceReached}; pagePersistenceError=${pagePersistenceError}`);
     expect(scheduledResult).toEqual({ status: "page_committed" });
@@ -709,6 +773,18 @@ describe("durable Jira connector runtime", () => {
     });
     expect(job).toMatchObject({ kind: "SCHEDULED", state: "COMPLETED" });
     expect(job.completedAt).toBeInstanceOf(Date);
+    const pageReceipt = await db.ingestionOperationReceipt.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, sourceId, syncJobId: job.id, kind: "CONNECTOR_PAGE" },
+    });
+    const pageDispatch = await db.connectorPageDispatch.findUniqueOrThrow({
+      where: { receiptId: pageReceipt.id },
+    });
+    expect(pageDispatch).toEqual({
+      receiptId: pageReceipt.id, customerId: isolatedCustomerId, sourceId, jobId: job.id,
+      claimGeneration: job.attempts, taskDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(await db.$queryRaw`SELECT public.valid_connector_page_dispatch(${pageReceipt.id}::uuid) AS valid`)
+      .toEqual([{ valid: true }]);
     const record = await db.ingestionExternalRecord.findFirstOrThrow({
       where: {
         customerId: isolatedCustomerId,
@@ -740,6 +816,318 @@ describe("durable Jira connector runtime", () => {
     });
     expect(receipt.outcomeCount).toBe(1);
     expect(receipt.cursorRevisionAfter).toBeGreaterThan(0n);
+    const stream = await db.ingestionFactStream.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, sourceId, recordId: record.id, factType: "jira.status" },
+    });
+    const observation = (id: string, stateMapping: Record<string, string>) => db.$queryRaw`
+      SELECT public.resolve_source_observation_input(
+        ${isolatedCustomerId}::uuid,${projectId}::uuid,${sourceId}::uuid,${stream.id}::uuid,
+        ${id}::uuid,1,NULL,${JSON.stringify(stateMapping)}::jsonb
+      ) AS input`;
+    expect(await observation(receipt.id, { "To Do": "OPEN" })).toMatchObject([{
+      input: {
+        sourceKind: "jira.issue", field: "jira.status", streamId: stream.id,
+        sourceRevisionId: revision.id, effectiveAt: initialObservedAt,
+        observedAt: revision.remoteObservedAt?.toISOString(),
+        value: { type: "text", value: "OPEN" },
+        fieldSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+    }]);
+    expect(await observation(receipt.id, { "To Do": "unapproved" })).toEqual([{ input: null }]);
+    expect(await observation(randomUUID(), { "To Do": "OPEN" })).toEqual([{ input: null }]);
+
+    const work = await db.requiredWorkItem.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, projectId, workItem: { key: "WI-1" } },
+    });
+    expect(await db.canonicalStateBinding.count({ where: { customerId: isolatedCustomerId, workItemId: work.workItemId } })).toBe(0);
+    const factSource = randomUUID();
+    const definition = {
+      conflictBehavior: "REQUEST_RECONCILIATION",
+      tiers: [{ selectors: [{
+        sourceType: "jira", instanceId: factSource, requiredApproval: "APPROVED",
+        validity: { basis: "observedAt", durationMs: 86_400_000 },
+      }] }],
+    };
+    const [approval] = await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT public.approve_source_observation(
+          ${isolatedCustomerId}::uuid,${projectId}::uuid,NULL::uuid,${stream.id}::uuid,
+          ${factSource}::uuid,NULL,'{"To Do":"OPEN"}'::jsonb,${JSON.stringify(definition)}::jsonb,${pmo.subject},0,
+          'WORK_ITEM',${work.workItemId}::uuid
+        ) AS id`;
+    });
+    expect(approval?.id).toEqual(expect.any(String));
+    const prospective = await db.sourceAdmissionBindingRevision.findUniqueOrThrow({ where: { id: approval!.id } });
+    expect(prospective).toMatchObject({ existingBindingId: null, targetKind: "WORK_ITEM", targetWorkItemId: work.workItemId });
+    expect(await db.projectFact.count({ where: { id: prospective.factId } })).toBe(0);
+    const commandKey = randomUUID();
+    const correlation = randomUUID();
+    const appendJiraObservation = () => db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_source_acceptance`;
+      return tx.$queryRaw<{ result: { status: string; receiptId?: string } }[]>`
+        SELECT public.admit_source_observation(${isolatedCustomerId}::uuid,${projectId}::uuid,${approval?.id}::uuid,
+          ${receipt.id}::uuid,1,${commandKey},${correlation}::uuid) AS result`;
+    });
+    // The grant mutation trigger acquires the project after the grant tuple.
+    // Admission must release its project lock promptly when that tuple is busy.
+    await db.$transaction(async (locker) => {
+      const locked = await locker.$queryRaw`
+        SELECT id FROM public."ConnectorSyncGrant"
+        WHERE ("customerId","projectId","sourceId")=(${isolatedCustomerId}::uuid,${projectId}::uuid,${sourceId}::uuid)
+        FOR UPDATE`;
+      expect(locked).toHaveLength(1);
+      await expect(appendJiraObservation()).rejects.toThrow(/could not obtain lock on row/iu);
+    });
+    expect(await db.projectFactVersion.count({ where: { factId: prospective.factId } })).toBe(0);
+    const [admitted] = await appendJiraObservation();
+    expect(admitted).toEqual({ result: { status: "ADMITTED", receiptId: expect.any(String) } });
+    const admittedReceipt = await db.sourceAdmissionCommand.findUniqueOrThrow({ where: { id: admitted!.result.receiptId } });
+    expect(await appendJiraObservation()).toEqual([{ result: { status: "REPLAYED", receiptId: admittedReceipt.id } }]);
+    const canonicalBinding = await db.canonicalStateBinding.findUniqueOrThrow({ where: { id: prospective.bindingId } });
+    expect(canonicalBinding).toMatchObject({ sealed: true, factId: prospective.factId, sourceBirthCommandId: admittedReceipt.id });
+    expect(await db.canonicalStateBindingReceipt.count({ where: { bindingId: canonicalBinding.id } })).toBe(0);
+    expect(await db.projectFactVersion.findUniqueOrThrow({
+      where: { id: admittedReceipt.versionId }, include: { evidence: { include: { source: true } } },
+    })).toMatchObject({
+      factId: canonicalBinding.factId, revision: 1, provenance: "SYSTEM_VERIFIED",
+      value: { type: "text", value: "OPEN" },
+      effectiveAt: new Date(initialObservedAt),
+      evidence: { providedBy: null, originalStatement: null, observedAt: revision.remoteObservedAt, source: { sourceType: "jira", ingestionStreamId: stream.id } },
+    });
+    const asApi = <T>(
+      operation: (tx: Prisma.TransactionClient) => Promise<T>,
+      options?: { isolationLevel?: "ReadCommitted"; maxWait?: number; timeout?: number },
+    ) => db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_api`;
+      return operation(tx);
+    }, options);
+    const api = { $transaction: asApi } as never;
+    const facts = new DatabaseProjectFactRepository(api);
+    const factReaders = [manager.subject, otherManager.subject, pmo.subject, workbookReader.subject];
+    await facts.setSourceAccess(pmo, {
+      projectId, sourceId: factSource, expectedRevision: 1, state: "AVAILABLE", readers: factReaders,
+    }, { correlationId: randomUUID() });
+    const authority = new DatabaseAuthorityRepository(api);
+    const assessed = await authority.captureAssessment(manager, {
+      projectId, factType: canonicalBinding.factType, idempotencyKey: randomUUID(),
+    }, { correlationId: randomUUID() });
+    expect(assessed).toMatchObject({ visibility: "available", result: {
+      status: "RESOLVED", resolvedValue: { type: "text", value: "OPEN" },
+      versions: [expect.objectContaining({ provenance: "SYSTEM_VERIFIED", source: {
+        instanceId: factSource, recordType: "jira.issue", recordId: stream.id, revision: revision.id,
+      } })],
+    } });
+    expect(await db.factAssessment.findUniqueOrThrow({ where: { id: assessed.assessmentId } })).toMatchObject({ evaluatorVersion: 2 });
+    const jiraHistory = await facts.getHistory(manager, {
+      projectId, factType: canonicalBinding.factType,
+    });
+    expect(jiraHistory?.entries).toMatchObject([{ id: admittedReceipt.versionId, visibility: "available", content: {
+      provenance: "SYSTEM_VERIFIED", value: { type: "text", value: "OPEN" },
+      source: { instanceId: factSource, recordType: "jira.issue", recordId: stream.id, revision: revision.id },
+    } }]);
+    expect(JSON.stringify(jiraHistory)).not.toContain("SAFE-77");
+
+    const workbookSource = await db.ingestionSource.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, inputFamily: "XLSX" },
+    });
+    const workbookSnapshotAt = new Date(Date.now() - 30_000).toISOString();
+    const workbook = new DatabaseIngestionRepository({
+      $transaction: asApi,
+      $queryRaw: (query: TemplateStringsArray, ...values: unknown[]) => asApi((tx) => tx.$queryRaw(query, ...values)),
+      auditEvent: { create: (args: Prisma.AuditEventCreateArgs) => asApi((tx) => tx.auditEvent.create(args)) },
+    } as never, new CredentialVault(encryptionKey), {
+      tryAcquire: () => ({
+        decode: async () => ({
+          headers: ["Key", "Project", "Status", "Forecast", "Snapshot"],
+          rows: [["Milestone", projectId, "Complete", "2027-01-01", workbookSnapshotAt]],
+        }),
+        release() {},
+      }),
+    });
+    const preview = await workbook.persistXlsxPreview(workbookReader, {
+      sourceId: workbookSource.id, configRevision: 1, mappingRevision: 1, sheet, commandKey: randomUUID(),
+    }, Buffer.from("synthetic milestone workbook"), randomUUID());
+    const previewContext = await db.ingestionXlsxContext.findUniqueOrThrow({ where: { receiptId: preview.receiptId } });
+    const reviewed = await workbook.commitXlsxReviewedImport(workbookReader, {
+      sourceId: workbookSource.id, previewReceiptId: preview.receiptId, previewContextSha256: previewContext.contextSha256,
+      rowOrdinals: [1], commandKey: randomUUID(),
+    }, randomUUID());
+    const outcome = await db.ingestionRowOutcome.findFirstOrThrow({ where: { receiptId: reviewed.receiptId, ordinal: 1 } });
+    expect(outcome.state).toBe("ACCEPTED");
+    const workbookStream = await db.ingestionFactStream.findFirstOrThrow({
+      where: { customerId: isolatedCustomerId, sourceId: workbookSource.id, recordId: outcome.recordId!, factType: "project.status" },
+    });
+    const workbookFactSource = randomUUID();
+    const workbookRule = {
+      conflictBehavior: "REQUEST_RECONCILIATION",
+      tiers: [{ selectors: [{
+        sourceType: "xlsx", instanceId: workbookFactSource, requiredApproval: "APPROVED",
+        validity: { basis: "effectiveAt", durationMs: 86_400_000 },
+      }] }],
+    };
+    const [workbookApproval] = await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL ROLE pdaa_migrate`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT public.approve_source_observation(
+          ${isolatedCustomerId}::uuid,${projectId}::uuid,NULL::uuid,${workbookStream.id}::uuid,
+          ${workbookFactSource}::uuid,'source.snapshot_at','{"Complete":"COMPLETE"}'::jsonb,
+          ${JSON.stringify(workbookRule)}::jsonb,${workbookReader.subject},0,'MILESTONE',${work.milestoneId}::uuid
+        ) AS id`;
+    });
+    expect(workbookApproval?.id).toEqual(expect.any(String));
+    const [workbookAdmitted] = await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL SESSION AUTHORIZATION pdaa_source_acceptance`;
+      return tx.$queryRaw<{ result: { status: string; receiptId?: string } }[]>`
+        SELECT public.admit_source_observation(${isolatedCustomerId}::uuid,${projectId}::uuid,${workbookApproval?.id}::uuid,
+          ${reviewed.receiptId}::uuid,1,${randomUUID()},${randomUUID()}::uuid) AS result`;
+    });
+    expect(workbookAdmitted).toEqual({ result: { status: "ADMITTED", receiptId: expect.any(String) } });
+    const workbookCommand = await db.sourceAdmissionCommand.findUniqueOrThrow({ where: { id: workbookAdmitted!.result.receiptId } });
+    const visibleWorkbook = await facts.setSourceAccess(pmo, {
+      projectId, sourceId: workbookFactSource, expectedRevision: 1, state: "AVAILABLE", readers: factReaders,
+    }, { correlationId: randomUUID() });
+    const milestones = new DatabaseMilestoneConsistencyRepository(api);
+    const humanWork = await db.workItem.findFirstOrThrow({ where: { customerId: isolatedCustomerId, projectId, key: "WI-2" } });
+    const humanBinding = await milestones.createStateBinding(workbookReader, {
+      projectId, targetKind: "WORK_ITEM", targetId: humanWork.id, initialState: "COMPLETE",
+      effectiveAt: workbookSnapshotAt, validUntil: new Date(Date.now() + 86_400_000).toISOString(),
+      idempotencyKey: randomUUID(), originalStatement: "Synthetic human work completion",
+    }, { correlationId: randomUUID() });
+    await facts.setSourceAccess(pmo, {
+      projectId, sourceId: humanBinding.entry.sourceId, expectedRevision: humanBinding.entry.sourceAccessRevision,
+      state: "AVAILABLE", readers: factReaders,
+    }, { correlationId: randomUUID() });
+    await authority.appendPolicy(workbookReader, {
+      projectId, factType: humanBinding.factType, effectiveAt: workbookSnapshotAt,
+      expectedRevision: 0, idempotencyKey: randomUUID(),
+      definition: {
+        conflictBehavior: "REQUEST_RECONCILIATION",
+        tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null, requiredApproval: "NOT_REQUIRED", validity: null }] }],
+      },
+    }, { correlationId: randomUUID() });
+    const milestoneRequest = {
+      projectId, milestoneId: work.milestoneId, ruleRevision: "milestone-required-state/v1" as const,
+      enabled: true, idempotencyKey: randomUUID(),
+    };
+    const captureMilestone = () => milestones.captureMilestoneConsistency(workbookReader, milestoneRequest, { correlationId: randomUUID() });
+    const mixedMilestone = await captureMilestone();
+    expect(mixedMilestone).toMatchObject({ visibility: "available", result: { status: "CONFLICTING" } });
+    if (mixedMilestone.visibility !== "available" || mixedMilestone.result.status !== "CONFLICTING")
+      throw new Error("Expected a captured source-backed milestone contradiction");
+    const evaluations = mixedMilestone.result.evaluations;
+    expect(evaluations).toHaveLength(3);
+    for (const expected of [
+      { targetId: work.milestoneId, versionId: workbookCommand.versionId, recordType: "xlsx.row", value: "COMPLETE", provenance: "SYSTEM_VERIFIED" },
+      { targetId: work.workItemId, versionId: admittedReceipt.versionId, recordType: "jira.issue", value: "OPEN", provenance: "SYSTEM_VERIFIED" },
+      { targetId: humanWork.id, versionId: humanBinding.entry.id, recordType: "human_statement", value: "COMPLETE", provenance: "HUMAN_CONFIRMED" },
+    ]) {
+      expect(evaluations.find(({ targetId }) => targetId === expected.targetId)).toMatchObject({ assessment: {
+        status: "RESOLVED", resolvedValue: { type: "text", value: expected.value },
+        versions: [{ id: expected.versionId, provenance: expected.provenance, source: { recordType: expected.recordType } }],
+      } });
+    }
+    expect(mixedMilestone.result.contributors.flatMap(({ supportingVersionIds }) => supportingVersionIds).sort())
+      .toEqual([workbookCommand.versionId, admittedReceipt.versionId].sort());
+    const children = await db.factAssessment.findMany({ where: { milestoneAssessmentId: mixedMilestone.assessmentId } });
+    expect(children).toHaveLength(3);
+    for (const child of children) expect(child).toMatchObject({
+      evaluatorVersion: child.factId === humanBinding.factId ? 1 : 2,
+      subject: workbookReader.subject,
+    });
+    const readMilestone = (actor: Actor) => milestones.getMilestoneConsistency(actor, { projectId, assessmentId: mixedMilestone.assessmentId });
+    expect(await readMilestone(workbookReader)).toEqual(mixedMilestone);
+    expect(await readMilestone(pmo)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+    expect(await readMilestone(otherManager)).toEqual(mixedMilestone);
+
+    const leadership = new DatabaseMilestoneConflictObservationRepository(api);
+    const leader: Actor = { ...otherManager, roles: ["leadership"] };
+    const observe = () => leadership.readLeadership(leader, projectId, work.milestoneId);
+    const savedCount = await db.milestoneConsistencyAssessment.count({ where: { projectId } });
+    const answer = await observe();
+    expect(answer).toMatchObject({ outcome: "CONFLICTING", ruleRevision: "milestone-required-state/v1" });
+    if (answer.outcome !== "CONFLICTING") throw new Error("Expected a current source-backed leadership answer");
+    expect(answer.positions).toMatchObject([
+      { targetKind: "MILESTONE", targetId: work.milestoneId, state: "COMPLETE", supports: [{
+        versionId: workbookCommand.versionId, provenance: "SYSTEM_VERIFIED", sourceKind: "xlsx.row", freshness: "CURRENT",
+      }] },
+      { targetKind: "WORK_ITEM", targetId: work.workItemId, state: "OPEN", supports: [{
+        versionId: admittedReceipt.versionId, provenance: "SYSTEM_VERIFIED", sourceKind: "jira.issue", freshness: "CURRENT",
+      }] },
+    ]);
+    await expect(leadership.readForLeaderManager({ ...otherManager, roles: ["leadership", "project_manager"] }, projectId, work.milestoneId))
+      .rejects.toMatchObject({ code: "UNAVAILABLE" });
+    expect(await db.milestoneConsistencyAssessment.count({ where: { projectId } })).toBe(savedCount);
+    const presented = JSON.stringify(answer);
+    for (const privateValue of ["SAFE-77", reviewed.receiptId, manager.subject, otherManager.subject])
+      expect(presented).not.toContain(privateValue);
+    await db.accessGrant.delete({ where: { id: leaderGrant.id } });
+    await expect(observe()).rejects.toMatchObject({ code: "DENIED" });
+    await db.accessGrant.create({ data: leaderGrant });
+
+    const requests = new DatabaseMilestoneReconciliationRepository(api);
+    const check = { ...milestoneRequest, idempotencyKey: randomUUID() };
+    const checked = await requests.check(workbookReader, check, { correlationId: randomUUID() });
+    expect(checked).toMatchObject({
+      outcome: "CREATED", replayed: false,
+      request: { assignment: { reason: "ASSIGNED", recipientSubject: manager.subject, revision: 1 } },
+      assessment: { visibility: "available", result: {
+        status: "CONFLICTING", contributorIdentity: mixedMilestone.result.contributorIdentity,
+      } },
+    });
+    if (!checked.request) throw new Error("Expected one durable milestone request");
+    const requestId = checked.request.id;
+    const requestScope = { projectId, requestId };
+    const replayed = await requests.check(workbookReader, check, { correlationId: randomUUID() });
+    expect(replayed).toEqual({ ...checked, replayed: true, assessment: { ...checked.assessment, replayed: true } });
+    const checkedAgain = await requests.check(workbookReader, { ...check, idempotencyKey: randomUUID() }, { correlationId: randomUUID() });
+    expect(checkedAgain).toMatchObject({ outcome: "REUSED", replayed: false, request: { id: requestId } });
+    expect(await db.milestoneReconciliationRequest.count({ where: { projectId, milestoneId: work.milestoneId } })).toBe(1);
+    expect(await db.milestoneReconciliationCheck.count({ where: { projectId, requestId } })).toBe(2);
+    expect(await requests.list(manager, { projectId }, "recipient")).toMatchObject({ requests: [{ id: requestId }] });
+    expect(await requests.get(manager, requestScope)).toMatchObject({ request: { id: requestId }, assessment: checked.assessment });
+    expect(await requests.get(otherManager, requestScope)).toBeNull();
+
+    const revokedWorkbook = await facts.setSourceAccess(pmo, {
+      projectId, sourceId: workbookFactSource, expectedRevision: visibleWorkbook.revision, state: "REVOKED", readers: [],
+    }, { correlationId: randomUUID() });
+    expect(await captureMilestone()).toMatchObject({
+      assessmentId: mixedMilestone.assessmentId, visibility: "restricted", replayed: true, result: null,
+    });
+    expect(await requests.get(manager, requestScope)).toMatchObject({ assessment: {
+      assessmentId: checked.assessment.assessmentId, visibility: "restricted", revalidationRequired: true, result: null,
+    } });
+    await expect(observe()).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    expect(await requests.check(workbookReader, check, { correlationId: randomUUID() })).toMatchObject({
+      checkId: checked.checkId, replayed: true, request: { id: requestId },
+      assessment: { visibility: "restricted", revalidationRequired: true, result: null },
+    });
+    await facts.setSourceAccess(pmo, {
+      projectId, sourceId: workbookFactSource, expectedRevision: revokedWorkbook.revision, state: "AVAILABLE", readers: factReaders,
+    }, { correlationId: randomUUID() });
+    expect(await captureMilestone()).toEqual({ ...mixedMilestone, replayed: true });
+    const managerGrant = await db.accessGrant.findFirstOrThrow({ where: {
+      customerId: isolatedCustomerId, subject: manager.subject, role: "project_manager", scopeType: "project", scopeId: projectId,
+    } });
+    await db.accessGrant.delete({ where: { id: managerGrant.id } });
+    expect(await requests.get(manager, requestScope)).toBeNull();
+    expect(await requests.list(manager, { projectId }, "recipient")).toBeNull();
+    const refresh = (expectedAssignmentRevision: number) => requests.refreshAssignment(workbookReader, {
+      ...requestScope, idempotencyKey: randomUUID(), expectedAssignmentRevision,
+    }, { correlationId: randomUUID() });
+    expect(await refresh(1)).toMatchObject({ assignment: { reason: "PM_SCOPE_UNAVAILABLE", revision: 2 } });
+    await db.accessGrant.create({ data: managerGrant });
+    expect(await requests.get(manager, requestScope)).toBeNull();
+    expect(await refresh(2)).toMatchObject({ assignment: { reason: "ASSIGNED", revision: 3, recipientSubject: manager.subject } });
+    expect(await requests.get(manager, requestScope)).toMatchObject({
+      request: { id: requestId, assignment: { revision: 3 } }, assessment: checked.assessment,
+    });
+    const projectGrant = await db.accessGrant.findFirstOrThrow({ where: {
+      customerId: isolatedCustomerId, subject: workbookReader.subject, role: "pmo_admin", scopeType: "project", scopeId: projectId,
+    } });
+    await db.accessGrant.delete({ where: { id: projectGrant.id } });
+    expect(await readMilestone(workbookReader)).toBeNull();
+    await db.accessGrant.create({ data: projectGrant });
     const sourceState = await db.ingestionSource.findFirstOrThrow({
       where: { customerId: isolatedCustomerId, id: sourceId },
     });
@@ -967,6 +1355,29 @@ describe("durable Jira connector runtime", () => {
     expect(redactedAdminAction).not.toContain(revokedAccessToken);
     expect(redactedAdminAction).not.toContain("invalid_grant");
     expect(redactedAdminAction).not.toContain("revoked");
-  }, 45_000);
+
+    // Change the live Jira scope while the stored parent and its fact grants remain valid.
+    await asApi(async (tx) => {
+      const grant = await tx.connectorSyncGrant.findFirstOrThrow({ where: { customerId: isolatedCustomerId, projectId, sourceId } });
+      const changedAt = new Date();
+      const revision = grant.revision + 1;
+      const audit = await tx.auditEvent.create({ data: {
+        customerId: isolatedCustomerId, actor: pmo.subject, event: "ingestion.sync_scope.revoked",
+        correlationId: randomUUID(), occurredAt: changedAt,
+        detail: { sourceId, projectId, configRevision: grant.configRevision, revision, active: false },
+      } });
+      await tx.connectorSyncGrant.update({ where: { id: grant.id }, data: {
+        active: false, revision, changedAt, changedBy: pmo.subject, auditEventId: audit.id,
+      } });
+    });
+    expect(await readMilestone(workbookReader)).toMatchObject({ visibility: "restricted", revalidationRequired: true, result: null });
+    expect(await requests.get(manager, requestScope)).toMatchObject({ assessment: { visibility: "restricted", result: null } });
+    await expect(observe()).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    expect(await asApi((tx) => tx.$queryRaw`
+      SELECT public.valid_milestone_consistency_assessment(${mixedMilestone.assessmentId}::uuid) AS valid,
+        public.valid_milestone_reconciliation_request(${requestId}::uuid) AS "requestValid",
+        public.valid_milestone_reconciliation_check(${checked.checkId}::uuid) AS "checkValid"
+    `, { timeout: 15_000 })).toEqual([{ valid: true, requestValid: true, checkValid: true }]);
+  }, 150_000);
 
 });

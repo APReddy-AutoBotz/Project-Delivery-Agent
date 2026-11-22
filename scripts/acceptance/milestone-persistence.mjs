@@ -56,7 +56,7 @@ export async function verifyMilestonePersistenceIntegrity(pool) {
   );
   return true;
 }
-export async function verifyMilestonePersistencePrivileges(pool) {
+export async function verifyMilestonePersistencePrivileges(pool, { legacy = false } = {}) {
   guard();
   for (const table of milestonePersistenceTables) {
     assert.equal(
@@ -179,22 +179,30 @@ export async function verifyMilestonePersistencePrivileges(pool) {
   ];
   const functions = (
     await pool.query(
-      "SELECT proname,prosecdef,proconfig,pg_get_userbyid(proowner) AS owner,EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) acl WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE') AS public_execute FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND proname=ANY($1)",
+      `SELECT p.proname,p.prosecdef,p.proconfig,pg_get_userbyid(p.proowner) AS owner,
+        ARRAY(SELECT (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee)::text END)
+            || CASE WHEN a.is_grantable THEN ':grantable' ELSE '' END
+          FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+          WHERE a.grantee<>p.proowner AND a.privilege_type='EXECUTE' ORDER BY 1) AS executors
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public' AND p.proname=ANY($1)`,
       [protectedFunctions],
     )
   ).rows;
-  assert.equal(functions.length, protectedFunctions.length);
-  assert(
-    functions.every(
-      (row) =>
-        !row.prosecdef && row.owner === "pdaa_migrate" && !row.public_execute,
-    ),
-  );
-  assert(
-    functions.every((row) =>
-      row.proconfig.includes("search_path=pg_catalog, public"),
-    ),
-  );
+  assert.deepEqual(functions.map((row) => row.proname).sort(), protectedFunctions.sort());
+  for (const row of functions) {
+    const stateBindingValidator = row.proname === "valid_canonical_state_binding";
+    const definer = !legacy && (stateBindingValidator || row.proname === "require_canonical_state_binding_sealed");
+    assert.equal(row.owner, "pdaa_migrate", row.proname);
+    assert.equal(row.prosecdef, definer, row.proname);
+    assert(!row.executors.some((name) => name === "PUBLIC" || name === "PUBLIC:grantable"), row.proname);
+    if (definer) {
+      assert.deepEqual(row.proconfig, ["search_path=pg_catalog, pg_temp"], row.proname);
+      assert.deepEqual(row.executors, stateBindingValidator ? ["pdaa_api"] : [], row.proname);
+    } else {
+      assert(row.proconfig.includes("search_path=pg_catalog, public"), row.proname);
+    }
+  }
   return true;
 }
 export async function verifyMilestonePersistenceImmutable(pool) {

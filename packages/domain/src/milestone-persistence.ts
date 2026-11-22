@@ -4,7 +4,7 @@ import {
   humanStatementSchema,
   projectFactIdSchema,
   projectFactInstantSchema,
-  type FactHistoryEntry,
+  type HumanFactHistoryEntry,
   type FactMutationContext,
 } from "./project-facts.js";
 import type { evaluateMilestoneConsistency } from "./milestone-consistency.js";
@@ -78,7 +78,7 @@ export interface CanonicalStateBindingView {
   factType: string;
   createdAt: string;
   replayed: boolean;
-  entry: FactHistoryEntry;
+  entry: HumanFactHistoryEntry;
 }
 export type MilestoneConsistencyDelivery = {
   assessmentId: string;

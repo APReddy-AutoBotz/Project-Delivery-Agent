@@ -400,6 +400,22 @@ connectivity. No destructive downgrade or default development database use.
 
 - 2026-11-21: Matched verified main and open issue criteria. Drafted the coupled
   admission, origin, authority, presentation, and proof design.
+- 2026-11-22: Added a GOLDEN-003 scenario to the disposable XLSX customer
+  rehearsal. It reviews a generated Portfolio workbook through the existing
+  browser workflow, reads three required Jira issues through the adapter's
+  synthetic transport, and uses their exact receipts for explicit admission.
+  The browser checks the PM's durable request, exact retry, contributor reuse,
+  leadership's current answer, and independent project and source withdrawals.
+  The restore verifier checks both native proof codecs and the original
+  reconciliation. The acceptance role is created and removed in the same
+  synthetic database transaction. Both packaged profiles and the coupled
+  release gates remain subject to successful execution and exact review.
+  The native rehearsal verified the reviewed workbook after one lawful
+  proposal purge. The fixture stages an aged receipt before admission and
+  restores its immutability guard before commit. A repeat purge found no
+  further expired content. The
+  admitted witness, original PM proof, exact replay, and earlier human proof
+  survived logical restore with API database connections revoked.
 
 ## Decisions made
 

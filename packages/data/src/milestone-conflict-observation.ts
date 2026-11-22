@@ -2,7 +2,7 @@ import {
   MilestoneConflictObservationError, evaluateMilestoneConsistency, milestoneConflictObservationSchema,
   milestoneRequestObservationSchema, projectFactIdSchema, type Actor, type MilestoneConflictObservation,
   type MilestoneConflictObservationRepository, type MilestoneRequestObservation,
-  type MilestoneRequestObservationRepository,
+  type MilestoneRequestObservationRepository, verifiedSourceKindSchema,
 } from "@pdaa/domain";
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
 import { actorInput } from "./fact-authorization.js";
@@ -27,6 +27,8 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
     return this.authorizedRead(actorValue, projectValue, milestoneValue, true);
   }
 
+  private authorizedRead(actorValue: Actor, projectValue: string, milestoneValue: string, includeRequest: false): Promise<{ observation: MilestoneConflictObservation; requestStatus: null }>;
+  private authorizedRead(actorValue: Actor, projectValue: string, milestoneValue: string, includeRequest: true): Promise<MilestoneRequestObservation>;
   private async authorizedRead(actorValue: Actor, projectValue: string, milestoneValue: string, includeRequest: boolean) {
     let actor: Actor, projectId: string, milestoneId: string;
     try {
@@ -141,7 +143,7 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
       if (!policyBudget[0] || policyBudget[0].count > 1000 || policyBudget[0].bytes < 0n ||
           policyBudget[0].bytes > 4194304n) return unavailable();
     }
-    const prefixes = await authority.loadAssessmentPrefixesInTransaction(tx, actor, projectId, facts, asOf);
+    const prefixes = await authority.loadAssessmentPrefixesInTransaction(tx, actor, projectId, facts, asOf, !requireHuman);
     if (!prefixes) return unavailable();
     const prepared = new Map<string, Awaited<ReturnType<DatabaseAuthorityRepository["prepareAssessmentInTransaction"]>>>();
     let policyRevisions = 0, policyBytes = 0;
@@ -178,12 +180,15 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
           if (valid[0]?.valid !== true) return unavailable();
         }
       }
-      const result = await authority.prepareAssessmentInTransaction(tx, actor, { projectId, fact, asOf, prefix });
+      const result = await authority.prepareAssessmentInTransaction(tx, actor, {
+        projectId, fact, asOf, prefix, allowSourceObservations: !requireHuman,
+      });
       if (requireHuman && result.versions.some((version) => version.provenance !== "HUMAN_CONFIRMED" ||
           version.evidence.source.sourceType !== "human_statement")) return unavailable();
-      if (requireHuman && result.result.versions.some((version) => version.visibility !== "available" ||
-          version.temporalApplicability === "AMBIGUOUS" ||
-          (version.temporalApplicability === "APPLICABLE" && version.assessment.freshness !== "CURRENT"))) return unavailable();
+      if (result.result.versions.some((version) => version.visibility !== "available" || (requireHuman && (
+        version.temporalApplicability === "AMBIGUOUS" ||
+        (version.temporalApplicability === "APPLICABLE" && version.assessment.freshness !== "CURRENT")
+      )))) return unavailable();
       if (!result.complete || result.newConflicts.length || result.versions.some((version) => {
         const matches = result.access.filter((access) => access.factId === version.factId && access.sourceId === version.sourceId);
         return matches.length !== 1 || matches[0]!.state !== "AVAILABLE" || matches[0]!.readers.length !== 1;
@@ -217,9 +222,13 @@ export class DatabaseMilestoneConflictObservationRepository implements Milestone
             version.evidenceIds[0] !== stored.evidenceId || version.source.instanceId !== stored.sourceId ||
             version.assessment.freshness !== "CURRENT" || !version.assessedValidUntil ||
             (version.provenance !== "SYSTEM_VERIFIED" && version.provenance !== "HUMAN_CONFIRMED")) return unavailable();
-        return { versionId, evidenceId: stored.evidenceId, sourceId: stored.sourceId, provenance: version.provenance,
+        const support = { versionId, evidenceId: stored.evidenceId, sourceId: stored.sourceId,
           freshness: "CURRENT" as const, validity: "FINITE" as const, effectiveAt: version.effectiveAt, observedAt: version.observedAt,
           versionValidUntil: version.validUntil, assessedValidUntil: version.assessedValidUntil };
+        if (version.provenance === "HUMAN_CONFIRMED") return { ...support, provenance: version.provenance };
+        const kind = verifiedSourceKindSchema.safeParse(version.source.recordType);
+        if (!kind.success || !version.validUntil) return unavailable();
+        return { ...support, provenance: version.provenance, sourceKind: kind.data, versionValidUntil: version.validUntil };
       });
       const ids = supports.map((row) => row.evidenceId).sort();
       if (JSON.stringify(ids) !== JSON.stringify([...contributor.supportingEvidenceIds].sort())) return unavailable();

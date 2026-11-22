@@ -9,7 +9,7 @@ import {
   ProjectFactError,
   type Actor,
   type CanonicalStateBindingView,
-  type FactHistoryEntry,
+  type HumanFactHistoryEntry,
   type FactMutationContext,
   type MilestoneConsistencyCapture,
   type MilestoneConsistencyDelivery,
@@ -27,12 +27,21 @@ import {
   factInput,
 } from "./fact-authorization.js";
 import { DatabaseAuthorityRepository } from "./authority-persistence.js";
+import { assessmentDependenciesReadable } from "./source-authority-reads.js";
 
 type Tx = Prisma.TransactionClient;
 type StoredMilestoneResult = Extract<
   MilestoneConsistencyDelivery,
   { visibility: "available" }
 >["result"];
+type AssessmentRecord = {
+  id: string;
+  projectId: string;
+  milestoneId: string;
+  asOf: Date;
+  result: unknown;
+};
+type AssessmentDependency = { id: string; factId: string; sourceId: string; provenance: string };
 const transactionOptions = {
   isolationLevel: "ReadCommitted" as const,
   maxWait: 5000,
@@ -68,7 +77,7 @@ export class DatabaseMilestoneConsistencyRepository
     actor: Actor,
     projectId: string,
     versionId: string,
-  ): Promise<FactHistoryEntry> {
+  ): Promise<HumanFactHistoryEntry> {
     const row = await tx.projectFactVersion.findFirst({
       where: { id: versionId, customerId: actor.customerId, projectId },
       include: { evidence: true },
@@ -90,7 +99,8 @@ export class DatabaseMilestoneConsistencyRepository
       evidenceId: row.evidenceId,
       sourceAccessRevision: access?.revision ?? 0,
     };
-    if (!access || access.state !== "AVAILABLE" || access.readers.length !== 1)
+    if (row.provenance !== "HUMAN_CONFIRMED" || row.evidence.providedBy === null ||
+        row.evidence.originalStatement === null || !access || access.state !== "AVAILABLE" || access.readers.length !== 1)
       return {
         ...metadata,
         visibility: "restricted",
@@ -440,12 +450,12 @@ export class DatabaseMilestoneConsistencyRepository
       },
       include: {
         scalarAssessments: {
-          // Delivery needs only dependency source IDs. Loading every child's
+          // Delivery needs only dependency references. Loading every child's
           // frozen result and full version content duplicates the parent proof
           // at the 1000-version boundary without adding an integrity check.
           select: {
             versions: {
-              select: { version: { select: { sourceId: true } } },
+              select: { version: { select: { id: true, factId: true, sourceId: true, provenance: true } } },
             },
           },
         },
@@ -460,23 +470,16 @@ export class DatabaseMilestoneConsistencyRepository
     const dependencies = row.scalarAssessments.flatMap((assessment) =>
       assessment.versions.map((item) => item.version),
     );
-    const access = await tx.factSourceAccess.findMany({
-      where: {
-        customerId: actor.customerId,
-        projectId: request.projectId,
-        sourceId: {
-          in: [...new Set(dependencies.map((item) => item.sourceId))],
-        },
-      },
-      include: { readers: { where: { subject: actor.subject } } },
-    });
-    const allowed = new Set(
-      access
-        .filter(
-          (item) => item.state === "AVAILABLE" && item.readers.length === 1,
-        )
-        .map((item) => item.sourceId),
-    );
+    return this.delivery(tx, actor, row, dependencies, replayed);
+  }
+
+  private async delivery(
+    tx: Tx,
+    actor: Actor,
+    row: AssessmentRecord,
+    dependencies: AssessmentDependency[],
+    replayed: boolean,
+  ): Promise<MilestoneConsistencyDelivery> {
     const metadata = {
       assessmentId: row.id,
       projectId: row.projectId,
@@ -485,7 +488,7 @@ export class DatabaseMilestoneConsistencyRepository
       historical: true as const,
       replayed,
     };
-    if (dependencies.some((item) => !allowed.has(item.sourceId)))
+    if (!await assessmentDependenciesReadable(tx, actor, row.projectId, dependencies))
       return {
         ...metadata,
         visibility: "restricted",
@@ -496,7 +499,7 @@ export class DatabaseMilestoneConsistencyRepository
       ...metadata,
       visibility: "available",
       revalidationRequired: false,
-      result: row.result as unknown as StoredMilestoneResult,
+      result: row.result as StoredMilestoneResult,
     };
   }
 
@@ -708,6 +711,7 @@ export class DatabaseMilestoneConsistencyRepository
           request.projectId,
           facts,
           asOf,
+          true,
         )
       : null;
     complete = complete && prefixes !== null;
@@ -724,6 +728,7 @@ export class DatabaseMilestoneConsistencyRepository
             fact,
             asOf,
             prefix: prefixes!.get(fact.id)!,
+            allowSourceObservations: true,
           },
         );
         prepared.set(binding.id, plan);
@@ -924,19 +929,15 @@ export class DatabaseMilestoneConsistencyRepository
         },
       },
     });
-    await tx.milestoneConsistencyAssessment.update({
+    const sealed = await tx.milestoneConsistencyAssessment.update({
       where: { id: assessmentId },
       data: { sealed: true },
-      select: { id: true },
+      select: { id: true, projectId: true, milestoneId: true, asOf: true, result: true },
     });
-    const delivery = await this.deliverInTransaction(
-      tx,
-      actor,
-      { projectId: request.projectId, assessmentId },
-      false,
-    );
-    if (!delivery) throw new Error("Milestone assessment unavailable");
-    return delivery;
+    // The seal trigger verified the stored graph in this transaction. Use the
+    // exact sealed result and recheck delivery access for its compiled dependencies.
+    const dependencies = [...captured.values()].flatMap((child) => child.versions);
+    return this.delivery(tx, actor, sealed, dependencies, false);
   }
 
   async getMilestoneConsistency(

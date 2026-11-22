@@ -28,7 +28,9 @@ async function legacyProjection(owner, fixture) {
   ])
     rows[table] = (
       await owner.query(
-        `SELECT to_jsonb(t)-'bindingBirthId'-'sourceType'-'effectiveAtValidated' AS row FROM "${table}" t WHERE ${table === "AuditEvent" ? '"correlationId"=$1' : table === "ProjectFact" || table.startsWith("Authority") ? '"projectId"=$1::uuid AND "factType"=ANY($2::varchar[])' : '"factId"=$1::uuid'} ORDER BY (to_jsonb(t)-'bindingBirthId'-'sourceType'-'effectiveAtValidated')::text COLLATE "C"`,
+        `SELECT to_jsonb(t)-ARRAY['bindingBirthId','sourceType','effectiveAtValidated','ingestionStreamId'] AS row
+         FROM "${table}" t WHERE ${table === "AuditEvent" ? '"correlationId"=$1' : table === "ProjectFact" || table.startsWith("Authority") ? '"projectId"=$1::uuid AND "factType"=ANY($2::varchar[])' : '"factId"=$1::uuid'}
+         ORDER BY (to_jsonb(t)-ARRAY['bindingBirthId','sourceType','effectiveAtValidated','ingestionStreamId'])::text COLLATE "C"`,
         table === "AuditEvent"
           ? [fixture.context.correlationId]
           : table === "ProjectFact" || table.startsWith("Authority")
@@ -134,14 +136,15 @@ export async function seedLegacyBindingCollision(
 export async function verifyLegacyBindingCollision(owner, connection, f) {
   guard();
   assert.deepEqual(await legacyProjection(owner, f), f.before);
-  assert.equal(
+  assert.deepEqual(
     (
       await owner.query(
-        'SELECT "bindingBirthId" FROM "ProjectFact" WHERE id=$1',
+        `SELECT f."bindingBirthId",s."ingestionStreamId" FROM "ProjectFact" f
+         JOIN "FactSource" s ON s."factId"=f.id WHERE f.id=$1`,
         [f.factId],
       )
-    ).rows[0].bindingBirthId,
-    null,
+    ).rows,
+    [{ bindingBirthId: null, ingestionStreamId: null }],
   );
   const db = createDatabase(connection);
   const ids = [

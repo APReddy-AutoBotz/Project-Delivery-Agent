@@ -91,39 +91,52 @@ export type FactHistoryRequest = z.input<typeof factHistoryRequestSchema>;
 export type SourceAccessChange = z.input<typeof sourceAccessChangeSchema>;
 export type FactMutationContext = z.infer<typeof factMutationContextSchema>;
 export type ProjectFactValue = z.infer<typeof projectFactValueSchema>;
-export type FactHistoryEntry = {
+type FactHistoryMetadata = {
   id: string;
   revision: number;
   sourceId: string;
   evidenceId: string;
   sourceAccessRevision: number;
-} & (
-  | {
-      visibility: "restricted";
-      revalidationRequired: true;
-    }
-  | {
-      visibility: "available";
-      revalidationRequired: false;
-      content: {
-        value: ProjectFactValue;
-        originalStatement: string;
-        providedBy: string;
-        provenance: "HUMAN_CONFIRMED";
-        effectiveAt: string;
-        observedAt: string;
-        confirmedAt: string;
-        validUntil: string | null;
-        source: {
-          instanceId: string;
-          recordType: "human_statement";
-          recordId: string;
-          revision: string;
-        };
-        evidenceIds: [string];
-      };
-    }
-);
+};
+type RestrictedFactHistory = FactHistoryMetadata & {
+  visibility: "restricted";
+  revalidationRequired: true;
+};
+type AvailableFactHistory<Content> = FactHistoryMetadata & {
+  visibility: "available";
+  revalidationRequired: false;
+  content: Content;
+};
+type HistoryContent<RecordType extends string> = {
+  value: ProjectFactValue;
+  effectiveAt: string;
+  observedAt: string;
+  validUntil: string | null;
+  source: {
+    instanceId: string;
+    recordType: RecordType;
+    recordId: string;
+    revision: string;
+  };
+  evidenceIds: [string];
+};
+export const verifiedSourceKindSchema = z.enum(["jira.issue", "xlsx.row"]);
+export type VerifiedSourceKind = z.infer<typeof verifiedSourceKindSchema>;
+export type HumanFactHistoryEntry = RestrictedFactHistory | AvailableFactHistory<
+  HistoryContent<"human_statement"> & {
+    provenance: "HUMAN_CONFIRMED";
+    originalStatement: string;
+    providedBy: string;
+    confirmedAt: string;
+  }
+>;
+export type FactHistoryEntry = HumanFactHistoryEntry | AvailableFactHistory<
+  HistoryContent<VerifiedSourceKind> & {
+    provenance: "SYSTEM_VERIFIED";
+    admittedAt: string;
+    validUntil: string;
+  }
+>;
 export interface FactHistoryPage {
   factId: string | null;
   factType: string;
@@ -135,7 +148,7 @@ export interface FactHistoryPage {
 export interface HumanStatementResult {
   factId: string;
   replayed: boolean;
-  entry: FactHistoryEntry;
+  entry: HumanFactHistoryEntry;
 }
 export class ProjectFactError extends Error {
   constructor(

@@ -1,9 +1,49 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import type { Config } from "@pdaa/platform";
+import { signConnectorTaskRequest } from "../packages/platform/src/connector-task-auth.js";
 import { installConnectorRoutes } from "../apps/api/src/connector-routes.js";
 
 describe("connector webhook route authentication order", () => {
+  it("passes an accepted signed dispatch nonce to the configured customer's Jira runtime once", async () => {
+    const handlers: unknown[] = [];
+    const app = { use: (handler: unknown) => handlers.push(handler) } as unknown as NestExpressApplication;
+    const runOne = vi.fn().mockResolvedValue({ status: "page_committed" });
+    const runtime = {
+      acceptTaskNonce: vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false),
+      acceptWebhook: vi.fn(),
+    };
+    const customerId = "13f95d34-1588-4d31-8f2e-40a213d37c91";
+    const keyRing = {
+      currentKeyId: "connector-test",
+      keys: { "connector-test": Buffer.alloc(32, 9).toString("base64url") },
+    };
+    installConnectorRoutes(
+      app, { CUSTOMER_ID: customerId, connectorTaskKeys: keyRing } as Config,
+      runtime, { runOne } as never,
+    );
+    const path = "/internal/connectors/run";
+    const rawBody = Buffer.from("{}");
+    const signed = signConnectorTaskRequest({ method: "POST", path, body: rawBody, keyRing });
+    const headers: Record<string, string> = { "content-type": "application/json", ...signed };
+    const req = { method: "POST", path, url: path, rawBody, headers, get: (name: string) => headers[name] };
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const handler = handlers[0] as (request: typeof req, response: typeof res, next: () => void) => Promise<void>;
+    await handler(req, res, vi.fn());
+    expect(runtime.acceptTaskNonce).toHaveBeenCalledWith({
+      nonce: signed["x-pdaa-task-nonce"],
+      keyId: signed["x-pdaa-task-key"],
+      timestampSeconds: signed["x-pdaa-task-time"],
+      body: rawBody,
+      dispatchCustomerId: customerId,
+    });
+    expect(runOne).toHaveBeenCalledWith(signed["x-pdaa-task-nonce"]);
+    expect(res.status).toHaveBeenLastCalledWith(200);
+    await handler(req, res, vi.fn());
+    expect(res.status).toHaveBeenLastCalledWith(409);
+    expect(runOne).toHaveBeenCalledTimes(1);
+  });
+
   it("passes bounded raw bytes to signature verification before parsing JSON", async () => {
     const middleware: unknown[] = [];
     const app = {
