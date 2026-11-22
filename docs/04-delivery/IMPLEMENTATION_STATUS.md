@@ -4,13 +4,13 @@ Updated: 2026-11-22
 
 ## Accepted implementation completion
 
-The counts include STORY-012 once its acceptance record passes independent
+The counts include STORY-014 once its acceptance record passes independent
 review and required checks and merges.
 
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
-| R1      |                       6 |                     33 |      18.2% |
+| R1      |                       7 |                     33 |      21.2% |
 
 STORY-001 (TypeScript workspace and runtime/API contracts) and STORY-002
 (PostgreSQL foundation and repository interfaces) are accepted under delegated
@@ -30,12 +30,18 @@ and [freshness acceptance](../05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md) r
 PR #113 brought the accepted total to 7/38 (18.4%). The
 [STORY-009 CSV acceptance](../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md)
 brought it to **8/38 (21.1%)**. [STORY-012 source-authority acceptance](../05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md)
-brings it to **9/38 (23.7%)** once the acceptance record passes independent
-review and required checks and merges. R0 is 3/5 and R1 is then 6/33.
+brought it to **9/38 (23.7%)**. [STORY-014 delivery signal acceptance](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md)
+brings it to **10/38 (26.3%)** once the acceptance record passes independent
+review and required checks and merges. R0 is 3/5 and R1 is then 7/33.
 Unfinished stories and all five customer release holds remain open.
 Original19/20 capture is stopped.
 
 ## Latest merged result and current work
+
+The [STORY-014 record](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md)
+reconciles the executed blocker-age, overdue, milestone contradiction and
+provider-disabled tests. STORY-015 still needs the complete GOLDEN-002
+journey and an approved criticality contract.
 
 [PR #184](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/184)
 merged EXEC-047 as `8247eb17701432b7596e926f278e76bf9f13ede6`. The

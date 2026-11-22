@@ -1,5 +1,15 @@
 # Document Control
 
+## STORY-014 blocker and overdue signal software acceptance, 2026-11-22
+
+Under the Product Owner's existing controller delegation, approve
+STORY-014 after the independent evidence audit. AC-HLT-003, AC-HLT-005,
+AC-HLT-006 and AC-HLT-007 have executed evidence on the verified
+implementation revisions and current main. This decision takes effect
+after the acceptance record passes independent exact-source review,
+required checks and verified merge.
+[Evidence and scope](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md)
+
 ## STORY-012 source-authority software acceptance, 2026-11-22
 
 Under the Product Owner's existing controller delegation, approve the

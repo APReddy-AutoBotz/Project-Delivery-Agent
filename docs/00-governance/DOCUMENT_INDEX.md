@@ -159,6 +159,7 @@
 - `docs/03-architecture/adr/ADR-016-PICOMATCH-TOOLCHAIN-SECURITY-OVERRIDE.md`: temporary exact-version development dependency replacement and removal criteria.
 - `docs/05-quality/SCALAR_RECONCILIATION_VALIDATION.md`: exact PR54 merge, review and artifact evidence for FAIL-009.
 - `docs/05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md`: STORY-012 and shared GOLDEN-003 acceptance, with evidence on reviewed PR #184 and actual main.
+- `docs/05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md`: STORY-014 blocker and overdue signals, provider-disabled evidence, and the remaining GOLDEN-002 scope.
 - `docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md`: verified canonical PM request/COMMIT/race/upgrade/restore evidence and historical checkpoints, linked to the later scalar FAIL-009 implementation disposition; no new story acceptance.
 - `docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md`: candidate user/admin workflow, strict API, browser and packaged evidence gates and remaining acceptance.
 - `docs/05-quality/TEMPORAL_FACT_MODEL_VALIDATION.md`: internal temporal assessment checks, partial requirement evidence and storage/API/disclosure limits.
