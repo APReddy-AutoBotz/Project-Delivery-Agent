@@ -331,9 +331,17 @@ stories:
   - AC-HLT-005
   - AC-HLT-007
   - AC-HLT-006
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/8
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/88
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/89
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/100
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/184
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/186
+  implementation_evidence:
+  - docs/05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md
 - id: STORY-015
   epic: EPIC-04
   title: Implement first contradiction rules

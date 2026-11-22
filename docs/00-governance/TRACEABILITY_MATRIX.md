@@ -51,3 +51,12 @@ checks. Other story/criterion ownership and shared GOLDEN-003 remain unchanged.
 
 Acceptance takes effect when this increment passes independent review and
 required checks and merges.
+
+## STORY-014 delivery signal acceptance evidence, 2026-11-22
+
+| Story | Approved criteria and tests | Implementation evidence |
+| --- | --- | --- |
+| STORY-014 / Issue #8 | AC-HLT-003, AC-HLT-005, AC-HLT-006 and AC-HLT-007. UNIT-HLT-003, E2E-HLT-003, INT-HLT-005, GOLDEN-003, UNIT-HLT-006, UNIT-HLT-007, INT-HLT-007 and E2E-HLT-007. | PR #88, #89, #100, #184 and #186. [Delivery signal acceptance](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md) |
+
+Acceptance takes effect when this increment passes independent review and
+required checks and merges.
