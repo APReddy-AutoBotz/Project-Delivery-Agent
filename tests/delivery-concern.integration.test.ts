@@ -15,10 +15,11 @@ import {
 } from "../packages/domain/src/index.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 
-const url = process.env.PDAA_DATABASE_URL!;
-if (!url || !/^\/pdaa_test_[0-9]+$/.test(new URL(url).pathname))
+const url = process.env.PDAA_DATABASE_URL;
+const target = url ? new URL(url) : null;
+if (!url || !target || !["127.0.0.1", "localhost"].includes(target.hostname) ||
+  !/^\/pdaa_test_[0-9]+$/.test(target.pathname))
   throw new Error("Delivery concern tests require an isolated database");
-const customerId = process.env.CUSTOMER_ID!;
 const db = createDatabase(url);
 const canonical = new DatabaseCanonicalProjectRepository(db);
 const updates = new DatabaseProjectUpdateRepository(db);
@@ -28,9 +29,11 @@ const health = new DatabaseHealthAssessmentRepository(db);
 afterAll(async () => db.$disconnect());
 
 it("saves and replays a same-project concern with a frozen scoped policy and rechecks all proof access", async () => {
+  const customerId = randomUUID();
   const portfolioId = randomUUID();
   const admin: Actor = { customerId, subject: "concern-admin-" + randomUUID(), roles: ["pmo_admin"] };
   const pm: Actor = { customerId, subject: "concern-pm-" + randomUUID(), roles: ["project_manager"] };
+  await db.customer.create({ data: { id: customerId, name: "Synthetic concern customer" } });
   await db.portfolio.create({ data: { id: portfolioId, customerId, name: "Synthetic concern portfolio" } });
   await db.accessGrant.createMany({ data: [
     { customerId, subject: admin.subject, role: "pmo_admin", scopeType: "portfolio", scopeId: portfolioId },

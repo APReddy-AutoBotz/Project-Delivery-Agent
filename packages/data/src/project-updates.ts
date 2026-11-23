@@ -693,9 +693,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     readDependencies?: Map<string, SourceDependency>,
   ) {
       const factByType = new Map(facts.map((fact) => [fact.factType, fact]));
-      const prefixes = facts.length
-        ? await this.authority.loadAssessmentPrefixesInTransaction(tx, current, id, facts, asOf)
-        : new Map();
+      const prefixes = await this.authority.loadAssessmentPrefixesInTransaction(tx, current, id, facts, asOf);
       if (prefixes === null) throw new ProjectUpdateError("UNAVAILABLE");
 
       const factAssessments: Array<{
