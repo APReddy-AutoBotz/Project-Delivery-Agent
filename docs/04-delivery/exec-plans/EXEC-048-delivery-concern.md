@@ -49,6 +49,11 @@ If rollout must be stopped, use an authorized policy revision to disable the del
 
 The migration adds a nullable field and a supported assessment revision to existing tables. Retain the current table privileges, retention and immutable audits. The scope adds no dependency, external message, connector capability, write-back, AI provider access or release activation. The implementation uses synthetic evidence. Original19/20 capture remains stopped.
 
+The cadence facet uses the existing cadence authority scope. A cadence fact
+whose complete history requires the mixed source-observation disclosure
+contract yields unassessable freshness. Its source identifiers and values
+stay out of the delivery-concern result.
+
 ## Decisions and progress
 
 - 2026-11-23: Independent non-author review approved corrected design SHA256 `E0D2F0B6A935D643195AB28A74B1B5813BD23CB2D6089E0032EA92F4FE172E26`. The review required a matching scoped PMO grant, explicit inventory attestation, distinct closed and unknown states, whole-envelope access rechecks and compatible rollout.

@@ -104,6 +104,12 @@ function stable(value: unknown): unknown {
 }
 function json(value: unknown) { return JSON.stringify(stable(value)); }
 function hash(value: string) { return createHash("sha256").update(value).digest("hex"); }
+export function checkHealthAssessmentContentSize(input: string, result: string, allowFallback: boolean) {
+  const withinLimit = Buffer.byteLength(input, "utf8") <= 262144 &&
+    Buffer.byteLength(result, "utf8") <= 262144;
+  if (!withinLimit && !allowFallback) throw new HealthAssessmentError("UNAVAILABLE");
+  return withinLimit;
+}
 function actor(value: Actor): Actor {
   try { return canonicalActorSchema.parse(value); }
   catch { throw new HealthAssessmentError("INVALID_REQUEST"); }
@@ -504,19 +510,11 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         scheduleHealthPolicy: built.scheduleHealthPolicy,
       });
       const scheduleResultJson = json({ coverage: built.coverage, ...built.result });
-      if (
-        Buffer.byteLength(scheduleInputJson, "utf8") > 262144 ||
-        Buffer.byteLength(scheduleResultJson, "utf8") > 262144
-      )
-        throw new HealthAssessmentError("UNAVAILABLE");
+      checkHealthAssessmentContentSize(scheduleInputJson, scheduleResultJson, false);
       let inputJson = json(input);
       let resultJson = json(result);
-      if (
-        Buffer.byteLength(inputJson, "utf8") > 262144 ||
-        Buffer.byteLength(resultJson, "utf8") > 262144
-      ) {
-        // A composed result cannot survive discarding the proof it depends on.
-        if (concern) throw new HealthAssessmentError("UNAVAILABLE");
+      // A composed result cannot survive discarding the proof it depends on.
+      if (!checkHealthAssessmentContentSize(inputJson, resultJson, concern === null)) {
         blockerAgeCoverage = "UNASSESSABLE";
         blockerAgeInput = {
           rule: { key: "blocker-age", revision: "1" },
@@ -553,11 +551,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         };
         inputJson = json(input);
         resultJson = json(result);
-        if (
-          Buffer.byteLength(inputJson, "utf8") > 262144 ||
-          Buffer.byteLength(resultJson, "utf8") > 262144
-        )
-          throw new HealthAssessmentError("UNAVAILABLE");
+        checkHealthAssessmentContentSize(inputJson, resultJson, false);
       }
 
       const envelopeHash = hash(json({

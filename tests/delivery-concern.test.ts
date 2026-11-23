@@ -7,6 +7,7 @@ import {
 } from "../packages/domain/src/delivery-concern.js";
 import { buildScheduleHealthAssessment } from "../packages/domain/src/health-assessment.js";
 import { assessDeliveryHealth } from "../packages/domain/src/delivery-health.js";
+import { checkHealthAssessmentContentSize } from "../packages/data/src/health-assessment.js";
 
 const projectId = "10000000-0000-4000-8000-000000000001";
 const criticalMilestoneId = "20000000-0000-4000-8000-000000000001";
@@ -130,5 +131,12 @@ describe("STORY-015 composed delivery concern", () => {
     ]) {
       expect(criticalDeliveryTargetsSchema.safeParse({ milestoneIds: [], raidItemIds }).success).toBe(false);
     }
+  });
+
+  it("only allows the legacy fallback above the exact UTF-8 envelope limit", () => {
+    const exact = "é".repeat(131072);
+    expect(checkHealthAssessmentContentSize(exact, exact, false)).toBe(true);
+    expect(checkHealthAssessmentContentSize(exact + "a", exact, true)).toBe(false);
+    expect(() => checkHealthAssessmentContentSize(exact, exact + "a", false)).toThrow("UNAVAILABLE");
   });
 });

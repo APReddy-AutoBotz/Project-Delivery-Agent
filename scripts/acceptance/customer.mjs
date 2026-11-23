@@ -443,14 +443,6 @@ async function browserCheck(afterUpgrade) {
         .getByRole("status")
         .filter({ hasText: "Grant operation recorded" })
         .waitFor();
-      const grant = await operator.context.request.post(base + "/api/access-grants", {
-        headers: { Authorization: "Bearer " + operator.token },
-        data: {
-          subject: "pmo-atlas", role: "pmo_admin", scopeType: "portfolio",
-          scopeId: "20000000-0000-4000-8000-000000000003",
-        },
-      });
-      assert.equal(grant.status(), 204);
     }
     await closeCustomerBrowserSession(operator, base);
     const pm = await login("pm-atlas");
@@ -696,7 +688,7 @@ try {
     } finally { await csvRuntime.$disconnect(); }
     await browserCheck(false);
     const state = await projection(db);
-    assert.equal(state.AccessGrant.length, 5);
+    assert.equal(state.AccessGrant.length, 4);
     assert(state.AuditEvent.length > 0);
     const fixture = await seedProjectFactHistory(
       db,

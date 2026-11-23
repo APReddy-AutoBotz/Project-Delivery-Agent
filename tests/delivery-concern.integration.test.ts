@@ -106,29 +106,64 @@ it("saves and replays a same-project concern with a frozen scoped policy and rec
   }
   const updateType = "project.forecast";
   const update = await publish(updateType, { type: "text", value: "Synthetic forecast" });
-  const cadence = await updates.setPolicy(admin, projectId, {
-    expectedRevision: 0, freshnessWindowSeconds: 1, timeZone: "Asia/Kolkata",
+  const alternative = await facts.appendHumanStatement(pm, {
+    projectId, factType: updateType, idempotencyKey: randomUUID(), expectedRevision: 1, effectiveAt,
+    value: { type: "text", value: "Synthetic secondary forecast" },
+    validUntil: null, originalStatement: "Synthetic fallback forecast support.",
+  }, mark);
+  const fallbackAccess = await facts.setSourceAccess(admin, {
+    projectId, sourceId: alternative.entry.sourceId, expectedRevision: alternative.entry.sourceAccessRevision,
+    state: "AVAILABLE", readers: [admin.subject, pm.subject],
+  }, mark);
+  const selector = current.tiers[0]!.selectors[0]!;
+  await authority.appendPolicy(admin, {
+    projectId, factType: updateType, idempotencyKey: randomUUID(), expectedRevision: 1,
+    effectiveAt: new Date(Date.parse(effectiveAt) + 1000).toISOString(),
+    definition: {
+      ...current,
+      tiers: [update.entry.sourceId, alternative.entry.sourceId].map((instanceId) => ({
+        selectors: [{ ...selector, instanceId }],
+      })),
+    },
+  }, mark);
+  const cadenceFields = {
+    timeZone: "Asia/Kolkata",
     requiredFacts: [{ factType: updateType, label: "Current forecast" }],
     responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false,
     reminderBusinessDayOffsets: [], escalationAfterBusinessDays: 0, escalationRecipientSubject: null,
     quietHoursStartLocal: null, quietHoursEndLocal: null,
-  }, randomUUID());
-  for (const raid of [young, older]) {
-    await publish("raid_item." + raid.id + ".blocks_delivery", { type: "boolean", value: true });
-    await publish("raid_item." + raid.id + ".opened_at", {
-      type: "date",
-      value: (raid.id === young.id
-        ? now[0]!.now
-        : new Date(now[0]!.now.getTime() - 10 * 86_400_000)).toISOString().slice(0, 10),
-    }, period);
-  }
+  };
+  const youngClassification = await publish("raid_item." + young.id + ".blocks_delivery", { type: "boolean", value: true });
+  await publish("raid_item." + older.id + ".blocks_delivery", { type: "boolean", value: true });
+  await publish("raid_item." + young.id + ".opened_at", {
+    type: "date", value: now[0]!.now.toISOString().slice(0, 10),
+  }, period);
   const at = new DatabaseHealthAssessmentRepository(db, () => new Date(Date.now() + 2500));
   const before = await at.create(pm, projectId, "before-concern", randomUUID());
   expect(before.coverage).toBe("SCHEDULE_AND_BLOCKER_AGE");
   expect(before.result).not.toHaveProperty("deliveryConcern");
 
+  const empty = await health.setScheduleHealthPolicy(
+    admin, projectId, { ...schedule, criticalTargets: { milestoneIds: [], raidItemIds: [] } }, randomUUID(),
+  );
+  const unconfigured = await at.create(pm, projectId, "concern-no-cadence", randomUUID());
+  expect(unconfigured.result?.deliveryConcern).toMatchObject({
+    calculated: { status: "UNKNOWN" }, recommendation: null,
+    objectiveSignals: [expect.objectContaining({ kind: "UPDATE_FRESHNESS", state: "UNASSESSABLE" })],
+  });
+  const freshCadence = await updates.setPolicy(admin, projectId, {
+    ...cadenceFields, expectedRevision: 0, freshnessWindowSeconds: 3600,
+  }, randomUUID());
+  const fresh = await at.create(pm, projectId, "concern-fresh-update", randomUUID());
+  expect(fresh.result?.deliveryConcern).toMatchObject({
+    calculated: { status: "GREEN" }, recommendation: null,
+    objectiveSignals: [expect.objectContaining({ kind: "UPDATE_FRESHNESS", state: "CLEAR" })],
+  });
+  const cadence = await updates.setPolicy(admin, projectId, {
+    ...cadenceFields, expectedRevision: freshCadence.revision, freshnessWindowSeconds: 1,
+  }, randomUUID());
   const enabled = await health.setScheduleHealthPolicy(
-    admin, projectId, { ...schedule, criticalTargets }, randomUUID(),
+    admin, projectId, { ...schedule, expectedRevision: empty.revision, criticalTargets }, randomUUID(),
   );
   const noInventory = await at.create(pm, projectId, "concern-without-inventory", randomUUID());
   expect(noInventory.result?.deliveryConcern).toMatchObject({
@@ -138,9 +173,26 @@ it("saves and replays a same-project concern with a frozen scoped policy and rec
     ]),
   });
   await publish("project.open_blocker_inventory_complete", { type: "boolean", value: true });
+  const checkingOld = await health.setScheduleHealthPolicy(admin, projectId, {
+    ...schedule, expectedRevision: enabled.revision,
+    criticalTargets: { milestoneIds: [], raidItemIds: [older.id] },
+  }, randomUUID());
+  const noOpenedDate = await at.create(pm, projectId, "concern-missing-opened-date", randomUUID());
+  expect(noOpenedDate.result?.deliveryConcern).toMatchObject({
+    calculated: { status: "UNKNOWN" },
+    objectiveSignals: expect.arrayContaining([
+      expect.objectContaining({ kind: "CRITICAL_BLOCKER", targetKey: older.key, state: "UNASSESSABLE" }),
+    ]),
+  });
+  await publish("raid_item." + older.id + ".opened_at", {
+    type: "date", value: new Date(now[0]!.now.getTime() - 10 * 86_400_000).toISOString().slice(0, 10),
+  }, period);
+  const configured = await health.setScheduleHealthPolicy(
+    admin, projectId, { ...schedule, expectedRevision: checkingOld.revision, criticalTargets }, randomUUID(),
+  );
 
   const policy = await health.setScheduleHealthPolicy(
-    admin, projectId, { ...schedule, expectedRevision: enabled.revision }, randomUUID(),
+    admin, projectId, { ...schedule, expectedRevision: configured.revision }, randomUUID(),
   );
   expect(policy.criticalTargets).toEqual(criticalTargets);
   const saved = await at.create(pm, projectId, "concern-with-inventory", randomUUID());
@@ -151,6 +203,10 @@ it("saves and replays a same-project concern with a frozen scoped policy and rec
       updateEvidence: [expect.objectContaining({
         versionId: update.entry.id, evidenceId: update.entry.evidenceId, sourceId: update.entry.sourceId,
       })],
+      dependencies: expect.arrayContaining([
+        expect.objectContaining({ sourceId: update.entry.sourceId }),
+        expect.objectContaining({ sourceId: alternative.entry.sourceId }),
+      ]),
     } },
   });
   const concernInput = saved.input?.deliveryConcern as { evaluation: unknown };
@@ -199,6 +255,24 @@ it("saves and replays a same-project concern with a frozen scoped policy and rec
   });
   const replay = await at.create(pm, projectId, "concern-with-inventory", randomUUID());
   expect(replay).toEqual({ ...saved, replayed: true });
+  const blockerHidden = await facts.setSourceAccess(admin, {
+    projectId, sourceId: youngClassification.access.sourceId, expectedRevision: youngClassification.access.revision,
+    state: "AVAILABLE", readers: [admin.subject],
+  }, mark);
+  expect(await at.create(pm, projectId, "concern-with-inventory", randomUUID()))
+    .toMatchObject({ contentAvailable: false, input: null, result: null });
+  await facts.setSourceAccess(admin, {
+    projectId, sourceId: blockerHidden.sourceId, expectedRevision: blockerHidden.revision,
+    state: "AVAILABLE", readers: [admin.subject, pm.subject],
+  }, mark);
+  expect(await at.create(pm, projectId, "concern-with-inventory", randomUUID()))
+    .toEqual({ ...saved, replayed: true });
+  await facts.setSourceAccess(admin, {
+    projectId, sourceId: fallbackAccess.sourceId, expectedRevision: fallbackAccess.revision,
+    state: "AVAILABLE", readers: [admin.subject],
+  }, mark);
+  expect(await at.create(pm, projectId, "concern-with-inventory", randomUUID()))
+    .toMatchObject({ contentAvailable: false, input: null, result: null });
   await facts.setSourceAccess(admin, {
     projectId, sourceId: update.access.sourceId, expectedRevision: update.access.revision,
     state: "AVAILABLE", readers: [admin.subject],
@@ -212,4 +286,55 @@ it("saves and replays a same-project concern with a frozen scoped policy and rec
   const stored = await db.healthAssessment.findUniqueOrThrow({ where: { id: saved.assessmentId } });
   expect(stored.envelopeHash).toBe(saved.envelopeHash);
   expect(stored.result).toEqual(saved.result);
-});
+
+  const revised = await health.scheduleHealthPolicy(admin, projectId);
+  await health.setScheduleHealthPolicy(
+    admin, projectId, { ...schedule, expectedRevision: revised.revision, criticalTargets }, randomUUID(),
+  );
+  const freshCommand = await at.create(pm, projectId, "concern-after-update-revocation", randomUUID());
+  expect(freshCommand).toMatchObject({
+    contentAvailable: true,
+    input: { deliveryConcern: { updateEvidence: [], dependencies: [] } },
+    result: { deliveryConcern: {
+      calculated: { status: "RED" },
+      objectiveSignals: expect.arrayContaining([
+        expect.objectContaining({ kind: "UPDATE_FRESHNESS", state: "UNASSESSABLE" }),
+      ]),
+    } },
+  });
+  expect(JSON.stringify(freshCommand)).not.toContain(update.entry.sourceId);
+  expect(JSON.stringify(freshCommand)).not.toContain(alternative.entry.sourceId);
+
+  const where = { customerId, projectId };
+  const countAssessments = () => db.healthAssessment.count({ where });
+  const countReceipts = () => db.healthAssessmentCommandReceipt.count({ where });
+  const counts = await Promise.all([countAssessments(), countReceipts()]);
+  const acquired = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const boundedUrl = new URL(url);
+  boundedUrl.searchParams.set("options", "-c lock_timeout=500");
+  const boundedDb = createDatabase(boundedUrl.href);
+  const bounded = new DatabaseHealthAssessmentRepository(boundedDb);
+  const writer = db.$transaction(async (tx) => {
+    try {
+      await tx.$queryRawUnsafe(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0)) IS NULL AS locked",
+        "schedule-health-policy:" + customerId + ":" + projectId,
+      );
+      acquired.resolve();
+      await release.promise;
+    } catch (error) {
+      acquired.reject(error);
+      throw error;
+    }
+  }, { timeout: 25000 });
+  try {
+    await acquired.promise;
+    await expect(bounded.create(pm, projectId, "concern-lock-timeout", randomUUID()))
+      .rejects.toMatchObject({ code: "UNAVAILABLE" });
+  } finally {
+    release.resolve();
+    await Promise.all([writer, boundedDb.$disconnect()]);
+  }
+  expect(await Promise.all([countAssessments(), countReceipts()])).toEqual(counts);
+}, 45000);

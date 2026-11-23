@@ -5,9 +5,11 @@ import {
   createDatabase,
   DatabaseAuthorityRepository,
   DatabaseCanonicalProjectRepository,
+  DatabaseHealthAssessmentRepository,
   DatabaseIngestionRepository,
   DatabaseMilestoneConsistencyRepository,
   DatabaseProjectFactRepository,
+  DatabaseProjectUpdateRepository,
 } from "../packages/data/src/index.js";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
 import { CredentialVault } from "../packages/platform/src/index.js";
@@ -365,6 +367,38 @@ it("appends a verified workbook observation and replays its receipt after conten
     ]) },
   });
   expect(await db.factAssessment.findUniqueOrThrow({ where: { id: mixed.assessmentId } })).toMatchObject({ evaluatorVersion: 2 });
+  // The current cadence path does not consume mixed source origins. The
+  // composed assessment keeps the schedule signal and publishes no source
+  // identity or timestamp from the unsupported cadence prefix.
+  const health = new DatabaseHealthAssessmentRepository({ $transaction: asApi } as never);
+  const updates = new DatabaseProjectUpdateRepository({ $transaction: asApi } as never);
+  await updates.setPolicy(pmo, projectId, {
+    expectedRevision: 0, freshnessWindowSeconds: 60, timeZone: "UTC",
+    requiredFacts: [{ factType: binding.factType, label: "Milestone state" }],
+    responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false,
+    reminderBusinessDayOffsets: [], escalationAfterBusinessDays: 0, escalationRecipientSubject: null,
+    quietHoursStartLocal: null, quietHoursEndLocal: null,
+  }, randomUUID());
+  await health.setRetention(pmo, {
+    contentRetentionHours: 24, auditRetentionHours: 48, idempotencyRetentionHours: 72,
+  }, randomUUID());
+  const schedulePolicy = await health.scheduleHealthPolicy(pmo, projectId);
+  await health.setScheduleHealthPolicy(pmo, projectId, {
+    expectedRevision: schedulePolicy.revision, timeZone: "UTC", defaultMinimumOverdueDays: 1,
+    targetOverrides: [], criticalTargets: { milestoneIds: [milestone.id], raidItemIds: [] },
+  }, randomUUID());
+  const healthView = await health.create(actor, projectId, "concern-with-mixed-cadence-origin", randomUUID());
+  expect(healthView).toMatchObject({
+    contentAvailable: true,
+    input: { deliveryConcern: { updateEvidence: [], dependencies: [] } },
+    result: { deliveryConcern: {
+      calculated: { status: "RED" },
+      objectiveSignals: expect.arrayContaining([
+        expect.objectContaining({ kind: "UPDATE_FRESHNESS", state: "UNASSESSABLE" }),
+      ]),
+    } },
+  });
+  expect(JSON.stringify(healthView)).not.toContain(factSource);
   const readMixed = () => authority.getAssessment(actor, { projectId, assessmentId: mixed.assessmentId });
   const revoked = await facts.setSourceAccess(pmo, {
     projectId, sourceId: factSource, expectedRevision: available.revision, state: "REVOKED", readers: [],

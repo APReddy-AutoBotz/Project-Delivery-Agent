@@ -66,6 +66,7 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
 
   const updateType = "project.forecast";
   const update = await addFact(updateType, { type: "text", value: "Synthetic forecast update" });
+  const freshnessBoundary = performance.now() + 1100;
   expect((await api(project + "/project-update-policy", "POST", {
     expectedRevision: 0,
     freshnessWindowSeconds: 1,
@@ -99,6 +100,7 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
   expect(policyResponse.status()).toBe(200);
   const policy = await policyResponse.json();
   expect(policy.criticalTargets).toEqual(criticalTargets);
+  await expect.poll(() => performance.now(), { timeout: 2500 }).toBeGreaterThan(freshnessBoundary);
 
   const assessmentPath = project + "/health-assessments";
   const saved = page.waitForResponse((response) =>
@@ -154,10 +156,14 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
     }]) }),
   }));
   const view = region.getByRole("region", { name: "Calculated delivery concern" });
-  await expect(view).toContainText("Reported GREEN at assessment Â· calculated RED");
+  await expect(view).toContainText("Reported GREEN at assessment · calculated RED");
   await expect(view).toContainText("Critical milestone " + milestone.key);
+  await expect(view).toContainText("Configured schedule due date " + fixture.milestones[0].dates.forecastEnd);
   for (const blocker of blockers) await expect(view).toContainText("Critical blocker target " + blocker.key);
-  await expect(view).toContainText("Project update freshness Â· STALE");
+  await expect(view).toContainText("Opened " + openedAt);
+  await expect(view).toContainText("Project update freshness · STALE");
+  await expect(view).toContainText("Last valid update " + assessment.input.deliveryConcern.updateEvidence[0].observedAt);
+  await expect(view).toContainText("Calculated RED because active red-band delivery signals");
   await expect(view).toContainText("Recommend PM review");
   await view.screenshot({ path: screenshot });
 
