@@ -3,6 +3,10 @@ import type { Actor } from "./actor.js";
 import { canonicalKeySchema, canonicalDateSchema } from "./canonical-project.js";
 import { calendarDayDifference, evaluateOverdueSignals } from "./overdue-signals.js";
 import {
+  criticalDeliveryTargetsSchema,
+  deliveryConcernAssessmentRevision,
+} from "./delivery-concern.js";
+import {
   assessDeliveryHealth,
   type DeliveryHealthAssessmentInput,
   type DeliveryHealthSignalInput,
@@ -69,6 +73,7 @@ export const scheduleHealthPolicyViewSchema = z
   .strictObject({
     revision: z.number().int().min(0).max(2147483647),
     ...scheduleHealthPolicyFields,
+    criticalTargets: criticalDeliveryTargetsSchema.nullable().optional(),
     changedBy: z.string().min(1).max(256).nullable(),
     changedAt: instant.nullable(),
   })
@@ -82,6 +87,7 @@ export const scheduleHealthPolicyChangeSchema = z
   .strictObject({
     expectedRevision: z.number().int().min(0).max(2147483646),
     ...scheduleHealthPolicyFields,
+    criticalTargets: criticalDeliveryTargetsSchema.nullable().optional(),
   })
   .superRefine((policy, context) =>
     uniqueScheduleHealthOverrides(policy.targetOverrides, context),
@@ -154,11 +160,16 @@ export const healthAssessmentViewSchema = z.strictObject({
   assessmentId: safeId,
   projectId: safeId,
   assessedAt: instant,
-  coverage: z.enum(["SCHEDULE_ONLY", "SCHEDULE_AND_BLOCKER_AGE"]),
+  coverage: z.enum([
+    "SCHEDULE_ONLY",
+    "SCHEDULE_AND_BLOCKER_AGE",
+    "SCHEDULE_BLOCKER_AGE_AND_DELIVERY_CONCERN",
+  ]),
   ruleRevision: z.enum([
     "schedule-health@1",
     "schedule-health@1+blocker-age@1",
     "schedule-health@2+blocker-age@1",
+    deliveryConcernAssessmentRevision,
   ]),
   blockerAgeCoverage: z
     .enum(["COMPLETE", "PARTIAL", "UNASSESSABLE"])

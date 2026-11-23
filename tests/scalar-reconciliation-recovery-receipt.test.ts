@@ -38,7 +38,7 @@ function receipt() {
     customerId,
     persistence: {
       businessTableCount: 93,
-      migrationCount: 39,
+      migrationCount: 40,
       scalarReconciliationTables: [
         "ScalarReconciliationRequest",
         "ScalarReconciliationCheck",
@@ -153,7 +153,7 @@ it("FR-EVD-012: rejects an always-restricted original and owner-role application
 
 it("NFR-REL-001/002: rejects receipts without the additive validator migration", () => {
   const { persistence, customerId } = receipt();
-  for (const migrationCount of [0, 7, 8, 9, 10, 11, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 40]) {
+  for (const migrationCount of [0, 7, 8, 9, 10, 11, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 41]) {
     const changed = structuredClone(persistence);
     changed.migrationCount = migrationCount;
     expect(() => assertScalarRecoveryReceipt(changed, customerId)).toThrow();

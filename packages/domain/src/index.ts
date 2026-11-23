@@ -104,6 +104,7 @@ export * from "./completeness-signals.js";
 export * from "./blocker-age-signals.js";
 export * from "./delivery-health.js";
 export * from "./health-assessment.js";
+export * from "./delivery-concern.js";
 export * from "./project-update-schedule.js";
 export * from "./project-updates.js";
 export * from "./project-update-engagement.js";

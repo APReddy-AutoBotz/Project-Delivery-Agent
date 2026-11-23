@@ -18,8 +18,8 @@ export function decodeAssessmentConfirmation(value: unknown, projectId: string):
     if (!uuid(v.assessmentId) || !uuid(v.projectId) || v.projectId !== projectId || typeof v.assessedAt !== "string" ||
       !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(v.assessedAt) || v.assessedAt.startsWith("0000-") ||
       !Number.isFinite(time) || new Date(time).toISOString() !== v.assessedAt ||
-      (v.coverage !== "SCHEDULE_ONLY" && v.coverage !== "SCHEDULE_AND_BLOCKER_AGE") ||
-      typeof v.ruleRevision !== "string" || !["schedule-health@1", "schedule-health@1+blocker-age@1", "schedule-health@2+blocker-age@1"].includes(v.ruleRevision) ||
+      (v.coverage !== "SCHEDULE_ONLY" && v.coverage !== "SCHEDULE_AND_BLOCKER_AGE" && v.coverage !== "SCHEDULE_BLOCKER_AGE_AND_DELIVERY_CONCERN") ||
+      typeof v.ruleRevision !== "string" || !["schedule-health@1", "schedule-health@1+blocker-age@1", "schedule-health@2+blocker-age@1", "schedule-health@2+blocker-age@1+delivery-concern@1"].includes(v.ruleRevision) ||
       (v.blockerAgeCoverage !== undefined && (typeof v.blockerAgeCoverage !== "string" || !["COMPLETE", "PARTIAL", "UNASSESSABLE"].includes(v.blockerAgeCoverage))) ||
       typeof v.envelopeHash !== "string" || !/^[0-9a-f]{64}$/.test(v.envelopeHash) || typeof v.contentAvailable !== "boolean" ||
       !recordOrNull(v.input) || !recordOrNull(v.result) || typeof v.replayed !== "boolean") return fail();

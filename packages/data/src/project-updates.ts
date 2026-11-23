@@ -33,6 +33,7 @@ import {
   type IngestionReassessmentItem,
   ProjectUpdateError,
   type Actor,
+  type DeliveryUpdateObservation,
   type ProjectUpdateAssessmentView,
   type ProjectUpdateFactReference,
   type ProjectUpdateKnownPosition,
@@ -106,6 +107,8 @@ type ProjectRow = {
 };
 type FactRow = { id: string; factType: string; revision: number };
 type DependencyRow = ProjectUpdateFactReference;
+type SourceDependency = Pick<ProjectUpdateFactReference, "factId" | "sourceId">;
+class RestrictedConcernUpdateEvidence extends Error {}
 type AssessmentRow = {
   id: string;
   customerId: string;
@@ -446,6 +449,62 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       });
   }
 
+  // The health repository calls this under its Project SHARE gate. Keep the
+  // cadence read permission-checked, side-effect free and on the caller's clock.
+  async deliveryFreshnessInTransaction(
+    tx: Tx, current: Actor, id: string, asOf: Date,
+  ): Promise<{
+    observation: DeliveryUpdateObservation;
+    evidence: ProjectUpdateFactReference[];
+    dependencies: SourceDependency[];
+  }> {
+    await authorizeFactProject(tx, current, id, "read");
+    const policy = await this.loadPolicy(tx, current.customerId, id);
+    const unavailable = () => ({
+      observation: {
+        state: "UNASSESSABLE" as const,
+        asOf: iso(asOf),
+        policyRevision: policy?.revision ?? null,
+      },
+      evidence: [],
+      dependencies: [],
+    });
+    if (!policy) return unavailable();
+
+    const project = await this.loadProject(tx, current.customerId, id);
+    const requiredFacts = policyFacts(policy.requiredFacts);
+    const facts = await tx.$queryRawUnsafe<FactRow[]>(
+      'SELECT id,"factType",revision FROM public."ProjectFact" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factType"=ANY($3::text[]) ORDER BY "factType",id FOR SHARE',
+      current.customerId, id, requiredFacts.map((fact) => fact.factType),
+    );
+    const dependencies = new Map<string, SourceDependency>();
+    try {
+      const prepared = await this.prepareUpdateObservation(
+        tx, current, id, project, policy, requiredFacts, asOf, facts, true, dependencies,
+      );
+      if (dependencies.size > 1000) throw new ProjectUpdateError("UNAVAILABLE");
+      if (!prepared.allTrusted || prepared.latestValidUpdateAt === null)
+        return unavailable();
+      const freshness = prepared.freshnessAssessment.freshness;
+      return {
+        observation: {
+          state: freshness.state,
+          asOf: freshness.assessedAt,
+          sourceDate: prepared.latestValidUpdateAt,
+          policyRevision: policy.revision,
+          timeZone: freshness.timeZone,
+          freshnessWindowSeconds: freshness.freshnessWindowSeconds,
+          ageMilliseconds: freshness.ageMilliseconds,
+        },
+        evidence: prepared.evidence,
+        dependencies: [...dependencies.values()],
+      };
+    } catch (error) {
+      if (error instanceof RestrictedConcernUpdateEvidence) return unavailable();
+      throw error;
+    }
+  }
+
   private reassessmentItem(row: ReassessmentCause): IngestionReassessmentItem {
     return ingestionReassessmentItemSchema.parse({
       id: row.id, sourceId: row.sourceId, receiptId: row.receiptId, projectId: row.projectId,
@@ -624,6 +683,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     tx: Tx, current: Actor, id: string, project: ProjectRow, policy: PolicyRow,
     requiredFacts: ReturnType<typeof policyFacts>, asOf: Date, facts: FactRow[],
     strictRead = false,
+    readDependencies?: Map<string, SourceDependency>,
   ) {
       const factByType = new Map(facts.map((fact) => [fact.factType, fact]));
       const prefixes = facts.length
@@ -673,14 +733,27 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           ? resolved.status as typeof factAssessments[number]["sourceAuthorityStatus"]
           : "INCOMPLETE";
         if (strictRead && (
-          !prepared.complete || status === "INCOMPLETE" || status === "REVALIDATION_REQUIRED" ||
+          !prepared.complete || status === "INCOMPLETE" || status === "REVALIDATION_REQUIRED"
+        )) throw new ProjectUpdateError("UNAVAILABLE");
+        if (strictRead && (
           resolved.versions.some((version) => version.visibility !== "available") ||
           prepared.versions.some((version) => {
             const access = prepared.access.find((item) => item.sourceId === version.sourceId);
             return !access || access.state !== "AVAILABLE" ||
               !access.readers.some((reader) => reader.subject === current.subject);
           })
-        )) throw new ProjectUpdateError("UNAVAILABLE");
+        )) {
+          if (readDependencies) throw new RestrictedConcernUpdateEvidence();
+          throw new ProjectUpdateError("UNAVAILABLE");
+        }
+        if (readDependencies) {
+          for (const version of prepared.versions) {
+            readDependencies.set(fact.id + ":" + version.sourceId, {
+              factId: fact.id,
+              sourceId: version.sourceId,
+            });
+          }
+        }
         check.sourceState = "UNKNOWN";
         // Evidence may exist without an eligible authority selection. Count only
         // currently readable assessed versions, never restricted database history.

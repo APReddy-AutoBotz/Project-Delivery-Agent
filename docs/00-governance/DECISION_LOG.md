@@ -1,5 +1,15 @@
 # Decision Log
 
+## EXEC-048 delivery concern design approval, 2026-11-23
+
+Approve the bounded [EXEC-048 design](../04-delivery/exec-plans/EXEC-048-delivery-concern.md)
+under delegated controller authority. Independent non-author review approved
+corrected design SHA256 `E0D2F0B6A935D643195AB28A74B1B5813BD23CB2D6089E0032EA92F4FE172E26`.
+Use explicit project critical-target policy, authorized source evidence and a
+single assessment instant. Preserve the recorded reported status and separate
+schedule result. Exact implementation review, hosted verification and software
+acceptance remain gated.
+
 ## STORY-009 reviewed CSV import software acceptance, 2026-11-18
 
 Accept the approved CSV alternative under the existing controller delegation,

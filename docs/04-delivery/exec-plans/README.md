@@ -2,6 +2,7 @@
 
 ## Active implementation
 
+- [EXEC-048: Delivery concern and PM review](EXEC-048-delivery-concern.md) — independently reviewed design for STORY-015 and GOLDEN-002. Implementation validation and acceptance are pending.
 - [EXEC-034: Real response-link denial evidence](EXEC-034-response-link-http-evidence.md) — merged PR #127 passed current-base and post-merge checks; restored-endpoint and acceptance evidence remain open.
 - [EXEC-032: Current scalar disagreement explanation](EXEC-032-current-scalar-conflict-explanation.md) — merged in PR #126 with candidate and post-merge checks passed; full source-conflict/Q&A acceptance remains open.
 - [EXEC-031: Bounded milestone question routing](EXEC-031-bounded-milestone-question.md) — merged in PR #125 with candidate and post-merge checks passed; general Q&A acceptance remains open.

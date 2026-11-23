@@ -1,5 +1,12 @@
 # Document Control
 
+## EXEC-048 delivery concern design, 2026-11-23
+
+The delegated controller approved the independently reviewed
+[EXEC-048 design](../04-delivery/exec-plans/EXEC-048-delivery-concern.md).
+Implementation and acceptance for STORY-015 and GOLDEN-002 remain subject to
+the existing exact-candidate review, hosted validation and verified merge gates.
+
 ## STORY-014 blocker and overdue signal software acceptance, 2026-11-22
 
 Under the Product Owner's existing controller delegation, approve

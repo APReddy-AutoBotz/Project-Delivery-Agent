@@ -2,9 +2,9 @@ import type { BlockerAgeThresholdPolicyView, ScheduleHealthPolicyChange, Schedul
 
 const fail = (): never => { throw new Error("Policy information is unavailable."); };
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : fail();
-const keys = (value: Record<string, unknown>, expected: string[]) => {
+const keys = (value: Record<string, unknown>, expected: string[], optional: string[] = []) => {
   const actual = Object.keys(value);
-  if (actual.length !== expected.length || actual.some((key) => !expected.includes(key)) || expected.some((key) => !Object.hasOwn(value, key))) fail();
+  if (actual.some((key) => !expected.includes(key) && !optional.includes(key)) || expected.some((key) => !Object.hasOwn(value, key))) fail();
 };
 const integer = (value: unknown, min: number, max: number): number => typeof value === "number" && Number.isInteger(value) && value >= min && value <= max ? value : fail();
 const text = (value: unknown, min: number, max: number): string => typeof value === "string" && value.length >= min && value.length <= max ? value : fail();
@@ -34,8 +34,29 @@ const overrides = (value: unknown): ScheduleHealthPolicyChange["targetOverrides"
 const fields = (value: Record<string, unknown>) => {
   const timeZone = text(value.timeZone, 1, 64);
   try { new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date(0)); } catch { return fail(); }
-  return { timeZone, defaultMinimumOverdueDays: integer(value.defaultMinimumOverdueDays, 1, 3650), targetOverrides: overrides(value.targetOverrides) };
+  return {
+    timeZone,
+    defaultMinimumOverdueDays: integer(value.defaultMinimumOverdueDays, 1, 3650),
+    targetOverrides: overrides(value.targetOverrides),
+    ...(Object.hasOwn(value, "criticalTargets") ? { criticalTargets: criticalTargets(value.criticalTargets) } : {}),
+  };
 };
+function targetIds(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length > 50) return fail();
+  const ids = Array.from(value, (entry: unknown) => {
+    const id = text(entry, 36, 36);
+    if (!/^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/.test(id)) return fail();
+    return id;
+  });
+  if (new Set(ids).size !== ids.length) return fail();
+  return ids.sort();
+}
+function criticalTargets(value: unknown) {
+  if (value === null) return null;
+  const targets = object(value);
+  keys(targets, ["milestoneIds", "raidItemIds"]);
+  return { milestoneIds: targetIds(targets.milestoneIds), raidItemIds: targetIds(targets.raidItemIds) };
+}
 
 function threshold(value: unknown): BlockerAgeThresholdPolicyView | null {
   if (value === null) return null;
@@ -48,13 +69,13 @@ function thresholdChange(value: unknown): { expectedRevision: number; minimumBlo
   return { expectedRevision: integer(v.expectedRevision, 0, 2147483646), minimumBlockerAgeDays: integer(v.minimumBlockerAgeDays, 1, 3650), auditRetentionHours: integer(v.auditRetentionHours, 1, 87600) };
 }
 function schedule(value: unknown): ScheduleHealthPolicyView {
-  const v = object(value); keys(v, ["revision", "timeZone", "defaultMinimumOverdueDays", "targetOverrides", "changedBy", "changedAt"]);
+  const v = object(value); keys(v, ["revision", "timeZone", "defaultMinimumOverdueDays", "targetOverrides", "changedBy", "changedAt"], ["criticalTargets"]);
   const changedBy = v.changedBy, changedAt = v.changedAt;
   return { revision: integer(v.revision, 0, 2147483647), ...fields(v), changedBy: changedBy === null ? null : text(changedBy, 1, 256),
     changedAt: changedAt === null ? null : instant(changedAt) };
 }
 function scheduleChange(value: unknown): ScheduleHealthPolicyChange {
-  const v = object(value); keys(v, ["expectedRevision", "timeZone", "defaultMinimumOverdueDays", "targetOverrides"]);
+  const v = object(value); keys(v, ["expectedRevision", "timeZone", "defaultMinimumOverdueDays", "targetOverrides"], ["criticalTargets"]);
   return { expectedRevision: integer(v.expectedRevision, 0, 2147483646), ...fields(v) };
 }
 function guarded<T>(decode: (value: unknown) => T, value: unknown): T {

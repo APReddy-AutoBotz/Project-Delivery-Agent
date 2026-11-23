@@ -52,6 +52,13 @@ type AssessmentResult = {
   calculated?: { status?: string };
   objectiveSignals?: ScheduleSignal[];
   blockerAge?: AgeResult;
+  deliveryConcern?: DeliveryConcernResult;
+};
+type DeliveryConcernResult = {
+  reported: { status: string };
+  calculated: { status: string; rationale: { text: string } };
+  objectiveSignals: ScheduleSignal[];
+  recommendation: "PM_REVIEW" | null;
 };
 type AssessmentInput = {
   scheduleHealthPolicy?: ScheduleHealthPolicySnapshot;
@@ -70,7 +77,13 @@ type ThresholdChange = {
 };
 type PolicyDraft<T> = { baseRevision: number; values: T; version: number; uncertain: boolean; attempt?: symbol };
 type ThresholdValues = { minimumAge: string; auditHours: string };
-type ScheduleValues = { timeZone: string; defaultDays: string; overridesText: string };
+type ScheduleValues = {
+  timeZone: string;
+  defaultDays: string;
+  overridesText: string;
+  criticalTargetsText: string;
+  criticalTargetsEdited: boolean;
+};
 type UpdateDraft<T> = (change: (draft: PolicyDraft<T> | null) => PolicyDraft<T> | null) => void;
 function usePolicyDraft<T>(): [PolicyDraft<T> | null, UpdateDraft<T>, () => PolicyDraft<T> | null] {
   const [draft, setDraft] = useState<PolicyDraft<T> | null>(null);
@@ -247,16 +260,33 @@ function ScheduleHealthPolicyEditor({
   const scope = useHealthScope();
   const [formError, setFormError] = useState<string | null>(null);
   const initial = (): PolicyDraft<ScheduleValues> => ({ baseRevision: policy.revision,
-    values: { timeZone: policy.timeZone, defaultDays: String(policy.defaultMinimumOverdueDays), overridesText: JSON.stringify(policy.targetOverrides, null, 2) },
+    values: {
+      timeZone: policy.timeZone,
+      defaultDays: String(policy.defaultMinimumOverdueDays),
+      overridesText: JSON.stringify(policy.targetOverrides, null, 2),
+      criticalTargetsText: JSON.stringify(policy.criticalTargets ?? null, null, 2),
+      criticalTargetsEdited: false,
+    },
     version: 0, uncertain: false });
   const visibleDraft = draft ?? initial();
   const changedRevision = visibleDraft.baseRevision !== policy.revision;
-  const edit = (field: keyof ScheduleValues, value: string) => {
+  const edit = (field: Exclude<keyof ScheduleValues, "criticalTargetsEdited">, value: string) => {
     if (!scope.current()) return;
-    const limit = field === "overridesText" ? 65536 : field === "timeZone" ? 64 : 20;
+    const limit = field === "overridesText" ? 65536 : field === "criticalTargetsText" ? 8000 : field === "timeZone" ? 64 : 20;
     if (value.length > limit) { setFormError("This value is too long. Shorten it and try again."); return; }
     setFormError(null);
-    updateDraft((old) => { const prior = old ?? initial(); return { ...prior, values: { ...prior.values, [field]: value }, version: prior.version + 1 }; });
+    updateDraft((old) => {
+      const prior = old ?? initial();
+      return {
+        ...prior,
+        values: {
+          ...prior.values,
+          [field]: value,
+          criticalTargetsEdited: prior.values.criticalTargetsEdited || field === "criticalTargetsText",
+        },
+        version: prior.version + 1,
+      };
+    });
   };
   const overridesId = "schedule-health-overrides-" + projectId;
   const overridesHelpId = overridesId + "-help";
@@ -272,8 +302,12 @@ function ScheduleHealthPolicyEditor({
         const overridesMatch = parsed.targetOverrides.length === submitted.targetOverrides.length &&
           parsed.targetOverrides.every((row) => submitted.targetOverrides.some((other) =>
             row.targetType === other.targetType && row.targetKey === other.targetKey && row.minimumOverdueDays === other.minimumOverdueDays));
+        const expectedTargets = submitted.criticalTargets === undefined
+          ? policy.criticalTargets ?? null
+          : submitted.criticalTargets;
+        const targetsMatch = JSON.stringify(parsed.criticalTargets ?? null) === JSON.stringify(expectedTargets);
         if (parsed.revision !== submitted.expectedRevision + 1 || parsed.timeZone !== submitted.timeZone ||
-          parsed.defaultMinimumOverdueDays !== submitted.defaultMinimumOverdueDays || !overridesMatch || !scope.writeCurrent(lease))
+          parsed.defaultMinimumOverdueDays !== submitted.defaultMinimumOverdueDays || !overridesMatch || !targetsMatch || !scope.writeCurrent(lease))
           throw new Error("Save confirmation unavailable");
         updateDraft((old) => old?.attempt === attempt && old.version === version ? null : old);
       } catch {
@@ -305,9 +339,17 @@ function ScheduleHealthPolicyEditor({
             return;
           }
           let change: ScheduleHealthPolicyChange;
-          try { change = decodeScheduleChange({ expectedRevision: submitted.baseRevision,
-            timeZone: submitted.values.timeZone, defaultMinimumOverdueDays: Number(submitted.values.defaultDays), targetOverrides }); }
-          catch { setFormError("Check the time zone, threshold and target overrides."); return; }
+          try {
+            change = decodeScheduleChange({
+              expectedRevision: submitted.baseRevision,
+              timeZone: submitted.values.timeZone,
+              defaultMinimumOverdueDays: Number(submitted.values.defaultDays),
+              targetOverrides,
+              ...(submitted.values.criticalTargetsEdited
+                ? { criticalTargets: JSON.parse(submitted.values.criticalTargetsText) as unknown }
+                : {}),
+            });
+          } catch { setFormError("Check the time zone, threshold, overrides and critical delivery targets."); return; }
           const lease = scope.beginWrite({ kind: "schedule", revision: change.expectedRevision });
           if (!lease) return;
           const attempt = Symbol("schedule-policy-attempt");
@@ -343,6 +385,19 @@ function ScheduleHealthPolicyEditor({
         <span id={overridesHelpId} className="muted md:col-span-2 min-w-0 break-words">
           Each entry uses targetType, targetKey, and minimumOverdueDays. Example: {"[{\"targetType\":\"MILESTONE\",\"targetKey\":\"MS-1\",\"minimumOverdueDays\":2}]"}
         </span>
+        <label className="grid gap-1 md:col-span-2">
+          <span className="text-sm font-medium">Critical delivery targets (JSON)</span>
+          <textarea
+            className="min-h-20 rounded-md border border-slate-300 p-2 font-mono text-sm"
+            value={visibleDraft.values.criticalTargetsEdited ? visibleDraft.values.criticalTargetsText : initial().values.criticalTargetsText}
+            onChange={(event) => edit("criticalTargetsText", event.target.value)}
+            aria-describedby={overridesId + "-critical-help"}
+            spellCheck={false}
+          />
+        </label>
+        <span id={overridesId + "-critical-help"} className="muted md:col-span-2">
+          Enter the exact project record IDs in milestoneIds and raidItemIds, or enter null to disable the delivery concern calculation.
+        </span>
         <div className="flex items-center gap-3 md:col-span-2">
           <Button type="submit" className="primary" disabled={save.isPending || !scope.canWrite || scope.atCapacity || changedRevision}>
             {save.isPending ? "Saving…" : "Save project schedule policy"}
@@ -354,6 +409,7 @@ function ScheduleHealthPolicyEditor({
         <p>Current revision overrides:</p>
         {policy.targetOverrides.length === 0 ? <p>None.</p> : <ul>{policy.targetOverrides.map((row) =>
           <li key={`${row.targetType}:${row.targetKey}`}>{row.targetType} {row.targetKey}: {row.minimumOverdueDays} days</li>)}</ul>}
+        {visibleDraft.values.criticalTargetsEdited && <p className="break-words">Current critical delivery targets {JSON.stringify(policy.criticalTargets ?? null)}</p>}
         <Button className="secondary" onClick={() => { if (scope.current()) updateDraft((old) => old ? { ...old, baseRevision: policy.revision, version: old.version + 1 } : old); }}>Use current revision for this draft</Button></>}
       {(formError || visibleDraft.uncertain) && (
         <>
@@ -364,6 +420,37 @@ function ScheduleHealthPolicyEditor({
         </>
       )}
     </div>
+  );
+}
+
+function DeliveryConcern({ result }: { result: DeliveryConcernResult }) {
+  return (
+    <section className="space-y-3" aria-labelledby="delivery-concern-heading">
+      <h3 id="delivery-concern-heading">Calculated delivery concern</h3>
+      <p>Reported {result.reported.status} at assessment · calculated {result.calculated.status}</p>
+      <p>{result.calculated.rationale.text}</p>
+      {result.recommendation === "PM_REVIEW" && <Message>Recommend PM review of the reported status and the delivery evidence.</Message>}
+      <ul className="space-y-2">
+        {result.objectiveSignals.map((signal) => {
+          const fact = (field: string) => signal.sourceFacts?.find((item) => item.field === field)?.value;
+          const parameter = (name: string) => signal.rule?.parameters?.find((item) => item.name === name)?.value;
+          return (
+            <li key={signal.kind + ":" + signal.targetKey}>
+              {signal.kind === "OVERDUE_MILESTONE" ? <>
+                Critical milestone {signal.targetKey} · {signal.state}. Configured schedule due date {String(fact("selectedDueDate") ?? "unavailable")}.
+                {" "}Threshold {String(parameter("minimumOverdueDays"))} local day(s).
+              </> : signal.kind === "CRITICAL_BLOCKER" ? <>
+                Critical blocker target {signal.targetKey} · {signal.state}.
+                {signal.state === "ACTIVE" && <> Opened {String(parameter("resolvedOpenedAt"))} · {String(parameter("ageDays"))} UTC calendar day(s) open.</>}
+              </> : <>
+                Project update freshness · {signal.state === "ACTIVE" ? "STALE" : signal.state === "CLEAR" ? "CURRENT" : "UNASSESSABLE"}.
+                {signal.state !== "UNASSESSABLE" && <> Last valid update {String(parameter("latestValidUpdateAt"))} · window {String(parameter("freshnessWindowSeconds"))} seconds.</>}
+              </>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -581,6 +668,7 @@ export function HealthAssessmentPanel({
           </dl>
           {assessment.contentAvailable ? (
             <>
+              {result?.deliveryConcern && <DeliveryConcern result={result.deliveryConcern} />}
               <section className="space-y-3" aria-labelledby="schedule-overdue-heading">
                 <div>
                   <h3 id="schedule-overdue-heading">Schedule overdue evidence</h3>
