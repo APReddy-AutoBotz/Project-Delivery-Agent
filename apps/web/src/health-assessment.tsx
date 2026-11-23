@@ -349,7 +349,12 @@ function ScheduleHealthPolicyEditor({
                 ? { criticalTargets: JSON.parse(submitted.values.criticalTargetsText) as unknown }
                 : {}),
             });
-          } catch { setFormError("Check the time zone, threshold, overrides and critical delivery targets."); return; }
+          } catch {
+            setFormError(submitted.values.criticalTargetsEdited
+              ? "Check the time zone, threshold, overrides and critical delivery targets."
+              : "Check the time zone, threshold and target overrides.");
+            return;
+          }
           const lease = scope.beginWrite({ kind: "schedule", revision: change.expectedRevision });
           if (!lease) return;
           const attempt = Symbol("schedule-policy-attempt");
