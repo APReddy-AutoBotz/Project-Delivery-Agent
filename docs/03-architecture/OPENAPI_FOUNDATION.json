@@ -32552,7 +32552,8 @@
                       "type": "string",
                       "enum": [
                         "SCHEDULE_ONLY",
-                        "SCHEDULE_AND_BLOCKER_AGE"
+                        "SCHEDULE_AND_BLOCKER_AGE",
+                        "SCHEDULE_BLOCKER_AGE_AND_DELIVERY_CONCERN"
                       ]
                     },
                     "ruleRevision": {
@@ -32560,7 +32561,8 @@
                       "enum": [
                         "schedule-health@1",
                         "schedule-health@1+blocker-age@1",
-                        "schedule-health@2+blocker-age@1"
+                        "schedule-health@2+blocker-age@1",
+                        "schedule-health@2+blocker-age@1+delivery-concern@1"
                       ]
                     },
                     "blockerAgeCoverage": {
@@ -32948,7 +32950,8 @@
                       "type": "string",
                       "enum": [
                         "SCHEDULE_ONLY",
-                        "SCHEDULE_AND_BLOCKER_AGE"
+                        "SCHEDULE_AND_BLOCKER_AGE",
+                        "SCHEDULE_BLOCKER_AGE_AND_DELIVERY_CONCERN"
                       ]
                     },
                     "ruleRevision": {
@@ -32956,7 +32959,8 @@
                       "enum": [
                         "schedule-health@1",
                         "schedule-health@1+blocker-age@1",
-                        "schedule-health@2+blocker-age@1"
+                        "schedule-health@2+blocker-age@1",
+                        "schedule-health@2+blocker-age@1+delivery-concern@1"
                       ]
                     },
                     "blockerAgeCoverage": {
@@ -34676,6 +34680,35 @@
                         "additionalProperties": false
                       }
                     },
+                    "criticalTargets": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "milestoneIds": {
+                          "maxItems": 50,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "raidItemIds": {
+                          "maxItems": 50,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        }
+                      },
+                      "required": [
+                        "milestoneIds",
+                        "raidItemIds"
+                      ],
+                      "additionalProperties": false
+                    },
                     "changedBy": {
                       "nullable": true,
                       "type": "string",
@@ -35013,6 +35046,35 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "criticalTargets": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "milestoneIds": {
+                          "maxItems": 50,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "raidItemIds": {
+                          "maxItems": 50,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        }
+                      },
+                      "required": [
+                        "milestoneIds",
+                        "raidItemIds"
+                      ],
+                      "additionalProperties": false
                     },
                     "changedBy": {
                       "nullable": true,
@@ -35364,6 +35426,35 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "criticalTargets": {
+                    "nullable": true,
+                    "type": "object",
+                    "properties": {
+                      "milestoneIds": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        }
+                      },
+                      "raidItemIds": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "milestoneIds",
+                      "raidItemIds"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [

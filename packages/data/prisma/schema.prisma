@@ -1348,6 +1348,7 @@ model ScheduleHealthPolicyRevision {
   timeZone String @db.VarChar(64)
   defaultMinimumOverdueDays Int
   targetOverrides Json
+  criticalTargets Json?
   changedBy String @db.VarChar(256)
   changedAt DateTime @db.Timestamptz(3)
   project Project @relation(fields: [customerId, projectId], references: [customerId, id], onDelete: Restrict, onUpdate: Restrict, map: "ScheduleHealthPolicyRevision_project_fk")

@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { chromium } from "@playwright/test";
 import { verifyBrowserToolchain } from "./browser-toolchain.mjs";
 import { closeCustomerBrowserSession } from "./customer-session.mjs";
+import { deliveryConcernStorageHash, exerciseDeliveryConcernWorkflow } from "./delivery-concern-workflow.mjs";
 import {
   exerciseScalarReconciliationWorkflow,
   openSavedScalarReconciliation,
@@ -485,6 +486,36 @@ async function browserCheck(afterUpgrade) {
       csvFixture.retentionSetup = read("csv-retention-setup");
       csvComparison=await exerciseCsvComparisonWorkflow({login,base,pool:db,binding:csvBinding,movedProjectId:reconciliationFixture.projectId,
         canonicalSnapshot:csvCanonicalSnapshot,output});
+      const pmo = await login("pmo-atlas");
+      let pmoBrowser;
+      try {
+        const receipt = await exerciseDeliveryConcernWorkflow({
+          portfolioId: "20000000-0000-4000-8000-000000000003",
+          screenshot: `${output}/golden-002-delivery-concern.png`,
+          async api(path, method = "GET", data) {
+            const response = await pmo.context.request.fetch(base + "/api" + path, {
+              method,
+              headers: { Authorization: "Bearer " + pmo.token },
+              ...(data === undefined ? {} : { data }),
+            });
+            pmo.disclosure.add("evidence-api-headers", JSON.stringify(response.headersArray()));
+            pmo.disclosure.add("evidence-api-bodies", await response.text());
+            return response;
+          },
+          async openProject(name) {
+            pmoBrowser = await login("pmo-atlas");
+            await pmoBrowser.page.getByRole("button", { name: new RegExp(name) }).click();
+            return pmoBrowser.page;
+          },
+        });
+        save("golden-002-delivery-concern", {
+          ...receipt, storageHash: await deliveryConcernStorageHash(db, env.CUSTOMER_ID, receipt),
+          status: "passed", restoreVerified: false,
+        });
+      } finally {
+        if (pmoBrowser) await closeCustomerBrowserSession(pmoBrowser, base);
+        await closeCustomerBrowserSession(pmo, base);
+      }
     }
     await scanBrowserAssets(base, disclosure);
     save("disclosure-" + phase, {
@@ -573,7 +604,8 @@ try {
     const migrations = readMigrations(
       "/workspace/packages/data/prisma/migrations",
     );
-    assert.equal(migrations.length, 39);
+    assert.equal(migrations.length, 40);
+    assert.equal(migrations[39].name, "202611230001_delivery_concern");
     assert.equal(migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(migrations[23].name, "202610010001_update_capture_response");
     assert.equal(state._prisma_migrations.length, migrations.length);
@@ -852,7 +884,7 @@ try {
       csvComparisonPrivileges,
       xlsxReceiptCodec,
       engagementStorageTables,
-      migrationCount: 39,
+      migrationCount: 40,
       scalarReconciliationWorkerDenied:
         await verifyScalarReconciliationWorkerDenials(
           loadDatabaseConfig({
@@ -933,6 +965,9 @@ try {
     });
     try {
       assertUpdateCaptureRestoreProjection(await projection(restored), read("backup-state"));
+      const deliveryConcern = read("golden-002-delivery-concern");
+      assert.equal(await deliveryConcernStorageHash(restored, env.CUSTOMER_ID, deliveryConcern), deliveryConcern.storageHash);
+      save("golden-002-delivery-concern", { ...deliveryConcern, restoreVerified: true });
       const csvFixture = read("csv-import-workflow-fixture");
       csvFixture.restored = await verifyRestoredCsvImport(restored, csvFixture);
       const csvComparisonPrivileges=await verifyCsvComparisonPrivileges(restored,undefined,{owner:"pdaa_migrate"});

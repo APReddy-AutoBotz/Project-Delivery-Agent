@@ -10,6 +10,7 @@ import {
   blockerAgeThresholdPolicyChangeSchema,
   blockerAgeThresholdPolicyViewSchema,
   defaultScheduleHealthPolicy,
+  deliveryConcernAssessmentRevision,
   scheduleHealthPolicyChangeSchema,
   scheduleHealthPolicyViewSchema,
   healthAssessmentViewSchema,
@@ -29,6 +30,7 @@ import {
   blockerAgeDependencies,
   buildBlockerAgeAssessmentInTransaction,
 } from "./blocker-age-assessment.js";
+import { buildDeliveryConcernInTransaction } from "./delivery-concern.js";
 
 type Tx = Prisma.TransactionClient;
 type PolicyRow = {
@@ -53,6 +55,7 @@ type ScheduleHealthPolicyRow = {
   timeZone: string;
   defaultMinimumOverdueDays: number;
   targetOverrides: unknown;
+  criticalTargets: unknown;
   changedBy: string;
   changedAt: Date;
 };
@@ -79,6 +82,15 @@ type ReceiptRow = {
 const readers = ["pmo_admin", "portfolio_manager", "leadership", "project_manager"];
 const projectIdSchema = z.uuid().refine((value) => value === value.toLowerCase());
 const objectSchema = z.record(z.string(), z.unknown());
+const deliveryConcernDependencies = z.object({
+  blockerAge: z.object({ dependencies: z.array(z.unknown()) }),
+  deliveryConcern: z.object({
+    dependencies: z.array(z.object({
+      factId: projectIdSchema,
+      sourceId: projectIdSchema,
+    })).max(1000),
+  }),
+});
 const earlier = (a: Date, b: Date) => a.getTime() < b.getTime() ? a : b;
 const plusHours = (time: Date, hours: number) =>
   new Date(time.getTime() + hours * 3600000);
@@ -92,6 +104,12 @@ function stable(value: unknown): unknown {
 }
 function json(value: unknown) { return JSON.stringify(stable(value)); }
 function hash(value: string) { return createHash("sha256").update(value).digest("hex"); }
+export function checkHealthAssessmentContentSize(input: string, result: string, allowFallback: boolean) {
+  const withinLimit = Buffer.byteLength(input, "utf8") <= 262144 &&
+    Buffer.byteLength(result, "utf8") <= 262144;
+  if (!withinLimit && !allowFallback) throw new HealthAssessmentError("UNAVAILABLE");
+  return withinLimit;
+}
 function actor(value: Actor): Actor {
   try { return canonicalActorSchema.parse(value); }
   catch { throw new HealthAssessmentError("INVALID_REQUEST"); }
@@ -133,7 +151,9 @@ function toView(row: AssessmentRow, replayed: boolean, available: boolean): Heal
     projectId: row.projectId,
     assessedAt: row.assessedAt.toISOString(),
     coverage:
-      row.blockerAgeCoverage !== null
+      row.ruleRevision === deliveryConcernAssessmentRevision
+        ? "SCHEDULE_BLOCKER_AGE_AND_DELIVERY_CONCERN"
+      : row.blockerAgeCoverage !== null
         ? "SCHEDULE_AND_BLOCKER_AGE"
         : "SCHEDULE_ONLY",
     ruleRevision: row.ruleRevision,
@@ -166,7 +186,9 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
     try { return await this.db.$transaction(operation, { timeout: 10000, isolationLevel: "ReadCommitted" }); }
     catch (error) { mapError(error); }
   }
-  private async authorizeProject(tx: Tx, current: Actor, id: string) {
+  private async authorizeProject(
+    tx: Tx, current: Actor, id: string, requiredRole?: Actor["roles"][number],
+  ) {
     const rows = await tx.$queryRawUnsafe<{ portfolioId: string }[]>(
       'SELECT "portfolioId" FROM public."Project" WHERE id=$1::uuid AND "customerId"=$2::uuid FOR SHARE',
       id, current.customerId,
@@ -177,7 +199,10 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       'SELECT role FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND (("scopeType"=\'portfolio\' AND "scopeId"=$3::uuid) OR ("scopeType"=\'project\' AND "scopeId"=$4::uuid)) ORDER BY id FOR SHARE',
       current.customerId, current.subject, project.portfolioId, id,
     );
-    if (!grants.some((grant) => readers.includes(grant.role) && current.roles.includes(grant.role as Actor["roles"][number])))
+    if (!grants.some((grant) =>
+      (requiredRole ? grant.role === requiredRole : readers.includes(grant.role)) &&
+      current.roles.some((role) => role === grant.role),
+    ))
       throw new HealthAssessmentError("DENIED");
   }
   private async readPolicy(tx: Tx, customerId: string, update = false) {
@@ -222,7 +247,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
     id: string,
   ): Promise<ScheduleHealthPolicyView> {
     const rows = await tx.$queryRawUnsafe<ScheduleHealthPolicyRow[]>(
-      'SELECT revision,"timeZone","defaultMinimumOverdueDays","targetOverrides","changedBy","changedAt" FROM public."ScheduleHealthPolicyRevision" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY revision DESC LIMIT 1',
+      'SELECT revision,"timeZone","defaultMinimumOverdueDays","targetOverrides","criticalTargets","changedBy","changedAt" FROM public."ScheduleHealthPolicyRevision" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY revision DESC LIMIT 1',
       customerId,
       id,
     );
@@ -239,6 +264,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         timeZone: row.timeZone,
         defaultMinimumOverdueDays: row.defaultMinimumOverdueDays,
         targetOverrides: row.targetOverrides,
+        ...(row.criticalTargets == null ? {} : { criticalTargets: row.criticalTargets }),
         changedBy: row.changedBy,
         changedAt: row.changedAt.toISOString(),
       });
@@ -277,9 +303,15 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
     current: Actor,
     projectId: string,
     input: unknown,
+    ruleRevision?: string,
   ): Promise<boolean> {
     const dependencies = blockerAgeDependencies(input);
     if (dependencies === null) return false;
+    if (ruleRevision === deliveryConcernAssessmentRevision) {
+      const parsed = deliveryConcernDependencies.safeParse(input);
+      if (!parsed.success) return false;
+      dependencies.push(...parsed.data.deliveryConcern.dependencies);
+    }
     if (dependencies.length === 0) return true;
     const values = dependencies
       .map((_, index) => {
@@ -346,7 +378,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       throw new HealthAssessmentError("IDEMPOTENCY_RESULT_EXPIRED");
     const contentAvailable = this.contentAvailable(row, now, policy);
     const sourcesAvailable = contentAvailable
-      ? await this.sourcesReadableInTransaction(tx, current, id, row.input)
+      ? await this.sourcesReadableInTransaction(tx, current, id, row.input, row.ruleRevision)
       : false;
     return toView(row, true, contentAvailable && sourcesAvailable);
   }
@@ -402,6 +434,8 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         id, current.customerId,
       );
       if (canonical[0] && !canonical[0].sealed) throw new HealthAssessmentError("UNAVAILABLE");
+      if (scheduleHealthPolicy.criticalTargets && canonical[0]?.sealed !== true)
+        throw new HealthAssessmentError("UNAVAILABLE");
       const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT 51';
       const milestones = canonical[0]
         ? await tx.$queryRawUnsafe<{ id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null }[]>(
@@ -421,6 +455,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         canonical[0]?.sealed === true,
         threshold,
         this.assessmentAsOfForTests?.(),
+        { strictPreparationErrors: scheduleHealthPolicy.criticalTargets != null },
       );
       const asOf = blockerAge.asOf;
       const date = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null;
@@ -442,7 +477,18 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         });
       } catch { throw new HealthAssessmentError("UNAVAILABLE"); }
 
-      const ruleRevision = "schedule-health@2+blocker-age@1";
+      const criticalTargets = scheduleHealthPolicy.criticalTargets;
+      const concern = criticalTargets
+        ? await buildDeliveryConcernInTransaction(
+            tx, this.db, current, id, built, criticalTargets, blockerAge,
+          )
+        : null;
+      const ruleRevision = concern
+        ? deliveryConcernAssessmentRevision
+        : "schedule-health@2+blocker-age@1";
+      const coverage = concern
+        ? "SCHEDULE_BLOCKER_AGE_AND_DELIVERY_CONCERN"
+        : "SCHEDULE_AND_BLOCKER_AGE";
       let blockerAgeCoverage = blockerAge.coverage;
       let blockerAgeInput: Record<string, unknown> = blockerAge.input;
       let blockerAgeResult: Record<string, unknown> = blockerAge.result;
@@ -451,28 +497,24 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         ...(built.input as unknown as Record<string, unknown>),
         scheduleHealthPolicy: built.scheduleHealthPolicy,
         blockerAge: blockerAgeInput,
+        ...(concern ? { deliveryConcern: concern.input } : {}),
       };
       let result: Record<string, unknown> = {
         coverage: built.coverage,
         ...built.result,
         blockerAge: blockerAgeResult,
+        ...(concern ? { deliveryConcern: concern.result } : {}),
       };
       const scheduleInputJson = json({
         ...(built.input as unknown as Record<string, unknown>),
         scheduleHealthPolicy: built.scheduleHealthPolicy,
       });
       const scheduleResultJson = json({ coverage: built.coverage, ...built.result });
-      if (
-        Buffer.byteLength(scheduleInputJson, "utf8") > 262144 ||
-        Buffer.byteLength(scheduleResultJson, "utf8") > 262144
-      )
-        throw new HealthAssessmentError("UNAVAILABLE");
+      checkHealthAssessmentContentSize(scheduleInputJson, scheduleResultJson, false);
       let inputJson = json(input);
       let resultJson = json(result);
-      if (
-        Buffer.byteLength(inputJson, "utf8") > 262144 ||
-        Buffer.byteLength(resultJson, "utf8") > 262144
-      ) {
+      // A composed result cannot survive discarding the proof it depends on.
+      if (!checkHealthAssessmentContentSize(inputJson, resultJson, concern === null)) {
         blockerAgeCoverage = "UNASSESSABLE";
         blockerAgeInput = {
           rule: { key: "blocker-age", revision: "1" },
@@ -509,15 +551,11 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         };
         inputJson = json(input);
         resultJson = json(result);
-        if (
-          Buffer.byteLength(inputJson, "utf8") > 262144 ||
-          Buffer.byteLength(resultJson, "utf8") > 262144
-        )
-          throw new HealthAssessmentError("UNAVAILABLE");
+        checkHealthAssessmentContentSize(inputJson, resultJson, false);
       }
 
       const envelopeHash = hash(json({
-        coverage: "SCHEDULE_AND_BLOCKER_AGE",
+        coverage,
         ruleRevision,
         input,
         result,
@@ -531,9 +569,9 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       if (newConflicts.length)
         await tx.factAuthorityConflict.createMany({ data: newConflicts });
       await tx.$executeRawUnsafe(
-        "INSERT INTO public.\"HealthAssessment\" (id,\"customerId\",\"projectId\",\"actorSubject\",\"assessedAt\",\"commandKeyHash\",\"ruleRevision\",\"blockerAgeCoverage\",input,result,\"envelopeHash\",\"contentExpiresAt\",\"auditExpiresAt\") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,'schedule-health@2+blocker-age@1',$7,$8::jsonb,$9::jsonb,$10,$11,$12)",
+        'INSERT INTO public."HealthAssessment" (id,"customerId","projectId","actorSubject","assessedAt","commandKeyHash","ruleRevision","blockerAgeCoverage",input,result,"envelopeHash","contentExpiresAt","auditExpiresAt") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$13)',
         assessmentId, current.customerId, id, current.subject, assessedAt, commandHash,
-        blockerAgeCoverage, inputJson, resultJson, envelopeHash, contentExpiresAt, auditExpiresAt,
+        ruleRevision, blockerAgeCoverage, inputJson, resultJson, envelopeHash, contentExpiresAt, auditExpiresAt,
       );
       await tx.$executeRawUnsafe(
         'INSERT INTO public."HealthAssessmentCommandReceipt" ("customerId","projectId","commandKeyHash","actorSubject","requestHash","assessmentId","createdAt","expiresAt") VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7,$8)',
@@ -542,7 +580,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       const detail = json({
         healthAssessmentId: assessmentId,
         projectId: id,
-        coverage: "SCHEDULE_AND_BLOCKER_AGE",
+        coverage,
         ruleRevision,
         blockerAgeCoverage,
         thresholdRevision: threshold?.revision ?? null,
@@ -553,12 +591,12 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         auditEventId, current.customerId, current.subject, correlationId, detail, assessedAt,
       );
       const contentAvailable =
-        await this.sourcesReadableInTransaction(tx, current, id, input);
+        await this.sourcesReadableInTransaction(tx, current, id, input, ruleRevision);
       return healthAssessmentViewSchema.parse({
         assessmentId,
         projectId: id,
         assessedAt: assessedAt.toISOString(),
-        coverage: "SCHEDULE_AND_BLOCKER_AGE",
+        coverage,
         ruleRevision,
         blockerAgeCoverage,
         envelopeHash,
@@ -585,7 +623,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         return null;
       const contentAvailable = this.contentAvailable(row, now, policy);
       const sourcesAvailable = contentAvailable
-        ? await this.sourcesReadableInTransaction(tx, current, id, row.input)
+        ? await this.sourcesReadableInTransaction(tx, current, id, row.input, row.ruleRevision)
         : false;
       return toView(row, false, contentAvailable && sourcesAvailable);
     });
@@ -733,7 +771,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       throw new HealthAssessmentError("INVALID_REQUEST");
     }
     return this.transaction(async (tx) => {
-      await this.authorizeProject(tx, current, id);
+      await this.authorizeProject(tx, current, id, "pmo_admin");
       await tx.$queryRawUnsafe(
         "SELECT pg_advisory_xact_lock(hashtextextended($1,0)) IS NULL AS locked",
         "schedule-health-policy:" + current.customerId + ":" + id,
@@ -742,6 +780,33 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       if (previous.revision !== policy.expectedRevision)
         throw new HealthAssessmentError("CONFLICT");
 
+      const selected = policy.criticalTargets === undefined
+        ? previous.criticalTargets
+        : policy.criticalTargets;
+      const criticalTargets = selected ? {
+        milestoneIds: [...selected.milestoneIds].sort(),
+        raidItemIds: [...selected.raidItemIds].sort(),
+      } : null;
+      if (criticalTargets) {
+        const canonical = await tx.$queryRawUnsafe<{ sealed: boolean }[]>(
+          'SELECT sealed FROM public."CanonicalProject" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR SHARE',
+          current.customerId, id,
+        );
+        if (canonical[0]?.sealed !== true)
+          throw new HealthAssessmentError("INVALID_REQUEST");
+        const milestones = await tx.$queryRawUnsafe<{ id: string }[]>(
+          'SELECT id FROM public."Milestone" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND id=ANY($3::uuid[])',
+          current.customerId, id, criticalTargets.milestoneIds,
+        );
+        const raids = await tx.$queryRawUnsafe<{ id: string }[]>(
+          'SELECT id FROM public."RaidItem" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND id=ANY($3::uuid[])',
+          current.customerId, id, criticalTargets.raidItemIds,
+        );
+        if (
+          milestones.length !== criticalTargets.milestoneIds.length ||
+          raids.length !== criticalTargets.raidItemIds.length
+        ) throw new HealthAssessmentError("INVALID_REQUEST");
+      }
       const milestoneKeys = policy.targetOverrides
         .filter((item) => item.targetType === "MILESTONE")
         .map((item) => item.targetKey);
@@ -775,9 +840,10 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         timeZone: policy.timeZone,
         defaultMinimumOverdueDays: policy.defaultMinimumOverdueDays,
         targetOverrides,
+        ...(criticalTargets ? { criticalTargets } : {}),
       });
       await tx.$executeRawUnsafe(
-        'INSERT INTO public."ScheduleHealthPolicyRevision" (id,"customerId","projectId",revision,"timeZone","defaultMinimumOverdueDays","targetOverrides","changedBy","changedAt") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7::jsonb,$8,$9)',
+        'INSERT INTO public."ScheduleHealthPolicyRevision" (id,"customerId","projectId",revision,"timeZone","defaultMinimumOverdueDays","targetOverrides","criticalTargets","changedBy","changedAt") VALUES ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10)',
         randomUUID(),
         current.customerId,
         id,
@@ -785,6 +851,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         policy.timeZone,
         policy.defaultMinimumOverdueDays,
         json(targetOverrides),
+        criticalTargets ? json(criticalTargets) : null,
         current.subject,
         changedAt,
       );
@@ -802,6 +869,7 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
         timeZone: policy.timeZone,
         defaultMinimumOverdueDays: policy.defaultMinimumOverdueDays,
         targetOverrides,
+        ...(criticalTargets ? { criticalTargets } : {}),
         changedBy: current.subject,
         changedAt: changedAt.toISOString(),
       });

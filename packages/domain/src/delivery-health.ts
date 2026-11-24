@@ -123,6 +123,7 @@ const targetType = z.enum([
 const signalKind = z.enum([
   "UPDATE_FRESHNESS",
   "BLOCKER_AGE",
+  "CRITICAL_BLOCKER",
   "OVERDUE_MILESTONE",
   "OVERDUE_WORK_ITEM",
   "COMPLETENESS",
@@ -261,6 +262,7 @@ function validateRequest(request: z.infer<typeof requestSchema>) {
         signal.targetType !== "RAID_ITEM" &&
         signal.targetType !== "WORK_ITEM" &&
         signal.targetType !== "EXTERNAL_RECORD") ||
+      (signal.kind === "CRITICAL_BLOCKER" && signal.targetType !== "RAID_ITEM") ||
       (signal.kind === "OVERDUE_MILESTONE" &&
         signal.targetType !== "MILESTONE") ||
       (signal.kind === "OVERDUE_WORK_ITEM" &&

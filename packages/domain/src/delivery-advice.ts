@@ -336,6 +336,7 @@ function wording(category: Category, audience: Recipient["audience"]) {
 function categoryFor(signal: Signal): Category {
   if (signal.state === "UNASSESSABLE") return "EVIDENCE_REVIEW";
   switch (signal.kind) {
+    case "CRITICAL_BLOCKER":
     case "BLOCKER_AGE":
       return "INTERVENTION";
     case "UPDATE_FRESHNESS":

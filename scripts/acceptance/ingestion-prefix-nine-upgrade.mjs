@@ -115,7 +115,8 @@ export async function verifyIngestionPrefixNineUpgrade(sourceUrl) {
       ssl: false,
     };
     const migrations = readMigrations("packages/data/prisma/migrations");
-    assert.equal(migrations.length, 39);
+    assert.equal(migrations.length, 40);
+    assert.equal(migrations[39].name, "202611230001_delivery_concern");
     assert.equal(migrations[27].name, "202611160001_trusted_csv_comparison");
     assert.equal(migrations[26].name, "202611150001_ingestion_retention_audit");
     assert.equal(migrations[25].name, "202610310001_ingestion_reconfiguration_scope");

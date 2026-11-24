@@ -102,6 +102,12 @@ jobs:
           name: schedule-overdue-policy-browser
           path: artifacts/schedule-overdue-policy.png
           if-no-files-found: error
+      - name: Publish GOLDEN-002 delivery concern browser proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-002-delivery-concern
+          path: test-results/**/golden-002-delivery-concern.png
+          if-no-files-found: error
       - name: Publish successful database contract evidence
         uses: actions/upload-artifact@v4
         with:
@@ -147,6 +153,8 @@ jobs:
             artifacts/pdaa-acceptance-*/scalar-temporal-vectors-original.json
             artifacts/pdaa-acceptance-*/customer-*/scalar-temporal-vectors-original.json
             artifacts/pdaa-acceptance-*/customer-*/evidence-stale-conflict.png
+            artifacts/pdaa-acceptance-*/customer-*/golden-002-delivery-concern.png
+            artifacts/pdaa-acceptance-*/customer-*/golden-002-delivery-concern.json
             artifacts/pdaa-acceptance-*/customer-*/milestone-reconciliation-workflow-fixture.json
             artifacts/pdaa-acceptance-*/customer-*/project-fact-persistence.json
             artifacts/pdaa-acceptance-*/customer-*/milestone-reconciliation-pm-*.png
