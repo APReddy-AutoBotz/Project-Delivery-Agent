@@ -30,6 +30,7 @@ import { decodeProjectList, decodeProjectSetup } from "./canonical-creation-deco
 import { ProjectUpdates } from "./project-updates.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
 import { AtlasPmApproval, atlasReviewProjectCode } from "./atlas-update-approval.js";
+import { AtlasLeadershipAnswer } from "./atlas-leadership-answer.js";
 import { CsvIngestion } from "./csv-ingestion.js";
 import { XlsxIngestion } from "./xlsx-ingestion.js";
 import { savedScalarReconciliationLink } from "./scalar-reconciliation.js";
@@ -1070,6 +1071,12 @@ function App() {
                     auth.data?.mode === "development" && auth.data.dataMode === "synthetic" &&
                     me.data?.roles.includes("project_manager") &&
                     <AtlasPmApproval projectId={project.data.id}
+                      scope={JSON.stringify([renderedSessionGeneration, selectionEpoch, me.data.subject])}
+                      request={projectRequest} isCurrent={isCurrentProjectAdmission} />}
+                  {projectVisible && project.data?.code === atlasReviewProjectCode &&
+                    auth.data?.mode === "development" && auth.data.dataMode === "synthetic" &&
+                    me.data?.roles.includes("leadership") &&
+                    <AtlasLeadershipAnswer projectId={project.data.id}
                       scope={JSON.stringify([renderedSessionGeneration, selectionEpoch, me.data.subject])}
                       request={projectRequest} isCurrent={isCurrentProjectAdmission} />}
                   {retainedProject && (

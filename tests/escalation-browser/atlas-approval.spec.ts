@@ -1,11 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { createDatabase, DatabaseProjectFactRepository } from "../../packages/data/dist/index.js";
 
-test("Atlas contributor confirms a reply and the assigned PM records one simulated comment", async ({ page, request }) => {
+test("Atlas reply, simulated receipt, and authorized leadership answer share the same evidence", async ({ page, request }) => {
   const fixture = JSON.parse(readFileSync(process.env.PDAA_ESCALATION_FIXTURE_PATH!, "utf8"));
   const projectPath = `/api/projects/${fixture.projectId}`;
   const receiptPath = projectPath + "/atlas-comment-receipt";
+  const answerPath = projectPath + "/atlas-leadership-answer";
+  const invitationPath = "/api/project-update-invitations/" + fixture.request.locator;
   await page.goto("/update-requests/" + fixture.request.locator);
   await page.getByRole("button", { name: /Atlas contributor/ }).click();
   const reply = page.getByRole("textbox", { name: "Your update (unconfirmed)" });
@@ -36,6 +39,12 @@ test("Atlas contributor confirms a reply and the assigned PM records one simulat
   expect(leader.status()).toBe(200);
   const leaderHeaders = { Authorization: "Bearer " + (await leader.json()).token };
   expect((await request.get(projectPath, { headers: leaderHeaders })).status()).toBe(200);
+  expect((await request.get(invitationPath, { headers: leaderHeaders })).status()).toBe(404);
+  const beforeApproval = await request.get(answerPath, { headers: leaderHeaders });
+  expect(beforeApproval.status()).toBe(200);
+  expect(await beforeApproval.json()).toMatchObject({
+    schedule: { baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 }, ownerReply: null, receipt: null,
+  });
   const denied = await request.post(projectPath + "/atlas-approval", {
     headers: leaderHeaders, data: { approvalId, decision: "APPROVED" },
   });
@@ -44,6 +53,7 @@ test("Atlas contributor confirms a reply and the assigned PM records one simulat
   const manager = await request.post("/api/auth/development", { data: { persona: "pm-atlas" } });
   expect(manager.status()).toBe(200);
   const managerHeaders = { Authorization: "Bearer " + (await manager.json()).token };
+  expect((await request.get(answerPath, { headers: managerHeaders })).status()).toBe(404);
   const record = () => request.post(receiptPath, { headers: managerHeaders, data: { approvalId } });
   expect((await record()).status()).toBe(409);
 
@@ -85,10 +95,30 @@ test("Atlas contributor confirms a reply and the assigned PM records one simulat
   expect(await freshView.json()).toMatchObject({ receipt });
   expect(await (await record()).json()).toEqual(receipt);
 
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto("/");
+  await page.getByRole("button", { name: /Leadership/ }).click();
+  await page.getByRole("button", { name: /Atlas · Delivery approval/ }).click();
+  const answer = page.getByRole("region", { name: "Atlas leadership answer" });
+  await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
+  await expect(answer).toContainText("14 days later");
+  await expect(answer).toContainText("API access was pending at the time of the reply");
+  await expect(answer).toContainText("cause of the schedule change and confidence in the forecast remain unknown");
+  for (const [label, evidence] of [
+    ["Schedule evidence", "Baseline 2026-10-15. Forecast 2026-10-29."],
+    ["Reply evidence", "Human-confirmed owner reply"],
+    ["Receipt evidence", receipt.id],
+  ]) {
+    const link = answer.getByRole("link", { name: label! });
+    const anchor = await link.getAttribute("href");
+    expect(anchor).toMatch(/^#atlas-/);
+    await expect(answer.locator(anchor!)).toContainText(evidence!);
+  }
+  await expect(page.locator("body")).not.toContainText(text);
+
   const owner = await request.post("/api/auth/development", { data: { persona: "owner-atlas" } });
   expect(owner.status()).toBe(200);
   const ownerHeaders = { Authorization: "Bearer " + (await owner.json()).token };
-  const invitationPath = "/api/project-update-invitations/" + fixture.request.locator;
   const laterReply = await request.post(invitationPath + "/responses", { headers: ownerHeaders, data: {
     text: "Infrastructure restored API access.", idempotencyKey: randomUUID(), correctsResponseId: null,
   } });
@@ -104,4 +134,22 @@ test("Atlas contributor confirms a reply and the assigned PM records one simulat
     sourceRevision: 1, currentComment: "The Atlas owner confirmed that API access is still pending.",
     decision: "PENDING", receipt: null,
   });
+  const pending = await request.get(answerPath, { headers: leaderHeaders });
+  expect(pending.status()).toBe(200);
+  expect(await pending.json()).toMatchObject({ ownerReply: null, receipt: null });
+
+  const target = new URL(process.env.PDAA_ESCALATION_BROWSER_DATABASE_URL!);
+  expect(["127.0.0.1", "localhost"]).toContain(target.hostname);
+  expect(target.pathname).toMatch(/^\/pdaa_test_[0-9]+$/);
+  const db = createDatabase(target.toString());
+  try {
+    const access = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: fixture.sourceA.sourceId } });
+    await new DatabaseProjectFactRepository(db).setSourceAccess(fixture.admin, {
+      projectId: fixture.projectId, sourceId: fixture.sourceA.sourceId, expectedRevision: access.revision,
+      state: "AVAILABLE", readers: fixture.readers.filter((subject: string) => subject !== "leader-atlas"),
+    }, { correlationId: randomUUID() });
+    expect((await request.get(answerPath, { headers: leaderHeaders })).status()).toBe(404);
+  } finally {
+    await db.$disconnect();
+  }
 });
