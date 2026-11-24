@@ -1,4 +1,4 @@
-import type { AtlasApprovalView, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { AtlasApprovalView, AtlasCommentReceipt, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -80,13 +80,27 @@ export function decodeInvitation(value: unknown): ProjectUpdateRecipientRequestV
   return { ...value, escalationContext: value.escalationContext ?? null } as ProjectUpdateRecipientRequestView;
 }
 
+export function decodeAtlasCommentReceipt(value: unknown): AtlasCommentReceipt | null {
+  if (!object(value) || !keys(value, ["id", "approvalId", "target", "fixtureRevision", "recordedAt", "result"]) ||
+      !uuid(value.id) || !uuid(value.approvalId) || value.target !== "ATLAS-248" ||
+      !Number.isSafeInteger(value.fixtureRevision) || Number(value.fixtureRevision) < 1 ||
+      !instant(value.recordedAt) || value.result !== "SIMULATED") return null;
+  return value as AtlasCommentReceipt;
+}
+
 export function decodeAtlasApproval(value: unknown): AtlasApprovalView | null {
   if (!object(value) || !keys(value, ["approvalId", "responseId", "replyReceivedAt", "confirmedBy", "approver",
-    "accessStatus", "target", "currentComment", "proposedComment", "expiresAt", "decision"]) ||
+    "accessStatus", "target", "currentComment", "proposedComment", "sourceRevision", "expiresAt", "decision", "receipt"]) ||
     !uuid(value.approvalId) || !uuid(value.responseId) || !instant(value.replyReceivedAt) || !instant(value.expiresAt) ||
     !subject(value.confirmedBy) || !subject(value.approver) || !accessStatus(value.accessStatus) ||
-    value.target !== "ATLAS-248" || value.currentComment !== null || !label(value.proposedComment, 160) ||
+    value.target !== "ATLAS-248" || !(value.currentComment === null || label(value.currentComment, 160)) ||
+    !label(value.proposedComment, 160) || !Number.isSafeInteger(value.sourceRevision) || Number(value.sourceRevision) < 0 ||
     !(value.decision === "PENDING" || value.decision === "APPROVED" || value.decision === "REJECTED")) return null;
+  if (value.receipt !== null) {
+    const receipt = decodeAtlasCommentReceipt(value.receipt);
+    if (!receipt || value.decision !== "APPROVED" || receipt.approvalId !== value.approvalId ||
+        receipt.fixtureRevision !== Number(value.sourceRevision) + 1) return null;
+  }
   return value as AtlasApprovalView;
 }
 

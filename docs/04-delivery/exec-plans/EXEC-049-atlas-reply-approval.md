@@ -15,12 +15,13 @@ status and hand the result to the assigned PM for a decision.
 ## In scope
 
 Atlas API access status, interpretation confirmation, the ATLAS-248 comment
-diff and a simulated PM approval or rejection.
+diff, a simulated PM approval or rejection, and receipt for recording an
+approved simulated comment.
 
 ## Out of scope
 
 Live providers, canonical fact writes, reminder suppression, live Jira
-onboarding and comment processing, arbitrary draft text, and execution receipts.
+onboarding and comment processing, arbitrary draft text, and live action receipts.
 The full release stories and customer decisions remain open.
 
 ## Current state
@@ -108,4 +109,28 @@ Record exact candidate and browser results with the PR.
 
 ## Completion summary
 
-The requested milestone ends at a stored synthetic PM decision.
+PR #190 delivered the stored synthetic PM decision on main at `e28a8c9`.
+
+## Synthetic comment receipt
+
+This follow-up exercises FR-APP-005/007/008/010, FR-WRB-004/007 and
+NFR-REL-001 in the existing Atlas fixture. The owner confirmation snapshots
+the current revision and prior comment. The PM approves that diff. On a
+separate explicit action, the same scoped PM can record the approved comment
+against the fixture after the server rechecks the reply, current source access,
+approval expiry, approved payload digest, and exact fixture revision and
+base comment. Revision zero represents the empty fixture shown by PR #190,
+so an older stored approval remains usable while the fixture is still empty.
+
+The existing project lock serializes those checks and the append-only audit
+insert. The insert is both the simulated write and its receipt. A retry of
+the current approval returns its existing receipt. A new reply requires
+another confirmation and decision. The receipt stores the linked response,
+decision, digest, revision and audit context. No connector operation,
+dependency, migration or live scope is introduced. A source conflict returns
+409 without recording a comment. When reverting, use a fresh disposable demo
+fixture or restore its pre-change copy. The older build expects the previous
+audit record shapes. The existing database retains the audit history.
+
+Extend the existing Atlas browser journey to check pre-approval and leadership
+denial, persisted receipt replay, and a fresh diff after the owner replies again.

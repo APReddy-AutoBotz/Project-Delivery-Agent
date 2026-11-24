@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { atlasApprovalProjectCode, AtlasAccessStatus } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
 import type { RequestFn } from "./request-types.js";
-import { decodeAtlasApproval } from "./project-update-invitation-decoder.js";
+import { decodeAtlasApproval, decodeAtlasCommentReceipt } from "./project-update-invitation-decoder.js";
 
 export const atlasReviewProjectCode: typeof atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
 
@@ -81,18 +81,23 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
     return () => window.clearTimeout(timer);
   }, [expiresAt, refresh]);
 
-  async function decide(decision: "APPROVED" | "REJECTED") {
-    if (!proposal || proposal.decision !== "PENDING" || sending.current || !isCurrent() ||
-        Date.now() >= Date.parse(proposal.expiresAt)) return;
+  async function submit(decision?: "APPROVED" | "REJECTED") {
+    if (!proposal || sending.current || !isCurrent() || Date.now() >= Date.parse(proposal.expiresAt)) return;
+    if (decision ? proposal.decision !== "PENDING" : proposal.decision !== "APPROVED" || proposal.receipt) return;
     sending.current = true;
     setBusy(true);
     setFailed(false);
     try {
-      const result = decodeAtlasApproval(await request(path, {
-        method: "POST", body: JSON.stringify({ approvalId: proposal.approvalId, decision }),
-      }, 4096, undefined, undefined, isCurrent));
-      if (result?.approvalId !== proposal.approvalId || result.decision !== decision)
-        throw new Error("Atlas decision could not be verified");
+      const raw = await request(decision ? path : `/projects/${projectId}/atlas-comment-receipt`, {
+        method: "POST", body: JSON.stringify({ approvalId: proposal.approvalId, ...(decision && { decision }) }),
+      }, 4096, undefined, undefined, isCurrent);
+      if (decision) {
+        const result = decodeAtlasApproval(raw);
+        if (result?.approvalId !== proposal.approvalId || result.decision !== decision)
+          throw new Error("Atlas decision could not be verified");
+      } else if (decodeAtlasCommentReceipt(raw)?.approvalId !== proposal.approvalId) {
+        throw new Error("Atlas receipt could not be verified");
+      }
     } catch {
       if (isCurrent()) setFailed(true);
     } finally {
@@ -112,7 +117,7 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
     {proposal && <>
       <dl>
         <dt>Jira fixture</dt><dd>{proposal.target}</dd>
-        <dt>Current comment</dt><dd>No comment in the fixture.</dd>
+        <dt>Current comment at revision {proposal.sourceRevision}</dt><dd>{proposal.currentComment ?? "No comment in the fixture."}</dd>
         <dt>Proposed comment</dt><dd>{proposal.proposedComment}</dd>
         <dt>Evidence</dt><dd>Reply from {proposal.confirmedBy} received at {proposal.replyReceivedAt}</dd>
         <dt>Required approver</dt><dd>{proposal.approver}</dd>
@@ -121,10 +126,20 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
       <p>This decision applies to the demo Jira fixture.</p>
       {proposal.decision !== "PENDING" ? <Message>{proposal.decision === "APPROVED" ? "Demo approval recorded." : "Demo rejection recorded."}</Message>
         : <div className="actions">
-          <Button className="primary" disabled={busy || expired} onClick={() => void decide("APPROVED")}>Approve demo comment</Button>
-          <Button className="secondary" disabled={busy || expired} onClick={() => void decide("REJECTED")}>Reject demo comment</Button>
+          <Button className="primary" disabled={busy || expired} onClick={() => void submit("APPROVED")}>Approve demo comment</Button>
+          <Button className="secondary" disabled={busy || expired} onClick={() => void submit("REJECTED")}>Reject demo comment</Button>
         </div>}
+      {proposal.decision === "APPROVED" && !proposal.receipt &&
+        <Button className="primary" disabled={busy || expired} onClick={() => void submit()}>Record simulated comment</Button>}
+      {proposal.receipt && <section aria-label="Simulated comment receipt">
+        <h3>Simulated comment recorded</h3>
+        <dl>
+          <dt>Receipt ID</dt><dd>{proposal.receipt.id}</dd>
+          <dt>Fixture revision</dt><dd>{proposal.receipt.fixtureRevision}</dd>
+          <dt>Recorded at</dt><dd>{proposal.receipt.recordedAt}</dd>
+        </dl>
+      </section>}
     </>}
-    {failed && <Message error>Could not verify the decision. Review the current proposal before retrying.</Message>}
+    {failed && <Message error>Could not verify the Atlas update. Review the current proposal before retrying.</Message>}
   </section>;
 }

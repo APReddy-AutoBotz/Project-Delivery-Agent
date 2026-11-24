@@ -15,6 +15,16 @@ export const atlasApprovalDecisionSchema = z.strictObject({
   approvalId: z.uuid(),
   decision: z.enum(["APPROVED", "REJECTED"]),
 });
+export const atlasCommentCommandSchema = z.strictObject({ approvalId: z.uuid() });
+export const atlasCommentReceiptSchema = z.strictObject({
+  id: z.uuid(),
+  approvalId: z.uuid(),
+  target: z.literal("ATLAS-248"),
+  fixtureRevision: z.number().int().min(1),
+  recordedAt: z.iso.datetime(),
+  result: z.literal("SIMULATED"),
+});
+export type AtlasCommentReceipt = z.infer<typeof atlasCommentReceiptSchema>;
 export const atlasApprovalViewSchema = z.strictObject({
   approvalId: z.uuid(),
   responseId: z.uuid(),
@@ -23,10 +33,12 @@ export const atlasApprovalViewSchema = z.strictObject({
   approver: canonicalSubjectSchema,
   accessStatus: atlasAccessStatusSchema,
   target: z.literal("ATLAS-248"),
-  currentComment: z.null(),
+  currentComment: z.string().nullable(),
   proposedComment: z.string(),
+  sourceRevision: z.number().int().nonnegative(),
   expiresAt: z.iso.datetime(),
   decision: z.enum(["PENDING", "APPROVED", "REJECTED"]),
+  receipt: atlasCommentReceiptSchema.nullable(),
 });
 export type AtlasApprovalView = z.infer<typeof atlasApprovalViewSchema>;
 
