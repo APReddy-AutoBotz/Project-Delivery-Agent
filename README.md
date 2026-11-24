@@ -105,9 +105,9 @@ See [Release 1 Vertical Slice](docs/04-delivery/RELEASE-1-VERTICAL-SLICE.md) and
 
 ## Current status
 
-This repository contains an approved implementation contract and a runnable **synthetic development foundation**: web/API/worker, database, identity validation, scoped access, encrypted credentials and audit protection. Accepted-story totals remain R0 3/5 (60%) and R1 2/33 (6.1%), overall 5/38 (13.2%). See the [implementation ledger](docs/04-delivery/IMPLEMENTATION_STATUS.md) for merged increments and their remaining acceptance gates. Foundation release and customer deployment acceptance remain open.
+The web app, API and worker run against synthetic project data. Merged workflows include reviewed spreadsheet import, scoped evidence and project health, update capture, a PM action queue and bounded leadership conflict answers. The next delivery milestone connects an owner reply to PM approval, an action receipt and an evidence-backed management view.
 
-[EXEC-018](docs/04-delivery/exec-plans/EXEC-018-authorized-completeness-inputs.md) corrects how persisted completeness counts authorized existing evidence, with native privacy and API/browser regressions. Its [validation record](docs/05-quality/AUTHORIZED_COMPLETENESS_VALIDATION.md) distinguishes executed checks from pending review/CI. Research capture stays stopped; live Jira/OAuth and source publication remain gated.
+See the [implementation ledger](docs/04-delivery/IMPLEMENTATION_STATUS.md) for current accepted-story totals, the delivery sequence and customer release holds.
 
 | Area | Status |
 |---|---|
@@ -120,7 +120,7 @@ This repository contains an approved implementation contract and a runnable **sy
 | Machine-readable requirements and traceability | Available |
 | Documentation validation | 245 requirements, 91 criteria, no Must coverage gap |
 | Independent baseline review | Exact candidate approved; PR #2 merged with passing checks |
-| Application implementation | Five accepted stories; two R0 stories and 31 R1 stories remain pending |
+| Application implementation | Merged capabilities and remaining acceptance work are tracked in the implementation ledger |
 
 See [local setup](docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md), [implementation status](docs/04-delivery/IMPLEMENTATION_STATUS.md), and [foundation evidence](docs/05-quality/FOUNDATION_VALIDATION.md). Customer deployment and real-data integrations remain gated by the approved baseline and required review evidence.
 
