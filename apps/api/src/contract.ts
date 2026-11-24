@@ -81,6 +81,8 @@ import {
   atlasReplyConfirmationSchema,
   atlasApprovalDecisionSchema,
   atlasApprovalViewSchema,
+  atlasCommentCommandSchema,
+  atlasCommentReceiptSchema,
   projectUpdateCaptureHistorySchema,
   projectUpdateCaptureGenerationSchema,
   ingestionReassessmentRetrySchema,
@@ -249,6 +251,10 @@ export const contracts: Record<string, RouteContract> = {
   },
   "post /api/projects/{id}/atlas-approval": {
     status: 200, request: atlasApprovalDecisionSchema, response: atlasApprovalViewSchema,
+    parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
+  },
+  "post /api/projects/{id}/atlas-comment-receipt": {
+    status: 200, request: atlasCommentCommandSchema, response: atlasCommentReceiptSchema,
     parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
   },
   "get /api/projects/{id}/project-update-capture-history": {

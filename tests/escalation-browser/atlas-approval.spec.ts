@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-test("Atlas contributor confirms a captured reply and the assigned PM records the decision", async ({ page, request }) => {
+test("Atlas contributor confirms a reply and the assigned PM records one simulated comment", async ({ page, request }) => {
   const fixture = JSON.parse(readFileSync(process.env.PDAA_ESCALATION_FIXTURE_PATH!, "utf8"));
   const projectPath = `/api/projects/${fixture.projectId}`;
+  const receiptPath = projectPath + "/atlas-comment-receipt";
   await page.goto("/update-requests/" + fixture.request.locator);
   await page.getByRole("button", { name: /Atlas contributor/ }).click();
   const reply = page.getByRole("textbox", { name: "Your update (unconfirmed)" });
@@ -38,6 +40,12 @@ test("Atlas contributor confirms a captured reply and the assigned PM records th
     headers: leaderHeaders, data: { approvalId, decision: "APPROVED" },
   });
   expect(denied.status()).toBe(404);
+  expect((await request.post(receiptPath, { headers: leaderHeaders, data: { approvalId } })).status()).toBe(404);
+  const manager = await request.post("/api/auth/development", { data: { persona: "pm-atlas" } });
+  expect(manager.status()).toBe(200);
+  const managerHeaders = { Authorization: "Bearer " + (await manager.json()).token };
+  const record = () => request.post(receiptPath, { headers: managerHeaders, data: { approvalId } });
+  expect((await record()).status()).toBe(409);
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.goto("/");
@@ -51,14 +59,11 @@ test("Atlas contributor confirms a captured reply and the assigned PM records th
   await approval.getByRole("button", { name: "Approve demo comment" }).click();
   await expect(approval).toContainText("Demo approval recorded.");
   await expect(approval.getByRole("button", { name: "Approve demo comment" })).toHaveCount(0);
-  const manager = await request.post("/api/auth/development", { data: { persona: "pm-atlas" } });
-  expect(manager.status()).toBe(200);
-  const managerHeaders = { Authorization: "Bearer " + (await manager.json()).token };
   const persisted = await request.get(projectPath + "/atlas-approval", {
     headers: managerHeaders,
   });
   expect(persisted.status()).toBe(200);
-  expect(await persisted.json()).toMatchObject({ approvalId, decision: "APPROVED", approver: "pm-atlas" });
+  expect(await persisted.json()).toMatchObject({ approvalId, decision: "APPROVED", approver: "pm-atlas", receipt: null });
   const replay = await request.post(projectPath + "/atlas-approval", {
     headers: managerHeaders, data: { approvalId, decision: "APPROVED" },
   });
@@ -67,4 +72,36 @@ test("Atlas contributor confirms a captured reply and the assigned PM records th
     headers: managerHeaders, data: { approvalId, decision: "REJECTED" },
   });
   expect(conflicting.status()).toBe(409);
+
+  await approval.getByRole("button", { name: "Record simulated comment" }).click();
+  const receiptPanel = approval.getByRole("region", { name: "Simulated comment receipt" });
+  await expect(receiptPanel).toContainText("Simulated comment recorded");
+  const firstReplay = await record();
+  expect(firstReplay.status()).toBe(200);
+  const receipt = await firstReplay.json();
+  expect(receipt).toMatchObject({ approvalId, target: "ATLAS-248", fixtureRevision: 1, result: "SIMULATED" });
+  await expect(receiptPanel).toContainText(receipt.id);
+  const freshView = await request.get(projectPath + "/atlas-approval", { headers: managerHeaders });
+  expect(await freshView.json()).toMatchObject({ receipt });
+  expect(await (await record()).json()).toEqual(receipt);
+
+  const owner = await request.post("/api/auth/development", { data: { persona: "owner-atlas" } });
+  expect(owner.status()).toBe(200);
+  const ownerHeaders = { Authorization: "Bearer " + (await owner.json()).token };
+  const invitationPath = "/api/project-update-invitations/" + fixture.request.locator;
+  const laterReply = await request.post(invitationPath + "/responses", { headers: ownerHeaders, data: {
+    text: "Infrastructure restored API access.", idempotencyKey: randomUUID(), correctsResponseId: null,
+  } });
+  expect(laterReply.status()).toBe(201);
+  expect((await record()).status()).toBe(409);
+  const laterConfirmation = await request.post(invitationPath + "/atlas-confirmation", { headers: ownerHeaders, data: {
+    responseId: (await laterReply.json()).responseId, accessStatus: "ACCESS_RESTORED",
+  } });
+  expect(laterConfirmation.status()).toBe(200);
+  const nextPreview = await request.get(projectPath + "/atlas-approval", { headers: managerHeaders });
+  expect(nextPreview.status()).toBe(200);
+  expect(await nextPreview.json()).toMatchObject({
+    sourceRevision: 1, currentComment: "The Atlas owner confirmed that API access is still pending.",
+    decision: "PENDING", receipt: null,
+  });
 });

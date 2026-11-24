@@ -48,6 +48,7 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async confirmAtlasReply() { throw new ProjectUpdateError("DENIED"); },
   async atlasApproval() { throw new ProjectUpdateError("DENIED"); },
   async decideAtlasApproval() { throw new ProjectUpdateError("DENIED"); },
+  async recordAtlasComment() { throw new ProjectUpdateError("DENIED"); },
   async captureHistory() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async purgeCaptureContent() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async beginCaptureGeneration() { throw new ProjectUpdateError("UNAVAILABLE"); },
@@ -112,6 +113,13 @@ export class ProjectUpdateController {
   async decideAtlasApproval(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
     const actor = await this.actor(req);
     return this.run(() => this.repository.decideAtlasApproval(actor, this.projectId(rawId), body, req.correlationId));
+  }
+
+  @Post("atlas-comment-receipt")
+  @HttpCode(200)
+  async recordAtlasComment(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    return this.run(() => this.repository.recordAtlasComment(actor, this.projectId(rawId), body, req.correlationId));
   }
 
   @Get("update-suggestions")

@@ -1,6 +1,6 @@
 // TR-API-001: application port depends on contracts without schema cycles.
 import type { Actor } from "./actor.js";
-import type { AtlasApprovalView } from "./atlas-update-approval.js";
+import type { AtlasApprovalView, AtlasCommentReceipt } from "./atlas-update-approval.js";
 import type { IngestionReassessmentRetry, IngestionReassessmentItem, IngestionReassessmentPage } from "./ingestion-reassessment.js";
 import type { ProjectUpdateEngagementView } from "./project-update-engagement.js";
 import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "./project-update-capture.js";
@@ -26,6 +26,7 @@ export interface ProjectUpdateRepository {
   confirmAtlasReply(actor: Actor, locator: string, confirmation: unknown, correlationId: string): Promise<{ approvalId: string }>;
   atlasApproval(actor: Actor, projectId: string): Promise<AtlasApprovalView | null>;
   decideAtlasApproval(actor: Actor, projectId: string, decision: unknown, correlationId: string): Promise<AtlasApprovalView>;
+  recordAtlasComment(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasCommentReceipt>;
   captureHistory(actor: Actor, projectId: string, cursor?: string | null): Promise<ProjectUpdateCaptureHistory>;
   purgeCaptureContent(): Promise<number>;
   beginCaptureGeneration(actor: Actor, projectId: string, change: unknown, correlationId: string): Promise<ProjectUpdateEngagementView>;
