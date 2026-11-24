@@ -134,3 +134,27 @@ audit record shapes. The existing database retains the audit history.
 
 Extend the existing Atlas browser journey to check pre-approval and leadership
 denial, persisted receipt replay, and a fresh diff after the owner replies again.
+
+## Cited leadership answer
+
+The next synthetic milestone covers portions of FR-QA-001/003/004/005/006/008/009
+and NFR-SEC-001 in [Issue #12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12).
+The question is fixed and scoped to the selected Atlas fixture. The server reads
+the sealed synthetic schedule, computes calendar-day movement, and publishes
+the latest owner-confirmed status and its simulated receipt when the PM's
+approval and the underlying source access remain valid. The schedule, reply,
+and receipt have separate citations. The answer gives the reply timestamp and
+check time. The cause of the schedule movement and confidence in the forecast
+remain unknown on the available records.
+
+Require a current leadership grant and current readership of the captured
+dependencies. Leadership receives the structured reply reference and receipt
+from the approved fixture. The raw reply and invitation contents retain their
+existing readership. Revalidate on query, focus and expiry. No migration,
+dependency, model provider, connector scope, or external action is introduced.
+The customer-facing Q&A stories and GOLDEN-001 remain open.
+
+The existing Atlas journey checks the 14-day calculation, citation targets, raw
+reply withholding, responder and PM separation, and denial after a source
+reader is removed. A code revert removes the leadership question and keeps
+the approval and receipt data compatible.

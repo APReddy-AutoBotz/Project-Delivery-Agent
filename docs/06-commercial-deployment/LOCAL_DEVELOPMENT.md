@@ -41,8 +41,9 @@ invitation URL on port 5174. Sign in as the Atlas contributor and record a
 reply. Confirm the API access status. Sign out, open the app home page, and
 sign in as the project manager. Open **Atlas · Delivery approval** to review
 the ATLAS-248 comment and record the demo decision. After approval, select
-**Record simulated comment** to see the receipt and fixture revision. Stop
-the harness with Ctrl+C.
+**Record simulated comment** to see the receipt and fixture revision. Sign out
+and sign in as Leadership to ask **Why is Atlas delayed?** on the same project
+and inspect the cited schedule, reply and receipt. Stop the harness with Ctrl+C.
 
 ## Validation
 

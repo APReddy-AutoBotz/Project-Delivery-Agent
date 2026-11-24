@@ -42,6 +42,25 @@ export const atlasApprovalViewSchema = z.strictObject({
 });
 export type AtlasApprovalView = z.infer<typeof atlasApprovalViewSchema>;
 
+export const atlasLeadershipAnswerSchema = z.strictObject({
+  projectId: z.uuid(),
+  asOf: z.iso.datetime(),
+  schedule: z.strictObject({
+    revision: z.number().int().min(1),
+    baseline: z.iso.date().nullable(),
+    forecast: z.iso.date().nullable(),
+    movementDays: z.number().int().nullable(),
+  }).nullable(),
+  ownerReply: z.strictObject({
+    responseId: z.uuid(),
+    receivedAt: z.iso.datetime(),
+    availableUntil: z.iso.datetime(),
+    accessStatus: atlasAccessStatusSchema,
+  }).nullable(),
+  receipt: atlasCommentReceiptSchema.nullable(),
+});
+export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
+
 export function suggestAtlasAccessStatus(reply: string): AtlasAccessStatus | null {
   // Match the fixture's explicit answer only. Other wording needs owner review.
   switch (reply.trim()) {

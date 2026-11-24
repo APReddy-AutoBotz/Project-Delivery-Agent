@@ -50,6 +50,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       assert(isolatedCustomer);
       canonical.code = atlasApprovalProjectCode;
       canonical.name = "Atlas · Delivery approval";
+      canonical.dates = { ...canonical.dates, baselineEnd: "2026-10-15", forecastEnd: "2026-10-29" };
     }
     canonical.responsibilities = canonical.responsibilities.map((entry) =>
       entry.role === "PROJECT_MANAGER" ? { ...entry, subject: pm.subject, displayName: "Synthetic escalation PM" }
@@ -86,6 +87,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     const sourceMarkerA = "HISTORICAL_SOURCE_A_" + randomUUID();
     const sourceMarkerB = "CURRENT_SOURCE_B_" + randomUUID();
     const readers = [admin.subject, writer.subject, owner.subject, pm.subject, service];
+    if (atlasApproval) readers.push("leader-atlas");
     const append = async (actor, marker) => {
       const fact = await db.projectFact.findFirst({ where: { customerId, projectId, factType: "project.status" } });
       const result = await facts.appendHumanStatement(actor, { projectId, factType: "project.status",

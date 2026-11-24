@@ -1,4 +1,4 @@
-import type { AtlasApprovalView, AtlasCommentReceipt, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -102,6 +102,23 @@ export function decodeAtlasApproval(value: unknown): AtlasApprovalView | null {
         receipt.fixtureRevision !== Number(value.sourceRevision) + 1) return null;
   }
   return value as AtlasApprovalView;
+}
+
+export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
+  if (!object(value) || !keys(value, ["projectId", "asOf", "schedule", "ownerReply", "receipt"]) ||
+      value.projectId !== projectId || !instant(value.asOf)) return null;
+  const date = (input: unknown) => input === null || (typeof input === "string" && instant(input + "T00:00:00.000Z"));
+  const schedule = value.schedule;
+  if (schedule !== null && (!object(schedule) || !keys(schedule, ["revision", "baseline", "forecast", "movementDays"]) ||
+      !Number.isSafeInteger(schedule.revision) || Number(schedule.revision) < 1 ||
+      !date(schedule.baseline) || !date(schedule.forecast) ||
+      !(schedule.movementDays === null || Number.isSafeInteger(schedule.movementDays)))) return null;
+  const reply = value.ownerReply;
+  if (reply !== null && (!object(reply) || !keys(reply, ["responseId", "receivedAt", "availableUntil", "accessStatus"]) ||
+      !uuid(reply.responseId) || !instant(reply.receivedAt) || !instant(reply.availableUntil) ||
+      Date.parse(reply.availableUntil) <= Date.parse(value.asOf) || !accessStatus(reply.accessStatus))) return null;
+  if (value.receipt !== null && (reply === null || !decodeAtlasCommentReceipt(value.receipt))) return null;
+  return value as AtlasLeadershipAnswer;
 }
 
 export function decodeInvitationReceipt(value: unknown, requestId: string): ProjectUpdateResponseReceipt | null {

@@ -12,6 +12,7 @@ import {
   atlasApprovalDecisionSchema, atlasApprovalProjectCode, atlasApprovalViewSchema, atlasComment,
   atlasCommentTemplate, atlasReplyConfirmationSchema,
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
+  atlasLeadershipAnswerSchema, calendarDayDifference,
   suggestAtlasAccessStatus,
   type ProjectUpdateCaptureConfiguration, type ProjectUpdateRecipientRequestView,
   type ProjectUpdateResponseReceipt, type ProjectUpdateCaptureHistory,
@@ -83,7 +84,7 @@ type CaptureInvitationRow = {
   invitationId: string; requestId: string; recipientSubject: string; issuanceEpoch: string;
   issuedAt: Date; expiresAt: Date; capturedAt: Date; purgeAfter: Date;
   contentRetentionSeconds: number; reviewerSubjects: string[]; requiredFacts: unknown; dependencies: unknown;
-  body: string | null; contentState: "PRESENT" | "PURGED"; stageId: string;
+  body: string | null; hasContent: boolean; contentState: "PRESENT" | "PURGED"; stageId: string;
   stageKind: "REQUEST" | "REMINDER" | "ESCALATION"; recipientRole: "OWNER" | "PROJECT_MANAGER";
   logicalDueAt: Date; stageGeneration: number; policyRevision: number; ownerSubject: string;
   engagementState: string; engagementGeneration: number; obligationState: string;
@@ -1657,7 +1658,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       state: "UNCONFIRMED" as const, contentState: row.contentState, text: row.body }));
   }
 
-  private async authorizedInvitation(tx: Tx, current: Actor, locatorValue: string, atlasReview = false) {
+  private async authorizedInvitation(tx: Tx, current: Actor, locatorValue: string, atlasReview?: "pm" | "leadership") {
     const locator = projectUpdateInvitationLocatorSchema.safeParse(locatorValue);
     const configuration = this.captureConfiguration(current.customerId);
     if (!locator.success || !configuration) throw new ProjectUpdateError("DENIED");
@@ -1676,18 +1677,23 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (!projects[0] || !await this.captureGate(tx, current.customerId, configuration))
       throw new ProjectUpdateError("DENIED");
     const rows = await tx.$queryRawUnsafe<CaptureInvitationRow[]>(
-      'SELECT i.id AS "invitationId",i."requestId",i."recipientSubject",i."issuanceEpoch",i."issuedAt",i."expiresAt",r."capturedAt",r."purgeAfter",r."contentRetentionSeconds",r."reviewerSubjects",r."requiredFacts",r.dependencies,c.body,c.state AS "contentState",s.id AS "stageId",s.kind AS "stageKind",s."recipientRole",s."logicalDueAt",s.generation AS "stageGeneration",s."policyRevision",e."ownerSubject",e.state AS "engagementState",e.generation AS "engagementGeneration",o.state AS "obligationState",h.revision AS "currentPolicyRevision",b.state AS "outboxState",p.code,p.name FROM public."ProjectUpdateInvitation" i JOIN public."ProjectUpdateCapturedRequest" r ON r."customerId"=i."customerId" AND r."projectId"=i."projectId" AND r.id=i."requestId" JOIN public."ProjectUpdateRequestContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."requestId"=r.id JOIN public."ProjectUpdateStage" s ON s."customerId"=r."customerId" AND s."projectId"=r."projectId" AND s.id=r."stageId" JOIN public."ProjectUpdateEngagement" e ON e."customerId"=s."customerId" AND e."projectId"=s."projectId" AND e.id=s."engagementId" JOIN public."ProjectUpdateObligation" o ON o."customerId"=e."customerId" AND o."projectId"=e."projectId" AND o.id=e."obligationId" JOIN public."ProjectUpdatePolicy" h ON h."customerId"=e."customerId" AND h."projectId"=e."projectId" JOIN public."ProjectUpdateOutbox" b ON b."customerId"=s."customerId" AND b."projectId"=s."projectId" AND b."stageId"=s.id JOIN public."Project" p ON p."customerId"=s."customerId" AND p.id=s."projectId" WHERE i."customerId"=$1::uuid AND i."projectId"=$2::uuid AND i.locator=$3::uuid',
-      current.customerId, projectId, locator.data,
+      'SELECT i.id AS "invitationId",i."requestId",i."recipientSubject",i."issuanceEpoch",i."issuedAt",i."expiresAt",r."capturedAt",r."purgeAfter",r."contentRetentionSeconds",r."reviewerSubjects",r."requiredFacts",r.dependencies,CASE WHEN $4::boolean THEN NULL ELSE c.body END AS body,(c.body IS NOT NULL) AS "hasContent",c.state AS "contentState",s.id AS "stageId",s.kind AS "stageKind",s."recipientRole",s."logicalDueAt",s.generation AS "stageGeneration",s."policyRevision",e."ownerSubject",e.state AS "engagementState",e.generation AS "engagementGeneration",o.state AS "obligationState",h.revision AS "currentPolicyRevision",b.state AS "outboxState",p.code,p.name FROM public."ProjectUpdateInvitation" i JOIN public."ProjectUpdateCapturedRequest" r ON r."customerId"=i."customerId" AND r."projectId"=i."projectId" AND r.id=i."requestId" JOIN public."ProjectUpdateRequestContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."requestId"=r.id JOIN public."ProjectUpdateStage" s ON s."customerId"=r."customerId" AND s."projectId"=r."projectId" AND s.id=r."stageId" JOIN public."ProjectUpdateEngagement" e ON e."customerId"=s."customerId" AND e."projectId"=s."projectId" AND e.id=s."engagementId" JOIN public."ProjectUpdateObligation" o ON o."customerId"=e."customerId" AND o."projectId"=e."projectId" AND o.id=e."obligationId" JOIN public."ProjectUpdatePolicy" h ON h."customerId"=e."customerId" AND h."projectId"=e."projectId" JOIN public."ProjectUpdateOutbox" b ON b."customerId"=s."customerId" AND b."projectId"=s."projectId" AND b."stageId"=s.id JOIN public."Project" p ON p."customerId"=s."customerId" AND p.id=s."projectId" WHERE i."customerId"=$1::uuid AND i."projectId"=$2::uuid AND i.locator=$3::uuid',
+      current.customerId, projectId, locator.data, Boolean(atlasReview),
     );
     const row = rows[0];
     if (!row || (!atlasReview && row.recipientSubject !== current.subject)) throw new ProjectUpdateError("DENIED");
     const policy = await this.loadPolicy(tx, current.customerId, projectId, true);
     if (!policy) throw new ProjectUpdateError("DENIED");
-    if (atlasReview && (!this.atlasDemoEnabled || row.code !== atlasApprovalProjectCode ||
-        row.stageKind !== "REQUEST" || row.recipientRole !== "OWNER" ||
-        current.subject === row.recipientSubject || policy.escalationRecipientSubject !== current.subject ||
-        !await this.actorRecipientAuthorized(tx, current, projectId, "PROJECT_MANAGER")))
-      throw new ProjectUpdateError("DENIED");
+    if (atlasReview) {
+      const pm = policy.escalationRecipientSubject;
+      if (!this.atlasDemoEnabled || row.code !== atlasApprovalProjectCode || row.stageKind !== "REQUEST" ||
+          row.recipientRole !== "OWNER" || !pm || current.subject === row.recipientSubject || pm === row.recipientSubject)
+        throw new ProjectUpdateError("DENIED");
+      const reviewerAuthorized = atlasReview === "pm"
+        ? pm === current.subject && await this.actorRecipientAuthorized(tx, current, projectId, "PROJECT_MANAGER")
+        : await this.recipientAuthorized(tx, current.customerId, projectId, pm, "PROJECT_MANAGER");
+      if (!reviewerAuthorized) throw new ProjectUpdateError("DENIED");
+    }
     const recipientAuthorized = atlasReview
       ? await this.recipientAuthorized(tx, current.customerId, projectId, row.recipientSubject, row.recipientRole)
       : await this.actorRecipientAuthorized(tx, current, projectId, row.recipientRole);
@@ -1709,7 +1715,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       captureConfigured: true, issuanceEpochCurrent: row.issuanceEpoch === configuration.issuanceEpoch,
       restoreGateOpen: true, recipientReadsEveryDependency: recipientReadable.length === dependencies.length,
       viewerReadsEveryDependency: readable.length === dependencies.length,
-      contentAvailable: row.contentState === "PRESENT" && row.body !== null,
+      contentAvailable: row.contentState === "PRESENT" && row.hasContent,
       issuedAt: iso(row.issuedAt), expiresAt: iso(row.expiresAt),
       contentExpiresAt: iso(row.purgeAfter), asOf: iso(asOf),
     };
@@ -1940,12 +1946,17 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return { revision: event.fixtureRevision, comment: atlasComment(event.accessStatus) };
   }
 
-  private async loadAtlasApproval(tx: Tx, current: Actor, projectId: string) {
+  private async loadAtlasApproval(tx: Tx, current: Actor, projectId: string, audience: "pm" | "leadership" = "pm") {
     if (!this.atlasDemoEnabled) throw new ProjectUpdateError("DENIED");
     const projects = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM public."Project" WHERE "customerId"=${current.customerId}::uuid
         AND id=${projectId}::uuid AND code=${atlasApprovalProjectCode} FOR UPDATE`;
-    if (!projects[0] || !await this.actorRecipientAuthorized(tx, current, projectId, "PROJECT_MANAGER"))
+    if (!projects[0]) throw new ProjectUpdateError("DENIED");
+    if (audience === "leadership") {
+      if (current.roles.length !== 1 || current.roles[0] !== "leadership") throw new ProjectUpdateError("DENIED");
+      await this.authorize(tx, current, projectId, false);
+    }
+    else if (!await this.actorRecipientAuthorized(tx, current, projectId, "PROJECT_MANAGER"))
       throw new ProjectUpdateError("DENIED");
     const confirmed = await tx.auditEvent.findFirst({
       where: { customerId: current.customerId, event: atlasConfirmedEvent, detail: { path: ["projectId"], equals: projectId } },
@@ -1953,18 +1964,19 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     });
     if (!confirmed) return null;
     const detail = storedAtlasConfirmation.parse(confirmed.detail);
-    if (detail.approver !== current.subject) throw new ProjectUpdateError("DENIED");
+    if (audience === "pm" && detail.approver !== current.subject) throw new ProjectUpdateError("DENIED");
     const invitation = await tx.projectUpdateInvitation.findFirst({
       where: { customerId: current.customerId, projectId, requestId: detail.requestId }, select: { locator: true },
     });
     if (!invitation) throw new ProjectUpdateError("DENIED");
-    const { row, asOf } = await this.authorizedInvitation(tx, current, invitation.locator, true);
-    if (row.issuanceEpoch !== detail.captureIssuanceEpoch || row.recipientSubject !== confirmed.actor)
+    const { row, asOf, policy } = await this.authorizedInvitation(tx, current, invitation.locator, audience);
+    if (row.issuanceEpoch !== detail.captureIssuanceEpoch || row.recipientSubject !== confirmed.actor ||
+        policy.escalationRecipientSubject !== detail.approver)
       throw new ProjectUpdateError("DENIED");
     const latest = await this.latestAtlasReply(tx, current.customerId, projectId, row.requestId, asOf);
     if (latest?.id !== detail.responseId || latest.submittedBy !== confirmed.actor) return null;
     const decided = await tx.auditEvent.findFirst({
-      where: { customerId: current.customerId, actor: current.subject, event: atlasDecidedEvent, AND: [
+      where: { customerId: current.customerId, actor: detail.approver, event: atlasDecidedEvent, AND: [
         { detail: { path: ["projectId"], equals: projectId } },
         { detail: { path: ["approvalId"], equals: confirmed.id } },
       ] }, select: { id: true, detail: true },
@@ -1972,8 +1984,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const decision = decided ? storedAtlasDecision.parse(decided.detail) : null;
     if (decision && decision.captureIssuanceEpoch !== row.issuanceEpoch)
       throw new ProjectUpdateError("UNAVAILABLE");
+    if (audience === "leadership" && decision?.decision !== "APPROVED") return null;
     const recorded = await tx.auditEvent.findFirst({
-      where: { customerId: current.customerId, actor: current.subject, event: atlasCommentEvent, AND: [
+      where: { customerId: current.customerId, actor: detail.approver, event: atlasCommentEvent, AND: [
         { detail: { path: ["projectId"], equals: projectId } },
         { detail: { path: ["approvalId"], equals: confirmed.id } },
       ] }, select: { id: true, detail: true, occurredAt: true },
@@ -2008,6 +2021,33 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const current = parseActor(actorValue);
     const projectId = parseProjectId(projectValue);
     return this.transaction(async (tx) => (await this.loadAtlasApproval(tx, current, projectId))?.view ?? null, "ReadCommitted");
+  }
+
+  async atlasLeadershipAnswer(actorValue: Actor, projectValue: string) {
+    const actor = parseActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    if (!actor.roles.includes("leadership")) throw new ProjectUpdateError("DENIED");
+    const current: Actor = { ...actor, roles: ["leadership"] };
+    return this.transaction(async (tx) => {
+      const approved = await this.loadAtlasApproval(tx, current, projectId, "leadership");
+      const project = await tx.canonicalProject.findFirst({
+        where: { id: projectId, customerId: current.customerId, sealed: true },
+        select: { revision: true, baselineEnd: true, forecastEnd: true },
+      });
+      const baseline = project?.baselineEnd?.toISOString().slice(0, 10) ?? null;
+      const forecast = project?.forecastEnd?.toISOString().slice(0, 10) ?? null;
+      const asOf = await this.now(tx);
+      const view = approved?.view;
+      if (view && asOf >= new Date(view.expiresAt)) throw new ProjectUpdateError("DENIED");
+      return atlasLeadershipAnswerSchema.parse({
+        projectId, asOf: iso(asOf),
+        schedule: project ? { revision: project.revision, baseline, forecast,
+          movementDays: baseline && forecast ? calendarDayDifference(forecast, baseline) : null } : null,
+        ownerReply: view ? { responseId: view.responseId, receivedAt: view.replyReceivedAt, availableUntil: view.expiresAt,
+          accessStatus: view.accessStatus } : null,
+        receipt: view?.receipt ?? null,
+      });
+    }, "ReadCommitted");
   }
 
   async decideAtlasApproval(actorValue: Actor, projectValue: string, value: unknown, correlationValue: string) {

@@ -511,6 +511,14 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   decideAtlasApproval: vi.fn(async () => ({ ...atlasApprovalFixture, decision: "APPROVED" as const })),
   recordAtlasComment: vi.fn(async () => ({ id: project.id, approvalId: project.id, target: "ATLAS-248" as const,
     fixtureRevision: 1, recordedAt: "2026-10-01T12:02:00.000Z", result: "SIMULATED" as const })),
+  atlasLeadershipAnswer: vi.fn(async () => ({
+    projectId: project.id, asOf: "2026-10-01T12:03:00.000Z",
+    schedule: { revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 },
+    ownerReply: { responseId: project.id, receivedAt: "2026-10-01T12:01:00.000Z",
+      availableUntil: "2026-10-02T12:00:00.000Z", accessStatus: "ACCESS_PENDING" as const },
+    receipt: { id: project.id, approvalId: project.id, target: "ATLAS-248" as const,
+      fixtureRevision: 1, recordedAt: "2026-10-01T12:02:00.000Z", result: "SIMULATED" as const },
+  })),
   captureHistory: vi.fn(async () => ({ projectId: project.id, engagement: null, entries: [], nextCursor: null })),
   beginCaptureGeneration: vi.fn(async () => ({ projectId: project.id,
     engagementId: "40000000-0000-4000-8000-000000000110",
@@ -734,6 +742,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     { approvalId: project.id, decision: "APPROVED" });
   await request(`/api/projects/${project.id}/atlas-comment-receipt`, 200, manager, "POST",
     { approvalId: project.id });
+  await request(`/api/projects/${project.id}/atlas-leadership-answer`, 200, leader);
   await request(`/api/project-update-invitations/${project.id}/responses`, 201, manager, "POST", {
     text: "Synthetic unconfirmed response", idempotencyKey: "capture-contract", correctsResponseId: null,
   });
@@ -1013,7 +1022,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(81);
+  expect(covered.size).toBe(82);
   assertContractSnapshot(
     spec,
     JSON.parse(
