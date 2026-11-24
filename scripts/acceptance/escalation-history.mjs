@@ -4,12 +4,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectFactRepository,
   DatabaseAuthorityRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
-import { renderProjectUpdateCapture } from "../../packages/domain/dist/index.js";
+import { atlasApprovalProjectCode, renderProjectUpdateCapture } from "../../packages/domain/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
 const { Pool } = createRequire(new URL("../../packages/data/package.json", import.meta.url))("pg");
 
 export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = false, customerId: selectedCustomerId,
-  includeOlderCycle = false } = {}) {
+  includeOlderCycle = false, atlasApproval = false } = {}) {
   const target = new URL(databaseUrl);
   assert(process.env.NODE_ENV !== "production" && process.env.DATA_MODE === "synthetic");
   assert(["localhost", "127.0.0.1"].includes(target.hostname));
@@ -25,7 +25,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     else assert(await db.customer.findUnique({ where: { id: customerId } }));
     const admin = { customerId, subject: "escalation-reviewer-" + randomUUID(), roles: ["pmo_admin"] };
     const writer = { customerId, subject: "escalation-writer-" + randomUUID(), roles: ["pmo_admin"] };
-    const owner = { customerId, subject: "synthetic-owner-4", roles: ["contributor"] };
+    const owner = { customerId, subject: atlasApproval ? "owner-atlas" : "synthetic-owner-4", roles: ["contributor"] };
     // Match IdentityService's real development PM persona for the saved browser journey.
     const pm = { customerId, subject: "pm-atlas", roles: ["project_manager"] };
     const service = "escalation-service-" + randomUUID(), portfolioId = randomUUID();
@@ -46,13 +46,22 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
         return typeof value === "function" ? value.bind(object) : value;
       } })), options) };
     const canonical = canonicalFixture(portfolioId);
+    if (atlasApproval) {
+      assert(isolatedCustomer);
+      canonical.code = atlasApprovalProjectCode;
+      canonical.name = "Atlas · Delivery approval";
+    }
     canonical.responsibilities = canonical.responsibilities.map((entry) =>
-      entry.role === "PROJECT_MANAGER" ? { ...entry, subject: pm.subject, displayName: "Synthetic escalation PM" } : entry);
+      entry.role === "PROJECT_MANAGER" ? { ...entry, subject: pm.subject, displayName: "Synthetic escalation PM" }
+        : entry.role === "RESPONSIBLE_OWNER" && atlasApproval ? { ...entry, subject: owner.subject } : entry);
     const project = await new DatabaseCanonicalProjectRepository(birth).createProject(
       admin, canonical, randomUUID());
     const projectId = project.id;
     for (const actor of [owner, pm]) await db.accessGrant.create({ data: {
       customerId, subject: actor.subject, scopeType: "project", scopeId: projectId, role: actor.roles[0],
+    } });
+    if (atlasApproval) await db.accessGrant.create({ data: {
+      customerId, subject: "leader-atlas", scopeType: "project", scopeId: projectId, role: "leadership",
     } });
     const audit = async (connection, event, detail = {}) => {
       const id = randomUUID();

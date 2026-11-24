@@ -78,6 +78,9 @@ import {
   projectUpdateRecipientRequestViewSchema,
   projectUpdateResponseSubmissionSchema,
   projectUpdateResponseReceiptSchema,
+  atlasReplyConfirmationSchema,
+  atlasApprovalDecisionSchema,
+  atlasApprovalViewSchema,
   projectUpdateCaptureHistorySchema,
   projectUpdateCaptureGenerationSchema,
   ingestionReassessmentRetrySchema,
@@ -115,7 +118,7 @@ export const accessOperationWireSchema = z.array(z.strictObject({
   occurredAt: z.iso.datetime().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
 })).max(30);
 export const developmentSchema = z.strictObject({
-  persona: z.enum(["pm-atlas", "leader-atlas", "operator", "pmo-portfolio"]),
+  persona: z.enum(["pm-atlas", "leader-atlas", "operator", "pmo-portfolio", "owner-atlas"]),
 });
 const project = z.strictObject({
   id: z.uuid(),
@@ -235,6 +238,18 @@ export const contracts: Record<string, RouteContract> = {
     status: 201, request: projectUpdateResponseSubmissionSchema,
     response: projectUpdateResponseReceiptSchema, parameters: { locator: z.uuid() },
     errors: [400, 403, 404, 409, 413, 415, 429, 503],
+  },
+  "post /api/project-update-invitations/{locator}/atlas-confirmation": {
+    status: 200, request: atlasReplyConfirmationSchema, response: z.strictObject({ approvalId: z.uuid() }),
+    parameters: { locator: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 429, 503],
+  },
+  "get /api/projects/{id}/atlas-approval": {
+    status: 200, response: atlasApprovalViewSchema.nullable(), parameters: { id: z.uuid() },
+    errors: [403, 404, 503],
+  },
+  "post /api/projects/{id}/atlas-approval": {
+    status: 200, request: atlasApprovalDecisionSchema, response: atlasApprovalViewSchema,
+    parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
   },
   "get /api/projects/{id}/project-update-capture-history": {
     status: 200, response: projectUpdateCaptureHistorySchema,

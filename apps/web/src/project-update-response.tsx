@@ -6,13 +6,16 @@ import { decodeInvitation, decodeInvitationReceipt } from "./project-update-invi
 import { CanonicalCreationWriteRegistry, canonicalCommandFingerprint, canonicalCreationOwner } from "./canonical-creation-write-registry.js";
 import { ManagedReadRegistry } from "./managed-read-registry.js";
 import { managedRead } from "./managed-read.js";
+import type { ProjectUpdateRecipientRequestView } from "@pdaa/domain";
+import { ConfirmAtlasReply } from "./atlas-update-approval.js";
 import "./project-update-response.css";
 
 type ResponseEntry = { id: string; submittedBy: string; receivedAt: string;
   correctsResponseId: string | null; state: "UNCONFIRMED"; contentState: "PRESENT" | "EXPIRED"; text: string | null };
 type RecipientRequest = { requestId: string; project: { id: string; code: string; name: string };
   stageKind: string; dueAt: string; capturedAt: string; expiresAt: string; body: string;
-  rawResponseReaders: string[]; responses: ResponseEntry[]; escalationContext?: EscalationContext | null };
+  rawResponseReaders: string[]; responses: ResponseEntry[]; escalationContext?: EscalationContext | null;
+  atlasInterpretation?: ProjectUpdateRecipientRequestView["atlasInterpretation"] };
 const invitationReads = new ManagedReadRegistry(8);
 const invitationWrites = new CanonicalCreationWriteRegistry();
 
@@ -65,8 +68,8 @@ function Responses({ entries }: { entries: ResponseEntry[] }) {
   </li>)}</ul>;
 }
 
-export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope, admissionScope, request, isCurrentScope }: {
-  locator: string; customerId: string; subject: string; ownerScope: string; admissionScope: string; request: RequestFn; isCurrentScope: () => boolean;
+export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope, admissionScope, request, isCurrentScope, atlasDemo }: {
+  locator: string; customerId: string; subject: string; ownerScope: string; admissionScope: string; request: RequestFn; isCurrentScope: () => boolean; atlasDemo?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [expired, setExpired] = useState(false), [denied, setDenied] = useState(false), [attempt, setAttempt] = useState(0);
@@ -207,6 +210,7 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
     <Button className="secondary" onClick={retry}>Check request access</Button></div>;
   if (!rendered || !currentInvitation()) return <Message>Loading update request…</Message>;
   const invitation = rendered.value;
+  const interpretation = invitation.atlasInterpretation;
   const visibleExpiry = deadline.current !== null && deadline.current < Date.parse(invitation.expiresAt)
     ? new Date(deadline.current).toISOString() : invitation.expiresAt;
   return <section className="panel" aria-label="Respond to update request">
@@ -215,6 +219,10 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
     {invitation.escalationContext && <EscalationHistory context={invitation.escalationContext} />}
     <p>Available until {visibleExpiry}. Raw responses are shared with: {invitation.rawResponseReaders.join(", ")}.</p>
     <Responses entries={invitation.responses} />
+    {atlasDemo && interpretation &&
+      <ConfirmAtlasReply key={interpretation.responseId} locator={locator} responseId={interpretation.responseId}
+        suggestion={interpretation.suggestedStatus === "NEEDS_CLARIFICATION" ? null : interpretation.suggestedStatus}
+        request={request} isCurrent={currentInvitation} />}
     <form onSubmit={submit}>
       <label className="field"><span>Your update (unconfirmed)</span>
         <textarea required maxLength={8000} rows={6} value={text} disabled={busy}

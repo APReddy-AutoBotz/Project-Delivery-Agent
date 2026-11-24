@@ -110,6 +110,7 @@ export * from "./project-updates.js";
 export * from "./project-update-engagement.js";
 
 export * from "./project-update-capture.js";
+export * from "./atlas-update-approval.js";
 export * from "./delivery-advice.js";
 export * from "./update-advice.js";
 export * from "./pm-action-queue.js";

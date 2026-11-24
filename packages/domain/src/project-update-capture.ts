@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { canonicalSubjectSchema } from "./canonical-project.js";
+import { atlasSuggestionStatusSchema } from "./atlas-update-approval.js";
 import {
   projectUpdateFactReferenceSchema,
   projectUpdateKnownPositionSchema,
@@ -91,10 +92,18 @@ export const projectUpdateInvitationGateSchema = z.strictObject({
  */
 export function mayAccessProjectUpdateInvitation(value: unknown): boolean {
   const parsed = projectUpdateInvitationGateSchema.safeParse(value);
-  if (!parsed.success) return false;
-  const input = parsed.data;
-  return input.authenticatedSubject === input.namedRecipientSubject &&
-    input.sameCustomer && input.currentRecipientRoleAndGrant &&
+  return parsed.success && parsed.data.authenticatedSubject === parsed.data.namedRecipientSubject &&
+    activeCapture(parsed.data);
+}
+
+/** Capture validity for a separately authorized Atlas reviewer. */
+export function isActiveProjectUpdateCapture(value: unknown): boolean {
+  const parsed = projectUpdateInvitationGateSchema.safeParse(value);
+  return parsed.success && activeCapture(parsed.data);
+}
+
+function activeCapture(input: z.infer<typeof projectUpdateInvitationGateSchema>): boolean {
+  return input.sameCustomer && input.currentRecipientRoleAndGrant &&
     input.actorRoleMatchesGrant && input.currentOwnerRoleAndGrant &&
     input.obligationOpen && input.engagementActive && input.policyCurrent &&
     input.generationCurrent && input.captureCommitted && input.globalShadowOff &&
@@ -252,6 +261,10 @@ export const projectUpdateRecipientRequestViewSchema = z.strictObject({
   requiredFacts: z.array(projectUpdateRequiredFactSchema).min(1).max(100),
   rawResponseReaders: z.array(canonicalSubjectSchema).max(33),
   responses: z.array(projectUpdateResponseHistorySchema).max(20),
+  atlasInterpretation: z.strictObject({
+    responseId: z.uuid(),
+    suggestedStatus: atlasSuggestionStatusSchema,
+  }).optional(),
   // Legacy payloads and non-PM invitations retain their existing contract.
   escalationContext: projectUpdateEscalationContextSchema.nullable().default(null),
 }).superRefine((value, context) => {

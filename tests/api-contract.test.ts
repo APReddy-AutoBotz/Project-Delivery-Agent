@@ -462,6 +462,12 @@ const projectUpdateScheduleFixture = projectUpdateSchedulePreviewSchema.parse({
     utcOffset: "+00:00",
   }],
 });
+const atlasApprovalFixture = {
+  approvalId: project.id, responseId: project.id, replyReceivedAt: "2026-10-01T12:01:00.000Z",
+  confirmedBy: "owner-atlas", approver: "pm-atlas", accessStatus: "ACCESS_PENDING" as const,
+  target: "ATLAS-248" as const, currentComment: null, proposedComment: "API access is pending.",
+  expiresAt: "2026-10-02T12:00:00.000Z", decision: "PENDING" as const,
+};
 const projectUpdateRepository: ProjectUpdateRepository = {
   updateSuggestions: vi.fn(async () => ({ availability: "UNCONFIGURED" as const,
     asOf: "2026-10-21T11:00:00.000Z", projectId: project.id, audience: "project_manager" as const,
@@ -500,6 +506,9 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   submitResponse: vi.fn(async () => ({ responseId: project.id, requestId: project.id,
     receivedAt: "2026-10-01T12:01:00.000Z", state: "UNCONFIRMED" as const,
     message: "Response recorded; required facts remain unconfirmed." as const })),
+  confirmAtlasReply: vi.fn(async () => ({ approvalId: project.id })),
+  atlasApproval: vi.fn(async () => atlasApprovalFixture),
+  decideAtlasApproval: vi.fn(async () => ({ ...atlasApprovalFixture, decision: "APPROVED" as const })),
   captureHistory: vi.fn(async () => ({ projectId: project.id, engagement: null, entries: [], nextCursor: null })),
   beginCaptureGeneration: vi.fn(async () => ({ projectId: project.id,
     engagementId: "40000000-0000-4000-8000-000000000110",
@@ -716,6 +725,11 @@ it("fails access operation history closed on invalid data and repository errors"
 });
 it("CI-FND-001: every actual serialized success matches its published schema and status", async () => {
   await request(`/api/project-update-invitations/${project.id}`, 200, manager);
+  await request(`/api/project-update-invitations/${project.id}/atlas-confirmation`, 200, manager, "POST",
+    { responseId: project.id, accessStatus: "ACCESS_PENDING" });
+  await request(`/api/projects/${project.id}/atlas-approval`, 200, manager);
+  await request(`/api/projects/${project.id}/atlas-approval`, 200, manager, "POST",
+    { approvalId: project.id, decision: "APPROVED" });
   await request(`/api/project-update-invitations/${project.id}/responses`, 201, manager, "POST", {
     text: "Synthetic unconfirmed response", idempotencyKey: "capture-contract", correctsResponseId: null,
   });
@@ -995,7 +1009,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(77);
+  expect(covered.size).toBe(80);
   assertContractSnapshot(
     spec,
     JSON.parse(

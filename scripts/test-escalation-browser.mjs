@@ -16,12 +16,16 @@ import { seedEscalationHistory } from "./acceptance/escalation-history.mjs";
 const source = assertSyntheticDatabaseUrl(process.env.PDAA_DATABASE_URL ?? "");
 assert(process.env.NODE_ENV !== "production" && process.env.DATA_MODE === "synthetic");
 const hosted = process.argv.includes("--hosted-foundation");
+const serveAtlas = process.argv.includes("--serve-atlas");
+assert(!hosted || !serveAtlas);
 if (hosted) {
   assert.equal(process.env.GITHUB_ACTIONS, "true");
   assert.equal(process.env.GITHUB_WORKFLOW, "Foundation validation");
   assert.equal(process.env.GITHUB_JOB, "verify");
   assert.match(process.env.GITHUB_RUN_ID ?? "", /^[0-9]+$/);
   assert.equal(source.pathname, "/pdaa"); // Disposable hosted locator only; never migrated or seeded.
+} else if (serveAtlas) {
+  assert.equal(source.pathname, "/pdaa"); // Local locator used only to create a separate demo database.
 } else assert.match(source.pathname, /^\/pdaa_test_[0-9]+$/);
 
 // Refuse occupied ports, without stopping or replacing any existing listener.
@@ -85,7 +89,7 @@ try {
   await complete(start(["../../node_modules/prisma/build/index.js", "migrate", "deploy"], "migrate", resolve("packages/data")));
   await alignSyntheticFixtureOwnership(source.toString());
   await complete(start(["packages/data/dist/seed.js"], "seed"));
-  const fixture = await seedEscalationHistory(source.toString(), { isolatedCustomer: true });
+  const fixture = await seedEscalationHistory(source.toString(), { isolatedCustomer: true, atlasApproval: true });
   const privateFile = (name, value) => {
     const path = resolve(directory, name);
     writeFileSync(path, JSON.stringify(value), { flag: "wx", mode: 0o600 });
@@ -111,11 +115,16 @@ try {
     preview: { host: "127.0.0.1", port: 5174, strictPort: true,
       proxy: { "/api": "http://127.0.0.1:3002" } } });
   assert((await fetch("http://127.0.0.1:5174/")).ok);
-  process.stdout.write("Real PM history browser proof uses fresh " + databaseName + "; no default database, worker or external delivery.\n");
-  const test = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test", "--config", "scripts/escalation-playwright.config.mjs"],
-    { env, stdio: "inherit" });
-  children.push(test);
-  await complete(test);
+  if (serveAtlas) {
+    process.stdout.write(`Atlas owner request: http://localhost:5174/update-requests/${fixture.request.locator}\n`);
+    await new Promise((stop) => { process.once("SIGINT", stop); process.once("SIGTERM", stop); });
+  } else {
+    process.stdout.write("Saved browser journeys use fresh " + databaseName + "; no worker or external delivery.\n");
+    const test = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test", "--config", "scripts/escalation-playwright.config.mjs"],
+      { env, stdio: "inherit" });
+    children.push(test);
+    await complete(test);
+  }
 } finally {
   if (web) await web.close();
   // These are only the process handles created by this invocation.

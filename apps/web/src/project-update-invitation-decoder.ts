@@ -1,4 +1,4 @@
-import type { ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { AtlasApprovalView, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -24,6 +24,7 @@ const subject = (value: unknown) => typeof value === "string" && value.length > 
   // eslint-disable-next-line no-control-regex -- Match the wire subject label.
   /^\S(?:[^\u0000-\u001f\u007f]*\S)?$/.test(value) && !/[\u0000-\u001f\u007f]/.test(value);
 const stage = (value: unknown) => value === "REQUEST" || value === "REMINDER" || value === "ESCALATION";
+const accessStatus = (value: unknown) => value === "ACCESS_PENDING" || value === "ACCESS_RESTORED";
 const response = (value: unknown) => object(value) && keys(value, ["id", "submittedBy", "receivedAt", "correctsResponseId", "state", "contentState", "text"]) &&
   uuid(value.id) && subject(value.submittedBy) && instant(value.receivedAt) && (value.correctsResponseId === null || uuid(value.correctsResponseId)) &&
   value.state === "UNCONFIRMED" && (value.contentState === "PRESENT" || value.contentState === "EXPIRED") &&
@@ -60,7 +61,7 @@ function escalation(value: unknown, capturedAt: string, stageKind: unknown): boo
 }
 
 export function decodeInvitation(value: unknown): ProjectUpdateRecipientRequestView | null {
-  if (!object(value) || !keys(value, ["requestId", "project", "stageKind", "dueAt", "capturedAt", "expiresAt", "body", "requiredFacts", "rawResponseReaders", "responses"], ["escalationContext"]) ||
+  if (!object(value) || !keys(value, ["requestId", "project", "stageKind", "dueAt", "capturedAt", "expiresAt", "body", "requiredFacts", "rawResponseReaders", "responses"], ["escalationContext", "atlasInterpretation"]) ||
       !uuid(value.requestId) || !object(value.project) || !keys(value.project, ["id", "code", "name"]) || !uuid(value.project.id) ||
       !label(value.project.code, 160) || !label(value.project.name, 160) || !stage(value.stageKind) ||
       !instant(value.dueAt) || !instant(value.capturedAt) || !instant(value.expiresAt) || typeof value.body !== "string" || !value.body.length || value.body.length > 65536 ||
@@ -70,7 +71,23 @@ export function decodeInvitation(value: unknown): ProjectUpdateRecipientRequestV
       !dense(value.rawResponseReaders, 0, 33) || !value.rawResponseReaders.every(subject) ||
       !dense(value.responses, 0, 20) || !value.responses.every(response) ||
       !escalation(value.escalationContext, value.capturedAt, value.stageKind)) return null;
+  const atlas = value.atlasInterpretation;
+  const latest = value.responses[0];
+  if (atlas !== undefined && (!object(atlas) || !keys(atlas, ["responseId", "suggestedStatus"]) ||
+      value.stageKind !== "REQUEST" || !object(latest) || latest.id !== atlas.responseId ||
+      latest.contentState !== "PRESENT" ||
+      !(atlas.suggestedStatus === "NEEDS_CLARIFICATION" || accessStatus(atlas.suggestedStatus)))) return null;
   return { ...value, escalationContext: value.escalationContext ?? null } as ProjectUpdateRecipientRequestView;
+}
+
+export function decodeAtlasApproval(value: unknown): AtlasApprovalView | null {
+  if (!object(value) || !keys(value, ["approvalId", "responseId", "replyReceivedAt", "confirmedBy", "approver",
+    "accessStatus", "target", "currentComment", "proposedComment", "expiresAt", "decision"]) ||
+    !uuid(value.approvalId) || !uuid(value.responseId) || !instant(value.replyReceivedAt) || !instant(value.expiresAt) ||
+    !subject(value.confirmedBy) || !subject(value.approver) || !accessStatus(value.accessStatus) ||
+    value.target !== "ATLAS-248" || value.currentComment !== null || !label(value.proposedComment, 160) ||
+    !(value.decision === "PENDING" || value.decision === "APPROVED" || value.decision === "REJECTED")) return null;
+  return value as AtlasApprovalView;
 }
 
 export function decodeInvitationReceipt(value: unknown, requestId: string): ProjectUpdateResponseReceipt | null {

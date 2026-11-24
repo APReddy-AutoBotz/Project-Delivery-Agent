@@ -29,6 +29,7 @@ import { decodeWireIdentity } from "./identity-decoder.js";
 import { decodeProjectList, decodeProjectSetup } from "./canonical-creation-decoder.js";
 import { ProjectUpdates } from "./project-updates.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
+import { AtlasPmApproval, atlasReviewProjectCode } from "./atlas-update-approval.js";
 import { CsvIngestion } from "./csv-ingestion.js";
 import { XlsxIngestion } from "./xlsx-ingestion.js";
 import { savedScalarReconciliationLink } from "./scalar-reconciliation.js";
@@ -813,6 +814,10 @@ function App() {
                 </span>
                 <span aria-hidden="true">↗</span>
               </Button>
+              {updateLocator && <Button disabled={busy} onClick={() => login("owner-atlas")}>
+                <span><strong>Atlas contributor</strong><small>Respond to the Atlas demo update</small></span>
+                <span aria-hidden="true">↗</span>
+              </Button>}
               <Button disabled={busy} onClick={() => login("leader-atlas")}>
                 <span>
                   <strong>Leadership</strong>
@@ -966,7 +971,8 @@ function App() {
                   locator={updateLocator} customerId={retainedActor.customerId} subject={retainedActor.subject}
                   ownerScope={JSON.stringify([setupOwnerKey, queueViewRevision])}
                   admissionScope={JSON.stringify([renderedSessionGeneration, queueViewRevision, renderedIdentityIssuance])}
-                  request={invitationRequest} isCurrentScope={invitationViewCurrent} />
+                  request={invitationRequest} isCurrentScope={invitationViewCurrent}
+                  atlasDemo={auth.data?.mode === "development" && auth.data.dataMode === "synthetic"} />
               </div>
             </> : <p role="status">Checking account access…</p>
           ) : view === "platform" && retainedActor && setupOwnerKey && retainedActor.roles.some((role) => role === "system_admin" || role === "pmo_admin") ? (
@@ -1060,6 +1066,12 @@ function App() {
                   <EvidenceAdmissionContext.Provider value={evidenceAdmission}>
                   <div hidden={!projectVisible}>
                   {project.data && <ProjectDetail project={project.data} />}
+                  {projectVisible && project.data?.code === atlasReviewProjectCode &&
+                    auth.data?.mode === "development" && auth.data.dataMode === "synthetic" &&
+                    me.data?.roles.includes("project_manager") &&
+                    <AtlasPmApproval projectId={project.data.id}
+                      scope={JSON.stringify([renderedSessionGeneration, selectionEpoch, me.data.subject])}
+                      request={projectRequest} isCurrent={isCurrentProjectAdmission} />}
                   {retainedProject && (
                     <ProjectUpdates
                       key={`project-updates:${retainedProject.id}`}
