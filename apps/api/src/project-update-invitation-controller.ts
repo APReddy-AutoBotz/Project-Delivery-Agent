@@ -33,4 +33,10 @@ export class ProjectUpdateInvitationController {
     // including for retries of a previously stored submission.
     return this.run(req.actor, (actor) => this.repository.submitResponse(actor, locator, body, req.correlationId));
   }
+
+  @Post("atlas-confirmation")
+  @HttpCode(200)
+  confirmAtlasReply(@Req() req: { actor?: Actor; correlationId: string }, @Param("locator") locator: string, @Body() body: unknown) {
+    return this.run(req.actor, (actor) => this.repository.confirmAtlasReply(actor, locator, body, req.correlationId));
+  }
 }

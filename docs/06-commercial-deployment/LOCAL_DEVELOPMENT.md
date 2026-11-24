@@ -32,6 +32,17 @@ synthetic development, and reject remote hosts, alternate ports, database URL
 options and unexpected database names before opening a connection. Do not share
 the `.env`, test traces or credential-bearing environment dumps.
 
+## Atlas approval demo
+
+With the local PostgreSQL composition running and `pnpm build` complete, run
+`node scripts/local.mjs scripts/test-escalation-browser.mjs --serve-atlas`.
+The harness creates a disposable synthetic database and prints the owner's
+invitation URL on port 5174. Sign in as the Atlas contributor and record a
+reply. Confirm the API access status. Sign out, open the app home page, and
+sign in as the project manager. Open **Atlas · Delivery approval** to review
+the ATLAS-248 comment and record the demo decision. Stop the harness with
+Ctrl+C.
+
 ## Validation
 
 ```sh
