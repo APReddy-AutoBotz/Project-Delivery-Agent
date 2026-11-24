@@ -1,16 +1,18 @@
 # Implementation Status
 
-Updated: 2026-11-22
+Updated: 2026-11-24
 
 ## Accepted implementation completion
-
-The counts include STORY-014 once its acceptance record passes independent
-review and required checks and merges.
 
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
 | R1      |                       7 |                     33 |      21.2% |
+| Total   |                      10 |                     38 |      26.3% |
+
+These counts reflect acceptance records merged through [PR #187](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/187).
+Several open stories already have working components. Track the first usable
+workflow by its observable steps alongside the accepted-story count.
 
 STORY-001 (TypeScript workspace and runtime/API contracts) and STORY-002
 (PostgreSQL foundation and repository interfaces) are accepted under delegated
@@ -31,10 +33,58 @@ PR #113 brought the accepted total to 7/38 (18.4%). The
 [STORY-009 CSV acceptance](../05-quality/CSV_REVIEWED_IMPORT_ACCEPTANCE.md)
 brought it to **8/38 (21.1%)**. [STORY-012 source-authority acceptance](../05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md)
 brought it to **9/38 (23.7%)**. [STORY-014 delivery signal acceptance](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md)
-brings it to **10/38 (26.3%)** once the acceptance record passes independent
-review and required checks and merges. R0 is 3/5 and R1 is then 7/33.
+brings it to **10/38 (26.3%)** after PR #187 merged and its main checks passed.
 Unfinished stories and all five customer release holds remain open.
 Original19/20 capture is stopped.
+
+## Fastest path to the first closed-loop demo
+
+Use the existing Atlas scenario and one scoped PM, one contributor and one
+leadership user. Use the existing synthetic Jira and reviewed spreadsheet
+fixtures. A synthetic adapter can exercise the comment execution and receipt
+path before live Jira authorization is available. The approved R1 scope and
+customer release criteria are tracked in the [vertical slice](RELEASE-1-VERTICAL-SLICE.md).
+
+| Order | Reuse on main | Deliver next |
+| --- | --- | --- |
+| 1. Finish the current health increment | Canonical project, source authority, freshness, blocker age and milestone disagreement | Finish [PR #188](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/188) proof and review. Record STORY-015 acceptance after the merge gates pass. |
+| 2. Connect reply to decision | Durable obligation, cadence, contextual draft, protected response capture and PM escalation history | Use one existing Atlas obligation and saved owner reply. Persist one structured interpretation with provenance, let the owner clarify or confirm it, then show the PM a scoped before/after approval diff. Use a deterministic provider fixture for the synthetic demo. Preserve the manual fallback path. [Issues #9](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9) and [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10). |
+| 3. Connect decision to action | Jira read contract, shadow guard, scoped policies and audit persistence | Implement the approved-comment path behind the connector contract. Exercise preflight revision checks, once-only execution and the receipt with a synthetic adapter. Bind the receipt to the approval and expose it in the existing project view. [Issues #7](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7), [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10) and [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14). |
+| 4. Show the outcome | PM queue, project view and scoped conflict-answer components | Add a cited Atlas delay answer and one frozen fact set for the management view, editable PowerPoint and email preview. Reuse the existing project view and finish the Atlas demo through it. [Issues #11](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11), [#12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12) and [#13](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13). |
+| Customer release preparation | OIDC, secret storage, database profiles, recovery and distribution evidence collection | Resolve [OD-013 and OD-014](../00-governance/OPEN_DECISIONS.md), prove permitted live Jira behavior and resolve the inventory, licenses and notices, vulnerabilities, distributed layers and signing holds against the intended release images. [Issues #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5), [#7](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7) and [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14). |
+
+Target the reply-to-approval walkthrough as the next weekly milestone. Estimate
+the rest after that workflow runs. Customer release timing depends on the
+external decisions and the remaining release evidence. Pause additional
+spreadsheet variants, native research, UI polish and isolated proof work unless
+they resolve a defect or an acceptance gap on this path. Keep existing
+acceptance evidence and resolve demonstrated gaps as part of the feature PR.
+
+### Validation that supports this sequence
+
+- Run the relevant existing checks during development. Map each changed
+  acceptance criterion to its existing proof and add a case only for an
+  uncovered behavior or material failure. Use one Atlas browser journey for
+  the positive path, with focused checks for denied access, ambiguous replies,
+  shadow mode, stale approvals and duplicate or uncertain writes.
+- Keep lint, typecheck, build, unit tests and critical browser workflows in the
+  PR gate. Keep native PostgreSQL, recovery, packaged checks and distribution
+  evidence for changes to those boundaries and the release candidate. Treat
+  conditional CI routing as a reviewed change to the current workflow and
+  evidence policy. Keep the current gates until that change is verified.
+- Batch design, implementation and acceptance evidence into a coherent feature
+  PR where the approved decision process allows it. Link verified runs from
+  the existing ledger and reconcile GitHub checklists with that evidence.
+  The first CI change cancels superseded Foundation runs for the same PR.
+  Keep a separate run for each push to main. Next, move fast feedback into
+  its own job and review a docs-only validation path against AC-MNT-002
+  and ADR-014 before routing any change around Foundation validation.
+- Measure median time to useful PR feedback and the time from ready for review
+  to merge. On 24 recent Foundation runs, the 19 successful runs took a median
+  of 28.7 minutes. The main run at `8a5ab52` took 28 minutes 43 seconds.
+  The goal is useful feedback within five minutes on ordinary changes while
+  the appropriate acceptance jobs run. Recheck after five feature PRs.
+  [Foundation runs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/workflows/foundation-validation.yml).
 
 ## Latest merged result and current work
 
