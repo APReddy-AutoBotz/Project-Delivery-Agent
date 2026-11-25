@@ -695,6 +695,21 @@
       "replacementPath": "Replace behind the offline ZIP admission module"
     },
     {
+      "name": "image-size",
+      "version": "2.1.0",
+      "runtime": true,
+      "consumers": ["apps/api via pptxgenjs"],
+      "license": "MIT",
+      "repository": "https://codeberg.org/image-size/image-size.git",
+      "source": "https://registry.npmjs.org/image-size/2.1.0",
+      "modified": false,
+      "integrity": "sha512-6Dbisa46RsgeAh3TMSFL2i8+uIFG+/LRmz6Q2oscSJJvXo1sOw3EgNO4M8jPl1P+gR1atJLDPrpclX4IHz63sA==",
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Delegated review of published parser security release",
+      "reviewDate": "2026-11-25",
+      "replacementPath": "Remove the override when the renderer resolves a supported patched image-size release"
+    },
+    {
       "name": "pptxgenjs",
       "version": "4.0.1",
       "runtime": true,
