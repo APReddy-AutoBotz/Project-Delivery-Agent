@@ -477,7 +477,9 @@ const atlasLeadershipFixture = {
     fixtureRevision: 1, recordedAt: "2026-10-01T12:02:00.000Z", result: "SIMULATED" as const },
 };
 const atlasManagementFixture = { ...atlasLeadershipFixture, id: project.id, reportingPeriod: "2026-10",
-  approvalState: "DRAFT" as const, classification: "SYNTHETIC_INTERNAL" as const };
+  approvalState: "DRAFT" as const, approval: null, classification: "SYNTHETIC_INTERNAL" as const };
+const atlasReportPendingFixture = { ...atlasManagementFixture, approvalState: "PENDING" as const,
+  approval: { requestId: project.id, approver: "pm-atlas", decidedAt: null } };
 const projectUpdateRepository: ProjectUpdateRepository = {
   updateSuggestions: vi.fn(async () => ({ availability: "UNCONFIGURED" as const,
     asOf: "2026-10-21T11:00:00.000Z", projectId: project.id, audience: "project_manager" as const,
@@ -524,6 +526,10 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   atlasLeadershipAnswer: vi.fn(async () => atlasLeadershipFixture),
   atlasManagementSnapshot: vi.fn(async () => atlasManagementFixture),
   createAtlasManagementSnapshot: vi.fn(async () => atlasManagementFixture),
+  requestAtlasReportApproval: vi.fn(async () => atlasReportPendingFixture),
+  atlasReportApproval: vi.fn(async () => atlasReportPendingFixture),
+  decideAtlasReportApproval: vi.fn(async () => ({ ...atlasReportPendingFixture, approvalState: "APPROVED" as const,
+    approval: { ...atlasReportPendingFixture.approval, decidedAt: "2026-10-01T12:04:00.000Z" } })),
   captureHistory: vi.fn(async () => ({ projectId: project.id, engagement: null, entries: [], nextCursor: null })),
   beginCaptureGeneration: vi.fn(async () => ({ projectId: project.id,
     engagementId: "40000000-0000-4000-8000-000000000110",
@@ -751,6 +757,10 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   const atlasReport = `/api/projects/${project.id}/atlas-management-snapshot`;
   await request(atlasReport, 200, leader);
   await request(atlasReport, 200, leader, "POST", {});
+  await request(`${atlasReport}/approval-request`, 200, leader, "POST", { snapshotId: project.id });
+  const reportApproval = `/api/projects/${project.id}/atlas-report-approval`;
+  await request(reportApproval, 200, manager);
+  await request(reportApproval, 200, manager, "POST", { snapshotId: project.id, requestId: project.id, decision: "APPROVED" });
   await request(`/api/project-update-invitations/${project.id}/responses`, 201, manager, "POST", {
     text: "Synthetic unconfirmed response", idempotencyKey: "capture-contract", correctsResponseId: null,
   });
@@ -1030,7 +1040,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(84);
+  expect(covered.size).toBe(87);
   assertContractSnapshot(
     spec,
     JSON.parse(

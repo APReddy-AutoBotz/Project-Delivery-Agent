@@ -39326,6 +39326,16 @@
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
+          },
+          {
+            "name": "snapshotId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
           }
         ],
         "responses": {
@@ -39477,8 +39487,49 @@
                         "approvalState": {
                           "type": "string",
                           "enum": [
-                            "DRAFT"
+                            "DRAFT",
+                            "PENDING",
+                            "APPROVED",
+                            "REJECTED"
                           ]
+                        },
+                        "approval": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "requestId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "approver": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200,
+                              "allOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                                }
+                              ]
+                            },
+                            "decidedAt": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            }
+                          },
+                          "required": [
+                            "requestId",
+                            "approver",
+                            "decidedAt"
+                          ],
+                          "additionalProperties": false
                         },
                         "classification": {
                           "type": "string",
@@ -39496,6 +39547,7 @@
                         "id",
                         "reportingPeriod",
                         "approvalState",
+                        "approval",
                         "classification"
                       ],
                       "additionalProperties": false
@@ -39935,8 +39987,49 @@
                         "approvalState": {
                           "type": "string",
                           "enum": [
-                            "DRAFT"
+                            "DRAFT",
+                            "PENDING",
+                            "APPROVED",
+                            "REJECTED"
                           ]
+                        },
+                        "approval": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "requestId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "approver": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200,
+                              "allOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                                }
+                              ]
+                            },
+                            "decidedAt": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            }
+                          },
+                          "required": [
+                            "requestId",
+                            "approver",
+                            "decidedAt"
+                          ],
+                          "additionalProperties": false
                         },
                         "classification": {
                           "type": "string",
@@ -39954,6 +40047,7 @@
                         "id",
                         "reportingPeriod",
                         "approvalState",
+                        "approval",
                         "classification"
                       ],
                       "additionalProperties": false
@@ -40266,6 +40360,1592 @@
               "schema": {
                 "type": "object",
                 "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/atlas-management-snapshot/approval-request": {
+      "post": {
+        "operationId": "ProjectUpdateController_requestAtlasReportApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "snapshot": {
+                      "type": "object",
+                      "properties": {
+                        "projectId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "asOf": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "schedule": {
+                          "type": "object",
+                          "properties": {
+                            "revision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "baseline": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            "forecast": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            "movementDays": {
+                              "nullable": true,
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "revision",
+                            "baseline",
+                            "forecast",
+                            "movementDays"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "ownerReply": {
+                          "type": "object",
+                          "properties": {
+                            "responseId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "receivedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "availableUntil": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "accessStatus": {
+                              "type": "string",
+                              "enum": [
+                                "ACCESS_PENDING",
+                                "ACCESS_RESTORED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "responseId",
+                            "receivedAt",
+                            "availableUntil",
+                            "accessStatus"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "receipt": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "approvalId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "target": {
+                              "type": "string",
+                              "enum": [
+                                "ATLAS-248"
+                              ]
+                            },
+                            "fixtureRevision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "recordedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "result": {
+                              "type": "string",
+                              "enum": [
+                                "SIMULATED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "approvalId",
+                            "target",
+                            "fixtureRevision",
+                            "recordedAt",
+                            "result"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "reportingPeriod": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                        },
+                        "approvalState": {
+                          "type": "string",
+                          "enum": [
+                            "DRAFT",
+                            "PENDING",
+                            "APPROVED",
+                            "REJECTED"
+                          ]
+                        },
+                        "approval": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "requestId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "approver": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200,
+                              "allOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                                }
+                              ]
+                            },
+                            "decidedAt": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            }
+                          },
+                          "required": [
+                            "requestId",
+                            "approver",
+                            "decidedAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "classification": {
+                          "type": "string",
+                          "enum": [
+                            "SYNTHETIC_INTERNAL"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "projectId",
+                        "asOf",
+                        "schedule",
+                        "ownerReply",
+                        "receipt",
+                        "id",
+                        "reportingPeriod",
+                        "approvalState",
+                        "approval",
+                        "classification"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "highlights": {
+                      "minItems": 4,
+                      "maxItems": 4,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 240
+                      }
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "highlights"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        409
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Creation conflicts with an existing request or record"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Project updates"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "snapshotId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "snapshotId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/atlas-report-approval": {
+      "get": {
+        "operationId": "ProjectUpdateController_atlasReportApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "nullable": true,
+                  "type": "object",
+                  "properties": {
+                    "snapshot": {
+                      "type": "object",
+                      "properties": {
+                        "projectId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "asOf": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "schedule": {
+                          "type": "object",
+                          "properties": {
+                            "revision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "baseline": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            "forecast": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            "movementDays": {
+                              "nullable": true,
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "revision",
+                            "baseline",
+                            "forecast",
+                            "movementDays"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "ownerReply": {
+                          "type": "object",
+                          "properties": {
+                            "responseId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "receivedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "availableUntil": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "accessStatus": {
+                              "type": "string",
+                              "enum": [
+                                "ACCESS_PENDING",
+                                "ACCESS_RESTORED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "responseId",
+                            "receivedAt",
+                            "availableUntil",
+                            "accessStatus"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "receipt": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "approvalId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "target": {
+                              "type": "string",
+                              "enum": [
+                                "ATLAS-248"
+                              ]
+                            },
+                            "fixtureRevision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "recordedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "result": {
+                              "type": "string",
+                              "enum": [
+                                "SIMULATED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "approvalId",
+                            "target",
+                            "fixtureRevision",
+                            "recordedAt",
+                            "result"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "reportingPeriod": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                        },
+                        "approvalState": {
+                          "type": "string",
+                          "enum": [
+                            "DRAFT",
+                            "PENDING",
+                            "APPROVED",
+                            "REJECTED"
+                          ]
+                        },
+                        "approval": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "requestId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "approver": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200,
+                              "allOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                                }
+                              ]
+                            },
+                            "decidedAt": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            }
+                          },
+                          "required": [
+                            "requestId",
+                            "approver",
+                            "decidedAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "classification": {
+                          "type": "string",
+                          "enum": [
+                            "SYNTHETIC_INTERNAL"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "projectId",
+                        "asOf",
+                        "schedule",
+                        "ownerReply",
+                        "receipt",
+                        "id",
+                        "reportingPeriod",
+                        "approvalState",
+                        "approval",
+                        "classification"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "highlights": {
+                      "minItems": 4,
+                      "maxItems": 4,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 240
+                      }
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "highlights"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Project updates"
+        ]
+      },
+      "post": {
+        "operationId": "ProjectUpdateController_decideAtlasReportApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "snapshot": {
+                      "type": "object",
+                      "properties": {
+                        "projectId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "asOf": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "schedule": {
+                          "type": "object",
+                          "properties": {
+                            "revision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "baseline": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            "forecast": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            "movementDays": {
+                              "nullable": true,
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "revision",
+                            "baseline",
+                            "forecast",
+                            "movementDays"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "ownerReply": {
+                          "type": "object",
+                          "properties": {
+                            "responseId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "receivedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "availableUntil": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "accessStatus": {
+                              "type": "string",
+                              "enum": [
+                                "ACCESS_PENDING",
+                                "ACCESS_RESTORED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "responseId",
+                            "receivedAt",
+                            "availableUntil",
+                            "accessStatus"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "receipt": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "approvalId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "target": {
+                              "type": "string",
+                              "enum": [
+                                "ATLAS-248"
+                              ]
+                            },
+                            "fixtureRevision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "recordedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "result": {
+                              "type": "string",
+                              "enum": [
+                                "SIMULATED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "approvalId",
+                            "target",
+                            "fixtureRevision",
+                            "recordedAt",
+                            "result"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "reportingPeriod": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                        },
+                        "approvalState": {
+                          "type": "string",
+                          "enum": [
+                            "DRAFT",
+                            "PENDING",
+                            "APPROVED",
+                            "REJECTED"
+                          ]
+                        },
+                        "approval": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "requestId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "approver": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200,
+                              "allOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                                }
+                              ]
+                            },
+                            "decidedAt": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            }
+                          },
+                          "required": [
+                            "requestId",
+                            "approver",
+                            "decidedAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "classification": {
+                          "type": "string",
+                          "enum": [
+                            "SYNTHETIC_INTERNAL"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "projectId",
+                        "asOf",
+                        "schedule",
+                        "ownerReply",
+                        "receipt",
+                        "id",
+                        "reportingPeriod",
+                        "approvalState",
+                        "approval",
+                        "classification"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "highlights": {
+                      "minItems": 4,
+                      "maxItems": 4,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 240
+                      }
+                    }
+                  },
+                  "required": [
+                    "snapshot",
+                    "highlights"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        409
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Creation conflicts with an existing request or record"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Project updates"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "snapshotId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "APPROVED",
+                      "REJECTED"
+                    ]
+                  }
+                },
+                "required": [
+                  "snapshotId",
+                  "requestId",
+                  "decision"
+                ],
                 "additionalProperties": false
               }
             }

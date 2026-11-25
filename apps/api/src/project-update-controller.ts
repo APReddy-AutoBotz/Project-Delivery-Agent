@@ -13,7 +13,7 @@ import {
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { IdentityService } from "@pdaa/platform";
 import { z } from "zod";
-import { renderAtlasManagementSnapshot } from "./atlas-management-snapshot.js";
+import { atlasManagementPreview, renderAtlasManagementSnapshot } from "./atlas-management-snapshot.js";
 import {
   projectFactIdSchema,
   projectUpdatePolicyChangeSchema,
@@ -54,6 +54,9 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async atlasLeadershipAnswer() { throw new ProjectUpdateError("DENIED"); },
   async atlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async createAtlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
+  async requestAtlasReportApproval() { throw new ProjectUpdateError("DENIED"); },
+  async atlasReportApproval() { throw new ProjectUpdateError("DENIED"); },
+  async decideAtlasReportApproval() { throw new ProjectUpdateError("DENIED"); },
   async captureHistory() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async purgeCaptureContent() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async beginCaptureGeneration() { throw new ProjectUpdateError("UNAVAILABLE"); },
@@ -134,9 +137,10 @@ export class ProjectUpdateController {
   }
 
   @Get("atlas-management-snapshot")
-  async atlasManagementSnapshot(@Req() req: Request, @Param("id") rawId: string) {
+  async atlasManagementSnapshot(@Req() req: Request, @Param("id") rawId: string, @Query("snapshotId") snapshotId?: string) {
     const actor = await this.actor(req);
-    const snapshot = await this.run(() => this.repository.atlasManagementSnapshot(actor, this.projectId(rawId)));
+    if (!z.uuid().optional().safeParse(snapshotId).success) throw new HttpException("", 400);
+    const snapshot = await this.run(() => this.repository.atlasManagementSnapshot(actor, this.projectId(rawId), snapshotId));
     return snapshot ? renderAtlasManagementSnapshot(snapshot) : null;
   }
 
@@ -147,6 +151,29 @@ export class ProjectUpdateController {
     if (!z.strictObject({}).safeParse(body).success) throw new HttpException("", 400);
     const snapshot = await this.run(() => this.repository.createAtlasManagementSnapshot(actor, this.projectId(rawId), req.correlationId));
     return renderAtlasManagementSnapshot(snapshot);
+  }
+
+  @Post("atlas-management-snapshot/approval-request")
+  @HttpCode(200)
+  async requestAtlasReportApproval(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    const snapshot = await this.run(() => this.repository.requestAtlasReportApproval(actor, this.projectId(rawId), body, req.correlationId));
+    return atlasManagementPreview(snapshot);
+  }
+
+  @Get("atlas-report-approval")
+  async atlasReportApproval(@Req() req: Request, @Param("id") rawId: string) {
+    const actor = await this.actor(req);
+    const snapshot = await this.run(() => this.repository.atlasReportApproval(actor, this.projectId(rawId)));
+    return snapshot ? atlasManagementPreview(snapshot) : null;
+  }
+
+  @Post("atlas-report-approval")
+  @HttpCode(200)
+  async decideAtlasReportApproval(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    const snapshot = await this.run(() => this.repository.decideAtlasReportApproval(actor, this.projectId(rawId), body, req.correlationId));
+    return atlasManagementPreview(snapshot);
   }
 
   @Get("update-suggestions")

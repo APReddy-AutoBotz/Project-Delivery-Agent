@@ -1,4 +1,4 @@
-import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, AtlasManagementOutput, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, AtlasManagementOutput, AtlasManagementPreview, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -121,18 +121,30 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
   return value as AtlasLeadershipAnswer;
 }
 
-export function decodeAtlasManagementOutput(value: unknown, projectId: string): AtlasManagementOutput | null {
-  if (!object(value) || !keys(value, ["snapshot", "highlights", "livePath", "powerpointBase64"]) ||
-      value.livePath !== `/?project=${projectId}` || !Array.isArray(value.highlights) ||
+export function decodeAtlasManagementPreview(value: unknown, projectId: string): AtlasManagementPreview | null {
+  if (!object(value) || !keys(value, ["snapshot", "highlights"]) || !Array.isArray(value.highlights) ||
       value.highlights.length !== 4 || !value.highlights.every((entry) => label(entry, 240)) ||
-      typeof value.powerpointBase64 !== "string" || value.powerpointBase64.length > 196608 ||
-      !/^UEsDB[A-Za-z0-9+/]+={0,2}$/u.test(value.powerpointBase64) || !object(value.snapshot)) return null;
-  const { id, reportingPeriod, approvalState, classification, ...evidence } = value.snapshot;
+      !object(value.snapshot)) return null;
+  const { id, reportingPeriod, approvalState, approval, classification, ...evidence } = value.snapshot;
   const answer = decodeAtlasLeadershipAnswer(evidence, projectId);
   if (!uuid(id) || !answer?.schedule || !answer.ownerReply || !answer.receipt ||
-      reportingPeriod !== answer.asOf.slice(0, 7) || approvalState !== "DRAFT" ||
-      classification !== "SYNTHETIC_INTERNAL") return null;
-  return value as AtlasManagementOutput;
+      reportingPeriod !== answer.asOf.slice(0, 7) || classification !== "SYNTHETIC_INTERNAL") return null;
+  if (approvalState === "DRAFT") {
+    if (approval !== null) return null;
+  } else if (!object(approval) || !keys(approval, ["requestId", "approver", "decidedAt"]) ||
+      !uuid(approval.requestId) || !subject(approval.approver) || (approvalState === "PENDING"
+        ? approval.decidedAt !== null : !(approvalState === "APPROVED" || approvalState === "REJECTED") ||
+          !instant(approval.decidedAt) || Date.parse(approval.decidedAt) < Date.parse(answer.asOf))) return null;
+  return value as AtlasManagementPreview;
+}
+
+export function decodeAtlasManagementOutput(value: unknown, projectId: string): AtlasManagementOutput | null {
+  if (!object(value)) return null;
+  const { livePath, powerpointBase64, ...preview } = value;
+  if (livePath !== `/?project=${projectId}` || typeof powerpointBase64 !== "string" || powerpointBase64.length > 196608 ||
+      !/^UEsDB[A-Za-z0-9+/]+={0,2}$/u.test(powerpointBase64)) return null;
+  const report = decodeAtlasManagementPreview(preview, projectId);
+  return report ? { ...report, livePath, powerpointBase64 } : null;
 }
 
 export function decodeInvitationReceipt(value: unknown, requestId: string): ProjectUpdateResponseReceipt | null {

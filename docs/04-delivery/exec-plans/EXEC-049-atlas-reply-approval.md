@@ -187,3 +187,30 @@ The saved Atlas browser journey checks the shared revision in the project and
 email, editable PPTX text, replay, frozen evidence after a later reply and
 access denial after source revocation. Reverting removes the draft routes and
 renderer. Existing synthetic audit rows remain historical metadata.
+
+## Final project report approval
+
+This Atlas-only increment exercises FR-RPT-007/009/010, AC-RPT-004,
+AC-AUD-001 and NFR-SEC-001. The Atlas report is a synthetic internal project
+narrative. The assigned project manager reviews it under the existing project
+narrative permissions. Portfolio report approvals follow their own roles.
+
+Leadership explicitly submits a saved snapshot. The same assigned Atlas PM
+reviews the latest submission and records one approval or rejection for its
+exact request and snapshot IDs. The project lock, append-only audit log and
+current source and capture checks apply to submission, decision and reads.
+Repeating the current matching decision returns the recorded result. A newer
+submission supersedes an older pending review.
+
+Approval finalizes the saved fact set and records its reviewer and decision
+time. The project view, email preview and editable PowerPoint use those same
+facts and approval metadata. An authorized author can reopen the exact report
+by snapshot ID while the originating retention and source grants permit.
+Exports are rendered from the saved report. Customer distribution and
+generalized reporting remain open. Reverting removes approval routes and
+controls while retaining the audit history and compatibility with existing
+drafts.
+
+Extend the existing Atlas browser journey for the handoff, role denials,
+decision replay, final PowerPoint text, and immutable facts after a later
+reply. Update the existing API contract checks.

@@ -69,17 +69,30 @@ export const atlasManagementFactsSchema = atlasLeadershipAnswerSchema.extend({
 export const atlasManagementSnapshotSchema = atlasManagementFactsSchema.extend({
   id: z.uuid(),
   reportingPeriod: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/u),
-  approvalState: z.literal("DRAFT"),
+  approvalState: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]),
+  approval: z.strictObject({
+    requestId: z.uuid(),
+    approver: canonicalSubjectSchema,
+    decidedAt: z.iso.datetime().nullable(),
+  }).nullable(),
   classification: z.literal("SYNTHETIC_INTERNAL"),
 });
 export type AtlasManagementSnapshot = z.infer<typeof atlasManagementSnapshotSchema>;
-export const atlasManagementOutputSchema = z.strictObject({
+export const atlasManagementPreviewSchema = z.strictObject({
   snapshot: atlasManagementSnapshotSchema,
   highlights: z.array(z.string().min(1).max(240)).length(4),
+});
+export type AtlasManagementPreview = z.infer<typeof atlasManagementPreviewSchema>;
+export const atlasManagementOutputSchema = atlasManagementPreviewSchema.extend({
   livePath: z.string().regex(/^\/\?project=[0-9a-f-]{36}$/u),
   powerpointBase64: z.string().max(196608).regex(/^UEsDB[A-Za-z0-9+/]+={0,2}$/u),
 });
 export type AtlasManagementOutput = z.infer<typeof atlasManagementOutputSchema>;
+export const atlasReportApprovalRequestSchema = z.strictObject({ snapshotId: z.uuid() });
+export const atlasReportDecisionSchema = atlasReportApprovalRequestSchema.extend({
+  requestId: z.uuid(),
+  decision: atlasApprovalDecisionSchema.shape.decision,
+});
 
 export function suggestAtlasAccessStatus(reply: string): AtlasAccessStatus | null {
   // Match the fixture's explicit answer only. Other wording needs owner review.

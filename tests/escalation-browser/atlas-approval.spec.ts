@@ -5,12 +5,13 @@ import { text as readStreamText } from "node:stream/consumers";
 import yauzl from "yauzl";
 import { createDatabase, DatabaseProjectFactRepository } from "../../packages/data/dist/index.js";
 
-test("Atlas reply, receipt, leadership answer and management snapshot share the same evidence", async ({ page, request }) => {
+test("Atlas reply, receipt, leadership answer and final report share the same evidence", async ({ page, request }) => {
   const fixture = JSON.parse(readFileSync(process.env.PDAA_ESCALATION_FIXTURE_PATH!, "utf8"));
   const projectPath = `/api/projects/${fixture.projectId}`;
   const receiptPath = projectPath + "/atlas-comment-receipt";
   const answerPath = projectPath + "/atlas-leadership-answer";
   const reportPath = projectPath + "/atlas-management-snapshot";
+  const reportReviewPath = projectPath + "/atlas-report-approval";
   const invitationPath = "/api/project-update-invitations/" + fixture.request.locator;
   await page.goto("/update-requests/" + fixture.request.locator);
   await page.getByRole("button", { name: /Atlas contributor/ }).click();
@@ -134,7 +135,48 @@ test("Atlas reply, receipt, leadership answer and management snapshot share the 
   await expect(report).toContainText(snapshot.id);
   await expect(report).toContainText("14 days later");
   const email = report.locator("details");
+  const retry = await request.post(reportPath, { headers: leaderHeaders, data: {} });
+  expect(retry.status()).toBe(200);
+  expect((await retry.json()).snapshot).toEqual(snapshot);
+  expect(await (await request.get(reportReviewPath, { headers: managerHeaders })).json()).toBeNull();
+  await report.getByRole("button", { name: "Request final approval" }).click();
+  await expect(report).toContainText("Awaiting PM approval");
+  const pendingReview = await request.get(reportReviewPath, { headers: managerHeaders });
+  expect(pendingReview.status()).toBe(200);
+  const proposed = (await pendingReview.json()).snapshot;
+  expect(proposed).toMatchObject({ ...snapshot, approvalState: "PENDING", approval: { approver: "pm-atlas", decidedAt: null } });
+  const submitReport = (snapshotId: string) => request.post(`${reportPath}/approval-request`, {
+    headers: leaderHeaders, data: { snapshotId },
+  });
+  expect((await (await submitReport(snapshot.id)).json()).snapshot).toEqual(proposed);
+  const approve = { snapshotId: snapshot.id, requestId: proposed.approval.requestId, decision: "APPROVED" };
+  expect((await request.post(reportReviewPath, { headers: leaderHeaders, data: approve })).status()).toBe(404);
+  expect((await request.post(reportReviewPath, {
+    headers: managerHeaders, data: { ...approve, requestId: randomUUID() },
+  })).status()).toBe(409);
+
+  await page.goto(livePath);
+  await page.getByRole("button", { name: /Project manager/ }).click();
+  const pmReport = page.getByRole("region", { name: "Atlas final report approval" });
+  await expect(pmReport).toContainText(snapshot.id);
+  await expect(pmReport).toContainText(highlights[0]);
+  await expect(pmReport).not.toContainText(text);
+  await pmReport.getByRole("button", { name: "Approve final report" }).click();
+  await expect(pmReport).toContainText("Final · Approved");
+  const approvalReplay = await request.post(reportReviewPath, { headers: managerHeaders, data: approve });
+  expect(approvalReplay.status()).toBe(200);
+  const finalReport = (await approvalReplay.json()).snapshot;
+  expect(finalReport).toEqual({ ...proposed, approvalState: "APPROVED",
+    approval: { ...proposed.approval, decidedAt: expect.any(String) } });
+  expect((await request.post(reportReviewPath, {
+    headers: managerHeaders, data: { ...approve, decision: "REJECTED" },
+  })).status()).toBe(409);
+
+  await page.goto(livePath);
+  await page.getByRole("button", { name: /Leadership/ }).click();
+  await expect(report).toContainText("Final · Approved");
   await email.getByText("Leadership email preview").click();
+  await expect(email).toContainText("Final · Approved");
   await expect(email).toContainText(snapshot.id);
   await expect(email).toContainText(highlights[0]);
   await expect(email.getByRole("link")).toHaveAttribute("href", livePath);
@@ -156,13 +198,9 @@ test("Atlas reply, receipt, leadership answer and management snapshot share the 
   expect(slide).toContain(snapshot.id);
   expect(slide).toContain(snapshot.asOf);
   expect(slide).toContain(snapshot.reportingPeriod);
+  expect(slide).toContain("Final • Approved");
+  expect(slide).toContain(finalReport.approval.decidedAt);
   for (const highlight of highlights) expect(slide).toContain(highlight);
-  const retry = await request.post(reportPath, { headers: leaderHeaders, data: {} });
-  expect(retry.status()).toBe(200);
-  expect((await retry.json()).snapshot).toEqual(snapshot);
-  await page.goto(livePath);
-  await page.getByRole("button", { name: /Leadership/ }).click();
-  await expect(report.getByText(snapshot.id, { exact: true })).toBeVisible();
 
   const owner = await request.post("/api/auth/development", { data: { persona: "owner-atlas" } });
   expect(owner.status()).toBe(200);
@@ -178,16 +216,38 @@ test("Atlas reply, receipt, leadership answer and management snapshot share the 
   expect(laterConfirmation.status()).toBe(200);
   const nextPreview = await request.get(projectPath + "/atlas-approval", { headers: managerHeaders });
   expect(nextPreview.status()).toBe(200);
-  expect(await nextPreview.json()).toMatchObject({
+  const nextComment = await nextPreview.json();
+  expect(nextComment).toMatchObject({
     sourceRevision: 1, currentComment: "The Atlas owner confirmed that API access is still pending.",
     decision: "PENDING", receipt: null,
   });
   const pending = await request.get(answerPath, { headers: leaderHeaders });
   expect(pending.status()).toBe(200);
   expect(await pending.json()).toMatchObject({ ownerReply: null, receipt: null });
-  const frozen = await request.get(reportPath, { headers: leaderHeaders });
+  expect((await request.post(projectPath + "/atlas-approval", {
+    headers: managerHeaders, data: { approvalId: nextComment.approvalId, decision: "APPROVED" },
+  })).status()).toBe(200);
+  expect((await request.post(receiptPath, {
+    headers: managerHeaders, data: { approvalId: nextComment.approvalId },
+  })).status()).toBe(200);
+  const newerDraft = await request.post(reportPath, { headers: leaderHeaders, data: {} });
+  expect(newerDraft.status()).toBe(200);
+  const newer = (await newerDraft.json()).snapshot;
+  expect(newer.id).not.toBe(snapshot.id);
+  expect(newer).toMatchObject({ approvalState: "DRAFT", ownerReply: { accessStatus: "ACCESS_RESTORED" } });
+  const newerSubmission = await submitReport(newer.id);
+  expect(newerSubmission.status()).toBe(200);
+  const newerRequestId = (await newerSubmission.json()).snapshot.approval.requestId;
+  expect((await request.post(reportReviewPath, { headers: managerHeaders, data: approve })).status()).toBe(409);
+  const rejection = await request.post(reportReviewPath, {
+    headers: managerHeaders, data: { snapshotId: newer.id, requestId: newerRequestId, decision: "REJECTED" },
+  });
+  expect(rejection.status()).toBe(200);
+  expect((await rejection.json()).snapshot).toMatchObject({ id: newer.id, approvalState: "REJECTED" });
+  const finalPath = `${reportPath}?snapshotId=${snapshot.id}`;
+  const frozen = await request.get(finalPath, { headers: leaderHeaders });
   expect(frozen.status()).toBe(200);
-  expect(await frozen.json()).toMatchObject({ snapshot, highlights, livePath });
+  expect(await frozen.json()).toMatchObject({ snapshot: finalReport, highlights, livePath });
 
   const target = new URL(process.env.PDAA_ESCALATION_BROWSER_DATABASE_URL!);
   expect(["127.0.0.1", "localhost"]).toContain(target.hostname);
@@ -201,6 +261,7 @@ test("Atlas reply, receipt, leadership answer and management snapshot share the 
     }, { correlationId: randomUUID() });
     expect((await request.get(answerPath, { headers: leaderHeaders })).status()).toBe(404);
     expect((await request.get(reportPath, { headers: leaderHeaders })).status()).toBe(404);
+    expect((await request.get(finalPath, { headers: leaderHeaders })).status()).toBe(404);
   } finally {
     await db.$disconnect();
   }
