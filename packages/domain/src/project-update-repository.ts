@@ -28,8 +28,11 @@ export interface ProjectUpdateRepository {
   decideAtlasApproval(actor: Actor, projectId: string, decision: unknown, correlationId: string): Promise<AtlasApprovalView>;
   recordAtlasComment(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasCommentReceipt>;
   atlasLeadershipAnswer(actor: Actor, projectId: string): Promise<AtlasLeadershipAnswer>;
-  atlasManagementSnapshot(actor: Actor, projectId: string): Promise<AtlasManagementSnapshot | null>;
+  atlasManagementSnapshot(actor: Actor, projectId: string, snapshotId?: string): Promise<AtlasManagementSnapshot | null>;
   createAtlasManagementSnapshot(actor: Actor, projectId: string, correlationId: string): Promise<AtlasManagementSnapshot>;
+  requestAtlasReportApproval(actor: Actor, projectId: string, request: unknown, correlationId: string): Promise<AtlasManagementSnapshot>;
+  atlasReportApproval(actor: Actor, projectId: string): Promise<AtlasManagementSnapshot | null>;
+  decideAtlasReportApproval(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasManagementSnapshot>;
   captureHistory(actor: Actor, projectId: string, cursor?: string | null): Promise<ProjectUpdateCaptureHistory>;
   purgeCaptureContent(): Promise<number>;
   beginCaptureGeneration(actor: Actor, projectId: string, change: unknown, correlationId: string): Promise<ProjectUpdateEngagementView>;

@@ -47,6 +47,10 @@ and inspect the cited schedule, reply and receipt. Choose **Save draft snapshot*
 to freeze those facts. Open **Leadership email preview** or choose
 **Download editable PowerPoint** and check the shared snapshot ID. The draft
 reopens for the same leadership user while the originating capture is accessible.
+Choose **Request final approval**, then sign in as the Atlas project manager.
+Open **Final report approval** and approve or reject the displayed snapshot.
+Sign in as Leadership again to view the decision and download the PowerPoint
+with the recorded approval status.
 Stop the harness with Ctrl+C.
 
 ## Validation
