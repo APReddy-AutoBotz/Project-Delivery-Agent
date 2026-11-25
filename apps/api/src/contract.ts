@@ -84,6 +84,7 @@ import {
   atlasCommentCommandSchema,
   atlasCommentReceiptSchema,
   atlasLeadershipAnswerSchema,
+  atlasManagementOutputSchema,
   projectUpdateCaptureHistorySchema,
   projectUpdateCaptureGenerationSchema,
   ingestionReassessmentRetrySchema,
@@ -261,6 +262,14 @@ export const contracts: Record<string, RouteContract> = {
   "get /api/projects/{id}/atlas-leadership-answer": {
     status: 200, response: atlasLeadershipAnswerSchema, parameters: { id: z.uuid() },
     errors: [403, 404, 503],
+  },
+  "get /api/projects/{id}/atlas-management-snapshot": {
+    status: 200, response: atlasManagementOutputSchema.nullable(), parameters: { id: z.uuid() },
+    errors: [403, 404, 503],
+  },
+  "post /api/projects/{id}/atlas-management-snapshot": {
+    status: 200, request: z.strictObject({}), response: atlasManagementOutputSchema, parameters: { id: z.uuid() },
+    errors: [400, 403, 404, 409, 413, 415, 503],
   },
   "get /api/projects/{id}/project-update-capture-history": {
     status: 200, response: projectUpdateCaptureHistorySchema,

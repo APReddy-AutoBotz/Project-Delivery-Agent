@@ -17,6 +17,7 @@
     "@nestjs/platform-express": "11.2.3",
     "@nestjs/swagger": "11.4.7",
     "busboy": "1.6.0",
+    "pptxgenjs": "4.0.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "zod": "4.6.6"

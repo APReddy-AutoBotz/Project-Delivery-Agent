@@ -51,6 +51,20 @@ before any package distribution.
 | PptxGenJS              | PowerPoint generation     | MIT                | Approved in baseline | Use published package                                     | Template logic remains proprietary                    |
 | ExcelJS                | Spreadsheet generation    | MIT                | Proposed             | Use published package                                     | Spreadsheet import may use separate parser            |
 
+### Atlas PowerPoint renderer, 2026-11-25
+
+The API uses the baseline-approved PptxGenJS 4.0.1 package for the synthetic
+management draft. The renderer receives fixed plain text and does not fetch
+assets. The [exact package record](DEPENDENCIES.json) contains publisher
+metadata. Existing image inventory and distribution review apply.
+
+PptxGenJS declares an image-size range of `^1.2.1`. Pin the
+maintainer's 2.1.0 release through a reviewed transitive override for
+[GHSA-5p2g-fcmc-qvqq](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq) and
+[GHSA-w3rx-r6r6-pgpr](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr).
+The text-only Atlas renderer is tested with the updated resolution. Remove
+the override when PptxGenJS resolves a supported patched release directly.
+
 ### Jira adapter pin, 2026-09-24
 
 The first-party `@pdaa/connectors-jira` adapter pins `jira.js` 6.2.0 and Zod

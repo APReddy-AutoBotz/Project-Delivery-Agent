@@ -12,7 +12,7 @@ import {
   atlasApprovalDecisionSchema, atlasApprovalProjectCode, atlasApprovalViewSchema, atlasComment,
   atlasCommentTemplate, atlasReplyConfirmationSchema,
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
-  atlasLeadershipAnswerSchema, calendarDayDifference,
+  atlasLeadershipAnswerSchema, atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
   suggestAtlasAccessStatus,
   type ProjectUpdateCaptureConfiguration, type ProjectUpdateRecipientRequestView,
   type ProjectUpdateResponseReceipt, type ProjectUpdateCaptureHistory,
@@ -62,6 +62,7 @@ type Tx = Prisma.TransactionClient;
 const atlasConfirmedEvent = "atlas_demo.reply.confirmed";
 const atlasDecidedEvent = "atlas_demo.approval.decided";
 const atlasCommentEvent = "atlas_demo.comment.recorded";
+const atlasManagementSnapshotEvent = "atlas_demo.management_snapshot.created";
 const atlasPayloadDigest = z.string().regex(/^[a-f0-9]{64}$/u);
 const storedAtlasConfirmation = atlasReplyConfirmationSchema.extend({
   projectId: z.uuid(), requestId: z.uuid(), approver: canonicalSubjectSchema,
@@ -78,6 +79,9 @@ const storedAtlasComment = z.strictObject({
   captureIssuanceEpoch: z.uuid(), fixtureRevision: z.number().int().positive(),
   template: z.literal(atlasCommentTemplate), accessStatus: atlasReplyConfirmationSchema.shape.accessStatus,
   payloadDigest: atlasPayloadDigest,
+});
+const storedAtlasManagementSnapshot = z.strictObject({
+  projectId: z.uuid(), locator: z.uuid(), captureIssuanceEpoch: z.uuid(), facts: atlasManagementFactsSchema,
 });
 
 type CaptureInvitationRow = {
@@ -1946,12 +1950,16 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return { revision: event.fixtureRevision, comment: atlasComment(event.accessStatus) };
   }
 
-  private async loadAtlasApproval(tx: Tx, current: Actor, projectId: string, audience: "pm" | "leadership" = "pm") {
+  private async lockAtlasProject(tx: Tx, current: Actor, projectId: string) {
     if (!this.atlasDemoEnabled) throw new ProjectUpdateError("DENIED");
     const projects = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM public."Project" WHERE "customerId"=${current.customerId}::uuid
         AND id=${projectId}::uuid AND code=${atlasApprovalProjectCode} FOR UPDATE`;
     if (!projects[0]) throw new ProjectUpdateError("DENIED");
+  }
+
+  private async loadAtlasApproval(tx: Tx, current: Actor, projectId: string, audience: "pm" | "leadership" = "pm") {
+    await this.lockAtlasProject(tx, current, projectId);
     if (audience === "leadership") {
       if (current.roles.length !== 1 || current.roles[0] !== "leadership") throw new ProjectUpdateError("DENIED");
       await this.authorize(tx, current, projectId, false);
@@ -2013,7 +2021,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       expiresAt: new Date(Math.min(row.expiresAt.getTime(), row.purgeAfter.getTime(), latest.purgeAfter.getTime())).toISOString(),
       decision: decision?.decision ?? "PENDING", receipt,
     });
-    return { view, decisionId: decided?.id, approvedDigest: decision?.payloadDigest, payloadDigest,
+    return { view, locator: invitation.locator, decisionId: decided?.id, approvedDigest: decision?.payloadDigest, payloadDigest,
       legacyConfirmation: detail.sourceRevision === undefined };
   }
 
@@ -2023,30 +2031,99 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return this.transaction(async (tx) => (await this.loadAtlasApproval(tx, current, projectId))?.view ?? null, "ReadCommitted");
   }
 
-  async atlasLeadershipAnswer(actorValue: Actor, projectValue: string) {
+  private atlasLeadershipActor(actorValue: Actor): Actor {
     const actor = parseActor(actorValue);
-    const projectId = parseProjectId(projectValue);
     if (!actor.roles.includes("leadership")) throw new ProjectUpdateError("DENIED");
-    const current: Actor = { ...actor, roles: ["leadership"] };
+    return { ...actor, roles: ["leadership"] };
+  }
+
+  private async loadAtlasLeadershipAnswer(tx: Tx, current: Actor, projectId: string) {
+    const approved = await this.loadAtlasApproval(tx, current, projectId, "leadership");
+    const project = await tx.canonicalProject.findFirst({
+      where: { id: projectId, customerId: current.customerId, sealed: true },
+      select: { revision: true, baselineEnd: true, forecastEnd: true },
+    });
+    const baseline = project?.baselineEnd?.toISOString().slice(0, 10) ?? null;
+    const forecast = project?.forecastEnd?.toISOString().slice(0, 10) ?? null;
+    const asOf = await this.now(tx);
+    const view = approved?.view;
+    if (view && asOf >= new Date(view.expiresAt)) throw new ProjectUpdateError("DENIED");
+    const answer = atlasLeadershipAnswerSchema.parse({
+      projectId, asOf: iso(asOf),
+      schedule: project ? { revision: project.revision, baseline, forecast,
+        movementDays: baseline && forecast ? calendarDayDifference(forecast, baseline) : null } : null,
+      ownerReply: view ? { responseId: view.responseId, receivedAt: view.replyReceivedAt, availableUntil: view.expiresAt,
+        accessStatus: view.accessStatus } : null,
+      receipt: view?.receipt ?? null,
+    });
+    return { answer, locator: approved?.locator };
+  }
+
+  async atlasLeadershipAnswer(actorValue: Actor, projectValue: string) {
+    const current = this.atlasLeadershipActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    return this.transaction(async (tx) => (await this.loadAtlasLeadershipAnswer(tx, current, projectId)).answer, "ReadCommitted");
+  }
+
+  private async latestAtlasManagementSnapshot(tx: Tx, current: Actor, projectId: string) {
+    const saved = await tx.auditEvent.findFirst({
+      where: { customerId: current.customerId, actor: current.subject, event: atlasManagementSnapshotEvent,
+        detail: { path: ["projectId"], equals: projectId } },
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }], select: { id: true, detail: true },
+    });
+    if (!saved) return null;
+    const detail = storedAtlasManagementSnapshot.parse(saved.detail);
+    if (detail.facts.projectId !== projectId) throw new ProjectUpdateError("UNAVAILABLE");
+    return { id: saved.id, ...detail };
+  }
+
+  private atlasManagementView(id: string, facts: z.infer<typeof atlasManagementFactsSchema>) {
+    return atlasManagementSnapshotSchema.parse({
+      ...facts, id, reportingPeriod: facts.asOf.slice(0, 7), approvalState: "DRAFT", classification: "SYNTHETIC_INTERNAL",
+    });
+  }
+
+  async atlasManagementSnapshot(actorValue: Actor, projectValue: string) {
+    const current = this.atlasLeadershipActor(actorValue);
+    const projectId = parseProjectId(projectValue);
     return this.transaction(async (tx) => {
-      const approved = await this.loadAtlasApproval(tx, current, projectId, "leadership");
-      const project = await tx.canonicalProject.findFirst({
-        where: { id: projectId, customerId: current.customerId, sealed: true },
-        select: { revision: true, baselineEnd: true, forecastEnd: true },
-      });
-      const baseline = project?.baselineEnd?.toISOString().slice(0, 10) ?? null;
-      const forecast = project?.forecastEnd?.toISOString().slice(0, 10) ?? null;
-      const asOf = await this.now(tx);
-      const view = approved?.view;
-      if (view && asOf >= new Date(view.expiresAt)) throw new ProjectUpdateError("DENIED");
-      return atlasLeadershipAnswerSchema.parse({
-        projectId, asOf: iso(asOf),
-        schedule: project ? { revision: project.revision, baseline, forecast,
-          movementDays: baseline && forecast ? calendarDayDifference(forecast, baseline) : null } : null,
-        ownerReply: view ? { responseId: view.responseId, receivedAt: view.replyReceivedAt, availableUntil: view.expiresAt,
-          accessStatus: view.accessStatus } : null,
-        receipt: view?.receipt ?? null,
-      });
+      await this.lockAtlasProject(tx, current, projectId);
+      await this.authorize(tx, current, projectId, false);
+      const saved = await this.latestAtlasManagementSnapshot(tx, current, projectId);
+      if (!saved) return null;
+      const origin = await this.authorizedInvitation(tx, current, saved.locator, "leadership");
+      const reply = saved.facts.ownerReply;
+      if (origin.projectId !== projectId || origin.row.issuanceEpoch !== saved.captureIssuanceEpoch ||
+          origin.asOf >= new Date(reply.availableUntil))
+        throw new ProjectUpdateError("DENIED");
+      const [present] = await tx.$queryRaw<{ id: string }[]>`
+        SELECT r.id FROM public."ProjectUpdateResponse" r
+        JOIN public."ProjectUpdateResponseContent" c ON c."customerId"=r."customerId"
+          AND c."projectId"=r."projectId" AND c."responseId"=r.id
+        WHERE r."customerId"=${current.customerId}::uuid AND r."projectId"=${projectId}::uuid
+          AND r."requestId"=${origin.row.requestId}::uuid AND r.id=${reply.responseId}::uuid
+          AND c.state='PRESENT' AND r."purgeAfter">clock_timestamp()`;
+      if (!present) throw new ProjectUpdateError("DENIED");
+      return this.atlasManagementView(saved.id, saved.facts);
+    }, "ReadCommitted");
+  }
+
+  async createAtlasManagementSnapshot(actorValue: Actor, projectValue: string, correlationValue: string) {
+    const current = this.atlasLeadershipActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    return this.transaction(async (tx) => {
+      const { answer, locator } = await this.loadAtlasLeadershipAnswer(tx, current, projectId);
+      const facts = atlasManagementFactsSchema.safeParse(answer);
+      if (!facts.success || !locator) throw new ProjectUpdateError("CONFLICT");
+      const previous = await this.latestAtlasManagementSnapshot(tx, current, projectId);
+      const sameEvidence = (value: typeof facts.data) => hash([value.schedule, value.ownerReply, value.receipt]);
+      if (previous && previous.locator === locator && previous.facts.asOf.slice(0, 7) === facts.data.asOf.slice(0, 7) &&
+          sameEvidence(previous.facts) === sameEvidence(facts.data))
+        return this.atlasManagementView(previous.id, previous.facts);
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasManagementSnapshotEvent,
+        { projectId, locator, facts: facts.data });
+      return this.atlasManagementView(id, facts.data);
     }, "ReadCommitted");
   }
 

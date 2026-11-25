@@ -40,6 +40,7 @@ const policies = {
       "@nestjs/platform-express",
       "@nestjs/swagger",
       "busboy",
+      "pptxgenjs",
       "reflect-metadata",
       "rxjs",
       "zod",

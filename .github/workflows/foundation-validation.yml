@@ -98,6 +98,7 @@ jobs:
           path: |
             artifacts/pm-escalation-history.png
             artifacts/pm-escalation-history.json
+            artifacts/atlas-management-snapshot.png
           if-no-files-found: error
       - name: Publish schedule overdue policy browser proof
         uses: actions/upload-artifact@v4

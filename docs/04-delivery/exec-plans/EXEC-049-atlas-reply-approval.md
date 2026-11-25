@@ -5,7 +5,7 @@
 - Requirement IDs: FR-UPD-006, FR-UPD-007, FR-UPD-008, FR-UPD-009, FR-APP-001, FR-APP-002, FR-APP-004, FR-APP-005, FR-APP-006, NFR-SEC-001
 - GitHub issues: [#9](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9), [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10)
 - Target release: R1 synthetic demo milestone
-- Last updated: 2026-11-24
+- Last updated: 2026-11-25
 
 ## Objective
 
@@ -158,3 +158,32 @@ The existing Atlas journey checks the 14-day calculation, citation targets, raw
 reply withholding, responder and PM separation, and denial after a source
 reader is removed. A code revert removes the leadership question and keeps
 the approval and receipt data compatible.
+
+## Management snapshot
+
+This synthetic increment exercises AC-RPT-001 and AC-RPT-002 in Issue #13
+through the existing Atlas project screen. FR-RPT-001/004/005/007/009/010,
+NFR-SEC-001 and TR-STACK-008 apply. ADR-007 keeps final distribution subject to
+approval and ADR-010 requires an editable PowerPoint.
+
+After the PM records a simulated receipt, a scoped leadership user can save
+an internal draft. The project lock binds the sealed schedule and exact
+approved reply and receipt to an append-only audit record. The same record ID,
+reporting month, generation time and evidence feed the project snapshot,
+email preview and one editable PowerPoint slide. The reporting month uses
+UTC at capture. Repeating the save on the same evidence reopens the same draft.
+Each user can reopen their most recent draft while the originating capture is
+still accessible, including after newer source evidence arrives.
+
+The existing synthetic mode, scoped leadership grant, capture epoch, source
+reader gates and retention remain effective on reopen and download. The draft
+stores structured synthetic facts and references. The report includes no raw
+reply, request text or invitation locator. No migration or connector scope is
+needed. PptxGenJS is pinned in the approved dependency register. External
+distribution, report approval, final report retention and portfolio coverage
+remain open under Issue #13.
+
+The saved Atlas browser journey checks the shared revision in the project and
+email, editable PPTX text, replay, frozen evidence after a later reply and
+access denial after source revocation. Reverting removes the draft routes and
+renderer. Existing synthetic audit rows remain historical metadata.

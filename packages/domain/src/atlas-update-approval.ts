@@ -61,6 +61,26 @@ export const atlasLeadershipAnswerSchema = z.strictObject({
 });
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
 
+export const atlasManagementFactsSchema = atlasLeadershipAnswerSchema.extend({
+  schedule: atlasLeadershipAnswerSchema.shape.schedule.unwrap(),
+  ownerReply: atlasLeadershipAnswerSchema.shape.ownerReply.unwrap(),
+  receipt: atlasCommentReceiptSchema,
+});
+export const atlasManagementSnapshotSchema = atlasManagementFactsSchema.extend({
+  id: z.uuid(),
+  reportingPeriod: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/u),
+  approvalState: z.literal("DRAFT"),
+  classification: z.literal("SYNTHETIC_INTERNAL"),
+});
+export type AtlasManagementSnapshot = z.infer<typeof atlasManagementSnapshotSchema>;
+export const atlasManagementOutputSchema = z.strictObject({
+  snapshot: atlasManagementSnapshotSchema,
+  highlights: z.array(z.string().min(1).max(240)).length(4),
+  livePath: z.string().regex(/^\/\?project=[0-9a-f-]{36}$/u),
+  powerpointBase64: z.string().max(196608).regex(/^UEsDB[A-Za-z0-9+/]+={0,2}$/u),
+});
+export type AtlasManagementOutput = z.infer<typeof atlasManagementOutputSchema>;
+
 export function suggestAtlasAccessStatus(reply: string): AtlasAccessStatus | null {
   // Match the fixture's explicit answer only. Other wording needs owner review.
   switch (reply.trim()) {

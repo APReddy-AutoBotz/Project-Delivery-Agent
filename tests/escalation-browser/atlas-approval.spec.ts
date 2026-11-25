@@ -1,13 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { text as readStreamText } from "node:stream/consumers";
+import yauzl from "yauzl";
 import { createDatabase, DatabaseProjectFactRepository } from "../../packages/data/dist/index.js";
 
-test("Atlas reply, simulated receipt, and authorized leadership answer share the same evidence", async ({ page, request }) => {
+test("Atlas reply, receipt, leadership answer and management snapshot share the same evidence", async ({ page, request }) => {
   const fixture = JSON.parse(readFileSync(process.env.PDAA_ESCALATION_FIXTURE_PATH!, "utf8"));
   const projectPath = `/api/projects/${fixture.projectId}`;
   const receiptPath = projectPath + "/atlas-comment-receipt";
   const answerPath = projectPath + "/atlas-leadership-answer";
+  const reportPath = projectPath + "/atlas-management-snapshot";
   const invitationPath = "/api/project-update-invitations/" + fixture.request.locator;
   await page.goto("/update-requests/" + fixture.request.locator);
   await page.getByRole("button", { name: /Atlas contributor/ }).click();
@@ -45,6 +48,8 @@ test("Atlas reply, simulated receipt, and authorized leadership answer share the
   expect(await beforeApproval.json()).toMatchObject({
     schedule: { baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 }, ownerReply: null, receipt: null,
   });
+  expect(await (await request.get(reportPath, { headers: leaderHeaders })).json()).toBeNull();
+  expect((await request.post(reportPath, { headers: leaderHeaders, data: {} })).status()).toBe(409);
   const denied = await request.post(projectPath + "/atlas-approval", {
     headers: leaderHeaders, data: { approvalId, decision: "APPROVED" },
   });
@@ -54,6 +59,7 @@ test("Atlas reply, simulated receipt, and authorized leadership answer share the
   expect(manager.status()).toBe(200);
   const managerHeaders = { Authorization: "Bearer " + (await manager.json()).token };
   expect((await request.get(answerPath, { headers: managerHeaders })).status()).toBe(404);
+  expect((await request.get(reportPath, { headers: managerHeaders })).status()).toBe(404);
   const record = () => request.post(receiptPath, { headers: managerHeaders, data: { approvalId } });
   expect((await record()).status()).toBe(409);
 
@@ -116,6 +122,48 @@ test("Atlas reply, simulated receipt, and authorized leadership answer share the
   }
   await expect(page.locator("body")).not.toContainText(text);
 
+  const report = page.getByRole("region", { name: "Atlas management snapshot" });
+  const reportSaved = page.waitForResponse((value) => value.url().endsWith(reportPath) && value.request().method() === "POST");
+  await report.getByRole("button", { name: "Save draft snapshot" }).click();
+  const saved = await reportSaved;
+  expect(saved.status()).toBe(200);
+  const { snapshot, highlights, livePath } = await saved.json();
+  expect(snapshot).toMatchObject({
+    schedule: { movementDays: 14 }, ownerReply: { accessStatus: "ACCESS_PENDING" }, receipt, approvalState: "DRAFT",
+  });
+  await expect(report).toContainText(snapshot.id);
+  await expect(report).toContainText("14 days later");
+  const email = report.locator("details");
+  await email.getByText("Leadership email preview").click();
+  await expect(email).toContainText(snapshot.id);
+  await expect(email).toContainText(highlights[0]);
+  await expect(email.getByRole("link")).toHaveAttribute("href", livePath);
+  await expect(report).not.toContainText(text);
+  await report.screenshot({ path: "artifacts/atlas-management-snapshot.png" });
+  const downloadReady = page.waitForEvent("download");
+  await report.getByRole("button", { name: "Download editable PowerPoint" }).click();
+  const download = await downloadReady;
+  expect(download.suggestedFilename()).toBe(`atlas-${snapshot.id}.pptx`);
+  const archive = await yauzl.openPromise((await download.path())!, { lazyEntries: true });
+  let slide = "";
+  try {
+    for await (const entry of archive.eachEntry()) {
+      if (entry.fileName === "ppt/slides/slide1.xml")
+        slide = await readStreamText(await archive.openReadStreamPromise(entry));
+    }
+  } finally { archive.close(); }
+  expect(slide).toContain("<a:t>Atlas management snapshot</a:t>");
+  expect(slide).toContain(snapshot.id);
+  expect(slide).toContain(snapshot.asOf);
+  expect(slide).toContain(snapshot.reportingPeriod);
+  for (const highlight of highlights) expect(slide).toContain(highlight);
+  const retry = await request.post(reportPath, { headers: leaderHeaders, data: {} });
+  expect(retry.status()).toBe(200);
+  expect((await retry.json()).snapshot).toEqual(snapshot);
+  await page.goto(livePath);
+  await page.getByRole("button", { name: /Leadership/ }).click();
+  await expect(report.getByText(snapshot.id, { exact: true })).toBeVisible();
+
   const owner = await request.post("/api/auth/development", { data: { persona: "owner-atlas" } });
   expect(owner.status()).toBe(200);
   const ownerHeaders = { Authorization: "Bearer " + (await owner.json()).token };
@@ -137,6 +185,9 @@ test("Atlas reply, simulated receipt, and authorized leadership answer share the
   const pending = await request.get(answerPath, { headers: leaderHeaders });
   expect(pending.status()).toBe(200);
   expect(await pending.json()).toMatchObject({ ownerReply: null, receipt: null });
+  const frozen = await request.get(reportPath, { headers: leaderHeaders });
+  expect(frozen.status()).toBe(200);
+  expect(await frozen.json()).toMatchObject({ snapshot, highlights, livePath });
 
   const target = new URL(process.env.PDAA_ESCALATION_BROWSER_DATABASE_URL!);
   expect(["127.0.0.1", "localhost"]).toContain(target.hostname);
@@ -149,6 +200,7 @@ test("Atlas reply, simulated receipt, and authorized leadership answer share the
       state: "AVAILABLE", readers: fixture.readers.filter((subject: string) => subject !== "leader-atlas"),
     }, { correlationId: randomUUID() });
     expect((await request.get(answerPath, { headers: leaderHeaders })).status()).toBe(404);
+    expect((await request.get(reportPath, { headers: leaderHeaders })).status()).toBe(404);
   } finally {
     await db.$disconnect();
   }

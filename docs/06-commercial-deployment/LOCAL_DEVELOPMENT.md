@@ -43,7 +43,11 @@ sign in as the project manager. Open **Atlas · Delivery approval** to review
 the ATLAS-248 comment and record the demo decision. After approval, select
 **Record simulated comment** to see the receipt and fixture revision. Sign out
 and sign in as Leadership to ask **Why is Atlas delayed?** on the same project
-and inspect the cited schedule, reply and receipt. Stop the harness with Ctrl+C.
+and inspect the cited schedule, reply and receipt. Choose **Save draft snapshot**
+to freeze those facts. Open **Leadership email preview** or choose
+**Download editable PowerPoint** and check the shared snapshot ID. The draft
+reopens for the same leadership user while the originating capture is accessible.
+Stop the harness with Ctrl+C.
 
 ## Validation
 

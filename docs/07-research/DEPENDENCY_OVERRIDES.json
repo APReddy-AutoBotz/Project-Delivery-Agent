@@ -16,6 +16,13 @@
     "consumers": ["prisma tooling via @prisma/config"]
   },
   {
+    "name": "image-size",
+    "version": "2.1.0",
+    "runtime": true,
+    "consumers": ["@pdaa/api via pptxgenjs"],
+    "reason": "Upstream parser release addressing GHSA-5p2g-fcmc-qvqq and GHSA-w3rx-r6r6-pgpr"
+  },
+  {
     "name": "multer",
     "version": "2.5.0",
     "reason": "NestJS runtime dependency: publisher security update addressing GHSA-q7qp-rjg7-q26m and earlier advisories; preserve CSV multipart limits",

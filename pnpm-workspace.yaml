@@ -6,6 +6,7 @@ overrides:
   brace-expansion: 5.0.11
   deepmerge-ts: 8.0.0
   effect: 3.22.2
+  image-size: 2.1.0
   multer: 2.5.0
   mysql2: 3.23.1
   picomatch@4.0.7: 'npm:@ryotsu/picomatch@4.0.7-a'
