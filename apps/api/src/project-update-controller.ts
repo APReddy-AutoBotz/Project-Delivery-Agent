@@ -12,6 +12,8 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { IdentityService } from "@pdaa/platform";
+import { z } from "zod";
+import { renderAtlasManagementSnapshot } from "./atlas-management-snapshot.js";
 import {
   projectFactIdSchema,
   projectUpdatePolicyChangeSchema,
@@ -50,6 +52,8 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async decideAtlasApproval() { throw new ProjectUpdateError("DENIED"); },
   async recordAtlasComment() { throw new ProjectUpdateError("DENIED"); },
   async atlasLeadershipAnswer() { throw new ProjectUpdateError("DENIED"); },
+  async atlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
+  async createAtlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async captureHistory() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async purgeCaptureContent() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async beginCaptureGeneration() { throw new ProjectUpdateError("UNAVAILABLE"); },
@@ -127,6 +131,22 @@ export class ProjectUpdateController {
   async atlasLeadershipAnswer(@Req() req: Request, @Param("id") rawId: string) {
     const actor = await this.actor(req);
     return this.run(() => this.repository.atlasLeadershipAnswer(actor, this.projectId(rawId)));
+  }
+
+  @Get("atlas-management-snapshot")
+  async atlasManagementSnapshot(@Req() req: Request, @Param("id") rawId: string) {
+    const actor = await this.actor(req);
+    const snapshot = await this.run(() => this.repository.atlasManagementSnapshot(actor, this.projectId(rawId)));
+    return snapshot ? renderAtlasManagementSnapshot(snapshot) : null;
+  }
+
+  @Post("atlas-management-snapshot")
+  @HttpCode(200)
+  async createAtlasManagementSnapshot(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    if (!z.strictObject({}).safeParse(body).success) throw new HttpException("", 400);
+    const snapshot = await this.run(() => this.repository.createAtlasManagementSnapshot(actor, this.projectId(rawId), req.correlationId));
+    return renderAtlasManagementSnapshot(snapshot);
   }
 
   @Get("update-suggestions")

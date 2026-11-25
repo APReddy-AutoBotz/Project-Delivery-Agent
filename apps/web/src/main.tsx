@@ -57,7 +57,7 @@ function evidenceLocation() {
     scalarRequestId = query.get("scalarReconciliation");
   return projectId &&
     uuid.test(projectId) &&
-    [assessmentId, requestId, scalarRequestId].filter(Boolean).length === 1 &&
+    [assessmentId, requestId, scalarRequestId].filter(Boolean).length <= 1 &&
     [assessmentId, requestId, scalarRequestId].every(
       (value) => value === null || uuid.test(value),
     )

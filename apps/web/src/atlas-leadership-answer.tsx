@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Message } from "./components.js";
 import { decodeAtlasLeadershipAnswer } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
+import { AtlasManagementSnapshot } from "./atlas-management-snapshot.js";
 
 export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: {
   projectId: string; scope: string; request: RequestFn; isCurrent: () => boolean;
@@ -38,7 +39,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
     : days === 0 ? "The baseline and forecast dates match."
       : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`;
 
-  return <section className="panel" aria-label="Atlas leadership answer">
+  return <><section className="panel" aria-label="Atlas leadership answer">
     <h2>Atlas delivery question</h2>
     <Button className="secondary" disabled={query.isFetching || !isCurrent()} onClick={() => {
       if (asked) void refresh();
@@ -62,5 +63,6 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         {receipt && <li id={receiptRef} tabIndex={-1}>Simulated receipt {receipt.id}, fixture revision {receipt.fixtureRevision}, recorded at {receipt.recordedAt}.</li>}
       </ul>
     </div>}
-  </section>;
+  </section><AtlasManagementSnapshot key={scope} projectId={projectId} scope={scope} request={request}
+    isCurrent={isCurrent} canGenerate={Boolean(schedule && reply && receipt)} /></>;
 }

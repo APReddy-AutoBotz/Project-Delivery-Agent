@@ -1,4 +1,4 @@
-import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, AtlasManagementOutput, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -119,6 +119,20 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
       Date.parse(reply.availableUntil) <= Date.parse(value.asOf) || !accessStatus(reply.accessStatus))) return null;
   if (value.receipt !== null && (reply === null || !decodeAtlasCommentReceipt(value.receipt))) return null;
   return value as AtlasLeadershipAnswer;
+}
+
+export function decodeAtlasManagementOutput(value: unknown, projectId: string): AtlasManagementOutput | null {
+  if (!object(value) || !keys(value, ["snapshot", "highlights", "livePath", "powerpointBase64"]) ||
+      value.livePath !== `/?project=${projectId}` || !Array.isArray(value.highlights) ||
+      value.highlights.length !== 4 || !value.highlights.every((entry) => label(entry, 240)) ||
+      typeof value.powerpointBase64 !== "string" || value.powerpointBase64.length > 196608 ||
+      !/^UEsDB[A-Za-z0-9+/]+={0,2}$/u.test(value.powerpointBase64) || !object(value.snapshot)) return null;
+  const { id, reportingPeriod, approvalState, classification, ...evidence } = value.snapshot;
+  const answer = decodeAtlasLeadershipAnswer(evidence, projectId);
+  if (!uuid(id) || !answer?.schedule || !answer.ownerReply || !answer.receipt ||
+      reportingPeriod !== answer.asOf.slice(0, 7) || approvalState !== "DRAFT" ||
+      classification !== "SYNTHETIC_INTERNAL") return null;
+  return value as AtlasManagementOutput;
 }
 
 export function decodeInvitationReceipt(value: unknown, requestId: string): ProjectUpdateResponseReceipt | null {

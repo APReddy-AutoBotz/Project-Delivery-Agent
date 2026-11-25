@@ -695,6 +695,21 @@
       "replacementPath": "Replace behind the offline ZIP admission module"
     },
     {
+      "name": "pptxgenjs",
+      "version": "4.0.1",
+      "runtime": true,
+      "consumers": ["apps/api atlas management snapshot"],
+      "license": "MIT",
+      "repository": "git+https://github.com/gitbrent/PptxGenJS.git",
+      "source": "https://registry.npmjs.org/pptxgenjs/4.0.1",
+      "modified": false,
+      "integrity": "sha512-TeJISr8wouAuXw4C1F/mC33xbZs/FuEG6nH9FG1Zj+nuPcGMP5YRHl6X+j3HSUnS1f3at6k75ZZXPMZlA5Lj9A==",
+      "securityOwner": "Implementation controller",
+      "approvedBy": "Baseline PowerPoint tool selection under TR-STACK-008",
+      "reviewDate": "2026-11-25",
+      "replacementPath": "Replace behind the server-side snapshot renderer after editability and distribution review"
+    },
+    {
       "name": "source-map-js",
       "version": "1.2.2",
       "runtime": false,
