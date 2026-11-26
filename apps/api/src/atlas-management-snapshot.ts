@@ -5,7 +5,7 @@ import type { AtlasManagementOutput, AtlasManagementPreview, AtlasManagementSnap
 const PptxGenJS = pptxgen as unknown as (typeof import("pptxgenjs"))["default"];
 
 export function atlasManagementPreview(snapshot: AtlasManagementSnapshot): AtlasManagementPreview {
-  const { schedule, ownerReply, receipt } = snapshot;
+  const { schedule, ownerReply, receipt, delayAssessment } = snapshot;
   const movement = schedule.movementDays === null ? "Movement unknown"
     : schedule.movementDays === 0 ? "No date movement"
       : `${Math.abs(schedule.movementDays)} days ${schedule.movementDays > 0 ? "later" : "earlier"}`;
@@ -13,7 +13,9 @@ export function atlasManagementPreview(snapshot: AtlasManagementSnapshot): Atlas
     `Schedule: ${schedule.baseline ?? "unknown"} baseline, ${schedule.forecast ?? "unknown"} forecast. ${movement}. Schedule revision ${schedule.revision}.`,
     `API access was ${ownerReply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} in the owner-confirmed reply ${ownerReply.responseId} at ${ownerReply.receivedAt}.`,
     `The PM recorded a simulated ${receipt.target} comment. Receipt ${receipt.id}, recorded at ${receipt.recordedAt}.`,
-    "The verified cause of the date change and confidence in the new date remain unknown.",
+    delayAssessment
+      ? `The PM confirmed that delayed API access caused the go-live delay. PM forecast confidence is ${delayAssessment.confidence.toLowerCase()}. Assessment ${delayAssessment.id} at ${delayAssessment.confirmedAt}.`
+      : "The verified cause of the date change and confidence in the new date remain unknown.",
   ];
   return { snapshot, highlights };
 }

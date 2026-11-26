@@ -1,4 +1,4 @@
-import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -88,36 +88,71 @@ export function decodeAtlasCommentReceipt(value: unknown): AtlasCommentReceipt |
   return value as AtlasCommentReceipt;
 }
 
+function decodeAtlasSchedule(value: unknown): AtlasSchedule | null {
+  const date = (input: unknown) => input === null || (typeof input === "string" && instant(input + "T00:00:00.000Z"));
+  if (!object(value) || !keys(value, ["revision", "baseline", "forecast", "movementDays"]) ||
+      !Number.isSafeInteger(value.revision) || Number(value.revision) < 1 || !date(value.baseline) || !date(value.forecast) ||
+      !(value.movementDays === null || Number.isSafeInteger(value.movementDays))) return null;
+  return value as AtlasSchedule;
+}
+
+export function decodeAtlasDelayAssessment(value: unknown): AtlasDelayAssessment | null {
+  if (!object(value) || !keys(value, ["approvalId", "receiptId", "scheduleRevision", "cause", "confidence", "id", "confirmedBy", "confirmedAt"]) ||
+      !uuid(value.approvalId) || !uuid(value.receiptId) || !uuid(value.id) || !subject(value.confirmedBy) ||
+      !instant(value.confirmedAt) || !Number.isSafeInteger(value.scheduleRevision) || Number(value.scheduleRevision) < 1 ||
+      value.cause !== "API_ACCESS_DELAY" || !(value.confidence === "MEDIUM" || value.confidence === "LOW" || value.confidence === "UNKNOWN")) return null;
+  return value as AtlasDelayAssessment;
+}
+
+function matchesAtlasDelay(assessment: AtlasDelayAssessment, schedule: AtlasSchedule, receipt: AtlasCommentReceipt, expiresAt: string) {
+  return (schedule.movementDays ?? 0) > 0 && assessment.scheduleRevision === schedule.revision &&
+    assessment.approvalId === receipt.approvalId && assessment.receiptId === receipt.id &&
+    Date.parse(assessment.confirmedAt) >= Date.parse(receipt.recordedAt) && Date.parse(assessment.confirmedAt) < Date.parse(expiresAt);
+}
+
 export function decodeAtlasApproval(value: unknown): AtlasApprovalView | null {
   if (!object(value) || !keys(value, ["approvalId", "responseId", "replyReceivedAt", "confirmedBy", "approver",
-    "accessStatus", "target", "currentComment", "proposedComment", "sourceRevision", "expiresAt", "decision", "receipt"]) ||
+    "accessStatus", "target", "currentComment", "proposedComment", "sourceRevision", "expiresAt", "decision", "receipt"], ["delayReview"]) ||
     !uuid(value.approvalId) || !uuid(value.responseId) || !instant(value.replyReceivedAt) || !instant(value.expiresAt) ||
     !subject(value.confirmedBy) || !subject(value.approver) || !accessStatus(value.accessStatus) ||
     value.target !== "ATLAS-248" || !(value.currentComment === null || label(value.currentComment, 160)) ||
     !label(value.proposedComment, 160) || !Number.isSafeInteger(value.sourceRevision) || Number(value.sourceRevision) < 0 ||
     !(value.decision === "PENDING" || value.decision === "APPROVED" || value.decision === "REJECTED")) return null;
+  const receipt = decodeAtlasCommentReceipt(value.receipt);
   if (value.receipt !== null) {
-    const receipt = decodeAtlasCommentReceipt(value.receipt);
     if (!receipt || value.decision !== "APPROVED" || receipt.approvalId !== value.approvalId ||
         receipt.fixtureRevision !== Number(value.sourceRevision) + 1) return null;
+  }
+  const review = value.delayReview;
+  if (review !== undefined && review !== null) {
+    if (!object(review) || !keys(review, ["schedule", "assessment"]) || !receipt || value.accessStatus !== "ACCESS_PENDING") return null;
+    const schedule = decodeAtlasSchedule(review.schedule);
+    if (!schedule || (schedule.movementDays ?? 0) <= 0) return null;
+    if (review.assessment !== null) {
+      const assessment = decodeAtlasDelayAssessment(review.assessment);
+      if (!assessment || assessment.confirmedBy !== value.approver || !matchesAtlasDelay(assessment, schedule, receipt, value.expiresAt)) return null;
+    }
   }
   return value as AtlasApprovalView;
 }
 
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
-  if (!object(value) || !keys(value, ["projectId", "asOf", "schedule", "ownerReply", "receipt"]) ||
+  if (!object(value) || !keys(value, ["projectId", "asOf", "schedule", "ownerReply", "receipt", "delayAssessment"]) ||
       value.projectId !== projectId || !instant(value.asOf)) return null;
-  const date = (input: unknown) => input === null || (typeof input === "string" && instant(input + "T00:00:00.000Z"));
-  const schedule = value.schedule;
-  if (schedule !== null && (!object(schedule) || !keys(schedule, ["revision", "baseline", "forecast", "movementDays"]) ||
-      !Number.isSafeInteger(schedule.revision) || Number(schedule.revision) < 1 ||
-      !date(schedule.baseline) || !date(schedule.forecast) ||
-      !(schedule.movementDays === null || Number.isSafeInteger(schedule.movementDays)))) return null;
+  const schedule = decodeAtlasSchedule(value.schedule);
+  if (value.schedule !== null && !schedule) return null;
   const reply = value.ownerReply;
   if (reply !== null && (!object(reply) || !keys(reply, ["responseId", "receivedAt", "availableUntil", "accessStatus"]) ||
       !uuid(reply.responseId) || !instant(reply.receivedAt) || !instant(reply.availableUntil) ||
       Date.parse(reply.availableUntil) <= Date.parse(value.asOf) || !accessStatus(reply.accessStatus))) return null;
-  if (value.receipt !== null && (reply === null || !decodeAtlasCommentReceipt(value.receipt))) return null;
+  const receipt = decodeAtlasCommentReceipt(value.receipt);
+  if (value.receipt !== null && (reply === null || !receipt)) return null;
+  if (value.delayAssessment !== null) {
+    const assessment = decodeAtlasDelayAssessment(value.delayAssessment);
+    if (!assessment || !receipt || !schedule || !object(reply) || reply.accessStatus !== "ACCESS_PENDING" ||
+        !instant(reply.availableUntil) || !matchesAtlasDelay(assessment, schedule, receipt, reply.availableUntil) ||
+        Date.parse(assessment.confirmedAt) > Date.parse(value.asOf)) return null;
+  }
   return value as AtlasLeadershipAnswer;
 }
 

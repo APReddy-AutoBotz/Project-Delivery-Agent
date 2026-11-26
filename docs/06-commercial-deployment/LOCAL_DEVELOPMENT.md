@@ -41,10 +41,11 @@ invitation URL on port 5174. Sign in as the Atlas contributor and record a
 reply. Confirm the API access status. Sign out, open the app home page, and
 sign in as the project manager. Open **Atlas · Delivery approval** to review
 the ATLAS-248 comment and record the demo decision. After approval, select
-**Record simulated comment** to see the receipt and fixture revision. Sign out
-and sign in as Leadership to ask **Why is Atlas delayed?** on the same project
-and inspect the cited schedule, reply and receipt. Choose **Save draft snapshot**
-to freeze those facts. Open **Leadership email preview** or choose
+**Record simulated comment** to see the receipt and fixture revision. Choose
+a forecast confidence and select **Confirm API access caused the delay** to
+record the PM assessment. Sign out, then sign in as Leadership to ask
+**Why is Atlas delayed?** and inspect the cited schedule, reply, receipt and
+PM assessment. Choose **Save draft snapshot** to freeze those facts. Open **Leadership email preview** or choose
 **Download editable PowerPoint** and check the shared snapshot ID. The draft
 reopens for the same leadership user while the originating capture is accessible.
 Choose **Request final approval**, then sign in as the Atlas project manager.
@@ -54,6 +55,7 @@ with the recorded approval status.
 From the PM screen, choose **Distribute to Atlas Leadership** after approval.
 The report and receipt appear under **Distributed report** for the Leadership
 persona. This local inbox uses the same approved PowerPoint.
+
 Stop the harness with Ctrl+C.
 
 ## Validation

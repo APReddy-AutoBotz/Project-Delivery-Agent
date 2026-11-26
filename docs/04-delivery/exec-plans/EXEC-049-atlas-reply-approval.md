@@ -239,3 +239,26 @@ the publication controls and inbox while preserving the audit history.
 The existing Atlas browser journey covers pending and rejected reports,
 recipient access rechecks, replay, the delivered PowerPoint and reading
 the original delivery after a newer draft.
+
+## PM-confirmed delay evidence
+
+This synthetic increment exercises FR-QA-004/005/008/009 and FR-RPT-010
+for the Atlas project. After the simulated comment is recorded, the assigned
+PM can confirm that API access caused the go-live delay and record their
+forecast confidence. The confirmation is scoped to the exact current
+schedule revision, owner-approved reply and simulated receipt. The PM can
+choose medium, low or unknown confidence while access is pending.
+
+Keep the confirmation append-only and attributable to the PM. Current
+source access, retention and reply checks apply. A later reply or schedule
+revision removes that confirmation from the current answer. The answer
+cites the stored PM evidence and attributes the confidence judgment. New
+reports include it in their frozen facts. Earlier snapshots retain their
+original evidence and wording, including the unknown fallback. The
+fixture does not establish live Jira escalation or complete GOLDEN-001.
+
+Reuse the existing Atlas browser journey for the unknown fallback, PM
+confirmation, leadership citation, edited report output, and historical
+snapshot behavior. A code revert removes the confirmation controls. Use
+the pre-change backup or a fresh disposable Atlas fixture when rolling
+back to a build that predates the new saved fact shape.
