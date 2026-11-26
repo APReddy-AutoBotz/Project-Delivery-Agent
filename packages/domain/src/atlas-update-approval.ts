@@ -66,6 +66,7 @@ export const atlasApprovalViewSchema = z.strictObject({
   currentComment: atlasProposedCommentSchema.nullable(),
   proposedComment: atlasProposedCommentSchema,
   sourceRevision: z.number().int().nonnegative(),
+  replacesApprovalId: z.uuid().optional(),
   expiresAt: z.iso.datetime(),
   decision: z.enum(["PENDING", "APPROVED", "REJECTED"]),
   receipt: atlasCommentReceiptSchema.nullable(),
