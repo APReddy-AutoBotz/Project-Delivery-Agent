@@ -191,6 +191,19 @@ export class DatabaseProjectFactRepository implements ProjectFactRepository {
     const actor = actorInput(actorValue);
     const request = input(() => humanStatementSchema.parse(requestValue));
     const context = input(() => factMutationContextSchema.parse(contextValue));
+    return this.mutate(actor, request.projectId, context, "append", this.humanStatementWrite(actor, request, context));
+  }
+
+  // Used by response review so the fact and its review receipt commit together.
+  async appendHumanStatementInTransaction(tx: Tx, actorValue: Actor, requestValue: HumanStatement, contextValue: FactMutationContext) {
+    const actor = actorInput(actorValue);
+    const request = input(() => humanStatementSchema.parse(requestValue));
+    const context = input(() => factMutationContextSchema.parse(contextValue));
+    await this.authorized(tx, actor, request.projectId, "append");
+    return this.humanStatementWrite(actor, request, context)(tx);
+  }
+
+  private humanStatementWrite(actor: Actor, request: ReturnType<typeof humanStatementSchema.parse>, context: FactMutationContext) {
     const { projectId, factType, expectedRevision, idempotencyKey } = request;
     // Explicit canonical property order and defaults; source assertions remain literal.
     const requestHash = createHash("sha256")
@@ -206,7 +219,7 @@ export class DatabaseProjectFactRepository implements ProjectFactRepository {
         }),
       )
       .digest("hex");
-    return this.mutate(actor, projectId, context, "append", async (tx) => {
+    return async (tx: Tx) => {
       const key = {
         customerId: actor.customerId,
         projectId,
@@ -316,7 +329,7 @@ export class DatabaseProjectFactRepository implements ProjectFactRepository {
         replayed: false,
         entry: await this.entry(tx, actor, projectId, versionId),
       };
-    });
+    };
   }
   async getHistory(actorValue: Actor, requestValue: FactHistoryRequest) {
     const actor = actorInput(actorValue);

@@ -547,6 +547,10 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   distributeAtlasReport: vi.fn(async () => atlasDistributionFixture),
   atlasDistributedReport: vi.fn(async () => ({ snapshot: atlasReportApprovedFixture, distribution: atlasDistributionFixture })),
   captureHistory: vi.fn(async () => ({ projectId: project.id, engagement: null, entries: [], nextCursor: null })),
+  confirmCapturedStatus: vi.fn(async () => ({
+    responseId: project.id, receiptId: project.id, confirmedBy: "pmo-atlas",
+    confirmedAt: "2026-10-01T12:03:00.000Z", factSatisfied: true,
+  })),
   beginCaptureGeneration: vi.fn(async () => ({ projectId: project.id,
     engagementId: "40000000-0000-4000-8000-000000000110",
     obligationId: "40000000-0000-4000-8000-000000000111", policyRevision: 1,
@@ -785,6 +789,9 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     text: "Synthetic unconfirmed response", idempotencyKey: "capture-contract", correctsResponseId: null,
   });
   await request(`/api/projects/${project.id}/project-update-capture-history`, 200, manager);
+  await request(`/api/projects/${project.id}/project-update-status-confirmations`, 200, pmoPortfolio, "POST", {
+    requestId: project.id, responseId: project.id, expectedRevision: 1, status: "Integration testing is blocked.",
+  });
   await request(`/api/projects/${project.id}/project-update-capture-generations`, 201, pmoPortfolio, "POST", {
     expectedPolicyRevision: 1, expectedEngagementGeneration: 1,
   });
@@ -1060,7 +1067,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(90);
+  expect(covered.size).toBe(91);
   assertContractSnapshot(
     spec,
     JSON.parse(

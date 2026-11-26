@@ -96,6 +96,8 @@ import {
   atlasDistributedReportSchema,
   projectUpdateCaptureHistorySchema,
   projectUpdateCaptureGenerationSchema,
+  projectUpdateStatusConfirmationSchema,
+  projectUpdateStatusConfirmationReceiptSchema,
   ingestionReassessmentRetrySchema,
   ingestionReassessmentItemSchema,
   ingestionReassessmentPageSchema,
@@ -308,6 +310,10 @@ export const contracts: Record<string, RouteContract> = {
     status: 200, response: projectUpdateCaptureHistorySchema,
     parameters: { id: z.uuid() }, query: { cursor: z.uuid().optional() },
     errors: [400, 403, 404, 503],
+  },
+  "post /api/projects/{id}/project-update-status-confirmations": {
+    status: 200, request: projectUpdateStatusConfirmationSchema, response: projectUpdateStatusConfirmationReceiptSchema,
+    parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
   },
   "get /api/projects/{id}/ingestion-reassessments": {
     status: 200, query: { cursor: z.uuid().optional() },

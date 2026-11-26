@@ -153,6 +153,65 @@ it("AC-UPD-003 / FR-UPD-006: capture commits a complete request, raw retry/corre
   await expect(f.capture.submitResponse(f.owner, locator, command, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
 });
 
+it("AC-EVD-006 / AC-UPD-006: a scoped manual confirmation records the fact and replans only unresolved reminders", async () => {
+  const f = await captureFixture();
+  const projectId = f.projectId, customerId = f.admin.customerId;
+  const prior = await f.append("project.status", new Date(f.now.getTime() - 7200000));
+  const access = await f.facts.getSourceAccess(f.admin, { projectId, sourceId: prior.entry.sourceId });
+  await f.facts.setSourceAccess(f.admin, { projectId, sourceId: prior.entry.sourceId,
+    expectedRevision: access!.revision, state: "AVAILABLE", readers: [f.admin.subject, f.owner.subject, f.service],
+  }, { correlationId: randomUUID() });
+  const activation = (await f.capture.activateEngagement(f.admin, projectId, 1, randomUUID()))!;
+  await f.capture.processEngagements(1);
+  const ownerHistory = await f.capture.captureHistory(f.owner, projectId);
+  if ([0, 6].includes(new Date().getUTCDay())) {
+    expect(ownerHistory.entries).toEqual([]);
+    return;
+  }
+  const request = ownerHistory.entries[0]!;
+  const locator = request.recipientPath!.split("/").at(-1)!;
+  const original = "Unstructured synthetic update with a private detail.";
+  const response = await f.capture.submitResponse(f.owner, locator, { text: original, idempotencyKey: randomUUID() }, randomUUID());
+  const reviewed = (await f.capture.captureHistory(f.admin, projectId)).entries.find((entry) => entry.requestId === request.requestId)!;
+  expect(reviewed.statusReview).toMatchObject({ state: "PENDING", responseId: response.responseId, expectedRevision: 1 });
+  expect((await f.capture.captureHistory(f.owner, projectId)).entries[0]?.statusReview).toBeUndefined();
+  const command = { requestId: request.requestId, responseId: response.responseId, expectedRevision: 1,
+    status: "Integration testing remains blocked by API access." };
+  const confirm = (actor: Actor, value: unknown = command) => f.capture.confirmCapturedStatus(actor, projectId, value, randomUUID());
+  await expect(confirm(f.owner)).rejects.toMatchObject({ code: "DENIED" });
+  const reviewers = f.configuration.responseReviewerSubjects;
+  f.configuration.responseReviewerSubjects = [];
+  try {
+    await expect(confirm(f.admin)).rejects.toMatchObject({ code: "DENIED" });
+    expect((await f.capture.captureHistory(f.admin, projectId)).entries[0]?.statusReview).toBeUndefined();
+  } finally { f.configuration.responseReviewerSubjects = reviewers; }
+  await expect(confirm(f.admin, { ...command, expectedRevision: 0 })).rejects.toMatchObject({ code: "CONFLICT" });
+  expect(await db.projectFactVersion.count({ where: { customerId, projectId } })).toBe(1);
+
+  const receipt = await confirm(f.admin);
+  expect(receipt).toMatchObject({ responseId: response.responseId, confirmedBy: f.admin.subject, factSatisfied: true });
+  const event = await db.auditEvent.findUniqueOrThrow({ where: { id: receipt.receiptId } });
+  expect(event.detail).toMatchObject({ projectId, requestId: request.requestId, responseId: response.responseId,
+    factId: prior.factId, versionId: expect.any(String), evidenceId: expect.any(String) });
+  const version = await db.projectFactVersion.findFirstOrThrow({ where: { customerId, projectId, factId: prior.factId,
+    revision: 2 }, include: { evidence: true } });
+  expect(version).toMatchObject({ value: { type: "text", value: command.status }, provenance: "HUMAN_CONFIRMED",
+    evidence: { originalStatement: command.status } });
+  expect(event.detail).toMatchObject({ versionId: version.id, evidenceId: version.evidenceId });
+  expect(JSON.stringify(event.detail)).not.toContain(original);
+  expect(await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: activation.engagementId } }))
+    .toMatchObject({ state: "ACTIVE", generation: 2, sourceSatisfiedFactTypes: ["project.status"] });
+  const related = await stages(activation.engagementId);
+  const replacement = related.filter((stage) => stage.generation === 2);
+  expect(replacement.length).toBeGreaterThan(0);
+  expect(replacement.every((stage) => stage.factTypes.join() === "project.forecast")).toBe(true);
+  expect((await outbox(activation.engagementId)).some((row) => row.reason === "REQUIRED_FACTS_SATISFIED")).toBe(true);
+  await expect(confirm(f.admin)).rejects.toMatchObject({ code: "DENIED" });
+  const saved = (await f.capture.captureHistory(f.admin, projectId)).entries.find((entry) => entry.requestId === request.requestId);
+  expect(saved?.statusReview).toEqual({ state: "CONFIRMED", ...receipt });
+  expect(await db.projectFactVersion.count({ where: { customerId, projectId } })).toBe(2);
+});
+
 it("FR-ESC-006: overdue reminders wait for actual capture and cannot reuse an earlier generation's initial request", async () => {
   const f = await captureFixture();
   await f.capture.setPolicy(f.admin, f.projectId, { ...f.change, expectedRevision: 1,
