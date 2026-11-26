@@ -1,8 +1,10 @@
 // FR-UPD-006 / NFR-SEC-005: isolated UI contract fixtures, not native API proof.
 import { test, expect, type Page } from "@playwright/test";
+import { projectUpdateClarificationQuestion } from "../../packages/domain/src/project-update-capture.js";
 const locator = "20000000-0000-4000-8000-000000000001";
 const customerId = "10000000-0000-4000-8000-000000000001";
 const responseId = "30000000-0000-4000-8000-000000000001";
+const correctedResponseId = "30000000-0000-4000-8000-000000000002";
 async function fixture(page: Page, expireSoon = false, history = false) {
   const submissions: Array<{ text: string; idempotencyKey: string; correctsResponseId: string | null }> = [];
   let failNext = false;
@@ -10,6 +12,7 @@ async function fixture(page: Page, expireSoon = false, history = false) {
   let releaseReply: (() => void) | undefined;
   let invitationReads = 0;
   let denied = false;
+  let clarificationPending = false;
   const body = "<script>window.sourceExecuted=true</script>\nSynthetic forecast update needed.";
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
@@ -38,16 +41,20 @@ async function fixture(page: Page, expireSoon = false, history = false) {
               contentExpiresAt: new Date(now + 3600000).toISOString(), contentState: "PRESENT",
               bodyProjection: "REVIEWER_NAMES_WITHHELD", body: "Retained historical reminder." },
           ] } } : {}),
-        requiredFacts: [{ factType: "project.forecast", label: "Forecast" }], rawResponseReaders: ["recipient", "reviewer"],
-        responses: [...new Map(submissions.map((entry) => [entry.idempotencyKey, entry])).values()].map((entry) => ({ id: responseId, submittedBy: "recipient", receivedAt: new Date().toISOString(),
-          correctsResponseId: null, state: "UNCONFIRMED", contentState: "PRESENT", text: entry.text })) });
+        requiredFacts: [{ factType: "project.status", label: "Project status" }], rawResponseReaders: ["recipient", "reviewer"],
+        ...(clarificationPending ? { clarification: { responseId, question: projectUpdateClarificationQuestion } } : {}),
+        responses: [...new Map(submissions.map((entry) => [entry.idempotencyKey, entry])).values()].reverse().map((entry) => ({
+          id: entry.correctsResponseId ? correctedResponseId : responseId, submittedBy: "recipient", receivedAt: new Date().toISOString(),
+          correctsResponseId: entry.correctsResponseId, state: "UNCONFIRMED", contentState: "PRESENT", text: entry.text })) });
     }
     if (pathname.endsWith("/responses")) {
       submissions.push(route.request().postDataJSON());
       if (pendingReply) await pendingReply;
       expect(route.request().headers().authorization).toBe("Bearer synthetic-browser-token");
       if (failNext) { failNext = false; return response({ statusCode: 503, message: "Service unavailable" }, 503); }
-      return response({ responseId, requestId: locator, receivedAt: new Date().toISOString(), state: "UNCONFIRMED",
+      clarificationPending = false;
+      return response({ responseId: submissions.at(-1)?.correctsResponseId ? correctedResponseId : responseId,
+        requestId: locator, receivedAt: new Date().toISOString(), state: "UNCONFIRMED",
         message: "Response recorded; required facts remain unconfirmed." }, 201);
     }
     return response({ statusCode: 404, message: "Resource unavailable" }, 404);
@@ -56,9 +63,30 @@ async function fixture(page: Page, expireSoon = false, history = false) {
   await page.getByRole("button", { name: "Project manager", exact: false }).click();
   await expect(page.getByRole("region", { name: "Respond to update request" })).toBeVisible();
   return { submissions, body, fail: () => { failNext = true; }, reads: () => invitationReads, deny: () => { denied = true; },
+    requestClarification: () => { clarificationPending = true; },
     delay: () => { pendingReply = new Promise<void>((resolve) => { releaseReply = resolve; }); },
     release: () => releaseReply?.() };
 }
+
+test("GOLDEN-006: the owner sees the clarification on their invitation and can answer it", async ({ page }) => {
+  const f = await fixture(page);
+  const input = page.getByRole("textbox", { name: "Your update (unconfirmed)" });
+  const record = page.getByRole("button", { name: "Record response" });
+  await input.fill("It should be fine next week once they sort it.");
+  await record.click();
+  await expect(page.getByText("It should be fine next week once they sort it.")).toBeVisible();
+  f.requestClarification();
+  await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+  const question = page.getByRole("region", { name: "Clarification requested" });
+  await expect(question).toContainText(projectUpdateClarificationQuestion);
+  const updated = "Casey owns the fix and expects it on 6 December 2026. Work remains blocked.";
+  await input.fill(updated);
+  await page.getByRole("combobox", { name: "Correct an earlier response (optional)" }).selectOption(responseId);
+  await record.click();
+  await expect(page.getByText(updated)).toBeVisible();
+  await expect(question).toHaveCount(0);
+  expect(f.submissions.at(-1)?.correctsResponseId).toBe(responseId);
+});
 
 test("historical body expiry is independent of invitation expiry and refetch denial clears context", async ({ page }) => {
   // UI contract only: a historical body can be close to expiry while its PM invitation remains valid.

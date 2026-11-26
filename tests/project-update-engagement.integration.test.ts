@@ -227,6 +227,48 @@ it.each(["service-readable", "reviewer-private"] as const)("AC-EVD-006 / AC-UPD-
   expect(await db.projectFactVersion.count({ where: { customerId, projectId } })).toBe(2);
 });
 
+it("GOLDEN-006: asks the owner to clarify an ambiguous reply before allowing status confirmation", async () => {
+  const f = await captureFixture();
+  const { projectId } = f;
+  const customerId = f.admin.customerId;
+  const activation = (await f.capture.activateEngagement(f.admin, projectId, 1, randomUUID()))!;
+  await f.capture.processEngagements(1);
+  const history = await f.capture.captureHistory(f.owner, projectId);
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(history.entries).toEqual([]); return; }
+  const request = history.entries[0]!;
+  const locator = request.recipientPath!.split("/").at(-1)!;
+  const initial = await f.capture.submitResponse(f.owner, locator, {
+    text: "It should be fine next week once they sort it.", idempotencyKey: randomUUID(),
+  }, randomUUID());
+  const command = { requestId: request.requestId, responseId: initial.responseId };
+  const clarify = (actor: Actor) => f.capture.requestCapturedStatusClarification(actor, projectId, command, randomUUID());
+  await expect(clarify(f.owner)).rejects.toMatchObject({ code: "DENIED" });
+  const receipt = await clarify(f.admin);
+  expect(await clarify(f.admin)).toEqual(receipt);
+  expect((await f.capture.captureHistory(f.admin, projectId)).entries[0]?.statusReview)
+    .toEqual({ state: "CLARIFICATION_REQUESTED", ...receipt });
+  expect((await f.capture.invitation(f.owner, locator)).clarification).toEqual({
+    responseId: initial.responseId, question: expect.stringMatching(/who is responsible.*exact calendar date/u),
+  });
+  const saved = await db.auditEvent.findUniqueOrThrow({ where: { id: receipt.clarificationId } });
+  expect(saved.detail).toEqual({ projectId, ...command, captureIssuanceEpoch: f.configuration.issuanceEpoch });
+  await expect(f.capture.confirmCapturedStatus(f.admin, projectId, {
+    ...command, expectedRevision: 0, status: "Unverified implied status",
+  }, randomUUID())).rejects.toMatchObject({ code: "CONFLICT" });
+  expect(await db.projectFactVersion.count({ where: { customerId, projectId } })).toBe(0);
+  expect(await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: activation.engagementId } }))
+    .toMatchObject({ state: "ACTIVE", generation: 1, sourceSatisfiedFactTypes: [] });
+
+  const corrected = await f.capture.submitResponse(f.owner, locator, {
+    text: "Casey owns the fix. The expected date is 6 December 2026 and work is still blocked.",
+    idempotencyKey: randomUUID(), correctsResponseId: initial.responseId,
+  }, randomUUID());
+  expect((await f.capture.invitation(f.owner, locator)).clarification).toBeUndefined();
+  await expect(clarify(f.admin)).rejects.toMatchObject({ code: "CONFLICT" });
+  expect((await f.capture.captureHistory(f.admin, projectId)).entries[0]?.statusReview)
+    .toEqual({ state: "PENDING", responseId: corrected.responseId, expectedRevision: 0 });
+});
+
 it("FR-ESC-006: overdue reminders wait for actual capture and cannot reuse an earlier generation's initial request", async () => {
   const f = await captureFixture();
   await f.capture.setPolicy(f.admin, f.projectId, { ...f.change, expectedRevision: 1,

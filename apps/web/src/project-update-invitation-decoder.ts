@@ -61,7 +61,7 @@ function escalation(value: unknown, capturedAt: string, stageKind: unknown): boo
 }
 
 export function decodeInvitation(value: unknown): ProjectUpdateRecipientRequestView | null {
-  if (!object(value) || !keys(value, ["requestId", "project", "stageKind", "dueAt", "capturedAt", "expiresAt", "body", "requiredFacts", "rawResponseReaders", "responses"], ["escalationContext", "atlasInterpretation"]) ||
+  if (!object(value) || !keys(value, ["requestId", "project", "stageKind", "dueAt", "capturedAt", "expiresAt", "body", "requiredFacts", "rawResponseReaders", "responses"], ["escalationContext", "atlasInterpretation", "clarification"]) ||
       !uuid(value.requestId) || !object(value.project) || !keys(value.project, ["id", "code", "name"]) || !uuid(value.project.id) ||
       !label(value.project.code, 160) || !label(value.project.name, 160) || !stage(value.stageKind) ||
       !instant(value.dueAt) || !instant(value.capturedAt) || !instant(value.expiresAt) || typeof value.body !== "string" || !value.body.length || value.body.length > 65536 ||
@@ -73,6 +73,10 @@ export function decodeInvitation(value: unknown): ProjectUpdateRecipientRequestV
       !escalation(value.escalationContext, value.capturedAt, value.stageKind)) return null;
   const atlas = value.atlasInterpretation;
   const latest = value.responses[0];
+  const clarification = value.clarification;
+  if (clarification !== undefined && (!object(clarification) || !keys(clarification, ["responseId", "question"]) ||
+      !object(latest) || latest.id !== clarification.responseId || latest.contentState !== "PRESENT" ||
+      !label(clarification.question, 160))) return null;
   if (atlas !== undefined && (!object(atlas) || !keys(atlas, ["responseId", "suggestedStatus"]) ||
       value.stageKind !== "REQUEST" || !object(latest) || latest.id !== atlas.responseId ||
       latest.contentState !== "PRESENT" ||

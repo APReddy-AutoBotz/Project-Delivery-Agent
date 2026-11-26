@@ -7,7 +7,7 @@ import { CanonicalCreationWriteRegistry, canonicalCommandFingerprint, canonicalC
 import { ManagedReadRegistry } from "./managed-read-registry.js";
 import { managedRead } from "./managed-read.js";
 import type { ProjectUpdateCaptureHistory as CaptureHistory, ProjectUpdateRecipientRequestView,
-  ProjectUpdateStatusConfirmationReceipt } from "@pdaa/domain";
+  ProjectUpdateClarificationReceipt, ProjectUpdateStatusConfirmationReceipt } from "@pdaa/domain";
 import { ConfirmAtlasReply } from "./atlas-update-approval.js";
 import "./project-update-response.css";
 
@@ -16,7 +16,8 @@ type ResponseEntry = { id: string; submittedBy: string; receivedAt: string;
 type RecipientRequest = { requestId: string; project: { id: string; code: string; name: string };
   stageKind: string; dueAt: string; capturedAt: string; expiresAt: string; body: string;
   rawResponseReaders: string[]; responses: ResponseEntry[]; escalationContext?: EscalationContext | null;
-  atlasInterpretation?: ProjectUpdateRecipientRequestView["atlasInterpretation"] };
+  atlasInterpretation?: ProjectUpdateRecipientRequestView["atlasInterpretation"];
+  clarification?: ProjectUpdateRecipientRequestView["clarification"] };
 const invitationReads = new ManagedReadRegistry(8);
 const invitationWrites = new CanonicalCreationWriteRegistry();
 
@@ -58,8 +59,9 @@ function EscalationHistory({ context }: { context: EscalationContext }) {
 }
 type StatusReview = NonNullable<CaptureHistory["entries"][number]["statusReview"]>;
 
-function ManualStatusReview({ review, submit, current }: {
-  review: StatusReview; submit: (status: string, expectedRevision: number) => Promise<unknown>; current: () => boolean;
+function ManualStatusReview({ review, submit, clarify, current }: {
+  review: StatusReview; submit: (status: string, expectedRevision: number) => Promise<unknown>;
+  clarify: () => Promise<unknown>; current: () => boolean;
 }) {
   const [status, setStatus] = useState("");
   const valid = status.trim().length > 0 && new TextEncoder().encode(status).length <= 500 &&
@@ -70,19 +72,30 @@ function ManualStatusReview({ review, submit, current }: {
       await submit(status, review.expectedRevision);
     },
   });
+  const clarification = useMutation({
+    mutationFn: async () => {
+      if (!current() || review.state !== "PENDING") throw new Error("Manual review unavailable");
+      await clarify();
+    },
+  });
+  const busy = confirmation.isPending || clarification.isPending;
   if (review.state === "CONFIRMED") return <p>
     Project status confirmed by {review.confirmedBy} at {review.confirmedAt}. Receipt {review.receiptId}.{" "}
     {review.factSatisfied ? "The statement satisfied the requested status at confirmation."
       : "The statement was recorded for source authority review."}
   </p>;
+  if (review.state === "CLARIFICATION_REQUESTED")
+    return <p>Clarification requested at {review.requestedAt}. Awaiting an updated response from the owner.</p>;
   return <section aria-label="Manual project status review">
     <label className="field"><span>Confirmed project status</span>
       <input type="text" value={status} maxLength={500} onChange={(event) => setStatus(event.currentTarget.value)}
-        disabled={confirmation.isPending} />
+        disabled={busy} />
     </label>
-    <Button className="primary" disabled={!valid || confirmation.isPending || !current()}
+    <Button className="primary" disabled={!valid || busy || !current()}
       onClick={() => confirmation.mutate()}>Confirm project status</Button>
+    <Button disabled={busy || !current()} onClick={() => clarification.mutate()}>Request clarification</Button>
     {confirmation.isError && <Message error>Could not verify the confirmation. Check the current response and try again.</Message>}
+    {clarification.isError && <Message error>Could not verify the clarification request. Check the current response and try again.</Message>}
   </section>;
 }
 
@@ -245,6 +258,10 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
     {invitation.escalationContext && <EscalationHistory context={invitation.escalationContext} />}
     <p>Available until {visibleExpiry}. Raw responses are shared with: {invitation.rawResponseReaders.join(", ")}.</p>
     <Responses entries={invitation.responses} />
+    {invitation.clarification && <section aria-label="Clarification requested">
+      <h3>Clarification requested</h3>
+      <p>{invitation.clarification.question}</p>
+    </section>}
     {atlasDemo && interpretation &&
       <ConfirmAtlasReply key={interpretation.responseId} locator={locator} responseId={interpretation.responseId}
         suggestion={interpretation.suggestedStatus === "NEEDS_CLARIFICATION" ? null : interpretation.suggestedStatus}
@@ -314,6 +331,17 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
         ]);
     }
   }
+  async function requestClarification(requestId: string, responseId: string) {
+    try {
+      const receipt = await request<ProjectUpdateClarificationReceipt>(`/projects/${projectId}/project-update-status-clarifications`, {
+        method: "POST", body: JSON.stringify({ requestId, responseId }),
+      }, 4096, undefined, undefined, current);
+      if (receipt.responseId !== responseId) throw new Error("Clarification receipt mismatch");
+    } finally {
+      if (isCurrentScope())
+        await queryClient.invalidateQueries({ queryKey: ["project-update-capture-history", projectId, admissionScope] });
+    }
+  }
   return <section className="panel" aria-label="Captured update requests">
     <h3>Captured update requests</h3>
     <p>Requests and unconfirmed responses are retained according to the customer’s content policy.</p>
@@ -328,7 +356,7 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
           {entry.recipientPath && <a href={entry.recipientPath}>Respond to this request</a>}
           <Responses entries={entry.responses} />
           {pmoAdmin && statusReview && <ManualStatusReview key={statusReview.responseId}
-            review={statusReview} current={current}
+            review={statusReview} current={current} clarify={() => requestClarification(entry.requestId, statusReview.responseId)}
             submit={(status, revision) => confirmStatus(entry.requestId, statusReview.responseId, status, revision)} />}
         </article>)}
         <div className="actions">
