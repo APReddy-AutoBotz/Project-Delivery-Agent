@@ -30,10 +30,12 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   }, [expiry, refresh]);
   const reply = answer?.ownerReply && Date.parse(answer.ownerReply.availableUntil) > Date.now() ? answer.ownerReply : null;
   const receipt = reply ? answer?.receipt : null;
+  const assessment = receipt ? answer?.delayAssessment : null;
   const schedule = answer?.schedule;
   const scheduleRef = `atlas-schedule-${projectId}`;
   const replyRef = `atlas-reply-${projectId}`;
   const receiptRef = `atlas-receipt-${projectId}`;
+  const assessmentRef = `atlas-delay-assessment-${projectId}`;
   const days = schedule?.movementDays ?? null;
   const movement = days === null ? "Schedule movement is unavailable."
     : days === 0 ? "The baseline and forecast dates match."
@@ -54,13 +56,17 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
       {receipt && <p>The PM recorded a simulated comment for {receipt.target}.{" "}
         <a href={`#${receiptRef}`}>Receipt evidence</a></p>}
       {(!reply || !receipt) && <p>Some reply or action evidence is unavailable for this answer.</p>}
-      <p>The verified cause of the schedule change and confidence in the forecast remain unknown.</p>
+      {assessment
+        ? <p>The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as {assessment.confidence.toLowerCase()}.{" "}
+          <a href={`#${assessmentRef}`}>PM assessment evidence</a></p>
+        : <p>The verified cause of the schedule change and confidence in the forecast remain unknown.</p>}
       <h3>Evidence</h3>
       <p>Checked at {answer.asOf}.</p>
       <ul>
         {schedule && <li id={scheduleRef} tabIndex={-1}>Synthetic canonical schedule, revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.</li>}
         {reply && <li id={replyRef} tabIndex={-1}>Human-confirmed owner reply {reply.responseId}, recorded at {reply.receivedAt}.</li>}
         {receipt && <li id={receiptRef} tabIndex={-1}>Simulated receipt {receipt.id}, fixture revision {receipt.fixtureRevision}, recorded at {receipt.recordedAt}.</li>}
+        {assessment && <li id={assessmentRef} tabIndex={-1}>Human-confirmed PM assessment {assessment.id} by {assessment.confirmedBy} at {assessment.confirmedAt}.</li>}
       </ul>
     </div>}
   </section><AtlasManagementSnapshot key={scope} projectId={projectId} scope={scope} request={request}

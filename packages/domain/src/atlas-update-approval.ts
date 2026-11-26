@@ -25,6 +25,27 @@ export const atlasCommentReceiptSchema = z.strictObject({
   result: z.literal("SIMULATED"),
 });
 export type AtlasCommentReceipt = z.infer<typeof atlasCommentReceiptSchema>;
+export const atlasScheduleSchema = z.strictObject({
+  revision: z.number().int().min(1),
+  baseline: z.iso.date().nullable(),
+  forecast: z.iso.date().nullable(),
+  movementDays: z.number().int().nullable(),
+});
+export type AtlasSchedule = z.infer<typeof atlasScheduleSchema>;
+export const atlasForecastConfidenceSchema = z.enum(["MEDIUM", "LOW", "UNKNOWN"]);
+export const atlasDelayCommandSchema = z.strictObject({
+  approvalId: z.uuid(),
+  receiptId: z.uuid(),
+  scheduleRevision: atlasScheduleSchema.shape.revision,
+  cause: z.literal("API_ACCESS_DELAY"),
+  confidence: atlasForecastConfidenceSchema,
+});
+export const atlasDelayAssessmentSchema = atlasDelayCommandSchema.extend({
+  id: z.uuid(),
+  confirmedBy: canonicalSubjectSchema,
+  confirmedAt: z.iso.datetime(),
+});
+export type AtlasDelayAssessment = z.infer<typeof atlasDelayAssessmentSchema>;
 export const atlasApprovalViewSchema = z.strictObject({
   approvalId: z.uuid(),
   responseId: z.uuid(),
@@ -39,18 +60,17 @@ export const atlasApprovalViewSchema = z.strictObject({
   expiresAt: z.iso.datetime(),
   decision: z.enum(["PENDING", "APPROVED", "REJECTED"]),
   receipt: atlasCommentReceiptSchema.nullable(),
+  delayReview: z.strictObject({
+    schedule: atlasScheduleSchema,
+    assessment: atlasDelayAssessmentSchema.nullable(),
+  }).nullable().optional(),
 });
 export type AtlasApprovalView = z.infer<typeof atlasApprovalViewSchema>;
 
 export const atlasLeadershipAnswerSchema = z.strictObject({
   projectId: z.uuid(),
   asOf: z.iso.datetime(),
-  schedule: z.strictObject({
-    revision: z.number().int().min(1),
-    baseline: z.iso.date().nullable(),
-    forecast: z.iso.date().nullable(),
-    movementDays: z.number().int().nullable(),
-  }).nullable(),
+  schedule: atlasScheduleSchema.nullable(),
   ownerReply: z.strictObject({
     responseId: z.uuid(),
     receivedAt: z.iso.datetime(),
@@ -58,6 +78,7 @@ export const atlasLeadershipAnswerSchema = z.strictObject({
     accessStatus: atlasAccessStatusSchema,
   }).nullable(),
   receipt: atlasCommentReceiptSchema.nullable(),
+  delayAssessment: atlasDelayAssessmentSchema.nullable(),
 });
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
 
@@ -65,6 +86,7 @@ export const atlasManagementFactsSchema = atlasLeadershipAnswerSchema.extend({
   schedule: atlasLeadershipAnswerSchema.shape.schedule.unwrap(),
   ownerReply: atlasLeadershipAnswerSchema.shape.ownerReply.unwrap(),
   receipt: atlasCommentReceiptSchema,
+  delayAssessment: atlasLeadershipAnswerSchema.shape.delayAssessment.default(null),
 });
 export const atlasManagementSnapshotSchema = atlasManagementFactsSchema.extend({
   id: z.uuid(),

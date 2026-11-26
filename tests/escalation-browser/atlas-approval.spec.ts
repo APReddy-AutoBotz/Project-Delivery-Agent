@@ -5,11 +5,12 @@ import { text as readStreamText } from "node:stream/consumers";
 import yauzl from "yauzl";
 import { createDatabase, DatabaseProjectFactRepository } from "../../packages/data/dist/index.js";
 
-test("Atlas reply, approval and distributed final report share the same evidence", async ({ page, request }) => {
+test("Atlas reply, PM delay evidence and distributed final report share the same evidence", async ({ page, request }) => {
   const fixture = JSON.parse(readFileSync(process.env.PDAA_ESCALATION_FIXTURE_PATH!, "utf8"));
   const projectPath = `/api/projects/${fixture.projectId}`;
   const receiptPath = projectPath + "/atlas-comment-receipt";
   const answerPath = projectPath + "/atlas-leadership-answer";
+  const delayPath = projectPath + "/atlas-delay-confirmation";
   const reportPath = projectPath + "/atlas-management-snapshot";
   const reportReviewPath = projectPath + "/atlas-report-approval";
   const distributionPath = projectPath + "/atlas-report-distribution";
@@ -117,6 +118,32 @@ test("Atlas reply, approval and distributed final report share the same evidence
   const freshView = await request.get(projectPath + "/atlas-approval", { headers: managerHeaders });
   expect(await freshView.json()).toMatchObject({ receipt });
   expect(await (await record()).json()).toEqual(receipt);
+  const unknown = await request.get(answerPath, { headers: leaderHeaders });
+  expect(unknown.status()).toBe(200);
+  expect(await unknown.json()).toMatchObject({ delayAssessment: null, receipt });
+  const originalDraft = await request.post(reportPath, { headers: leaderHeaders, data: {} });
+  expect(originalDraft.status()).toBe(200);
+  const originalReport = await originalDraft.json();
+  expect(originalReport.snapshot.delayAssessment).toBeNull();
+
+  const delayForm = approval.getByRole("region", { name: "Atlas delay assessment" });
+  await expect(delayForm).toContainText("Baseline 2026-10-15. Forecast 2026-10-29.");
+  const confirmDelay = delayForm.getByRole("button", { name: "Confirm API access caused the delay" });
+  await expect(confirmDelay).toBeDisabled();
+  await delayForm.getByRole("combobox", { name: "Forecast confidence" }).selectOption("MEDIUM");
+  const delayCommand = { approvalId, receiptId: receipt.id, scheduleRevision: originalReport.snapshot.schedule.revision,
+    cause: "API_ACCESS_DELAY", confidence: "MEDIUM" };
+  expect((await request.post(delayPath, { headers: leaderHeaders, data: delayCommand })).status()).toBe(404);
+  expect((await request.post(delayPath, {
+    headers: managerHeaders, data: { ...delayCommand, scheduleRevision: delayCommand.scheduleRevision + 1 },
+  })).status()).toBe(409);
+  await confirmDelay.click();
+  await expect(delayForm).toContainText("PM delay assessment recorded. Forecast confidence is medium.");
+  const delayReplay = await request.post(delayPath, { headers: managerHeaders, data: delayCommand });
+  expect(delayReplay.status()).toBe(200);
+  const assessment = await delayReplay.json();
+  expect(assessment).toMatchObject({ ...delayCommand, confirmedBy: "pm-atlas", id: expect.any(String) });
+  await expect(delayForm).toContainText(assessment.id);
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.goto("/");
@@ -126,11 +153,13 @@ test("Atlas reply, approval and distributed final report share the same evidence
   await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
   await expect(answer).toContainText("14 days later");
   await expect(answer).toContainText("API access was pending at the time of the reply");
-  await expect(answer).toContainText("cause of the schedule change and confidence in the forecast remain unknown");
+  await expect(answer).toContainText("The PM confirmed that delayed API access caused the go-live delay.");
+  await expect(answer).toContainText("The PM assessed forecast confidence as medium.");
   for (const [label, evidence] of [
     ["Schedule evidence", "Baseline 2026-10-15. Forecast 2026-10-29."],
     ["Reply evidence", "Human-confirmed owner reply"],
     ["Receipt evidence", receipt.id],
+    ["PM assessment evidence", assessment.id],
   ]) {
     const link = answer.getByRole("link", { name: label! });
     const anchor = await link.getAttribute("href");
@@ -146,8 +175,12 @@ test("Atlas reply, approval and distributed final report share the same evidence
   expect(saved.status()).toBe(200);
   const { snapshot, highlights, livePath } = await saved.json();
   expect(snapshot).toMatchObject({
-    schedule: { movementDays: 14 }, ownerReply: { accessStatus: "ACCESS_PENDING" }, receipt, approvalState: "DRAFT",
+    schedule: { movementDays: 14 }, ownerReply: { accessStatus: "ACCESS_PENDING" }, receipt, delayAssessment: assessment, approvalState: "DRAFT",
   });
+  expect(snapshot.id).not.toBe(originalReport.snapshot.id);
+  const earlier = await request.get(`${reportPath}?snapshotId=${originalReport.snapshot.id}`, { headers: leaderHeaders });
+  expect(earlier.status()).toBe(200);
+  expect(await earlier.json()).toMatchObject({ snapshot: originalReport.snapshot, highlights: originalReport.highlights });
   await expect(report).toContainText(snapshot.id);
   await expect(report).toContainText("14 days later");
   const email = report.locator("details");
@@ -243,6 +276,7 @@ test("Atlas reply, approval and distributed final report share the same evidence
   expect(slide).toContain(snapshot.reportingPeriod);
   expect(slide).toContain("Final • Approved");
   expect(slide).toContain(finalReport.approval.decidedAt);
+  expect(slide).toContain(assessment.id);
   for (const highlight of highlights) expect(slide).toContain(highlight);
 
   const owner = await request.post("/api/auth/development", { data: { persona: "owner-atlas" } });
@@ -277,7 +311,7 @@ test("Atlas reply, approval and distributed final report share the same evidence
   expect(newerDraft.status()).toBe(200);
   const newer = (await newerDraft.json()).snapshot;
   expect(newer.id).not.toBe(snapshot.id);
-  expect(newer).toMatchObject({ approvalState: "DRAFT", ownerReply: { accessStatus: "ACCESS_RESTORED" } });
+  expect(newer).toMatchObject({ approvalState: "DRAFT", delayAssessment: null, ownerReply: { accessStatus: "ACCESS_RESTORED" } });
   const newerSubmission = await submitReport(newer.id);
   expect(newerSubmission.status()).toBe(200);
   const newerRequestId = (await newerSubmission.json()).snapshot.approval.requestId;

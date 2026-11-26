@@ -1,11 +1,53 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import type { atlasApprovalProjectCode, AtlasAccessStatus } from "@pdaa/domain";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import type { atlasApprovalProjectCode, AtlasAccessStatus, AtlasApprovalView, AtlasDelayAssessment } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
 import type { RequestFn } from "./request-types.js";
-import { decodeAtlasApproval, decodeAtlasCommentReceipt } from "./project-update-invitation-decoder.js";
+import { decodeAtlasApproval, decodeAtlasCommentReceipt, decodeAtlasDelayAssessment } from "./project-update-invitation-decoder.js";
 
 export const atlasReviewProjectCode: typeof atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
+
+function AtlasDelayConfirmation({ projectId, proposal, request, isCurrent, refresh }: {
+  projectId: string; proposal: AtlasApprovalView; request: RequestFn; isCurrent: () => boolean; refresh: () => Promise<unknown>;
+}) {
+  const [confidence, setConfidence] = useState<AtlasDelayAssessment["confidence"] | "">("");
+  const { delayReview, receipt } = proposal;
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!isCurrent() || !delayReview || !receipt || !confidence || Date.now() >= Date.parse(proposal.expiresAt))
+        throw new Error("Atlas delay review is unavailable");
+      const raw = await request(`/projects/${projectId}/atlas-delay-confirmation`, {
+        method: "POST", body: JSON.stringify({ approvalId: proposal.approvalId, receiptId: receipt.id,
+          scheduleRevision: delayReview.schedule.revision, cause: "API_ACCESS_DELAY", confidence }),
+      }, 4096, undefined, undefined, isCurrent);
+      const saved = decodeAtlasDelayAssessment(raw);
+      if (saved?.approvalId !== proposal.approvalId || saved.receiptId !== receipt.id ||
+          saved.scheduleRevision !== delayReview.schedule.revision || saved.confidence !== confidence)
+        throw new Error("Atlas delay confirmation could not be verified");
+    },
+    onSuccess: () => isCurrent() ? refresh() : undefined,
+  });
+  if (!delayReview || !receipt || !isCurrent()) return null;
+  const { schedule, assessment } = delayReview;
+  return <section aria-label="Atlas delay assessment">
+    <h3>Delay assessment</h3>
+    <p>Baseline {schedule.baseline}. Forecast {schedule.forecast}. API access was pending in the owner’s confirmed reply.</p>
+    {assessment ? <p>PM delay assessment recorded. Forecast confidence is {assessment.confidence.toLowerCase()}. Evidence {assessment.id}.</p>
+      : <>
+        <label>Forecast confidence
+          <select value={confidence} onChange={(e) => setConfidence(e.target.value as typeof confidence)} disabled={save.isPending}>
+            <option value="">Choose confidence</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+            <option value="UNKNOWN">Unknown</option>
+          </select>
+        </label>
+        <Button className="primary" disabled={!confidence || save.isPending}
+          onClick={() => save.mutate()}>Confirm API access caused the delay</Button>
+      </>}
+    {save.isError && <Message error>Could not record the delay assessment. Refresh the review before trying again.</Message>}
+  </section>;
+}
 
 export function ConfirmAtlasReply({ locator, responseId, suggestion, request, isCurrent }: {
   locator: string; responseId: string; suggestion: AtlasAccessStatus | null; request: RequestFn; isCurrent: () => boolean;
@@ -139,6 +181,8 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
           <dt>Recorded at</dt><dd>{proposal.receipt.recordedAt}</dd>
         </dl>
       </section>}
+      {proposal.delayReview && !expired && <AtlasDelayConfirmation key={proposal.receipt?.id} projectId={projectId}
+        proposal={proposal} request={request} isCurrent={isCurrent} refresh={refresh} />}
     </>}
     {failed && <Message error>Could not verify the Atlas update. Review the current proposal before retrying.</Message>}
   </section>;

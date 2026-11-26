@@ -475,7 +475,10 @@ const atlasLeadershipFixture = {
     availableUntil: "2026-10-02T12:00:00.000Z", accessStatus: "ACCESS_PENDING" as const },
   receipt: { id: project.id, approvalId: project.id, target: "ATLAS-248" as const,
     fixtureRevision: 1, recordedAt: "2026-10-01T12:02:00.000Z", result: "SIMULATED" as const },
+  delayAssessment: null,
 };
+const atlasDelayCommand = { approvalId: project.id, receiptId: project.id, scheduleRevision: 1,
+  cause: "API_ACCESS_DELAY" as const, confidence: "MEDIUM" as const };
 const atlasManagementFixture = { ...atlasLeadershipFixture, id: project.id, reportingPeriod: "2026-10",
   approvalState: "DRAFT" as const, approval: null, classification: "SYNTHETIC_INTERNAL" as const };
 const atlasReportPendingFixture = { ...atlasManagementFixture, approvalState: "PENDING" as const,
@@ -527,6 +530,8 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   decideAtlasApproval: vi.fn(async () => ({ ...atlasApprovalFixture, decision: "APPROVED" as const })),
   recordAtlasComment: vi.fn(async () => ({ id: project.id, approvalId: project.id, target: "ATLAS-248" as const,
     fixtureRevision: 1, recordedAt: "2026-10-01T12:02:00.000Z", result: "SIMULATED" as const })),
+  confirmAtlasDelay: vi.fn(async () => ({ ...atlasDelayCommand, id: project.id, confirmedBy: "pm-atlas",
+    confirmedAt: "2026-10-01T12:02:30.000Z" })),
   atlasLeadershipAnswer: vi.fn(async () => atlasLeadershipFixture),
   atlasManagementSnapshot: vi.fn(async () => atlasManagementFixture),
   createAtlasManagementSnapshot: vi.fn(async () => atlasManagementFixture),
@@ -758,6 +763,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     { approvalId: project.id, decision: "APPROVED" });
   await request(`/api/projects/${project.id}/atlas-comment-receipt`, 200, manager, "POST",
     { approvalId: project.id });
+  await request(`/api/projects/${project.id}/atlas-delay-confirmation`, 200, manager, "POST", atlasDelayCommand);
   await request(`/api/projects/${project.id}/atlas-leadership-answer`, 200, leader);
   const atlasReport = `/api/projects/${project.id}/atlas-management-snapshot`;
   await request(atlasReport, 200, leader);
@@ -1048,7 +1054,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(89);
+  expect(covered.size).toBe(90);
   assertContractSnapshot(
     spec,
     JSON.parse(

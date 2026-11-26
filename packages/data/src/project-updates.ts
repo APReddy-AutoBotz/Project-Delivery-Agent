@@ -13,6 +13,7 @@ import {
   atlasCommentTemplate, atlasReplyConfirmationSchema,
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
   atlasLeadershipAnswerSchema, atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
+  atlasDelayAssessmentSchema, atlasDelayCommandSchema, type AtlasApprovalView, type AtlasSchedule,
   atlasReportApprovalRequestSchema, atlasReportDecisionSchema,
   atlasReportVersionSchema, atlasReportDistributionReceiptSchema, atlasReportRecipientSubject,
   suggestAtlasAccessStatus,
@@ -64,6 +65,7 @@ type Tx = Prisma.TransactionClient;
 const atlasConfirmedEvent = "atlas_demo.reply.confirmed";
 const atlasDecidedEvent = "atlas_demo.approval.decided";
 const atlasCommentEvent = "atlas_demo.comment.recorded";
+const atlasDelayConfirmedEvent = "atlas_demo.delay.confirmed";
 const atlasManagementSnapshotEvent = "atlas_demo.management_snapshot.created";
 const atlasReportRequestedEvent = "atlas_demo.report_approval.requested";
 const atlasReportDecidedEvent = "atlas_demo.report_approval.decided";
@@ -84,6 +86,9 @@ const storedAtlasComment = z.strictObject({
   captureIssuanceEpoch: z.uuid(), fixtureRevision: z.number().int().positive(),
   template: z.literal(atlasCommentTemplate), accessStatus: atlasReplyConfirmationSchema.shape.accessStatus,
   payloadDigest: atlasPayloadDigest,
+});
+const storedAtlasDelay = atlasDelayCommandSchema.extend({
+  projectId: z.uuid(), responseId: z.uuid(), captureIssuanceEpoch: z.uuid(),
 });
 const storedAtlasManagementSnapshot = z.strictObject({
   projectId: z.uuid(), locator: z.uuid(), captureIssuanceEpoch: z.uuid(), facts: atlasManagementFactsSchema,
@@ -2039,14 +2044,84 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       expiresAt: new Date(Math.min(row.expiresAt.getTime(), row.purgeAfter.getTime(), latest.purgeAfter.getTime())).toISOString(),
       decision: decision?.decision ?? "PENDING", receipt,
     });
-    return { view, locator: invitation.locator, decisionId: decided?.id, approvedDigest: decision?.payloadDigest, payloadDigest,
+    return { view, locator: invitation.locator, captureIssuanceEpoch: row.issuanceEpoch,
+      decisionId: decided?.id, approvedDigest: decision?.payloadDigest, payloadDigest,
       legacyConfirmation: detail.sourceRevision === undefined };
+  }
+
+  private async atlasSchedule(tx: Tx, customerId: string, projectId: string): Promise<AtlasSchedule | null> {
+    const project = await tx.canonicalProject.findFirst({
+      where: { id: projectId, customerId, sealed: true },
+      select: { revision: true, baselineEnd: true, forecastEnd: true },
+    });
+    if (!project) return null;
+    const baseline = project.baselineEnd?.toISOString().slice(0, 10) ?? null;
+    const forecast = project.forecastEnd?.toISOString().slice(0, 10) ?? null;
+    return { revision: project.revision, baseline, forecast,
+      movementDays: baseline && forecast ? calendarDayDifference(forecast, baseline) : null };
+  }
+
+  private async atlasDelayReview(tx: Tx, customerId: string, projectId: string,
+    view: AtlasApprovalView, captureIssuanceEpoch: string, schedule: AtlasSchedule | null) {
+    const { receipt } = view;
+    if (!receipt || view.accessStatus !== "ACCESS_PENDING" || !schedule || (schedule.movementDays ?? 0) <= 0) return null;
+    const saved = await tx.auditEvent.findFirst({
+      where: { customerId, actor: view.approver, event: atlasDelayConfirmedEvent, AND: [
+        { detail: { path: ["projectId"], equals: projectId } },
+        { detail: { path: ["receiptId"], equals: receipt.id } },
+        { detail: { path: ["scheduleRevision"], equals: schedule.revision } },
+      ] }, select: { id: true, detail: true, occurredAt: true },
+    });
+    if (!saved) return { schedule, assessment: null };
+    const detail = storedAtlasDelay.parse(saved.detail);
+    if (detail.approvalId !== view.approvalId || detail.responseId !== view.responseId ||
+        detail.captureIssuanceEpoch !== captureIssuanceEpoch ||
+        saved.occurredAt < new Date(receipt.recordedAt) || saved.occurredAt >= new Date(view.expiresAt))
+      throw new ProjectUpdateError("UNAVAILABLE");
+    return { schedule, assessment: atlasDelayAssessmentSchema.parse({
+      approvalId: detail.approvalId, receiptId: detail.receiptId, scheduleRevision: detail.scheduleRevision,
+      cause: detail.cause, confidence: detail.confidence, id: saved.id, confirmedBy: view.approver, confirmedAt: iso(saved.occurredAt),
+    }) };
   }
 
   async atlasApproval(actorValue: Actor, projectValue: string) {
     const current = parseActor(actorValue);
     const projectId = parseProjectId(projectValue);
-    return this.transaction(async (tx) => (await this.loadAtlasApproval(tx, current, projectId))?.view ?? null, "ReadCommitted");
+    return this.transaction(async (tx) => {
+      const approved = await this.loadAtlasApproval(tx, current, projectId);
+      if (!approved) return null;
+      const delayReview = approved.view.receipt ? await this.atlasDelayReview(tx, current.customerId, projectId,
+        approved.view, approved.captureIssuanceEpoch, await this.atlasSchedule(tx, current.customerId, projectId)) : null;
+      if (delayReview && await this.now(tx) >= new Date(approved.view.expiresAt)) throw new ProjectUpdateError("DENIED");
+      return { ...approved.view, delayReview };
+    }, "ReadCommitted");
+  }
+
+  async confirmAtlasDelay(actorValue: Actor, projectValue: string, value: unknown, correlationValue: string) {
+    const current = parseActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    const parsed = atlasDelayCommandSchema.safeParse(value);
+    if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+    return this.transaction(async (tx) => {
+      const approved = await this.loadAtlasApproval(tx, current, projectId);
+      const { approvalId, receiptId, scheduleRevision, confidence } = parsed.data;
+      if (!approved || approved.view.approvalId !== approvalId || approved.view.receipt?.id !== receiptId)
+        throw new ProjectUpdateError("CONFLICT");
+      const { view, captureIssuanceEpoch } = approved;
+      const review = await this.atlasDelayReview(tx, current.customerId, projectId, view, captureIssuanceEpoch,
+        await this.atlasSchedule(tx, current.customerId, projectId));
+      if (await this.now(tx) >= new Date(view.expiresAt)) throw new ProjectUpdateError("DENIED");
+      if (!review || review.schedule.revision !== scheduleRevision ||
+          (review.assessment && review.assessment.confidence !== confidence))
+        throw new ProjectUpdateError("CONFLICT");
+      if (review.assessment) return review.assessment;
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasDelayConfirmedEvent,
+        { ...parsed.data, projectId, responseId: view.responseId, captureIssuanceEpoch });
+      const event = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true } });
+      if (event.occurredAt >= new Date(view.expiresAt)) throw new ProjectUpdateError("DENIED");
+      return atlasDelayAssessmentSchema.parse({ ...parsed.data, id, confirmedBy: current.subject, confirmedAt: iso(event.occurredAt) });
+    }, "ReadCommitted");
   }
 
   private atlasLeadershipActor(actorValue: Actor): Actor {
@@ -2057,22 +2132,19 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
 
   private async loadAtlasLeadershipAnswer(tx: Tx, current: Actor, projectId: string) {
     const approved = await this.loadAtlasApproval(tx, current, projectId, "leadership");
-    const project = await tx.canonicalProject.findFirst({
-      where: { id: projectId, customerId: current.customerId, sealed: true },
-      select: { revision: true, baselineEnd: true, forecastEnd: true },
-    });
-    const baseline = project?.baselineEnd?.toISOString().slice(0, 10) ?? null;
-    const forecast = project?.forecastEnd?.toISOString().slice(0, 10) ?? null;
-    const asOf = await this.now(tx);
+    const schedule = await this.atlasSchedule(tx, current.customerId, projectId);
     const view = approved?.view;
+    const delayReview = approved && await this.atlasDelayReview(tx, current.customerId, projectId,
+      approved.view, approved.captureIssuanceEpoch, schedule);
+    const asOf = await this.now(tx);
     if (view && asOf >= new Date(view.expiresAt)) throw new ProjectUpdateError("DENIED");
     const answer = atlasLeadershipAnswerSchema.parse({
       projectId, asOf: iso(asOf),
-      schedule: project ? { revision: project.revision, baseline, forecast,
-        movementDays: baseline && forecast ? calendarDayDifference(forecast, baseline) : null } : null,
+      schedule,
       ownerReply: view ? { responseId: view.responseId, receivedAt: view.replyReceivedAt, availableUntil: view.expiresAt,
         accessStatus: view.accessStatus } : null,
       receipt: view?.receipt ?? null,
+      delayAssessment: delayReview?.assessment ?? null,
     });
     return { answer, locator: approved?.locator, approver: view?.approver };
   }
@@ -2208,12 +2280,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const facts = atlasManagementFactsSchema.safeParse(answer);
       if (!facts.success || !locator) throw new ProjectUpdateError("CONFLICT");
       const previous = await this.savedAtlasManagementSnapshot(tx, current.customerId, projectId, current.subject);
-      const sameEvidence = (value: typeof facts.data) => hash([value.schedule, value.ownerReply, value.receipt]);
+      const sameEvidence = (value: typeof facts.data) => hash([value.schedule, value.ownerReply, value.receipt, value.delayAssessment]);
       if (previous && previous.locator === locator && previous.facts.asOf.slice(0, 7) === facts.data.asOf.slice(0, 7) &&
           sameEvidence(previous.facts) === sameEvidence(facts.data))
         return this.atlasReportState(tx, current.customerId, previous, approver);
+      const { delayAssessment, ...originalFacts } = facts.data;
       const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasManagementSnapshotEvent,
-        { projectId, locator, facts: facts.data });
+        { projectId, locator, facts: delayAssessment ? facts.data : originalFacts });
       return this.atlasManagementView({ id, facts: facts.data });
     }, "ReadCommitted");
   }

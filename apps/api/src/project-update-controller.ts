@@ -51,6 +51,7 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async atlasApproval() { throw new ProjectUpdateError("DENIED"); },
   async decideAtlasApproval() { throw new ProjectUpdateError("DENIED"); },
   async recordAtlasComment() { throw new ProjectUpdateError("DENIED"); },
+  async confirmAtlasDelay() { throw new ProjectUpdateError("DENIED"); },
   async atlasLeadershipAnswer() { throw new ProjectUpdateError("DENIED"); },
   async atlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async createAtlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
@@ -130,6 +131,13 @@ export class ProjectUpdateController {
   async recordAtlasComment(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
     const actor = await this.actor(req);
     return this.run(() => this.repository.recordAtlasComment(actor, this.projectId(rawId), body, req.correlationId));
+  }
+
+  @Post("atlas-delay-confirmation")
+  @HttpCode(200)
+  async confirmAtlasDelay(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    return this.run(() => this.repository.confirmAtlasDelay(actor, this.projectId(rawId), body, req.correlationId));
   }
 
   @Get("atlas-leadership-answer")
