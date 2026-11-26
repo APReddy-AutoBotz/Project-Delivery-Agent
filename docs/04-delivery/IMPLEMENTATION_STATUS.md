@@ -98,7 +98,9 @@ acceptance evidence and resolve demonstrated gaps as part of the feature PR.
   to merge. On 24 recent Foundation runs, the 19 successful runs took a median
   of 28.7 minutes. The main run at `8a5ab52` took 28 minutes 43 seconds.
   The goal is useful feedback within five minutes on ordinary changes while
-  the appropriate acceptance jobs run. Recheck after five feature PRs.
+  the appropriate acceptance jobs run. The seven code checks on PRs #208–214
+  took a median of 119 seconds from job start. Packaged validation remains a
+  separate release gate.
   [Foundation runs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/workflows/foundation-validation.yml).
 
 ## Latest merged result and current work
