@@ -400,7 +400,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     AND: [{ detail: { path: ["projectId"], equals: fixture.projectId } },
       { detail: { path: ["approvalId"], equals: newComparison.approvalId } }],
   };
-  const retry = () => request.post(receiptPath, { headers: managerHeaders, data: { approvalId: newComparison.approvalId } });
+  const retryReceipt = () => request.post(receiptPath, { headers: managerHeaders, data: { approvalId: newComparison.approvalId } });
   try {
     const decision = await recovery.auditEvent.findFirstOrThrow({
       where: { ...recoveryScope, event: "atlas_demo.approval.decided" },
@@ -413,7 +413,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
       data: { customerId: fixture.customerId, actor: recoveryScope.actor, correlationId: randomUUID(),
         event: "atlas_demo.comment.attempt_started", detail: { ...evidence, target: newComparison.target, sourceRevision: 2 } },
     });
-    expect((await retry()).status()).toBe(409);
+    expect((await retryReceipt()).status()).toBe(409);
     expect(await recovery.auditEvent.count({ where: { ...recoveryScope, event: "atlas_demo.fixture.comment_posted" } })).toBe(0);
     await recovery.auditEvent.create({
       data: { customerId: fixture.customerId, actor: recoveryScope.actor, correlationId: randomUUID(),
@@ -429,7 +429,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
       responseId: newComparison.responseId, fixtureRevision: 3, payloadDigest });
   } finally { await recovery.$disconnect(); }
   await expect(receiptPanel).toContainText("Fixture revision");
-  expect(await (await retry()).json()).toMatchObject({ approvalId: newComparison.approvalId, fixtureRevision: 3, result: "SIMULATED" });
+  expect(await (await retryReceipt()).json()).toMatchObject({ approvalId: newComparison.approvalId, fixtureRevision: 3, result: "SIMULATED" });
   const newerDraft = await request.post(reportPath, { headers: leaderHeaders, data: {} });
   expect(newerDraft.status()).toBe(200);
   const newer = (await newerDraft.json()).snapshot;
