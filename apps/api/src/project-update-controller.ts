@@ -15,6 +15,7 @@ import { IdentityService } from "@pdaa/platform";
 import { z } from "zod";
 import { atlasManagementPreview, renderAtlasManagementSnapshot } from "./atlas-management-snapshot.js";
 import {
+  atlasManagementOutputSchema,
   atlasReportDecisionSchema,
   projectFactIdSchema,
   projectUpdatePolicyChangeSchema,
@@ -199,7 +200,10 @@ export class ProjectUpdateController {
       if (report?.id !== command.data.snapshotId || report.approval?.requestId !== command.data.requestId)
         throw new HttpException("", 409);
       if (report.approvalState === "PENDING") {
-        try { await renderAtlasManagementSnapshot({ ...report, approvalState: "APPROVED" }); }
+        try {
+          const output = await renderAtlasManagementSnapshot({ ...report, approvalState: "APPROVED" });
+          atlasManagementOutputSchema.parse(output);
+        }
         catch { throw new HttpException("", 503); }
       }
     }

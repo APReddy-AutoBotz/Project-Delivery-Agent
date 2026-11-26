@@ -28,17 +28,21 @@ it("leaves the report awaiting approval when its final PowerPoint cannot be rend
   const readReview = vi.fn().mockResolvedValue({ snapshot: pending, distribution: null });
   const recordDecision = vi.fn().mockResolvedValue(approved);
   const render = vi.mocked(renderAtlasManagementSnapshot);
+  const actual = await vi.importActual<typeof import("../apps/api/dist/atlas-management-snapshot.js")>(
+    "../apps/api/dist/atlas-management-snapshot.js");
   render.mockRejectedValueOnce(new Error("private generator detail"));
   render.mockResolvedValueOnce({ snapshot: approved, highlights: [], livePath: `/?project=${projectId}`, powerpointBase64: "fixture" });
+  render.mockImplementationOnce(actual.renderAtlasManagementSnapshot);
   const controller = new ProjectUpdateController({
     ...unavailableProjectUpdateRepository, atlasReportApproval: readReview, decideAtlasReportApproval: recordDecision,
   }, { authenticate: vi.fn().mockResolvedValue(actor) } as never);
   const approve = { snapshotId, requestId, decision: "APPROVED" };
 
   await expect(controller.decideAtlasReportApproval(req, projectId, approve)).rejects.toMatchObject({ status: 503, response: "" });
+  await expect(controller.decideAtlasReportApproval(req, projectId, approve)).rejects.toMatchObject({ status: 503, response: "" });
   expect(recordDecision).not.toHaveBeenCalled();
   expect(await controller.atlasReportApproval(req, projectId)).toMatchObject({ snapshot: pending });
   await expect(controller.decideAtlasReportApproval(req, projectId, approve)).resolves.toMatchObject({ snapshot: approved });
-  expect(render).toHaveBeenNthCalledWith(2, approved);
+  expect(render).toHaveBeenNthCalledWith(3, approved);
   expect(recordDecision).toHaveBeenCalledExactlyOnceWith(actor, projectId, approve, req.correlationId);
 });
