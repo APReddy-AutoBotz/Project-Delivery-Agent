@@ -3,7 +3,8 @@ import type { Actor } from "./actor.js";
 import type { AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasManagementSnapshot, AtlasReportDistributionReceipt } from "./atlas-update-approval.js";
 import type { IngestionReassessmentRetry, IngestionReassessmentItem, IngestionReassessmentPage } from "./ingestion-reassessment.js";
 import type { ProjectUpdateEngagementView } from "./project-update-engagement.js";
-import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "./project-update-capture.js";
+import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt,
+  ProjectUpdateStatusConfirmationReceipt } from "./project-update-capture.js";
 import type { ProjectUpdatePolicyView, ProjectUpdatePolicyChange, ProjectUpdateAssessmentView } from "./project-updates.js";
 import type { ProjectUpdateSchedulePreview } from "./project-update-schedule.js";
 import type { UpdateAdviceSnapshot } from "./update-advice.js";
@@ -23,6 +24,7 @@ export interface ProjectUpdateRepository {
   processEngagements(limit: number): Promise<number>;
   invitation(actor: Actor, locator: string): Promise<ProjectUpdateRecipientRequestView>;
   submitResponse(actor: Actor, locator: string, submission: unknown, correlationId: string): Promise<ProjectUpdateResponseReceipt>;
+  confirmCapturedStatus(actor: Actor, projectId: string, confirmation: unknown, correlationId: string): Promise<ProjectUpdateStatusConfirmationReceipt>;
   confirmAtlasReply(actor: Actor, locator: string, confirmation: unknown, correlationId: string): Promise<{ approvalId: string }>;
   atlasApproval(actor: Actor, projectId: string): Promise<AtlasApprovalView | null>;
   decideAtlasApproval(actor: Actor, projectId: string, decision: unknown, correlationId: string): Promise<AtlasApprovalView>;

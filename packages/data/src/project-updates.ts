@@ -7,6 +7,7 @@ import {
   projectUpdateCaptureConfigurationSchema, projectUpdateInvitationLocatorSchema,
   projectUpdateCaptureGenerationSchema,
   projectUpdateResponseSubmissionSchema, projectUpdateRecipientRequestViewSchema,
+  projectUpdateStatusConfirmationSchema, projectUpdateStatusConfirmationReceiptSchema,
   projectUpdateEscalationContextSchema, type ProjectUpdateEscalationContext,
   mayAccessProjectUpdateInvitation, isActiveProjectUpdateCapture, renderProjectUpdateCapture,
   atlasApprovalDecisionSchema, atlasApprovalProjectCode, atlasApprovalViewSchema, atlasComment,
@@ -40,7 +41,7 @@ import {
   ingestionReassessmentItemSchema,
   type IngestionReassessmentRetry,
   type IngestionReassessmentItem,
-  ProjectUpdateError,
+  ProjectFactError, ProjectUpdateError,
   type Actor,
   type DeliveryUpdateObservation,
   type ProjectUpdateAssessmentView,
@@ -54,6 +55,7 @@ import {
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
 import { actorInput, authorizeFactProject } from "./fact-authorization.js";
 import { DatabaseAuthorityRepository } from "./authority-persistence.js";
+import { DatabaseProjectFactRepository } from "./project-facts.js";
 import {
   blockDisabledPolicyCauses, mayReadReassessmentSource, sourceStillMatches,
   reassessmentAudit, reassessmentNow, type ReassessmentCause,
@@ -71,7 +73,14 @@ const atlasManagementSnapshotEvent = "atlas_demo.management_snapshot.created";
 const atlasReportRequestedEvent = "atlas_demo.report_approval.requested";
 const atlasReportDecidedEvent = "atlas_demo.report_approval.decided";
 const atlasReportDistributedEvent = "atlas_demo.report.distributed";
-const atlasPayloadDigest = z.string().regex(/^[a-f0-9]{64}$/u);
+const payloadDigestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
+const capturedStatusConfirmedEvent = "project_update.response.status_confirmed";
+const capturedStatusFactType = "project.status";
+const storedCapturedStatusConfirmation = z.strictObject({
+  projectId: z.uuid(), requestId: z.uuid(), responseId: z.uuid(), captureIssuanceEpoch: z.uuid(),
+  factId: z.uuid(), versionId: z.uuid(), evidenceId: z.uuid(), payloadDigest: payloadDigestSchema,
+  factSatisfied: z.boolean(),
+});
 const storedAtlasConfirmation = atlasReplyConfirmationSchema.extend({
   projectId: z.uuid(), requestId: z.uuid(), approver: canonicalSubjectSchema,
   template: z.literal(atlasCommentTemplate), captureIssuanceEpoch: z.uuid(),
@@ -80,13 +89,13 @@ const storedAtlasConfirmation = atlasReplyConfirmationSchema.extend({
 });
 const storedAtlasDecision = atlasApprovalDecisionSchema.safeExtend({
   projectId: z.uuid(), captureIssuanceEpoch: z.uuid(),
-  payloadDigest: atlasPayloadDigest.optional(),
+  payloadDigest: payloadDigestSchema.optional(),
 });
 const storedAtlasComment = z.strictObject({
   projectId: z.uuid(), approvalId: z.uuid(), responseId: z.uuid(), decisionId: z.uuid(),
   captureIssuanceEpoch: z.uuid(), fixtureRevision: z.number().int().positive(),
   template: z.literal(atlasCommentTemplate), accessStatus: atlasReplyConfirmationSchema.shape.accessStatus,
-  payloadDigest: atlasPayloadDigest,
+  payloadDigest: payloadDigestSchema,
 });
 const storedAtlasDelay = atlasDelayCommandSchema.extend({
   projectId: z.uuid(), responseId: z.uuid(), captureIssuanceEpoch: z.uuid(),
@@ -1687,7 +1696,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   }
 
   private async authorizedInvitation(tx: Tx, current: Actor, locatorValue: string,
-    atlasReview?: "pm" | "leadership" | "leadership-escalation") {
+    review?: "pm" | "leadership" | "leadership-escalation" | "response-review") {
     const locator = projectUpdateInvitationLocatorSchema.safeParse(locatorValue);
     const configuration = this.captureConfiguration(current.customerId);
     if (!locator.success || !configuration) throw new ProjectUpdateError("DENIED");
@@ -1707,35 +1716,40 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       throw new ProjectUpdateError("DENIED");
     const rows = await tx.$queryRawUnsafe<CaptureInvitationRow[]>(
       'SELECT i.id AS "invitationId",i."requestId",i."recipientSubject",i."issuanceEpoch",i."issuedAt",i."expiresAt",r."capturedAt",r."purgeAfter",r."contentRetentionSeconds",r."reviewerSubjects",r."requiredFacts",r.dependencies,CASE WHEN $4::boolean THEN NULL ELSE c.body END AS body,(c.body IS NOT NULL) AS "hasContent",c.state AS "contentState",s.id AS "stageId",s.kind AS "stageKind",s."recipientRole",s."logicalDueAt",s.generation AS "stageGeneration",s."policyRevision",e."ownerSubject",e.state AS "engagementState",e.generation AS "engagementGeneration",o.state AS "obligationState",h.revision AS "currentPolicyRevision",b.state AS "outboxState",p.code,p.name FROM public."ProjectUpdateInvitation" i JOIN public."ProjectUpdateCapturedRequest" r ON r."customerId"=i."customerId" AND r."projectId"=i."projectId" AND r.id=i."requestId" JOIN public."ProjectUpdateRequestContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."requestId"=r.id JOIN public."ProjectUpdateStage" s ON s."customerId"=r."customerId" AND s."projectId"=r."projectId" AND s.id=r."stageId" JOIN public."ProjectUpdateEngagement" e ON e."customerId"=s."customerId" AND e."projectId"=s."projectId" AND e.id=s."engagementId" JOIN public."ProjectUpdateObligation" o ON o."customerId"=e."customerId" AND o."projectId"=e."projectId" AND o.id=e."obligationId" JOIN public."ProjectUpdatePolicy" h ON h."customerId"=e."customerId" AND h."projectId"=e."projectId" JOIN public."ProjectUpdateOutbox" b ON b."customerId"=s."customerId" AND b."projectId"=s."projectId" AND b."stageId"=s.id JOIN public."Project" p ON p."customerId"=s."customerId" AND p.id=s."projectId" WHERE i."customerId"=$1::uuid AND i."projectId"=$2::uuid AND i.locator=$3::uuid',
-      current.customerId, projectId, locator.data, Boolean(atlasReview),
+      current.customerId, projectId, locator.data, Boolean(review),
     );
     const row = rows[0];
-    if (!row || (!atlasReview && row.recipientSubject !== current.subject)) throw new ProjectUpdateError("DENIED");
+    if (!row || (!review && row.recipientSubject !== current.subject)) throw new ProjectUpdateError("DENIED");
     const policy = await this.loadPolicy(tx, current.customerId, projectId, true);
     if (!policy) throw new ProjectUpdateError("DENIED");
-    if (atlasReview) {
+    if (review === "response-review") {
+      if (row.recipientRole !== "OWNER" || !row.reviewerSubjects.includes(current.subject) ||
+          !configuration.responseReviewerSubjects.includes(current.subject)) throw new ProjectUpdateError("DENIED");
+      try { await authorizeFactProject(tx, current, projectId, "access"); }
+      catch { throw new ProjectUpdateError("DENIED"); }
+    } else if (review) {
       const pm = policy.escalationRecipientSubject;
       if (!this.atlasDemoEnabled || row.code !== atlasApprovalProjectCode || !pm || current.subject === row.recipientSubject)
         throw new ProjectUpdateError("DENIED");
-      if (atlasReview === "leadership-escalation") {
+      if (review === "leadership-escalation") {
         if (current.roles.length !== 1 || current.roles[0] !== "leadership" || row.stageKind !== "ESCALATION" ||
             row.recipientRole !== "PROJECT_MANAGER" || row.recipientSubject !== pm) throw new ProjectUpdateError("DENIED");
       } else {
         if (row.stageKind !== "REQUEST" || row.recipientRole !== "OWNER" || pm === row.recipientSubject)
           throw new ProjectUpdateError("DENIED");
-        const reviewerAuthorized = atlasReview === "pm"
+        const reviewerAuthorized = review === "pm"
           ? pm === current.subject && await this.actorRecipientAuthorized(tx, current, projectId, "PROJECT_MANAGER")
           : await this.recipientAuthorized(tx, current.customerId, projectId, pm, "PROJECT_MANAGER");
         if (!reviewerAuthorized) throw new ProjectUpdateError("DENIED");
       }
     }
-    const recipientAuthorized = atlasReview
+    const recipientAuthorized = review
       ? await this.recipientAuthorized(tx, current.customerId, projectId, row.recipientSubject, row.recipientRole)
       : await this.actorRecipientAuthorized(tx, current, projectId, row.recipientRole);
     const ownerAuthorized = await this.recipientAuthorized(tx, current.customerId, projectId, row.ownerSubject, "OWNER");
     const dependencies = z.array(projectUpdateFactReferenceSchema).max(1000).parse(jsonValue(row.dependencies));
     const readable = await this.resolveKnownPosition(tx, current, projectId, dependencies, policy.requiredFacts);
-    const recipientReadable = atlasReview ? await this.resolveKnownPosition(tx,
+    const recipientReadable = review ? await this.resolveKnownPosition(tx,
       { customerId: current.customerId, subject: row.recipientSubject, roles: [] },
       projectId, dependencies, policy.requiredFacts) : readable;
     const asOf = await this.now(tx);
@@ -1754,7 +1768,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       issuedAt: iso(row.issuedAt), expiresAt: iso(row.expiresAt),
       contentExpiresAt: iso(row.purgeAfter), asOf: iso(asOf),
     };
-    if (!(atlasReview ? isActiveProjectUpdateCapture(capture) : mayAccessProjectUpdateInvitation(capture)))
+    if (!(review ? isActiveProjectUpdateCapture(capture) : mayAccessProjectUpdateInvitation(capture)))
       throw new ProjectUpdateError("DENIED");
     return { row, projectId, asOf, configuration, policy };
   }
@@ -1920,7 +1934,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   }
 
 
-  private async latestAtlasReply(tx: Tx, customerId: string, projectId: string, requestId: string, asOf: Date) {
+  private async latestRetainedReply(tx: Tx, customerId: string, projectId: string, requestId: string, asOf: Date) {
     const rows = await tx.$queryRaw<{
       id: string; submittedBy: string; receivedAt: Date; purgeAfter: Date; state: string;
     }[]>`
@@ -1932,6 +1946,83 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       ORDER BY r."receivedAt" DESC, r.id DESC LIMIT 1`;
     const latest = rows[0];
     return latest?.state === "PRESENT" && latest.purgeAfter > asOf ? latest : null;
+  }
+
+  private async capturedStatusConfirmation(tx: Tx, customerId: string, projectId: string, requestId: string,
+    responseId: string, captureIssuanceEpoch: string) {
+    const saved = await tx.auditEvent.findFirst({
+      where: { customerId, event: capturedStatusConfirmedEvent, AND: [
+        { detail: { path: ["projectId"], equals: projectId } },
+        { detail: { path: ["requestId"], equals: requestId } },
+        { detail: { path: ["responseId"], equals: responseId } },
+      ] }, select: { id: true, actor: true, occurredAt: true, detail: true },
+    });
+    if (!saved) return null;
+    const detail = storedCapturedStatusConfirmation.parse(saved.detail);
+    if (detail.captureIssuanceEpoch !== captureIssuanceEpoch) throw new ProjectUpdateError("UNAVAILABLE");
+    const receipt = projectUpdateStatusConfirmationReceiptSchema.parse({
+      responseId, receiptId: saved.id, confirmedBy: saved.actor, confirmedAt: iso(saved.occurredAt),
+      factSatisfied: detail.factSatisfied,
+    });
+    return { receipt, payloadDigest: detail.payloadDigest };
+  }
+
+  async confirmCapturedStatus(actorValue: Actor, projectValue: string, value: unknown, correlationValue: string) {
+    const current = parseActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    return this.transaction(async (tx) => {
+      try { await authorizeFactProject(tx, current, projectId, "access"); }
+      catch { throw new ProjectUpdateError("DENIED"); }
+      const parsed = projectUpdateStatusConfirmationSchema.safeParse(value);
+      if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+      const { requestId, responseId, expectedRevision, status } = parsed.data;
+      const invitation = await tx.projectUpdateInvitation.findFirst({
+        where: { customerId: current.customerId, projectId, requestId }, select: { locator: true },
+      });
+      if (!invitation) throw new ProjectUpdateError("DENIED");
+      const { row, asOf, policy } = await this.authorizedInvitation(tx, current, invitation.locator, "response-review");
+      const latest = await this.latestRetainedReply(tx, current.customerId, projectId, requestId, asOf);
+      if (!policyFacts(row.requiredFacts).some(({ factType }) => factType === capturedStatusFactType) ||
+          latest?.id !== responseId || latest.submittedBy !== row.recipientSubject)
+        throw new ProjectUpdateError("CONFLICT");
+      const payloadDigest = hash(parsed.data);
+      const previous = await this.capturedStatusConfirmation(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch);
+      if (previous) {
+        if (previous.payloadDigest !== payloadDigest || previous.receipt.confirmedBy !== current.subject)
+          throw new ProjectUpdateError("CONFLICT");
+        return previous.receipt;
+      }
+
+      const facts = new DatabaseProjectFactRepository(this.db);
+      const statement = await facts.appendHumanStatementInTransaction(tx, current, {
+        projectId, factType: capturedStatusFactType, expectedRevision, idempotencyKey: randomUUID(),
+        value: { type: "text", value: status }, originalStatement: status, effectiveAt: iso(latest.receivedAt),
+      }, { correlationId }).catch((error: unknown) => {
+        if (error instanceof ProjectFactError && (error.code === "REVISION_CONFLICT" || error.code === "SOURCE_RESTRICTED"))
+          throw new ProjectUpdateError("CONFLICT");
+        throw error;
+      });
+      const service = this.serviceSubject;
+      const prepared = service && this.zones?.customerId === current.customerId &&
+        policy.scheduledScanEnabled && policy.scheduledServiceSubject === service
+        ? await this.assessInTransaction(tx, { customerId: current.customerId, subject: service, roles: [] },
+          projectId, correlationId, true)
+        : null;
+      const factSatisfied = Boolean(prepared?.source.satisfiedFactTypes.includes(capturedStatusFactType) &&
+        prepared.view.knownPosition.some((fact) => fact.versionId === statement.entry.id));
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, capturedStatusConfirmedEvent, {
+        projectId, requestId, responseId, payloadDigest, factId: statement.factId, versionId: statement.entry.id,
+        evidenceId: statement.entry.evidenceId, factSatisfied,
+      });
+      const saved = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true, detail: true } });
+      if (storedCapturedStatusConfirmation.parse(saved.detail).captureIssuanceEpoch !== row.issuanceEpoch ||
+          saved.occurredAt >= row.expiresAt || saved.occurredAt >= row.purgeAfter || saved.occurredAt >= latest.purgeAfter)
+        throw new ProjectUpdateError("CONFLICT");
+      return projectUpdateStatusConfirmationReceiptSchema.parse({
+        responseId, receiptId: id, confirmedBy: current.subject, confirmedAt: iso(saved.occurredAt), factSatisfied,
+      });
+    }, "ReadCommitted");
   }
 
   async confirmAtlasReply(actorValue: Actor, locator: string, value: unknown, correlationValue: string) {
@@ -1947,7 +2038,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         throw new ProjectUpdateError("DENIED");
       const parsed = atlasReplyConfirmationSchema.safeParse(value);
       if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
-      const latest = await this.latestAtlasReply(tx, current.customerId, projectId, row.requestId, asOf);
+      const latest = await this.latestRetainedReply(tx, current.customerId, projectId, row.requestId, asOf);
       if (latest?.id !== parsed.data.responseId || latest.submittedBy !== current.subject)
         throw new ProjectUpdateError("CONFLICT");
       const previous = await tx.auditEvent.findFirst({
@@ -2025,7 +2116,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (row.issuanceEpoch !== detail.captureIssuanceEpoch || row.recipientSubject !== confirmed.actor ||
         policy.escalationRecipientSubject !== detail.approver)
       throw new ProjectUpdateError("DENIED");
-    const latest = await this.latestAtlasReply(tx, current.customerId, projectId, row.requestId, asOf);
+    const latest = await this.latestRetainedReply(tx, current.customerId, projectId, row.requestId, asOf);
     if (latest?.id !== detail.responseId || latest.submittedBy !== confirmed.actor) return null;
     const decided = await tx.auditEvent.findFirst({
       where: { customerId: current.customerId, actor: detail.approver, event: atlasDecidedEvent, AND: [
@@ -2567,17 +2658,18 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         requestId: string; stageId: string; stageKind: "REQUEST" | "REMINDER" | "ESCALATION";
         recipientSubject: string; recipientRole: "OWNER" | "PROJECT_MANAGER"; capturedAt: Date;
         expiresAt: Date; purgeAfter: Date; issuanceEpoch: string; reviewerSubjects: string[];
-        body: string | null; contentState: string; dependencies: unknown; requiredFacts: unknown;
+        body: string | null; contentState: string; dependencies: unknown; requiredFacts: unknown; capturedRequiredFacts: unknown;
         locator: string; engagementState: string; obligationState: string;
         stageGeneration: number; engagementGeneration: number; policyRevision: number; currentPolicyRevision: number;
       }[]>(
-        'SELECT r.id AS "requestId",s.id AS "stageId",s.kind AS "stageKind",r."recipientSubject",s."recipientRole",r."capturedAt",i."expiresAt",r."purgeAfter",r."issuanceEpoch",r."reviewerSubjects",c.body,c.state AS "contentState",r.dependencies,p."requiredFacts",i.locator,e.state AS "engagementState",o.state AS "obligationState",s.generation AS "stageGeneration",e.generation AS "engagementGeneration",s."policyRevision",h.revision AS "currentPolicyRevision" FROM public."ProjectUpdateCapturedRequest" r JOIN public."ProjectUpdateStage" s ON s."customerId"=r."customerId" AND s."projectId"=r."projectId" AND s.id=r."stageId" JOIN public."ProjectUpdateEngagement" e ON e."customerId"=s."customerId" AND e."projectId"=s."projectId" AND e.id=s."engagementId" JOIN public."ProjectUpdateObligation" o ON o."customerId"=e."customerId" AND o."projectId"=e."projectId" AND o.id=e."obligationId" JOIN public."ProjectUpdatePolicyRevision" p ON p."customerId"=s."customerId" AND p."projectId"=s."projectId" AND p.id=s."policyRevisionId" JOIN public."ProjectUpdatePolicy" h ON h."customerId"=s."customerId" AND h."projectId"=s."projectId" JOIN public."ProjectUpdateInvitation" i ON i."customerId"=r."customerId" AND i."projectId"=r."projectId" AND i."requestId"=r.id JOIN public."ProjectUpdateRequestContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."requestId"=r.id WHERE r."customerId"=$1::uuid AND r."projectId"=$2::uuid AND ($3 OR r."recipientSubject"=$4) AND ($5::uuid IS NULL OR (r."capturedAt",r.id)<(SELECT before."capturedAt",before.id FROM public."ProjectUpdateCapturedRequest" before WHERE before."customerId"=$1::uuid AND before."projectId"=$2::uuid AND before.id=$5::uuid AND ($3 OR before."recipientSubject"=$4))) ORDER BY r."capturedAt" DESC,r.id DESC LIMIT 21',
+        'SELECT r.id AS "requestId",s.id AS "stageId",s.kind AS "stageKind",r."recipientSubject",s."recipientRole",r."capturedAt",i."expiresAt",r."purgeAfter",r."issuanceEpoch",r."reviewerSubjects",c.body,c.state AS "contentState",r.dependencies,p."requiredFacts",r."requiredFacts" AS "capturedRequiredFacts",i.locator,e.state AS "engagementState",o.state AS "obligationState",s.generation AS "stageGeneration",e.generation AS "engagementGeneration",s."policyRevision",h.revision AS "currentPolicyRevision" FROM public."ProjectUpdateCapturedRequest" r JOIN public."ProjectUpdateStage" s ON s."customerId"=r."customerId" AND s."projectId"=r."projectId" AND s.id=r."stageId" JOIN public."ProjectUpdateEngagement" e ON e."customerId"=s."customerId" AND e."projectId"=s."projectId" AND e.id=s."engagementId" JOIN public."ProjectUpdateObligation" o ON o."customerId"=e."customerId" AND o."projectId"=e."projectId" AND o.id=e."obligationId" JOIN public."ProjectUpdatePolicyRevision" p ON p."customerId"=s."customerId" AND p."projectId"=s."projectId" AND p.id=s."policyRevisionId" JOIN public."ProjectUpdatePolicy" h ON h."customerId"=s."customerId" AND h."projectId"=s."projectId" JOIN public."ProjectUpdateInvitation" i ON i."customerId"=r."customerId" AND i."projectId"=r."projectId" AND i."requestId"=r.id JOIN public."ProjectUpdateRequestContent" c ON c."customerId"=r."customerId" AND c."projectId"=r."projectId" AND c."requestId"=r.id WHERE r."customerId"=$1::uuid AND r."projectId"=$2::uuid AND ($3 OR r."recipientSubject"=$4) AND ($5::uuid IS NULL OR (r."capturedAt",r.id)<(SELECT before."capturedAt",before.id FROM public."ProjectUpdateCapturedRequest" before WHERE before."customerId"=$1::uuid AND before."projectId"=$2::uuid AND before.id=$5::uuid AND ($3 OR before."recipientSubject"=$4))) ORDER BY r."capturedAt" DESC,r.id DESC LIMIT 21',
         current.customerId, projectId, administrator, current.subject, cursorValue ?? null,
       );
       const configuration = this.captureConfiguration(current.customerId);
       const gateOpen = configuration ? await this.captureGate(tx, current.customerId, configuration) : false;
       const asOf = await this.now(tx);
       const entries: ProjectUpdateCaptureHistory["entries"] = [];
+      let statusRevision: number | undefined;
       for (const row of rows.slice(0, 20)) {
         const retained = row.contentState === "PRESENT" && row.purgeAfter > asOf && row.body !== null;
         const namedRecipient = row.recipientSubject === current.subject &&
@@ -2597,13 +2689,29 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           row.stageGeneration === row.engagementGeneration && row.policyRevision === row.currentPolicyRevision;
         const status = !gateOpen || row.issuanceEpoch !== configuration?.issuanceEpoch ? "QUARANTINED" as const
           : row.expiresAt <= asOf ? "EXPIRED" as const : !currentCycle ? "ENDED" as const : "ACTIVE" as const;
+        const responses = disclose ? await this.responseHistory(tx, current, projectId, row.requestId) : [];
+        const latest = responses[0];
+        let statusReview: ProjectUpdateCaptureHistory["entries"][number]["statusReview"];
+        if (frozenReviewer && row.recipientRole === "OWNER" && latest?.contentState === "PRESENT" && latest.text !== null &&
+            latest.submittedBy === row.recipientSubject &&
+            policyFacts(row.capturedRequiredFacts).some(({ factType }) => factType === capturedStatusFactType)) {
+          const confirmed = await this.capturedStatusConfirmation(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch);
+          if (confirmed) statusReview = { state: "CONFIRMED", ...confirmed.receipt };
+          else if (status === "ACTIVE") {
+            statusRevision ??= (await tx.projectFact.findFirst({
+              where: { customerId: current.customerId, projectId, factType: capturedStatusFactType }, select: { revision: true },
+            }))?.revision ?? 0;
+            if (projectUpdateStatusConfirmationSchema.shape.expectedRevision.safeParse(statusRevision).success)
+              statusReview = { state: "PENDING", responseId: latest.id, expectedRevision: statusRevision };
+          }
+        }
         entries.push({
           requestId: row.requestId, stageId: row.stageId, stageKind: row.stageKind,
           recipientSubject: row.recipientSubject, capturedAt: iso(row.capturedAt), expiresAt: iso(row.expiresAt),
           status, contentState: !retained ? "EXPIRED" : disclose ? "PRESENT" : "RESTRICTED",
           body: disclose ? row.body : null,
           recipientPath: disclose && namedRecipient && status === "ACTIVE" ? "/update-requests/" + row.locator : null,
-          responses: disclose ? await this.responseHistory(tx, current, projectId, row.requestId) : [],
+          responses, statusReview,
         });
       }
       const engagements = await tx.$queryRawUnsafe<{ id: string; generation: number; policyRevision: number; mode: "SHADOW" | "CAPTURE" }[]>(

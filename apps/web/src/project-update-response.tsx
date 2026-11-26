@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Message } from "./components.js";
 import type { RequestFn } from "./canonical-project.js";
 import { decodeInvitation, decodeInvitationReceipt } from "./project-update-invitation-decoder.js";
 import { CanonicalCreationWriteRegistry, canonicalCommandFingerprint, canonicalCreationOwner } from "./canonical-creation-write-registry.js";
 import { ManagedReadRegistry } from "./managed-read-registry.js";
 import { managedRead } from "./managed-read.js";
-import type { ProjectUpdateRecipientRequestView } from "@pdaa/domain";
+import type { ProjectUpdateCaptureHistory as CaptureHistory, ProjectUpdateRecipientRequestView,
+  ProjectUpdateStatusConfirmationReceipt } from "@pdaa/domain";
 import { ConfirmAtlasReply } from "./atlas-update-approval.js";
 import "./project-update-response.css";
 
@@ -55,10 +56,35 @@ function EscalationHistory({ context }: { context: EscalationContext }) {
       })}</ol>}
   </section>;
 }
-type History = { projectId: string; engagement: { id: string; generation: number; policyRevision: number; mode: string } | null;
-  nextCursor: string | null; entries: Array<{ requestId: string; stageKind: string; recipientSubject: string;
-    capturedAt: string; expiresAt: string; status: string; contentState: string;
-    body: string | null; recipientPath: string | null; responses: ResponseEntry[] }> };
+type StatusReview = NonNullable<CaptureHistory["entries"][number]["statusReview"]>;
+
+function ManualStatusReview({ review, submit, current }: {
+  review: StatusReview; submit: (status: string, expectedRevision: number) => Promise<unknown>; current: () => boolean;
+}) {
+  const [status, setStatus] = useState("");
+  const valid = status.trim().length > 0 && new TextEncoder().encode(status).length <= 500 &&
+    !/[\p{Cc}\p{Surrogate}]/u.test(status);
+  const confirmation = useMutation({
+    mutationFn: async () => {
+      if (!current() || review.state !== "PENDING" || !valid) throw new Error("Manual review unavailable");
+      await submit(status, review.expectedRevision);
+    },
+  });
+  if (review.state === "CONFIRMED") return <p>
+    Project status confirmed by {review.confirmedBy} at {review.confirmedAt}. Receipt {review.receiptId}.{" "}
+    {review.factSatisfied ? "The statement satisfied the requested status at confirmation."
+      : "The statement was recorded for source authority review."}
+  </p>;
+  return <section aria-label="Manual project status review">
+    <label className="field"><span>Confirmed project status</span>
+      <input type="text" value={status} maxLength={500} onChange={(event) => setStatus(event.currentTarget.value)}
+        disabled={confirmation.isPending} />
+    </label>
+    <Button className="primary" disabled={!valid || confirmation.isPending || !current()}
+      onClick={() => confirmation.mutate()}>Confirm project status</Button>
+    {confirmation.isError && <Message error>Could not verify the confirmation. Check the current response and try again.</Message>}
+  </section>;
+}
 
 function Responses({ entries }: { entries: ResponseEntry[] }) {
   return <ul>{entries.map((entry) => <li key={entry.id}>
@@ -252,10 +278,10 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
   const query = useQuery({ queryKey: ["project-update-capture-history", projectId, admissionScope, cursor], retry: false,
     // Keep the original response owned through completion when the logical
     // project view closes; unmount is not evidence of remote cancellation.
-    queryFn: () => request<History>(`/projects/${projectId}/project-update-capture-history${cursor ? "?cursor=" + cursor : ""}`) });
+    queryFn: () => request<CaptureHistory>(`/projects/${projectId}/project-update-capture-history${cursor ? "?cursor=" + cursor : ""}`) });
   const data = query.isError ? undefined : query.data;
   const current = () => {
-    const state = queryClient.getQueryState<History>(["project-update-capture-history", projectId, admissionScope, cursor]);
+    const state = queryClient.getQueryState<CaptureHistory>(["project-update-capture-history", projectId, admissionScope, cursor]);
     return isCurrentScope() && state?.status === "success" && state.fetchStatus === "idle" && state.data === data;
   };
   const canApprove = data?.engagement?.mode === "SHADOW" ||
@@ -274,19 +300,36 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
     } catch { if (current()) setMessage("Capture could not be approved. Refresh the policy and capture history before retrying."); }
     finally { setBusy(false); }
   }
+  async function confirmStatus(requestId: string, responseId: string, status: string, expectedRevision: number) {
+    try {
+      const receipt = await request<ProjectUpdateStatusConfirmationReceipt>(`/projects/${projectId}/project-update-status-confirmations`, {
+        method: "POST", body: JSON.stringify({ requestId, responseId, status, expectedRevision }),
+      }, 4096, undefined, undefined, current);
+      if (receipt.responseId !== responseId) throw new Error("Manual confirmation receipt mismatch");
+    } finally {
+      if (isCurrentScope())
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["project-update-capture-history", projectId, admissionScope] }),
+          queryClient.invalidateQueries({ queryKey: ["project-update-latest", projectId, admissionScope] }),
+        ]);
+    }
+  }
   return <section className="panel" aria-label="Captured update requests">
     <h3>Captured update requests</h3>
     <p>Requests and unconfirmed responses are retained according to the customer’s content policy.</p>
     {query.isError ? <Message error>Capture history is unavailable for this account.</Message> :
       !data ? <Message>Loading capture history…</Message> : <>
         {data.entries.length === 0 && <p>No captured requests on this page.</p>}
-        {data.entries.map((entry) => <article key={entry.requestId}>
+        {data.entries.map(({ statusReview, ...entry }) => <article key={entry.requestId}>
           <h4>{entry.stageKind} · {entry.recipientSubject} · {entry.status}</h4>
           {entry.status === "QUARANTINED" && <p>This invitation has been invalidated. Retained content is available to authorized readers.</p>}
           <p>Captured {entry.capturedAt} · Invitation expires {entry.expiresAt}</p>
           <p className="update-plain-text">{entry.body ?? (entry.contentState === "EXPIRED" ? "Request content has expired." : "Content is restricted for this account.")}</p>
           {entry.recipientPath && <a href={entry.recipientPath}>Respond to this request</a>}
           <Responses entries={entry.responses} />
+          {pmoAdmin && statusReview && <ManualStatusReview key={statusReview.responseId}
+            review={statusReview} current={current}
+            submit={(status, revision) => confirmStatus(entry.requestId, statusReview.responseId, status, revision)} />}
         </article>)}
         <div className="actions">
           {cursor && <Button onClick={() => { if (current()) setCursor(null); }}>Newest requests</Button>}
