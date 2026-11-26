@@ -60,6 +60,10 @@ The packaged restore rehearsal now proves that the same current invitation works
 before backup and denies reads and replies after restore while runtime database
 access stays quarantined. [PR #209](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/209).
 
+The [Atlas release evidence](../05-quality/ATLAS_RELEASE_EVIDENCE.md) links
+the executed leadership delay answer, saved comparison, report consistency,
+historical stability and secure invitation cases to their test specifications.
+
 Provider-backed interpretation, live connector policy and the general acceptance
 scenarios remain on the critical path. Customer release timing depends on the
 external decisions and the
@@ -338,10 +342,9 @@ merge `941113241b75fb1f99c6031c9fa9d93a1aa1adc4` have the same reviewed tree
 main `3c59ea981c023b76af9e2bd535e7d22fefe96d8f` and the refreshed head.
 Current-base Foundation 40963155930 and Documentation 40963155935 passed;
 post-merge Documentation 40966514510 and Foundation 40966514743 passed.
-Tests exercise a real loopback API and a synthetic
-role-switched database, not a separately authenticated production login or
-restored API. The full SEC-UPD-003/AC-UPD-003 criterion remains open; no accepted
-story or release hold changes.
+These tests exercised a real loopback API with a synthetic role-switched
+database. The [Atlas release evidence](../05-quality/ATLAS_RELEASE_EVIDENCE.md)
+also records the later packaged restore HTTP check from PR #209.
 
 EXEC-032's bounded current scalar disagreement observation merged in
 [PR #126](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/126),
