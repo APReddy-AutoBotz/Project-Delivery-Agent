@@ -16,6 +16,7 @@
     "test:recovery": "node scripts/local.mjs scripts/rehearse-recovery.mjs",
     "test:e2e": "playwright test",
     "dev": "node scripts/local.mjs scripts/dev.mjs",
+    "demo:atlas": "node scripts/local.mjs scripts/test-escalation-browser.mjs --serve-atlas",
     "db:generate": "pnpm --filter @pdaa/data generate",
     "db:migrate": "node scripts/local.mjs scripts/migrate.mjs",
     "db:seed": "node scripts/local.mjs packages/data/dist/seed.js",

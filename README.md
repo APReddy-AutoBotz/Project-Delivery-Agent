@@ -105,7 +105,9 @@ See [Release 1 Vertical Slice](docs/04-delivery/RELEASE-1-VERTICAL-SLICE.md) and
 
 ## Current status
 
-The web app, API and worker run against synthetic project data. Merged workflows include reviewed spreadsheet import, scoped evidence and project health, update capture, a PM action queue and bounded leadership conflict answers. The next delivery milestone connects an owner reply to PM approval, an action receipt and an evidence-backed management view.
+The web app, API and worker run against synthetic project data. The Atlas demo connects an owner reply to the assigned PM's approval queue, a simulated Jira comment receipt, an evidence-backed leadership answer, and PowerPoint approval and in-app distribution.
+
+After [local setup and build](docs/06-commercial-deployment/LOCAL_DEVELOPMENT.md), run `pnpm demo:atlas` to start the isolated Atlas demo. Open the owner invitation printed in the terminal to begin.
 
 See the [implementation ledger](docs/04-delivery/IMPLEMENTATION_STATUS.md) for current accepted-story totals, the delivery sequence and customer release holds.
 
