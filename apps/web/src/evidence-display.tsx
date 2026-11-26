@@ -212,6 +212,7 @@ export function AssessmentView({
       <a href={savedEvidenceLink(projectId, delivery.assessmentId)}>
         Open saved assessment link
       </a>
+      <p>Assessment ID <code>{delivery.assessmentId}</code></p>
       {result ? (
         <>
           <p>

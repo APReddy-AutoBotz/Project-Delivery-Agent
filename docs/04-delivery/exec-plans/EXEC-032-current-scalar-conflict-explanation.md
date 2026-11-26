@@ -67,6 +67,12 @@ unavailable. Existing requests keep the conflict-only response unless
 they opt into resolved dates. This supports FR-QA-002 and FR-QA-004 and
 does not add a model, persistence or a new reporting route.
 
+For FR-QA-010, compare a resolved current date with an explicitly selected,
+saved authority assessment of the same fact. Revalidate both sets of evidence
+in the same authorized project transaction. Show the supporting evidence at
+each assessment time. Withhold the comparison when either date is unavailable
+or conflicting. The project evidence view shows the saved assessment ID.
+
 ## Scope and semantics
 
 A leadership reader may select one fact already visible in its authorized,
