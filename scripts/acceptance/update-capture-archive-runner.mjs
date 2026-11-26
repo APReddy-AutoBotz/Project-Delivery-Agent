@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync,writeFileSync} from "node:fs";
 import {randomUUID} from "node:crypto";
 import {Pool,config,guard} from "./common.mjs";
-import {seedCaptureArchiveParent,constructCaptureArchive,captureArchiveProjection,verifyCaptureArchiveIntegrity,verifyExpiredArchiveDisclosure} from "./update-capture-archive.mjs";
+import {seedCaptureArchiveParent,constructCaptureArchive,captureArchiveProjection,verifyCaptureArchiveIntegrity,verifyCaptureInvitationHttp,verifyExpiredArchiveDisclosure} from "./update-capture-archive.mjs";
 import {verifyUpdateCapturePrivileges,assertUpdateCaptureRestoreProjection} from "./update-capture-storage.mjs";
 guard();
 assert.match(process.env.PDAA_ACCEPTANCE_RUN_ID,/^pdaa-acceptance-\d+-[a-f0-9]{8}$/);
@@ -41,7 +41,8 @@ try {
     assert.equal(rows.filter(r=>r[stateField]==="PRESENT"&&r[deadline]>r.databaseNow).length,1);
    }
    const disclosure=await verifyExpiredArchiveDisclosure({...sourceConfig,database:"capture_history"},evidence);
-   save("source-disclosure",disclosure);save("before",await captureArchiveProjection(pool));
+   const http=await verifyCaptureInvitationHttp({...sourceConfig,database:"capture_history"},evidence);
+   save("source-disclosure",{...disclosure,...http});save("before",await captureArchiveProjection(pool));
    await pool.query('COMMENT ON DATABASE capture_history IS '+"'pdaa.foundation.v1:"+evidence.customerId+"'");
   });
  } else if(mode==="bad-data") {
@@ -55,7 +56,10 @@ try {
  } else if(mode==="verify") {
   const evidence=read("evidence"), before=read("before");
   const receipt=await withTarget("capture_history_restore",async(pool)=>{
-   await verifyUpdateCapturePrivileges(pool);await verifyCaptureArchiveIntegrity(pool,evidence);
+   await verifyUpdateCapturePrivileges(pool);
+   const rows=await verifyCaptureArchiveIntegrity(pool,evidence);
+   const live=rows.find(row=>row.id===evidence.pairs[52].requestId);
+   assert(live&&live.expiresAt>live.databaseNow);
    const after=await captureArchiveProjection(pool);assertUpdateCaptureRestoreProjection(after,before);
    for(const [table,idField] of [["ProjectUpdateRequestContent","requestId"],["ProjectUpdateResponseContent","responseId"]]) {
     assert.equal(after[table].filter(r=>r.state==="PURGED").length,51);assert.equal(after[table].filter(r=>r.state==="PRESENT").length,2);
@@ -63,6 +67,7 @@ try {
    }
    const boundary=(await pool.query("SELECT shobj_description(oid,'pg_database') AS marker,has_database_privilege('pdaa_api',oid,'CONNECT') AS api,has_database_privilege('pdaa_worker',oid,'CONNECT') AS worker FROM pg_database WHERE datname=current_database()")).rows[0];
    assert.equal(boundary.marker,"pdaa.restore.quarantine.v1:"+evidence.customerId);assert.equal(boundary.api,false);assert.equal(boundary.worker,false);
+   const http=await verifyCaptureInvitationHttp({...sourceConfig,database:"capture_history_restore"},evidence);
    const tx=await pool.connect();try{await tx.query("BEGIN");await tx.query("SET LOCAL ROLE pdaa_api");
     assert.equal((await tx.query("SELECT public.purge_update_capture_content($1::uuid) AS n",[evidence.customerId])).rows[0].n,2);
     assert.equal((await tx.query("SELECT public.purge_update_capture_content($1::uuid) AS n",[evidence.customerId])).rows[0].n,0);
@@ -70,7 +75,8 @@ try {
    const final=await captureArchiveProjection(pool);
    for(const table of ["ProjectUpdateCapturedRequest","ProjectUpdateInvitation","ProjectUpdateResponse","ProjectUpdateStage","ProjectUpdateOutbox","ProjectUpdateDispatchAttempt"])assert.deepEqual(final[table],before[table]);
    return {requestResponsePairs:53,expiredPresentPairs:51,priorPurgedPairs:1,livePresentPairs:1,restorePurgedRequests:50,restorePurgedResponses:50,
-    subsequentApiPurge:2,repeatApiPurge:0,metadataAndLocatorsExact:true,unchangedGuardsAndFinitePrivileges:true,runtimeConnectQuarantined:true,...read("source-disclosure")};
+    subsequentApiPurge:2,repeatApiPurge:0,metadataAndLocatorsExact:true,unchangedGuardsAndFinitePrivileges:true,runtimeConnectQuarantined:true,
+    ...read("source-disclosure"),...http};
   });save("receipt",receipt);
  } else if(mode==="operator-prepare" || mode==="operator-promote") {
   const evidence=read("evidence");

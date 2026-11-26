@@ -2,9 +2,12 @@
 // Only a fresh maintenance database before pg_restore's post-data phase may
 // receive historical rows. Production clocks, guards and retention bounds stay exact.
 import assert from "node:assert/strict";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
+import { SignJWT } from "jose";
+import { createApp } from "../../apps/api/dist/app.js";
+import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
+import { loadConfig } from "../../packages/platform/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
 import { planProjectUpdateRecipientStage } from "../../packages/domain/dist/index.js";
 
@@ -266,6 +269,72 @@ export async function verifyCaptureArchiveIntegrity(pool, evidence) {
   return rows;
 }
 
+function captureArchiveReaders(db, evidence, issuanceEpoch) {
+  const api = { $transaction: (operation, options) => db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+    return operation(tx);
+  }, options) };
+  const updates = new DatabaseProjectUpdateRepository(api, "archive-service", {
+    customerId:evidence.customerId, customerTimeZone:"UTC", recipientTimeZones:[],
+  }, () => ({ globalShadowMode:"false", configuration:{ customerId:evidence.customerId, mode:"CAPTURE", issuanceEpoch,
+    invitationLifetimeSeconds:900, contentRetentionSeconds:86400, responseReviewerSubjects:[evidence.subject] } }));
+  return { api, updates };
+}
+
+// Run the real invitation controller in the isolated verifier. The fixture
+// session assumes pdaa_api inside transactions while runtime CONNECT stays revoked.
+export async function verifyCaptureInvitationHttp(connection, evidence) {
+  assert.equal(typeof connection, "object");
+  const restored = connection.database === "capture_history_restore";
+  guardCaptureArchiveConnection(connection, restored ? "restored" : true);
+  const db = createDatabase(connection);
+  try {
+    const gate = await db.projectUpdateIssuanceGate.findUniqueOrThrow({ where:{ customerId:evidence.customerId } });
+    assert.equal(gate.issuanceEnabled, !restored);
+    assert.equal(gate.issuanceEpoch === evidence.issuanceEpoch, !restored);
+    const { api, updates } = captureArchiveReaders(db, evidence, evidence.issuanceEpoch);
+    const origin = "http://localhost:5173", sessionSecret = randomBytes(32).toString("hex");
+    const config = loadConfig({
+      NODE_ENV:"test", DATA_MODE:"synthetic", AUTH_MODE:"development", DEPLOYMENT_MODE:"local",
+      CUSTOMER_ID:evidence.customerId, APP_ORIGIN:origin, SESSION_SECRET:sessionSecret,
+      ENCRYPTION_KEY:randomBytes(32).toString("base64"), PDAA_DATABASE_URL:"postgresql://pdaa:isolated@127.0.0.1:55432/pdaa",
+    });
+    const { app } = await createApp(config, new DatabaseProjectRepository(api), undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, undefined, updates);
+    try {
+      await app.listen(0, "127.0.0.1");
+      const owner = await new SignJWT({ roles:["contributor"] }).setProtectedHeader({ alg:"HS256" })
+        .setSubject("synthetic-owner-4").setIssuer("pdaa:local").setAudience("pdaa:api")
+        .setIssuedAt().setExpirationTime("5m").sign(Buffer.from(sessionSecret));
+      const invitation = evidence.pairs[52];
+      const endpoint = await app.getUrl() + "/api/project-update-invitations/" + invitation.locator;
+      const headers = { Authorization:"Bearer " + owner };
+      const scope = { customerId:evidence.customerId, projectId:evidence.projectId };
+      const count = () => Promise.all([db.projectUpdateResponse.count({ where:scope }),
+        db.projectUpdateResponseContent.count({ where:scope })]);
+      const before = await count();
+      const read = await fetch(endpoint, { headers });
+      assert.equal(read.headers.get("cache-control"), "no-store");
+      assert.equal(read.status, restored ? 404 : 200);
+      if (!restored) {
+        assert.equal((await read.json()).requestId, invitation.requestId);
+        return { sourceInvitationHttpRead:true };
+      }
+      const text = "Isolated restored invitation canary";
+      const denied = await fetch(endpoint + "/responses", {
+        method:"POST", headers:{ ...headers, Origin:origin, "Content-Type":"application/json" },
+        body:JSON.stringify({ text, idempotencyKey:randomUUID(), correctsResponseId:null }),
+      });
+      assert.equal(denied.status, 404);
+      assert.equal(denied.headers.get("cache-control"), "no-store");
+      for (const response of [read, denied])
+        assert.deepEqual(await response.json(), { statusCode:404, message:"Resource unavailable" });
+      assert.deepEqual(await count(), before);
+      return { restoredInvitationHttpReadDenied:true, restoredInvitationHttpWriteDenied:true };
+    } finally { await app.close(); }
+  } finally { await db.$disconnect(); }
+}
+
 // Tests the repository's clock-based body withholding before a purge batch.
 // Issuance is explicitly enabled in this constructed maintenance fixture only.
 export async function verifyExpiredArchiveDisclosure(connection, evidence) {
@@ -274,14 +343,7 @@ export async function verifyExpiredArchiveDisclosure(connection, evidence) {
   try {
     const gate = await db.projectUpdateIssuanceGate.findUniqueOrThrow({ where: { customerId: evidence.customerId } });
     assert.equal(gate.issuanceEnabled, true);
-    const api = { $transaction: (operation, options) => db.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
-      return operation(tx);
-    }, options) };
-    const updates = new DatabaseProjectUpdateRepository(api, "archive-service", {
-      customerId:evidence.customerId, customerTimeZone:"UTC", recipientTimeZones:[],
-    }, () => ({ globalShadowMode:"false", configuration:{ customerId:evidence.customerId, mode:"CAPTURE", issuanceEpoch:gate.issuanceEpoch,
-      invitationLifetimeSeconds:900, contentRetentionSeconds:86400, responseReviewerSubjects:[evidence.subject] } }));
+    const { updates } = captureArchiveReaders(db, evidence, gate.issuanceEpoch);
     const actor = { customerId:evidence.customerId, subject:evidence.subject, roles:["pmo_admin"] };
     const entries=[];
     let beforeRequestId;

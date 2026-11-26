@@ -64,3 +64,14 @@ An earlier CRLF-converted preparation created an unreferenced tree object
 `b64060d54f28c37fa14d97dfe9a255ee95119f63`; the branch was created only after
 the exact blob-based tree matched. Restored-endpoint proof remains required and
 no acceptance claim follows from these tests.
+
+## Packaged restore HTTP check
+
+Use the existing isolated historical capture archive to read a valid
+invitation through the compiled API before backup. After encrypted restore,
+use the same locator and recipient identity to verify that read and submit
+requests fail closed, with unchanged response and content counts. Start a
+loopback listener inside the verifier and use the existing transaction-local
+`pdaa_api` role. The separately verified runtime CONNECT quarantine stays
+in place. The check uses synthetic development identity and starts no
+application or worker container against the restored database.

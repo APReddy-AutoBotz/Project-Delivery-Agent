@@ -41,7 +41,8 @@ export function verifyHistoricalCaptureRecovery({docker,compose,operation,denied
  const failed=JSON.parse(readFileSync(join(output,"capture-history-failed-receipt.json"),"utf8"));
  for(const [field,value] of Object.entries({requestResponsePairs:53,expiredPresentPairs:51,priorPurgedPairs:1,livePresentPairs:1,
   restorePurgedRequests:50,restorePurgedResponses:50,subsequentApiPurge:2,repeatApiPurge:0,historyEntries:53})) assert.equal(receipt[field],value);
- for(const field of ["metadataAndLocatorsExact","unchangedGuardsAndFinitePrivileges","runtimeConnectQuarantined","expiredBodiesWithheld","liveBodyRetained"])assert.equal(receipt[field],true);
+ for(const field of ["metadataAndLocatorsExact","unchangedGuardsAndFinitePrivileges","runtimeConnectQuarantined","expiredBodiesWithheld","liveBodyRetained",
+  "sourceInvitationHttpRead","restoredInvitationHttpReadDenied","restoredInvitationHttpWriteDenied"])assert.equal(receipt[field],true);
  for(const field of ["maintenanceChangesRolledBack","runtimeConnectQuarantined","authenticatedInvalidCanonicalArchiveRejected"])assert.equal(failed[field],true);
  return {status:"passed",encryptedArchive:true,...receipt,failedMaintenance:{...failed,verifiedFailurePhase:diagnostic[0].phase}};
 }
