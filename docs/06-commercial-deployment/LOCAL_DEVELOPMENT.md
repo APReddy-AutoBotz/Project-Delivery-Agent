@@ -37,8 +37,9 @@ the `.env`, test traces or credential-bearing environment dumps.
 With the local PostgreSQL composition running and `pnpm build` complete, run
 `pnpm demo:atlas`.
 The harness creates a disposable synthetic database and prints the owner's
-invitation URL on port 5174. Sign in as the Atlas contributor and record a
-reply. Confirm the API access status. Sign out, open the app home page, and
+invitation URL on port 5174. Sign in as the Atlas contributor and record
+“Access is still pending from Infrastructure.” Select **Access pending**
+and choose **Confirm for PM review**. Sign out, open the app home page, and
 sign in as the project manager. Select **Review Atlas comment** in the action
 queue to review the ATLAS-248 comment. Edit the proposed text if needed, then
 record the demo decision. After approval, select
@@ -51,13 +52,11 @@ comment receipt and PM assessment. Choose **Save draft snapshot** to freeze the
 schedule, owner reply, comment receipt and PM assessment. Open **Leadership email preview** or choose
 **Download editable PowerPoint** and check the shared snapshot ID. The draft
 reopens for the same leadership user while the originating capture is accessible.
-Choose **Request final approval**, then sign in as the Atlas project manager.
-Open **Final report approval** and approve or reject the displayed snapshot.
-Sign in as Leadership again to view the decision and download the PowerPoint
-with the recorded approval status.
-From the PM screen, choose **Distribute to Atlas Leadership** after approval.
-The report and receipt appear under **Distributed report** for the Leadership
-persona. This local inbox uses the same approved PowerPoint.
+Choose **Request final approval**, sign out, and sign in as the Atlas project manager.
+Open **Final report approval**, select **Approve final report**, then choose
+**Distribute to Atlas Leadership**. Sign out, sign in as Leadership, and open
+**Distributed report** to view the receipt and download the same approved
+PowerPoint.
 
 Stop the harness with Ctrl+C.
 
