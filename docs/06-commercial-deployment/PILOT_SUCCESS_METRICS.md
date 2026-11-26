@@ -53,3 +53,38 @@ Compare chasing/reporting effort, fresh required updates and risk-detection timi
 over the agreed windows. Validate aggregate calculations with synthetic fixtures;
 do not claim commercial improvement until observed pilot results support it. Do
 not rank employees from response time or activity counts.
+
+### Calculate the aggregate pilot measures
+
+Use the [synthetic example](../../tests/fixtures/pilot-measurement.json) to see
+the input format and run the calculator from the repository root.
+
+```sh
+node scripts/measure-pilot.mjs tests/fixtures/pilot-measurement.json
+```
+
+For a customer pilot, keep a copy in the customer's approved environment.
+The PMO owner records the agreed cohort, exclusions and collection method
+before collecting data. Use the same definitions in both windows and
+document any change before interpreting results. Enter UTC timestamps and
+treat each window as inclusive of its start and exclusive of its end.
+Populate only aggregate counts, total effort and the two timestamps per
+included material risk. Leave project, employee and source-record identifiers
+out of observations.
+
+| Measure | Numerator or observations | Denominator |
+| --- | --- | --- |
+| Chasing and reporting effort | Total minutes, split between chasing and report preparation | Completed reporting cycles in the window |
+| Completed updates | Due updates received by the end of the window | All updates due in the window |
+| On-time updates | Due updates received by their agreed deadline | All updates due in the window |
+| Projects with a current verified update | Active projects with a verified update meeting freshness policy at the agreed period-end cutoff | Included active projects at that cutoff |
+| Risk detection lead time | Minutes from first detection in the window to the scheduled report, one observation per included material risk | Included material risks with both timestamps |
+
+The output gives the counts behind each ratio and the median risk lead time.
+A positive lead means detection preceded the report, and a negative lead
+means detection followed it. A zero denominator produces an unavailable
+value. The calculator retains the input's synthetic or observed label and
+leaves the commercial conclusion to the PMO owner. The
+[PILOT-001 fixture checks](../../tests/pilot-measurement.test.ts) exercise the
+calculation, missing observations and invalid input. Customer agreement and
+observed pilot results are still required for pilot outcome evidence.
