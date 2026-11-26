@@ -312,7 +312,7 @@ export type CapturedUpdateFactType = z.infer<typeof capturedFactTypeSchema>;
 export function extractExplicitCapturedFacts(text: string): Partial<Record<CapturedUpdateFactType, string>> {
   const seen = new Set<CapturedUpdateFactType>();
   const values: Partial<Record<CapturedUpdateFactType, string>> = {};
-  for (const line of text.split(/\r?\n/u)) {
+  for (const line of text.split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/u)) {
     const parts = /^(?:project\s+)?(status|forecast)\s*:\s*(.*)$/iu.exec(line.trim());
     if (!parts) continue;
     const status = parts[1]!.toLowerCase() === "status";

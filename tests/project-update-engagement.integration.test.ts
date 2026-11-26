@@ -270,7 +270,8 @@ it("AC-EVD-006: confirms requested status and forecast together before replannin
   const version = await db.projectFactVersion.findFirstOrThrow({ where: { ...scope, factId: date.id, revision: 2 } });
   expect(version).toMatchObject({ value: { type: "date", value: forecast.value }, provenance: "HUMAN_CONFIRMED" });
   const event = await db.auditEvent.findUniqueOrThrow({ where: { id: receipts[1]!.receiptId } });
-  expect(event.detail).toMatchObject({ ...scope, requestId, responseId, versionId: version.id, evidenceId: version.evidenceId });
+  expect(event).toMatchObject({ customerId,
+    detail: { projectId, requestId, responseId, versionId: version.id, evidenceId: version.evidenceId } });
   expect((await outbox(activation.engagementId)).some(({ state }) => state === "READY")).toBe(false);
 });
 
