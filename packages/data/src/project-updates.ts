@@ -7,7 +7,8 @@ import {
   projectUpdateCaptureConfigurationSchema, projectUpdateInvitationLocatorSchema,
   projectUpdateCaptureGenerationSchema,
   projectUpdateResponseSubmissionSchema, projectUpdateRecipientRequestViewSchema,
-  projectUpdateClarificationQuestion, projectUpdateClarificationRequestSchema, projectUpdateClarificationReceiptSchema,
+  projectUpdateClarificationQuestion, projectUpdateForecastClarificationQuestion,
+  projectUpdateClarificationRequestSchema, projectUpdateClarificationReceiptSchema,
   projectUpdateFactConfirmationSchema, projectUpdateFactConfirmationReceiptSchema, type CapturedUpdateFactType,
   extractExplicitCapturedFacts,
   projectUpdateStatusConfirmationSchema, projectUpdateStatusConfirmationReceiptSchema,
@@ -86,9 +87,14 @@ const capturedFactConfirmedEvents: Record<CapturedUpdateFactType, string> = {
   "project.status": "project_update.response.status_confirmed",
   "project.forecast": "project_update.response.forecast_confirmed",
 };
-const capturedStatusClarificationEvent = "project_update.response.status_clarification_requested";
 const capturedStatusFactType = "project.status";
-const storedCapturedStatusClarification = projectUpdateClarificationRequestSchema.extend({
+const capturedFactTypes = [capturedStatusFactType, "project.forecast"] as const;
+const capturedFactClarifications = {
+  "project.status": { event: "project_update.response.status_clarification_requested", question: projectUpdateClarificationQuestion },
+  "project.forecast": { event: "project_update.response.forecast_clarification_requested", question: projectUpdateForecastClarificationQuestion },
+} as const;
+const clarificationFactType = (required: ReadonlySet<string>) => capturedFactTypes.find((factType) => required.has(factType));
+const storedCapturedClarification = projectUpdateClarificationRequestSchema.extend({
   projectId: z.uuid(), captureIssuanceEpoch: z.uuid(),
 });
 const storedCapturedFactConfirmation = z.strictObject({
@@ -1902,9 +1908,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         this.captureConfiguration(current.customerId)?.responseReviewerSubjects.includes(subject));
       const responses = await this.responseHistory(tx, current, projectId, row.requestId);
       const latest = responses[0];
+      const requiredFacts = policyFacts(row.requiredFacts);
+      const factType = clarificationFactType(new Set(requiredFacts.map((fact) => fact.factType)));
       const requested = latest?.contentState === "PRESENT" && latest.text !== null && row.recipientRole === "OWNER" &&
-        latest.submittedBy === current.subject
-        ? await this.capturedStatusClarification(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch)
+        latest.submittedBy === current.subject && factType
+        ? await this.capturedClarification(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch, factType)
         : null;
       const atlasInterpretation = this.atlasDemoEnabled && row.code === atlasApprovalProjectCode &&
         row.stageKind === "REQUEST" && row.recipientRole === "OWNER" && latest?.contentState === "PRESENT" &&
@@ -1917,10 +1925,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         requestId: row.requestId, project: { id: projectId, code: row.code, name: row.name },
         stageKind: row.stageKind, dueAt: iso(row.logicalDueAt), capturedAt: iso(row.capturedAt),
         expiresAt: iso(row.expiresAt), body: row.body,
-        requiredFacts: policyFacts(row.requiredFacts),
+        requiredFacts,
         rawResponseReaders: [...new Set([row.recipientSubject, ...reviewers])],
         responses, atlasInterpretation,
-        clarification: requested ? { responseId: requested.responseId, question: projectUpdateClarificationQuestion } : undefined,
+        clarification: requested && factType ? {
+          responseId: requested.responseId, question: capturedFactClarifications[factType].question,
+        } : undefined,
         escalationContext: await this.escalationContext(tx, current, projectId, row, asOf),
       });
     });
@@ -2006,10 +2016,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return { receipt, payloadDigest: detail.payloadDigest };
   }
 
-  private async capturedStatusClarification(tx: Tx, customerId: string, projectId: string, requestId: string,
-    responseId: string, captureIssuanceEpoch: string) {
+  private async capturedClarification(tx: Tx, customerId: string, projectId: string, requestId: string,
+    responseId: string, captureIssuanceEpoch: string, factType: CapturedUpdateFactType) {
     const saved = await tx.auditEvent.findFirst({
-      where: { customerId, event: capturedStatusClarificationEvent, AND: [
+      where: { customerId, event: capturedFactClarifications[factType].event, AND: [
         { detail: { path: ["projectId"], equals: projectId } },
         { detail: { path: ["requestId"], equals: requestId } },
         { detail: { path: ["responseId"], equals: responseId } },
@@ -2033,7 +2043,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (factTypes.some((factType) => !required.has(factType)) ||
         latest?.id !== responseId || latest.submittedBy !== row.recipientSubject)
       throw new ProjectUpdateError("CONFLICT");
-    return { row, latest, policy };
+    return { row, latest, policy, required };
   }
 
   async requestCapturedStatusClarification(actorValue: Actor, projectValue: string, value: unknown, correlationValue: string) {
@@ -2046,16 +2056,18 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const parsed = projectUpdateClarificationRequestSchema.safeParse(value);
       if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
       const { requestId, responseId } = parsed.data;
-      const { row, latest } = await this.reviewCapturedReply(tx, current, projectId, requestId, responseId, [capturedStatusFactType]);
-      const previous = await this.capturedStatusClarification(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch);
+      const { row, latest, required } = await this.reviewCapturedReply(tx, current, projectId, requestId, responseId, []);
+      const factType = clarificationFactType(required);
+      if (!factType) throw new ProjectUpdateError("CONFLICT");
+      const previous = await this.capturedClarification(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch, factType);
       if (previous) return previous;
       if (await this.capturedFactConfirmation(tx, current.customerId, projectId, requestId,
-        responseId, row.issuanceEpoch, capturedStatusFactType))
+        responseId, row.issuanceEpoch, factType))
         throw new ProjectUpdateError("CONFLICT");
-      const id = await this.engagementAudit(tx, current, projectId, correlationId, capturedStatusClarificationEvent,
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, capturedFactClarifications[factType].event,
         { projectId, requestId, responseId });
       const saved = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true, detail: true } });
-      if (storedCapturedStatusClarification.parse(saved.detail).captureIssuanceEpoch !== row.issuanceEpoch ||
+      if (storedCapturedClarification.parse(saved.detail).captureIssuanceEpoch !== row.issuanceEpoch ||
           saved.occurredAt >= row.expiresAt || saved.occurredAt >= row.purgeAfter || saved.occurredAt >= latest.purgeAfter)
         throw new ProjectUpdateError("CONFLICT");
       return projectUpdateClarificationReceiptSchema.parse({ responseId, clarificationId: id, requestedAt: iso(saved.occurredAt) });
@@ -2085,9 +2097,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const parsed = projectUpdateFactConfirmationSchema.safeParse(value);
       if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
       const { requestId, responseId, facts: confirmationItems } = parsed.data;
-      const { row, latest, policy } = await this.reviewCapturedReply(tx, current, projectId, requestId, responseId,
+      const { row, latest, policy, required } = await this.reviewCapturedReply(tx, current, projectId, requestId, responseId,
         confirmationItems.map(({ factType }) => factType));
-      if (await this.capturedStatusClarification(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch))
+      const clarify = clarificationFactType(required);
+      if (clarify && await this.capturedClarification(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch, clarify))
         throw new ProjectUpdateError("CONFLICT");
 
       const facts = new DatabaseProjectFactRepository(this.db);
@@ -2904,16 +2917,18 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         if (frozenReviewer && row.recipientRole === "OWNER" && latest?.contentState === "PRESENT" && latest.text !== null &&
             latest.submittedBy === row.recipientSubject) {
           const required = new Set(policyFacts(row.capturedRequiredFacts).map(({ factType }) => factType));
-          const requested = status === "ACTIVE" && required.has(capturedStatusFactType)
-            ? await this.capturedStatusClarification(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch)
+          const clarify = clarificationFactType(required);
+          const requested = status === "ACTIVE" && clarify
+            ? await this.capturedClarification(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch, clarify)
             : null;
           const suggestions = status === "ACTIVE" && !requested ? extractExplicitCapturedFacts(latest.text) : {};
-          for (const factType of [capturedStatusFactType, "project.forecast"] as const) {
+          for (const factType of capturedFactTypes) {
             if (!required.has(factType)) continue;
             const confirmed = await this.capturedFactConfirmation(tx, current.customerId, projectId, row.requestId,
               latest.id, row.issuanceEpoch, factType);
             let review: typeof forecastReview;
-            if (confirmed) review = { state: "CONFIRMED", ...confirmed.receipt };
+            if (requested && factType === clarify) review = { state: "CLARIFICATION_REQUESTED", ...requested };
+            else if (confirmed) review = { state: "CONFIRMED", ...confirmed.receipt };
             else if (status === "ACTIVE" && !requested) {
               let expectedRevision = factRevisions.get(factType);
               if (expectedRevision === undefined) {
@@ -2926,8 +2941,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
                 review = { state: "PENDING", responseId: latest.id, expectedRevision,
                   ...(suggestions[factType] !== undefined && { suggestedValue: suggestions[factType] }) };
             }
-            if (factType === capturedStatusFactType)
-              statusReview = requested ? { state: "CLARIFICATION_REQUESTED", ...requested } : review;
+            if (factType === capturedStatusFactType) statusReview = review;
             else forecastReview = review;
           }
         }

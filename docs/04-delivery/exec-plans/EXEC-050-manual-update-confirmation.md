@@ -18,6 +18,8 @@ follow-up through the owner's active invitation (FR-UPD-009, AC-UPD-005,
 GOLDEN-006, FAIL-010). The question asks for current status, the responsible
 person, and an exact calendar date when relevant. This increment uses a
 reviewer action and the in-app invitation, with no external notification.
+When the captured request needs only a forecast among the supported facts,
+reuse the same review and invitation to ask for the exact forecast date.
 
 ## In scope
 

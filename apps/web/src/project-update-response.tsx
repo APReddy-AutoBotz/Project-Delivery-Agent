@@ -77,6 +77,8 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
   const [forecast, setForecast] = useState(() => forecastReview?.state === "PENDING" ? forecastReview.suggestedValue ?? "" : "");
   const pendingStatus = statusReview?.state === "PENDING" ? statusReview : null;
   const pendingForecast = forecastReview?.state === "PENDING" ? forecastReview : null;
+  const canClarify = pendingStatus || (!statusReview && pendingForecast);
+  const clarificationRequest = [statusReview, forecastReview].find((review) => review?.state === "CLARIFICATION_REQUESTED");
   const validStatus = status.trim().length > 0 && new TextEncoder().encode(status).length <= 500 &&
     !/[\p{Cc}\p{Surrogate}]/u.test(status);
   const validForecast = /^\d{4}-\d{2}-\d{2}$/u.test(forecast) && !forecast.startsWith("0000-");
@@ -95,7 +97,7 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
   });
   const clarification = useMutation({
     mutationFn: async () => {
-      if (!current() || !pendingStatus) throw new Error("Manual review unavailable");
+      if (!current() || !canClarify) throw new Error("Manual review unavailable");
       await clarify();
     },
   });
@@ -103,8 +105,8 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
   return <section aria-label="Manual project update review">
     {statusReview?.state === "CONFIRMED" && <FactConfirmation label="Project status" receipt={statusReview} />}
     {forecastReview?.state === "CONFIRMED" && <FactConfirmation label="Project forecast" receipt={forecastReview} />}
-    {statusReview?.state === "CLARIFICATION_REQUESTED" &&
-      <p>Clarification requested at {statusReview.requestedAt}. Awaiting an updated response from the owner.</p>}
+    {clarificationRequest?.state === "CLARIFICATION_REQUESTED" &&
+      <p>Clarification requested at {clarificationRequest.requestedAt}. Awaiting an updated response from the owner.</p>}
     {(pendingStatus?.suggestedValue || pendingForecast?.suggestedValue) &&
       <p>Values from the reply are suggestions. Review or edit them before confirming.</p>}
     {pendingStatus && <label className="field"><span>Confirmed project status</span>
@@ -118,7 +120,7 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
       onClick={() => confirmation.mutate()}>
       {pendingStatus && pendingForecast ? "Confirm entered facts" : pendingStatus ? "Confirm project status" : "Confirm project forecast"}
     </Button>}
-    {pendingStatus && <Button disabled={busy || !current()} onClick={() => clarification.mutate()}>Request clarification</Button>}
+    {canClarify && <Button disabled={busy || !current()} onClick={() => clarification.mutate()}>Request clarification</Button>}
     {confirmation.isError && <Message error>Could not verify the confirmation. Check the current response and try again.</Message>}
     {clarification.isError && <Message error>Could not verify the clarification request. Check the current response and try again.</Message>}
   </section>;
