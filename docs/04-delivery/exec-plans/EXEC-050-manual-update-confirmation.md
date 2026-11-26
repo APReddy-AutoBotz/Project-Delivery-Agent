@@ -45,9 +45,10 @@ reply stays in its existing content store and retains its purge deadline.
 Once a confirmation is recorded, its item shows the reviewer and receipt.
 An exact retry while the capture is active returns the original receipt. If
 reassessment ends the active capture, the archived request shows the receipt
-while the reviewer still has access. The current source assessment can
-suppress or replace pending work only under the existing authority and
-freshness rules. It does not require any write to Jira.
+while the reviewer still has access. The configured cadence service runs the
+source assessment with its own current readership. Its existing authority
+and freshness rules determine whether it suppresses or replaces pending work.
+A reviewer-private fact stays in the ledger with its existing access policy.
 
 ## Files and modules expected to change
 
@@ -85,9 +86,10 @@ No added dependency.
 
 ## Test and evaluation plan
 
-Extend the API contract suite. Add one native scenario to the existing
-engagement suite covering reviewer denial, stale revision, an attributable
-fact, atomic reminder replanning and immutable recovery of the receipt.
+Extend the API contract suite and the existing native engagement suite.
+Check reviewer denial, stale revision, an attributable fact, receipt recovery,
+replanning with a service-readable fact and preserved follow-ups for a
+reviewer-private fact.
 Run the required hosted checks on the exact candidate.
 
 ## Rollback and recovery

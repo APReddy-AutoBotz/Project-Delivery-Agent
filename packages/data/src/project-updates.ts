@@ -1981,7 +1981,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         where: { customerId: current.customerId, projectId, requestId }, select: { locator: true },
       });
       if (!invitation) throw new ProjectUpdateError("DENIED");
-      const { row, asOf } = await this.authorizedInvitation(tx, current, invitation.locator, "response-review");
+      const { row, asOf, policy } = await this.authorizedInvitation(tx, current, invitation.locator, "response-review");
       const latest = await this.latestRetainedReply(tx, current.customerId, projectId, requestId, asOf);
       if (!policyFacts(row.requiredFacts).some(({ factType }) => factType === capturedStatusFactType) ||
           latest?.id !== responseId || latest.submittedBy !== row.recipientSubject)
@@ -2003,9 +2003,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           throw new ProjectUpdateError("CONFLICT");
         throw error;
       });
-      const prepared = await this.assessInTransaction(tx, current, projectId, correlationId, false);
-      const factSatisfied = prepared.source.satisfiedFactTypes.includes(capturedStatusFactType) &&
-        prepared.view.knownPosition.some((fact) => fact.versionId === statement.entry.id);
+      const service = this.serviceSubject;
+      const prepared = service && this.zones?.customerId === current.customerId &&
+        policy.scheduledScanEnabled && policy.scheduledServiceSubject === service
+        ? await this.assessInTransaction(tx, { customerId: current.customerId, subject: service, roles: [] },
+          projectId, correlationId, true)
+        : null;
+      const factSatisfied = Boolean(prepared?.source.satisfiedFactTypes.includes(capturedStatusFactType) &&
+        prepared.view.knownPosition.some((fact) => fact.versionId === statement.entry.id));
       const id = await this.engagementAudit(tx, current, projectId, correlationId, capturedStatusConfirmedEvent, {
         projectId, requestId, responseId, payloadDigest, factId: statement.factId, versionId: statement.entry.id,
         evidenceId: statement.entry.evidenceId, factSatisfied,
