@@ -1,0 +1,30 @@
+{
+  "source": "synthetic",
+  "plan": {
+    "pmoOwner": "Atlas PMO",
+    "includedProjects": "Three active synthetic projects per window",
+    "exclusions": "Inactive projects and risks without a scheduled report",
+    "collectionMethod": "Use minutes from completed reporting cycles, due update counts, a period-end freshness review and material risk detection times"
+  },
+  "baseline": {
+    "from": "2026-09-01T00:00:00Z",
+    "until": "2026-09-15T00:00:00Z",
+    "effort": { "cycles": 2, "chasingMinutes": 180, "reportingMinutes": 240 },
+    "updates": { "due": 6, "completed": 4, "onTime": 3, "activeProjects": 3, "currentVerifiedProjects": 1 },
+    "risks": [
+      { "detectedAt": "2026-09-04T10:00:00Z", "scheduledReportAt": "2026-09-04T11:00:00Z" },
+      { "detectedAt": "2026-09-11T12:00:00Z", "scheduledReportAt": "2026-09-11T11:00:00Z" }
+    ]
+  },
+  "observation": {
+    "from": "2026-09-15T00:00:00Z",
+    "until": "2026-09-29T00:00:00Z",
+    "effort": { "cycles": 2, "chasingMinutes": 90, "reportingMinutes": 150 },
+    "updates": { "due": 6, "completed": 6, "onTime": 5, "activeProjects": 3, "currentVerifiedProjects": 3 },
+    "risks": [
+      { "detectedAt": "2026-09-18T09:00:00Z", "scheduledReportAt": "2026-09-18T11:00:00Z" },
+      { "detectedAt": "2026-09-25T08:00:00Z", "scheduledReportAt": "2026-09-25T11:00:00Z" },
+      { "detectedAt": "2026-09-25T11:00:00Z", "scheduledReportAt": "2026-09-25T11:00:00Z" }
+    ]
+  }
+}
