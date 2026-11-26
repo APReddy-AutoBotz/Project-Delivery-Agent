@@ -294,13 +294,29 @@ export const projectUpdateRecipientRequestViewSchema = z.strictObject({
 export type ProjectUpdateRecipientRequestView = z.infer<
   typeof projectUpdateRecipientRequestViewSchema
 >;
-export const projectUpdateStatusConfirmationSchema = z.strictObject({
+const capturedResponseReference = {
   requestId: z.uuid(),
   responseId: z.uuid(),
-  expectedRevision: z.number().int().min(0).max(2147483646),
-  status: z.string().min(1).max(500).regex(/^[^\p{Cc}\p{Surrogate}]+$/u)
-    .refine((text) => text.trim().length > 0 && new TextEncoder().encode(text).length <= 500),
+};
+const captureFactRevision = z.number().int().min(0).max(2147483646);
+const capturedStatusValue = z.string().min(1).max(500).regex(/^[^\p{Cc}\p{Surrogate}]+$/u)
+  .refine((text) => text.trim().length > 0 && new TextEncoder().encode(text).length <= 500);
+export const projectUpdateStatusConfirmationSchema = z.strictObject({
+  ...capturedResponseReference,
+  expectedRevision: captureFactRevision,
+  status: capturedStatusValue,
 });
+const capturedFactTypeSchema = z.enum(["project.status", "project.forecast"]);
+export type CapturedUpdateFactType = z.infer<typeof capturedFactTypeSchema>;
+export const projectUpdateFactConfirmationSchema = z.strictObject({
+  ...capturedResponseReference,
+  facts: z.array(z.discriminatedUnion("factType", [
+    z.strictObject({ factType: z.literal("project.status"), value: capturedStatusValue, expectedRevision: captureFactRevision }),
+    z.strictObject({ factType: z.literal("project.forecast"), value: z.iso.date().refine((date) => !date.startsWith("0000-")),
+      expectedRevision: captureFactRevision }),
+  ])).min(1).max(2).refine((items) => new Set(items.map(({ factType }) => factType)).size === items.length),
+});
+export type ProjectUpdateFactConfirmation = z.infer<typeof projectUpdateFactConfirmationSchema>;
 export const projectUpdateStatusConfirmationReceiptSchema = z.strictObject({
   responseId: z.uuid(),
   receiptId: z.uuid(),
@@ -309,6 +325,14 @@ export const projectUpdateStatusConfirmationReceiptSchema = z.strictObject({
   factSatisfied: z.boolean(),
 });
 export type ProjectUpdateStatusConfirmationReceipt = z.infer<typeof projectUpdateStatusConfirmationReceiptSchema>;
+export const projectUpdateFactConfirmationReceiptSchema = z.array(
+  projectUpdateStatusConfirmationReceiptSchema.extend({ factType: capturedFactTypeSchema }),
+).min(1).max(2);
+export type ProjectUpdateFactConfirmationReceipt = z.infer<typeof projectUpdateFactConfirmationReceiptSchema>;
+const pendingCapturedFactReview = z.strictObject({
+  state: z.literal("PENDING"), responseId: z.uuid(), expectedRevision: captureFactRevision,
+});
+const completedCapturedFactReview = projectUpdateStatusConfirmationReceiptSchema.extend({ state: z.literal("CONFIRMED") });
 export const projectUpdateCaptureHistorySchema = z.strictObject({
   projectId: z.uuid(),
   engagement: z.strictObject({ id: z.uuid(), generation: revision, policyRevision: revision,
@@ -327,11 +351,11 @@ export const projectUpdateCaptureHistorySchema = z.strictObject({
     recipientPath: z.string().nullable(),
     responses: z.array(projectUpdateResponseHistorySchema).max(20),
     statusReview: z.discriminatedUnion("state", [
-      z.strictObject({ state: z.literal("PENDING"), responseId: z.uuid(),
-        expectedRevision: projectUpdateStatusConfirmationSchema.shape.expectedRevision }),
+      pendingCapturedFactReview,
       projectUpdateClarificationReceiptSchema.extend({ state: z.literal("CLARIFICATION_REQUESTED") }),
-      projectUpdateStatusConfirmationReceiptSchema.extend({ state: z.literal("CONFIRMED") }),
+      completedCapturedFactReview,
     ]).optional(),
+    forecastReview: z.discriminatedUnion("state", [pendingCapturedFactReview, completedCapturedFactReview]).optional(),
   })).max(20),
   nextCursor: z.uuid().nullable(),
 });

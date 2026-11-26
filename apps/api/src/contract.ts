@@ -98,6 +98,8 @@ import {
   projectUpdateCaptureGenerationSchema,
   projectUpdateClarificationRequestSchema,
   projectUpdateClarificationReceiptSchema,
+  projectUpdateFactConfirmationSchema,
+  projectUpdateFactConfirmationReceiptSchema,
   projectUpdateStatusConfirmationSchema,
   projectUpdateStatusConfirmationReceiptSchema,
   ingestionReassessmentRetrySchema,
@@ -315,6 +317,10 @@ export const contracts: Record<string, RouteContract> = {
   },
   "post /api/projects/{id}/project-update-status-confirmations": {
     status: 200, request: projectUpdateStatusConfirmationSchema, response: projectUpdateStatusConfirmationReceiptSchema,
+    parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
+  },
+  "post /api/projects/{id}/project-update-fact-confirmations": {
+    status: 200, request: projectUpdateFactConfirmationSchema, response: projectUpdateFactConfirmationReceiptSchema,
     parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
   },
   "post /api/projects/{id}/project-update-status-clarifications": {

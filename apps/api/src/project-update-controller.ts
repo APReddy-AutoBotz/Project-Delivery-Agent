@@ -20,6 +20,7 @@ import {
   projectUpdateEngagementActivationSchema,
   projectUpdateCaptureGenerationSchema,
   projectUpdateClarificationRequestSchema,
+  projectUpdateFactConfirmationSchema,
   projectUpdateStatusConfirmationSchema,
   projectUpdateAssessmentRequestSchema,
   ingestionReassessmentRetrySchema,
@@ -51,6 +52,7 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async submitResponse() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async requestCapturedStatusClarification() { throw new ProjectUpdateError("DENIED"); },
   async confirmCapturedStatus() { throw new ProjectUpdateError("DENIED"); },
+  async confirmCapturedFacts() { throw new ProjectUpdateError("DENIED"); },
   async confirmAtlasReply() { throw new ProjectUpdateError("DENIED"); },
   async atlasApproval() { throw new ProjectUpdateError("DENIED"); },
   async decideAtlasApproval() { throw new ProjectUpdateError("DENIED"); },
@@ -321,6 +323,15 @@ export class ProjectUpdateController {
     const parsed = projectUpdateStatusConfirmationSchema.safeParse(body);
     if (!parsed.success) throw new HttpException("", 400);
     return this.run(() => this.repository.confirmCapturedStatus(actor, id, parsed.data, req.correlationId));
+  }
+
+  @Post("project-update-fact-confirmations")
+  @HttpCode(200)
+  async confirmCapturedFacts(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req), id = this.projectId(rawId);
+    const parsed = projectUpdateFactConfirmationSchema.safeParse(body);
+    if (!parsed.success) throw new HttpException("", 400);
+    return this.run(() => this.repository.confirmCapturedFacts(actor, id, parsed.data, req.correlationId));
   }
 
   @Post("project-update-status-clarifications")
