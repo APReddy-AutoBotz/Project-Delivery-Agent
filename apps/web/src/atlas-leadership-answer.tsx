@@ -20,7 +20,9 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   });
   const refresh = query.refetch;
   const answer = asked && isCurrent() && query.isSuccess && !query.isFetching ? query.data : null;
-  const expiry = answer?.ownerReply?.availableUntil;
+  const ownerExpiry = answer?.ownerReply?.availableUntil;
+  const escalationExpiry = answer?.pmEscalation?.availableUntil;
+  const expiry = ownerExpiry && escalationExpiry && escalationExpiry < ownerExpiry ? escalationExpiry : ownerExpiry;
   useEffect(() => {
     if (!expiry) return;
     const delay = Date.parse(expiry) - Date.now();
@@ -32,7 +34,14 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const receipt = reply ? answer?.receipt : null;
   const assessment = receipt ? answer?.delayAssessment : null;
   const schedule = answer?.schedule;
+  const integration = answer?.integrationStart;
+  const blocker = answer?.jiraBlocker;
+  const escalation = reply && answer?.pmEscalation && Date.parse(answer.pmEscalation.availableUntil) > Date.now()
+    ? answer.pmEscalation : null;
   const scheduleRef = `atlas-schedule-${projectId}`;
+  const integrationRef = `atlas-integration-${projectId}`;
+  const blockerRef = `atlas-blocker-${projectId}`;
+  const escalationRef = `atlas-pm-escalation-${projectId}`;
   const replyRef = `atlas-reply-${projectId}`;
   const receiptRef = `atlas-receipt-${projectId}`;
   const assessmentRef = `atlas-delay-assessment-${projectId}`;
@@ -51,10 +60,15 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
     {asked && query.isError && <Message error>The Atlas answer is unavailable.</Message>}
     {answer && <div aria-live="polite">
       <p>{movement} {schedule && <a href={`#${scheduleRef}`}>Schedule evidence</a>}</p>
+      {integration && <p>Integration testing started late. <a href={`#${integrationRef}`}>Integration start evidence</a></p>}
+      {blocker && <p>The synthetic Jira blocker {blocker.issueKey} is open. <a href={`#${blockerRef}`}>Jira blocker evidence</a></p>}
       {reply && <p>The owner confirmed API access was {reply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} at the time of the reply.{" "}
         <a href={`#${replyRef}`}>Reply evidence</a></p>}
       {receipt && <p>The PM recorded a simulated comment for {receipt.target}.{" "}
         <a href={`#${receiptRef}`}>Receipt evidence</a></p>}
+      {escalation
+        ? <p>A simulated escalation was captured for the assigned PM. <a href={`#${escalationRef}`}>PM escalation evidence</a></p>
+        : <p>PM escalation evidence is unavailable.</p>}
       {(!reply || !receipt) && <p>Some reply or action evidence is unavailable for this answer.</p>}
       {assessment
         ? <p>The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as {assessment.confidence.toLowerCase()}.{" "}
@@ -64,8 +78,11 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
       <p>Checked at {answer.asOf}.</p>
       <ul>
         {schedule && <li id={scheduleRef} tabIndex={-1}>Synthetic canonical schedule, revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.</li>}
+        {integration && <li id={integrationRef} tabIndex={-1}>Synthetic integration milestone {integration.milestoneId}. Planned start {integration.planned}. Actual start {integration.actual}.</li>}
+        {blocker && <li id={blockerRef} tabIndex={-1}>Synthetic Jira issue {blocker.issueKey}, recorded in source mapping {blocker.mappingId}.</li>}
         {reply && <li id={replyRef} tabIndex={-1}>Human-confirmed owner reply {reply.responseId}, recorded at {reply.receivedAt}.</li>}
         {receipt && <li id={receiptRef} tabIndex={-1}>Simulated receipt {receipt.id}, fixture revision {receipt.fixtureRevision}, recorded at {receipt.recordedAt}.</li>}
+        {escalation && <li id={escalationRef} tabIndex={-1}>Simulated PM escalation {escalation.requestId}, captured at {escalation.capturedAt}.</li>}
         {assessment && <li id={assessmentRef} tabIndex={-1}>Human-confirmed PM assessment {assessment.id} by {assessment.confirmedBy} at {assessment.confirmedAt}.</li>}
       </ul>
     </div>}

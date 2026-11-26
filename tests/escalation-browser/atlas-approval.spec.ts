@@ -18,12 +18,12 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const target = new URL(process.env.PDAA_ESCALATION_BROWSER_DATABASE_URL!);
   expect(["127.0.0.1", "localhost"]).toContain(target.hostname);
   expect(target.pathname).toMatch(/^\/pdaa_test_[0-9]+$/);
-  const leaderAccess = async (allowed: boolean) => {
+  const leaderAccess = async (allowed: boolean, sourceId = fixture.sourceA.sourceId) => {
     const db = createDatabase(target.toString());
     try {
-      const access = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: fixture.sourceA.sourceId } });
+      const access = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId } });
       await new DatabaseProjectFactRepository(db).setSourceAccess(fixture.admin, {
-        projectId: fixture.projectId, sourceId: fixture.sourceA.sourceId, expectedRevision: access.revision,
+        projectId: fixture.projectId, sourceId, expectedRevision: access.revision,
         state: "AVAILABLE", readers: fixture.readers.filter((subject: string) => allowed || subject !== "leader-atlas"),
       }, { correlationId: randomUUID() });
     } finally {
@@ -152,13 +152,19 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const answer = page.getByRole("region", { name: "Atlas leadership answer" });
   await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
   await expect(answer).toContainText("14 days later");
+  await expect(answer).toContainText("Integration testing started late.");
+  await expect(answer).toContainText("The synthetic Jira blocker ATLAS-248 is open.");
   await expect(answer).toContainText("API access was pending at the time of the reply");
+  await expect(answer).toContainText("A simulated escalation was captured for the assigned PM.");
   await expect(answer).toContainText("The PM confirmed that delayed API access caused the go-live delay.");
   await expect(answer).toContainText("The PM assessed forecast confidence as medium.");
   for (const [label, evidence] of [
     ["Schedule evidence", "Baseline 2026-10-15. Forecast 2026-10-29."],
+    ["Integration start evidence", "Planned start 2026-10-05. Actual start 2026-10-08."],
+    ["Jira blocker evidence", "Synthetic Jira issue ATLAS-248, recorded in source mapping"],
     ["Reply evidence", "Human-confirmed owner reply"],
     ["Receipt evidence", receipt.id],
+    ["PM escalation evidence", `${fixture.escalation.requestId}, captured at ${fixture.escalation.capturedAt}`],
     ["PM assessment evidence", assessment.id],
   ]) {
     const link = answer.getByRole("link", { name: label! });
@@ -166,7 +172,28 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     expect(anchor).toMatch(/^#atlas-/);
     await expect(answer.locator(anchor!)).toContainText(evidence!);
   }
+  await expect(answer).not.toContainText(/access was restored|developer|budget/i);
   await expect(page.locator("body")).not.toContainText(text);
+  const completeAnswer = await request.get(answerPath, { headers: leaderHeaders });
+  expect(completeAnswer.status()).toBe(200);
+  const complete = await completeAnswer.json();
+  expect(complete.pmEscalation).toEqual({
+    requestId: fixture.escalation.requestId, capturedAt: fixture.escalation.capturedAt, availableUntil: expect.any(String),
+  });
+  expect(JSON.stringify(complete)).not.toContain(fixture.escalation.locator);
+  expect(JSON.stringify(complete)).not.toContain(fixture.sourceMarkerB);
+  await leaderAccess(false, fixture.sourceB.sourceId);
+  try {
+    await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
+    await expect(answer).toContainText("PM escalation evidence is unavailable.");
+    await expect(answer.getByRole("link", { name: "PM escalation evidence" })).toHaveCount(0);
+    await expect(answer).toContainText("The PM confirmed that delayed API access caused the go-live delay.");
+    await expect(answer.getByRole("link", { name: "Jira blocker evidence" })).toBeVisible();
+  } finally {
+    await leaderAccess(true, fixture.sourceB.sourceId);
+  }
+  await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
+  await expect(answer.getByRole("link", { name: "PM escalation evidence" })).toBeVisible();
 
   const report = page.getByRole("region", { name: "Atlas management snapshot" });
   const reportSaved = page.waitForResponse((value) => value.url().endsWith(reportPath) && value.request().method() === "POST");
