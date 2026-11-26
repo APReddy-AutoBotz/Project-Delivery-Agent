@@ -69,6 +69,8 @@ type Tx = Prisma.TransactionClient;
 const atlasConfirmedEvent = "atlas_demo.reply.confirmed";
 const atlasDecidedEvent = "atlas_demo.approval.decided";
 const atlasCommentEvent = "atlas_demo.comment.recorded";
+const atlasCommentAttemptEvent = "atlas_demo.comment.attempt_started";
+const atlasFixtureCommentPostedEvent = "atlas_demo.fixture.comment_posted";
 const atlasFixtureChangedEvent = "atlas_demo.fixture.changed";
 const atlasFixtureSourceSubject = "atlas-jira-fixture";
 const atlasProposalRefreshedEvent = "atlas_demo.proposal.refreshed";
@@ -105,6 +107,13 @@ const storedAtlasComment = z.strictObject({
   template: z.literal(atlasCommentTemplate), accessStatus: atlasReplyConfirmationSchema.shape.accessStatus,
   payloadDigest: payloadDigestSchema,
 });
+const storedAtlasFixtureComment = storedAtlasComment.extend({ attemptId: z.uuid(), marker: z.string() });
+const storedAtlasAttempt = z.strictObject({
+  projectId: z.uuid(), approvalId: z.uuid(), responseId: z.uuid(), decisionId: z.uuid(), captureIssuanceEpoch: z.uuid(),
+  target: z.literal(atlasJiraBlockerKey), sourceRevision: atlasApprovalViewSchema.shape.sourceRevision,
+  payloadDigest: payloadDigestSchema, marker: z.string(),
+});
+const atlasActionMarker = (approvalId: string) => "pdaa-atlas:" + approvalId;
 const storedAtlasFixtureChange = z.strictObject({
   projectId: z.uuid(),
   fixtureRevision: z.number().int().positive(),
@@ -2141,7 +2150,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         AND approval.id=(receipt.detail->>'decisionId')::uuid AND approval.event=${atlasDecidedEvent}
         AND approval.actor=receipt.actor
       WHERE receipt."customerId"=${customerId}::uuid
-        AND (receipt.event=${atlasCommentEvent} OR (receipt.event=${atlasFixtureChangedEvent} AND receipt.actor=${atlasFixtureSourceSubject}))
+        AND (receipt.event=${atlasCommentEvent} OR receipt.event=${atlasFixtureCommentPostedEvent} OR
+          (receipt.event=${atlasFixtureChangedEvent} AND receipt.actor=${atlasFixtureSourceSubject}))
         AND receipt.detail->>'projectId'=${projectId}
       ORDER BY (receipt.detail->>'fixtureRevision')::integer DESC, receipt."occurredAt" DESC, receipt.id DESC LIMIT 1`;
     if (!last) return { revision: 0, comment: null };
@@ -2149,10 +2159,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const change = storedAtlasFixtureChange.parse(last.detail);
       return { revision: change.fixtureRevision, comment: change.comment };
     }
-    const event = storedAtlasComment.parse(last.detail);
+    const event = last.event === atlasFixtureCommentPostedEvent
+      ? storedAtlasFixtureComment.parse(last.detail) : storedAtlasComment.parse(last.detail);
     const decision = storedAtlasDecision.parse(last.decision);
     const comment = decision.proposedComment ?? atlasComment(event.accessStatus);
-    if (decision.decision !== "APPROVED" || decision.projectId !== projectId || decision.approvalId !== event.approvalId ||
+    if (("marker" in event && event.marker !== atlasActionMarker(event.approvalId)) ||
+        decision.decision !== "APPROVED" || decision.projectId !== projectId || decision.approvalId !== event.approvalId ||
         decision.captureIssuanceEpoch !== event.captureIssuanceEpoch ||
         ((decision.payloadDigest !== undefined || decision.proposedComment !== undefined) &&
           decision.payloadDigest !== event.payloadDigest) ||
@@ -2229,6 +2241,20 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const payloadDigest = hash({ approvalId, target, proposedComment, sourceRevision });
     if (decision?.proposedComment !== undefined && decision.payloadDigest !== payloadDigest)
       throw new ProjectUpdateError("UNAVAILABLE");
+    const attempt = await tx.auditEvent.findFirst({
+      where: { customerId: current.customerId, actor: detail.approver, event: atlasCommentAttemptEvent, AND: [
+        { detail: { path: ["projectId"], equals: projectId } },
+        { detail: { path: ["approvalId"], equals: approvalId } },
+      ] }, select: { id: true, detail: true },
+    });
+    if (attempt) {
+      const event = storedAtlasAttempt.parse(attempt.detail);
+      if (event.decisionId !== decided?.id || decision?.decision !== "APPROVED" ||
+          event.payloadDigest !== payloadDigest || event.responseId !== latest.id ||
+          event.sourceRevision !== sourceRevision || event.captureIssuanceEpoch !== row.issuanceEpoch ||
+          event.marker !== atlasActionMarker(approvalId))
+        throw new ProjectUpdateError("UNAVAILABLE");
+    }
     if (recorded) {
       const event = storedAtlasComment.parse(recorded.detail);
       if (event.decisionId !== decided?.id || decision?.decision !== "APPROVED" ||
@@ -2246,10 +2272,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       replacesApprovalId: comparison?.replacesApprovalId,
       expiresAt: new Date(Math.min(row.expiresAt.getTime(), row.purgeAfter.getTime(), latest.purgeAfter.getTime())).toISOString(),
       decision: decision?.decision ?? "PENDING", receipt,
+      executionPending: attempt && !receipt ? true : undefined,
     });
     return { view, draftComment, confirmationId: confirmed.id, locator: invitation.locator, stageId: row.stageId,
       capturedAt: row.capturedAt, captureIssuanceEpoch: row.issuanceEpoch,
       decisionId: decided?.id, approvedDigest: decision?.payloadDigest, payloadDigest,
+      attemptId: attempt?.id,
       legacyConfirmation: !comparison && detail.sourceRevision === undefined };
   }
 
@@ -2687,51 +2715,90 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     }, "ReadCommitted");
   }
 
-  async recordAtlasComment(actorValue: Actor, projectValue: string, value: unknown, correlationValue: string) {
+  private async atlasApprovalForComment(tx: Tx, current: Actor, projectId: string, value: unknown) {
+    const approval = await this.loadAtlasApproval(tx, current, projectId);
+    const parsed = atlasCommentCommandSchema.safeParse(value);
+    if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+    if (!approval || approval.view.approvalId !== parsed.data.approvalId ||
+        approval.view.decision !== "APPROVED" || !approval.decisionId)
+      throw new ProjectUpdateError("CONFLICT");
+    if (!approval.view.receipt && (await this.now(tx) >= new Date(approval.view.expiresAt) ||
+        (approval.approvedDigest === undefined ? !approval.legacyConfirmation : approval.approvedDigest !== approval.payloadDigest)))
+      throw new ProjectUpdateError("CONFLICT");
+    return { ...approval, decisionId: approval.decisionId };
+  }
+
+  private async matchAtlasCommentBase(tx: Tx, current: Actor, projectId: string, correlationId: string,
+    view: AtlasApprovalView, confirmationId: string) {
+    const fixture = await this.atlasFixtureState(tx, current.customerId, projectId);
+    if (fixture.revision === view.sourceRevision && fixture.comment === view.currentComment) return true;
+    if (fixture.revision <= view.sourceRevision) throw new ProjectUpdateError("CONFLICT");
+    await this.engagementAudit(tx, current, projectId, correlationId, atlasProposalRefreshedEvent, {
+      projectId, confirmationId, responseId: view.responseId, replacesApprovalId: view.approvalId,
+      sourceRevision: fixture.revision, currentComment: fixture.comment, proposedComment: view.proposedComment,
+    });
+    return false;
+  }
+
+  async recordAtlasComment(actorValue: Actor, projectValue: string, value: unknown, correlationValue: string): Promise<AtlasCommentReceipt> {
     const current = parseActor(actorValue);
     const projectId = parseProjectId(projectValue);
     const correlationId = parseCorrelation(correlationValue);
-    const receipt = await this.transaction(async (tx) => {
-      const approval = await this.loadAtlasApproval(tx, current, projectId);
-      const parsed = atlasCommentCommandSchema.safeParse(value);
-      if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
-      if (!approval || approval.view.approvalId !== parsed.data.approvalId ||
-          approval.view.decision !== "APPROVED" || !approval.decisionId)
-        throw new ProjectUpdateError("CONFLICT");
-      const { view, decisionId, approvedDigest, payloadDigest } = approval;
-      if (view.receipt) return view.receipt;
-
-      // The original demo could approve only the empty, revision-zero fixture.
-      const bound = approvedDigest === undefined ? approval.legacyConfirmation : approvedDigest === payloadDigest;
-      const fixture = await this.atlasFixtureState(tx, current.customerId, projectId);
-      const asOf = await this.now(tx);
-      if (!bound || asOf >= new Date(view.expiresAt))
-        throw new ProjectUpdateError("CONFLICT");
-      if (fixture.revision !== view.sourceRevision || fixture.comment !== view.currentComment) {
-        if (fixture.revision <= view.sourceRevision) throw new ProjectUpdateError("CONFLICT");
-        await this.engagementAudit(tx, current, projectId, correlationId, atlasProposalRefreshedEvent, {
-          projectId, confirmationId: approval.confirmationId, responseId: view.responseId,
-          replacesApprovalId: view.approvalId, sourceRevision: fixture.revision, currentComment: fixture.comment,
-          proposedComment: view.proposedComment,
-        });
-        return null;
-      }
-
-      // The fixture write is a local audit insert. The same project lock protects
-      // approval, preflight, the simulated write, and its idempotent receipt.
-      const fixtureRevision = fixture.revision + 1;
-      const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasCommentEvent, {
-        projectId, approvalId: view.approvalId, responseId: view.responseId, decisionId, fixtureRevision,
-        template: atlasCommentTemplate, accessStatus: view.accessStatus, payloadDigest,
+    const claimed = await this.transaction(async (tx) => {
+      const approval = await this.atlasApprovalForComment(tx, current, projectId, value);
+      const { view, attemptId, confirmationId, decisionId, payloadDigest } = approval;
+      if (view.receipt) return { receipt: view.receipt } as const;
+      if (attemptId) return { attemptId, dispatch: false } as const;
+      if (!await this.matchAtlasCommentBase(tx, current, projectId, correlationId, view, confirmationId)) return null;
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasCommentAttemptEvent, {
+        projectId, approvalId: view.approvalId, responseId: view.responseId, decisionId,
+        target: view.target, sourceRevision: view.sourceRevision, payloadDigest, marker: atlasActionMarker(view.approvalId),
       });
-      const saved = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true } });
-      return atlasCommentReceiptSchema.parse({
-        id, approvalId: view.approvalId, target: view.target, fixtureRevision, recordedAt: iso(saved.occurredAt),
-        result: "SIMULATED",
-      });
+      return { attemptId: id, dispatch: true } as const;
     }, "ReadCommitted");
-    if (!receipt) throw new ProjectUpdateError("CONFLICT");
-    return receipt;
+    if (!claimed) throw new ProjectUpdateError("CONFLICT");
+    if (claimed.receipt) return claimed.receipt;
+
+    // Only the request that committed the attempt can submit to the fixture.
+    // Later requests can only look for its exact result.
+    if (claimed.dispatch) {
+      const posted = await this.transaction(async (tx) => {
+        const { view, attemptId, confirmationId, decisionId, payloadDigest } = await this.atlasApprovalForComment(tx, current, projectId, value);
+        if (attemptId !== claimed.attemptId) throw new ProjectUpdateError("CONFLICT");
+        if (!await this.matchAtlasCommentBase(tx, current, projectId, correlationId, view, confirmationId)) return false;
+        await this.engagementAudit(tx, current, projectId, correlationId, atlasFixtureCommentPostedEvent, {
+          projectId, approvalId: view.approvalId, responseId: view.responseId, decisionId,
+          fixtureRevision: view.sourceRevision + 1, accessStatus: view.accessStatus,
+          template: atlasCommentTemplate, payloadDigest, attemptId, marker: atlasActionMarker(view.approvalId),
+        });
+        return true;
+      }, "ReadCommitted");
+      if (!posted) throw new ProjectUpdateError("CONFLICT");
+    }
+
+    return this.transaction(async (tx) => {
+      const { view, attemptId, decisionId, payloadDigest, captureIssuanceEpoch } =
+        await this.atlasApprovalForComment(tx, current, projectId, value);
+      if (attemptId !== claimed.attemptId) throw new ProjectUpdateError("CONFLICT");
+      if (view.receipt) return view.receipt;
+      const marker = atlasActionMarker(view.approvalId);
+      const matches = await tx.auditEvent.findMany({
+        where: { customerId: current.customerId, actor: current.subject, event: atlasFixtureCommentPostedEvent, AND: [
+          { detail: { path: ["projectId"], equals: projectId } },
+          { detail: { path: ["marker"], equals: marker } },
+        ] }, take: 2, select: { detail: true },
+      });
+      if (matches.length !== 1) throw new ProjectUpdateError("CONFLICT");
+      const { attemptId: postedAttempt, marker: postedMarker, ...effect } = storedAtlasFixtureComment.parse(matches[0]!.detail);
+      if (postedAttempt !== attemptId || postedMarker !== marker || effect.approvalId !== view.approvalId || effect.decisionId !== decisionId ||
+          effect.payloadDigest !== payloadDigest || effect.responseId !== view.responseId || effect.accessStatus !== view.accessStatus ||
+          effect.fixtureRevision !== view.sourceRevision + 1 || effect.captureIssuanceEpoch !== captureIssuanceEpoch)
+        throw new ProjectUpdateError("CONFLICT");
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasCommentEvent, effect);
+      const saved = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true } });
+      return atlasCommentReceiptSchema.parse({ id, approvalId: view.approvalId, target: view.target,
+        fixtureRevision: effect.fixtureRevision, recordedAt: iso(saved.occurredAt), result: "SIMULATED" });
+    }, "ReadCommitted");
   }
 
   async captureHistory(actorValue: Actor, projectValue: string, cursorValue?: string | null): Promise<ProjectUpdateCaptureHistory> {

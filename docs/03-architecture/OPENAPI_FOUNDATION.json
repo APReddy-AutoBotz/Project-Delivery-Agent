@@ -37818,6 +37818,12 @@
                       ],
                       "additionalProperties": false
                     },
+                    "executionPending": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
                     "delayReview": {
                       "nullable": true,
                       "type": "object",
@@ -38360,6 +38366,12 @@
                         "result"
                       ],
                       "additionalProperties": false
+                    },
+                    "executionPending": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
                     },
                     "delayReview": {
                       "nullable": true,

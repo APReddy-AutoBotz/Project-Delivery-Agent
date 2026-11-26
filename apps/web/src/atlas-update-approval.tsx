@@ -186,8 +186,12 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
             onClick={() => void submit("APPROVED")}>Approve demo comment</Button>
           <Button className="secondary" disabled={busy || expired} onClick={() => void submit("REJECTED")}>Reject demo comment</Button>
         </div>}
-      {proposal.decision === "APPROVED" && !proposal.receipt &&
-        <Button className="primary" disabled={busy || expired} onClick={() => void submit()}>Record simulated comment</Button>}
+      {proposal.decision === "APPROVED" && !proposal.receipt && <>
+        {proposal.executionPending && <Message>The fixture outcome is unverified. Check for the existing comment receipt.</Message>}
+        <Button className="primary" disabled={busy || expired} onClick={() => void submit()}>
+          {proposal.executionPending ? "Check simulated comment receipt" : "Record simulated comment"}
+        </Button>
+      </>}
       {proposal.receipt && <section aria-label="Simulated comment receipt">
         <h3>Simulated comment recorded</h3>
         <dl>

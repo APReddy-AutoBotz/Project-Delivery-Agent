@@ -70,6 +70,7 @@ export const atlasApprovalViewSchema = z.strictObject({
   expiresAt: z.iso.datetime(),
   decision: z.enum(["PENDING", "APPROVED", "REJECTED"]),
   receipt: atlasCommentReceiptSchema.nullable(),
+  executionPending: z.literal(true).optional(),
   delayReview: z.strictObject({
     schedule: atlasScheduleSchema,
     assessment: atlasDelayAssessmentSchema.nullable(),
