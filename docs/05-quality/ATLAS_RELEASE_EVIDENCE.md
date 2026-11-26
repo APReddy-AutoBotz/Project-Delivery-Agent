@@ -9,11 +9,21 @@ remaining acceptance criteria and customer release gates.
 | Test | Executed behavior | Hosted evidence |
 | --- | --- | --- |
 | GOLDEN-001, E2E-QA-001 | Leadership gets baseline and forecast, the 14-day movement, the late start, the open synthetic Jira blocker, owner-confirmed pending access, the captured escalation, and PM-confirmed cause and medium forecast confidence. Each claim links to its supporting evidence. Unsupported blame and budget claims are absent. | [PR #197 main browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45785125378/job/139789853496) |
-| INT-QA-008 | An authorized leader compares a selected frozen snapshot with the current owner status and synthetic Jira receipt. The PM cannot open the leader's comparison and revoking the leader's access removes the comparison. | [PR #210 candidate browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45871939384/job/140089291899) |
+| INT-QA-008 | An authorized leader compares a selected frozen snapshot with the current owner status and synthetic Jira receipt. The PM cannot open the leader's comparison and revoking the leader's access removes the comparison. | [PR #210 main browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45876005787/job/140103130119) |
 | INT-RPT-001 | The browser checks the same saved snapshot ID and fact highlights in the project report, leadership email preview and editable PowerPoint, including the linked authenticated project. The PM approves that exact snapshot before in-app distribution. | [PR #197 main browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45785125378/job/139789853496) |
-| INT-RPT-004 | A later owner reply and newer receipt produce different live facts. The original approved snapshot and recipient inbox retain their earlier facts and report revision. | [PR #210 candidate browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45871939384/job/140089291899) |
-| SEC-UPD-003 | The real HTTP integration suite denies expired, invalid and unauthorized invitations and preserves response and content counts. The packaged restore then uses the same working pre-backup invitation to prove restored read and submit denial under runtime database quarantine. | [PR #127 main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40966514743) and [PR #209 packaged restore](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45871058364/job/140086447239) |
+| INT-RPT-004 | A later owner reply and newer receipt produce different live facts. The original approved snapshot and recipient inbox retain their earlier facts and report revision. | [PR #210 main browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45876005787/job/140103130119) |
+| SEC-UPD-003 | The real HTTP integration suite denies expired, invalid and unauthorized invitations and preserves response and content counts. The packaged restore then uses the same working pre-backup invitation to prove restored read and submit denial under runtime database quarantine. | [PR #127 main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40966514743) and [PR #209 main packaged restore evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45874601256/artifacts/15145801163) |
+| GOLDEN-006, FAIL-010 | PMO asks the owner for clarification after an ambiguous reply. The original reply cannot confirm a material fact, and the owner can correct it through the same invitation. A forecast-only request asks for the exact date. | [PR #215 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45883519852/job/140128425260) |
+| FAIL-016 | A renderer error or invalid deck leaves the Atlas report pending. A retry with a valid PowerPoint records the approval once. | [PR #214 main code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45881407447/job/140121387791) |
+| PILOT-001 synthetic calculations | The fixture verifies effort per cycle, completed and current verified update rates, and risk-detection lead time. Customer agreement and observed pilot results are pending. | [PR #212 main code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45880585368/job/140118606576) |
 
 The build uses PptxGenJS on a Linux runner and checks editable text and
-report metadata in the generated deck. General report generation failure
-and retry acceptance remains tracked under FAIL-016.
+report metadata in the generated deck. General reporting acceptance remains
+open under Issue #13.
+
+The leadership date view also compares an authorized current date with a
+saved authority assessment for the same fact. The reader and HTTP tests
+check the exact assessment binding and deny unavailable historical access.
+The browser checks both dates and clears the comparison when the selection
+changes. [PR #217 code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45898212812/job/140177282682)
+and [PR #217 browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45898212812/job/140177282758).
