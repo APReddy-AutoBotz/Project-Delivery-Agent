@@ -251,6 +251,7 @@ export const projectUpdateEscalationContextSchema = z.strictObject({
 export type ProjectUpdateEscalationContext = z.infer<typeof projectUpdateEscalationContextSchema>;
 
 export const projectUpdateClarificationQuestion = "What is the current project status? If it depends on another person or a date, who is responsible and what is the exact calendar date, if known?";
+export const projectUpdateForecastClarificationQuestion = "What is the current forecast finish date? Please provide the exact calendar date, if known.";
 export const projectUpdateClarificationRequestSchema = z.strictObject({
   requestId: z.uuid(),
   responseId: z.uuid(),
@@ -377,6 +378,7 @@ export const projectUpdateCaptureHistorySchema = z.strictObject({
     ]).optional(),
     forecastReview: z.discriminatedUnion("state", [
       pendingCapturedFactReview.extend({ suggestedValue: capturedForecastValue.optional() }),
+      projectUpdateClarificationReceiptSchema.extend({ state: z.literal("CLARIFICATION_REQUESTED") }),
       completedCapturedFactReview,
     ]).optional(),
   })).max(20),

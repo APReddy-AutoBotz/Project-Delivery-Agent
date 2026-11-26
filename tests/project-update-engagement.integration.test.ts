@@ -317,6 +317,39 @@ it("GOLDEN-006: asks the owner to clarify an ambiguous reply before allowing sta
     .toEqual({ state: "PENDING", responseId: corrected.responseId, expectedRevision: 0 });
 });
 
+it("FR-UPD-009: asks for the exact date when a forecast is the only captured fact", async () => {
+  const f = await captureFixture();
+  const { projectId } = f;
+  await f.capture.setPolicy(f.admin, projectId, { ...f.change, expectedRevision: 1,
+    requiredFacts: [{ factType: "project.forecast", label: "Current forecast" }] }, randomUUID());
+  await f.capture.activateEngagement(f.admin, projectId, 2, randomUUID());
+  await f.capture.processEngagements(1);
+  const history = await f.capture.captureHistory(f.owner, projectId);
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(history.entries).toEqual([]); return; }
+  const requestId = history.entries[0]!.requestId;
+  const locator = history.entries[0]!.recipientPath!.split("/").at(-1)!;
+  const { responseId } = await f.capture.submitResponse(f.owner, locator, {
+    text: "It should be ready next week.", idempotencyKey: randomUUID(),
+  }, randomUUID());
+  const command = { requestId, responseId };
+  const receipt = await f.capture.requestCapturedStatusClarification(f.admin, projectId, command, randomUUID());
+  const review = (await f.capture.captureHistory(f.admin, projectId)).entries[0]!;
+  expect(review.statusReview).toBeUndefined();
+  expect(review.forecastReview).toEqual({ state: "CLARIFICATION_REQUESTED", ...receipt });
+  expect((await f.capture.invitation(f.owner, locator)).clarification).toEqual({
+    responseId, question: "What is the current forecast finish date? Please provide the exact calendar date, if known.",
+  });
+  await expect(f.capture.confirmCapturedFacts(f.admin, projectId, { ...command, facts: [
+    { factType: "project.forecast", expectedRevision: 0, value: "2026-12-08" },
+  ] }, randomUUID())).rejects.toMatchObject({ code: "CONFLICT" });
+  const clarified = await f.capture.submitResponse(f.owner, locator, {
+    text: "Forecast: 2026-12-08", idempotencyKey: randomUUID(), correctsResponseId: responseId,
+  }, randomUUID());
+  expect((await f.capture.invitation(f.owner, locator)).clarification).toBeUndefined();
+  expect((await f.capture.captureHistory(f.admin, projectId)).entries[0]?.forecastReview)
+    .toEqual({ state: "PENDING", responseId: clarified.responseId, expectedRevision: 0, suggestedValue: "2026-12-08" });
+});
+
 it("FR-ESC-006: overdue reminders wait for actual capture and cannot reuse an earlier generation's initial request", async () => {
   const f = await captureFixture();
   await f.capture.setPolicy(f.admin, f.projectId, { ...f.change, expectedRevision: 1,
