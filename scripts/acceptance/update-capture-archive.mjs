@@ -317,7 +317,8 @@ export async function verifyCaptureInvitationHttp(connection, evidence) {
       assert.equal(read.headers.get("cache-control"), "no-store");
       assert.equal(read.status, restored ? 404 : 200);
       if (!restored) {
-        assert.equal((await read.json()).requestId, invitation.requestId);
+        const body = await read.json().catch(() => null);
+        assert(body?.requestId === invitation.requestId, "Source invitation response did not match the fixture");
         return { sourceInvitationHttpRead:true };
       }
       const text = "Isolated restored invitation canary";
@@ -327,8 +328,11 @@ export async function verifyCaptureInvitationHttp(connection, evidence) {
       });
       assert.equal(denied.status, 404);
       assert.equal(denied.headers.get("cache-control"), "no-store");
-      for (const response of [read, denied])
-        assert.deepEqual(await response.json(), { statusCode:404, message:"Resource unavailable" });
+      for (const response of [read, denied]) {
+        const body = await response.json().catch(() => null);
+        assert(body?.statusCode === 404 && body.message === "Resource unavailable" && Object.keys(body).length === 2,
+          "Restored invitation response did not match the fixed denial contract");
+      }
       assert.deepEqual(await count(), before);
       return { restoredInvitationHttpReadDenied:true, restoredInvitationHttpWriteDenied:true };
     } finally { await app.close(); }
