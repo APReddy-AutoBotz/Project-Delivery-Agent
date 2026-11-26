@@ -276,7 +276,7 @@ export const contracts: Record<string, RouteContract> = {
   },
   "get /api/projects/{id}/atlas-leadership-answer": {
     status: 200, response: atlasLeadershipAnswerSchema, parameters: { id: z.uuid() },
-    errors: [403, 404, 503],
+    query: { priorSnapshotId: z.uuid().optional() }, errors: [400, 403, 404, 503],
   },
   "post /api/projects/{id}/atlas-delay-confirmation": {
     status: 200, request: atlasDelayCommandSchema, response: atlasDelayAssessmentSchema,

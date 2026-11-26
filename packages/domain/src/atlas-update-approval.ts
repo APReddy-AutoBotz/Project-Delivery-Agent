@@ -107,6 +107,10 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
     capturedAt: z.iso.datetime(),
     availableUntil: z.iso.datetime(),
   }).nullable(),
+  priorSnapshot: z.strictObject({
+    id: z.uuid(),
+    facts: atlasLeadershipFactsSchema,
+  }).optional(),
 });
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
 
