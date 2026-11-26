@@ -57,6 +57,8 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async requestAtlasReportApproval() { throw new ProjectUpdateError("DENIED"); },
   async atlasReportApproval() { throw new ProjectUpdateError("DENIED"); },
   async decideAtlasReportApproval() { throw new ProjectUpdateError("DENIED"); },
+  async distributeAtlasReport() { throw new ProjectUpdateError("DENIED"); },
+  async atlasDistributedReport() { throw new ProjectUpdateError("DENIED"); },
   async captureHistory() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async purgeCaptureContent() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async beginCaptureGeneration() { throw new ProjectUpdateError("UNAVAILABLE"); },
@@ -164,8 +166,8 @@ export class ProjectUpdateController {
   @Get("atlas-report-approval")
   async atlasReportApproval(@Req() req: Request, @Param("id") rawId: string) {
     const actor = await this.actor(req);
-    const snapshot = await this.run(() => this.repository.atlasReportApproval(actor, this.projectId(rawId)));
-    return snapshot ? atlasManagementPreview(snapshot) : null;
+    const review = await this.run(() => this.repository.atlasReportApproval(actor, this.projectId(rawId)));
+    return review ? { ...atlasManagementPreview(review.snapshot), distribution: review.distribution } : null;
   }
 
   @Post("atlas-report-approval")
@@ -174,6 +176,20 @@ export class ProjectUpdateController {
     const actor = await this.actor(req);
     const snapshot = await this.run(() => this.repository.decideAtlasReportApproval(actor, this.projectId(rawId), body, req.correlationId));
     return atlasManagementPreview(snapshot);
+  }
+
+  @Post("atlas-report-distribution")
+  @HttpCode(200)
+  async distributeAtlasReport(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    return this.run(() => this.repository.distributeAtlasReport(actor, this.projectId(rawId), body, req.correlationId));
+  }
+
+  @Get("atlas-report-distribution")
+  async atlasDistributedReport(@Req() req: Request, @Param("id") rawId: string) {
+    const actor = await this.actor(req);
+    const delivered = await this.run(() => this.repository.atlasDistributedReport(actor, this.projectId(rawId)));
+    return delivered ? { ...await renderAtlasManagementSnapshot(delivered.snapshot), distribution: delivered.distribution } : null;
   }
 
   @Get("update-suggestions")

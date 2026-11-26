@@ -1,4 +1,4 @@
-import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, AtlasManagementOutput, AtlasManagementPreview, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -145,6 +145,37 @@ export function decodeAtlasManagementOutput(value: unknown, projectId: string): 
       !/^UEsDB[A-Za-z0-9+/]+={0,2}$/u.test(powerpointBase64)) return null;
   const report = decodeAtlasManagementPreview(preview, projectId);
   return report ? { ...report, livePath, powerpointBase64 } : null;
+}
+
+export function decodeAtlasDistributionReceipt(value: unknown): AtlasReportDistributionReceipt | null {
+  if (!object(value) || !keys(value, ["id", "snapshotId", "requestId", "recipient", "distributedAt"]) ||
+      !uuid(value.id) || !uuid(value.snapshotId) || !uuid(value.requestId) || value.recipient !== "leader-atlas" ||
+      !instant(value.distributedAt)) return null;
+  return value as AtlasReportDistributionReceipt;
+}
+
+function receiptMatchesReport(receipt: AtlasReportDistributionReceipt, { snapshot }: AtlasManagementPreview) {
+  return snapshot.approvalState === "APPROVED" && snapshot.id === receipt.snapshotId &&
+    snapshot.approval?.requestId === receipt.requestId && !!snapshot.approval.decidedAt &&
+    Date.parse(receipt.distributedAt) >= Date.parse(snapshot.approval.decidedAt);
+}
+
+export function decodeAtlasReportReview(value: unknown, projectId: string) {
+  if (!object(value)) return null;
+  const { distribution, ...preview } = value;
+  const report = decodeAtlasManagementPreview(preview, projectId);
+  if (!report?.snapshot.approval) return null;
+  if (distribution === null) return { ...report, distribution: null };
+  const receipt = decodeAtlasDistributionReceipt(distribution);
+  return receipt && receiptMatchesReport(receipt, report) ? { ...report, distribution: receipt } : null;
+}
+
+export function decodeAtlasDistributedReport(value: unknown, projectId: string) {
+  if (!object(value)) return null;
+  const { distribution, ...output } = value;
+  const report = decodeAtlasManagementOutput(output, projectId);
+  const receipt = decodeAtlasDistributionReceipt(distribution);
+  return report && receipt && receiptMatchesReport(receipt, report) ? { ...report, distribution: receipt } : null;
 }
 
 export function decodeInvitationReceipt(value: unknown, requestId: string): ProjectUpdateResponseReceipt | null {

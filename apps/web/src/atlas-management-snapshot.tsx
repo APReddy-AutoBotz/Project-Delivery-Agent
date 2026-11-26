@@ -1,13 +1,32 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AtlasManagementPreview } from "@pdaa/domain";
+import type { AtlasManagementOutput, AtlasManagementPreview } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
-import { decodeAtlasManagementOutput, decodeAtlasManagementPreview } from "./project-update-invitation-decoder.js";
+import { decodeAtlasDistributedReport, decodeAtlasDistributionReceipt, decodeAtlasManagementOutput,
+  decodeAtlasManagementPreview, decodeAtlasReportReview } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
 
 const approvalLabels = { DRAFT: "Draft", PENDING: "Awaiting PM approval", APPROVED: "Final · Approved", REJECTED: "Rejected" };
 const available = (report: AtlasManagementPreview | null | undefined) =>
   Boolean(report && Date.parse(report.snapshot.ownerReply.availableUntil) > Date.now());
+
+function downloadAtlasPowerPoint(file: AtlasManagementOutput) {
+  const bytes = Uint8Array.from(atob(file.powerpointBase64), (char) => char.charCodeAt(0));
+  const href = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }));
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = `atlas-${file.snapshot.id}.pptx`;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+}
+
+function useReportExpiry(expiry: string | undefined, refresh: () => unknown) {
+  useEffect(() => {
+    if (!expiry) return;
+    const timer = window.setTimeout(() => void refresh(), Math.max(0, Date.parse(expiry) - Date.now()));
+    return () => clearTimeout(timer);
+  }, [expiry, refresh]);
+}
 
 function AtlasReportSummary({ report }: { report: AtlasManagementPreview }) {
   const { snapshot, highlights } = report;
@@ -58,12 +77,7 @@ export function AtlasManagementSnapshot({ projectId, scope, request, isCurrent, 
     onSettled: () => isCurrent() ? refresh() : undefined,
   });
   const report = isCurrent() && query.isSuccess && !query.isFetching && available(query.data) ? query.data : null;
-  const expiry = report?.snapshot.ownerReply.availableUntil;
-  useEffect(() => {
-    if (!expiry) return;
-    const timer = window.setTimeout(() => void refresh(), Math.max(0, Date.parse(expiry) - Date.now()));
-    return () => clearTimeout(timer);
-  }, [expiry, refresh]);
+  useReportExpiry(report?.snapshot.ownerReply.availableUntil, refresh);
 
   async function download(expectedId: string) {
     setDownloading(true);
@@ -74,13 +88,7 @@ export function AtlasManagementSnapshot({ projectId, scope, request, isCurrent, 
       if (!isCurrent()) return;
       if (!current.isSuccess || !file || file.snapshot.id !== expectedId || !available(file))
         throw new Error("The displayed Atlas report is no longer available");
-      const bytes = Uint8Array.from(atob(file.powerpointBase64), (char) => char.charCodeAt(0));
-      const href = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }));
-      const link = document.createElement("a");
-      link.href = href;
-      link.download = `atlas-${file.snapshot.id}.pptx`;
-      link.click();
-      window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+      downloadAtlasPowerPoint(file);
     } catch {
       if (isCurrent()) setDownloadError(true);
     } finally {
@@ -125,25 +133,31 @@ export function AtlasReportApproval({ projectId, scope, request, isCurrent }: {
     queryFn: async () => {
       const raw = await request(path, undefined, 4096);
       if (raw === null) return null;
-      const report = decodeAtlasManagementPreview(raw, projectId);
-      if (!report?.snapshot.approval) throw new Error("Atlas report review is unavailable");
+      const report = decodeAtlasReportReview(raw, projectId);
+      if (!report) throw new Error("Atlas report review is unavailable");
       return report;
     },
   });
   const refresh = review.refetch;
   const report = isCurrent() && review.isSuccess && !review.isFetching && available(review.data) ? review.data : null;
-  const expiry = report?.snapshot.ownerReply.availableUntil;
-  useEffect(() => {
-    if (!expiry) return;
-    const timer = window.setTimeout(() => void refresh(), Math.max(0, Date.parse(expiry) - Date.now()));
-    return () => clearTimeout(timer);
-  }, [expiry, refresh]);
+  useReportExpiry(report?.snapshot.ownerReply.availableUntil, refresh);
   const decide = useMutation({
     mutationFn: async (command: { snapshotId: string; requestId: string; decision: "APPROVED" | "REJECTED" }) => {
       const raw = await request(path, { method: "POST", body: JSON.stringify(command) }, 4096);
       const result = decodeAtlasManagementPreview(raw, projectId)?.snapshot;
       if (result?.id !== command.snapshotId || result.approval?.requestId !== command.requestId ||
           result.approvalState !== command.decision) throw new Error("Atlas decision could not be verified");
+    },
+    onSettled: () => isCurrent() ? refresh() : undefined,
+  });
+  const distribute = useMutation({
+    mutationFn: async (command: { snapshotId: string; requestId: string }) => {
+      const raw = await request(`/projects/${projectId}/atlas-report-distribution`, {
+        method: "POST", body: JSON.stringify(command),
+      }, 4096);
+      const result = decodeAtlasDistributionReceipt(raw);
+      if (result?.snapshotId !== command.snapshotId || result.requestId !== command.requestId)
+        throw new Error("Atlas report distribution could not be verified");
     },
     onSettled: () => isCurrent() ? refresh() : undefined,
   });
@@ -161,6 +175,62 @@ export function AtlasReportApproval({ projectId, scope, request, isCurrent }: {
       <Button className="secondary" disabled={decide.isPending} onClick={() =>
         decide.mutate({ snapshotId: report.snapshot.id, requestId: approval.requestId, decision: "REJECTED" })}>Reject report</Button>
     </div>}
+    {approval && report.snapshot.approvalState === "APPROVED" && (report.distribution
+      ? <p>Distributed to Atlas Leadership at {report.distribution.distributedAt} (UTC). Receipt {report.distribution.id}.</p>
+      : <Button className="primary" disabled={distribute.isPending || decide.isPending} onClick={() =>
+        distribute.mutate({ snapshotId: report.snapshot.id, requestId: approval.requestId })}>Distribute to Atlas Leadership</Button>)}
     {decide.isError && <Message error>Could not verify the Atlas report decision.</Message>}
+    {distribute.isError && <Message error>Could not verify the Atlas report distribution.</Message>}
+  </section>;
+}
+
+export function AtlasReportInbox({ projectId, scope, request, isCurrent }: {
+  projectId: string; scope: string; request: RequestFn; isCurrent: () => boolean;
+}) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(false);
+  const delivery = useQuery({
+    queryKey: ["atlas-distributed-report", projectId, scope],
+    enabled: isCurrent(), retry: false, refetchOnWindowFocus: "always",
+    queryFn: async () => {
+      const raw = await request(`/projects/${projectId}/atlas-report-distribution`, undefined, 200_000);
+      if (raw === null) return null;
+      const report = decodeAtlasDistributedReport(raw, projectId);
+      if (!report) throw new Error("Atlas report distribution is unavailable");
+      return report;
+    },
+  });
+  const refresh = delivery.refetch;
+  const report = isCurrent() && delivery.isSuccess && !delivery.isFetching && available(delivery.data) ? delivery.data : null;
+  useReportExpiry(report?.snapshot.ownerReply.availableUntil, refresh);
+
+  async function download(expectedReceiptId: string) {
+    setDownloading(true);
+    setDownloadError(false);
+    try {
+      const result = await refresh();
+      const file = result.data;
+      if (!isCurrent()) return;
+      if (!result.isSuccess || file?.distribution.id !== expectedReceiptId || !available(file))
+        throw new Error("The distributed Atlas report is unavailable");
+      downloadAtlasPowerPoint(file);
+    } catch {
+      if (isCurrent()) setDownloadError(true);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return <section className="panel" aria-label="Atlas report inbox">
+    <h2>Distributed report</h2>
+    {delivery.isSuccess && !delivery.isFetching && !report && <p>No approved report has been distributed.</p>}
+    {(delivery.isError || downloadError) && <Message error>The distributed Atlas report is unavailable.</Message>}
+    {report && <>
+      <AtlasReportSummary report={report} />
+      <p>Delivered at {report.distribution.distributedAt} (UTC). Receipt {report.distribution.id}.</p>
+      <Button className="secondary" disabled={downloading} onClick={() => void download(report.distribution.id)}>
+        Download distributed PowerPoint
+      </Button>
+    </>}
   </section>;
 }

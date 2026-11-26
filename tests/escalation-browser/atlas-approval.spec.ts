@@ -5,14 +5,30 @@ import { text as readStreamText } from "node:stream/consumers";
 import yauzl from "yauzl";
 import { createDatabase, DatabaseProjectFactRepository } from "../../packages/data/dist/index.js";
 
-test("Atlas reply, receipt, leadership answer and final report share the same evidence", async ({ page, request }) => {
+test("Atlas reply, approval and distributed final report share the same evidence", async ({ page, request }) => {
   const fixture = JSON.parse(readFileSync(process.env.PDAA_ESCALATION_FIXTURE_PATH!, "utf8"));
   const projectPath = `/api/projects/${fixture.projectId}`;
   const receiptPath = projectPath + "/atlas-comment-receipt";
   const answerPath = projectPath + "/atlas-leadership-answer";
   const reportPath = projectPath + "/atlas-management-snapshot";
   const reportReviewPath = projectPath + "/atlas-report-approval";
+  const distributionPath = projectPath + "/atlas-report-distribution";
   const invitationPath = "/api/project-update-invitations/" + fixture.request.locator;
+  const target = new URL(process.env.PDAA_ESCALATION_BROWSER_DATABASE_URL!);
+  expect(["127.0.0.1", "localhost"]).toContain(target.hostname);
+  expect(target.pathname).toMatch(/^\/pdaa_test_[0-9]+$/);
+  const leaderAccess = async (allowed: boolean) => {
+    const db = createDatabase(target.toString());
+    try {
+      const access = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: fixture.sourceA.sourceId } });
+      await new DatabaseProjectFactRepository(db).setSourceAccess(fixture.admin, {
+        projectId: fixture.projectId, sourceId: fixture.sourceA.sourceId, expectedRevision: access.revision,
+        state: "AVAILABLE", readers: fixture.readers.filter((subject: string) => allowed || subject !== "leader-atlas"),
+      }, { correlationId: randomUUID() });
+    } finally {
+      await db.$disconnect();
+    }
+  };
   await page.goto("/update-requests/" + fixture.request.locator);
   await page.getByRole("button", { name: /Atlas contributor/ }).click();
   const reply = page.getByRole("textbox", { name: "Your update (unconfirmed)" });
@@ -150,6 +166,11 @@ test("Atlas reply, receipt, leadership answer and final report share the same ev
   });
   expect((await (await submitReport(snapshot.id)).json()).snapshot).toEqual(proposed);
   const approve = { snapshotId: snapshot.id, requestId: proposed.approval.requestId, decision: "APPROVED" };
+  const distributionVersion = { snapshotId: snapshot.id, requestId: proposed.approval.requestId };
+  const distribute = () => request.post(distributionPath, { headers: managerHeaders, data: distributionVersion });
+  expect((await distribute()).status()).toBe(409);
+  expect((await request.post(distributionPath, { headers: leaderHeaders, data: distributionVersion })).status()).toBe(404);
+  expect(await (await request.get(distributionPath, { headers: leaderHeaders })).json()).toBeNull();
   expect((await request.post(reportReviewPath, { headers: leaderHeaders, data: approve })).status()).toBe(404);
   expect((await request.post(reportReviewPath, {
     headers: managerHeaders, data: { ...approve, requestId: randomUUID() },
@@ -172,6 +193,23 @@ test("Atlas reply, receipt, leadership answer and final report share the same ev
     headers: managerHeaders, data: { ...approve, decision: "REJECTED" },
   })).status()).toBe(409);
 
+  await leaderAccess(false);
+  try {
+    expect((await distribute()).status()).toBe(404);
+  } finally {
+    await leaderAccess(true);
+  }
+  await pmReport.getByRole("button", { name: "Distribute to Atlas Leadership" }).click();
+  await expect(pmReport).toContainText("Distributed to Atlas Leadership at");
+  const distributed = await request.get(reportReviewPath, { headers: managerHeaders });
+  expect(distributed.status()).toBe(200);
+  const delivery = (await distributed.json()).distribution;
+  expect(delivery).toMatchObject({ ...distributionVersion, recipient: "leader-atlas", id: expect.any(String) });
+  const distributionReplay = await distribute();
+  expect(distributionReplay.status()).toBe(200);
+  expect(await distributionReplay.json()).toEqual(delivery);
+  expect((await request.get(distributionPath, { headers: managerHeaders })).status()).toBe(404);
+
   await page.goto(livePath);
   await page.getByRole("button", { name: /Leadership/ }).click();
   await expect(report).toContainText("Final · Approved");
@@ -181,9 +219,14 @@ test("Atlas reply, receipt, leadership answer and final report share the same ev
   await expect(email).toContainText(highlights[0]);
   await expect(email.getByRole("link")).toHaveAttribute("href", livePath);
   await expect(report).not.toContainText(text);
-  await report.screenshot({ path: "artifacts/atlas-management-snapshot.png" });
+  const inbox = page.getByRole("region", { name: "Atlas report inbox" });
+  await expect(inbox).toContainText("Final · Approved");
+  await expect(inbox).toContainText(snapshot.id);
+  await expect(inbox).toContainText(delivery.id);
+  await expect(inbox).not.toContainText(text);
+  await inbox.screenshot({ path: "artifacts/atlas-management-snapshot.png" });
   const downloadReady = page.waitForEvent("download");
-  await report.getByRole("button", { name: "Download editable PowerPoint" }).click();
+  await inbox.getByRole("button", { name: "Download distributed PowerPoint" }).click();
   const download = await downloadReady;
   expect(download.suggestedFilename()).toBe(`atlas-${snapshot.id}.pptx`);
   const archive = await yauzl.openPromise((await download.path())!, { lazyEntries: true });
@@ -244,25 +287,21 @@ test("Atlas reply, receipt, leadership answer and final report share the same ev
   });
   expect(rejection.status()).toBe(200);
   expect((await rejection.json()).snapshot).toMatchObject({ id: newer.id, approvalState: "REJECTED" });
+  expect((await request.post(distributionPath, {
+    headers: managerHeaders, data: { snapshotId: newer.id, requestId: newerRequestId },
+  })).status()).toBe(409);
   const finalPath = `${reportPath}?snapshotId=${snapshot.id}`;
   const frozen = await request.get(finalPath, { headers: leaderHeaders });
   expect(frozen.status()).toBe(200);
   expect(await frozen.json()).toMatchObject({ snapshot: finalReport, highlights, livePath });
 
-  const target = new URL(process.env.PDAA_ESCALATION_BROWSER_DATABASE_URL!);
-  expect(["127.0.0.1", "localhost"]).toContain(target.hostname);
-  expect(target.pathname).toMatch(/^\/pdaa_test_[0-9]+$/);
-  const db = createDatabase(target.toString());
-  try {
-    const access = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: fixture.sourceA.sourceId } });
-    await new DatabaseProjectFactRepository(db).setSourceAccess(fixture.admin, {
-      projectId: fixture.projectId, sourceId: fixture.sourceA.sourceId, expectedRevision: access.revision,
-      state: "AVAILABLE", readers: fixture.readers.filter((subject: string) => subject !== "leader-atlas"),
-    }, { correlationId: randomUUID() });
-    expect((await request.get(answerPath, { headers: leaderHeaders })).status()).toBe(404);
-    expect((await request.get(reportPath, { headers: leaderHeaders })).status()).toBe(404);
-    expect((await request.get(finalPath, { headers: leaderHeaders })).status()).toBe(404);
-  } finally {
-    await db.$disconnect();
-  }
+  const delivered = await request.get(distributionPath, { headers: leaderHeaders });
+  expect(delivered.status()).toBe(200);
+  expect(await delivered.json()).toMatchObject({ snapshot: finalReport, highlights, distribution: delivery });
+
+  await leaderAccess(false);
+  expect((await request.get(answerPath, { headers: leaderHeaders })).status()).toBe(404);
+  expect((await request.get(reportPath, { headers: leaderHeaders })).status()).toBe(404);
+  expect((await request.get(finalPath, { headers: leaderHeaders })).status()).toBe(404);
+  expect((await request.get(distributionPath, { headers: leaderHeaders })).status()).toBe(404);
 });
