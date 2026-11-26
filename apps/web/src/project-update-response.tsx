@@ -374,6 +374,9 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
         {data.entries.length === 0 && <p>No captured requests on this page.</p>}
         {data.entries.map(({ statusReview, forecastReview, ...entry }) => {
           const responseId = (statusReview ?? forecastReview)?.responseId;
+          const statusRevision = statusReview?.state === "PENDING" ? statusReview.expectedRevision : null;
+          const forecastRevision = forecastReview?.state === "PENDING" ? forecastReview.expectedRevision : null;
+          const reviewKey = JSON.stringify([responseId, statusRevision, forecastRevision]);
           return <article key={entry.requestId}>
             <h4>{entry.stageKind} · {entry.recipientSubject} · {entry.status}</h4>
             {entry.status === "QUARANTINED" && <p>This invitation has been invalidated. Retained content is available to authorized readers.</p>}
@@ -381,7 +384,7 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
             <p className="update-plain-text">{entry.body ?? (entry.contentState === "EXPIRED" ? "Request content has expired." : "Content is restricted for this account.")}</p>
             {entry.recipientPath && <a href={entry.recipientPath}>Respond to this request</a>}
             <Responses entries={entry.responses} />
-            {pmoAdmin && responseId && <ManualFactReview key={responseId} statusReview={statusReview} forecastReview={forecastReview}
+            {pmoAdmin && responseId && <ManualFactReview key={reviewKey} statusReview={statusReview} forecastReview={forecastReview}
               current={current} clarify={() => requestClarification(entry.requestId, responseId)}
               submit={(facts) => confirmFacts(entry.requestId, responseId, facts)} />}
           </article>;
