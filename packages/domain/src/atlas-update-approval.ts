@@ -13,9 +13,16 @@ export const atlasReplyConfirmationSchema = z.strictObject({
   responseId: z.uuid(),
   accessStatus: atlasAccessStatusSchema,
 });
+export const atlasCommentLimit = 500;
+const atlasProposedCommentSchema = z.string().min(1).max(atlasCommentLimit)
+  .regex(/^[^\p{Cc}\p{Surrogate}]+$/u)
+  .refine((text) => text.trim().length > 0 && new TextEncoder().encode(text).length <= atlasCommentLimit);
 export const atlasApprovalDecisionSchema = z.strictObject({
   approvalId: z.uuid(),
   decision: z.enum(["APPROVED", "REJECTED"]),
+  proposedComment: atlasProposedCommentSchema.optional(),
+}).refine((value) => value.decision === "APPROVED" || value.proposedComment === undefined, {
+  path: ["proposedComment"], message: "Comment text is only accepted for approval.",
 });
 export const atlasCommentCommandSchema = z.strictObject({ approvalId: z.uuid() });
 export const atlasCommentReceiptSchema = z.strictObject({
@@ -56,8 +63,8 @@ export const atlasApprovalViewSchema = z.strictObject({
   approver: canonicalSubjectSchema,
   accessStatus: atlasAccessStatusSchema,
   target: z.literal("ATLAS-248"),
-  currentComment: z.string().nullable(),
-  proposedComment: z.string(),
+  currentComment: atlasProposedCommentSchema.nullable(),
+  proposedComment: atlasProposedCommentSchema,
   sourceRevision: z.number().int().nonnegative(),
   expiresAt: z.iso.datetime(),
   decision: z.enum(["PENDING", "APPROVED", "REJECTED"]),

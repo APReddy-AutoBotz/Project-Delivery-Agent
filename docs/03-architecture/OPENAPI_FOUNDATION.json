@@ -37737,10 +37737,16 @@
                     },
                     "currentComment": {
                       "nullable": true,
-                      "type": "string"
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "pattern": "^[^\\p{Cc}\\p{Surrogate}]+$"
                     },
                     "proposedComment": {
-                      "type": "string"
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "pattern": "^[^\\p{Cc}\\p{Surrogate}]+$"
                     },
                     "sourceRevision": {
                       "type": "integer",
@@ -38269,10 +38275,16 @@
                     },
                     "currentComment": {
                       "nullable": true,
-                      "type": "string"
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "pattern": "^[^\\p{Cc}\\p{Surrogate}]+$"
                     },
                     "proposedComment": {
-                      "type": "string"
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "pattern": "^[^\\p{Cc}\\p{Surrogate}]+$"
                     },
                     "sourceRevision": {
                       "type": "integer",
@@ -38765,6 +38777,12 @@
                       "APPROVED",
                       "REJECTED"
                     ]
+                  },
+                  "proposedComment": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "pattern": "^[^\\p{Cc}\\p{Surrogate}]+$"
                   }
                 },
                 "required": [

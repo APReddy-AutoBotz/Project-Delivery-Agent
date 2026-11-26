@@ -1,4 +1,4 @@
-import type { AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -112,13 +112,16 @@ function matchesAtlasDelay(assessment: AtlasDelayAssessment, schedule: AtlasSche
     Date.parse(assessment.confirmedAt) >= Date.parse(receipt.recordedAt) && Date.parse(assessment.confirmedAt) < Date.parse(expiresAt);
 }
 
+export const atlasCommentMaxLength: typeof atlasCommentLimit = 500;
+export const validAtlasApprovalComment = (value: unknown) => label(value, atlasCommentMaxLength);
+
 export function decodeAtlasApproval(value: unknown): AtlasApprovalView | null {
   if (!object(value) || !keys(value, ["approvalId", "responseId", "replyReceivedAt", "confirmedBy", "approver",
     "accessStatus", "target", "currentComment", "proposedComment", "sourceRevision", "expiresAt", "decision", "receipt"], ["delayReview"]) ||
     !uuid(value.approvalId) || !uuid(value.responseId) || !instant(value.replyReceivedAt) || !instant(value.expiresAt) ||
     !subject(value.confirmedBy) || !subject(value.approver) || !accessStatus(value.accessStatus) ||
-    value.target !== "ATLAS-248" || !(value.currentComment === null || label(value.currentComment, 160)) ||
-    !label(value.proposedComment, 160) || !Number.isSafeInteger(value.sourceRevision) || Number(value.sourceRevision) < 0 ||
+    value.target !== "ATLAS-248" || !(value.currentComment === null || validAtlasApprovalComment(value.currentComment)) ||
+    !validAtlasApprovalComment(value.proposedComment) || !Number.isSafeInteger(value.sourceRevision) || Number(value.sourceRevision) < 0 ||
     !(value.decision === "PENDING" || value.decision === "APPROVED" || value.decision === "REJECTED")) return null;
   const receipt = decodeAtlasCommentReceipt(value.receipt);
   if (value.receipt !== null) {
