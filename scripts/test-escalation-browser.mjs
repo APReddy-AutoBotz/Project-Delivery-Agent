@@ -21,7 +21,7 @@ assert(!hosted || !serveAtlas);
 if (hosted) {
   assert.equal(process.env.GITHUB_ACTIONS, "true");
   assert.equal(process.env.GITHUB_WORKFLOW, "Foundation validation");
-  assert.equal(process.env.GITHUB_JOB, "verify");
+  assert.equal(process.env.GITHUB_JOB, "database-and-browser");
   assert.match(process.env.GITHUB_RUN_ID ?? "", /^[0-9]+$/);
   assert.equal(source.pathname, "/pdaa"); // Disposable hosted locator only; never migrated or seeded.
 } else if (serveAtlas) {

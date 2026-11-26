@@ -275,6 +275,21 @@ export const projectUpdateRecipientRequestViewSchema = z.strictObject({
 export type ProjectUpdateRecipientRequestView = z.infer<
   typeof projectUpdateRecipientRequestViewSchema
 >;
+export const projectUpdateStatusConfirmationSchema = z.strictObject({
+  requestId: z.uuid(),
+  responseId: z.uuid(),
+  expectedRevision: z.number().int().min(0).max(2147483646),
+  status: z.string().min(1).max(500).regex(/^[^\p{Cc}\p{Surrogate}]+$/u)
+    .refine((text) => text.trim().length > 0 && new TextEncoder().encode(text).length <= 500),
+});
+export const projectUpdateStatusConfirmationReceiptSchema = z.strictObject({
+  responseId: z.uuid(),
+  receiptId: z.uuid(),
+  confirmedBy: canonicalSubjectSchema,
+  confirmedAt: instant,
+  factSatisfied: z.boolean(),
+});
+export type ProjectUpdateStatusConfirmationReceipt = z.infer<typeof projectUpdateStatusConfirmationReceiptSchema>;
 export const projectUpdateCaptureHistorySchema = z.strictObject({
   projectId: z.uuid(),
   engagement: z.strictObject({ id: z.uuid(), generation: revision, policyRevision: revision,
@@ -292,6 +307,11 @@ export const projectUpdateCaptureHistorySchema = z.strictObject({
     // Locators are returned only for the current exact named recipient.
     recipientPath: z.string().nullable(),
     responses: z.array(projectUpdateResponseHistorySchema).max(20),
+    statusReview: z.discriminatedUnion("state", [
+      z.strictObject({ state: z.literal("PENDING"), responseId: z.uuid(),
+        expectedRevision: projectUpdateStatusConfirmationSchema.shape.expectedRevision }),
+      projectUpdateStatusConfirmationReceiptSchema.extend({ state: z.literal("CONFIRMED") }),
+    ]).optional(),
   })).max(20),
   nextCursor: z.uuid().nullable(),
 });
