@@ -2,7 +2,7 @@
 
 Status: In Progress
 Owner: Implementation controller
-Requirement IDs: FR-UPD-007, FR-UPD-008, FR-UPD-010, FR-ESC-006, NFR-AI-001, NFR-REL-002, NFR-SEC-001
+Requirement IDs: FR-EVD-005, FR-UPD-007, FR-UPD-008, FR-UPD-010, FR-ESC-006, NFR-AI-001, NFR-REL-002, NFR-SEC-001
 GitHub issues: [#9](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9), [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10)
 Target release: R1
 Last updated: 2026-11-26
@@ -26,9 +26,15 @@ when the active request asks for `project.status`. The reviewer enters a
 bounded status statement and confirms it as a human assessment. Source
 authority still decides whether that statement satisfies the request.
 
+Also allow a reviewer to confirm a requested `project.forecast` as an exact
+calendar date, alongside or independently of status. Save the selected facts
+in one transaction with their individual expected revisions and receipts.
+Recalculate cadence after all selected facts are recorded so a generation
+change cannot interrupt a combined confirmation.
+
 ## Out of scope
 
-Model configuration, other fact types, live Jira comments and external
+Model configuration, baseline date changes, other fact types, live Jira comments and external
 messages. Unresolved required facts keep their existing follow-up path.
 
 ## Current state
@@ -101,6 +107,9 @@ Extend the API contract suite and the existing native engagement suite.
 Check reviewer denial, stale revision, an attributable fact, receipt recovery,
 replanning with a service-readable fact and preserved follow-ups for a
 reviewer-private fact.
+Check that a stale revision in a combined status and forecast confirmation
+rolls back both statements, and that a successful pair creates two attributable
+receipts and satisfies the pending reminders when both sources qualify.
 Run the required hosted checks on the exact candidate.
 
 ## Rollback and recovery
