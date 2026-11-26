@@ -1,11 +1,21 @@
 // FR-UPD-004/006, AC-UPD-003: pure decisions are not persistence or dispatch proof.
 import { describe, expect, it } from "vitest";
 import {
+  extractExplicitCapturedFacts,
   mayAccessProjectUpdateInvitation,
   projectUpdateCaptureConfigurationSchema,
   projectUpdateResponseSubmissionSchema,
   renderProjectUpdateCapture,
 } from "../packages/domain/src/index.js";
+
+it("proposes only explicit, unambiguous status and forecast values", () => {
+  expect(extractExplicitCapturedFacts("Status: Integration is progressing.\r\nProject forecast: 2026-12-08"))
+    .toEqual({ "project.status": "Integration is progressing.", "project.forecast": "2026-12-08" });
+  expect(extractExplicitCapturedFacts("It should be fine next week once they sort it.")).toEqual({});
+  expect(extractExplicitCapturedFacts("Status: Ready\nProject status: Blocked\nForecast: 2026-02-30")).toEqual({});
+  expect(extractExplicitCapturedFacts("Status: Ready\nStatus: Blocked\u2028Needs review")).toEqual({});
+  expect(extractExplicitCapturedFacts("Status: Ready\rStatus: Blocked")).toEqual({});
+});
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const id = "20000000-0000-4000-8000-000000000001";

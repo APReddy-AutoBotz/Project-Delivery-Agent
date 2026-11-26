@@ -63,7 +63,7 @@ try {
     ingestion,
     healthAssessment,
     projectUpdates,
-    new DatabasePmActionQueueRepository(db),
+    new DatabasePmActionQueueRepository(db, projectUpdates),
     new DatabaseBlockerAgeAdviceRepository(db),
     new DatabaseMilestoneConflictObservationRepository(db),
     new DatabaseScalarConflictObservationRepository(db),

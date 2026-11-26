@@ -227,6 +227,54 @@ it.each(["service-readable", "reviewer-private"] as const)("AC-EVD-006 / AC-UPD-
   expect(await db.projectFactVersion.count({ where: { customerId, projectId } })).toBe(2);
 });
 
+it("AC-EVD-006: confirms requested status and forecast together before replanning", async () => {
+  const f = await captureFixture();
+  const { projectId } = f, customerId = f.admin.customerId;
+  const prior = new Date(f.now.getTime() - 7200000);
+  for (const factType of ["project.status", "project.forecast"]) {
+    const statement = await f.append(factType, prior);
+    const sourceId = statement.entry.sourceId;
+    const access = await f.facts.getSourceAccess(f.admin, { projectId, sourceId });
+    await f.facts.setSourceAccess(f.admin, { projectId, sourceId, expectedRevision: access!.revision,
+      state: "AVAILABLE", readers: [f.admin.subject, f.owner.subject, f.service] }, { correlationId: randomUUID() });
+  }
+  const activation = (await f.capture.activateEngagement(f.admin, projectId, 1, randomUUID()))!;
+  await f.capture.processEngagements(1);
+  const ownerHistory = await f.capture.captureHistory(f.owner, projectId);
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(ownerHistory.entries).toEqual([]); return; }
+  const { requestId, recipientPath } = ownerHistory.entries[0]!;
+  const response = await f.capture.submitResponse(f.owner, recipientPath!.split("/").at(-1)!, {
+    text: "Status: Integration is progressing.\nForecast: 2026-12-08", idempotencyKey: randomUUID(),
+  }, randomUUID());
+  const scope = { customerId, projectId }, responseId = response.responseId;
+  const requested = (await f.capture.captureHistory(f.admin, projectId)).entries[0]!;
+  expect(requested.statusReview).toEqual({ state: "PENDING", responseId, expectedRevision: 1,
+    suggestedValue: "Integration is progressing." });
+  expect(requested.forecastReview).toEqual({ state: "PENDING", responseId, expectedRevision: 1,
+    suggestedValue: "2026-12-08" });
+  expect(await db.projectFactVersion.count({ where: scope })).toBe(2);
+  const status = { factType: "project.status", expectedRevision: 1, value: "Integration is progressing." };
+  const forecast = { factType: "project.forecast", expectedRevision: 1, value: "2026-12-08" };
+  const confirm = (facts: unknown[]) => f.capture.confirmCapturedFacts(f.admin, projectId, { requestId, responseId, facts }, randomUUID());
+  await expect(confirm([status, { ...forecast, value: "2026-02-30" }])).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+  await expect(confirm([status, { ...forecast, expectedRevision: 0 }])).rejects.toMatchObject({ code: "CONFLICT" });
+  expect(await db.projectFactVersion.count({ where: scope })).toBe(2);
+  expect((await outbox(activation.engagementId)).some(({ state }) => state === "READY")).toBe(true);
+
+  const receipts = await confirm([status, forecast]);
+  expect(receipts).toMatchObject([
+    { factType: status.factType, responseId, factSatisfied: true },
+    { factType: forecast.factType, responseId, factSatisfied: true },
+  ]);
+  const date = await db.projectFact.findFirstOrThrow({ where: { ...scope, factType: forecast.factType } });
+  const version = await db.projectFactVersion.findFirstOrThrow({ where: { ...scope, factId: date.id, revision: 2 } });
+  expect(version).toMatchObject({ value: { type: "date", value: forecast.value }, provenance: "HUMAN_CONFIRMED" });
+  const event = await db.auditEvent.findUniqueOrThrow({ where: { id: receipts[1]!.receiptId } });
+  expect(event).toMatchObject({ customerId,
+    detail: { projectId, requestId, responseId, versionId: version.id, evidenceId: version.evidenceId } });
+  expect((await outbox(activation.engagementId)).some(({ state }) => state === "READY")).toBe(false);
+});
+
 it("GOLDEN-006: asks the owner to clarify an ambiguous reply before allowing status confirmation", async () => {
   const f = await captureFixture();
   const { projectId } = f;

@@ -121,12 +121,13 @@ export const validAtlasApprovalComment = (value: unknown) => label(value, atlasC
 
 export function decodeAtlasApproval(value: unknown): AtlasApprovalView | null {
   if (!object(value) || !keys(value, ["approvalId", "responseId", "replyReceivedAt", "confirmedBy", "approver",
-    "accessStatus", "target", "currentComment", "proposedComment", "sourceRevision", "expiresAt", "decision", "receipt"], ["delayReview", "replacesApprovalId"]) ||
+    "accessStatus", "target", "currentComment", "proposedComment", "sourceRevision", "expiresAt", "decision", "receipt"], ["delayReview", "replacesApprovalId", "executionPending"]) ||
     !uuid(value.approvalId) || !uuid(value.responseId) || !instant(value.replyReceivedAt) || !instant(value.expiresAt) ||
     !subject(value.confirmedBy) || !subject(value.approver) || !accessStatus(value.accessStatus) ||
     value.target !== "ATLAS-248" || !(value.currentComment === null || validAtlasApprovalComment(value.currentComment)) ||
     !validAtlasApprovalComment(value.proposedComment) || !Number.isSafeInteger(value.sourceRevision) || Number(value.sourceRevision) < 0 ||
     (value.replacesApprovalId !== undefined && (!uuid(value.replacesApprovalId) || value.replacesApprovalId === value.approvalId)) ||
+    (value.executionPending !== undefined && (value.executionPending !== true || value.decision !== "APPROVED" || value.receipt !== null)) ||
     !(value.decision === "PENDING" || value.decision === "APPROVED" || value.decision === "REJECTED")) return null;
   const receipt = decodeAtlasCommentReceipt(value.receipt);
   if (value.receipt !== null) {

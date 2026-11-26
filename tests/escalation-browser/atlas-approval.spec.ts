@@ -84,7 +84,14 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.goto("/");
   await page.getByRole("button", { name: /Project manager/ }).click();
-  await page.getByRole("button", { name: /Atlas · Delivery approval/ }).click();
+  const queuePath = "/api/pm/action-queue";
+  const pendingQueue = await request.get(queuePath, { headers: managerHeaders });
+  expect(pendingQueue.status()).toBe(200);
+  expect((await pendingQueue.json()).items).toContainEqual({
+    projectId: fixture.projectId, facet: "ATLAS_APPROVAL", index: null, key: approvalId, priority: "HIGH", category: "APPROVAL",
+  });
+  expect((await request.get(queuePath, { headers: leaderHeaders })).status()).toBe(404);
+  await page.getByRole("button", { name: "Review Atlas comment" }).click();
   const approval = page.getByRole("region", { name: "Atlas demo approval" });
   await expect(approval).toContainText("ATLAS-248");
   await expect(approval).toContainText("No comment in the fixture.");
@@ -100,6 +107,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(approval).toContainText("Demo approval recorded.");
   await expect(approval).toContainText(editedComment);
   await expect(approveComment).toHaveCount(0);
+  const afterDecision = await request.get(queuePath, { headers: managerHeaders });
+  expect(afterDecision.status()).toBe(200);
+  expect((await afterDecision.json()).items).not.toContainEqual(expect.objectContaining({ key: approvalId }));
   await expect(proposedComment).toHaveCount(0);
   const persisted = await request.get(projectPath + "/atlas-approval", {
     headers: managerHeaders,
@@ -381,11 +391,45 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(newComparison.approvalId).not.toBe(nextComment.approvalId);
   await approval.getByRole("button", { name: "Approve demo comment" }).click();
   await expect(approval).toContainText("Demo approval recorded.");
-  await approval.getByRole("button", { name: "Record simulated comment" }).click();
+
+  // Simulate a lost acknowledgement using the two durable checkpoints. An
+  // attempt without a verifiable effect must never post again.
+  const recovery = createDatabase(target.toString());
+  const recoveryScope = {
+    customerId: fixture.customerId, actor: "pm-atlas",
+    AND: [{ detail: { path: ["projectId"], equals: fixture.projectId } },
+      { detail: { path: ["approvalId"], equals: newComparison.approvalId } }],
+  };
+  const retryReceipt = () => request.post(receiptPath, { headers: managerHeaders, data: { approvalId: newComparison.approvalId } });
+  try {
+    const decision = await recovery.auditEvent.findFirstOrThrow({
+      where: { ...recoveryScope, event: "atlas_demo.approval.decided" },
+    });
+    const { captureIssuanceEpoch, payloadDigest } = decision.detail as { captureIssuanceEpoch: string; payloadDigest: string };
+    const marker = "pdaa-atlas:" + newComparison.approvalId;
+    const evidence = { projectId: fixture.projectId, approvalId: newComparison.approvalId, responseId: newComparison.responseId,
+      decisionId: decision.id, captureIssuanceEpoch, payloadDigest, marker };
+    const attempt = await recovery.auditEvent.create({
+      data: { customerId: fixture.customerId, actor: recoveryScope.actor, correlationId: randomUUID(),
+        event: "atlas_demo.comment.attempt_started", detail: { ...evidence, target: newComparison.target, sourceRevision: 2 } },
+    });
+    expect((await retryReceipt()).status()).toBe(409);
+    expect(await recovery.auditEvent.count({ where: { ...recoveryScope, event: "atlas_demo.fixture.comment_posted" } })).toBe(0);
+    await recovery.auditEvent.create({
+      data: { customerId: fixture.customerId, actor: recoveryScope.actor, correlationId: randomUUID(),
+        event: "atlas_demo.fixture.comment_posted", detail: { ...evidence, attemptId: attempt.id, fixtureRevision: 3,
+          accessStatus: "ACCESS_RESTORED", template: "atlas-comment@1" } },
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+    await approval.getByRole("button", { name: "Check simulated comment receipt" }).click();
+    await expect(receiptPanel).toBeVisible();
+    expect(await recovery.auditEvent.count({ where: { ...recoveryScope, event: "atlas_demo.fixture.comment_posted" } })).toBe(1);
+    const recorded = await recovery.auditEvent.findFirstOrThrow({ where: { ...recoveryScope, event: "atlas_demo.comment.recorded" } });
+    expect(recorded.detail).toMatchObject({ approvalId: newComparison.approvalId, decisionId: decision.id,
+      responseId: newComparison.responseId, fixtureRevision: 3, payloadDigest });
+  } finally { await recovery.$disconnect(); }
   await expect(receiptPanel).toContainText("Fixture revision");
-  expect(await (await request.post(receiptPath, {
-    headers: managerHeaders, data: { approvalId: newComparison.approvalId },
-  })).json()).toMatchObject({ approvalId: newComparison.approvalId, fixtureRevision: 3, result: "SIMULATED" });
+  expect(await (await retryReceipt()).json()).toMatchObject({ approvalId: newComparison.approvalId, fixtureRevision: 3, result: "SIMULATED" });
   const newerDraft = await request.post(reportPath, { headers: leaderHeaders, data: {} });
   expect(newerDraft.status()).toBe(200);
   const newer = (await newerDraft.json()).snapshot;

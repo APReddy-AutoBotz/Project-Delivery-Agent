@@ -105,7 +105,9 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
       <div>
         <span className="eyebrow">ASSIGNED PROJECTS</span>
         <h2 id="pm-action-queue-heading">Action suggestions</h2>
-        <p className="muted">Schedule, update information and source-authorized blocker-age review. Approvals and other categories are unavailable.
+        <p className="muted">Schedule, update information and source-authorized blocker-age review.
+          {queue?.coverage.approvals === "ATLAS_DEMO_ONLY" ? " Includes the pending Atlas demo approval. Other categories are unavailable."
+            : " Approvals and other categories are unavailable."}
           Schedule suggestions do not assess source authority. Each observation has its own evaluation time; access and data can change.</p>
       </div>
       <Button className="secondary" onClick={() => {
@@ -124,13 +126,17 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
           if (!project) return null;
           const schedule = pointer.facet === "SCHEDULE" ? project.schedule.items[pointer.index] : undefined;
           const update = pointer.facet === "UPDATE" && project.update.availability === "AVAILABLE" ? project.update : undefined;
+          const atlasApproval = pointer.facet === "ATLAS_APPROVAL" ? project.pendingAtlasApproval : undefined;
           const item = schedule ?? update?.suggestion;
-          if (!item) return null;
+          if (!item && !atlasApproval) return null;
           return <article key={`${pointer.projectId}:${pointer.facet}:${pointer.key}`} className="rounded-lg border border-slate-200 p-4 space-y-2">
             <h3>{project.name} · {pointer.priority} · {pointer.category.replaceAll("_", " ")}</h3>
-            <p>Rule-based suggestion — review required.</p>
-            <p><strong>Suggested action:</strong> {item.suggestedAction}</p>
-            <p><strong>Expected outcome:</strong> {item.expectedOutcome}</p>
+            {item && <>
+              <p>Rule-based suggestion — review required.</p>
+              <p><strong>Suggested action:</strong> {item.suggestedAction}</p>
+              <p><strong>Expected outcome:</strong> {item.expectedOutcome}</p>
+            </>}
+            {atlasApproval && <p>Review the pending comment for {atlasApproval.target}. The decision expires at {atlasApproval.expiresAt}.</p>}
             {schedule && <>
               <p className="muted">Schedule evaluated at {project.schedule.asOf}; rule {schedule.triggeringRule.key}@{schedule.triggeringRule.revision}.</p>
               {schedule.trigger.kind === "DELIVERY_SIGNAL" ? <SignalEvidence signal={schedule.trigger.signal} /> : <div className="space-y-2">
@@ -149,7 +155,9 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
               {update.evidence.length > 0 && <details><summary>Authorized evidence references</summary><ul>{update.evidence.map((evidence) =>
                 <li key={`${evidence.factId}:${evidence.versionId}`}>{evidence.factType}: fact {evidence.factId}, version {evidence.versionId}, evidence {evidence.evidenceId}, source {evidence.sourceId}; access revision {evidence.sourceAccessRevision}, authority revision {evidence.authorityRevision ?? "unavailable"}.</li>)}</ul></details>}
             </>}
-            <Button className="secondary" onClick={() => openQueueProject(project.projectId)}>Open project</Button>
+            <Button className="secondary" onClick={() => openQueueProject(project.projectId)}>
+              {atlasApproval ? "Review Atlas comment" : "Open project"}
+            </Button>
           </article>;
         })}</div>}
       <section aria-labelledby="blocker-review-heading" className="space-y-3">

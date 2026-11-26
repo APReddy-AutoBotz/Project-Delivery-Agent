@@ -7,7 +7,8 @@ import { CanonicalCreationWriteRegistry, canonicalCommandFingerprint, canonicalC
 import { ManagedReadRegistry } from "./managed-read-registry.js";
 import { managedRead } from "./managed-read.js";
 import type { ProjectUpdateCaptureHistory as CaptureHistory, ProjectUpdateRecipientRequestView,
-  ProjectUpdateClarificationReceipt, ProjectUpdateStatusConfirmationReceipt } from "@pdaa/domain";
+  ProjectUpdateClarificationReceipt, ProjectUpdateFactConfirmation, ProjectUpdateFactConfirmationReceipt,
+  ProjectUpdateStatusConfirmationReceipt } from "@pdaa/domain";
 import { ConfirmAtlasReply } from "./atlas-update-approval.js";
 import "./project-update-response.css";
 
@@ -15,6 +16,7 @@ type ResponseEntry = { id: string; submittedBy: string; receivedAt: string;
   correctsResponseId: string | null; state: "UNCONFIRMED"; contentState: "PRESENT" | "EXPIRED"; text: string | null };
 type RecipientRequest = { requestId: string; project: { id: string; code: string; name: string };
   stageKind: string; dueAt: string; capturedAt: string; expiresAt: string; body: string;
+  requiredFacts: ProjectUpdateRecipientRequestView["requiredFacts"];
   rawResponseReaders: string[]; responses: ResponseEntry[]; escalationContext?: EscalationContext | null;
   atlasInterpretation?: ProjectUpdateRecipientRequestView["atlasInterpretation"];
   clarification?: ProjectUpdateRecipientRequestView["clarification"] };
@@ -57,43 +59,66 @@ function EscalationHistory({ context }: { context: EscalationContext }) {
       })}</ol>}
   </section>;
 }
-type StatusReview = NonNullable<CaptureHistory["entries"][number]["statusReview"]>;
+type ManualReview = Pick<CaptureHistory["entries"][number], "statusReview" | "forecastReview">;
+type ConfirmationItems = ProjectUpdateFactConfirmation["facts"];
 
-function ManualStatusReview({ review, submit, clarify, current }: {
-  review: StatusReview; submit: (status: string, expectedRevision: number) => Promise<unknown>;
+function FactConfirmation({ label, receipt }: { label: string; receipt: ProjectUpdateStatusConfirmationReceipt }) {
+  return <p>{label} confirmed by {receipt.confirmedBy} at {receipt.confirmedAt}. Receipt {receipt.receiptId}.{" "}
+    {receipt.factSatisfied ? "The statement satisfied the requested fact at confirmation."
+      : "The statement was recorded for source authority review."}
+  </p>;
+}
+
+function ManualFactReview({ statusReview, forecastReview, submit, clarify, current }: ManualReview & {
+  submit: (facts: ConfirmationItems) => Promise<unknown>;
   clarify: () => Promise<unknown>; current: () => boolean;
 }) {
-  const [status, setStatus] = useState("");
-  const valid = status.trim().length > 0 && new TextEncoder().encode(status).length <= 500 &&
+  const [status, setStatus] = useState(() => statusReview?.state === "PENDING" ? statusReview.suggestedValue ?? "" : "");
+  const [forecast, setForecast] = useState(() => forecastReview?.state === "PENDING" ? forecastReview.suggestedValue ?? "" : "");
+  const pendingStatus = statusReview?.state === "PENDING" ? statusReview : null;
+  const pendingForecast = forecastReview?.state === "PENDING" ? forecastReview : null;
+  const validStatus = status.trim().length > 0 && new TextEncoder().encode(status).length <= 500 &&
     !/[\p{Cc}\p{Surrogate}]/u.test(status);
+  const validForecast = /^\d{4}-\d{2}-\d{2}$/u.test(forecast) && !forecast.startsWith("0000-");
+  const facts: ConfirmationItems = [];
+  if (pendingStatus && validStatus)
+    facts.push({ factType: "project.status", expectedRevision: pendingStatus.expectedRevision, value: status });
+  if (pendingForecast && validForecast)
+    facts.push({ factType: "project.forecast", expectedRevision: pendingForecast.expectedRevision, value: forecast });
+  const valid = facts.length > 0 && (!pendingStatus || !status.trim() || validStatus) &&
+    (!pendingForecast || !forecast || validForecast);
   const confirmation = useMutation({
     mutationFn: async () => {
-      if (!current() || review.state !== "PENDING" || !valid) throw new Error("Manual review unavailable");
-      await submit(status, review.expectedRevision);
+      if (!current() || !valid) throw new Error("Manual review unavailable");
+      await submit(facts);
     },
   });
   const clarification = useMutation({
     mutationFn: async () => {
-      if (!current() || review.state !== "PENDING") throw new Error("Manual review unavailable");
+      if (!current() || !pendingStatus) throw new Error("Manual review unavailable");
       await clarify();
     },
   });
   const busy = confirmation.isPending || clarification.isPending;
-  if (review.state === "CONFIRMED") return <p>
-    Project status confirmed by {review.confirmedBy} at {review.confirmedAt}. Receipt {review.receiptId}.{" "}
-    {review.factSatisfied ? "The statement satisfied the requested status at confirmation."
-      : "The statement was recorded for source authority review."}
-  </p>;
-  if (review.state === "CLARIFICATION_REQUESTED")
-    return <p>Clarification requested at {review.requestedAt}. Awaiting an updated response from the owner.</p>;
-  return <section aria-label="Manual project status review">
-    <label className="field"><span>Confirmed project status</span>
+  return <section aria-label="Manual project update review">
+    {statusReview?.state === "CONFIRMED" && <FactConfirmation label="Project status" receipt={statusReview} />}
+    {forecastReview?.state === "CONFIRMED" && <FactConfirmation label="Project forecast" receipt={forecastReview} />}
+    {statusReview?.state === "CLARIFICATION_REQUESTED" &&
+      <p>Clarification requested at {statusReview.requestedAt}. Awaiting an updated response from the owner.</p>}
+    {(pendingStatus?.suggestedValue || pendingForecast?.suggestedValue) &&
+      <p>Values from the reply are suggestions. Review or edit them before confirming.</p>}
+    {pendingStatus && <label className="field"><span>Confirmed project status</span>
       <input type="text" value={status} maxLength={500} onChange={(event) => setStatus(event.currentTarget.value)}
         disabled={busy} />
-    </label>
-    <Button className="primary" disabled={!valid || busy || !current()}
-      onClick={() => confirmation.mutate()}>Confirm project status</Button>
-    <Button disabled={busy || !current()} onClick={() => clarification.mutate()}>Request clarification</Button>
+    </label>}
+    {pendingForecast && <label className="field"><span>Confirmed project forecast date</span>
+      <input type="date" value={forecast} onChange={(event) => setForecast(event.currentTarget.value)} disabled={busy} />
+    </label>}
+    {(pendingStatus || pendingForecast) && <Button className="primary" disabled={!valid || busy || !current()}
+      onClick={() => confirmation.mutate()}>
+      {pendingStatus && pendingForecast ? "Confirm entered facts" : pendingStatus ? "Confirm project status" : "Confirm project forecast"}
+    </Button>}
+    {pendingStatus && <Button disabled={busy || !current()} onClick={() => clarification.mutate()}>Request clarification</Button>}
     {confirmation.isError && <Message error>Could not verify the confirmation. Check the current response and try again.</Message>}
     {clarification.isError && <Message error>Could not verify the clarification request. Check the current response and try again.</Message>}
   </section>;
@@ -250,6 +275,8 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
   if (!rendered || !currentInvitation()) return <Message>Loading update request…</Message>;
   const invitation = rendered.value;
   const interpretation = invitation.atlasInterpretation;
+  const asksForStatus = invitation.requiredFacts.some(({ factType }) => factType === "project.status");
+  const asksForForecast = invitation.requiredFacts.some(({ factType }) => factType === "project.forecast");
   const visibleExpiry = deadline.current !== null && deadline.current < Date.parse(invitation.expiresAt)
     ? new Date(deadline.current).toISOString() : invitation.expiresAt;
   return <section className="panel" aria-label="Respond to update request">
@@ -272,6 +299,10 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
           onChange={(event) => { if (currentInvitation()) { draftEpoch.current++; setText(event.target.value); } }} aria-describedby="update-response-notice" />
       </label>
       <p id="update-response-notice">Submitting records your response. Required facts remain unconfirmed, reminders continue, and no Jira change is made.</p>
+      {(asksForStatus || asksForForecast) && <p>
+        {asksForStatus && <>To suggest a status for review, start a line with <code>Status:</code>. </>}
+        {asksForForecast && <>To suggest a date, put <code>Forecast: YYYY-MM-DD</code> on its own line.</>}
+      </p>}
       <label className="field"><span>Correct an earlier response (optional)</span>
         <select value={correction ?? ""} disabled={busy} onChange={(event) => { if (currentInvitation()) { draftEpoch.current++; setCorrection(event.target.value || null); } }}>
           <option value="">New response</option>
@@ -317,12 +348,14 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
     } catch { if (current()) setMessage("Capture could not be approved. Refresh the policy and capture history before retrying."); }
     finally { setBusy(false); }
   }
-  async function confirmStatus(requestId: string, responseId: string, status: string, expectedRevision: number) {
+  async function confirmFacts(requestId: string, responseId: string, facts: ConfirmationItems) {
     try {
-      const receipt = await request<ProjectUpdateStatusConfirmationReceipt>(`/projects/${projectId}/project-update-status-confirmations`, {
-        method: "POST", body: JSON.stringify({ requestId, responseId, status, expectedRevision }),
+      const receipts = await request<ProjectUpdateFactConfirmationReceipt>(`/projects/${projectId}/project-update-fact-confirmations`, {
+        method: "POST", body: JSON.stringify({ requestId, responseId, facts }),
       }, 4096, undefined, undefined, current);
-      if (receipt.responseId !== responseId) throw new Error("Manual confirmation receipt mismatch");
+      if (receipts.length !== facts.length || receipts.some((receipt, index) =>
+        receipt.responseId !== responseId || receipt.factType !== facts[index]?.factType))
+        throw new Error("Manual confirmation receipt mismatch");
     } finally {
       if (isCurrentScope())
         await Promise.all([
@@ -348,17 +381,23 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
     {query.isError ? <Message error>Capture history is unavailable for this account.</Message> :
       !data ? <Message>Loading capture history…</Message> : <>
         {data.entries.length === 0 && <p>No captured requests on this page.</p>}
-        {data.entries.map(({ statusReview, ...entry }) => <article key={entry.requestId}>
-          <h4>{entry.stageKind} · {entry.recipientSubject} · {entry.status}</h4>
-          {entry.status === "QUARANTINED" && <p>This invitation has been invalidated. Retained content is available to authorized readers.</p>}
-          <p>Captured {entry.capturedAt} · Invitation expires {entry.expiresAt}</p>
-          <p className="update-plain-text">{entry.body ?? (entry.contentState === "EXPIRED" ? "Request content has expired." : "Content is restricted for this account.")}</p>
-          {entry.recipientPath && <a href={entry.recipientPath}>Respond to this request</a>}
-          <Responses entries={entry.responses} />
-          {pmoAdmin && statusReview && <ManualStatusReview key={statusReview.responseId}
-            review={statusReview} current={current} clarify={() => requestClarification(entry.requestId, statusReview.responseId)}
-            submit={(status, revision) => confirmStatus(entry.requestId, statusReview.responseId, status, revision)} />}
-        </article>)}
+        {data.entries.map(({ statusReview, forecastReview, ...entry }) => {
+          const responseId = (statusReview ?? forecastReview)?.responseId;
+          const statusRevision = statusReview?.state === "PENDING" ? statusReview.expectedRevision : null;
+          const forecastRevision = forecastReview?.state === "PENDING" ? forecastReview.expectedRevision : null;
+          const reviewKey = JSON.stringify([responseId, statusRevision, forecastRevision]);
+          return <article key={entry.requestId}>
+            <h4>{entry.stageKind} · {entry.recipientSubject} · {entry.status}</h4>
+            {entry.status === "QUARANTINED" && <p>This invitation has been invalidated. Retained content is available to authorized readers.</p>}
+            <p>Captured {entry.capturedAt} · Invitation expires {entry.expiresAt}</p>
+            <p className="update-plain-text">{entry.body ?? (entry.contentState === "EXPIRED" ? "Request content has expired." : "Content is restricted for this account.")}</p>
+            {entry.recipientPath && <a href={entry.recipientPath}>Respond to this request</a>}
+            <Responses entries={entry.responses} />
+            {pmoAdmin && responseId && <ManualFactReview key={reviewKey} statusReview={statusReview} forecastReview={forecastReview}
+              current={current} clarify={() => requestClarification(entry.requestId, responseId)}
+              submit={(facts) => confirmFacts(entry.requestId, responseId, facts)} />}
+          </article>;
+        })}
         <div className="actions">
           {cursor && <Button onClick={() => { if (current()) setCursor(null); }}>Newest requests</Button>}
           {data.nextCursor && <Button onClick={() => { if (current()) setCursor(data.nextCursor); }}>Older requests</Button>}

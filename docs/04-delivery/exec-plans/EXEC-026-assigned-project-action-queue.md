@@ -18,6 +18,16 @@ public Jira activation and comment reading disabled under OD-013/014, and
 spreadsheet imports as proposals. No external action, migration, or new runtime
 dependency is planned.
 
+## Atlas approval extension
+
+Show the current pending Atlas comment decision to the assigned synthetic PM
+with a link to the existing review. Rank it high alongside the current queue
+items. Evaluate the Atlas decision after the base queue transaction, using
+the existing project approval authorization and its own as-of read. This
+preserves the shared locks and membership checks of the general queue.
+The item reserves no approval, and the review screen checks access and expiry
+again. Show the demo coverage on the queue while there is a visible item.
+
 ## Authorization, consistency and bounds under review
 
 The endpoint accepts no project IDs or actor/evidence/time inputs. The server
