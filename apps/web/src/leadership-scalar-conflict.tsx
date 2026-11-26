@@ -37,8 +37,8 @@ export function LeadershipScalarConflict({ projectId, scope, request, reserveRea
   }, [scope, projectId, after, pageScope]);
   const current = state.scope === pageScope ? state.value : { phase: "loading" as const };
   return <section className="canonical-section" aria-labelledby="scalar-conflict-heading">
-    <h3 id="scalar-conflict-heading">Check a date disagreement</h3>
-    <p className="muted">Select a project fact to check for a current disagreement between authorized sources. This check does not settle the disagreement or create a request.</p>
+    <h3 id="scalar-conflict-heading">Check project date evidence</h3>
+    <p className="muted">Select a project date to see the value supported by current evidence or the dates that sources disagree on.</p>
     <Button className="secondary" onClick={() => { if (isCurrentPage()) resource.current?.refresh(); }}>Refresh fact list</Button>
     {current.phase === "loading" && <p role="status">Checking the fact list and access…</p>}
     {current.phase === "error" && <Message error>The fact list is unavailable. Refresh to check current access.</Message>}
@@ -80,7 +80,7 @@ function FactSelection({ projectId, scope, request, reserveRead, isCurrentScope,
       <option value="">Select a fact</option>
       {catalogue.facts.map((row) => <option key={row.factId} value={row.factId}>{row.factType}</option>)}
     </select>
-    <Button className="secondary" disabled={!target} onClick={() => { if (!currentSelection()) return; advanceSelection(); setGeneration((value) => value + 1); setSubmitted(generation + 1); }}>Check disagreement</Button>
+    <Button className="secondary" disabled={!target} onClick={() => { if (!currentSelection()) return; advanceSelection(); setGeneration((value) => value + 1); setSubmitted(generation + 1); }}>Check date evidence</Button>
     {target && submitted !== null && <ScalarObservation key={`${scope}:${target.factId}:${submitted}`} projectId={projectId}
       scope={`${scope}:${target.factId}:${submitted}`} factId={target.factId} factType={target.factType} after={after} request={request} reserveRead={reserveRead} isCurrentScope={isCurrentScope} />}
   </>;
@@ -94,7 +94,7 @@ function ScalarObservation({ projectId, scope, request, reserveRead, factId, fac
     const driver = createPmQueueResource<ScalarConflictObservation>({
       reserve: reserveRead,
       load: async (signal) => {
-        const query = after === null ? "" : `?afterFactType=${encodeURIComponent(after)}`;
+        const query = after === null ? "?includeResolved=true" : `?includeResolved=true&afterFactType=${encodeURIComponent(after)}`;
         return decodeScalarConflict(await requestAtMount<unknown>(
           `/projects/${projectId}/fact-observations/${factId}/leadership-conflict${query}`, { signal }), projectId, factId, factType);
       }, publish: (value) => setState({ scope, value }), visible: () => document.visibilityState === "visible",
@@ -105,9 +105,11 @@ function ScalarObservation({ projectId, scope, request, reserveRead, factId, fac
   const current = state.scope === scope ? state.value : { phase: "loading" as const };
   return <div aria-live="polite" aria-atomic="true">
     {current.phase === "loading" && <p role="status">Checking current evidence and access…</p>}
-    {current.phase === "error" && <Message error>This disagreement is unavailable. Refresh the fact list and try again.</Message>}
+    {current.phase === "error" && <Message error>Current date evidence is unavailable. Refresh the fact list and try again.</Message>}
     {current.phase === "ready" && <>
-      <p>Sources currently disagree. The project manager should reconcile these positions.</p>
+      <p>{"status" in current.data
+        ? "The current authority policy supports the date below."
+        : "Sources currently disagree. The project manager should reconcile these positions."}</p>
       <p className="muted">Checked at {current.data.asOf}; policy revision {current.data.policyRevisionId}. Provenance labels are stored with evidence and do not independently verify a source or a person's confirmation.</p>
       {current.data.positions.map((position) => <div className="canonical-review-row" key={position.value}>
         <p><strong>{position.value}</strong></p>

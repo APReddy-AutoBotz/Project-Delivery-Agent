@@ -15,7 +15,7 @@ const observation = { projectId, factId, factType: "project.forecast", asOf: "20
 
 test("scalar observation clears on selection, focus revalidation and late replies", async ({ page }) => {
   test.setTimeout(90000);
-  let persona = "", reads = 0, hold = false, denyCatalogue = false, demoted = false, holdMe = false;
+  let persona = "", reads = 0, hold = false, denyCatalogue = false, demoted = false, holdMe = false, resolved = false;
   let arrived!: () => void, release!: () => void, arrivedMe!: () => void, releaseMe!: () => void;
   let entered = new Promise<void>((resolve) => { arrived = resolve; });
   let gate = new Promise<void>((resolve) => { release = resolve; });
@@ -40,7 +40,7 @@ test("scalar observation clears on selection, focus revalidation and late replie
     };
   });
   await page.route("**/api/**", async (route) => {
-    const path = new URL(route.request().url()).pathname.replace(/^\/api/, "");
+    const url = new URL(route.request().url()), path = url.pathname.replace(/^\/api/, "");
     if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
     if (path === "/auth/development") { persona = route.request().postDataJSON().persona; return route.fulfill({ json: { token: `synthetic-${persona}` } }); }
     if (path === "/me") {
@@ -61,16 +61,18 @@ test("scalar observation clears on selection, focus revalidation and late replie
     if (path.endsWith("/leadership-conflict")) {
       reads++;
       if (hold) { arrived(); await gate; return route.fulfill({ json: observation, headers: { "x-synthetic-late": "1" } }).catch(() => {}); }
+      if (resolved && url.searchParams.get("includeResolved") === "true")
+        return route.fulfill({ json: { ...observation, status: "RESOLVED", positions: [observation.positions[0]] } });
       return route.fulfill({ json: observation });
     }
     return route.fulfill({ status: 404, json: { message: "Not found" } });
   });
   await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();
   await page.getByRole("button", { name: /Synthetic scalar project/ }).click();
-  const select = page.getByLabel("Project fact"), check = page.getByRole("button", { name: "Check disagreement" });
+  const select = page.getByLabel("Project fact"), check = page.getByRole("button", { name: "Check date evidence" });
   await select.selectOption(factId); expect(reads).toBe(0);
   await page.evaluate((next) => {
-    const select = document.querySelector("#scalar-conflict-select"), button = [...document.querySelectorAll("button")].find((item) => item.textContent?.trim() === "Check disagreement");
+    const select = document.querySelector("#scalar-conflict-select"), button = [...document.querySelectorAll("button")].find((item) => item.textContent?.trim() === "Check date evidence");
     if (!select || !button) throw new Error("Scalar controls unavailable");
     const props = (element: Element) => { const key = Object.keys(element).find((name) => name.startsWith("__reactProps$")); if (!key) throw new Error("React props unavailable"); return (element as unknown as Record<string, { onChange?: (event: { target: { value: string } }) => void; onClick?: () => void }>)[key]!; };
     const change = props(select).onChange, oldCheck = props(button).onClick; if (!change || !oldCheck) throw new Error("Scalar callbacks unavailable");
@@ -79,11 +81,17 @@ test("scalar observation clears on selection, focus revalidation and late replie
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   expect(reads).toBe(0); await expect(select).toHaveValue(otherFact);
   await check.click(); await expect.poll(() => reads).toBe(1);
-  await expect(page.getByText("This disagreement is unavailable.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Current date evidence is unavailable.", { exact: false })).toBeVisible();
   await select.selectOption(factId); reads = 0; await check.click();
   await expect(page.getByText("Sources currently disagree.", { exact: false })).toBeVisible();
   await expect(page.getByText("2026-11-01", { exact: true })).toBeVisible();
   await expect(page.getByText(`Evidence ${id(110)}`, { exact: false })).toBeVisible();
+  resolved = true; await check.click();
+  await expect(page.getByText("The current authority policy supports the date below.")).toBeVisible();
+  await expect(page.getByText("2026-11-01", { exact: true })).toBeVisible();
+  await expect(page.getByText("2026-11-02", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(`Evidence ${id(110)}`, { exact: false })).toBeVisible();
+  resolved = false;
   hold = true; await check.click(); await entered;
   await select.selectOption(otherFact); release();
   await expect.poll(() => page.evaluate(() => (window as unknown as { scalarLateCount?: number }).scalarLateCount ?? 0)).toBe(1);
@@ -161,7 +169,7 @@ test("pages facts and withholds a late answer from the previous page", async ({ 
   });
   await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();
   await page.getByRole("button", { name: /Synthetic scalar project/ }).click();
-  const select = page.getByLabel("Project fact"), check = page.getByRole("button", { name: "Check disagreement" });
+  const select = page.getByLabel("Project fact"), check = page.getByRole("button", { name: "Check date evidence" });
   await select.selectOption(factId); expect(reads).toBe(0); await check.click(); await waiting;
   try {
     await page.getByRole("button", { name: "Next fact page" }).click();

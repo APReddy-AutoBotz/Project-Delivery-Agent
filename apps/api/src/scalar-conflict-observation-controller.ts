@@ -7,7 +7,10 @@ import { IdentityService } from "@pdaa/platform";
 
 type Request = { headers: Record<string, string | undefined> };
 export const SCALAR_CONFLICT_OBSERVATION_REPOSITORY = "SCALAR_CONFLICT_OBSERVATION_REPOSITORY";
-export const scalarConflictQuerySchema = z.strictObject({ afterFactType: humanStatementSchema.shape.factType.optional() });
+export const scalarConflictQuerySchema = z.strictObject({
+  afterFactType: humanStatementSchema.shape.factType.optional(),
+  includeResolved: z.literal("true").optional(),
+});
 export const unavailableScalarConflictObservationRepository: ScalarConflictObservationRepository = {
   async readLeadership() { throw new ScalarConflictObservationError("UNAVAILABLE"); },
 };
@@ -30,10 +33,13 @@ export class ScalarConflictObservationController {
     const parsed = scalarConflictQuerySchema.safeParse(query);
     if (!parsed.success) throw new HttpException("", 400);
     try {
-      const result = scalarConflictObservationSchema.parse(await (parsed.data.afterFactType === undefined
+      const result = scalarConflictObservationSchema.parse(await (parsed.data.includeResolved
+        ? this.repository.readLeadership(actor, projectId, factId, parsed.data.afterFactType, true)
+        : parsed.data.afterFactType === undefined
         ? this.repository.readLeadership(actor, projectId, factId)
         : this.repository.readLeadership(actor, projectId, factId, parsed.data.afterFactType)));
-      if (result.projectId !== projectId || result.factId !== factId) throw new Error();
+      if (result.projectId !== projectId || result.factId !== factId ||
+          ("status" in result && !parsed.data.includeResolved)) throw new Error();
       return result;
     } catch (error) {
       if (error instanceof ScalarConflictObservationError && error.code === "DENIED") throw new HttpException("", 404);

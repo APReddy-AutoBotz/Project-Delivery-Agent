@@ -56,6 +56,17 @@ it("withholds source revocation, mixed values and expiration of a disputed posit
   f.prefix.versions[1]!.validUntil = asOf;
   await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
 });
+it("returns the resolved date only when requested and every source remains authorized", async () => {
+  const f = fake();
+  f.prefix.versions[1]!.value.value = "2026-11-01";
+  await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  expect(await f.reader.readLeadership(leader, projectId, factId, null, true)).toMatchObject({
+    status: "RESOLVED", positions: [{ value: "2026-11-01",
+      supports: [10, 11, 12].map((n) => ({ versionId: id(n), evidenceId: id(n + 20) })) }],
+  });
+  f.prefix.access[1]!.readers = [];
+  await expect(f.reader.readLeadership(leader, projectId, factId, null, true)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+});
 it("conceals missing grants, hidden catalogue IDs and pre-visibility failures", async () => {
   const f = fake(); f.state.grants = [];
   await expect(f.reader.readLeadership(leader, projectId, factId)).rejects.toMatchObject({ code: "DENIED" });

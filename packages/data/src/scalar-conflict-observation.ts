@@ -14,7 +14,8 @@ const unavailable = (): never => { throw new ScalarConflictObservationError("UNA
 export class DatabaseScalarConflictObservationRepository implements ScalarConflictObservationRepository {
   constructor(private readonly db: Database) {}
 
-  async readLeadership(actorValue: Actor, projectValue: string, factValue: string, afterFactType: string | null = null): Promise<ScalarConflictObservation> {
+  async readLeadership(actorValue: Actor, projectValue: string, factValue: string, afterFactType: string | null = null,
+    includeResolved = false): Promise<ScalarConflictObservation> {
     let actor: Actor, projectId: string, factId: string, after: string | null;
     try {
       actor = actorInput(actorValue);
@@ -42,7 +43,7 @@ export class DatabaseScalarConflictObservationRepository implements ScalarConfli
         const fact = page.slice(0, 50).find((row) => row.id === factId);
         if (!fact) return denied();
         visible = true;
-        return await this.observe(tx, actor, projectId, fact);
+        return await this.observe(tx, actor, projectId, fact, includeResolved);
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 20000 });
     } catch (error) {
       if (error instanceof ScalarConflictObservationError) throw error;
@@ -50,7 +51,8 @@ export class DatabaseScalarConflictObservationRepository implements ScalarConfli
     }
   }
 
-  private async observe(tx: Tx, actor: Actor, projectId: string, fact: { id: string; factType: string; revision: number }) {
+  private async observe(tx: Tx, actor: Actor, projectId: string, fact: { id: string; factType: string; revision: number },
+    includeResolved: boolean) {
     const clock = await tx.$queryRaw<{ now: Date }[]>`SELECT date_trunc('milliseconds',clock_timestamp()) AS now`;
     const asOf = clock[0]?.now;
     if (!asOf || fact.revision > 1000) return unavailable();
@@ -72,20 +74,26 @@ export class DatabaseScalarConflictObservationRepository implements ScalarConfli
     })) return unavailable();
     const scope = { customerId: actor.customerId, projectId, factId: fact.id, factType: fact.factType };
     const { result } = resolveStoredAuthorityPrefix(scope, asOf, prefix.event, prefix.versions, prefix.conflicts, prefix.access, true);
-    if (result.status !== "CONFLICTING" || !result.policy) return unavailable();
+    const resolved = includeResolved && result.status === "RESOLVED";
+    if ((!resolved && result.status !== "CONFLICTING") || !result.policy) return unavailable();
     if (result.versions.some((row) => row.visibility !== "available" || row.temporalApplicability === "AMBIGUOUS" || row.value.type !== "date")) return unavailable();
-    const disagreement = result.conflicts.filter((group) => group.kind === "AUTHORITY_DISAGREEMENT");
-    if (disagreement.length !== 1 || result.conflicts.some((group) => group.kind === "HIGHER_AUTHORITY_CONTRADICTION")) return unavailable();
-    const candidates = new Set(result.candidateVersionIds);
-    const group = disagreement[0]!;
-    if (candidates.size < 2 || candidates.size !== result.candidateVersionIds.length ||
-      group.versionIds.length !== candidates.size || group.versionIds.some((id) => !candidates.has(id))) return unavailable();
-    const storedConflicts = new Map(prefix.conflicts.map((row) => [row.id, row]));
-    if (storedConflicts.size !== prefix.conflicts.length || result.conflicts.some((item) => {
-      if (item.kind !== "RECORDED") return false;
-      const stored = item.recordedConflictId && storedConflicts.get(item.recordedConflictId);
-      return !stored || !candidates.has(stored.leftVersionId) || !candidates.has(stored.rightVersionId);
-    })) return unavailable();
+    const selected = resolved ? result.supportingVersionIds : result.candidateVersionIds;
+    const candidates = new Set(selected);
+    if (candidates.size < (resolved ? 1 : 2) || candidates.size !== selected.length) return unavailable();
+    let evidenceFromAuthority = result.supportingEvidenceIds;
+    if (!resolved) {
+      const disagreement = result.conflicts.filter((group) => group.kind === "AUTHORITY_DISAGREEMENT");
+      if (disagreement.length !== 1 || result.conflicts.some((group) => group.kind === "HIGHER_AUTHORITY_CONTRADICTION")) return unavailable();
+      const group = disagreement[0]!;
+      if (group.versionIds.length !== candidates.size || group.versionIds.some((id) => !candidates.has(id))) return unavailable();
+      const storedConflicts = new Map(prefix.conflicts.map((row) => [row.id, row]));
+      if (storedConflicts.size !== prefix.conflicts.length || result.conflicts.some((item) => {
+        if (item.kind !== "RECORDED") return false;
+        const stored = item.recordedConflictId && storedConflicts.get(item.recordedConflictId);
+        return !stored || !candidates.has(stored.leftVersionId) || !candidates.has(stored.rightVersionId);
+      })) return unavailable();
+      evidenceFromAuthority = group.evidenceIds;
+    }
     const resultVersions = new Map(result.versions.map((row) => [row.id, row]));
     const storedVersions = new Map(prefix.versions.map((row) => [row.id, row]));
     if (resultVersions.size !== result.versions.length || storedVersions.size !== prefix.versions.length) return unavailable();
@@ -106,11 +114,13 @@ export class DatabaseScalarConflictObservationRepository implements ScalarConfli
         versionValidUntil: version.validUntil, assessedValidUntil: version.assessedValidUntil });
       positions.set(version.value.value, supports);
     }
-    if (positions.size < 2) return unavailable();
+    if (resolved ? positions.size !== 1 || result.resolvedValue?.type !== "date" || !positions.has(result.resolvedValue.value)
+      : positions.size < 2) return unavailable();
     const evidenceIds = [...positions.values()].flat().map((row) => row.evidenceId).sort();
-    if (JSON.stringify(evidenceIds) !== JSON.stringify([...group.evidenceIds].sort())) return unavailable();
+    if (JSON.stringify(evidenceIds) !== JSON.stringify([...evidenceFromAuthority].sort())) return unavailable();
     return scalarConflictObservationSchema.parse({ projectId, factId: fact.id, factType: fact.factType,
       asOf: asOf.toISOString(), policyRevisionId: result.policy.revisionId,
+      ...(resolved && { status: "RESOLVED" }),
       positions: [...positions.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([value, supports]) => ({ value, supports })) });
   }
 }

@@ -57,6 +57,16 @@ three browser journeys. A role-switched native second-page HTTP and source-acces
 fixture is prepared but has not run locally. Hosted candidate and post-merge
 validation remain required; browser mocks do not prove the native database path.
 
+## Current date evidence
+
+Extend the existing leadership view to show an authorized date when the
+current authority policy resolves it. Use the same selected fact, clock,
+version prefix and source checks. Display each authorized supporting
+version and evidence reference. Leave unknown or stale evidence
+unavailable. Existing requests keep the conflict-only response unless
+they opt into resolved dates. This supports FR-QA-002 and FR-QA-004 and
+does not add a model, persistence or a new reporting route.
+
 ## Scope and semantics
 
 A leadership reader may select one fact already visible in its authorized,

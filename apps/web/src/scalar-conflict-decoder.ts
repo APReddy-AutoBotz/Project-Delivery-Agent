@@ -35,11 +35,13 @@ export function decodeScalarCatalogue(value: unknown, after: string | null = nul
 }
 
 export function decodeScalarConflict(value: unknown, projectId: string, factId: string, expectedType: string): ScalarConflictObservation {
-  const v = object(value); keys(v, ["projectId", "factId", "factType", "asOf", "policyRevisionId", "positions"]);
+  const v = object(value), resolved = v.status === "RESOLVED";
+  keys(v, ["projectId", "factId", "factType", "asOf", "policyRevisionId", "positions", ...(resolved ? ["status"] : [])]);
   if (id(v.projectId) !== projectId || id(v.factId) !== factId || factType(v.factType) !== expectedType) fail();
   id(v.policyRevisionId); const asOf = instant(v.asOf);
   if (new TextEncoder().encode(JSON.stringify(v)).length > 262144) fail();
-  const positions = array(v.positions, 2, 1000), dates = new Set<string>(), versions = new Set<string>(), evidence = new Set<string>();
+  const positions = resolved ? array(v.positions, 1, 1) : array(v.positions, 2, 1000);
+  const dates = new Set<string>(), versions = new Set<string>(), evidence = new Set<string>();
   let count = 0;
   for (const raw of positions) {
     const item = object(raw); keys(item, ["value", "supports"]); const key = date(item.value);
