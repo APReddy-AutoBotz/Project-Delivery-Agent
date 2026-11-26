@@ -4,7 +4,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectFactRepository,
   DatabaseAuthorityRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
-import { atlasApprovalProjectCode, renderProjectUpdateCapture } from "../../packages/domain/dist/index.js";
+import { atlasApprovalProjectCode, atlasIntegrationMilestoneKey, atlasJiraBlockerKey,
+  renderProjectUpdateCapture } from "../../packages/domain/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
 const { Pool } = createRequire(new URL("../../packages/data/package.json", import.meta.url))("pg");
 
@@ -51,6 +52,20 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       canonical.code = atlasApprovalProjectCode;
       canonical.name = "Atlas · Delivery approval";
       canonical.dates = { ...canonical.dates, baselineEnd: "2026-10-15", forecastEnd: "2026-10-29" };
+      canonical.milestones.push({
+        key: atlasIntegrationMilestoneKey, name: "Integration testing", state: "IN_PROGRESS",
+        dates: { baselineStart: null, baselineEnd: null, plannedStart: "2026-10-05", plannedEnd: null,
+          forecastStart: null, forecastEnd: null, actualStart: "2026-10-08", actualEnd: null },
+      });
+      canonical.raidItems.push({
+        key: atlasJiraBlockerKey, kind: "ISSUE", title: "Integration API access blocker",
+        description: "Synthetic Jira issue tracking the missing API access for integration testing.",
+        state: "OPEN", ownerSubject: null,
+      });
+      canonical.sourceMappings.push({
+        sourceSystem: "Jira", instanceKey: "atlas-demo", externalType: "issue", externalId: atlasJiraBlockerKey,
+        externalRevision: "1", url: null, targetType: "RAID_ITEM", targetKey: atlasJiraBlockerKey,
+      });
     }
     canonical.responsibilities = canonical.responsibilities.map((entry) =>
       entry.role === "PROJECT_MANAGER" ? { ...entry, subject: pm.subject, displayName: "Synthetic escalation PM" }

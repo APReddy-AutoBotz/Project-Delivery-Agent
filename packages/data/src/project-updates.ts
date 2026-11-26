@@ -12,7 +12,8 @@ import {
   atlasApprovalDecisionSchema, atlasApprovalProjectCode, atlasApprovalViewSchema, atlasComment,
   atlasCommentTemplate, atlasReplyConfirmationSchema,
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
-  atlasLeadershipAnswerSchema, atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
+  atlasIntegrationMilestoneKey, atlasJiraBlockerKey, atlasLeadershipAnswerSchema, atlasLeadershipFactsSchema,
+  atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, type AtlasApprovalView, type AtlasSchedule,
   atlasReportApprovalRequestSchema, atlasReportDecisionSchema,
   atlasReportVersionSchema, atlasReportDistributionReceiptSchema, atlasReportRecipientSubject,
@@ -1685,7 +1686,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       state: "UNCONFIRMED" as const, contentState: row.contentState, text: row.body }));
   }
 
-  private async authorizedInvitation(tx: Tx, current: Actor, locatorValue: string, atlasReview?: "pm" | "leadership") {
+  private async authorizedInvitation(tx: Tx, current: Actor, locatorValue: string,
+    atlasReview?: "pm" | "leadership" | "leadership-escalation") {
     const locator = projectUpdateInvitationLocatorSchema.safeParse(locatorValue);
     const configuration = this.captureConfiguration(current.customerId);
     if (!locator.success || !configuration) throw new ProjectUpdateError("DENIED");
@@ -1713,13 +1715,19 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (!policy) throw new ProjectUpdateError("DENIED");
     if (atlasReview) {
       const pm = policy.escalationRecipientSubject;
-      if (!this.atlasDemoEnabled || row.code !== atlasApprovalProjectCode || row.stageKind !== "REQUEST" ||
-          row.recipientRole !== "OWNER" || !pm || current.subject === row.recipientSubject || pm === row.recipientSubject)
+      if (!this.atlasDemoEnabled || row.code !== atlasApprovalProjectCode || !pm || current.subject === row.recipientSubject)
         throw new ProjectUpdateError("DENIED");
-      const reviewerAuthorized = atlasReview === "pm"
-        ? pm === current.subject && await this.actorRecipientAuthorized(tx, current, projectId, "PROJECT_MANAGER")
-        : await this.recipientAuthorized(tx, current.customerId, projectId, pm, "PROJECT_MANAGER");
-      if (!reviewerAuthorized) throw new ProjectUpdateError("DENIED");
+      if (atlasReview === "leadership-escalation") {
+        if (current.roles.length !== 1 || current.roles[0] !== "leadership" || row.stageKind !== "ESCALATION" ||
+            row.recipientRole !== "PROJECT_MANAGER" || row.recipientSubject !== pm) throw new ProjectUpdateError("DENIED");
+      } else {
+        if (row.stageKind !== "REQUEST" || row.recipientRole !== "OWNER" || pm === row.recipientSubject)
+          throw new ProjectUpdateError("DENIED");
+        const reviewerAuthorized = atlasReview === "pm"
+          ? pm === current.subject && await this.actorRecipientAuthorized(tx, current, projectId, "PROJECT_MANAGER")
+          : await this.recipientAuthorized(tx, current.customerId, projectId, pm, "PROJECT_MANAGER");
+        if (!reviewerAuthorized) throw new ProjectUpdateError("DENIED");
+      }
     }
     const recipientAuthorized = atlasReview
       ? await this.recipientAuthorized(tx, current.customerId, projectId, row.recipientSubject, row.recipientRole)
@@ -2044,7 +2052,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       expiresAt: new Date(Math.min(row.expiresAt.getTime(), row.purgeAfter.getTime(), latest.purgeAfter.getTime())).toISOString(),
       decision: decision?.decision ?? "PENDING", receipt,
     });
-    return { view, locator: invitation.locator, captureIssuanceEpoch: row.issuanceEpoch,
+    return { view, locator: invitation.locator, stageId: row.stageId, capturedAt: row.capturedAt, captureIssuanceEpoch: row.issuanceEpoch,
       decisionId: decided?.id, approvedDigest: decision?.payloadDigest, payloadDigest,
       legacyConfirmation: detail.sourceRevision === undefined };
   }
@@ -2138,7 +2146,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       approved.view, approved.captureIssuanceEpoch, schedule);
     const asOf = await this.now(tx);
     if (view && asOf >= new Date(view.expiresAt)) throw new ProjectUpdateError("DENIED");
-    const answer = atlasLeadershipAnswerSchema.parse({
+    const answer = atlasLeadershipFactsSchema.parse({
       projectId, asOf: iso(asOf),
       schedule,
       ownerReply: view ? { responseId: view.responseId, receivedAt: view.replyReceivedAt, availableUntil: view.expiresAt,
@@ -2146,13 +2154,65 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       receipt: view?.receipt ?? null,
       delayAssessment: delayReview?.assessment ?? null,
     });
-    return { answer, locator: approved?.locator, approver: view?.approver };
+    return { answer, locator: approved?.locator, approver: view?.approver, approved };
+  }
+
+  private async atlasPmEscalation(tx: Tx, current: Actor, projectId: string, origin: {
+    stageId: string; capturedAt: Date; captureIssuanceEpoch: string; view: Pick<AtlasApprovalView, "approver">;
+  }) {
+    const [invitation] = await tx.$queryRaw<{ locator: string }[]>`
+      SELECT i.locator FROM public."ProjectUpdateStage" origin
+      JOIN public."ProjectUpdateStage" s ON s."customerId"=origin."customerId" AND s."projectId"=origin."projectId"
+        AND s."engagementId"=origin."engagementId" AND s.generation=origin.generation
+        AND s."policyRevisionId"=origin."policyRevisionId"
+      JOIN public."ProjectUpdateCapturedRequest" r ON r."customerId"=s."customerId"
+        AND r."projectId"=s."projectId" AND r."stageId"=s.id
+      JOIN public."ProjectUpdateInvitation" i ON i."customerId"=r."customerId"
+        AND i."projectId"=r."projectId" AND i."requestId"=r.id AND i."issuanceEpoch"=r."issuanceEpoch"
+      WHERE origin."customerId"=${current.customerId}::uuid AND origin."projectId"=${projectId}::uuid
+        AND origin.id=${origin.stageId}::uuid AND s.kind='ESCALATION' AND s."recipientRole"='PROJECT_MANAGER'
+        AND s."recipientSubject"=${origin.view.approver} AND r."issuanceEpoch"=${origin.captureIssuanceEpoch}::uuid
+        AND r."capturedAt">=${origin.capturedAt}
+      ORDER BY r."capturedAt" DESC,r.id DESC LIMIT 1`;
+    if (!invitation) return null;
+    try {
+      const { row, asOf } = await this.authorizedInvitation(tx, current, invitation.locator, "leadership-escalation");
+      if (row.capturedAt > asOf) return null;
+      return { requestId: row.requestId, capturedAt: iso(row.capturedAt),
+        availableUntil: new Date(Math.min(row.expiresAt.getTime(), row.purgeAfter.getTime())).toISOString() };
+    } catch (error) {
+      if (error instanceof ProjectUpdateError && error.code === "DENIED") return null;
+      throw error;
+    }
   }
 
   async atlasLeadershipAnswer(actorValue: Actor, projectValue: string) {
     const current = this.atlasLeadershipActor(actorValue);
     const projectId = parseProjectId(projectValue);
-    return this.transaction(async (tx) => (await this.loadAtlasLeadershipAnswer(tx, current, projectId)).answer, "ReadCommitted");
+    return this.transaction(async (tx) => {
+      const { answer, approved } = await this.loadAtlasLeadershipAnswer(tx, current, projectId);
+      const scope = { customerId: current.customerId, projectId };
+      const milestone = answer.schedule && await tx.milestone.findFirst({
+        where: { ...scope, key: atlasIntegrationMilestoneKey },
+        select: { id: true, plannedStart: true, actualStart: true },
+      });
+      const blocker = answer.schedule && await tx.canonicalSourceMapping.findFirst({
+        where: { ...scope, sourceSystem: "Jira", instanceKey: "atlas-demo", externalType: "issue",
+          externalId: atlasJiraBlockerKey, targetType: "RAID_ITEM",
+          raidItem: { key: atlasJiraBlockerKey, kind: "ISSUE", state: "OPEN" } },
+        select: { id: true },
+      });
+      const escalation = approved && await this.atlasPmEscalation(tx, current, projectId, approved);
+      const asOf = iso(await this.now(tx));
+      if (answer.ownerReply && answer.ownerReply.availableUntil <= asOf) throw new ProjectUpdateError("DENIED");
+      return atlasLeadershipAnswerSchema.parse({ ...answer, asOf,
+        integrationStart: milestone?.plannedStart && milestone.actualStart && milestone.actualStart > milestone.plannedStart
+          ? { milestoneId: milestone.id, planned: iso(milestone.plannedStart).slice(0, 10),
+            actual: iso(milestone.actualStart).slice(0, 10) } : null,
+        jiraBlocker: blocker ? { mappingId: blocker.id, issueKey: atlasJiraBlockerKey } : null,
+        pmEscalation: escalation && escalation.availableUntil > asOf ? escalation : null,
+      });
+    }, "ReadCommitted");
   }
 
   private async savedAtlasManagementSnapshot(tx: Tx, customerId: string, projectId: string, author: string, snapshotId?: string): Promise<StoredAtlasManagementSnapshot | null> {

@@ -2,6 +2,8 @@ import { z } from "zod";
 import { canonicalSubjectSchema } from "./canonical-project.js";
 
 export const atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
+export const atlasIntegrationMilestoneKey = "INTEGRATION-TESTING";
+export const atlasJiraBlockerKey = "ATLAS-248";
 export const atlasCommentTemplate = "atlas-comment@1";
 export const atlasAccessStatusSchema = z.enum(["ACCESS_PENDING", "ACCESS_RESTORED"]);
 export const atlasSuggestionStatusSchema = z.enum(["ACCESS_PENDING", "ACCESS_RESTORED", "NEEDS_CLARIFICATION"]);
@@ -67,7 +69,7 @@ export const atlasApprovalViewSchema = z.strictObject({
 });
 export type AtlasApprovalView = z.infer<typeof atlasApprovalViewSchema>;
 
-export const atlasLeadershipAnswerSchema = z.strictObject({
+export const atlasLeadershipFactsSchema = z.strictObject({
   projectId: z.uuid(),
   asOf: z.iso.datetime(),
   schedule: atlasScheduleSchema.nullable(),
@@ -80,13 +82,30 @@ export const atlasLeadershipAnswerSchema = z.strictObject({
   receipt: atlasCommentReceiptSchema.nullable(),
   delayAssessment: atlasDelayAssessmentSchema.nullable(),
 });
+export type AtlasLeadershipFacts = z.infer<typeof atlasLeadershipFactsSchema>;
+export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
+  integrationStart: z.strictObject({
+    milestoneId: z.uuid(),
+    planned: z.iso.date(),
+    actual: z.iso.date(),
+  }).nullable(),
+  jiraBlocker: z.strictObject({
+    mappingId: z.uuid(),
+    issueKey: z.literal(atlasJiraBlockerKey),
+  }).nullable(),
+  pmEscalation: z.strictObject({
+    requestId: z.uuid(),
+    capturedAt: z.iso.datetime(),
+    availableUntil: z.iso.datetime(),
+  }).nullable(),
+});
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
 
-export const atlasManagementFactsSchema = atlasLeadershipAnswerSchema.extend({
-  schedule: atlasLeadershipAnswerSchema.shape.schedule.unwrap(),
-  ownerReply: atlasLeadershipAnswerSchema.shape.ownerReply.unwrap(),
+export const atlasManagementFactsSchema = atlasLeadershipFactsSchema.extend({
+  schedule: atlasLeadershipFactsSchema.shape.schedule.unwrap(),
+  ownerReply: atlasLeadershipFactsSchema.shape.ownerReply.unwrap(),
   receipt: atlasCommentReceiptSchema,
-  delayAssessment: atlasLeadershipAnswerSchema.shape.delayAssessment.default(null),
+  delayAssessment: atlasLeadershipFactsSchema.shape.delayAssessment.default(null),
 });
 export const atlasManagementSnapshotSchema = atlasManagementFactsSchema.extend({
   id: z.uuid(),

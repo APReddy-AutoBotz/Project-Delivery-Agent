@@ -262,3 +262,29 @@ confirmation, leadership citation, edited report output, and historical
 snapshot behavior. A code revert removes the confirmation controls. Use
 the pre-change backup or a fresh disposable Atlas fixture when rolling
 back to a build that predates the new saved fact shape.
+
+## GOLDEN-001 evidence for the Atlas demo
+
+This increment covers the remaining demo evidence for FR-QA-004/005/006/008/009
+and NFR-SEC-001 in [Issue #12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12).
+The live leadership answer cites planned and actual integration testing starts
+from the sealed canonical fixture, and the open ATLAS-248 Jira blocker from a
+separate synthetic source mapping. It calculates whether the start was late
+from those dates.
+
+The answer cites the persisted CAPTURE-mode escalation for the currently
+assigned PM in the same engagement generation and issuance epoch as the
+approved reply's request. The existing invitation checks apply to the
+escalation's own source dependencies and retention. Leadership receives its
+request reference and capture time. The invitation locator, body and underlying
+source values stay private. The capture is the demo's evidence for the
+escalation step. It delivers no external message. The live citations are
+outside the frozen report format and the customer-facing golden acceptance
+remains open.
+
+Extend the existing Atlas browser journey to exercise the three citations and
+withhold the escalation when leadership loses access to its source, while the
+other authorized claims remain visible. API contract coverage uses the existing
+route. There is no new dependency, migration, connector scope, or action.
+Reverting the code removes the live citations. Reseed the disposable Atlas
+fixture to remove its sample records.
