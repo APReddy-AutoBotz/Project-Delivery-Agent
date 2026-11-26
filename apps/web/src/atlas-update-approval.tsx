@@ -111,7 +111,7 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
   });
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failedApprovalId, setFailedApprovalId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ approvalId: string; text: string } | null>(null);
   const proposal = review.isSuccess && !review.isFetching && isCurrent() ? review.data : null;
   const proposedComment = proposal?.decision === "PENDING" && draft?.approvalId === proposal.approvalId
@@ -133,7 +133,7 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
     if (decision === "APPROVED" && !validAtlasApprovalComment(proposedComment)) return;
     sending.current = true;
     setBusy(true);
-    setFailed(false);
+    setFailedApprovalId(null);
     try {
       const raw = await request(decision ? path : `/projects/${projectId}/atlas-comment-receipt`, {
         method: "POST", body: JSON.stringify({ approvalId: proposal.approvalId, ...(decision && { decision }),
@@ -148,7 +148,7 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
         throw new Error("Atlas receipt could not be verified");
       }
     } catch {
-      if (isCurrent()) setFailed(true);
+      if (isCurrent()) setFailedApprovalId(proposal.approvalId);
     } finally {
       if (isCurrent()) {
         await review.refetch();
@@ -178,6 +178,8 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
         <dt>Review expires</dt><dd>{proposal.expiresAt}</dd>
       </dl>
       <p>This decision applies to the demo Jira fixture.</p>
+      {proposal.replacesApprovalId && proposal.decision === "PENDING" &&
+        <Message>The Jira fixture changed. Review the updated diff and approve it again.</Message>}
       {proposal.decision !== "PENDING" ? <Message>{proposal.decision === "APPROVED" ? "Demo approval recorded." : "Demo rejection recorded."}</Message>
         : <div className="actions">
           <Button className="primary" disabled={busy || expired || !validAtlasApprovalComment(proposedComment)}
@@ -197,6 +199,7 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
       {proposal.delayReview && !expired && <AtlasDelayConfirmation key={proposal.receipt?.id} projectId={projectId}
         proposal={proposal} request={request} isCurrent={isCurrent} refresh={refresh} />}
     </>}
-    {failed && <Message error>Could not verify the Atlas update. Review the current proposal before retrying.</Message>}
+    {failedApprovalId && failedApprovalId === proposal?.approvalId &&
+      <Message error>Could not verify the Atlas update. Review the current proposal before retrying.</Message>}
   </section>;
 }

@@ -342,12 +342,50 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const pending = await request.get(answerPath, { headers: leaderHeaders });
   expect(pending.status()).toBe(200);
   expect(await pending.json()).toMatchObject({ ownerReply: null, receipt: null });
+  const restoredComment = "API access was restored. Infrastructure will verify access with the integration team.";
   expect((await request.post(projectPath + "/atlas-approval", {
-    headers: managerHeaders, data: { approvalId: nextComment.approvalId, decision: "APPROVED" },
+    headers: managerHeaders, data: { approvalId: nextComment.approvalId, decision: "APPROVED", proposedComment: restoredComment },
   })).status()).toBe(200);
+
+  const changedSourceComment = "Infrastructure recorded a verification window for restored access.";
+  const db = createDatabase(target.toString());
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM public."Project" WHERE "customerId"=${fixture.customerId}::uuid
+        AND id=${fixture.projectId}::uuid FOR UPDATE`;
+      await tx.auditEvent.create({ data: { customerId: fixture.customerId, actor: "atlas-jira-fixture",
+        event: "atlas_demo.fixture.changed", correlationId: randomUUID(),
+        detail: { projectId: fixture.projectId, fixtureRevision: 2, comment: changedSourceComment },
+      } });
+    });
+  } finally { await db.$disconnect(); }
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto("/");
+  await page.getByRole("button", { name: /Project manager/ }).click();
+  await page.getByRole("button", { name: /Atlas · Delivery approval/ }).click();
+  const staleExecution = page.waitForResponse((response) =>
+    response.url().endsWith(receiptPath) && response.request().method() === "POST");
+  await approval.getByRole("button", { name: "Record simulated comment" }).click();
+  expect((await staleExecution).status()).toBe(409);
+  await expect(approval).toContainText("The Jira fixture changed. Review the updated diff and approve it again.");
+  await expect(approval).toContainText(changedSourceComment);
+  await expect(approval.getByRole("button", { name: "Record simulated comment" })).toHaveCount(0);
   expect((await request.post(receiptPath, {
     headers: managerHeaders, data: { approvalId: nextComment.approvalId },
-  })).status()).toBe(200);
+  })).status()).toBe(409);
+  const refreshed = await request.get(projectPath + "/atlas-approval", { headers: managerHeaders });
+  expect(refreshed.status()).toBe(200);
+  const newComparison = await refreshed.json();
+  expect(newComparison).toMatchObject({ responseId: nextComment.responseId, replacesApprovalId: nextComment.approvalId,
+    sourceRevision: 2, currentComment: changedSourceComment, proposedComment: restoredComment, decision: "PENDING", receipt: null });
+  expect(newComparison.approvalId).not.toBe(nextComment.approvalId);
+  await approval.getByRole("button", { name: "Approve demo comment" }).click();
+  await expect(approval).toContainText("Demo approval recorded.");
+  await approval.getByRole("button", { name: "Record simulated comment" }).click();
+  await expect(receiptPanel).toContainText("Fixture revision");
+  expect(await (await request.post(receiptPath, {
+    headers: managerHeaders, data: { approvalId: newComparison.approvalId },
+  })).json()).toMatchObject({ approvalId: newComparison.approvalId, fixtureRevision: 3, result: "SIMULATED" });
   const newerDraft = await request.post(reportPath, { headers: leaderHeaders, data: {} });
   expect(newerDraft.status()).toBe(200);
   const newer = (await newerDraft.json()).snapshot;

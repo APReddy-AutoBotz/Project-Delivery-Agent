@@ -309,3 +309,25 @@ receipt replay, and the next comparison against the edited value. This is
 synthetic evidence for part of [Issue #10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10).
 There is no new migration, dependency, or connector scope. For rollback
 after an edited approval, revert the code and reseed the disposable fixture.
+
+## Refresh a stale comment comparison
+
+Under FR-APP-007/008, the demo rehearses GOLDEN-009 with an independent
+synthetic source change. Preflight compares the current fixture revision
+and current comment with the approved comparison. A mismatch records a
+replacement proposal and returns a conflict without recording a comment.
+The PM screen shows the new base alongside the previous draft text and
+requires a separate approval.
+
+The replacement keeps the exact current owner-confirmed response, capture
+epoch, assigned PM and retention checks. Its identity differs from the
+superseded approval, so a retry of the old action cannot execute the new
+proposal. The existing project lock serializes the fixture check, refresh
+and receipt. If the source changes again before execution, repeat the same
+review flow. The original approval remains available in the audit history.
+
+The Atlas browser journey inserts the separate source change into its
+isolated fixture and verifies refusal, replacement, fresh approval and
+successful simulated execution. This exercises the synthetic portion of
+[Issue #10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10).
+For rollback, revert the code and reseed the disposable fixture.
