@@ -250,6 +250,18 @@ export const projectUpdateEscalationContextSchema = z.strictObject({
 });
 export type ProjectUpdateEscalationContext = z.infer<typeof projectUpdateEscalationContextSchema>;
 
+export const projectUpdateClarificationQuestion = "What is the current project status? If it depends on another person or a date, who is responsible and what is the exact calendar date, if known?";
+export const projectUpdateClarificationRequestSchema = z.strictObject({
+  requestId: z.uuid(),
+  responseId: z.uuid(),
+});
+export const projectUpdateClarificationReceiptSchema = z.strictObject({
+  responseId: z.uuid(),
+  clarificationId: z.uuid(),
+  requestedAt: instant,
+});
+export type ProjectUpdateClarificationReceipt = z.infer<typeof projectUpdateClarificationReceiptSchema>;
+
 export const projectUpdateRecipientRequestViewSchema = z.strictObject({
   requestId: z.uuid(),
   project: z.strictObject({ id: z.uuid(), code: boundedLabel, name: boundedLabel }),
@@ -261,6 +273,10 @@ export const projectUpdateRecipientRequestViewSchema = z.strictObject({
   requiredFacts: z.array(projectUpdateRequiredFactSchema).min(1).max(100),
   rawResponseReaders: z.array(canonicalSubjectSchema).max(33),
   responses: z.array(projectUpdateResponseHistorySchema).max(20),
+  clarification: z.strictObject({
+    responseId: z.uuid(),
+    question: boundedLabel,
+  }).optional(),
   atlasInterpretation: z.strictObject({
     responseId: z.uuid(),
     suggestedStatus: atlasSuggestionStatusSchema,
@@ -268,6 +284,9 @@ export const projectUpdateRecipientRequestViewSchema = z.strictObject({
   // Legacy payloads and non-PM invitations retain their existing contract.
   escalationContext: projectUpdateEscalationContextSchema.nullable().default(null),
 }).superRefine((value, context) => {
+  if (value.clarification && (value.responses[0]?.id !== value.clarification.responseId ||
+      value.responses[0]?.contentState !== "PRESENT"))
+    context.addIssue({ code: "custom", message: "Invalid clarification reference" });
   if (value.escalationContext && (value.stageKind !== "ESCALATION" ||
       Date.parse(value.escalationContext.asOf) < Date.parse(value.capturedAt)))
     context.addIssue({ code: "custom", message: "Invalid escalation context" });
@@ -310,6 +329,7 @@ export const projectUpdateCaptureHistorySchema = z.strictObject({
     statusReview: z.discriminatedUnion("state", [
       z.strictObject({ state: z.literal("PENDING"), responseId: z.uuid(),
         expectedRevision: projectUpdateStatusConfirmationSchema.shape.expectedRevision }),
+      projectUpdateClarificationReceiptSchema.extend({ state: z.literal("CLARIFICATION_REQUESTED") }),
       projectUpdateStatusConfirmationReceiptSchema.extend({ state: z.literal("CONFIRMED") }),
     ]).optional(),
   })).max(20),

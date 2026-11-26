@@ -7,6 +7,7 @@ import {
   projectUpdateCaptureConfigurationSchema, projectUpdateInvitationLocatorSchema,
   projectUpdateCaptureGenerationSchema,
   projectUpdateResponseSubmissionSchema, projectUpdateRecipientRequestViewSchema,
+  projectUpdateClarificationQuestion, projectUpdateClarificationRequestSchema, projectUpdateClarificationReceiptSchema,
   projectUpdateStatusConfirmationSchema, projectUpdateStatusConfirmationReceiptSchema,
   projectUpdateEscalationContextSchema, type ProjectUpdateEscalationContext,
   mayAccessProjectUpdateInvitation, isActiveProjectUpdateCapture, renderProjectUpdateCapture,
@@ -78,7 +79,11 @@ const atlasReportDecidedEvent = "atlas_demo.report_approval.decided";
 const atlasReportDistributedEvent = "atlas_demo.report.distributed";
 const payloadDigestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const capturedStatusConfirmedEvent = "project_update.response.status_confirmed";
+const capturedStatusClarificationEvent = "project_update.response.status_clarification_requested";
 const capturedStatusFactType = "project.status";
+const storedCapturedStatusClarification = projectUpdateClarificationRequestSchema.extend({
+  projectId: z.uuid(), captureIssuanceEpoch: z.uuid(),
+});
 const storedCapturedStatusConfirmation = z.strictObject({
   projectId: z.uuid(), requestId: z.uuid(), responseId: z.uuid(), captureIssuanceEpoch: z.uuid(),
   factId: z.uuid(), versionId: z.uuid(), evidenceId: z.uuid(), payloadDigest: payloadDigestSchema,
@@ -1883,6 +1888,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         this.captureConfiguration(current.customerId)?.responseReviewerSubjects.includes(subject));
       const responses = await this.responseHistory(tx, current, projectId, row.requestId);
       const latest = responses[0];
+      const requested = latest?.contentState === "PRESENT" && latest.text !== null && row.recipientRole === "OWNER" &&
+        latest.submittedBy === current.subject
+        ? await this.capturedStatusClarification(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch)
+        : null;
       const atlasInterpretation = this.atlasDemoEnabled && row.code === atlasApprovalProjectCode &&
         row.stageKind === "REQUEST" && row.recipientRole === "OWNER" && latest?.contentState === "PRESENT" &&
         latest.text !== null && latest.submittedBy === current.subject
@@ -1897,6 +1906,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         requiredFacts: policyFacts(row.requiredFacts),
         rawResponseReaders: [...new Set([row.recipientSubject, ...reviewers])],
         responses, atlasInterpretation,
+        clarification: requested ? { responseId: requested.responseId, question: projectUpdateClarificationQuestion } : undefined,
         escalationContext: await this.escalationContext(tx, current, projectId, row, asOf),
       });
     });
@@ -1982,6 +1992,59 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return { receipt, payloadDigest: detail.payloadDigest };
   }
 
+  private async capturedStatusClarification(tx: Tx, customerId: string, projectId: string, requestId: string,
+    responseId: string, captureIssuanceEpoch: string) {
+    const saved = await tx.auditEvent.findFirst({
+      where: { customerId, event: capturedStatusClarificationEvent, AND: [
+        { detail: { path: ["projectId"], equals: projectId } },
+        { detail: { path: ["requestId"], equals: requestId } },
+        { detail: { path: ["responseId"], equals: responseId } },
+        { detail: { path: ["captureIssuanceEpoch"], equals: captureIssuanceEpoch } },
+      ] }, select: { id: true, occurredAt: true },
+    });
+    return saved ? projectUpdateClarificationReceiptSchema.parse({
+      responseId, clarificationId: saved.id, requestedAt: iso(saved.occurredAt),
+    }) : null;
+  }
+
+  private async reviewCapturedStatusReply(tx: Tx, current: Actor, projectId: string, requestId: string, responseId: string) {
+    const invitation = await tx.projectUpdateInvitation.findFirst({
+      where: { customerId: current.customerId, projectId, requestId }, select: { locator: true },
+    });
+    if (!invitation) throw new ProjectUpdateError("DENIED");
+    const { row, asOf, policy } = await this.authorizedInvitation(tx, current, invitation.locator, "response-review");
+    const latest = await this.latestRetainedReply(tx, current.customerId, projectId, requestId, asOf);
+    if (!policyFacts(row.requiredFacts).some(({ factType }) => factType === capturedStatusFactType) ||
+        latest?.id !== responseId || latest.submittedBy !== row.recipientSubject)
+      throw new ProjectUpdateError("CONFLICT");
+    return { row, latest, policy };
+  }
+
+  async requestCapturedStatusClarification(actorValue: Actor, projectValue: string, value: unknown, correlationValue: string) {
+    const current = parseActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    return this.transaction(async (tx) => {
+      try { await authorizeFactProject(tx, current, projectId, "access"); }
+      catch { throw new ProjectUpdateError("DENIED"); }
+      const parsed = projectUpdateClarificationRequestSchema.safeParse(value);
+      if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+      const { requestId, responseId } = parsed.data;
+      const { row, latest } = await this.reviewCapturedStatusReply(tx, current, projectId, requestId, responseId);
+      const previous = await this.capturedStatusClarification(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch);
+      if (previous) return previous;
+      if (await this.capturedStatusConfirmation(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch))
+        throw new ProjectUpdateError("CONFLICT");
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, capturedStatusClarificationEvent,
+        { projectId, requestId, responseId });
+      const saved = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true, detail: true } });
+      if (storedCapturedStatusClarification.parse(saved.detail).captureIssuanceEpoch !== row.issuanceEpoch ||
+          saved.occurredAt >= row.expiresAt || saved.occurredAt >= row.purgeAfter || saved.occurredAt >= latest.purgeAfter)
+        throw new ProjectUpdateError("CONFLICT");
+      return projectUpdateClarificationReceiptSchema.parse({ responseId, clarificationId: id, requestedAt: iso(saved.occurredAt) });
+    }, "ReadCommitted");
+  }
+
   async confirmCapturedStatus(actorValue: Actor, projectValue: string, value: unknown, correlationValue: string) {
     const current = parseActor(actorValue);
     const projectId = parseProjectId(projectValue);
@@ -1992,14 +2055,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const parsed = projectUpdateStatusConfirmationSchema.safeParse(value);
       if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
       const { requestId, responseId, expectedRevision, status } = parsed.data;
-      const invitation = await tx.projectUpdateInvitation.findFirst({
-        where: { customerId: current.customerId, projectId, requestId }, select: { locator: true },
-      });
-      if (!invitation) throw new ProjectUpdateError("DENIED");
-      const { row, asOf, policy } = await this.authorizedInvitation(tx, current, invitation.locator, "response-review");
-      const latest = await this.latestRetainedReply(tx, current.customerId, projectId, requestId, asOf);
-      if (!policyFacts(row.requiredFacts).some(({ factType }) => factType === capturedStatusFactType) ||
-          latest?.id !== responseId || latest.submittedBy !== row.recipientSubject)
+      const { row, latest, policy } = await this.reviewCapturedStatusReply(tx, current, projectId, requestId, responseId);
+      if (await this.capturedStatusClarification(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch))
         throw new ProjectUpdateError("CONFLICT");
       const payloadDigest = hash(parsed.data);
       const previous = await this.capturedStatusConfirmation(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch);
@@ -2740,11 +2797,16 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           const confirmed = await this.capturedStatusConfirmation(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch);
           if (confirmed) statusReview = { state: "CONFIRMED", ...confirmed.receipt };
           else if (status === "ACTIVE") {
-            statusRevision ??= (await tx.projectFact.findFirst({
-              where: { customerId: current.customerId, projectId, factType: capturedStatusFactType }, select: { revision: true },
-            }))?.revision ?? 0;
-            if (projectUpdateStatusConfirmationSchema.shape.expectedRevision.safeParse(statusRevision).success)
-              statusReview = { state: "PENDING", responseId: latest.id, expectedRevision: statusRevision };
+            const requested = await this.capturedStatusClarification(tx, current.customerId, projectId, row.requestId,
+              latest.id, row.issuanceEpoch);
+            if (requested) statusReview = { state: "CLARIFICATION_REQUESTED", ...requested };
+            else {
+              statusRevision ??= (await tx.projectFact.findFirst({
+                where: { customerId: current.customerId, projectId, factType: capturedStatusFactType }, select: { revision: true },
+              }))?.revision ?? 0;
+              if (projectUpdateStatusConfirmationSchema.shape.expectedRevision.safeParse(statusRevision).success)
+                statusReview = { state: "PENDING", responseId: latest.id, expectedRevision: statusRevision };
+            }
           }
         }
         entries.push({

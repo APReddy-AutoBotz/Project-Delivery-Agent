@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
-import { projectUpdateRecipientRequestViewSchema, projectUpdateResponseReceiptSchema } from "../packages/domain/src/project-update-capture.js";
+import { projectUpdateClarificationQuestion, projectUpdateRecipientRequestViewSchema,
+  projectUpdateResponseReceiptSchema } from "../packages/domain/src/project-update-capture.js";
 import { decodeInvitation, decodeInvitationReceipt } from "../apps/web/src/project-update-invitation-decoder.js";
 
 const id = "30000000-0000-4000-8000-000000000001", other = "40000000-0000-4000-8000-000000000001";
@@ -25,6 +26,12 @@ it("matches representative invitation and receipt wire schemas", () => {
   expect(decodeInvitation({ ...base, requiredFacts: new Array(1) })).toBeNull();
   const hidden = Object.defineProperty({ ...base }, "requestId", { value: id, enumerable: false });
   expect(decodeInvitation(hidden)).toBeNull();
+  const reply = { id: other, submittedBy: "recipient", receivedAt: at, state: "UNCONFIRMED",
+    contentState: "PRESENT", correctsResponseId: null, text: "It should be fine next week once they sort it." };
+  const clarification = { responseId: other, question: projectUpdateClarificationQuestion };
+  const current = { ...base, responses: [reply], clarification };
+  expect(decodeInvitation(current)?.clarification).toEqual(clarification);
+  expect(decodeInvitation({ ...current, clarification: { ...clarification, responseId: id } })).toBeNull();
 });
 
 it("checks escalation ordering, retention and the explicit default", () => {

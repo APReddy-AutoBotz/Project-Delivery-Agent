@@ -13,6 +13,12 @@ Provide a manual path from a retained reply to a confirmed status fact when
 there is no usable interpretation. Reuse the capture history, fact ledger,
 and reminder recalculation.
 
+For an ambiguous status reply, let the same reviewer request a focused
+follow-up through the owner's active invitation (FR-UPD-009, AC-UPD-005,
+GOLDEN-006, FAIL-010). The question asks for current status, the responsible
+person, and an exact calendar date when relevant. This increment uses a
+reviewer action and the in-app invitation, with no external notification.
+
 ## In scope
 
 A reviewer can see an actionable item for the latest retained owner reply
@@ -60,6 +66,11 @@ repository, the capture history UI, and focused tests in the current suites.
 The existing fact ledger and append-only audit table store the fact and
 confirmation. Pending manual reviews are derived from active captured replies.
 No migration is required.
+
+Clarification records only the request, latest response and issuance epoch
+in the existing audit ledger. A newer owner reply returns the item to manual
+review. The question is built into the application, and asking it leaves the
+existing follow-up schedule in place.
 
 ## Security and privacy impact
 
