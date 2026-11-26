@@ -15,6 +15,7 @@ import { IdentityService } from "@pdaa/platform";
 import { z } from "zod";
 import { atlasManagementPreview, renderAtlasManagementSnapshot } from "./atlas-management-snapshot.js";
 import {
+  atlasReportDecisionSchema,
   projectFactIdSchema,
   projectUpdatePolicyChangeSchema,
   projectUpdateEngagementActivationSchema,
@@ -189,7 +190,21 @@ export class ProjectUpdateController {
   @HttpCode(200)
   async decideAtlasReportApproval(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
     const actor = await this.actor(req);
-    const snapshot = await this.run(() => this.repository.decideAtlasReportApproval(actor, this.projectId(rawId), body, req.correlationId));
+    const id = this.projectId(rawId);
+    const command = atlasReportDecisionSchema.safeParse(body);
+    if (!command.success) throw new HttpException("", 400);
+    if (command.data.decision === "APPROVED") {
+      const review = await this.run(() => this.repository.atlasReportApproval(actor, id));
+      const report = review?.snapshot;
+      if (report?.id !== command.data.snapshotId || report.approval?.requestId !== command.data.requestId)
+        throw new HttpException("", 409);
+      if (report.approvalState === "PENDING") {
+        try { await renderAtlasManagementSnapshot({ ...report, approvalState: "APPROVED" }); }
+        catch { throw new HttpException("", 503); }
+      }
+    }
+    // The write rechecks the request and authorization after rendering outside the project lock.
+    const snapshot = await this.run(() => this.repository.decideAtlasReportApproval(actor, id, command.data, req.correlationId));
     return atlasManagementPreview(snapshot);
   }
 

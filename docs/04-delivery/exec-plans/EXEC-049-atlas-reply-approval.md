@@ -215,6 +215,12 @@ Extend the existing Atlas browser journey for the handoff, role denials,
 decision replay, final PowerPoint text, and immutable facts after a later
 reply. Update the existing API contract checks.
 
+For the Atlas portion of FAIL-016, render the final PowerPoint for the exact
+pending snapshot before recording the first approval. If the renderer is
+unavailable, leave the report pending so the PM can retry. Render outside the
+project lock and reuse the repository's final scope and version checks before
+writing the decision. Existing decisions retain their replay behavior.
+
 ## Approved report distribution
 
 This Atlas-only increment exercises FR-RPT-007/009/010, AC-RPT-004,
