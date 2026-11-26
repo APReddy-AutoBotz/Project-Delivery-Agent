@@ -88,20 +88,33 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const approval = page.getByRole("region", { name: "Atlas demo approval" });
   await expect(approval).toContainText("ATLAS-248");
   await expect(approval).toContainText("No comment in the fixture.");
-  await expect(approval).toContainText("The Atlas owner confirmed that API access is still pending.");
+  const proposedComment = approval.getByRole("textbox", { name: "Proposed comment" });
+  await expect(proposedComment).toHaveValue("The Atlas owner confirmed that API access is still pending.");
   await expect(approval).not.toContainText(text);
-  await approval.getByRole("button", { name: "Approve demo comment" }).click();
+  const approveComment = approval.getByRole("button", { name: "Approve demo comment" });
+  await proposedComment.fill("   ");
+  await expect(approveComment).toBeDisabled();
+  const editedComment = "API access remains pending. The PM will reconfirm the integration forecast after access is granted.";
+  await proposedComment.fill(editedComment);
+  await approveComment.click();
   await expect(approval).toContainText("Demo approval recorded.");
-  await expect(approval.getByRole("button", { name: "Approve demo comment" })).toHaveCount(0);
+  await expect(approval).toContainText(editedComment);
+  await expect(approveComment).toHaveCount(0);
+  await expect(proposedComment).toHaveCount(0);
   const persisted = await request.get(projectPath + "/atlas-approval", {
     headers: managerHeaders,
   });
   expect(persisted.status()).toBe(200);
-  expect(await persisted.json()).toMatchObject({ approvalId, decision: "APPROVED", approver: "pm-atlas", receipt: null });
+  expect(await persisted.json()).toMatchObject({ approvalId, decision: "APPROVED", approver: "pm-atlas",
+    proposedComment: editedComment, receipt: null });
   const replay = await request.post(projectPath + "/atlas-approval", {
-    headers: managerHeaders, data: { approvalId, decision: "APPROVED" },
+    headers: managerHeaders, data: { approvalId, decision: "APPROVED", proposedComment: editedComment },
   });
   expect(replay.status()).toBe(200);
+  const changedText = await request.post(projectPath + "/atlas-approval", {
+    headers: managerHeaders, data: { approvalId, decision: "APPROVED", proposedComment: editedComment + " " },
+  });
+  expect(changedText.status()).toBe(409);
   const conflicting = await request.post(projectPath + "/atlas-approval", {
     headers: managerHeaders, data: { approvalId, decision: "REJECTED" },
   });
@@ -116,7 +129,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(receipt).toMatchObject({ approvalId, target: "ATLAS-248", fixtureRevision: 1, result: "SIMULATED" });
   await expect(receiptPanel).toContainText(receipt.id);
   const freshView = await request.get(projectPath + "/atlas-approval", { headers: managerHeaders });
-  expect(await freshView.json()).toMatchObject({ receipt });
+  expect(await freshView.json()).toMatchObject({ receipt, proposedComment: editedComment });
   expect(await (await record()).json()).toEqual(receipt);
   const unknown = await request.get(answerPath, { headers: leaderHeaders });
   expect(unknown.status()).toBe(200);
@@ -182,6 +195,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   });
   expect(JSON.stringify(complete)).not.toContain(fixture.escalation.locator);
   expect(JSON.stringify(complete)).not.toContain(fixture.sourceMarkerB);
+  expect(JSON.stringify(complete)).not.toContain(editedComment);
   await leaderAccess(false, fixture.sourceB.sourceId);
   try {
     await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
@@ -322,7 +336,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(nextPreview.status()).toBe(200);
   const nextComment = await nextPreview.json();
   expect(nextComment).toMatchObject({
-    sourceRevision: 1, currentComment: "The Atlas owner confirmed that API access is still pending.",
+    sourceRevision: 1, currentComment: editedComment,
     decision: "PENDING", receipt: null,
   });
   const pending = await request.get(answerPath, { headers: leaderHeaders });

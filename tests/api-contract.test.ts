@@ -766,7 +766,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     { responseId: project.id, accessStatus: "ACCESS_PENDING" });
   await request(`/api/projects/${project.id}/atlas-approval`, 200, manager);
   await request(`/api/projects/${project.id}/atlas-approval`, 200, manager, "POST",
-    { approvalId: project.id, decision: "APPROVED" });
+    { approvalId: project.id, decision: "APPROVED", proposedComment: "API access is still pending. Recheck the forecast after access is granted." });
   await request(`/api/projects/${project.id}/atlas-comment-receipt`, 200, manager, "POST",
     { approvalId: project.id });
   await request(`/api/projects/${project.id}/atlas-delay-confirmation`, 200, manager, "POST", atlasDelayCommand);

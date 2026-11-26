@@ -78,7 +78,7 @@ const storedAtlasConfirmation = atlasReplyConfirmationSchema.extend({
   sourceRevision: z.number().int().nonnegative().optional(),
   currentComment: z.string().nullable().default(null),
 });
-const storedAtlasDecision = atlasApprovalDecisionSchema.extend({
+const storedAtlasDecision = atlasApprovalDecisionSchema.safeExtend({
   projectId: z.uuid(), captureIssuanceEpoch: z.uuid(),
   payloadDigest: atlasPayloadDigest.optional(),
 });
@@ -1972,13 +1972,26 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   }
 
   private async atlasFixtureState(tx: Tx, customerId: string, projectId: string) {
-    const [last] = await tx.$queryRaw<{ detail: unknown }[]>`
-      SELECT detail FROM public."AuditEvent"
-      WHERE "customerId"=${customerId}::uuid AND event=${atlasCommentEvent} AND detail->>'projectId'=${projectId}
-      ORDER BY (detail->>'fixtureRevision')::integer DESC LIMIT 1`;
+    const [last] = await tx.$queryRaw<{ detail: unknown; decision: unknown }[]>`
+      SELECT receipt.detail, approval.detail AS decision FROM public."AuditEvent" receipt
+      LEFT JOIN public."AuditEvent" approval ON approval."customerId"=receipt."customerId"
+        AND approval.id=(receipt.detail->>'decisionId')::uuid AND approval.event=${atlasDecidedEvent}
+        AND approval.actor=receipt.actor
+      WHERE receipt."customerId"=${customerId}::uuid AND receipt.event=${atlasCommentEvent}
+        AND receipt.detail->>'projectId'=${projectId}
+      ORDER BY (receipt.detail->>'fixtureRevision')::integer DESC LIMIT 1`;
     if (!last) return { revision: 0, comment: null };
     const event = storedAtlasComment.parse(last.detail);
-    return { revision: event.fixtureRevision, comment: atlasComment(event.accessStatus) };
+    const decision = storedAtlasDecision.parse(last.decision);
+    const comment = decision.proposedComment ?? atlasComment(event.accessStatus);
+    if (decision.decision !== "APPROVED" || decision.projectId !== projectId || decision.approvalId !== event.approvalId ||
+        decision.captureIssuanceEpoch !== event.captureIssuanceEpoch ||
+        ((decision.payloadDigest !== undefined || decision.proposedComment !== undefined) &&
+          decision.payloadDigest !== event.payloadDigest) ||
+        event.payloadDigest !== hash({ approvalId: event.approvalId, target: atlasJiraBlockerKey,
+          proposedComment: comment, sourceRevision: event.fixtureRevision - 1 }))
+      throw new ProjectUpdateError("UNAVAILABLE");
+    return { revision: event.fixtureRevision, comment };
   }
 
   private async lockAtlasProject(tx: Tx, current: Actor, projectId: string) {
@@ -2031,10 +2044,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       ] }, select: { id: true, detail: true, occurredAt: true },
     });
     let receipt: AtlasCommentReceipt | null = null;
-    const target = "ATLAS-248";
-    const proposedComment = atlasComment(detail.accessStatus);
+    const target = atlasJiraBlockerKey;
+    const proposedComment = decision?.proposedComment ?? atlasComment(detail.accessStatus);
     const sourceRevision = detail.sourceRevision ?? 0;
     const payloadDigest = hash({ approvalId: confirmed.id, target, proposedComment, sourceRevision });
+    if (decision?.proposedComment !== undefined && decision.payloadDigest !== payloadDigest)
+      throw new ProjectUpdateError("UNAVAILABLE");
     if (recorded) {
       const event = storedAtlasComment.parse(recorded.detail);
       if (event.decisionId !== decided?.id || decision?.decision !== "APPROVED" ||
@@ -2473,14 +2488,22 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const view = approval?.view;
       const parsed = atlasApprovalDecisionSchema.safeParse(value);
       if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
-      if (!approval || !view || view.approvalId !== parsed.data.approvalId ||
-          (view.decision !== "PENDING" && view.decision !== parsed.data.decision))
+      if (!view || view.approvalId !== parsed.data.approvalId || await this.now(tx) >= new Date(view.expiresAt))
         throw new ProjectUpdateError("CONFLICT");
-      if (view.decision === "PENDING")
-        await this.engagementAudit(tx, current, projectId, correlationId, atlasDecidedEvent, {
-          ...parsed.data, projectId, payloadDigest: approval.payloadDigest,
-        });
-      return { ...view, decision: parsed.data.decision };
+      const { approvalId, decision } = parsed.data;
+      const templateComment = atlasComment(view.accessStatus);
+      const proposedComment = parsed.data.proposedComment ?? templateComment;
+      if (view.decision !== "PENDING") {
+        if (view.decision !== decision || view.proposedComment !== proposedComment) throw new ProjectUpdateError("CONFLICT");
+        return view;
+      }
+      await this.engagementAudit(tx, current, projectId, correlationId, atlasDecidedEvent, {
+        approvalId, decision, projectId, payloadDigest: hash({
+          approvalId, target: view.target, proposedComment, sourceRevision: view.sourceRevision,
+        }),
+        ...(proposedComment !== templateComment && { proposedComment }),
+      });
+      return { ...view, proposedComment, decision };
     }, "ReadCommitted");
   }
 

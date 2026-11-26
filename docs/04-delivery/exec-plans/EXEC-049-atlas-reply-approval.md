@@ -2,7 +2,7 @@
 
 - Status: In Progress
 - Owner: Implementation controller
-- Requirement IDs: FR-UPD-006, FR-UPD-007, FR-UPD-008, FR-UPD-009, FR-APP-001, FR-APP-002, FR-APP-004, FR-APP-005, FR-APP-006, NFR-SEC-001
+- Requirement IDs: FR-UPD-006, FR-UPD-007, FR-UPD-008, FR-UPD-009, FR-APP-001, FR-APP-002, FR-APP-003, FR-APP-004, FR-APP-005, FR-APP-006, NFR-SEC-001
 - GitHub issues: [#9](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9), [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10)
 - Target release: R1 synthetic demo milestone
 - Last updated: 2026-11-26
@@ -21,7 +21,7 @@ approved simulated comment.
 ## Out of scope
 
 Live providers, canonical fact writes, reminder suppression, live Jira
-onboarding and comment processing, arbitrary draft text, and live action receipts.
+onboarding and comment processing, and live action receipts.
 The full release stories and customer decisions remain open.
 
 ## Current state
@@ -288,3 +288,24 @@ other authorized claims remain visible. API contract coverage uses the existing
 route. There is no new dependency, migration, connector scope, or action.
 Reverting the code removes the live citations. Reseed the disposable Atlas
 fixture to remove its sample records.
+
+## Approve the PM's edited comment
+
+Under FR-APP-003/005/006/007 and NFR-SEC-001, the assigned PM can edit the
+proposed text before approving it in the existing Atlas review. Approval
+stores the reviewed single-line text when it differs from the template and
+binds the digest to the approval, target and comparison revision. A retry
+must match the recorded decision and exact reviewed text. The existing
+simulated execution rechecks the same digest and comparison base. Its
+receipt supplies the prior revision for the next proposal, where the review
+shows the exact recorded text as the current source value.
+
+Keep bodies and author fields from Jira outside the fixture. The bounded
+text is PM-authored demo data. Existing default-template approvals remain
+readable, including the earlier version without a payload digest. Leadership
+continues to receive a receipt reference and the structured owner status.
+The existing Atlas test covers edited approval, changed-text retry denial,
+receipt replay, and the next comparison against the edited value. This is
+synthetic evidence for part of [Issue #10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10).
+There is no new migration, dependency, or connector scope. For rollback
+after an edited approval, revert the code and reseed the disposable fixture.

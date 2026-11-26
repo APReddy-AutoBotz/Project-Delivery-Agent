@@ -3,7 +3,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { atlasApprovalProjectCode, AtlasAccessStatus, AtlasApprovalView, AtlasDelayAssessment } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
 import type { RequestFn } from "./request-types.js";
-import { decodeAtlasApproval, decodeAtlasCommentReceipt, decodeAtlasDelayAssessment } from "./project-update-invitation-decoder.js";
+import { atlasCommentMaxLength, decodeAtlasApproval, decodeAtlasCommentReceipt, decodeAtlasDelayAssessment,
+  validAtlasApprovalComment } from "./project-update-invitation-decoder.js";
 
 export const atlasReviewProjectCode: typeof atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
 
@@ -111,7 +112,10 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [draft, setDraft] = useState<{ approvalId: string; text: string } | null>(null);
   const proposal = review.isSuccess && !review.isFetching && isCurrent() ? review.data : null;
+  const proposedComment = proposal?.decision === "PENDING" && draft?.approvalId === proposal.approvalId
+    ? draft.text : proposal?.proposedComment ?? "";
   const expiresAt = proposal?.expiresAt;
   const expired = expiresAt !== undefined && Date.now() >= Date.parse(expiresAt);
   const refresh = review.refetch;
@@ -126,16 +130,19 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
   async function submit(decision?: "APPROVED" | "REJECTED") {
     if (!proposal || sending.current || !isCurrent() || Date.now() >= Date.parse(proposal.expiresAt)) return;
     if (decision ? proposal.decision !== "PENDING" : proposal.decision !== "APPROVED" || proposal.receipt) return;
+    if (decision === "APPROVED" && !validAtlasApprovalComment(proposedComment)) return;
     sending.current = true;
     setBusy(true);
     setFailed(false);
     try {
       const raw = await request(decision ? path : `/projects/${projectId}/atlas-comment-receipt`, {
-        method: "POST", body: JSON.stringify({ approvalId: proposal.approvalId, ...(decision && { decision }) }),
+        method: "POST", body: JSON.stringify({ approvalId: proposal.approvalId, ...(decision && { decision }),
+          ...(decision === "APPROVED" && { proposedComment }) }),
       }, 4096, undefined, undefined, isCurrent);
       if (decision) {
         const result = decodeAtlasApproval(raw);
-        if (result?.approvalId !== proposal.approvalId || result.decision !== decision)
+        if (result?.approvalId !== proposal.approvalId || result.decision !== decision ||
+            (decision === "APPROVED" && result.proposedComment !== proposedComment))
           throw new Error("Atlas decision could not be verified");
       } else if (decodeAtlasCommentReceipt(raw)?.approvalId !== proposal.approvalId) {
         throw new Error("Atlas receipt could not be verified");
@@ -160,7 +167,12 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
       <dl>
         <dt>Jira fixture</dt><dd>{proposal.target}</dd>
         <dt>Current comment at revision {proposal.sourceRevision}</dt><dd>{proposal.currentComment ?? "No comment in the fixture."}</dd>
-        <dt>Proposed comment</dt><dd>{proposal.proposedComment}</dd>
+        <dt>{proposal.decision === "PENDING" ? <label htmlFor={`atlas-comment-${projectId}`}>Proposed comment</label>
+          : "Proposed comment"}</dt>
+        <dd>{proposal.decision === "PENDING" ? <input id={`atlas-comment-${projectId}`} type="text"
+          value={proposedComment} maxLength={atlasCommentMaxLength} disabled={busy || expired}
+          onChange={(event) => setDraft({ approvalId: proposal.approvalId, text: event.currentTarget.value })} />
+          : proposal.proposedComment}</dd>
         <dt>Evidence</dt><dd>Reply from {proposal.confirmedBy} received at {proposal.replyReceivedAt}</dd>
         <dt>Required approver</dt><dd>{proposal.approver}</dd>
         <dt>Review expires</dt><dd>{proposal.expiresAt}</dd>
@@ -168,7 +180,8 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
       <p>This decision applies to the demo Jira fixture.</p>
       {proposal.decision !== "PENDING" ? <Message>{proposal.decision === "APPROVED" ? "Demo approval recorded." : "Demo rejection recorded."}</Message>
         : <div className="actions">
-          <Button className="primary" disabled={busy || expired} onClick={() => void submit("APPROVED")}>Approve demo comment</Button>
+          <Button className="primary" disabled={busy || expired || !validAtlasApprovalComment(proposedComment)}
+            onClick={() => void submit("APPROVED")}>Approve demo comment</Button>
           <Button className="secondary" disabled={busy || expired} onClick={() => void submit("REJECTED")}>Reject demo comment</Button>
         </div>}
       {proposal.decision === "APPROVED" && !proposal.receipt &&
