@@ -14,11 +14,14 @@ const support = z.strictObject({
 const position = z.strictObject({ value: canonicalDateSchema, supports: z.array(support).min(1).max(1000) });
 const base = z.strictObject({
   projectId: id, factId: id, factType: z.string().min(1).max(96).regex(/^[a-z][a-z0-9_.-]*$/),
-  asOf: instant, policyRevisionId: id, positions: z.array(position).min(2).max(1000),
+  asOf: instant, policyRevisionId: id,
 });
 
 // This validates presentation integrity; the repository establishes authority.
-export const scalarConflictObservationSchema = base.superRefine((value, ctx) => {
+export const scalarConflictObservationSchema = z.union([
+  base.extend({ positions: z.array(position).min(2).max(1000) }),
+  base.extend({ status: z.literal("RESOLVED"), positions: z.tuple([position]) }),
+]).superRefine((value, ctx) => {
   const invalid = () => ctx.addIssue({ code: "custom", message: "Invalid scalar conflict observation" });
   if (new TextEncoder().encode(JSON.stringify(value)).length > 262144) invalid();
   const dates = new Set<string>(), versions = new Set<string>(), evidence = new Set<string>();
@@ -41,5 +44,6 @@ export class ScalarConflictObservationError extends Error {
   constructor(readonly code: "DENIED" | "UNAVAILABLE") { super(code); this.name = "ScalarConflictObservationError"; }
 }
 export interface ScalarConflictObservationRepository {
-  readLeadership(actor: Actor, projectId: string, factId: string, afterFactType?: string | null): Promise<ScalarConflictObservation>;
+  readLeadership(actor: Actor, projectId: string, factId: string, afterFactType?: string | null,
+    includeResolved?: boolean): Promise<ScalarConflictObservation>;
 }

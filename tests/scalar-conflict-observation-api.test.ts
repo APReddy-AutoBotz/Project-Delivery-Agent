@@ -47,6 +47,17 @@ it("accepts only a validated catalogue-page boundary and passes it to the reader
     expect((await fetch(base + path + query, { headers })).status).toBe(400);
   expect(repository.readLeadership).toHaveBeenCalledTimes(before + 1);
 });
+it("serves one resolved position only for an explicit opt-in", async () => {
+  const headers = { Authorization: "Bearer valid" };
+  const resolved = { ...result, status: "RESOLVED", positions: [result.positions[0]!] };
+  repository.readLeadership.mockResolvedValueOnce(resolved);
+  expect((await fetch(base + path, { headers })).status).toBe(503);
+  repository.readLeadership.mockResolvedValueOnce(resolved);
+  const response = await fetch(base + path + "?includeResolved=true&afterFactType=project.start", { headers });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual(resolved);
+  expect(repository.readLeadership).toHaveBeenLastCalledWith(actor, projectId, factId, "project.start", true);
+});
 it("withholds denial, unavailable state and malformed or mismatched outputs", async () => {
   repository.readLeadership.mockRejectedValueOnce(new ScalarConflictObservationError("DENIED"));
   repository.readLeadership.mockRejectedValueOnce(new ScalarConflictObservationError("UNAVAILABLE"));
