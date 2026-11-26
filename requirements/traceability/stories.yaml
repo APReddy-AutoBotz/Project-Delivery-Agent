@@ -355,9 +355,15 @@ stories:
   acceptance_criteria:
   - AC-HLT-004
   - AC-HLT-005
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/8
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/188
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/184
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/186
+  implementation_evidence:
+  - docs/05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md
 - id: STORY-016
   epic: EPIC-05
   title: Implement update-obligation state machine

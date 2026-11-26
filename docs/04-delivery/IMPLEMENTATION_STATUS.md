@@ -1,16 +1,17 @@
 # Implementation Status
 
-Updated: 2026-11-24
+Updated: 2026-11-26
 
 ## Accepted implementation completion
 
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
-| R1      |                       7 |                     33 |      21.2% |
-| Total   |                      10 |                     38 |      26.3% |
+| R1      |                       8 |                     33 |      24.2% |
+| Total   |                      11 |                     38 |      28.9% |
 
-These counts reflect acceptance records merged through [PR #187](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/187).
+These counts reflect the accepted-story registry, including the
+[STORY-015 acceptance record](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md#story-015-evidence).
 Several open stories already have working components. Track the first usable
 workflow by its observable steps alongside the accepted-story count.
 
@@ -34,6 +35,8 @@ PR #113 brought the accepted total to 7/38 (18.4%). The
 brought it to **8/38 (21.1%)**. [STORY-012 source-authority acceptance](../05-quality/EXEC_047_SOURCE_AUTHORITY_ACCEPTANCE.md)
 brought it to **9/38 (23.7%)**. [STORY-014 delivery signal acceptance](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md)
 brings it to **10/38 (26.3%)** after PR #187 merged and its main checks passed.
+The [STORY-015 contradiction acceptance](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md#story-015-evidence)
+brings it to **11/38 (28.9%)** on verified GOLDEN-002 and GOLDEN-003 evidence.
 Unfinished stories and all five customer release holds remain open.
 Original19/20 capture is stopped.
 
@@ -45,17 +48,17 @@ fixtures. A synthetic adapter can exercise the comment execution and receipt
 path before live Jira authorization is available. The approved R1 scope and
 customer release criteria are tracked in the [vertical slice](RELEASE-1-VERTICAL-SLICE.md).
 
-| Order | Reuse on main | Deliver next |
+| Step | Verified on main | Release work |
 | --- | --- | --- |
-| 1. Finish the current health increment | Canonical project, source authority, freshness, blocker age and milestone disagreement | Finish [PR #188](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/188) proof and review. Record STORY-015 acceptance after the merge gates pass. |
-| 2. Connect reply to decision | Durable obligation, cadence, contextual draft, protected response capture and PM escalation history | Use one existing Atlas obligation and saved owner reply. Persist one structured interpretation with provenance, let the owner clarify or confirm it, then show the PM a scoped before/after approval diff. Use a deterministic provider fixture for the synthetic demo. Preserve the manual fallback path. [Issues #9](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9) and [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10). |
-| 3. Connect decision to action | Jira read contract, shadow guard, scoped policies and audit persistence | Implement the approved-comment path behind the connector contract. Exercise preflight revision checks, once-only execution and the receipt with a synthetic adapter. Bind the receipt to the approval and expose it in the existing project view. [Issues #7](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7), [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10) and [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14). |
-| 4. Show the outcome | PM queue, project view and scoped conflict-answer components | Add a cited Atlas delay answer and one frozen fact set for the management view, editable PowerPoint and email preview. Reuse the existing project view and finish the Atlas demo through it. [Issues #11](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11), [#12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12) and [#13](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13). |
+| 1. Calculate delivery concern | Source-backed GOLDEN-002 and the GOLDEN-003 reconciliation. [PR #188](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/188) | STORY-015 software acceptance is recorded in the evidence ledger. |
+| 2. Connect reply to decision | Protected response capture, PM escalation history, Atlas clarification and owner confirmation, and assigned-PM review. [PR #190](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/190) | Reuse the capture and review flow for bounded structured interpretation and confirmed facts. Preserve manual confirmation when extraction is unavailable. [Issues #9](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9) and [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10). |
+| 3. Connect decision to action | The Atlas demo rechecks the approved comparison revision and records one simulated comment receipt. [PR #191](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/191) | Carry the approval, preflight, receipt and unknown-outcome contract through a bounded synthetic connector path. Live action remains gated by OD-013 and OD-014. [Issues #7](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7), [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10) and [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14). |
+| 4. Show the outcome | The Atlas demo answers GOLDEN-001, freezes report facts for the management view, editable PowerPoint and email preview, and supports final approval and in-app distribution. [PR #197](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/197) | Reuse the existing queue, project evidence and report primitives for the Release 1 acceptance scope. [Issues #11](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11), [#12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12) and [#13](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13). |
 | Customer release preparation | OIDC, secret storage, database profiles, recovery and distribution evidence collection | Resolve [OD-013 and OD-014](../00-governance/OPEN_DECISIONS.md), prove permitted live Jira behavior and resolve the inventory, licenses and notices, vulnerabilities, distributed layers and signing holds against the intended release images. [Issues #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5), [#7](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7) and [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14). |
 
-Target the reply-to-approval walkthrough as the next weekly milestone. Estimate
-the rest after that workflow runs. Customer release timing depends on the
-external decisions and the remaining release evidence. Pause additional
+The controlled-action and confirmed-fact contracts are the next critical-path
+work. Customer release timing also depends on the external decisions and the
+remaining release evidence. Pause additional
 spreadsheet variants, native research, UI polish and isolated proof work unless
 they resolve a defect or an acceptance gap on this path. Keep existing
 acceptance evidence and resolve demonstrated gaps as part of the feature PR.
@@ -88,10 +91,11 @@ acceptance evidence and resolve demonstrated gaps as part of the feature PR.
 
 ## Latest merged result and current work
 
-The [STORY-014 record](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md)
-reconciles the executed blocker-age, overdue, milestone contradiction and
-provider-disabled tests. STORY-015 still needs the complete GOLDEN-002
-journey and an approved criticality contract.
+The [delivery signal record](../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md)
+links the executed blocker-age, overdue, provider-disabled, GOLDEN-002
+and milestone reconciliation cases. The exact PR #188 head and its main
+merge passed the hosted gates. Both packaged profiles repeated GOLDEN-002
+and verified encrypted recovery of its saved evidence.
 
 [PR #184](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/184)
 merged EXEC-047 as `8247eb17701432b7596e926f278e76bf9f13ede6`. The

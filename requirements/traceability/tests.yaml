@@ -738,13 +738,17 @@ tests:
   evidence: []
 - id: GOLDEN-002
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-HLT-004
   specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
   behavior: Reported GREEN and independently calculated RED are stored and displayed separately with reproducible
     input facts, rule revision and rationale.
-  evidence: []
+  evidence:
+  - docs/05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md
+  - tests/e2e/delivery-concern.spec.ts
+  - scripts/acceptance/delivery-concern-workflow.mjs
+  - scripts/acceptance/customer.mjs
 - id: GOLDEN-003
   release: R1
   status: implemented
