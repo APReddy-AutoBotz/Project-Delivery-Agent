@@ -16,6 +16,7 @@ type ResponseEntry = { id: string; submittedBy: string; receivedAt: string;
   correctsResponseId: string | null; state: "UNCONFIRMED"; contentState: "PRESENT" | "EXPIRED"; text: string | null };
 type RecipientRequest = { requestId: string; project: { id: string; code: string; name: string };
   stageKind: string; dueAt: string; capturedAt: string; expiresAt: string; body: string;
+  requiredFacts: ProjectUpdateRecipientRequestView["requiredFacts"];
   rawResponseReaders: string[]; responses: ResponseEntry[]; escalationContext?: EscalationContext | null;
   atlasInterpretation?: ProjectUpdateRecipientRequestView["atlasInterpretation"];
   clarification?: ProjectUpdateRecipientRequestView["clarification"] };
@@ -72,8 +73,8 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
   submit: (facts: ConfirmationItems) => Promise<unknown>;
   clarify: () => Promise<unknown>; current: () => boolean;
 }) {
-  const [status, setStatus] = useState("");
-  const [forecast, setForecast] = useState("");
+  const [status, setStatus] = useState(() => statusReview?.state === "PENDING" ? statusReview.suggestedValue ?? "" : "");
+  const [forecast, setForecast] = useState(() => forecastReview?.state === "PENDING" ? forecastReview.suggestedValue ?? "" : "");
   const pendingStatus = statusReview?.state === "PENDING" ? statusReview : null;
   const pendingForecast = forecastReview?.state === "PENDING" ? forecastReview : null;
   const validStatus = status.trim().length > 0 && new TextEncoder().encode(status).length <= 500 &&
@@ -104,6 +105,8 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
     {forecastReview?.state === "CONFIRMED" && <FactConfirmation label="Project forecast" receipt={forecastReview} />}
     {statusReview?.state === "CLARIFICATION_REQUESTED" &&
       <p>Clarification requested at {statusReview.requestedAt}. Awaiting an updated response from the owner.</p>}
+    {(pendingStatus?.suggestedValue || pendingForecast?.suggestedValue) &&
+      <p>Values from the reply are suggestions. Review or edit them before confirming.</p>}
     {pendingStatus && <label className="field"><span>Confirmed project status</span>
       <input type="text" value={status} maxLength={500} onChange={(event) => setStatus(event.currentTarget.value)}
         disabled={busy} />
@@ -272,6 +275,8 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
   if (!rendered || !currentInvitation()) return <Message>Loading update request…</Message>;
   const invitation = rendered.value;
   const interpretation = invitation.atlasInterpretation;
+  const asksForStatus = invitation.requiredFacts.some(({ factType }) => factType === "project.status");
+  const asksForForecast = invitation.requiredFacts.some(({ factType }) => factType === "project.forecast");
   const visibleExpiry = deadline.current !== null && deadline.current < Date.parse(invitation.expiresAt)
     ? new Date(deadline.current).toISOString() : invitation.expiresAt;
   return <section className="panel" aria-label="Respond to update request">
@@ -294,6 +299,10 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
           onChange={(event) => { if (currentInvitation()) { draftEpoch.current++; setText(event.target.value); } }} aria-describedby="update-response-notice" />
       </label>
       <p id="update-response-notice">Submitting records your response. Required facts remain unconfirmed, reminders continue, and no Jira change is made.</p>
+      {(asksForStatus || asksForForecast) && <p>
+        {asksForStatus && <>To suggest a status for review, start a line with <code>Status:</code>. </>}
+        {asksForForecast && <>To suggest a date, put <code>Forecast: YYYY-MM-DD</code> on its own line.</>}
+      </p>}
       <label className="field"><span>Correct an earlier response (optional)</span>
         <select value={correction ?? ""} disabled={busy} onChange={(event) => { if (currentInvitation()) { draftEpoch.current++; setCorrection(event.target.value || null); } }}>
           <option value="">New response</option>

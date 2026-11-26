@@ -301,6 +301,7 @@ const capturedResponseReference = {
 const captureFactRevision = z.number().int().min(0).max(2147483646);
 const capturedStatusValue = z.string().min(1).max(500).regex(/^[^\p{Cc}\p{Surrogate}]+$/u)
   .refine((text) => text.trim().length > 0 && new TextEncoder().encode(text).length <= 500);
+const capturedForecastValue = z.iso.date().refine((date) => !date.startsWith("0000-"));
 export const projectUpdateStatusConfirmationSchema = z.strictObject({
   ...capturedResponseReference,
   expectedRevision: captureFactRevision,
@@ -308,11 +309,30 @@ export const projectUpdateStatusConfirmationSchema = z.strictObject({
 });
 const capturedFactTypeSchema = z.enum(["project.status", "project.forecast"]);
 export type CapturedUpdateFactType = z.infer<typeof capturedFactTypeSchema>;
+export function extractExplicitCapturedFacts(text: string): Partial<Record<CapturedUpdateFactType, string>> {
+  const seen = new Set<CapturedUpdateFactType>();
+  const values: Partial<Record<CapturedUpdateFactType, string>> = {};
+  for (const line of text.split(/\r?\n/u)) {
+    const parts = /^(?:project\s+)?(status|forecast)\s*:\s*(.*)$/iu.exec(line.trim());
+    if (!parts) continue;
+    const status = parts[1]!.toLowerCase() === "status";
+    const factType = status ? "project.status" : "project.forecast";
+    if (seen.has(factType)) {
+      delete values[factType];
+      continue;
+    }
+    seen.add(factType);
+    const value = (status ? capturedStatusValue : capturedForecastValue).safeParse(parts[2]);
+    if (value.success) values[factType] = value.data;
+  }
+  return values;
+}
+
 export const projectUpdateFactConfirmationSchema = z.strictObject({
   ...capturedResponseReference,
   facts: z.array(z.discriminatedUnion("factType", [
     z.strictObject({ factType: z.literal("project.status"), value: capturedStatusValue, expectedRevision: captureFactRevision }),
-    z.strictObject({ factType: z.literal("project.forecast"), value: z.iso.date().refine((date) => !date.startsWith("0000-")),
+    z.strictObject({ factType: z.literal("project.forecast"), value: capturedForecastValue,
       expectedRevision: captureFactRevision }),
   ])).min(1).max(2).refine((items) => new Set(items.map(({ factType }) => factType)).size === items.length),
 });
@@ -351,11 +371,14 @@ export const projectUpdateCaptureHistorySchema = z.strictObject({
     recipientPath: z.string().nullable(),
     responses: z.array(projectUpdateResponseHistorySchema).max(20),
     statusReview: z.discriminatedUnion("state", [
-      pendingCapturedFactReview,
+      pendingCapturedFactReview.extend({ suggestedValue: capturedStatusValue.optional() }),
       projectUpdateClarificationReceiptSchema.extend({ state: z.literal("CLARIFICATION_REQUESTED") }),
       completedCapturedFactReview,
     ]).optional(),
-    forecastReview: z.discriminatedUnion("state", [pendingCapturedFactReview, completedCapturedFactReview]).optional(),
+    forecastReview: z.discriminatedUnion("state", [
+      pendingCapturedFactReview.extend({ suggestedValue: capturedForecastValue.optional() }),
+      completedCapturedFactReview,
+    ]).optional(),
   })).max(20),
   nextCursor: z.uuid().nullable(),
 });

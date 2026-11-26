@@ -9,6 +9,7 @@ import {
   projectUpdateResponseSubmissionSchema, projectUpdateRecipientRequestViewSchema,
   projectUpdateClarificationQuestion, projectUpdateClarificationRequestSchema, projectUpdateClarificationReceiptSchema,
   projectUpdateFactConfirmationSchema, projectUpdateFactConfirmationReceiptSchema, type CapturedUpdateFactType,
+  extractExplicitCapturedFacts,
   projectUpdateStatusConfirmationSchema, projectUpdateStatusConfirmationReceiptSchema,
   projectUpdateEscalationContextSchema, type ProjectUpdateEscalationContext,
   mayAccessProjectUpdateInvitation, isActiveProjectUpdateCapture, renderProjectUpdateCapture,
@@ -2899,6 +2900,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           const requested = status === "ACTIVE" && required.has(capturedStatusFactType)
             ? await this.capturedStatusClarification(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch)
             : null;
+          const suggestions = status === "ACTIVE" && !requested ? extractExplicitCapturedFacts(latest.text) : {};
           for (const factType of [capturedStatusFactType, "project.forecast"] as const) {
             if (!required.has(factType)) continue;
             const confirmed = await this.capturedFactConfirmation(tx, current.customerId, projectId, row.requestId,
@@ -2914,7 +2916,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
                 factRevisions.set(factType, expectedRevision);
               }
               if (projectUpdateStatusConfirmationSchema.shape.expectedRevision.safeParse(expectedRevision).success)
-                review = { state: "PENDING", responseId: latest.id, expectedRevision };
+                review = { state: "PENDING", responseId: latest.id, expectedRevision,
+                  ...(suggestions[factType] !== undefined && { suggestedValue: suggestions[factType] }) };
             }
             if (factType === capturedStatusFactType)
               statusReview = requested ? { state: "CLARIFICATION_REQUESTED", ...requested } : review;

@@ -32,6 +32,13 @@ in one transaction with their individual expected revisions and receipts.
 Recalculate cadence after all selected facts are recorded so a generation
 change cannot interrupt a combined confirmation.
 
+When the reply contains a single explicit `Status:` or `Forecast:` line,
+show the matching value as a proposal for the reviewer. Use the fact
+confirmation schemas to validate the proposals and require a calendar date
+in YYYY-MM-DD format for forecast. Conflicting or missing labels leave the
+field for manual review. This works without a model and keeps the proposals
+derived from the retained reply.
+
 ## Out of scope
 
 Model configuration, baseline date changes, other fact types, live Jira comments and external

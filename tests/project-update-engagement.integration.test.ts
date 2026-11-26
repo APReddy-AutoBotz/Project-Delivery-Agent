@@ -244,12 +244,15 @@ it("AC-EVD-006: confirms requested status and forecast together before replannin
   if ([0, 6].includes(new Date().getUTCDay())) { expect(ownerHistory.entries).toEqual([]); return; }
   const { requestId, recipientPath } = ownerHistory.entries[0]!;
   const response = await f.capture.submitResponse(f.owner, recipientPath!.split("/").at(-1)!, {
-    text: "Integration is progressing. The forecast is 8 December 2026.", idempotencyKey: randomUUID(),
+    text: "Status: Integration is progressing.\nForecast: 2026-12-08", idempotencyKey: randomUUID(),
   }, randomUUID());
   const scope = { customerId, projectId }, responseId = response.responseId;
   const requested = (await f.capture.captureHistory(f.admin, projectId)).entries[0]!;
-  expect(requested.statusReview).toEqual({ state: "PENDING", responseId, expectedRevision: 1 });
-  expect(requested.forecastReview).toEqual({ state: "PENDING", responseId, expectedRevision: 1 });
+  expect(requested.statusReview).toEqual({ state: "PENDING", responseId, expectedRevision: 1,
+    suggestedValue: "Integration is progressing." });
+  expect(requested.forecastReview).toEqual({ state: "PENDING", responseId, expectedRevision: 1,
+    suggestedValue: "2026-12-08" });
+  expect(await db.projectFactVersion.count({ where: scope })).toBe(2);
   const status = { factType: "project.status", expectedRevision: 1, value: "Integration is progressing." };
   const forecast = { factType: "project.forecast", expectedRevision: 1, value: "2026-12-08" };
   const confirm = (facts: unknown[]) => f.capture.confirmCapturedFacts(f.admin, projectId, { requestId, responseId, facts }, randomUUID());
