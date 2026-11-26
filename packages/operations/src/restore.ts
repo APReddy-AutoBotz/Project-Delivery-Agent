@@ -7,6 +7,7 @@ import {
   assertEmptyTarget,
   assertNoOtherSessions,
   assertRestoreCommitQuiescence,
+  RestoreAutovacuumBusy,
   identifier,
   type OperationsConfig,
 } from "./config.js";
@@ -175,30 +176,43 @@ async function restoreArchive(
       await completed;
       diagnostic.enter("sessions_after_restore");
       await assertNoOtherSessions(client);
-      await client.query("BEGIN");
-      try {
-        diagnostic.enter("ownership");
-        await restoreOwners(client);
-        diagnostic.enter("grants");
-        await grants(client, config, true);
-        diagnostic.enter("customer");
-        await assertCustomer(client, config);
-        diagnostic.enter("history");
-        const applied = await history(client);
-        validateHistory(applied, migrations);
-        if (applied.length !== migrations.length)
-          throw new Error("Restored migration set incomplete");
-        diagnostic.enter("integrity");
-        await purgeExpiredIngestionContent(client, config.customerId);
-        await quarantineUpdateIssuance(client, config.customerId);
-        if (applied.some((entry) => entry.migration_name === "202611190002_xlsx_source_genesis"))
-          await assertXlsxGenesisIntegrity(client);
-        if (applied.some((entry) => entry.migration_name === "202611190003_xlsx_preview_context"))
-          await assertXlsxPreviewIntegrity(client);
-        if (applied.some((entry) => entry.migration_name === "202611190006_xlsx_reviewed_import"))
-          await assertXlsxReviewedImportIntegrity(client);
-        const authorityIntegrity = (
-          await client.query(`SELECT
+      const checkQuiescence = async () => {
+        diagnostic.enter("sessions_before_commit");
+        await assertRestoreCommitQuiescence(client, (category, observation) => {
+          diagnostic.enter(({
+            other_sessions: "sessions_before_commit_other_sessions",
+            query_failed: "sessions_before_commit_query_failed",
+            invalid_result: "sessions_before_commit_invalid_result",
+          } as const)[category]);
+          if (category === "other_sessions") diagnostic.observeSessions(observation);
+        });
+      };
+      const validationFailure = "Restored ownership or integrity validation failed; target remains quarantined";
+      const validateAndCommit = async (allowMaintenanceRetry: boolean) => {
+        await client.query("BEGIN");
+        try {
+          diagnostic.enter("ownership");
+          await restoreOwners(client);
+          diagnostic.enter("grants");
+          await grants(client, config, true);
+          diagnostic.enter("customer");
+          await assertCustomer(client, config);
+          diagnostic.enter("history");
+          const applied = await history(client);
+          validateHistory(applied, migrations);
+          if (applied.length !== migrations.length)
+            throw new Error("Restored migration set incomplete");
+          diagnostic.enter("integrity");
+          await purgeExpiredIngestionContent(client, config.customerId);
+          await quarantineUpdateIssuance(client, config.customerId);
+          if (applied.some((entry) => entry.migration_name === "202611190002_xlsx_source_genesis"))
+            await assertXlsxGenesisIntegrity(client);
+          if (applied.some((entry) => entry.migration_name === "202611190003_xlsx_preview_context"))
+            await assertXlsxPreviewIntegrity(client);
+          if (applied.some((entry) => entry.migration_name === "202611190006_xlsx_reviewed_import"))
+            await assertXlsxReviewedImportIntegrity(client);
+          const authorityIntegrity = (
+            await client.query(`SELECT
           (SELECT count(*)::int FROM "AuthorityPolicy" WHERE NOT public.valid_authority_history(id)) +
           (SELECT count(*)::int FROM "FactAuthorityConflict" WHERE NOT public.valid_authority_conflict(id)) +
           (SELECT count(*)::int FROM (SELECT "factId" FROM "FactAuthorityConflict" GROUP BY "factId" HAVING count(*)<>max(revision)) drift) +
@@ -247,27 +261,35 @@ async function restoreArchive(
           )) +
           (SELECT count(*)::int FROM "MilestoneConsistencyAssessment" a WHERE a."reconciliationCheckId" IS NOT NULL AND NOT EXISTS (
             SELECT 1 FROM "MilestoneReconciliationCheck" c WHERE c.id=a."reconciliationCheckId" AND c."assessmentId"=a.id AND c."customerId"=a."customerId" AND c."projectId"=a."projectId"
-          )) AS invalid`)
-        ).rows[0].invalid;
-        if (authorityIntegrity !== 0)
-          throw new Error("Restored authority integrity failed");
-        diagnostic.enter("sessions_before_commit");
-        await assertRestoreCommitQuiescence(client, (category, observation) => {
-          diagnostic.enter(({
-            other_sessions: "sessions_before_commit_other_sessions",
-            query_failed: "sessions_before_commit_query_failed",
-            invalid_result: "sessions_before_commit_invalid_result",
-          } as const)[category]);
-          if (category === "other_sessions") diagnostic.observeSessions(observation);
-        });
-        diagnostic.enter("commit");
-        await client.query("COMMIT");
-      } catch {
-        diagnostic.failed();
-        await client.query("ROLLBACK");
-        throw new Error(
-          "Restored ownership or integrity validation failed; target remains quarantined",
-        );
+            )) AS invalid`)
+          ).rows[0].invalid;
+          if (authorityIntegrity !== 0)
+            throw new Error("Restored authority integrity failed");
+          await checkQuiescence();
+          diagnostic.enter("commit");
+          await client.query("COMMIT");
+          return true;
+        } catch (error) {
+          const retry = allowMaintenanceRetry && error instanceof RestoreAutovacuumBusy;
+          if (!retry) diagnostic.failed();
+          try {
+            await client.query("ROLLBACK");
+          } catch (rollbackError) {
+            diagnostic.failed();
+            throw rollbackError;
+          }
+          if (retry) return false;
+          // Driver errors may contain private connection details.
+          // eslint-disable-next-line preserve-caught-error
+          throw new Error(validationFailure);
+        }
+      };
+      if (!await validateAndCommit(true)) {
+        // Release validation locks before waiting again. The import and the
+        // CONNECT fence were committed separately and remain in place.
+        try { await checkQuiescence(); }
+        catch { throw new Error(validationFailure); }
+        await validateAndCommit(false);
       }
       diagnostic.enter("quarantine_verification");
       for (const role of ["pdaa_api", "pdaa_worker"]) {

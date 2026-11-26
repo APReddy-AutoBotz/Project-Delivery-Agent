@@ -4,7 +4,7 @@ import { restoreFailureDetails, restoreFailurePhase } from "../scripts/acceptanc
 
 // Failure-control tests only: no real database, archive or filesystem target.
 const f = vi.hoisted(() => {
-  const state = { fault: "", cleanupFault: "", sessionChecks: 0, finalGateCallAt: -1 };
+  const state = { fault: "", cleanupFault: "", sessionChecks: 0, finalGateCallAt: -1, imports: 0 };
   const fail = (phase: string) => {
     if (state.fault === phase || state.cleanupFault === phase)
       throw new Error("Private error details must not be logged");
@@ -24,7 +24,7 @@ const f = vi.hoisted(() => {
       fail("connection_cleanup");
     }),
   };
-  return { state, fail, client };
+  return { state, fail, client, RestoreAutovacuumBusy: class extends Error {} };
 });
 vi.mock("node:fs", () => ({
   mkdtempSync: () => "/tmp/synthetic-restore-no-files",
@@ -37,9 +37,19 @@ vi.mock("../packages/operations/src/config.js", () => ({
   assertPostgres17: async () => {},
   assertEmptyTarget: async () => {},
   assertNoOtherSessions: async () => { f.state.sessionChecks++; },
+  RestoreAutovacuumBusy: f.RestoreAutovacuumBusy,
   assertRestoreCommitQuiescence: async (_client: unknown, report: (category: string, observation?: unknown) => void) => {
     f.state.sessionChecks++;
     f.state.finalGateCallAt = f.client.query.mock.calls.length;
+    if (f.state.fault.startsWith("maintenance_") && (f.state.sessionChecks === 3 ||
+        (f.state.fault === "maintenance_again" && f.state.sessionChecks === 5))) {
+      report("other_sessions", { count: "one", client: "no", nonclient: "yes", null_type: "no", backend_kind: "autovacuum_worker" });
+      throw new f.RestoreAutovacuumBusy("Private maintenance error");
+    }
+    if (f.state.fault === "maintenance_client" && f.state.sessionChecks === 4) {
+      report("other_sessions", { count: "one", client: "yes", nonclient: "no", null_type: "no" });
+      throw new Error("Private session-check error");
+    }
     if (f.state.sessionChecks !== 3) return;
     const categories: Record<string, string> = {
       sessions_before_commit_other_sessions: "other_sessions",
@@ -84,11 +94,22 @@ vi.mock("../packages/operations/src/archive.js", () => ({
   },
 }));
 vi.mock("../packages/operations/src/backup.js", () => ({
-  postgresTool: () => ({
-    child: { stdout: { resume: () => {} } },
-    completed: Promise.resolve().then(() => f.fail("postgres_restore")),
-  }),
+  postgresTool: () => {
+    f.state.imports++;
+    return {
+      child: { stdout: { resume: () => {} } },
+      completed: Promise.resolve().then(() => f.fail("postgres_restore")),
+    };
+  },
 }));
+
+function restoreFixture() {
+  return restore({
+    customerId: "synthetic",
+    database: { database: "synthetic_target", host: "same", port: 5432 },
+  } as never, [], "synthetic", "archive.pdaa", Buffer.alloc(32));
+}
+
 it.each([
   ["archive_authentication", ""],
   ["postgres_restore", ""],
@@ -115,22 +136,7 @@ it.each([
     f.client.end.mockClear();
     const output = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      await expect(
-        restore(
-          {
-            customerId: "synthetic",
-            database: {
-              database: "synthetic_target",
-              host: "same",
-              port: 5432,
-            },
-          } as never,
-          [],
-          "synthetic",
-          "archive.pdaa",
-          Buffer.alloc(32),
-        ),
-      ).rejects.toThrow();
+      await expect(restoreFixture()).rejects.toThrow();
       expect(output).toHaveBeenCalledTimes(1);
       const line = output.mock.calls[0]![0];
       expect(line).not.toContain("Private error details");
@@ -153,17 +159,36 @@ it("DEP-002: a successful final session gate is followed directly by commit and 
   f.state.sessionChecks = 0;
   f.state.finalGateCallAt = -1;
   f.client.query.mockClear();
-  await expect(restore(
-    {
-      customerId: "synthetic",
-      database: { database: "synthetic_target", host: "same", port: 5432 },
-    } as never,
-    [],
-    "synthetic",
-    "archive.pdaa",
-    Buffer.alloc(32),
-  )).resolves.toMatchObject({ quarantine: true, applicationStarted: false });
+  await expect(restoreFixture()).resolves.toMatchObject({ quarantine: true, applicationStarted: false });
   expect(f.state.sessionChecks).toBe(3);
   expect(f.client.query.mock.calls[f.state.finalGateCallAt]).toEqual(["COMMIT"]);
   expect(f.client.query).not.toHaveBeenCalledWith("ROLLBACK");
+});
+
+it.each([
+  ["maintenance_settled", ["BEGIN", "ROLLBACK", "BEGIN", "COMMIT"], 5],
+  ["maintenance_client", ["BEGIN", "ROLLBACK"], 4],
+  ["maintenance_again", ["BEGIN", "ROLLBACK", "BEGIN", "ROLLBACK"], 5],
+] as const)("DEP-002: an autovacuum timeout permits one fenced validation retry (%s)", async (fault, commands, checks) => {
+  f.state.fault = fault;
+  f.state.cleanupFault = "";
+  f.state.sessionChecks = 0;
+  f.state.imports = 0;
+  f.client.query.mockClear();
+  const output = vi.spyOn(console, "log").mockImplementation(() => {});
+  try {
+    if (fault === "maintenance_settled") {
+      await expect(restoreFixture()).resolves.toMatchObject({ quarantine: true, applicationStarted: false });
+      expect(output).not.toHaveBeenCalled();
+      expect(f.client.query.mock.calls[f.state.finalGateCallAt]).toEqual(["COMMIT"]);
+    } else {
+      await expect(restoreFixture()).rejects.toThrow();
+      expect(restoreFailurePhase(Buffer.from(output.mock.calls[0]![0]))).toBe("sessions_before_commit_other_sessions");
+    }
+    expect(f.state.sessionChecks).toBe(checks);
+    expect(f.state.imports).toBe(1);
+    expect(f.client.query.mock.calls.map(([sql]) => sql).filter((sql) =>
+      ["BEGIN", "ROLLBACK", "COMMIT"].includes(sql))).toEqual(commands);
+    expect(f.client.query.mock.calls.filter(([sql]) => sql.startsWith("DO $$"))).toHaveLength(commands.filter((sql) => sql === "BEGIN").length);
+  } finally { output.mockRestore(); }
 });

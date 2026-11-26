@@ -396,6 +396,10 @@ release metadata, rejects existing target objects, revokes PUBLIC/API/worker CON
 and checks for surviving sessions. It never terminates another client's session.
 Restoration uses one pg_restore transaction, repairs table/function/type ownership
 and grants, verifies customer/history, and keeps application connections denied.
+If a single PostgreSQL autovacuum worker remains after the bounded final wait,
+restore rolls back ownership and integrity validation, waits for zero other
+sessions and retries that validation once. The already restored archive stays
+in place under quarantine. Commit still requires a fresh zero-session check.
 Any failure after quarantine leaves the target quarantined. Inspect and replace
 only that failed drill target through the DBA process; never reset the source.
 Provision/migrate cannot remove restore quarantine.

@@ -191,12 +191,19 @@ const restoreSessionPollMs = 250;
 const restoreSessionWaitMs = 1500;
 const restoreSessionProbeLimit = 7;
 
+export class RestoreAutovacuumBusy extends Error {}
+
+function rejectRestoreAutovacuum(failure: Extract<SessionCheckProblem, { category: "other_sessions" }>,
+  onFailure: SessionCheckReporter): never {
+  return rejectSessions({ ...failure, error: new RestoreAutovacuumBusy(failure.error.message) }, onFailure);
+}
+
 export async function assertRestoreCommitQuiescence(
   client: Client,
   onFailure: SessionCheckReporter,
 ) {
   let deadline = 0;
-  let previous: SessionCheckProblem | undefined;
+  let previous: Extract<SessionCheckProblem, { category: "other_sessions" }> | undefined;
   for (let probe = 1; ; probe += 1) {
     try {
       // Activity can be cached for the entire ownership/integrity transaction.
@@ -204,7 +211,7 @@ export async function assertRestoreCommitQuiescence(
     } catch (error) {
       rejectSessions({ category: "query_failed", error }, onFailure);
     }
-    if (previous && performance.now() > deadline) rejectSessions(previous, onFailure);
+    if (previous && performance.now() > deadline) rejectRestoreAutovacuum(previous, onFailure);
     const failure = await checkOtherSessions(client, true);
     if (!failure) return;
     const settling =
@@ -219,9 +226,9 @@ export async function assertRestoreCommitQuiescence(
     if (
       probe >= restoreSessionProbeLimit ||
       performance.now() + restoreSessionPollMs > deadline
-    ) rejectSessions(failure, onFailure);
+    ) rejectRestoreAutovacuum(failure, onFailure);
     await new Promise<void>((resolve) => setTimeout(resolve, restoreSessionPollMs));
-    if (performance.now() > deadline) rejectSessions(failure, onFailure);
+    if (performance.now() > deadline) rejectRestoreAutovacuum(failure, onFailure);
     previous = failure;
   }
 }
