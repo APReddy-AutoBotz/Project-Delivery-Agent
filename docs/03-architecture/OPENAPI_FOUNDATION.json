@@ -53329,7 +53329,8 @@
                     "rankPolicyRevision": {
                       "type": "string",
                       "enum": [
-                        "pm-review-order@1"
+                        "pm-review-order@1",
+                        "pm-review-order@2"
                       ]
                     },
                     "coverage": {
@@ -53350,7 +53351,8 @@
                         "approvals": {
                           "type": "string",
                           "enum": [
-                            "UNAVAILABLE"
+                            "UNAVAILABLE",
+                            "ATLAS_DEMO_ONLY"
                           ]
                         },
                         "blockerAge": {
@@ -56969,6 +56971,33 @@
                                 "additionalProperties": false
                               }
                             ]
+                          },
+                          "pendingAtlasApproval": {
+                            "type": "object",
+                            "properties": {
+                              "approvalId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "target": {
+                                "type": "string",
+                                "enum": [
+                                  "ATLAS-248"
+                                ]
+                              },
+                              "expiresAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              }
+                            },
+                            "required": [
+                              "approvalId",
+                              "target",
+                              "expiresAt"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -57020,6 +57049,7 @@
                               "category": {
                                 "type": "string",
                                 "enum": [
+                                  "APPROVAL",
                                   "UPDATE_FOLLOW_UP",
                                   "RECONCILIATION",
                                   "SCHEDULE_REVIEW",
@@ -57074,6 +57104,55 @@
                                 "type": "string",
                                 "enum": [
                                   "UPDATE_FOLLOW_UP"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "projectId",
+                              "facet",
+                              "index",
+                              "key",
+                              "priority",
+                              "category"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "projectId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "facet": {
+                                "type": "string",
+                                "enum": [
+                                  "ATLAS_APPROVAL"
+                                ]
+                              },
+                              "index": {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              },
+                              "key": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "priority": {
+                                "type": "string",
+                                "enum": [
+                                  "HIGH"
+                                ]
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "APPROVAL"
                                 ]
                               }
                             },

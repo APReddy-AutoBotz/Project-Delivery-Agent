@@ -60,6 +60,17 @@ describe("EXEC-026 PM queue composition", () => {
     expect(() => buildPmActionQueue([{ ...first, update: second.update }])).toThrow("Action queue unavailable");
     expect(() => buildPmActionQueue([{ ...first, schedule: { ...first.schedule, audience: "leadership" } }])).toThrow("Action queue unavailable");
   });
+  it("ranks one authorized Atlas approval with its own coverage and expiry", () => {
+    const approvalId = id(100), expiresAt = "2026-10-21T12:00:00.000Z";
+    const observationWithApproval = { ...observation(1, { update: true }),
+      pendingAtlasApproval: { approvalId, target: "ATLAS-248", expiresAt } };
+    const queue = buildPmActionQueue([observationWithApproval, observation(2)]);
+    expect(queue.coverage.approvals).toBe("ATLAS_DEMO_ONLY");
+    expect(queue.items[0]).toEqual({ projectId: id(1), facet: "ATLAS_APPROVAL", index: null,
+      key: approvalId, priority: "HIGH", category: "APPROVAL" });
+    expect(decodePmQueue(JSON.parse(JSON.stringify(queue)))).toEqual(queue);
+    expect(() => decodePmQueue({ ...queue, rankPolicyRevision: "pm-review-order@1" })).toThrow("Invalid action queue presentation");
+  });
   it("does not accept fabricated pointers or ranking", () => {
     const result = buildPmActionQueue([observation(1, { update: true })]);
     expect(pmActionQueueSchema.safeParse({ ...result, items: result.items.toReversed() }).success).toBe(false);

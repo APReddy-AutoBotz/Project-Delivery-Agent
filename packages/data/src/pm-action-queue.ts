@@ -1,4 +1,4 @@
-import { buildPmActionQueue, PmActionQueueError, projectFactIdSchema,
+import { atlasApprovalProjectCode, buildPmActionQueue, PmActionQueueError, ProjectUpdateError, projectFactIdSchema,
   type Actor, type PmActionQueue, type PmActionQueueRepository } from "@pdaa/domain";
 import type { Prisma, PrismaClient as Database } from "./generated/prisma/client.js";
 import { actorInput } from "./fact-authorization.js";
@@ -20,7 +20,7 @@ const discoverSql = `SELECT p.id FROM public."Project" p
 export class DatabasePmActionQueueRepository implements PmActionQueueRepository {
   private readonly health: DatabaseHealthAssessmentRepository;
   private readonly updates: DatabaseProjectUpdateRepository;
-  constructor(private readonly db: Database) {
+  constructor(private readonly db: Database, private readonly atlasApprovals?: Pick<DatabaseProjectUpdateRepository, "atlasApproval">) {
     this.health = new DatabaseHealthAssessmentRepository(db);
     this.updates = new DatabaseProjectUpdateRepository(db);
   }
@@ -40,7 +40,7 @@ export class DatabasePmActionQueueRepository implements PmActionQueueRepository 
     catch { throw new PmActionQueueError("DENIED"); }
     if (!actor.roles.includes("project_manager")) throw new PmActionQueueError("DENIED");
     try {
-      return await this.db.$transaction(async (tx) => {
+      const observed = await this.db.$transaction(async (tx) => {
         await tx.$executeRawUnsafe("SET LOCAL statement_timeout='8s'");
         await tx.$executeRawUnsafe("SET LOCAL lock_timeout='3s'");
         const ids = await this.discover(tx, actor);
@@ -52,9 +52,10 @@ export class DatabasePmActionQueueRepository implements PmActionQueueRepository 
           if (rows.length !== 1 || rows[0]!.id !== id) throw new PmActionQueueError("UNAVAILABLE");
         }
         const authorized: { id: string; name: string }[] = [];
+        let atlasProjectId: string | undefined;
         for (const id of ids) {
-          const rows = await tx.$queryRawUnsafe<{ name: string; portfolioId: string }[]>(
-            'SELECT name,"portfolioId" FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid', actor.customerId, id);
+          const rows = await tx.$queryRawUnsafe<{ name: string; portfolioId: string; code: string }[]>(
+            'SELECT name,"portfolioId",code FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid', actor.customerId, id);
           const current = rows[0];
           if (!current || rows.length !== 1) throw new PmActionQueueError("UNAVAILABLE");
           // Lock the actual qualifying grant before either reader can fall back
@@ -71,6 +72,7 @@ export class DatabasePmActionQueueRepository implements PmActionQueueRepository 
             actor.customerId, id, actor.subject);
           if (!grants.length || assignment.length !== 1) throw new PmActionQueueError("UNAVAILABLE");
           authorized.push({ id, name: current.name });
+          if (current.code === atlasApprovalProjectCode) atlasProjectId = id;
         }
         // The shared customer threshold gate precedes every schedule policy
         // gate, and all project and grant locks are acquired in ID order.
@@ -85,8 +87,18 @@ export class DatabasePmActionQueueRepository implements PmActionQueueRepository 
         }
         const final = await this.discover(tx, actor);
         if (JSON.stringify(ids) !== JSON.stringify(final)) throw new PmActionQueueError("UNAVAILABLE");
-        return buildPmActionQueue(projects);
+        return { projects, atlasProjectId };
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 20000 });
+      const { projects, atlasProjectId } = observed;
+      if (!atlasProjectId || !this.atlasApprovals) return buildPmActionQueue(projects);
+      const atlas = await this.atlasApprovals.atlasApproval(actor, atlasProjectId).catch((error: unknown) => {
+        if (error instanceof ProjectUpdateError && error.code === "DENIED") return null;
+        throw error;
+      });
+      if (atlas?.decision !== "PENDING") return buildPmActionQueue(projects);
+      const { approvalId, target, expiresAt } = atlas;
+      return buildPmActionQueue(projects.map((project) => project.projectId === atlasProjectId
+        ? { ...project, pendingAtlasApproval: { approvalId, target, expiresAt } } : project));
     } catch { throw new PmActionQueueError("UNAVAILABLE"); }
   }
 }

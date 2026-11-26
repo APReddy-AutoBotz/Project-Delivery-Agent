@@ -84,7 +84,14 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.goto("/");
   await page.getByRole("button", { name: /Project manager/ }).click();
-  await page.getByRole("button", { name: /Atlas · Delivery approval/ }).click();
+  const queuePath = "/api/pm/action-queue";
+  const pendingQueue = await request.get(queuePath, { headers: managerHeaders });
+  expect(pendingQueue.status()).toBe(200);
+  expect((await pendingQueue.json()).items).toContainEqual({
+    projectId: fixture.projectId, facet: "ATLAS_APPROVAL", index: null, key: approvalId, priority: "HIGH", category: "APPROVAL",
+  });
+  expect((await request.get(queuePath, { headers: leaderHeaders })).status()).toBe(404);
+  await page.getByRole("button", { name: "Review Atlas comment" }).click();
   const approval = page.getByRole("region", { name: "Atlas demo approval" });
   await expect(approval).toContainText("ATLAS-248");
   await expect(approval).toContainText("No comment in the fixture.");
@@ -100,6 +107,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(approval).toContainText("Demo approval recorded.");
   await expect(approval).toContainText(editedComment);
   await expect(approveComment).toHaveCount(0);
+  const afterDecision = await request.get(queuePath, { headers: managerHeaders });
+  expect(afterDecision.status()).toBe(200);
+  expect((await afterDecision.json()).items).not.toContainEqual(expect.objectContaining({ key: approvalId }));
   await expect(proposedComment).toHaveCount(0);
   const persisted = await request.get(projectPath + "/atlas-approval", {
     headers: managerHeaders,
