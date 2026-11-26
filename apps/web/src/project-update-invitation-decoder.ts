@@ -169,7 +169,7 @@ function decodeAtlasLeadershipFacts(value: unknown, projectId: string): AtlasLea
 
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
-  const { integrationStart, jiraBlocker, pmEscalation, ...facts } = value;
+  const { integrationStart, jiraBlocker, pmEscalation, priorSnapshot, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer) return null;
   if (integrationStart !== null && (!answer.schedule || !object(integrationStart) ||
@@ -183,6 +183,12 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
       !instant(pmEscalation.capturedAt) || !instant(pmEscalation.availableUntil) ||
       Date.parse(pmEscalation.capturedAt) > Date.parse(answer.asOf) || Date.parse(pmEscalation.availableUntil) <= Date.parse(answer.asOf)))
     return null;
+  if (priorSnapshot !== undefined) {
+    if (!object(priorSnapshot) || !keys(priorSnapshot, ["id", "facts"]) || !uuid(priorSnapshot.id)) return null;
+    const prior = decodeAtlasLeadershipFacts(priorSnapshot.facts, projectId);
+    if (!prior?.schedule || !prior.ownerReply || !prior.receipt || Date.parse(prior.asOf) > Date.parse(answer.asOf) ||
+        Date.parse(prior.ownerReply.availableUntil) <= Date.parse(answer.asOf)) return null;
+  }
   return value as AtlasLeadershipAnswer;
 }
 

@@ -2,6 +2,8 @@
 
 ## Active implementation
 
+- [EXEC-052 Atlas snapshot comparison](EXEC-052-atlas-snapshot-comparison.md) — compare current Atlas facts with an authorized saved snapshot.
+
 - [EXEC-051: Atlas comment attempt recovery](EXEC-051-atlas-comment-attempt-recovery.md) — one durable synthetic comment attempt and exact receipt recovery.
 
 - [EXEC-050: Manual confirmation of a captured update](EXEC-050-manual-update-confirmation.md) — authorized manual status review through the existing evidence and cadence paths.

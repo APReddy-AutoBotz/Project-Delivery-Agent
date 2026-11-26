@@ -782,6 +782,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     { approvalId: project.id });
   await request(`/api/projects/${project.id}/atlas-delay-confirmation`, 200, manager, "POST", atlasDelayCommand);
   await request(`/api/projects/${project.id}/atlas-leadership-answer`, 200, leader);
+  await request(`/api/projects/${project.id}/atlas-leadership-answer?priorSnapshotId=${project.id}`, 200, leader);
   const atlasReport = `/api/projects/${project.id}/atlas-management-snapshot`;
   await request(atlasReport, 200, leader);
   await request(atlasReport, 200, leader, "POST", {});

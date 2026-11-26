@@ -2445,9 +2445,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     }
   }
 
-  async atlasLeadershipAnswer(actorValue: Actor, projectValue: string) {
+  async atlasLeadershipAnswer(actorValue: Actor, projectValue: string, priorSnapshotId?: string) {
     const current = this.atlasLeadershipActor(actorValue);
     const projectId = parseProjectId(projectValue);
+    const priorId = priorSnapshotId === undefined ? undefined : parseProjectId(priorSnapshotId);
     return this.transaction(async (tx) => {
       const { answer, approved } = await this.loadAtlasLeadershipAnswer(tx, current, projectId);
       const scope = { customerId: current.customerId, projectId };
@@ -2462,14 +2463,20 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         select: { id: true },
       });
       const escalation = approved && await this.atlasPmEscalation(tx, current, projectId, approved);
+      const prior = priorId ? await this.savedAtlasManagementSnapshot(tx, current.customerId, projectId, current.subject, priorId) : null;
+      if (priorId && !prior) throw new ProjectUpdateError("DENIED");
+      if (prior) await this.authorizeAtlasReportOrigin(tx, current, prior, "leadership");
       const asOf = iso(await this.now(tx));
-      if (answer.ownerReply && answer.ownerReply.availableUntil <= asOf) throw new ProjectUpdateError("DENIED");
+      if ((answer.ownerReply && answer.ownerReply.availableUntil <= asOf) ||
+          (prior && (prior.facts.ownerReply.availableUntil <= asOf || prior.facts.asOf > asOf)))
+        throw new ProjectUpdateError("DENIED");
       return atlasLeadershipAnswerSchema.parse({ ...answer, asOf,
         integrationStart: milestone?.plannedStart && milestone.actualStart && milestone.actualStart > milestone.plannedStart
           ? { milestoneId: milestone.id, planned: iso(milestone.plannedStart).slice(0, 10),
             actual: iso(milestone.actualStart).slice(0, 10) } : null,
         jiraBlocker: blocker ? { mappingId: blocker.id, issueKey: atlasJiraBlockerKey } : null,
         pmEscalation: escalation && escalation.availableUntil > asOf ? escalation : null,
+        priorSnapshot: prior ? { id: prior.id, facts: prior.facts } : undefined,
       });
     }, "ReadCommitted");
   }

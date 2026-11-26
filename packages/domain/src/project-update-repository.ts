@@ -32,7 +32,7 @@ export interface ProjectUpdateRepository {
   decideAtlasApproval(actor: Actor, projectId: string, decision: unknown, correlationId: string): Promise<AtlasApprovalView>;
   recordAtlasComment(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasCommentReceipt>;
   confirmAtlasDelay(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasDelayAssessment>;
-  atlasLeadershipAnswer(actor: Actor, projectId: string): Promise<AtlasLeadershipAnswer>;
+  atlasLeadershipAnswer(actor: Actor, projectId: string, priorSnapshotId?: string): Promise<AtlasLeadershipAnswer>;
   atlasManagementSnapshot(actor: Actor, projectId: string, snapshotId?: string): Promise<AtlasManagementSnapshot | null>;
   createAtlasManagementSnapshot(actor: Actor, projectId: string, correlationId: string): Promise<AtlasManagementSnapshot>;
   requestAtlasReportApproval(actor: Actor, projectId: string, request: unknown, correlationId: string): Promise<AtlasManagementSnapshot>;

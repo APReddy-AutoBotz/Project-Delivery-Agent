@@ -147,9 +147,10 @@ export class ProjectUpdateController {
   }
 
   @Get("atlas-leadership-answer")
-  async atlasLeadershipAnswer(@Req() req: Request, @Param("id") rawId: string) {
+  async atlasLeadershipAnswer(@Req() req: Request, @Param("id") rawId: string, @Query("priorSnapshotId") priorSnapshotId?: string) {
     const actor = await this.actor(req);
-    return this.run(() => this.repository.atlasLeadershipAnswer(actor, this.projectId(rawId)));
+    if (!z.uuid().optional().safeParse(priorSnapshotId).success) throw new HttpException("", 400);
+    return this.run(() => this.repository.atlasLeadershipAnswer(actor, this.projectId(rawId), priorSnapshotId));
   }
 
   @Get("atlas-management-snapshot")

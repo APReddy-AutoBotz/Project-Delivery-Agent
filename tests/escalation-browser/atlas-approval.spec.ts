@@ -456,8 +456,32 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(delivered.status()).toBe(200);
   expect(await delivered.json()).toMatchObject({ snapshot: finalReport, highlights, distribution: delivery });
 
+  const comparePath = `${answerPath}?priorSnapshotId=${snapshot.id}`;
+  const compared = await request.get(comparePath, { headers: leaderHeaders });
+  expect(compared.status()).toBe(200);
+  expect(await compared.json()).toMatchObject({
+    ownerReply: { accessStatus: "ACCESS_RESTORED" }, receipt: { fixtureRevision: 3 },
+    priorSnapshot: { id: snapshot.id, facts: {
+      asOf: snapshot.asOf, ownerReply: { accessStatus: "ACCESS_PENDING" }, receipt: { fixtureRevision: 1 },
+    } },
+  });
+  expect((await request.get(comparePath, { headers: managerHeaders })).status()).toBe(404);
+  expect((await request.get(`${answerPath}?priorSnapshotId=${randomUUID()}`, { headers: leaderHeaders })).status()).toBe(404);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto("/");
+  await page.getByRole("button", { name: /Leadership/ }).click();
+  await page.getByRole("button", { name: /Atlas · Delivery approval/ }).click();
+  await page.getByLabel("Saved snapshot ID").fill(snapshot.id);
+  await page.getByRole("button", { name: "Compare with current facts" }).click();
+  const changes = page.getByRole("region", { name: "Changes since the saved snapshot" });
+  const access = changes.getByRole("row").filter({ hasText: "Owner-confirmed API access" });
+  await expect(access.getByRole("cell", { name: "Pending" })).toBeVisible();
+  await expect(access.getByRole("cell", { name: "Restored" })).toBeVisible();
+  await expect(changes).toContainText(snapshot.id);
+
   await leaderAccess(false);
   expect((await request.get(answerPath, { headers: leaderHeaders })).status()).toBe(404);
+  expect((await request.get(comparePath, { headers: leaderHeaders })).status()).toBe(404);
   expect((await request.get(reportPath, { headers: leaderHeaders })).status()).toBe(404);
   expect((await request.get(finalPath, { headers: leaderHeaders })).status()).toBe(404);
   expect((await request.get(distributionPath, { headers: leaderHeaders })).status()).toBe(404);

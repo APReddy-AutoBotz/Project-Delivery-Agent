@@ -1,28 +1,63 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { AtlasLeadershipAnswer as Answer, AtlasLeadershipFacts } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
 import { decodeAtlasLeadershipAnswer } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
 import { AtlasManagementSnapshot } from "./atlas-management-snapshot.js";
 
+const snapshotIdFormat = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
+
+function AtlasSnapshotChanges({ current, prior }: { current: AtlasLeadershipFacts; prior: NonNullable<Answer["priorSnapshot"]> }) {
+  const previous = prior.facts;
+  const access = (facts: AtlasLeadershipFacts) => facts.ownerReply?.accessStatus === "ACCESS_PENDING" ? "Pending"
+    : facts.ownerReply?.accessStatus === "ACCESS_RESTORED" ? "Restored" : "Unavailable";
+  const action = (facts: AtlasLeadershipFacts) => facts.receipt ? `Fixture revision ${facts.receipt.fixtureRevision}` : "Unavailable";
+  const cause = (facts: AtlasLeadershipFacts) => facts.delayAssessment ? "API access delay" : "Unknown";
+  const confidence = (facts: AtlasLeadershipFacts) => facts.delayAssessment?.confidence.toLowerCase() ?? "unknown";
+  const changes = [
+    ["Baseline date", previous.schedule?.baseline, current.schedule?.baseline],
+    ["Forecast date", previous.schedule?.forecast, current.schedule?.forecast],
+    ["Owner-confirmed API access", access(previous), access(current)],
+    ["Simulated Jira action", action(previous), action(current)],
+    ["PM-confirmed cause", cause(previous), cause(current)],
+    ["PM forecast confidence", confidence(previous), confidence(current)],
+  ].filter(([, before, after]) => (before ?? null) !== (after ?? null));
+  return <section aria-label="Changes since the saved snapshot">
+    <h3>Changes since the saved snapshot</h3>
+    <p>Prior snapshot {prior.id} at {previous.asOf}. Current evidence checked at {current.asOf}.</p>
+    {changes.length ? <table>
+      <thead><tr><th scope="col">Fact</th><th scope="col">Saved snapshot</th><th scope="col">Current</th></tr></thead>
+      <tbody>{changes.map(([label, before, after]) => <tr key={label}>
+        <th scope="row">{label}</th><td>{before ?? "Unavailable"}</td><td>{after ?? "Unavailable"}</td>
+      </tr>)}</tbody>
+    </table> : <p>No changes to the compared fields.</p>}
+    <p>Prior evidence includes schedule revision {previous.schedule?.revision}, owner reply {previous.ownerReply?.responseId}
+      {" "}and comment receipt {previous.receipt?.id}{previous.delayAssessment ? `, with PM assessment ${previous.delayAssessment.id}` : ""}.</p>
+  </section>;
+}
+
 export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: {
   projectId: string; scope: string; request: RequestFn; isCurrent: () => boolean;
 }) {
   const [asked, setAsked] = useState(false);
+  const [snapshotInput, setSnapshotInput] = useState("");
+  const [priorSnapshotId, setPriorSnapshotId] = useState<string | null>(null);
+  const candidateSnapshotId = snapshotInput.trim().toLowerCase();
   const query = useQuery({
-    queryKey: ["atlas-leadership-answer", projectId, scope],
+    queryKey: ["atlas-leadership-answer", projectId, scope, priorSnapshotId],
     enabled: asked && isCurrent(), retry: false, refetchOnWindowFocus: "always",
     queryFn: async () => {
-      const data = decodeAtlasLeadershipAnswer(await request(`/projects/${projectId}/atlas-leadership-answer`, undefined, 4096), projectId);
-      if (!data) throw new Error("Atlas leadership answer unavailable");
+      const comparison = priorSnapshotId ? `?priorSnapshotId=${encodeURIComponent(priorSnapshotId)}` : "";
+      const data = decodeAtlasLeadershipAnswer(await request(`/projects/${projectId}/atlas-leadership-answer${comparison}`, undefined, 8192), projectId);
+      if (!data || (data.priorSnapshot?.id ?? null) !== priorSnapshotId) throw new Error("Atlas leadership answer unavailable");
       return data;
     },
   });
   const refresh = query.refetch;
   const answer = asked && isCurrent() && query.isSuccess && !query.isFetching ? query.data : null;
-  const ownerExpiry = answer?.ownerReply?.availableUntil;
-  const escalationExpiry = answer?.pmEscalation?.availableUntil;
-  const expiry = ownerExpiry && escalationExpiry && escalationExpiry < ownerExpiry ? escalationExpiry : ownerExpiry;
+  const expiry = [answer?.ownerReply?.availableUntil, answer?.pmEscalation?.availableUntil,
+    answer?.priorSnapshot?.facts.ownerReply?.availableUntil].filter((date): date is string => Boolean(date)).sort()[0];
   useEffect(() => {
     if (!expiry) return;
     const delay = Date.parse(expiry) - Date.now();
@@ -38,6 +73,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const blocker = answer?.jiraBlocker;
   const escalation = reply && answer?.pmEscalation && Date.parse(answer.pmEscalation.availableUntil) > Date.now()
     ? answer.pmEscalation : null;
+  const prior = answer?.priorSnapshot;
   const scheduleRef = `atlas-schedule-${projectId}`;
   const integrationRef = `atlas-integration-${projectId}`;
   const blockerRef = `atlas-blocker-${projectId}`;
@@ -53,9 +89,21 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   return <><section className="panel" aria-label="Atlas leadership answer">
     <h2>Atlas delivery question</h2>
     <Button className="secondary" disabled={query.isFetching || !isCurrent()} onClick={() => {
-      if (asked) void refresh();
-      else setAsked(true);
+      if (asked && !priorSnapshotId) void refresh();
+      else { setAsked(true); setPriorSnapshotId(null); }
     }}>Why is Atlas delayed?</Button>
+    <form onSubmit={(event) => {
+      event.preventDefault();
+      if (!isCurrent() || query.isFetching || !snapshotIdFormat.test(candidateSnapshotId)) return;
+      if (priorSnapshotId === candidateSnapshotId) void refresh();
+      else { setAsked(true); setPriorSnapshotId(candidateSnapshotId); }
+    }}>
+      <label className="field"><span>Saved snapshot ID</span>
+        <input value={snapshotInput} maxLength={36} onChange={(event) => setSnapshotInput(event.currentTarget.value)} />
+      </label>
+      <Button className="secondary" type="submit"
+        disabled={!snapshotIdFormat.test(candidateSnapshotId) || query.isFetching || !isCurrent()}>Compare with current facts</Button>
+    </form>
     {asked && query.isFetching && <p role="status">Checking Atlas evidence…</p>}
     {asked && query.isError && <Message error>The Atlas answer is unavailable.</Message>}
     {answer && <div aria-live="polite">
@@ -74,6 +122,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         ? <p>The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as {assessment.confidence.toLowerCase()}.{" "}
           <a href={`#${assessmentRef}`}>PM assessment evidence</a></p>
         : <p>The verified cause of the schedule change and confidence in the forecast remain unknown.</p>}
+      {prior?.facts.ownerReply && Date.parse(prior.facts.ownerReply.availableUntil) > Date.now() &&
+        <AtlasSnapshotChanges current={{ ...answer, ownerReply: reply, receipt: receipt ?? null, delayAssessment: assessment ?? null }} prior={prior} />}
       <h3>Evidence</h3>
       <p>Checked at {answer.asOf}.</p>
       <ul>
