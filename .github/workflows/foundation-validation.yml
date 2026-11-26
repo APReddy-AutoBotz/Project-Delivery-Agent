@@ -51,7 +51,28 @@ jobs:
           name: xlsx-customer-bridge-evidence
           path: artifacts/xlsx-customer-bridge.json
           if-no-files-found: error
-  verify:
+  code-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm setup:local
+      - run: pnpm build
+      - run: pnpm check:architecture && pnpm check:contracts
+      - run: pnpm typecheck && pnpm test
+      - run: node scripts/check-dependencies.mjs
+      - name: Mandatory dependency audit
+        if: always()
+        run: pnpm audit --audit-level high
+  database-and-browser:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -66,9 +87,6 @@ jobs:
       - run: pnpm setup:local
       - run: docker compose up -d --wait
       - run: pnpm build
-      - run: pnpm check:architecture && pnpm check:contracts
-      - run: pnpm lint && pnpm typecheck && pnpm test
-      - run: node scripts/check-dependencies.mjs
       - name: Fresh role-absent and partial-role migration bootstrap
         run: node scripts/local.mjs scripts/test-ingestion-role-bootstrap.mjs
       - run: pnpm db:migrate && pnpm db:seed
@@ -132,11 +150,19 @@ jobs:
           name: milestone-reconciliation-browser
           path: artifacts/reconciliation-native-pm-proof.png
           if-no-files-found: error
-      - name: Mandatory dependency audit
-        if: always()
-        run: pnpm audit --audit-level high
       - if: always()
         run: docker compose down
+  verify:
+    needs: [code-checks, database-and-browser]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require code, database and browser checks
+        env:
+          CODE_RESULT: ${{ needs.code-checks.result }}
+          DATABASE_AND_BROWSER_RESULT: ${{ needs.database-and-browser.result }}
+        run: test "$CODE_RESULT" = success && test "$DATABASE_AND_BROWSER_RESULT" = success
   production-boundary:
     runs-on: ubuntu-latest
     timeout-minutes: 55

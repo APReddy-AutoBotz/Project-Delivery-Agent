@@ -79,9 +79,12 @@ acceptance evidence and resolve demonstrated gaps as part of the feature PR.
   PR where the approved decision process allows it. Link verified runs from
   the existing ledger and reconcile GitHub checklists with that evidence.
   The first CI change cancels superseded Foundation runs for the same PR.
-  Keep a separate run for each push to main. Next, move fast feedback into
-  its own job and review a docs-only validation path against AC-MNT-002
-  and ADR-014 before routing any change around Foundation validation.
+  Keep a separate run for each push to main. Run code checks independently of
+  the database and browser work so a lint, type, build, contract or unit
+  failure reports earlier. The existing `verify` check requires both jobs to
+  succeed. Packaged acceptance and distribution evidence retain their
+  existing jobs. Review any future docs-only path against AC-MNT-002 and
+  ADR-014.
 - Measure median time to useful PR feedback and the time from ready for review
   to merge. On 24 recent Foundation runs, the 19 successful runs took a median
   of 28.7 minutes. The main run at `8a5ab52` took 28 minutes 43 seconds.
