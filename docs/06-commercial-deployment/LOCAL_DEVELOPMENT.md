@@ -35,12 +35,13 @@ the `.env`, test traces or credential-bearing environment dumps.
 ## Atlas approval demo
 
 With the local PostgreSQL composition running and `pnpm build` complete, run
-`node scripts/local.mjs scripts/test-escalation-browser.mjs --serve-atlas`.
+`pnpm demo:atlas`.
 The harness creates a disposable synthetic database and prints the owner's
 invitation URL on port 5174. Sign in as the Atlas contributor and record a
 reply. Confirm the API access status. Sign out, open the app home page, and
-sign in as the project manager. Open **Atlas · Delivery approval** to review
-the ATLAS-248 comment. Edit the proposed text if needed, then record the demo decision. After approval, select
+sign in as the project manager. Select **Review Atlas comment** in the action
+queue to review the ATLAS-248 comment. Edit the proposed text if needed, then
+record the demo decision. After approval, select
 **Record simulated comment** to see the receipt and fixture revision. Choose
 a forecast confidence and select **Confirm API access caused the delay** to
 record the PM assessment. Sign out, then sign in as Leadership to ask
