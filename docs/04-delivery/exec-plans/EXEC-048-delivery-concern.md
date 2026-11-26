@@ -1,11 +1,11 @@
 # EXEC-048: Delivery concern and PM review
 
-Status: In Progress
+Status: Implementation merged, with software acceptance recorded separately
 Owner: Implementation controller
 Requirement IDs: FR-HLT-007, FR-HLT-008, FR-HLT-009, FR-MOD-006
 GitHub issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/8
 Target release: R1
-Last updated: 2026-11-23
+Last updated: 2026-11-26
 
 ## Objective
 
@@ -57,9 +57,13 @@ stay out of the delivery-concern result.
 ## Decisions and progress
 
 - 2026-11-23: Independent non-author review approved corrected design SHA256 `E0D2F0B6A935D643195AB28A74B1B5813BD23CB2D6089E0032EA92F4FE172E26`. The review required a matching scoped PMO grant, explicit inventory attestation, distinct closed and unknown states, whole-envelope access rechecks and compatible rollout.
-- 2026-11-23: Development added the separate concern calculation, revisioned policy, persistence, the project health UI and synthetic test cases. Exact-source review and hosted verification remain pending.
+- 2026-11-23: Development added the separate concern calculation, revisioned policy, persistence, the project health UI and synthetic test cases.
 - 2026-11-23: The same GOLDEN-002 browser assertions now drive the synthetic development stack and both packaged customer test profiles. The customer restore check compares the saved assessment, its receipt and the policy history against the original storage digest.
 
 ## Validation evidence and completion
 
-This plan records implementation and design progress. Software acceptance requires the complete browser/native scenario, exact-candidate and post-merge gates, and a verified evidence ledger.
+PR #188 merged as `55853cfe` with the independently reviewed implementation
+tree. Exact-head and post-merge Foundation and Documentation passed. The
+[STORY-015 acceptance record](../../05-quality/DELIVERY_SIGNAL_ACCEPTANCE.md#story-015-evidence)
+links the GOLDEN-002 browser evidence, matching packaged receipts for both
+database profiles and the previously accepted GOLDEN-003 reconciliation.
