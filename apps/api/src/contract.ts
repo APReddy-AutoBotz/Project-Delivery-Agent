@@ -88,6 +88,10 @@ import {
   atlasManagementPreviewSchema,
   atlasReportApprovalRequestSchema,
   atlasReportDecisionSchema,
+  atlasReportVersionSchema,
+  atlasReportDistributionReceiptSchema,
+  atlasReportReviewSchema,
+  atlasDistributedReportSchema,
   projectUpdateCaptureHistorySchema,
   projectUpdateCaptureGenerationSchema,
   ingestionReassessmentRetrySchema,
@@ -279,12 +283,20 @@ export const contracts: Record<string, RouteContract> = {
     parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
   },
   "get /api/projects/{id}/atlas-report-approval": {
-    status: 200, response: atlasManagementPreviewSchema.nullable(), parameters: { id: z.uuid() },
+    status: 200, response: atlasReportReviewSchema.nullable(), parameters: { id: z.uuid() },
     errors: [403, 404, 503],
   },
   "post /api/projects/{id}/atlas-report-approval": {
     status: 200, request: atlasReportDecisionSchema, response: atlasManagementPreviewSchema,
     parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
+  },
+  "post /api/projects/{id}/atlas-report-distribution": {
+    status: 200, request: atlasReportVersionSchema, response: atlasReportDistributionReceiptSchema,
+    parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
+  },
+  "get /api/projects/{id}/atlas-report-distribution": {
+    status: 200, response: atlasDistributedReportSchema.nullable(), parameters: { id: z.uuid() },
+    errors: [403, 404, 503],
   },
   "get /api/projects/{id}/project-update-capture-history": {
     status: 200, response: projectUpdateCaptureHistorySchema,

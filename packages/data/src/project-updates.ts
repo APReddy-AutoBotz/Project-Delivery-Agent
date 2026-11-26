@@ -14,6 +14,7 @@ import {
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
   atlasLeadershipAnswerSchema, atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
   atlasReportApprovalRequestSchema, atlasReportDecisionSchema,
+  atlasReportVersionSchema, atlasReportDistributionReceiptSchema, atlasReportRecipientSubject,
   suggestAtlasAccessStatus,
   type ProjectUpdateCaptureConfiguration, type ProjectUpdateRecipientRequestView,
   type ProjectUpdateResponseReceipt, type ProjectUpdateCaptureHistory,
@@ -66,6 +67,7 @@ const atlasCommentEvent = "atlas_demo.comment.recorded";
 const atlasManagementSnapshotEvent = "atlas_demo.management_snapshot.created";
 const atlasReportRequestedEvent = "atlas_demo.report_approval.requested";
 const atlasReportDecidedEvent = "atlas_demo.report_approval.decided";
+const atlasReportDistributedEvent = "atlas_demo.report.distributed";
 const atlasPayloadDigest = z.string().regex(/^[a-f0-9]{64}$/u);
 const storedAtlasConfirmation = atlasReplyConfirmationSchema.extend({
   projectId: z.uuid(), requestId: z.uuid(), approver: canonicalSubjectSchema,
@@ -92,9 +94,13 @@ const storedAtlasReportRequest = atlasReportApprovalRequestSchema.extend({
 const storedAtlasReportDecision = atlasReportDecisionSchema.extend({
   projectId: z.uuid(), captureIssuanceEpoch: z.uuid(),
 });
+const storedAtlasReportDistribution = atlasReportVersionSchema.extend({
+  projectId: z.uuid(), decisionId: z.uuid(), recipient: z.literal(atlasReportRecipientSubject), captureIssuanceEpoch: z.uuid(),
+});
 type StoredAtlasManagementSnapshot = z.infer<typeof storedAtlasManagementSnapshot> & { id: string };
 type AtlasReportSubmission = z.infer<typeof storedAtlasReportRequest> & { id: string; author: string };
-type AtlasReportDecision = Pick<z.infer<typeof storedAtlasReportDecision>, "decision"> & { decidedAt: string };
+type AtlasReportDecision = Pick<z.infer<typeof storedAtlasReportDecision>, "decision"> & { id: string; decidedAt: string };
+type AtlasReportDistribution = { id: string; actor: string; distributedAt: string; detail: z.infer<typeof storedAtlasReportDistribution> };
 
 type CaptureInvitationRow = {
   invitationId: string; requestId: string; recipientSubject: string; issuanceEpoch: string;
@@ -2105,14 +2111,39 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const saved = await tx.auditEvent.findFirst({
       where: { customerId, actor: submission.approver, event: atlasReportDecidedEvent,
         detail: { path: ["requestId"], equals: submission.id } },
-      select: { detail: true, occurredAt: true },
+      select: { id: true, detail: true, occurredAt: true },
     });
     if (!saved) return null;
     const decision = storedAtlasReportDecision.parse(saved.detail);
     if (decision.projectId !== submission.projectId || decision.snapshotId !== submission.snapshotId ||
         decision.captureIssuanceEpoch !== submission.captureIssuanceEpoch)
       throw new ProjectUpdateError("UNAVAILABLE");
-    return { decision: decision.decision, decidedAt: iso(saved.occurredAt) };
+    return { id: saved.id, decision: decision.decision, decidedAt: iso(saved.occurredAt) };
+  }
+
+  private async atlasReportDistribution(tx: Tx, customerId: string, projectId: string, snapshotId?: string): Promise<AtlasReportDistribution | null> {
+    const event = await tx.auditEvent.findFirst({
+      where: { customerId, event: atlasReportDistributedEvent, AND: [
+        { detail: { path: ["projectId"], equals: projectId } },
+        { detail: { path: ["recipient"], equals: atlasReportRecipientSubject } },
+        ...(snapshotId ? [{ detail: { path: ["snapshotId"], equals: snapshotId } }] : []),
+      ] },
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+      select: { id: true, actor: true, detail: true, occurredAt: true },
+    });
+    if (!event) return null;
+    return { id: event.id, actor: event.actor, distributedAt: iso(event.occurredAt),
+      detail: storedAtlasReportDistribution.parse(event.detail) };
+  }
+
+  private atlasDistributionReceipt(delivery: AtlasReportDistribution, submission: AtlasReportSubmission, decision: AtlasReportDecision | null) {
+    const { detail } = delivery;
+    if (decision?.decision !== "APPROVED" || delivery.actor !== submission.approver || detail.projectId !== submission.projectId ||
+        detail.requestId !== submission.id || detail.snapshotId !== submission.snapshotId || detail.decisionId !== decision.id ||
+        detail.captureIssuanceEpoch !== submission.captureIssuanceEpoch || delivery.distributedAt < decision.decidedAt)
+      throw new ProjectUpdateError("UNAVAILABLE");
+    return atlasReportDistributionReceiptSchema.parse({ id: delivery.id, distributedAt: delivery.distributedAt,
+      snapshotId: detail.snapshotId, requestId: detail.requestId, recipient: detail.recipient });
   }
 
   private atlasManagementView(saved: Pick<StoredAtlasManagementSnapshot, "id" | "facts">,
@@ -2227,7 +2258,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const projectId = parseProjectId(projectValue);
     return this.transaction(async (tx) => {
       const review = await this.loadAtlasReportReview(tx, current, projectId);
-      return review ? this.atlasManagementView(review.saved, review.submission, review.decision) : null;
+      if (!review) return null;
+      const { saved, submission, decision } = review;
+      const delivery = await this.atlasReportDistribution(tx, current.customerId, projectId, saved.id);
+      return { snapshot: this.atlasManagementView(saved, submission, decision),
+        distribution: delivery ? this.atlasDistributionReceipt(delivery, submission, decision) : null };
     }, "ReadCommitted");
   }
 
@@ -2246,7 +2281,53 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasReportDecidedEvent,
         { projectId, ...parsed.data });
       const event = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true } });
-      return this.atlasManagementView(review.saved, review.submission, { decision: parsed.data.decision, decidedAt: iso(event.occurredAt) });
+      return this.atlasManagementView(review.saved, review.submission, { id, decision: parsed.data.decision, decidedAt: iso(event.occurredAt) });
+    }, "ReadCommitted");
+  }
+
+  async distributeAtlasReport(actorValue: Actor, projectValue: string, value: unknown, correlationValue: string) {
+    const current = parseActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    const parsed = atlasReportVersionSchema.safeParse(value);
+    if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+    return this.transaction(async (tx) => {
+      const review = await this.loadAtlasReportReview(tx, current, projectId);
+      if (!review || review.saved.id !== parsed.data.snapshotId || review.submission.id !== parsed.data.requestId ||
+          review.decision?.decision !== "APPROVED") throw new ProjectUpdateError("CONFLICT");
+      const { saved, submission, decision } = review;
+      const recipient: Actor = { customerId: current.customerId, subject: atlasReportRecipientSubject, roles: ["leadership"] };
+      await this.authorize(tx, recipient, projectId, false);
+      await this.authorizeAtlasReportOrigin(tx, recipient, saved, "leadership");
+      const delivered = await this.atlasReportDistribution(tx, current.customerId, projectId, saved.id);
+      if (delivered) return this.atlasDistributionReceipt(delivered, submission, decision);
+
+      const detail: AtlasReportDistribution["detail"] = { ...parsed.data, projectId, decisionId: decision.id, recipient: atlasReportRecipientSubject,
+        captureIssuanceEpoch: saved.captureIssuanceEpoch };
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasReportDistributedEvent, detail);
+      const event = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true } });
+      return this.atlasDistributionReceipt({ id, actor: current.subject, distributedAt: iso(event.occurredAt), detail }, submission, decision);
+    }, "ReadCommitted");
+  }
+
+  async atlasDistributedReport(actorValue: Actor, projectValue: string) {
+    const current = this.atlasLeadershipActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    if (current.subject !== atlasReportRecipientSubject) throw new ProjectUpdateError("DENIED");
+    return this.transaction(async (tx) => {
+      await this.lockAtlasProject(tx, current, projectId);
+      await this.authorize(tx, current, projectId, false);
+      const delivery = await this.atlasReportDistribution(tx, current.customerId, projectId);
+      if (!delivery) return null;
+      const submission = await this.atlasReportSubmission(tx, current.customerId, projectId, delivery.detail.snapshotId);
+      if (!submission) throw new ProjectUpdateError("UNAVAILABLE");
+      const saved = await this.savedAtlasManagementSnapshot(tx, current.customerId, projectId, submission.author, submission.snapshotId);
+      if (!saved || submission.captureIssuanceEpoch !== saved.captureIssuanceEpoch)
+        throw new ProjectUpdateError("UNAVAILABLE");
+      await this.authorizeAtlasReportOrigin(tx, current, saved, "leadership");
+      const decision = await this.atlasReportDecision(tx, current.customerId, submission);
+      const distribution = this.atlasDistributionReceipt(delivery, submission, decision);
+      return { snapshot: this.atlasManagementView(saved, submission, decision), distribution };
     }, "ReadCommitted");
   }
 

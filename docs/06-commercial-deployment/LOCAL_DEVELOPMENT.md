@@ -51,6 +51,9 @@ Choose **Request final approval**, then sign in as the Atlas project manager.
 Open **Final report approval** and approve or reject the displayed snapshot.
 Sign in as Leadership again to view the decision and download the PowerPoint
 with the recorded approval status.
+From the PM screen, choose **Distribute to Atlas Leadership** after approval.
+The report and receipt appear under **Distributed report** for the Leadership
+persona. This local inbox uses the same approved PowerPoint.
 Stop the harness with Ctrl+C.
 
 ## Validation

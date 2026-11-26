@@ -89,9 +89,24 @@ export const atlasManagementOutputSchema = atlasManagementPreviewSchema.extend({
 });
 export type AtlasManagementOutput = z.infer<typeof atlasManagementOutputSchema>;
 export const atlasReportApprovalRequestSchema = z.strictObject({ snapshotId: z.uuid() });
-export const atlasReportDecisionSchema = atlasReportApprovalRequestSchema.extend({
+export const atlasReportVersionSchema = atlasReportApprovalRequestSchema.extend({
   requestId: z.uuid(),
+});
+export const atlasReportDecisionSchema = atlasReportVersionSchema.extend({
   decision: atlasApprovalDecisionSchema.shape.decision,
+});
+export const atlasReportRecipientSubject = "leader-atlas";
+export const atlasReportDistributionReceiptSchema = atlasReportVersionSchema.extend({
+  id: z.uuid(),
+  recipient: z.literal(atlasReportRecipientSubject),
+  distributedAt: z.iso.datetime(),
+});
+export type AtlasReportDistributionReceipt = z.infer<typeof atlasReportDistributionReceiptSchema>;
+export const atlasReportReviewSchema = atlasManagementPreviewSchema.extend({
+  distribution: atlasReportDistributionReceiptSchema.nullable(),
+});
+export const atlasDistributedReportSchema = atlasManagementOutputSchema.extend({
+  distribution: atlasReportDistributionReceiptSchema,
 });
 
 export function suggestAtlasAccessStatus(reply: string): AtlasAccessStatus | null {

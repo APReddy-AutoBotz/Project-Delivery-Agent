@@ -1,6 +1,6 @@
 // TR-API-001: application port depends on contracts without schema cycles.
 import type { Actor } from "./actor.js";
-import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, AtlasManagementSnapshot } from "./atlas-update-approval.js";
+import type { AtlasApprovalView, AtlasCommentReceipt, AtlasLeadershipAnswer, AtlasManagementSnapshot, AtlasReportDistributionReceipt } from "./atlas-update-approval.js";
 import type { IngestionReassessmentRetry, IngestionReassessmentItem, IngestionReassessmentPage } from "./ingestion-reassessment.js";
 import type { ProjectUpdateEngagementView } from "./project-update-engagement.js";
 import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "./project-update-capture.js";
@@ -31,8 +31,10 @@ export interface ProjectUpdateRepository {
   atlasManagementSnapshot(actor: Actor, projectId: string, snapshotId?: string): Promise<AtlasManagementSnapshot | null>;
   createAtlasManagementSnapshot(actor: Actor, projectId: string, correlationId: string): Promise<AtlasManagementSnapshot>;
   requestAtlasReportApproval(actor: Actor, projectId: string, request: unknown, correlationId: string): Promise<AtlasManagementSnapshot>;
-  atlasReportApproval(actor: Actor, projectId: string): Promise<AtlasManagementSnapshot | null>;
+  atlasReportApproval(actor: Actor, projectId: string): Promise<{ snapshot: AtlasManagementSnapshot; distribution: AtlasReportDistributionReceipt | null } | null>;
   decideAtlasReportApproval(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasManagementSnapshot>;
+  distributeAtlasReport(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasReportDistributionReceipt>;
+  atlasDistributedReport(actor: Actor, projectId: string): Promise<{ snapshot: AtlasManagementSnapshot; distribution: AtlasReportDistributionReceipt } | null>;
   captureHistory(actor: Actor, projectId: string, cursor?: string | null): Promise<ProjectUpdateCaptureHistory>;
   purgeCaptureContent(): Promise<number>;
   beginCaptureGeneration(actor: Actor, projectId: string, change: unknown, correlationId: string): Promise<ProjectUpdateEngagementView>;

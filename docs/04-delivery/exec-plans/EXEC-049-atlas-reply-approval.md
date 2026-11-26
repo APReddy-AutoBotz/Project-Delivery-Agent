@@ -5,7 +5,7 @@
 - Requirement IDs: FR-UPD-006, FR-UPD-007, FR-UPD-008, FR-UPD-009, FR-APP-001, FR-APP-002, FR-APP-004, FR-APP-005, FR-APP-006, NFR-SEC-001
 - GitHub issues: [#9](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9), [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10)
 - Target release: R1 synthetic demo milestone
-- Last updated: 2026-11-25
+- Last updated: 2026-11-26
 
 ## Objective
 
@@ -214,3 +214,28 @@ drafts.
 Extend the existing Atlas browser journey for the handoff, role denials,
 decision replay, final PowerPoint text, and immutable facts after a later
 reply. Update the existing API contract checks.
+
+## Approved report distribution
+
+This Atlas-only increment exercises FR-RPT-007/009/010, AC-RPT-004,
+AC-AUD-001 and NFR-SEC-001. After final approval, the same assigned PM
+can publish the exact reviewed report to the existing Atlas Leadership
+persona in the application. The recipient is set by the synthetic fixture.
+The reporting policy gates external email and customer distribution.
+
+Before publishing, check the latest review, exact snapshot and approval
+request IDs, retained approval, and current project and evidence access
+for the PM and recipient. The project lock and append-only audit event
+bind one receipt to the approved decision and fixed recipient. Repeating
+the same current publication returns its receipt. The recipient can read
+the latest delivered report independently of newer drafts. Opening and
+downloading recheck the original evidence's scope and retention.
+
+The leadership inbox reuses the approved report and editable PowerPoint.
+The audit holds IDs, recipient and capture context. The flow uses the
+existing database and internal synthetic identities. A code revert removes
+the publication controls and inbox while preserving the audit history.
+
+The existing Atlas browser journey covers pending and rejected reports,
+recipient access rechecks, replay, the delivered PowerPoint and reading
+the original delivery after a newer draft.
