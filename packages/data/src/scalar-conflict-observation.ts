@@ -15,13 +15,14 @@ export class DatabaseScalarConflictObservationRepository implements ScalarConfli
   constructor(private readonly db: Database) {}
 
   async readLeadership(actorValue: Actor, projectValue: string, factValue: string, afterFactType: string | null = null,
-    includeResolved = false): Promise<ScalarConflictObservation> {
-    let actor: Actor, projectId: string, factId: string, after: string | null;
+    includeResolved = false, priorAssessmentId?: string): Promise<ScalarConflictObservation> {
+    let actor: Actor, projectId: string, factId: string, after: string | null, priorId: string | undefined;
     try {
       actor = actorInput(actorValue);
       projectId = projectFactIdSchema.parse(projectValue);
       factId = projectFactIdSchema.parse(factValue);
       after = factCatalogueRequestSchema.parse({ projectId, afterFactType, limit: 50 }).afterFactType;
+      priorId = priorAssessmentId === undefined ? undefined : projectFactIdSchema.parse(priorAssessmentId);
       if (!actor.roles.includes("leadership")) return denied();
     } catch { return denied(); }
     let visible = false;
@@ -43,12 +44,48 @@ export class DatabaseScalarConflictObservationRepository implements ScalarConfli
         const fact = page.slice(0, 50).find((row) => row.id === factId);
         if (!fact) return denied();
         visible = true;
-        return await this.observe(tx, actor, projectId, fact, includeResolved);
+        const current = await this.observe(tx, actor, projectId, fact, includeResolved || Boolean(priorId));
+        if (!priorId) return current;
+        if (!("status" in current)) return unavailable();
+        const prior = await this.priorAssessment(tx, actor, current, priorId);
+        return scalarConflictObservationSchema.parse({ ...current, prior });
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 20000 });
     } catch (error) {
       if (error instanceof ScalarConflictObservationError) throw error;
       throw new ScalarConflictObservationError(visible ? "UNAVAILABLE" : "DENIED");
     }
+  }
+
+  private async priorAssessment(tx: Tx, actor: Actor, current: ScalarConflictObservation, assessmentId: string) {
+    const { projectId, factId, factType } = current;
+    const found = await tx.factAssessment.findFirst({
+      where: { id: assessmentId, customerId: actor.customerId, projectId, factId, sealed: true }, select: { id: true },
+    });
+    if (!found) return denied();
+    const authority = new DatabaseAuthorityRepository(this.db);
+    const saved = await authority.deliverAssessmentInTransaction(tx, actor, projectId, assessmentId, false);
+    if (!saved || saved.assessmentId !== assessmentId || saved.factId !== factId || saved.visibility !== "available") return denied();
+    const result = saved.result;
+    if (saved.asOf > current.asOf || result.asOf !== saved.asOf || result.scope.factType !== factType ||
+        result.scope.customerId !== actor.customerId || result.scope.projectId !== projectId || result.scope.factId !== factId ||
+        result.status !== "RESOLVED" || !result.policy || result.resolvedValue?.type !== "date") return unavailable();
+    const resolvedDate = result.resolvedValue.value;
+    const versions = new Map(result.versions.map((version) => [version.id, version]));
+    const supports = result.supportingVersionIds.map((id) => {
+      const version = versions.get(id);
+      if (!version || version.visibility !== "available" || version.temporalApplicability !== "APPLICABLE" ||
+          version.assessment.freshness !== "CURRENT" || version.assessment.conflict !== "NONE" || !version.assessedValidUntil ||
+          version.value.type !== "date" || version.value.value !== resolvedDate ||
+          (version.provenance !== "SYSTEM_VERIFIED" && version.provenance !== "HUMAN_CONFIRMED") ||
+          version.evidenceIds.length !== 1 || !version.source.instanceId) return unavailable();
+      return { versionId: id, sourceId: version.source.instanceId, evidenceId: version.evidenceIds[0]!,
+        provenance: version.provenance, effectiveAt: version.effectiveAt, observedAt: version.observedAt,
+        versionValidUntil: version.validUntil, assessedValidUntil: version.assessedValidUntil };
+    });
+    const evidence = supports.map(({ evidenceId }) => evidenceId).sort();
+    if (JSON.stringify(evidence) !== JSON.stringify([...result.supportingEvidenceIds].sort())) return unavailable();
+    return { assessmentId, asOf: saved.asOf, policyRevisionId: result.policy.revisionId,
+      position: { value: resolvedDate, supports } };
   }
 
   private async observe(tx: Tx, actor: Actor, projectId: string, fact: { id: string; factType: string; revision: number },

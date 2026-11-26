@@ -24,6 +24,21 @@ describe("scalar conflict presentation", () => {
       expect(() => decodeScalarConflict(value, value.projectId, value.factId, value.factType)).toThrow();
     }
   });
+  it("requires the exact saved assessment and validates support at its historical time", () => {
+    const value = observation(), priorId = id(10);
+    const asOf = "2026-09-01T00:00:00.000Z";
+    const resolved = { ...value, status: "RESOLVED", positions: [value.positions[0]!], prior: {
+      assessmentId: priorId, asOf, policyRevisionId: id(11), position: { value: "2026-09-29", supports: [support(20)] },
+    } };
+    const decode = (response: unknown, expected?: string) => decodeScalarConflict(response, value.projectId, value.factId, value.factType, expected);
+    expect(schema.parse(resolved)).toEqual(resolved);
+    expect(decode(resolved, priorId)).toEqual(resolved);
+    expect(() => decode(resolved)).toThrow();
+    expect(() => decode(resolved, id(12))).toThrow();
+    resolved.prior.position.supports[0]!.assessedValidUntil = asOf;
+    expect(schema.safeParse(resolved).success).toBe(false);
+    expect(() => decode(resolved, priorId)).toThrow();
+  });
   it("binds the observation to the selected fact and allows database collation order", () => {
     const value = observation(); expect(() => decodeScalarConflict(value, value.projectId, id(100), value.factType)).toThrow();
     const catalogue = { canAppend: false, canConfigure: false, next: null,

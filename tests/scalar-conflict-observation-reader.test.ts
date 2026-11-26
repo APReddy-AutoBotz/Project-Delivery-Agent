@@ -18,6 +18,7 @@ function fake() {
       requiredApproval: "NOT_REQUIRED", validity: null }] }], conflictBehavior: "REQUEST_RECONCILIATION" } };
   const prefix = { event, aggregate: null, versions, conflicts: [] as { id: string; leftVersionId: string; rightVersionId: string; detectedAt: Date }[], access, conflictThroughRevision: 0 };
   const state = { grants: ["leadership"], page: [fact], projectError: false,
+    hasSavedAssessment: true,
     metadata: null as null | { id: string; customerId: string; projectId: string; factId: string; revision: number;
       evidenceId: string; sourceId: string; valueBytes: number }[] };
   const tx = { $executeRaw: vi.fn(async () => 0), $queryRaw: vi.fn(async (arg: unknown) => {
@@ -30,7 +31,8 @@ function fake() {
     }));
     if (sql.includes("clock_timestamp()")) return [{ now: asOf }];
     throw new Error("Unexpected query");
-  }), projectFact: { findMany: vi.fn(async () => state.page) } };
+  }), projectFact: { findMany: vi.fn(async () => state.page) },
+    factAssessment: { findFirst: vi.fn(async () => state.hasSavedAssessment ? { id: id(90) } : null) } };
   vi.spyOn(DatabaseAuthorityRepository.prototype, "loadAssessmentPrefixesInTransaction").mockImplementation(async () => new Map([[factId, prefix]]) as never);
   const db = { $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(tx) };
   return { state, tx, prefix, reader: new DatabaseScalarConflictObservationRepository(db as never) };
@@ -66,6 +68,34 @@ it("returns the resolved date only when requested and every source remains autho
   });
   f.prefix.access[1]!.readers = [];
   await expect(f.reader.readLeadership(leader, projectId, factId, null, true)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+});
+it("compares the same authorized fact with its saved resolved date", async () => {
+  const f = fake(), assessmentId = id(90);
+  const scope = { customerId, projectId, factId, factType };
+  const past = new Date("2026-10-19T00:00:00.000Z");
+  const priorVersions = f.prefix.versions.map((version, index) => ({ ...version, id: id(100 + index),
+    evidenceId: id(120 + index), value: { type: "date", value: "2026-10-31" } }));
+  const result = resolveStoredAuthorityPrefix(scope, past, f.prefix.event as never, priorVersions as never,
+    [], f.prefix.access as never, true).result;
+  const metadata = { assessmentId, factId, asOf: past.toISOString(), historical: true as const, replayed: false };
+  const deliver = vi.spyOn(DatabaseAuthorityRepository.prototype, "deliverAssessmentInTransaction").mockResolvedValue({
+    ...metadata, visibility: "available", revalidationRequired: false, result,
+  });
+  f.prefix.versions[1]!.value.value = "2026-11-01";
+  expect(await f.reader.readLeadership(leader, projectId, factId, null, true, assessmentId)).toMatchObject({
+    status: "RESOLVED", positions: [{ value: "2026-11-01" }],
+    prior: { assessmentId, asOf: past.toISOString(), position: { value: "2026-10-31",
+      supports: [120, 121, 122].map((n) => ({ evidenceId: id(n) })) } },
+  });
+  expect(f.tx.factAssessment.findFirst).toHaveBeenCalledWith({
+    where: { id: assessmentId, customerId, projectId, factId, sealed: true }, select: { id: true },
+  });
+  f.state.hasSavedAssessment = false;
+  await expect(f.reader.readLeadership(leader, projectId, factId, null, true, assessmentId)).rejects.toMatchObject({ code: "DENIED" });
+  expect(deliver).toHaveBeenCalledTimes(1);
+  f.state.hasSavedAssessment = true;
+  deliver.mockResolvedValueOnce({ ...metadata, visibility: "restricted", revalidationRequired: true, result: null });
+  await expect(f.reader.readLeadership(leader, projectId, factId, null, true, assessmentId)).rejects.toMatchObject({ code: "DENIED" });
 });
 it("conceals missing grants, hidden catalogue IDs and pre-visibility failures", async () => {
   const f = fake(); f.state.grants = [];

@@ -16,28 +16,35 @@ const base = z.strictObject({
   projectId: id, factId: id, factType: z.string().min(1).max(96).regex(/^[a-z][a-z0-9_.-]*$/),
   asOf: instant, policyRevisionId: id,
 });
+const priorAssessment = z.strictObject({ assessmentId: id, asOf: instant, policyRevisionId: id, position });
+
+function validPositions(positions: readonly z.infer<typeof position>[], asOf: string) {
+  const dates = new Set<string>(), versions = new Set<string>(), evidence = new Set<string>();
+  let count = 0;
+  for (const position of positions) {
+    if (dates.has(position.value)) return false;
+    dates.add(position.value);
+    count += position.supports.length;
+    if (count > 1000) return false;
+    for (const row of position.supports) {
+      if (versions.has(row.versionId) || evidence.has(row.evidenceId) ||
+        row.effectiveAt > asOf || row.observedAt > asOf || row.assessedValidUntil <= asOf ||
+        (row.versionValidUntil !== null && (row.versionValidUntil <= asOf || row.assessedValidUntil > row.versionValidUntil))) return false;
+      versions.add(row.versionId); evidence.add(row.evidenceId);
+    }
+  }
+  return true;
+}
 
 // This validates presentation integrity; the repository establishes authority.
 export const scalarConflictObservationSchema = z.union([
   base.extend({ positions: z.array(position).min(2).max(1000) }),
-  base.extend({ status: z.literal("RESOLVED"), positions: z.tuple([position]) }),
+  base.extend({ status: z.literal("RESOLVED"), positions: z.tuple([position]), prior: priorAssessment.optional() }),
 ]).superRefine((value, ctx) => {
-  const invalid = () => ctx.addIssue({ code: "custom", message: "Invalid scalar conflict observation" });
-  if (new TextEncoder().encode(JSON.stringify(value)).length > 262144) invalid();
-  const dates = new Set<string>(), versions = new Set<string>(), evidence = new Set<string>();
-  let count = 0;
-  for (const position of value.positions) {
-    if (dates.has(position.value)) invalid();
-    dates.add(position.value);
-    count += position.supports.length;
-    if (count > 1000) invalid();
-    for (const row of position.supports) {
-      if (versions.has(row.versionId) || evidence.has(row.evidenceId) ||
-        row.effectiveAt > value.asOf || row.observedAt > value.asOf || row.assessedValidUntil <= value.asOf ||
-        (row.versionValidUntil !== null && (row.versionValidUntil <= value.asOf || row.assessedValidUntil > row.versionValidUntil))) invalid();
-      versions.add(row.versionId); evidence.add(row.evidenceId);
-    }
-  }
+  const prior = "prior" in value ? value.prior : undefined;
+  if (new TextEncoder().encode(JSON.stringify(value)).length > 262144 || !validPositions(value.positions, value.asOf) ||
+      (prior && (prior.asOf > value.asOf || !validPositions([prior.position], prior.asOf))))
+    ctx.addIssue({ code: "custom", message: "Invalid scalar date evidence" });
 });
 export type ScalarConflictObservation = z.infer<typeof scalarConflictObservationSchema>;
 export class ScalarConflictObservationError extends Error {
@@ -45,5 +52,5 @@ export class ScalarConflictObservationError extends Error {
 }
 export interface ScalarConflictObservationRepository {
   readLeadership(actor: Actor, projectId: string, factId: string, afterFactType?: string | null,
-    includeResolved?: boolean): Promise<ScalarConflictObservation>;
+    includeResolved?: boolean, priorAssessmentId?: string): Promise<ScalarConflictObservation>;
 }

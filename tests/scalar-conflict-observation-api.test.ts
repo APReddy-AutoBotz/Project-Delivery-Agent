@@ -70,3 +70,17 @@ it("withholds denial, unavailable state and malformed or mismatched outputs", as
     const body = await response.text(); expect(body).not.toContain("synthetic-private-marker"); expect(body).not.toContain("synthetic-private-error");
   }
 });
+it("binds the comparison to the explicitly selected saved assessment", async () => {
+  const headers = { Authorization: "Bearer valid" }, assessmentId = id(50);
+  const comparison = { ...result, status: "RESOLVED", positions: [result.positions[0]!], prior: {
+    assessmentId, asOf: "2026-09-01T00:00:00.000Z", policyRevisionId: id(51), position: result.positions[1],
+  } };
+  repository.readLeadership.mockResolvedValueOnce(comparison);
+  const response = await fetch(base + path + "?priorAssessmentId=" + assessmentId, { headers });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual(comparison);
+  expect(repository.readLeadership).toHaveBeenLastCalledWith(actor, projectId, factId, undefined, true, assessmentId);
+  expect((await fetch(base + path + "?priorAssessmentId=invalid", { headers })).status).toBe(400);
+  repository.readLeadership.mockResolvedValueOnce(comparison);
+  expect((await fetch(base + path + "?priorAssessmentId=" + id(52), { headers })).status).toBe(503);
+});

@@ -7,6 +7,7 @@ import { createPmQueueResource, type PmQueueResourceState, type ReadReserve } fr
 type RequestFn = <T>(path: string, init?: RequestInit) => Promise<T>;
 type Props = { projectId: string; scope: string; request: RequestFn; reserveRead: ReadReserve; isCurrentScope: () => boolean };
 const maxPageBoundaries = 200;
+const assessmentIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 export function LeadershipScalarConflict({ projectId, scope, request, reserveRead, isCurrentScope }: Props) {
   const resource = useRef<ReturnType<typeof createPmQueueResource<FactCatalogue>> | null>(null);
@@ -67,6 +68,7 @@ export function LeadershipScalarConflict({ projectId, scope, request, reserveRea
 
 function FactSelection({ projectId, scope, request, reserveRead, isCurrentScope, catalogue, after, isCurrentPage }: Props & { catalogue: FactCatalogue; after: string | null; isCurrentPage: () => boolean }) {
   const [selected, setSelected] = useState(""), [generation, setGeneration] = useState(0), [submitted, setSubmitted] = useState<number | null>(null);
+  const [priorAssessmentId, setPriorAssessmentId] = useState("");
   const selectionVersion = useRef(0), [renderedSelection, setRenderedSelection] = useState(0);
   const currentSelection = () => isCurrentPage() && selectionVersion.current === renderedSelection;
   const advanceSelection = () => { selectionVersion.current++; setRenderedSelection(selectionVersion.current); };
@@ -75,18 +77,31 @@ function FactSelection({ projectId, scope, request, reserveRead, isCurrentScope,
     <label htmlFor="scalar-conflict-select">Project fact</label>{" "}
     <select id="scalar-conflict-select" value={target?.factId ?? ""} onChange={(event) => {
       if (!currentSelection()) return;
-      advanceSelection(); setSubmitted(null); setGeneration((value) => value + 1); setSelected(event.target.value);
+      advanceSelection(); setSubmitted(null); setGeneration((value) => value + 1);
+      setSelected(event.target.value); setPriorAssessmentId("");
     }}>
       <option value="">Select a fact</option>
       {catalogue.facts.map((row) => <option key={row.factId} value={row.factId}>{row.factType}</option>)}
     </select>
-    <Button className="secondary" disabled={!target} onClick={() => { if (!currentSelection()) return; advanceSelection(); setGeneration((value) => value + 1); setSubmitted(generation + 1); }}>Check date evidence</Button>
+    {target && <label className="field"><span>Saved assessment ID (optional)</span>
+      <input value={priorAssessmentId} maxLength={36} onChange={(event) => {
+        if (!currentSelection()) return;
+        advanceSelection(); setSubmitted(null); setPriorAssessmentId(event.currentTarget.value.trim().toLowerCase());
+      }} />
+    </label>}
+    <Button className="secondary" disabled={!target || (priorAssessmentId !== "" && !assessmentIdPattern.test(priorAssessmentId))}
+      onClick={() => { if (!currentSelection()) return; advanceSelection(); setGeneration((value) => value + 1); setSubmitted(generation + 1); }}>
+      Check date evidence
+    </Button>
     {target && submitted !== null && <ScalarObservation key={`${scope}:${target.factId}:${submitted}`} projectId={projectId}
-      scope={`${scope}:${target.factId}:${submitted}`} factId={target.factId} factType={target.factType} after={after} request={request} reserveRead={reserveRead} isCurrentScope={isCurrentScope} />}
+      scope={`${scope}:${target.factId}:${submitted}`} factId={target.factId} factType={target.factType} after={after}
+      priorAssessmentId={priorAssessmentId || undefined} request={request} reserveRead={reserveRead} isCurrentScope={isCurrentScope} />}
   </>;
 }
 
-function ScalarObservation({ projectId, scope, request, reserveRead, factId, factType, after }: Props & { factId: string; factType: string; after: string | null }) {
+function ScalarObservation({ projectId, scope, request, reserveRead, factId, factType, after, priorAssessmentId }: Props & {
+  factId: string; factType: string; after: string | null; priorAssessmentId?: string;
+}) {
   const resource = useRef<ReturnType<typeof createPmQueueResource<ScalarConflictObservation>> | null>(null);
   const [state, setState] = useState<{ scope: string; value: PmQueueResourceState<ScalarConflictObservation> }>({ scope, value: { phase: "loading" } });
   useEffect(() => {
@@ -94,15 +109,19 @@ function ScalarObservation({ projectId, scope, request, reserveRead, factId, fac
     const driver = createPmQueueResource<ScalarConflictObservation>({
       reserve: reserveRead,
       load: async (signal) => {
-        const query = after === null ? "?includeResolved=true" : `?includeResolved=true&afterFactType=${encodeURIComponent(after)}`;
+        const query = new URLSearchParams({ includeResolved: "true" });
+        if (after !== null) query.set("afterFactType", after);
+        if (priorAssessmentId) query.set("priorAssessmentId", priorAssessmentId);
         return decodeScalarConflict(await requestAtMount<unknown>(
-          `/projects/${projectId}/fact-observations/${factId}/leadership-conflict${query}`, { signal }), projectId, factId, factType);
+          `/projects/${projectId}/fact-observations/${factId}/leadership-conflict?${query}`, { signal }), projectId, factId, factType,
+          priorAssessmentId);
       }, publish: (value) => setState({ scope, value }), visible: () => document.visibilityState === "visible",
     });
     resource.current = driver; driver.refresh();
     return () => { driver.dispose(); if (resource.current === driver) resource.current = null; };
-  }, [scope, projectId, factId, factType, after]);
+  }, [scope, projectId, factId, factType, after, priorAssessmentId]);
   const current = state.scope === scope ? state.value : { phase: "loading" as const };
+  const prior = current.phase === "ready" && "prior" in current.data ? current.data.prior : undefined;
   return <div aria-live="polite" aria-atomic="true">
     {current.phase === "loading" && <p role="status">Checking current evidence and access…</p>}
     {current.phase === "error" && <Message error>Current date evidence is unavailable. Refresh the fact list and try again.</Message>}
@@ -111,10 +130,20 @@ function ScalarObservation({ projectId, scope, request, reserveRead, factId, fac
         ? "The current authority policy supports the date below."
         : "Sources currently disagree. The project manager should reconcile these positions."}</p>
       <p className="muted">Checked at {current.data.asOf}; policy revision {current.data.policyRevisionId}. Provenance labels are stored with evidence and do not independently verify a source or a person's confirmation.</p>
-      {current.data.positions.map((position) => <div className="canonical-review-row" key={position.value}>
-        <p><strong>{position.value}</strong></p>
-        <ul>{position.supports.map((row) => <li key={row.versionId}>Evidence {row.evidenceId} · version {row.versionId} · source {row.sourceId} · stored provenance: {row.provenance.replaceAll("_", " ")} · observed {row.observedAt} · valid until {row.assessedValidUntil}</li>)}</ul>
-      </div>)}
+      {current.data.positions.map((position) => <DateEvidence position={position} key={position.value} />)}
+      {prior && <section aria-label="Saved date assessment">
+        <h4>Saved date assessment</h4>
+        <p>{prior.position.value === current.data.positions[0]?.value ? "The date is unchanged." : "The date changed since this assessment."}</p>
+        <p>Assessment {prior.assessmentId} · checked at {prior.asOf} · policy revision {prior.policyRevisionId}</p>
+        <DateEvidence position={prior.position} />
+      </section>}
     </>}
+  </div>;
+}
+
+function DateEvidence({ position }: { position: ScalarConflictObservation["positions"][number] }) {
+  return <div className="canonical-review-row">
+    <p><strong>{position.value}</strong></p>
+    <ul>{position.supports.map((row) => <li key={row.versionId}>Evidence {row.evidenceId} · version {row.versionId} · source {row.sourceId} · stored provenance: {row.provenance.replaceAll("_", " ")} · observed {row.observedAt} · valid until {row.assessedValidUntil}</li>)}</ul>
   </div>;
 }

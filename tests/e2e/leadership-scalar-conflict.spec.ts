@@ -12,6 +12,8 @@ const support = (n: number) => ({ versionId: id(n), evidenceId: id(n + 10), sour
   versionValidUntil: "2026-10-23T00:00:00.000Z", assessedValidUntil: "2026-10-22T00:00:00.000Z" });
 const observation = { projectId, factId, factType: "project.forecast", asOf: "2026-10-21T00:00:00.000Z", policyRevisionId: id(8),
   positions: [{ value: "2026-11-01", supports: [support(100)] }, { value: "2026-11-02", supports: [support(200)] }] };
+const saved = { assessmentId: id(9), asOf: "2026-10-20T00:00:00.000Z", policyRevisionId: id(7),
+  position: { value: "2026-10-31", supports: [support(300)] } };
 
 test("scalar observation clears on selection, focus revalidation and late replies", async ({ page }) => {
   test.setTimeout(90000);
@@ -61,8 +63,10 @@ test("scalar observation clears on selection, focus revalidation and late replie
     if (path.endsWith("/leadership-conflict")) {
       reads++;
       if (hold) { arrived(); await gate; return route.fulfill({ json: observation, headers: { "x-synthetic-late": "1" } }).catch(() => {}); }
-      if (resolved && url.searchParams.get("includeResolved") === "true")
-        return route.fulfill({ json: { ...observation, status: "RESOLVED", positions: [observation.positions[0]] } });
+      if (resolved && url.searchParams.get("includeResolved") === "true") {
+        const prior = url.searchParams.get("priorAssessmentId") === saved.assessmentId ? saved : undefined;
+        return route.fulfill({ json: { ...observation, status: "RESOLVED", positions: [observation.positions[0]], prior } });
+      }
       return route.fulfill({ json: observation });
     }
     return route.fulfill({ status: 404, json: { message: "Not found" } });
@@ -91,6 +95,16 @@ test("scalar observation clears on selection, focus revalidation and late replie
   await expect(page.getByText("2026-11-01", { exact: true })).toBeVisible();
   await expect(page.getByText("2026-11-02", { exact: true })).toHaveCount(0);
   await expect(page.getByText(`Evidence ${id(110)}`, { exact: false })).toBeVisible();
+  const assessment = page.getByLabel("Saved assessment ID (optional)");
+  await assessment.fill(saved.assessmentId);
+  await expect(page.getByText("The current authority policy supports the date below.")).toHaveCount(0);
+  await check.click();
+  const comparison = page.getByRole("region", { name: "Saved date assessment" });
+  await expect(comparison).toContainText("The date changed since this assessment.");
+  await expect(comparison).toContainText(saved.position.value);
+  await expect(comparison).toContainText(`Evidence ${id(310)}`);
+  await assessment.clear();
+  await expect(comparison).toHaveCount(0);
   resolved = false;
   hold = true; await check.click(); await entered;
   await select.selectOption(otherFact); release();
