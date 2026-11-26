@@ -1,12 +1,13 @@
 // EXEC-020: guard-valid stored history for real projection/API checks, not a delivery proof.
 import assert from "node:assert/strict";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectFactRepository,
+import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseIngestionRepository, DatabaseProjectFactRepository,
   DatabaseAuthorityRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
 import { atlasApprovalProjectCode, atlasIntegrationMilestoneKey, atlasJiraBlockerKey,
   renderProjectUpdateCapture } from "../../packages/domain/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
+import { CredentialVault } from "../../packages/platform/dist/index.js";
 const { Pool } = createRequire(new URL("../../packages/data/package.json", import.meta.url))("pg");
 
 export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = false, customerId: selectedCustomerId,
@@ -47,8 +48,15 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
         return typeof value === "function" ? value.bind(object) : value;
       } })), options) };
     const canonical = canonicalFixture(portfolioId);
+    let jiraIssue, jiraIntake;
+    const jiraOrigin = "https://atlas-fixture.example.test";
     if (atlasApproval) {
       assert(isolatedCustomer);
+      jiraIssue = { id: "950248", key: atlasJiraBlockerKey, fields: {
+        project: { id: "950", key: "ATLAS" },
+        updated: new Date(now.getTime() - 30_000).toISOString(),
+        status: { name: "To Do" },
+      } };
       canonical.code = atlasApprovalProjectCode;
       canonical.name = "Atlas · Delivery approval";
       canonical.dates = { ...canonical.dates, baselineEnd: "2026-10-15", forecastEnd: "2026-10-29" };
@@ -58,13 +66,14 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
           forecastStart: null, forecastEnd: null, actualStart: "2026-10-08", actualEnd: null },
       });
       canonical.raidItems.push({
-        key: atlasJiraBlockerKey, kind: "ISSUE", title: "Integration API access blocker",
+        key: jiraIssue.key, kind: "ISSUE", title: "Integration API access blocker",
         description: "Synthetic Jira issue tracking the missing API access for integration testing.",
         state: "OPEN", ownerSubject: null,
       });
       canonical.sourceMappings.push({
-        sourceSystem: "Jira", instanceKey: "atlas-demo", externalType: "issue", externalId: atlasJiraBlockerKey,
-        externalRevision: "1", url: null, targetType: "RAID_ITEM", targetKey: atlasJiraBlockerKey,
+        sourceSystem: "Jira", instanceKey: "atlas-demo", externalType: "issue", externalId: jiraIssue.key,
+        externalRevision: jiraIssue.fields.updated, url: jiraOrigin + "/browse/" + jiraIssue.key,
+        targetType: "RAID_ITEM", targetKey: jiraIssue.key,
       });
     }
     canonical.responsibilities = canonical.responsibilities.map((entry) =>
@@ -79,6 +88,31 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     if (atlasApproval) await db.accessGrant.create({ data: {
       customerId, subject: "leader-atlas", scopeType: "project", scopeId: projectId, role: "leadership",
     } });
+    if (jiraIssue) {
+      const { ingestSyntheticJiraIssues } = await import("./golden-source-observations.mjs");
+      const retentionAdmin = { customerId, subject: "atlas-demo-retention", roles: ["system_admin"] };
+      await db.accessGrant.create({ data: {
+        customerId, subject: retentionAdmin.subject, scopeType: "project", scopeId: projectId, role: "system_admin",
+      } });
+      const ingestion = new DatabaseIngestionRepository(db, new CredentialVault(randomBytes(32).toString("base64")));
+      await ingestion.setRetention(retentionAdmin, { retentionHours: 24 }, randomUUID());
+      const { sourceId, receiptId } = await ingestSyntheticJiraIssues(db, {
+        actor: admin, projectId, origin: jiraOrigin, jiraProject: jiraIssue.fields.project.key,
+        readers: [admin.subject, pm.subject, "leader-atlas"], issues: [jiraIssue],
+      });
+      const mappings = await db.$queryRaw`
+        SELECT mapping.id AS "mappingId" FROM public."IngestionRowOutcome" outcome
+        JOIN public."IngestionSourceRevision" revision ON
+          (revision."customerId",revision."sourceId",revision.id)=(outcome."customerId",outcome."sourceId",outcome."sourceRevisionId")
+        JOIN public."CanonicalSourceMapping" mapping ON (mapping."customerId",mapping."projectId",
+          mapping."externalId",mapping."externalRevision")=(outcome."customerId",outcome."projectId",outcome."recordKey",revision.revision)
+        WHERE (outcome."customerId",outcome."sourceId",outcome."projectId",outcome."receiptId")=
+          (${customerId}::uuid,${sourceId}::uuid,${projectId}::uuid,${receiptId}::uuid)
+          AND outcome.state='ACCEPTED' AND mapping."sourceSystem"='Jira' AND mapping."instanceKey"='atlas-demo'
+          AND mapping."targetType"='RAID_ITEM'`;
+      assert.equal(mappings.length, 1);
+      jiraIntake = { sourceId, receiptId, mappingId: mappings[0].mappingId };
+    }
     const audit = async (connection, event, detail = {}) => {
       const id = randomUUID();
       await connection.query(`INSERT INTO public."AuditEvent"(id,"customerId",actor,event,"correlationId",detail)
@@ -242,6 +276,6 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     return { customerId, projectId, admin, writer, owner, pm, service, zones, configuration, readers,
       sourceA, sourceB, sourceMarkerA, sourceMarkerB, privateResponse,
       request, reminder, secondReminder, ownerEscalation, escalation, olderCycle,
-      engagementId: activation.engagementId };
+      engagementId: activation.engagementId, jiraIntake };
   } finally { await db.$disconnect(); await pool.end(); }
 }
