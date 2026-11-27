@@ -116,3 +116,33 @@ report from the queue after another request was approved. Queue coverage is
 part of [STORY-030 and Issue #13](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13).
 [Main native and browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46024420243/job/140592001303) ·
 [Main code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46024420243/job/140592001224)
+
+## PMO portfolio freshness acceptance
+
+AC-RPT-006 is covered by a signed-in PMO session using the real API and
+database. A shared project row shows the missing Cost update, stale Forecast
+position and unresolved Delivery status conflict. The API returns the exact ID
+and due time of the saved open update obligation, and the row links to that
+project. The restricted portfolio project is absent, and a PM session cannot
+read the overview. The accompanying integration checks cover revocation of
+source access after project discovery.
+[Main native and browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46036700398/job/140633798336).
+
+## PM queue ordering and recommendation framework acceptance
+
+AC-ADV-002 is covered by the signed-in Atlas PM's actual queue. The browser
+checks the order of critical reconciliation, high-priority approval and
+medium-priority follow-up for a stale update. The same journey checks the
+aged Atlas blocker and denies the leadership session access to the PM queue.
+[Main native and browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46037767885/job/140637422110).
+
+STORY-025 covers the deterministic recommendation framework. AC-ADV-001 is
+covered by tests of the full recommendation, including the exact trigger and
+evidence, rule revision, urgency, suggested action and expected outcome.
+AC-ADV-004 checks that the recommendation's action and outcome omit personal
+blame even when the source contains it. AC-ADV-005 is covered by the same
+native Atlas queue journey with no provider configured and by the queue unit
+tests. Acceptance takes effect after independent review, required hosted checks
+and merge. The role-specific GOLDEN-012 scenario remains under STORY-026.
+[Main code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46037767885/job/140637422599) ·
+[Main native and browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46037767885/job/140637422110).

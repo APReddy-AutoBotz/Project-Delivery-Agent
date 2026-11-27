@@ -2,12 +2,14 @@ schema_version: '1.0'
 tests:
 - id: AI-ADV-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-ADV-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A recommendation contains the triggering facts, rule, urgency, suggested action and expected outcome.
-  evidence: []
+  evidence:
+  - tests/delivery-advice.test.ts
+  - tests/escalation-browser/atlas-approval.spec.ts
 - id: AI-ADV-003
   release: R1
   status: planned
@@ -47,13 +49,14 @@ tests:
   evidence: []
 - id: AI-SAFE-004
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-ADV-004
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The recommendation does not label a person as underperforming or personally at fault based only on response
     time or activity.
-  evidence: []
+  evidence:
+  - tests/delivery-advice.test.ts
 - id: AI-UPD-004
   release: R1
   status: planned
@@ -196,6 +199,7 @@ tests:
   behavior: The PM action queue ranks pending approvals, stale updates and critical interventions for assigned projects.
   evidence:
   - tests/escalation-browser/atlas-approval.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: E2E-APP-001
   release: R1
   status: planned
@@ -391,13 +395,15 @@ tests:
   - tests/escalation-browser/atlas-approval.spec.ts
 - id: E2E-RPT-006
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-RPT-006
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The PMO dashboard lists only authorized portfolio projects, displaying exact missing obligations, stale
     facts and unresolved conflicts from the current projection.
-  evidence: []
+  evidence:
+  - tests/escalation-browser/portfolio-update-freshness.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: E2E-UPD-001
   release: R1
   status: implemented
@@ -1516,20 +1522,23 @@ tests:
   evidence: []
 - id: UNIT-ADV-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-ADV-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A recommendation contains the triggering facts, rule, urgency, suggested action and expected outcome.
-  evidence: []
+  evidence:
+  - tests/delivery-advice.test.ts
 - id: UNIT-ADV-005
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-ADV-005
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Disabling the AI provider does not remove the underlying recommendation trigger from the action queue.
-  evidence: []
+  evidence:
+  - tests/pm-action-queue.test.ts
+  - tests/escalation-browser/atlas-approval.spec.ts
 - id: UNIT-APP-004
   release: R1
   status: planned
