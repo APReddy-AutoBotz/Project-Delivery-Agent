@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { AtlasLeadershipAnswer as Answer, AtlasLeadershipFacts } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
-import { decodeAtlasDelayClarification, decodeAtlasLeadershipAnswer } from "./project-update-invitation-decoder.js";
+import { atlasScheduleMovementText, decodeAtlasDelayClarification, decodeAtlasLeadershipAnswer } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
 import { AtlasManagementSnapshot } from "./atlas-management-snapshot.js";
 import { delayClarificationQuestion } from "./project-delay-clarification.js";
@@ -108,9 +108,9 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const currentClarification = askPm.variables?.scope === scope && askPm.variables.scheduleRevision === schedule?.revision &&
     askPm.variables.asOf === answer?.asOf;
   const askedPmForSchedule = currentClarification && askPm.isSuccess;
-  const movement = days === null ? "Schedule movement is unavailable."
-    : days === 0 ? "The baseline and forecast dates match."
-      : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`;
+  const movement = (schedule && answer?.receiptClaims?.find(({ kind }) => kind === "REVIEWED_SCHEDULE")?.claimText)
+    || atlasScheduleMovementText(days);
+  const pmClaim = assessment && answer?.receiptClaims?.find(({ kind }) => kind === "PM_DELAY_ASSESSMENT");
 
   return <><section className="panel" aria-label="Atlas leadership answer">
     <h2>Atlas delivery question</h2>
@@ -151,8 +151,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         ? <p>A simulated escalation was captured for the assigned PM. <a href={`#${escalationRef}`}>PM escalation evidence</a></p>
         : <p>PM escalation evidence is unavailable.</p>}
       {(!reply || !receipt) && <p>Some reply or action evidence is unavailable for this answer.</p>}
-      {assessment
-        ? <p>The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as {assessment.confidence.toLowerCase()}.{" "}
+      {pmClaim
+        ? <p>{pmClaim.claimText}{" "}
           <a href={`#${assessmentRef}`}>PM assessment evidence</a></p>
         : <p>The verified cause of the schedule change and confidence in the forecast remain unknown.</p>}
       {!assessment && schedule && days !== null && days > 0 && <details>

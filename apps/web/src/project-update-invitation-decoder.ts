@@ -273,11 +273,46 @@ function decodeAtlasLeadershipFacts(value: unknown, projectId: string): AtlasLea
   return value as AtlasLeadershipFacts;
 }
 
+export function atlasScheduleMovementText(days: number | null) {
+  return days === null ? "Schedule movement is unavailable."
+    : days === 0 ? "The baseline and forecast dates match."
+      : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`;
+}
+
+function matchesAtlasReceiptClaims(value: unknown, answer: AtlasLeadershipFacts) {
+  const { schedule, scheduleCitation, delayAssessment, receipt, ownerReply } = answer;
+  const claims = value === undefined ? [] : value;
+  if (!Array.isArray(claims) || claims.length > 2) return false;
+  let expected = 0;
+  const match = (claim: unknown, kind: string, text: string, evidenceIds: string[], validUntil: string,
+    provenance: string, proofKey: "sourceId" | "assessmentId", proofId: string) =>
+    object(claim) && keys(claim, ["kind", "claimText", "evidenceIds", "validUntil", "projectId", "scheduleRevision",
+      "assessedAt", "provenance", "classification", "freshness", "conflict", proofKey]) &&
+      claim.kind === kind && claim.claimText === text && claim.validUntil === validUntil &&
+      claim.projectId === answer.projectId && claim.scheduleRevision === schedule?.revision &&
+      claim.assessedAt === answer.asOf && claim.provenance === provenance && claim.classification === provenance &&
+      claim.freshness === "CURRENT" && claim.conflict === "NONE" && claim[proofKey] === proofId &&
+      Array.isArray(claim.evidenceIds) && claim.evidenceIds.length === evidenceIds.length &&
+      claim.evidenceIds.every((id, index) => evidenceIds[index] === id);
+  if (schedule && scheduleCitation && !match(claims[expected++], "REVIEWED_SCHEDULE",
+      atlasScheduleMovementText(schedule.movementDays), [scheduleCitation.receiptId], scheduleCitation.availableUntil,
+      "SYSTEM_VERIFIED", "sourceId", scheduleCitation.sourceId)) return false;
+  if (schedule && delayAssessment && receipt && ownerReply) {
+    const deadline = scheduleCitation && Date.parse(scheduleCitation.availableUntil) < Date.parse(ownerReply.availableUntil)
+      ? scheduleCitation.availableUntil : ownerReply.availableUntil;
+    if (!match(claims[expected++], "PM_DELAY_ASSESSMENT",
+        `The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as ${delayAssessment.confidence.toLowerCase()}.`,
+        [delayAssessment.id, receipt.id], deadline, "HUMAN_CONFIRMED", "assessmentId", delayAssessment.id)) return false;
+  }
+  return claims.length === expected;
+}
+
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
-  const { integrationStart, jiraBlocker, forecastInference, pmEscalation, priorSnapshot, updateFreshness, delayClarificationState, ...facts } = value;
+  const { integrationStart, jiraBlocker, forecastInference, pmEscalation, priorSnapshot,
+    updateFreshness, delayClarificationState, receiptClaims, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
-  if (!answer) return null;
+  if (!answer || !matchesAtlasReceiptClaims(receiptClaims, answer)) return null;
   if (delayClarificationState !== undefined && (!answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 || answer.delayAssessment ||
       typeof delayClarificationState !== "string" || !["AVAILABLE", "REQUESTED", "RESOLVED"].includes(delayClarificationState))) return null;
   if (updateFreshness !== null && updateFreshness !== undefined && (!object(updateFreshness) ||

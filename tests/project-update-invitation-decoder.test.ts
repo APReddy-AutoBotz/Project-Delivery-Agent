@@ -2,8 +2,9 @@ import { expect, it } from "vitest";
 import { projectUpdateClarificationQuestion, projectUpdateRecipientRequestViewSchema,
   projectUpdateResponseReceiptSchema } from "../packages/domain/src/project-update-capture.js";
 import { projectDelayClarificationReviewSchema, projectLeadershipAnswerSchema } from "../packages/domain/src/project-leadership-answer.js";
+import { atlasLeadershipAnswerSchema, composeAtlasReceiptClaims } from "../packages/domain/src/atlas-update-approval.js";
 import { decodeInvitation, decodeInvitationReceipt, decodeProjectDelayClarificationReview,
-  decodeProjectLeadershipAnswer } from "../apps/web/src/project-update-invitation-decoder.js";
+  decodeAtlasLeadershipAnswer, decodeProjectLeadershipAnswer } from "../apps/web/src/project-update-invitation-decoder.js";
 
 const id = "30000000-0000-4000-8000-000000000001", other = "40000000-0000-4000-8000-000000000001";
 const at = "2026-01-01T00:00:00.000Z", later = "2026-01-02T00:00:00.000Z";
@@ -21,6 +22,32 @@ it("validates both sets of scoped evidence in a leadership comparison", () => {
   expect(decodeProjectLeadershipAnswer({ ...comparison, priorSnapshot: { ...priorSnapshot, asOf: "2026-01-03T00:00:00.000Z" } }, id)).toBeNull();
   expect(decodeProjectLeadershipAnswer({ ...comparison, priorSnapshot: { ...priorSnapshot,
     schedule: { ...priorSnapshot.schedule, movementDays: 12 } } }, id)).toBeNull();
+});
+
+it("requires exact Atlas schedule and PM statements while their supporting receipts are available", () => {
+  const availableUntil = "2026-01-03T00:00:00.000Z";
+  const facts = { projectId: id, asOf: later,
+    schedule: { revision: 1, baseline: "2026-01-01", forecast: "2026-01-03", movementDays: 2 },
+    scheduleCitation: { sourceId: id, receiptId: other, reviewedAt: at, availableUntil },
+    ownerReply: { responseId: id, receivedAt: at, availableUntil: "2026-01-04T00:00:00.000Z", accessStatus: "ACCESS_PENDING" as const },
+    receipt: { id, approvalId: other, target: "ATLAS-248" as const, fixtureRevision: 1, recordedAt: at, result: "SIMULATED" as const },
+    delayAssessment: { id: other, approvalId: other, receiptId: id, scheduleRevision: 1, confirmedAt: later,
+      confirmedBy: "synthetic-pm", cause: "API_ACCESS_DELAY" as const, confidence: "MEDIUM" as const },
+  };
+  const receiptClaims = composeAtlasReceiptClaims(facts);
+  const answer = { ...facts, receiptClaims, integrationStart: null, jiraBlocker: null, pmEscalation: null };
+  expect(receiptClaims.map(({ validUntil }) => validUntil)).toEqual([availableUntil, availableUntil]);
+  expect(atlasLeadershipAnswerSchema.safeParse(answer).success).toBe(true);
+  expect(decodeAtlasLeadershipAnswer(answer, id)).toEqual(answer);
+  for (const unsupported of [undefined, receiptClaims.slice(1), [
+    { ...receiptClaims[0], claimText: "The forecast is 40 days later than the baseline." }, receiptClaims[1],
+  ], [receiptClaims[0], { ...receiptClaims[1], evidenceIds: [id, other] }], [
+    receiptClaims[0], { ...receiptClaims[1], validUntil: facts.ownerReply.availableUntil },
+  ]]) {
+    const changed = { ...answer, receiptClaims: unsupported };
+    expect(atlasLeadershipAnswerSchema.safeParse(changed).success).toBe(false);
+    expect(decodeAtlasLeadershipAnswer(changed, id)).toBeNull();
+  }
 });
 
 it("binds a pending delay request to its schedule and preserves supported evidence text", () => {

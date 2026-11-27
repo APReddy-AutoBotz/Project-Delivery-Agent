@@ -121,6 +121,11 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   });
   const spreadsheet = fixture.spreadsheetIntake;
   expect(before.scheduleCitation).toMatchObject({ sourceId: spreadsheet.sourceId, receiptId: spreadsheet.receiptId });
+  expect(before.receiptClaims).toEqual([expect.objectContaining({ kind: "REVIEWED_SCHEDULE",
+    claimText: "The forecast is 14 days later than the baseline.", assessedAt: before.asOf,
+    sourceId: spreadsheet.sourceId, evidenceIds: [spreadsheet.receiptId], validUntil: before.scheduleCitation.availableUntil,
+    projectId: fixture.projectId, scheduleRevision: before.schedule.revision, classification: "SYSTEM_VERIFIED",
+  })]);
   const reviewedImport = await request.get(`/api/ingestion/sources/${spreadsheet.sourceId}/receipts/${spreadsheet.receiptId}`, {
     headers: leaderHeaders,
   });
@@ -438,6 +443,11 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(complete.pmEscalation).toEqual({
     requestId: fixture.escalation.requestId, capturedAt: fixture.escalation.capturedAt, availableUntil: expect.any(String),
   });
+  expect(complete.receiptClaims).toContainEqual(expect.objectContaining({ kind: "PM_DELAY_ASSESSMENT",
+    assessedAt: complete.asOf, classification: "HUMAN_CONFIRMED", evidenceIds: [assessment.id, receipt.id],
+    assessmentId: assessment.id, scheduleRevision: complete.schedule.revision,
+    claimText: "The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as medium.",
+  }));
   expect(JSON.stringify(complete)).not.toContain(fixture.escalation.locator);
   expect(JSON.stringify(complete)).not.toContain(fixture.sourceMarkerB);
   expect(JSON.stringify(complete)).not.toContain(editedComment);
@@ -498,6 +508,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
     await expect(answer).toContainText("Schedule movement is unavailable.");
     await expect(answer.getByRole("link", { name: "Schedule evidence" })).toHaveCount(0);
+    await expect(answer.getByRole("link", { name: "PM assessment evidence" })).toHaveCount(0);
     await expect(answer.getByText("Agent inference.", { exact: true })).toHaveCount(0);
     await expect(answer.getByRole("link", { name: "Jira blocker evidence" })).toBeVisible();
     await expect(answer.getByRole("link", { name: "Integration start evidence" })).toBeVisible();
