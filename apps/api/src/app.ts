@@ -31,6 +31,7 @@ import {
 } from "./health-assessment-controller.js";
 import {
   ProjectUpdateController,
+  PortfolioUpdateFreshnessController,
   PROJECT_UPDATE_REPOSITORY,
   unavailableProjectUpdateRepository,
 } from "./project-update-controller.js";
@@ -307,6 +308,7 @@ export async function createApp(
       XlsxIngestionController,
       HealthAssessmentController,
       ProjectUpdateController,
+      PortfolioUpdateFreshnessController,
       ProjectUpdateInvitationController,
       PmActionQueueController,
       BlockerAgeAdviceController,

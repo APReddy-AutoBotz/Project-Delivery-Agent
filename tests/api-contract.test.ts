@@ -529,6 +529,13 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   updateSuggestions: vi.fn(async () => ({ availability: "UNCONFIGURED" as const,
     asOf: "2026-10-21T11:00:00.000Z", projectId: project.id, audience: "project_manager" as const,
     approvalItems: "UNAVAILABLE" as const })),
+  portfolioFreshness: vi.fn(async () => ({ asOf: "2026-10-21T11:00:00.000Z", projects: [{
+    id: project.id, code: project.code, name: project.name, assessment: {
+      state: "STALE" as const, lastVerifiedUpdateAt: null, updateDueAt: "2026-10-20T11:00:00.000Z",
+      openObligation: { id: project.id, dueAt: "2026-10-20T11:00:00.000Z" },
+      missing: [{ factType: "project.status", label: "Current status" }], stale: [], conflicts: [],
+    },
+  }], next: null })),
   policy: vi.fn(async () => projectUpdatePolicyFixture),
   setPolicy: vi.fn(async (_actor, _projectId, change) => ({
     ...projectUpdatePolicyFixture,
@@ -920,6 +927,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request(`/api/projects/${project.id}/delivery-suggestions`, 200, manager);
   await request(`/api/projects/${project.id}/update-suggestions`, 200, manager);
   await request("/api/pm/action-queue", 200, manager);
+  await request("/api/pmo/portfolio-update-freshness", 200, pmoPortfolio);
   await request(`/api/projects/${project.id}/leadership-blocker-age-suggestions`, 200, leader);
   await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-conflict-observation`, 200, leader);
   await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-manager-request-observation`, 200, leader);
@@ -1138,7 +1146,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(105);
+  expect(covered.size).toBe(106);
   assertContractSnapshot(
     spec,
     JSON.parse(

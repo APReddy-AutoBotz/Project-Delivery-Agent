@@ -28,6 +28,7 @@ import { IngestionReassessmentPreview } from "./ingestion-reassessment-preview-p
 import { decodeWireIdentity } from "./identity-decoder.js";
 import { decodeProjectList, decodeProjectSetup } from "./canonical-creation-decoder.js";
 import { ProjectUpdates } from "./project-updates.js";
+import { PortfolioUpdateFreshness } from "./portfolio-update-freshness.js";
 import { ProjectUpdateResponse } from "./project-update-response.js";
 import { AtlasPmApproval, atlasReviewProjectCode } from "./atlas-update-approval.js";
 import { AtlasLeadershipAnswer } from "./atlas-leadership-answer.js";
@@ -1224,6 +1225,14 @@ function App() {
                   <strong className="quiet-value">Available on project detail</strong>
                 </div>
               </div>
+              {renderedActor?.roles.some((role) => role === "pmo_admin" || role === "portfolio_manager") && identityCurrent() &&
+                <PortfolioUpdateFreshness
+                  key={`${renderedSessionGeneration}:${renderedIdentityIssuance}`}
+                  scope={`${renderedSessionGeneration}:${renderedIdentityIssuance}`}
+                  request={identityRequest}
+                  isCurrent={identityCurrent}
+                  openProject={navigateProject}
+                />}
               <div className="section-title">
                 <h2>Project workspace</h2>
                 {visibleSetup?.portfolios.length ? (

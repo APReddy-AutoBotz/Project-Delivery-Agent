@@ -74,6 +74,7 @@ import {
   projectUpdatePolicyViewSchema,
   projectUpdateAssessmentRequestSchema,
   projectUpdateAssessmentViewSchema,
+  portfolioUpdateFreshnessPageSchema,
   projectUpdateSchedulePreviewSchema,
   projectUpdateRecipientRequestViewSchema,
   projectUpdateResponseSubmissionSchema,
@@ -431,6 +432,12 @@ export const contracts: Record<string, RouteContract> = {
     response: projectUpdateAssessmentViewSchema.nullable(),
     parameters: { id: z.uuid() },
     errors: [404, 503],
+  },
+  "get /api/pmo/portfolio-update-freshness": {
+    status: 200,
+    response: portfolioUpdateFreshnessPageSchema,
+    query: { after: z.uuid().optional() },
+    errors: [400, 404, 503],
   },
   "post /api/projects/{id}/project-update-engagements": {
     status: 200,

@@ -5,7 +5,7 @@ import type { IngestionReassessmentRetry, IngestionReassessmentItem, IngestionRe
 import type { ProjectUpdateEngagementView } from "./project-update-engagement.js";
 import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt,
   ProjectUpdateClarificationReceipt, ProjectUpdateFactConfirmationReceipt, ProjectUpdateStatusConfirmationReceipt } from "./project-update-capture.js";
-import type { ProjectUpdatePolicyView, ProjectUpdatePolicyChange, ProjectUpdateAssessmentView } from "./project-updates.js";
+import type { PortfolioUpdateFreshnessPage, ProjectUpdatePolicyView, ProjectUpdatePolicyChange, ProjectUpdateAssessmentView } from "./project-updates.js";
 import type { ProjectUpdateSchedulePreview } from "./project-update-schedule.js";
 import type { ProjectDelayCauseConfirmation, ProjectDelayClarification, ProjectDelayClarificationReview,
   ProjectLeadershipAnswer } from "./project-leadership-answer.js";
@@ -14,6 +14,7 @@ import type { UpdateAdviceSnapshot } from "./update-advice.js";
 
 export interface ProjectUpdateRepository {
   updateSuggestions(actor: Actor, projectId: string): Promise<UpdateAdviceSnapshot>;
+  portfolioFreshness(actor: Actor, after: string | null): Promise<PortfolioUpdateFreshnessPage>;
   policy(actor: Actor, projectId: string): Promise<ProjectUpdatePolicyView | null>;
   setPolicy(actor: Actor, projectId: string, change: ProjectUpdatePolicyChange, correlationId: string): Promise<ProjectUpdatePolicyView>;
   assess(actor: Actor, projectId: string, correlationId: string): Promise<ProjectUpdateAssessmentView>;
