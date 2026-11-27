@@ -237,7 +237,7 @@ it.each(["service-readable", "reviewer-private"] as const)("AC-EVD-006 / AC-UPD-
   expect(await db.projectFactVersion.count({ where: { customerId, projectId } })).toBe(2);
 });
 
-it("AC-EVD-006: confirms requested status and forecast together before replanning", async () => {
+it("AC-EVD-006 / AC-AI-002: interprets a scoped reply and confirms requested facts before replanning", async () => {
   const f = await captureFixture();
   const { projectId } = f, customerId = f.admin.customerId;
   const prior = new Date(f.now.getTime() - 7200000);
@@ -252,9 +252,10 @@ it("AC-EVD-006: confirms requested status and forecast together before replannin
   await f.capture.processEngagements(1);
   const ownerHistory = await f.capture.captureHistory(f.owner, projectId);
   if ([0, 6].includes(new Date().getUTCDay())) { expect(ownerHistory.entries).toEqual([]); return; }
-  const { requestId, recipientPath } = ownerHistory.entries[0]!;
+  const { requestId, recipientPath, expiresAt } = ownerHistory.entries[0]!;
+  const reply = "Status: Integration is progressing.\nForecast: 2026-12-08";
   const response = await f.capture.submitResponse(f.owner, recipientPath!.split("/").at(-1)!, {
-    text: "Status: Integration is progressing.\nForecast: 2026-12-08", idempotencyKey: randomUUID(),
+    text: reply, idempotencyKey: randomUUID(),
   }, randomUUID());
   const scope = { customerId, projectId }, responseId = response.responseId;
   const requested = (await f.capture.captureHistory(f.admin, projectId)).entries[0]!;
@@ -265,6 +266,56 @@ it("AC-EVD-006: confirms requested status and forecast together before replannin
   expect(await db.projectFactVersion.count({ where: scope })).toBe(2);
   const status = { factType: "project.status", expectedRevision: 1, value: "Integration is progressing." };
   const forecast = { factType: "project.forecast", expectedRevision: 1, value: "2026-12-08" };
+  const proposed = [{ factType: status.factType, value: status.value }, { factType: forecast.factType, value: forecast.value }];
+  const interpret = vi.fn(async () => ({ suggestions: proposed }));
+  const reader = new DatabaseProjectUpdateRepository(apiDatabase as never, f.service, f.zones,
+    () => ({ globalShadowMode: "false", configuration: f.configuration }), false, {
+      metadata: { provider: "FIXTURE", model: "fixture-model", promptRevision: "captured-reply-v1", schemaRevision: "captured-reply-v1" },
+      interpret,
+    });
+  const command = { requestId, responseId };
+  await expect(reader.interpretCapturedReply(f.owner, projectId, command, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
+  expect(interpret).not.toHaveBeenCalled();
+  expect((await reader.captureHistory(f.admin, projectId)).entries[0]?.interpretationAvailable).toBe(true);
+  const checkedAt = new Date(), expiry = new Date(expiresAt);
+  const auditClock = vi.spyOn(reader as unknown as { now(tx: unknown): Promise<Date> }, "now");
+  try {
+    const beforeDispatch = randomUUID();
+    auditClock.mockResolvedValueOnce(checkedAt).mockResolvedValueOnce(expiry);
+    await expect(reader.interpretCapturedReply(f.admin, projectId, command, beforeDispatch))
+      .rejects.toMatchObject({ code: "CONFLICT" });
+    expect(interpret).not.toHaveBeenCalled();
+    expect(await db.auditEvent.count({ where: { customerId, correlationId: beforeDispatch } })).toBe(0);
+
+    const beforeDisclosure = randomUUID();
+    auditClock.mockResolvedValueOnce(checkedAt).mockResolvedValueOnce(checkedAt)
+      .mockResolvedValueOnce(checkedAt).mockResolvedValueOnce(expiry);
+    await expect(reader.interpretCapturedReply(f.admin, projectId, command, beforeDisclosure))
+      .rejects.toMatchObject({ code: "CONFLICT" });
+    expect(interpret).toHaveBeenCalledTimes(1);
+    expect(await db.auditEvent.findMany({ where: { customerId, correlationId: beforeDisclosure }, select: { event: true } }))
+      .toEqual([{ event: "project_update.response.interpretation_started" }]);
+  } finally { auditClock.mockRestore(); }
+  const correlationId = randomUUID();
+  expect(await reader.interpretCapturedReply(f.admin, projectId, command, correlationId))
+    .toEqual({ ...command, classification: "AGENT_INFERENCE", suggestions: proposed });
+  expect(interpret).toHaveBeenLastCalledWith(reply, ["project.status", "project.forecast"]);
+  const audit = await db.auditEvent.findMany({ where: { customerId, correlationId } });
+  expect(audit).toHaveLength(2);
+  expect(audit).toEqual(expect.arrayContaining([expect.objectContaining({ event: "project_update.response.interpreted",
+    detail: expect.objectContaining({ requestId, responseId, provider: "FIXTURE", outcome: "PROPOSED" }) })]));
+  expect(JSON.stringify(audit)).not.toContain(status.value);
+  interpret.mockRejectedValueOnce(new Error("Synthetic provider unavailable"));
+  expect((await reader.interpretCapturedReply(f.admin, projectId, command, randomUUID())).suggestions).toEqual([]);
+  const grant = await db.accessGrant.findFirstOrThrow({ where: { customerId, subject: f.admin.subject } });
+  interpret.mockImplementationOnce(async () => {
+    await db.accessGrant.delete({ where: { id: grant.id } });
+    return { suggestions: proposed };
+  });
+  try {
+    await expect(reader.interpretCapturedReply(f.admin, projectId, command, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
+  } finally { await db.accessGrant.create({ data: grant }); }
+  expect(await db.projectFactVersion.count({ where: scope })).toBe(2);
   const confirm = (facts: unknown[]) => f.capture.confirmCapturedFacts(f.admin, projectId, { requestId, responseId, facts }, randomUUID());
   await expect(confirm([status, { ...forecast, value: "2026-02-30" }])).rejects.toMatchObject({ code: "INVALID_REQUEST" });
   await expect(confirm([status, { ...forecast, expectedRevision: 0 }])).rejects.toMatchObject({ code: "CONFLICT" });

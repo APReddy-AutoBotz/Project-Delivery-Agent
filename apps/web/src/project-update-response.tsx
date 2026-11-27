@@ -6,7 +6,7 @@ import { decodeInvitation, decodeInvitationReceipt } from "./project-update-invi
 import { CanonicalCreationWriteRegistry, canonicalCommandFingerprint, canonicalCreationOwner } from "./canonical-creation-write-registry.js";
 import { ManagedReadRegistry } from "./managed-read-registry.js";
 import { managedRead } from "./managed-read.js";
-import type { CapturedUpdateFactType, ProjectUpdateCaptureHistory as CaptureHistory, ProjectUpdateRecipientRequestView,
+import type { CapturedReplyInterpretation, CapturedUpdateFactType, ProjectUpdateCaptureHistory as CaptureHistory, ProjectUpdateRecipientRequestView,
   ProjectUpdateClarificationReceipt, ProjectUpdateFactConfirmation, ProjectUpdateFactConfirmationReceipt,
   ProjectUpdateStatusConfirmationReceipt } from "@pdaa/domain";
 import { ConfirmAtlasReply } from "./atlas-update-approval.js";
@@ -69,9 +69,10 @@ function FactConfirmation({ label, receipt }: { label: string; receipt: ProjectU
   </p>;
 }
 
-function ManualFactReview({ statusReview, forecastReview, submit, clarify, current }: ManualReview & {
+function ManualFactReview({ statusReview, forecastReview, submit, clarify, interpret, current }: ManualReview & {
   submit: (facts: ConfirmationItems) => Promise<unknown>;
   clarify: (factType: CapturedUpdateFactType) => Promise<unknown>; current: () => boolean;
+  interpret?: () => Promise<CapturedReplyInterpretation>;
 }) {
   const [status, setStatus] = useState(() => statusReview?.state === "PENDING" ? statusReview.suggestedValue ?? "" : "");
   const [forecast, setForecast] = useState(() => forecastReview?.state === "PENDING" ? forecastReview.suggestedValue ?? "" : "");
@@ -100,7 +101,15 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
       await clarify(factType);
     },
   });
-  const busy = confirmation.isPending || clarification.isPending;
+  const interpretation = useMutation({
+    gcTime: 0,
+    mutationFn: async () => {
+      if (!interpret || !current()) throw new Error("Reply interpretation unavailable");
+      return interpret();
+    },
+  });
+  const interpreted = interpret && current() ? interpretation.data : undefined;
+  const busy = confirmation.isPending || clarification.isPending || interpretation.isPending;
   return <section aria-label="Manual project update review">
     {statusReview?.state === "CONFIRMED" && <FactConfirmation label="Project status" receipt={statusReview} />}
     {forecastReview?.state === "CONFIRMED" && <FactConfirmation label="Project forecast" receipt={forecastReview} />}
@@ -110,6 +119,21 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
       <p>Forecast clarification requested at {forecastReview.requestedAt}. Awaiting an updated response from the owner.</p>}
     {(pendingStatus?.suggestedValue || pendingForecast?.suggestedValue) &&
       <p>Values from the reply are suggestions. Review or edit them before confirming.</p>}
+    {interpret && (pendingStatus || pendingForecast) && <Button disabled={busy || !current()}
+      onClick={() => interpretation.mutate()}>Interpret reply</Button>}
+    {interpret && interpretation.isPending && <Message>Checking the reply for grounded suggestions…</Message>}
+    {interpret && (interpretation.isError || interpreted?.suggestions.length === 0) && current() &&
+      <Message>Enter the confirmed values after reviewing the reply.</Message>}
+    {interpreted?.suggestions.map(({ factType, value }) => {
+      const status = factType === "project.status";
+      if (status ? !pendingStatus : !pendingForecast) return null;
+      return <div key={factType}>
+        <p>Agent inference for {status ? "status" : "forecast"}. {value}</p>
+        <Button disabled={busy || !current()} onClick={() => {
+          if (current()) (status ? setStatus : setForecast)(value);
+        }}>Use {status ? "status" : "forecast"} suggestion</Button>
+      </div>;
+    })}
     {pendingStatus && <label className="field"><span>Confirmed project status</span>
       <input type="text" value={status} maxLength={500} onChange={(event) => setStatus(event.currentTarget.value)}
         disabled={busy} />
@@ -383,6 +407,17 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
         await queryClient.invalidateQueries({ queryKey: ["project-update-capture-history", projectId, admissionScope] });
     }
   }
+  async function interpretReply(requestId: string, responseId: string) {
+    const result = await request<CapturedReplyInterpretation>(`/projects/${projectId}/project-update-reply-interpretations`, {
+      method: "POST", body: JSON.stringify({ requestId, responseId }),
+    }, 4096, undefined, undefined, current, 200);
+    if (!current() || result?.requestId !== requestId || result.responseId !== responseId ||
+        result.classification !== "AGENT_INFERENCE" || !Array.isArray(result.suggestions) || result.suggestions.length > 2 ||
+        result.suggestions.some((item) => !item || typeof item.value !== "string" ||
+          (item.factType !== "project.status" && item.factType !== "project.forecast")))
+      throw new Error("Reply interpretation unavailable");
+    return result;
+  }
   return <section className="panel" aria-label="Captured update requests">
     <h3>Captured update requests</h3>
     <p>Requests and unconfirmed responses are retained according to the customer’s content policy.</p>
@@ -403,7 +438,8 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
             <Responses entries={entry.responses} />
             {pmoAdmin && responseId && <ManualFactReview key={reviewKey} statusReview={statusReview} forecastReview={forecastReview}
               current={current} clarify={(factType) => requestClarification(entry.requestId, responseId, factType)}
-              submit={(facts) => confirmFacts(entry.requestId, responseId, facts)} />}
+              submit={(facts) => confirmFacts(entry.requestId, responseId, facts)}
+              {...(entry.interpretationAvailable && { interpret: () => interpretReply(entry.requestId, responseId) })} />}
           </article>;
         })}
         <div className="actions">

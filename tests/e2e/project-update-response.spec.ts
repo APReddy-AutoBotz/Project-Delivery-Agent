@@ -88,6 +88,51 @@ test("GOLDEN-006: the owner sees the clarification on their invitation and can a
   expect(f.submissions.at(-1)?.correctsResponseId).toBe(responseId);
 });
 
+test("PMO can use a reply suggestion while confirmation remains a separate action", async ({ page }) => {
+  const project = { id: locator, portfolioId: customerId, code: "REPLY-CHECK", name: "Synthetic reply interpretation",
+    description: "Synthetic fixture", reportedStatus: "GREEN" };
+  const path = `/api/projects/${project.id}`;
+  const status = "Integration is progressing.";
+  const now = new Date();
+  let confirmations = 0;
+  await page.route("**/api/**", async (route) => {
+    const endpoint = new URL(route.request().url()).pathname;
+    const json = (body: unknown, code = 200) => route.fulfill({ status: code, json: body });
+    if (endpoint === "/api/auth/config") return json({ mode: "development", dataMode: "synthetic", scope: "openid profile" });
+    if (endpoint === "/api/auth/development") return json({ token: "synthetic-reviewer" });
+    if (endpoint === "/api/me") return json({ customerId, subject: "pmo-portfolio", roles: ["pmo_admin"] });
+    if (endpoint === "/api/projects") return json([project]);
+    if (endpoint === path) return json(project);
+    if (endpoint === `${path}/project-update-policy` || endpoint === `${path}/project-update-assessments/latest`) return json(null);
+    if (endpoint === `${path}/project-update-capture-history`) return json({ projectId: project.id, engagement: null, nextCursor: null,
+      entries: [{ requestId: locator, stageId: locator, stageKind: "REQUEST", recipientSubject: "synthetic-owner",
+        capturedAt: now.toISOString(), expiresAt: new Date(now.getTime() + 3600000).toISOString(), status: "ACTIVE",
+        contentState: "PRESENT", body: "Share an update.", recipientPath: null, interpretationAvailable: true,
+        responses: [{ id: responseId, submittedBy: "synthetic-owner", receivedAt: now.toISOString(), correctsResponseId: null,
+          state: "UNCONFIRMED", contentState: "PRESENT", text: status }],
+        statusReview: { state: "PENDING", responseId, expectedRevision: 0 } }] });
+    if (endpoint === `${path}/project-update-reply-interpretations`) {
+      expect(route.request().postDataJSON()).toEqual({ requestId: locator, responseId });
+      return json({ requestId: locator, responseId, classification: "AGENT_INFERENCE",
+        suggestions: [{ factType: "project.status", value: status }] });
+    }
+    if (endpoint === `${path}/project-update-fact-confirmations`) confirmations++;
+    return json({ statusCode: 404, message: "Resource unavailable" }, 404);
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: /PMO administrator/ }).click();
+  await page.getByRole("button", { name: /Synthetic reply interpretation/ }).click();
+  const review = page.getByRole("region", { name: "Manual project update review" });
+  const value = review.getByRole("textbox", { name: "Confirmed project status" });
+  await review.getByRole("button", { name: "Interpret reply" }).click();
+  await expect(review).toContainText(`Agent inference for status. ${status}`);
+  await expect(value).toHaveValue("");
+  await review.getByRole("button", { name: "Use status suggestion" }).click();
+  await expect(value).toHaveValue(status);
+  await expect(review.getByRole("button", { name: "Confirm project status" })).toBeEnabled();
+  expect(confirmations).toBe(0);
+});
+
 test("historical body expiry is independent of invitation expiry and refetch denial clears context", async ({ page }) => {
   // UI contract only: a historical body can be close to expiry while its PM invitation remains valid.
   await page.clock.install();

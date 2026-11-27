@@ -312,16 +312,48 @@ const captureFactRevision = z.number().int().min(0).max(2147483646);
 const capturedStatusValue = z.string().min(1).max(500).regex(/^[^\p{Cc}\p{Surrogate}]+$/u)
   .refine((text) => text.trim().length > 0 && new TextEncoder().encode(text).length <= 500);
 const capturedForecastValue = z.iso.date().refine((date) => !date.startsWith("0000-"));
+export const capturedReplyInterpretationRequestSchema = z.strictObject(capturedResponseReference);
+const capturedReplySuggestions = z.array(z.discriminatedUnion("factType", [
+  z.strictObject({ factType: z.literal("project.status"), value: capturedStatusValue }),
+  z.strictObject({ factType: z.literal("project.forecast"), value: capturedForecastValue }),
+])).max(2).refine((items) => new Set(items.map(({ factType }) => factType)).size === items.length);
+export const capturedReplyInterpretationSchema = capturedReplyInterpretationRequestSchema.extend({
+  classification: z.literal("AGENT_INFERENCE"), suggestions: capturedReplySuggestions,
+});
+export type CapturedReplyInterpretation = z.infer<typeof capturedReplyInterpretationSchema>;
+export const capturedReplyInterpreterMetadataSchema = z.strictObject({
+  provider: z.enum(["FIXTURE", "OPENAI_COMPATIBLE"]),
+  model: z.string().min(1).max(96).regex(/^[A-Za-z0-9._:/-]+$/u),
+  promptRevision: z.literal("captured-reply-v1"),
+  schemaRevision: z.literal("captured-reply-v1"),
+});
+export interface CapturedReplyInterpreter {
+  readonly metadata: z.infer<typeof capturedReplyInterpreterMetadataSchema>;
+  interpret(text: string, allowed: readonly CapturedUpdateFactType[]): Promise<unknown>;
+}
+
+export function readGroundedReplySuggestions(text: string, allowed: readonly CapturedUpdateFactType[], output: unknown) {
+  const parsed = z.strictObject({ suggestions: capturedReplySuggestions }).safeParse(output);
+  const supported = extractExplicitCapturedFacts(text, true);
+  if (!parsed.success || parsed.data.suggestions.some(({ factType, value }) =>
+    !allowed.includes(factType) || supported[factType] !== value)) return [];
+  return parsed.data.suggestions;
+}
+
 export const projectUpdateStatusConfirmationSchema = z.strictObject({
   ...capturedResponseReference,
   expectedRevision: captureFactRevision,
   status: capturedStatusValue,
 });
-export function extractExplicitCapturedFacts(text: string): Partial<Record<CapturedUpdateFactType, string>> {
+export function extractExplicitCapturedFacts(text: string, allowAffirmativePhrases = false): Partial<Record<CapturedUpdateFactType, string>> {
   const seen = new Set<CapturedUpdateFactType>();
   const values: Partial<Record<CapturedUpdateFactType, string>> = {};
   for (const line of text.split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/u)) {
-    const parts = /^(?:project\s+)?(status|forecast)\s*:\s*(.*)$/iu.exec(line.trim());
+    const labeled = /^(?:project\s+)?(status|forecast)\s*:\s*(.*)$/iu.exec(line.trim());
+    const affirmative = !labeled && allowAffirmativePhrases
+      ? /^(?:the\s+)?(?:project\s+)?(status|forecast(?:\s+finish(?:\s+date)?)?)\s+(?:is|remains)\s+(.*)$/iu.exec(line.trim())
+      : null;
+    const parts = labeled ?? affirmative;
     if (!parts) continue;
     const status = parts[1]!.toLowerCase() === "status";
     const factType = status ? "project.status" : "project.forecast";
@@ -330,7 +362,8 @@ export function extractExplicitCapturedFacts(text: string): Partial<Record<Captu
       continue;
     }
     seen.add(factType);
-    const value = (status ? capturedStatusValue : capturedForecastValue).safeParse(parts[2]);
+    const statement = affirmative && !status ? parts[2]?.replace(/\.$/u, "") : parts[2];
+    const value = (status ? capturedStatusValue : capturedForecastValue).safeParse(statement);
     if (value.success) values[factType] = value.data;
   }
   return values;
@@ -378,6 +411,7 @@ export const projectUpdateCaptureHistorySchema = z.strictObject({
     // Locators are returned only for the current exact named recipient.
     recipientPath: z.string().nullable(),
     responses: z.array(projectUpdateResponseHistorySchema).max(20),
+    interpretationAvailable: z.literal(true).optional(),
     statusReview: z.discriminatedUnion("state", [
       pendingCapturedFactReview.extend({ suggestedValue: capturedStatusValue.optional() }),
       projectUpdateClarificationReceiptSchema.extend({ state: z.literal("CLARIFICATION_REQUESTED") }),

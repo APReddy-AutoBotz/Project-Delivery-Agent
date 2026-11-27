@@ -19,6 +19,7 @@ export {
 export { assertSyntheticDatabaseUrl } from "./database-target.js";
 export { createForgeJiraInvocationVerifier, forgeJiraStagingBindingSchema, type ForgeJiraStagingBinding } from "./forge-jira-invocation.js";
 export { createOutboundDispatcher } from "./outbound.js";
+export { loadCapturedReplyInterpreter } from "./reply-interpreter.js";
 export {
   signConnectorTaskRequest,
   verifyConnectorTaskRequest,
