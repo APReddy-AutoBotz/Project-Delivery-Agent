@@ -42,8 +42,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await reply.fill(text);
     const saved = page.waitForResponse((value) => value.url().endsWith("/responses") && value.request().method() === "POST");
     await page.getByRole("button", { name: "Record response" }).click();
-    expect((await saved).status()).toBe(201);
+    const response = await saved;
+    expect(response.status()).toBe(201);
     await expect(page.getByText(text, { exact: true })).toBeVisible();
+    return response.json();
   };
   await submitReply("It might be available next week.");
   const interpretation = page.getByRole("region", { name: "Atlas demo interpretation" });
@@ -52,7 +54,15 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(interpretation.getByRole("button", { name: "Confirm for PM review" })).toBeDisabled();
 
   const text = "Access is still pending from Infrastructure. They expect to provide it on Wednesday. I need two working days after access to complete the integration task.";
-  await submitReply(text);
+  const retained = await submitReply(text);
+  const reviewer = await request.post("/api/auth/development", { data: { persona: "pmo-portfolio" } });
+  expect(reviewer.status()).toBe(200);
+  const clarificationRequest = await request.post(projectPath + "/project-update-status-clarifications", {
+    headers: { Authorization: "Bearer " + (await reviewer.json()).token },
+    data: { requestId: fixture.request.requestId, responseId: retained.responseId, factType: "project.forecast" },
+  });
+  expect(clarificationRequest.status()).toBe(200);
+  const clarification = await clarificationRequest.json();
   await expect(interpretation.getByRole("combobox")).toHaveValue("ACCESS_PENDING");
   const confirmationSaved = page.waitForResponse((value) => value.url().endsWith("/atlas-confirmation"));
   await interpretation.getByRole("button", { name: "Confirm for PM review" }).click();
@@ -122,6 +132,8 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(before.updateFreshness).toEqual({
     state: authorizedUpdate.freshness.state, sourceDateField: authorizedUpdate.freshness.sourceDateField,
     sourceDate: authorizedUpdate.freshness.sourceDate, assessedAt: authorizedUpdate.freshness.assessedAt, openObligation: true,
+    activeClarification: { clarificationId: clarification.clarificationId, requestedAt: clarification.requestedAt,
+      factType: "project.forecast", availableUntil: expect.any(String) },
   });
   expect((await request.get(answerPath, { headers: managerHeaders })).status()).toBe(404);
   expect((await request.get(reportPath, { headers: managerHeaders })).status()).toBe(404);
@@ -231,6 +243,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
   await expect(answer).toContainText("14 days later");
   await expect(answer).toContainText("The latest saved assessment marked the project update stale.");
+  await expect(answer).toContainText("A clarification about the forecast finish date is open.");
   await expect(answer).toContainText("A project update remains due.");
   await expect(answer).toContainText("Integration testing started late.");
   await expect(answer).toContainText("The synthetic Jira blocker ATLAS-248 is open.");
@@ -427,7 +440,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   });
   const pending = await request.get(answerPath, { headers: leaderHeaders });
   expect(pending.status()).toBe(200);
-  expect(await pending.json()).toMatchObject({ ownerReply: null, receipt: null });
+  const pendingAnswer = await pending.json();
+  expect(pendingAnswer).toMatchObject({ ownerReply: null, receipt: null });
+  expect(pendingAnswer.updateFreshness).not.toHaveProperty("activeClarification");
   const restoredComment = "API access was restored. Infrastructure will verify access with the integration team.";
   expect((await request.post(projectPath + "/atlas-approval", {
     headers: managerHeaders, data: { approvalId: nextComment.approvalId, decision: "APPROVED", proposedComment: restoredComment },

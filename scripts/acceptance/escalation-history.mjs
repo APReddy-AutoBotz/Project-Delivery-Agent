@@ -26,7 +26,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     assert(customerId);
     if (isolatedCustomer) await db.customer.create({ data: { id: customerId, name: "Synthetic isolated escalation customer" } });
     else assert(await db.customer.findUnique({ where: { id: customerId } }));
-    const admin = { customerId, subject: "escalation-reviewer-" + randomUUID(), roles: ["pmo_admin"] };
+    const admin = { customerId, subject: atlasApproval ? "pmo-portfolio" : "escalation-reviewer-" + randomUUID(), roles: ["pmo_admin"] };
     const writer = { customerId, subject: "escalation-writer-" + randomUUID(), roles: ["pmo_admin"] };
     const owner = { customerId, subject: atlasApproval ? "owner-atlas" : "synthetic-owner-4", roles: ["contributor"] };
     // Match IdentityService's real development PM persona for the saved browser journey.
