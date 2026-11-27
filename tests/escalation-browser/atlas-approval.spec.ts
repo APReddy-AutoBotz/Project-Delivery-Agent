@@ -216,6 +216,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await leaderAccess(false, fixture.jiraIntake.factSourceId, fixture.jiraIntake.sourceReaders);
     await unknownCausePage.goto("/");
     await unknownCausePage.getByRole("button", { name: /Leadership/ }).click();
+    await unknownCausePage.getByRole("button", { name: /Atlas · Delivery approval/ }).click();
     const unknownAnswer = unknownCausePage.getByRole("region", { name: "Atlas leadership answer" });
     await unknownAnswer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
     await expect(unknownAnswer).toContainText("The forecast is 14 days later than the baseline.");
