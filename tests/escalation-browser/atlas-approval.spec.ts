@@ -63,7 +63,8 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect((await request.get(invitationPath, { headers: leaderHeaders })).status()).toBe(404);
   const beforeApproval = await request.get(answerPath, { headers: leaderHeaders });
   expect(beforeApproval.status()).toBe(200);
-  expect(await beforeApproval.json()).toMatchObject({
+  const before = await beforeApproval.json();
+  expect(before).toMatchObject({
     schedule: { baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 }, ownerReply: null, receipt: null,
     jiraBlocker: { mappingId: fixture.jiraIntake.mappingId, issueKey: "ATLAS-248" },
   });
@@ -74,6 +75,20 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     receipt: { id: fixture.jiraIntake.receiptId, sourceId: fixture.jiraIntake.sourceId, kind: "CONNECTOR_PAGE", rowCount: 1 },
     outcomes: [{ projectId: fixture.projectId, identity: ["jira.issue", "ATLAS-248"], contentAvailable: true,
       proposals: [{ factType: "jira.status", value: { type: "text", value: "To Do" } }] }],
+  });
+  const spreadsheet = fixture.spreadsheetIntake;
+  const reviewedImport = await request.get(`/api/ingestion/sources/${spreadsheet.sourceId}/receipts/${spreadsheet.receiptId}`, {
+    headers: leaderHeaders,
+  });
+  expect(reviewedImport.status()).toBe(200);
+  expect(await reviewedImport.json()).toMatchObject({
+    receipt: { id: spreadsheet.receiptId, sourceId: spreadsheet.sourceId, kind: "CSV_REVIEWED_IMPORT",
+      rowCount: 1, parentPreviewReceiptId: spreadsheet.previewReceiptId },
+    outcomes: [{ projectId: fixture.projectId, state: "ACCEPTED", parentOrdinal: 1, contentAvailable: true,
+      proposals: [
+        { factType: "project.baseline", value: { type: "date", value: before.schedule.baseline } },
+        { factType: "project.forecast", value: { type: "date", value: before.schedule.forecast } },
+      ] }],
   });
   expect(await (await request.get(reportPath, { headers: leaderHeaders })).json()).toBeNull();
   expect((await request.post(reportPath, { headers: leaderHeaders, data: {} })).status()).toBe(409);

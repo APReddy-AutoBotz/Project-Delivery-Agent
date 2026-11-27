@@ -8,6 +8,7 @@ import { atlasApprovalProjectCode, atlasIntegrationMilestoneKey, atlasJiraBlocke
   renderProjectUpdateCapture } from "../../packages/domain/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
 import { CredentialVault } from "../../packages/platform/dist/index.js";
+import { atlasSpreadsheetDates, reviewAtlasSpreadsheet } from "./atlas-spreadsheet.mjs";
 const { Pool } = createRequire(new URL("../../packages/data/package.json", import.meta.url))("pg");
 
 export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = false, customerId: selectedCustomerId,
@@ -48,7 +49,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
         return typeof value === "function" ? value.bind(object) : value;
       } })), options) };
     const canonical = canonicalFixture(portfolioId);
-    let jiraIssue, jiraIntake;
+    let jiraIssue, jiraIntake, spreadsheetIntake;
     const jiraOrigin = "https://atlas-fixture.example.test";
     if (atlasApproval) {
       assert(isolatedCustomer);
@@ -59,7 +60,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       } };
       canonical.code = atlasApprovalProjectCode;
       canonical.name = "Atlas · Delivery approval";
-      canonical.dates = { ...canonical.dates, baselineEnd: "2026-10-15", forecastEnd: "2026-10-29" };
+      canonical.dates = { ...canonical.dates, ...atlasSpreadsheetDates() };
       canonical.milestones.push({
         key: atlasIntegrationMilestoneKey, name: "Integration testing", state: "IN_PROGRESS",
         dates: { baselineStart: null, baselineEnd: null, plannedStart: "2026-10-05", plannedEnd: null,
@@ -96,9 +97,11 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       } });
       const ingestion = new DatabaseIngestionRepository(db, new CredentialVault(randomBytes(32).toString("base64")));
       await ingestion.setRetention(retentionAdmin, { retentionHours: 24 }, randomUUID());
+      const sourceReaders = [admin.subject, pm.subject, "leader-atlas"];
+      spreadsheetIntake = await reviewAtlasSpreadsheet(ingestion, admin, projectId, sourceReaders);
       const { sourceId, receiptId } = await ingestSyntheticJiraIssues(db, {
         actor: admin, projectId, origin: jiraOrigin, jiraProject: jiraIssue.fields.project.key,
-        readers: [admin.subject, pm.subject, "leader-atlas"], issues: [jiraIssue],
+        readers: sourceReaders, issues: [jiraIssue],
       });
       const mappings = await db.$queryRaw`
         SELECT mapping.id AS "mappingId" FROM public."IngestionRowOutcome" outcome
@@ -276,6 +279,6 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     return { customerId, projectId, admin, writer, owner, pm, service, zones, configuration, readers,
       sourceA, sourceB, sourceMarkerA, sourceMarkerB, privateResponse,
       request, reminder, secondReminder, ownerEscalation, escalation, olderCycle,
-      engagementId: activation.engagementId, jiraIntake };
+      engagementId: activation.engagementId, jiraIntake, spreadsheetIntake };
   } finally { await db.$disconnect(); await pool.end(); }
 }
