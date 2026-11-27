@@ -1089,7 +1089,7 @@ function App() {
                       request={projectRequest} isCurrent={isCurrentProjectAdmission} />}</>}
                   {projectVisible && project.data && me.data?.roles.includes("leadership") &&
                     (project.data.code !== atlasReviewProjectCode || auth.data?.mode !== "development" || auth.data.dataMode !== "synthetic") &&
-                    <ProjectLeadershipAnswer key={project.data.id} projectId={project.data.id}
+                    <ProjectLeadershipAnswer key={`leadership-answer:${project.data.id}`} projectId={project.data.id}
                       scope={JSON.stringify([renderedSessionGeneration, selectionEpoch, me.data.subject])}
                       request={projectRequest} isCurrent={isCurrentProjectAdmission} />}
                   {retainedProject && (
