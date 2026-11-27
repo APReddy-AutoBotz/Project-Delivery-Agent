@@ -1,4 +1,4 @@
-// GOLDEN-003 fixture. Only the disposable customer proof image runs this code.
+// Synthetic source observations for the disposable acceptance databases.
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { JiraRuntimeService } from "../../apps/api/dist/jira-runtime.js";
@@ -154,7 +154,10 @@ export async function prepareGoldenWorkbook(pool, database, customerId) {
   }
 }
 
-async function readJiraIssues(db, customerId, projectId) {
+export async function ingestSyntheticJiraIssues(db, {
+  actor, projectId, origin, jiraProject, readers, issues,
+}) {
+  const { customerId } = actor;
   const sourceId = randomUUID();
   const key = randomBytes(32).toString("base64");
   const keyId = "golden-source-fixture";
@@ -167,10 +170,10 @@ async function readJiraIssues(db, customerId, projectId) {
     new CredentialVault(key),
   );
   await ingestion.configure(
-    pmOffice(customerId),
+    actor,
     {
       binding: { customerId, sourceId, sourceType: "jira", origin },
-      projects: [{ projectId, readers: [...readers, admissionSubject] }],
+      projects: [{ projectId, readers }],
       mapping: {
         kind: "CONNECTOR",
         factTypes: ["jira.status"],
@@ -187,7 +190,7 @@ async function readJiraIssues(db, customerId, projectId) {
   await runtime.setOAuthCredential({
     customerId,
     sourceId,
-    actorSubject: pmo,
+    actorSubject: actor.subject,
     credential: {
       cloudId: "golden-cloud",
       selectedUrl: origin,
@@ -198,7 +201,6 @@ async function readJiraIssues(db, customerId, projectId) {
     },
   });
 
-  const updated = new Date(Date.now() - 30_000).toISOString();
   const calls = [];
   const service = new JiraRuntimeService(
     { CUSTOMER_ID: customerId },
@@ -224,20 +226,12 @@ async function readJiraIssues(db, customerId, projectId) {
           return { key: jiraProject };
         },
         async searchIssues({ jql, fields }) {
-          assert(jql.includes('"GOLD"'));
+          assert(jql.includes(JSON.stringify(jiraProject)));
           assert(fields.includes("status"));
           calls.push("issues");
           return {
             isLast: true,
-            issues: jiraKeys.map((issue, index) => ({
-              id: String(95011 + index),
-              key: issue,
-              fields: {
-                project: { id: "950", key: jiraProject },
-                updated,
-                status: { name: "To Do" },
-              },
-            })),
+            issues,
           };
         },
       };
@@ -268,7 +262,11 @@ async function readJiraIssues(db, customerId, projectId) {
   );
   assert.deepEqual(await service.runOne(nonce), { status: "page_committed" });
   assert.deepEqual(calls, ["resources", "project", "issues"]);
-  return sourceId;
+  const [{ receiptId }] = await db.$queryRaw`
+    SELECT "lastSuccessReceiptId" AS "receiptId" FROM public."IngestionSource"
+    WHERE "customerId"=${customerId}::uuid AND id=${sourceId}::uuid AND "cursorState"='TERMINAL'`;
+  assert(receiptId);
+  return { sourceId, receiptId };
 }
 
 async function requiredTargets(pool, customerId, projectId) {
@@ -467,11 +465,15 @@ export async function admitGoldenSources(pool, database, customerId, fixture) {
   const milestoneId = targets[0].milestoneId;
   const db = createDatabase(database);
   try {
-    const jiraSourceId = await readJiraIssues(
-      db,
-      customerId,
-      fixture.projectId,
-    );
+    const updated = new Date(Date.now() - 30_000).toISOString();
+    const { sourceId: jiraSourceId } = await ingestSyntheticJiraIssues(db, {
+      actor: pmOffice(customerId), projectId: fixture.projectId, origin, jiraProject,
+      readers: [...readers, admissionSubject],
+      issues: jiraKeys.map((key, index) => ({
+        id: String(95011 + index), key,
+        fields: { project: { id: "950", key: jiraProject }, updated, status: { name: "To Do" } },
+      })),
+    });
     const { jira, workbook } = await projectedInputs(
       pool,
       customerId,

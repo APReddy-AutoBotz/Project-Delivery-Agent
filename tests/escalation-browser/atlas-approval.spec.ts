@@ -65,6 +65,15 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(beforeApproval.status()).toBe(200);
   expect(await beforeApproval.json()).toMatchObject({
     schedule: { baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 }, ownerReply: null, receipt: null,
+    jiraBlocker: { mappingId: fixture.jiraIntake.mappingId, issueKey: "ATLAS-248" },
+  });
+  const intakePath = `/api/ingestion/sources/${fixture.jiraIntake.sourceId}/receipts/${fixture.jiraIntake.receiptId}`;
+  const intake = await request.get(intakePath, { headers: leaderHeaders });
+  expect(intake.status()).toBe(200);
+  expect(await intake.json()).toMatchObject({
+    receipt: { id: fixture.jiraIntake.receiptId, sourceId: fixture.jiraIntake.sourceId, kind: "CONNECTOR_PAGE", rowCount: 1 },
+    outcomes: [{ projectId: fixture.projectId, identity: ["jira.issue", "ATLAS-248"], contentAvailable: true,
+      proposals: [{ factType: "jira.status", value: { type: "text", value: "To Do" } }] }],
   });
   expect(await (await request.get(reportPath, { headers: leaderHeaders })).json()).toBeNull();
   expect((await request.post(reportPath, { headers: leaderHeaders, data: {} })).status()).toBe(409);
