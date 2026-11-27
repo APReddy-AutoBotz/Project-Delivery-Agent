@@ -1,6 +1,6 @@
 {
-  "caddyVersion": "v2.11.4",
-  "caddyGoVersion": "go1.26.8",
+  "caddyVersion": "v2.11.9",
+  "caddyGoVersion": "go1.26.11",
   "caddyBuildTags": ["nobadger", "nomysql", "nopgx"],
   "webForbiddenPackages": [
     "curl",

@@ -80,7 +80,7 @@ HEALTHCHECK --interval=10s --timeout=5s CMD ["node", "-e", "process.kill(1,0)"]
 CMD ["node", "dist/main.js"]
 
 # Reuse pinned Node and PostgreSQL clients without Prisma CLI/Studio or new npm tools.
-FROM pgvector/pgvector:0.8.6-pg17-bookworm@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f AS operations
+FROM pgvector/pgvector:0.8.7-pg17-bookworm@sha256:b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd AS operations
 COPY --from=runtime /usr/local/bin/node /usr/local/bin/node
 COPY --from=runtime /usr/local/LICENSE /usr/local/share/doc/node/LICENSE
 COPY --from=runtime /usr/local/share/doc/node/supplements/ /usr/local/share/doc/node/supplements/
@@ -93,10 +93,10 @@ ENV NODE_ENV=production
 ENTRYPOINT ["node", "dist/main.js"]
 
 # NFR-SEC-003/010: retain the Caddy release and modules with a pinned Go toolchain.
-FROM golang:1.26.8-alpine3.23@sha256:33ce311e5eecedee48ec1b84419c1306e9fbd71009f0d5c3f2a6904b579c1ecc AS web-build
+FROM golang:1.26.11-alpine3.23@sha256:23f198931d4bd83b4f5a613bd75656257ae8bf832dcbc2db80e1050b5219ca2a AS web-build
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOBIN=/out
 RUN go test crypto/tls -run '^(TestKeyUpdateSpamPostHandshakeTLS13|TestMultipleKeyUpdate)$' -count=1 -timeout=60s
-RUN go install -trimpath -tags nobadger,nomysql,nopgx -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4
+RUN go install -trimpath -tags nobadger,nomysql,nopgx -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.9' github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.9
 COPY scripts/go-notices /notice-collector
 COPY scripts/distribution/caddy-modules.json /notice-collector/caddy-modules.json
 # AC-MNT-004: exact compiled sources and original notices, with no network access.
@@ -104,13 +104,19 @@ RUN --network=none cd /notice-collector && GO111MODULE=off go test -count=1 -v .
     go run main.go -inventory /notice-collector/caddy-modules.json
 RUN mkdir -p /out/notices/go && \
     cp /usr/local/go/LICENSE /out/notices/go/LICENSE && \
-    cp /go/pkg/mod/github.com/caddyserver/caddy/v2@v2.11.4/LICENSE /out/notices/LICENSE && \
-    go version -m /out/caddy && test "$(/out/caddy version)" = v2.11.4
+    cp /go/pkg/mod/github.com/caddyserver/caddy/v2@v2.11.9/LICENSE /out/notices/LICENSE && \
+    go version -m /out/caddy && test "$(/out/caddy version)" = v2.11.9
 
-FROM caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 AS web-files
+FROM caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0 AS web-files
+# Apply the Alpine security updates published after the selected Caddy image.
+ADD --checksum=sha256:7b05bc778b8b25cd880835b40114182bd4d1581717504d0129c810c0a14291cb https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/zlib-1.4-r0.apk /tmp/zlib-1.4-r0.apk
+ADD --checksum=sha256:042026082cc9bc7872d1baa81755c50efa70b05f03b5369fdc5f0a1303009720 https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libcrypto3-3.5.9-r1.apk /tmp/libcrypto3-3.5.9-r1.apk
+ADD --checksum=sha256:18c5778cbe52e1991303f8531970b05d4e6e036ea08349322f7422f42a689dc7 https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libssl3-3.5.9-r1.apk /tmp/libssl3-3.5.9-r1.apk
 # NFR-SEC-010 / AC-MNT-004: Caddy and the BusyBox health probe do not use curl.
 # Resolve orphan libraries offline, preserving the installed-package inventory.
-RUN apk del --no-network curl && rm /usr/bin/caddy
+RUN apk add --no-network /tmp/zlib-1.4-r0.apk /tmp/libcrypto3-3.5.9-r1.apk /tmp/libssl3-3.5.9-r1.apk && \
+    apk del --no-network curl && \
+    rm /tmp/zlib-1.4-r0.apk /tmp/libcrypto3-3.5.9-r1.apk /tmp/libssl3-3.5.9-r1.apk /usr/bin/caddy
 COPY --from=web-build /out/caddy /usr/bin/caddy
 COPY --from=web-build /out/notices/ /usr/share/caddy/
 
@@ -118,7 +124,7 @@ COPY --from=web-build /out/notices/ /usr/share/caddy/
 FROM scratch AS web
 COPY --from=web-files / /
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ENV CADDY_VERSION=v2.11.4 XDG_CONFIG_HOME=/config XDG_DATA_HOME=/data
+ENV CADDY_VERSION=v2.11.9 XDG_CONFIG_HOME=/config XDG_DATA_HOME=/data
 WORKDIR /srv
 COPY --from=build /workspace/apps/web/dist /srv
 COPY deploy/Caddyfile /etc/caddy/Caddyfile

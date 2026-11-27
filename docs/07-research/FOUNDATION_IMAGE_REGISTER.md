@@ -7,9 +7,9 @@ certify every operating-system package license. No images are pushed by this wor
 | Image | Manifest SHA-256 | Purpose | Publisher / application license |
 |---|---|---|---|
 | node:24.22.3-bookworm-slim | 873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530 | Build, API, worker, operations and XLSX images | [Node official image](https://github.com/nodejs/docker-node), Node MIT and bundled notices |
-| pgvector/pgvector:0.8.6-pg17-bookworm | cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f | Isolated bundled/external PostgreSQL with vector availability | [pgvector](https://github.com/pgvector/pgvector); PostgreSQL license |
-| caddy:2.11.4-alpine | 5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 | TLS ingress and static web | [Caddy](https://github.com/caddyserver/caddy); Apache-2.0 |
-| golang:1.26.8-alpine3.23 | 33ce311e5eecedee48ec1b84419c1306e9fbd71009f0d5c3f2a6904b579c1ecc | Build-only toolchain for the existing Caddy 2.11.4 release | [Go official image](https://github.com/docker-library/golang); Go BSD-3-Clause |
+| pgvector/pgvector:0.8.7-pg17-bookworm | b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd | Bundled PostgreSQL 17.12, external profile fixture and operations clients | [pgvector](https://github.com/pgvector/pgvector); PostgreSQL license |
+| caddy:2.11.9-alpine | 003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0 | TLS ingress and static web | [Caddy](https://github.com/caddyserver/caddy); Apache-2.0 |
+| golang:1.26.11-alpine3.23 | 23f198931d4bd83b4f5a613bd75656257ae8bf832dcbc2db80e1050b5219ca2a | Build-only toolchain for Caddy 2.11.9 | [Go official image](https://github.com/docker-library/golang); Go BSD-3-Clause |
 | quay.io/keycloak/keycloak:26.7.3 | ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54 | Controlled test identity provider only | [Keycloak](https://www.keycloak.org/server/containers); Apache-2.0 |
 
 Replace Node behind the documented Node 24 interface, Caddy behind standard HTTPS
@@ -20,22 +20,20 @@ owns pin review, upgrade validation and vulnerability disposition.
 
 ## Packaging decision
 
-The web runtime now uses a local build of the published Caddy 2.11.4 module with
-Go 1.26.8, `GOTOOLCHAIN=local`, `CGO_ENABLED=0` and its unchanged upstream module
-selection. The [official image source](https://github.com/docker-library/golang/tree/f47489bcbda87966b421340c536f39a34d00b45f/1.26/alpine3.23)
-and registry manifest establish the toolchain pin above. The existing Alpine
-filesystem is prepared with the replacement binary and copied into a fresh
-`scratch` graph. Preserve Caddy's command, PATH, XDG paths and working directory;
-Compose continues to select the non-root user and ports. This is a product build,
-not the publisher's original Caddy binary.
+The web runtime builds the published Caddy 2.11.9 module with Go 1.26.11,
+`GOTOOLCHAIN=local`, `CGO_ENABLED=0` and the published Caddy module selection.
+The Alpine 3.24 filesystem takes the rebuilt binary and checksum-pinned Alpine
+zlib and OpenSSL security updates before copying into a fresh `scratch` graph.
+Compose preserves the Caddy command, runtime paths, non-root user and ports.
+[Caddy release](https://github.com/caddyserver/caddy/releases/tag/v2.11.9) ·
+[Go releases](https://go.dev/doc/devel/release) · [Alpine security database](https://secdb.alpinelinux.org/v3.24/)
 
-Set Caddy's upstream-supported `CustomVersion` linker value to `v2.11.4` because
+Set Caddy's upstream-supported `CustomVersion` linker value to `v2.11.9` because
 direct module installation otherwise reports `unknown`. Assert the command's
 output during the build; compiler/module evidence is checked independently of
 this display value.
 
-Retain the publisher's `nobadger,nomysql,nopgx` build tags from its
-[release configuration](https://github.com/caddyserver/caddy/blob/v2.11.4/.goreleaser.yml).
+Retain the `nobadger,nomysql,nopgx` build tags used for the existing HTTPS gateway.
 Direct installation without these tags includes additional storage drivers;
 binary comparison caught that discrepancy before acceptance. Require the same
 tags in binary build metadata as part of both distribution-scope checks.
@@ -120,19 +118,17 @@ own embedded libraries and all remaining scanner matches stay subject to review.
 
 ## Compiled Go source notices
 
-The Go notice increment retains every image/compiler/module pin and requires
-the unchanged Caddy binary hash recorded in `scripts/distribution/caddy-modules.json`.
-A first-party standard-library Go helper runs in the existing build stage with
-network disabled. It verifies exact module ZIP h1 values against compiled build
-metadata and the committed inventory, then preserves 197 original files plus an
-index under `/usr/share/caddy/modules/`. Source archives, extracted module caches
-and helper executables are excluded from the final graph.
+The Go notice collector uses the Caddy binary hash and module identities
+recorded in `scripts/distribution/caddy-modules.json`. The helper runs in the
+build stage with network disabled. It verifies exact module ZIP h1 values
+against the compiled metadata and committed inventory, then writes the original
+notices and index under `/usr/share/caddy/modules/`. The final image retains
+those files and the compiled gateway.
 
-Both Syft scopes must contain the sole pinned Caddy binary, all 144 non-stdlib
-module identities, the expected standard library and every original notice byte.
+Both Syft scopes must contain the sole pinned Caddy binary, all compiled
+non-stdlib modules, the expected standard library and every original notice byte.
 Notice paths, hashes, file IDs and supplying layers are reconciled independently;
-the old root-notices-only image cannot satisfy the new gate. Existing Go/Caddy
-LICENSE paths and all runtime package versions remain unchanged. The complete
+the Go and Caddy LICENSE files retain their established paths. The complete
 immutable customer acceptance suite still gates the candidate.
 
 Module-source attribution remains distinct from legal approval or proof of
