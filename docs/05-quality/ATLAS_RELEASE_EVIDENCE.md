@@ -179,8 +179,8 @@ review, required hosted checks and merge.
 
 The release readiness criteria reuse the Jira connector tests on main.
 AC-CON-004 sends the same authenticated webhook twice, verifies one observation,
-and counts one downstream update obligation. AC-CON-006 runs a scheduled
-read with a revoked synthetic refresh credential. It verifies that sync stops,
+and counts one downstream update obligation. AC-CON-006 runs a queued
+connector read with a revoked synthetic refresh credential. It verifies that sync stops,
 the source health becomes `FAILED` with `INVALID_CREDENTIALS`, and the
 administrator's reauthorization response excludes both credentials and the
 provider's error. The existing integration and redaction assertions cover
