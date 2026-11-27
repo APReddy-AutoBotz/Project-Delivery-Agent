@@ -896,6 +896,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await page.getByRole("button", { name: /Project manager/ }).click();
   await page.getByRole("button", { name: /Second synthetic project/ }).click();
   const selectedProjectApproval = page.getByRole("region", { name: "Project report approval" });
+  await selectedProjectApproval.getByRole("button", { name: "Check report approvals" }).click();
   await expect(selectedProjectApproval).toContainText(savedReport.snapshotId);
   await selectedProjectApproval.getByRole("button", { name: "Approve saved report" }).click();
   await expect(selectedProjectApproval).toContainText("Final · Approved");

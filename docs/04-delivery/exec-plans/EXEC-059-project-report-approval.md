@@ -8,7 +8,8 @@ GitHub issue [#13](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/is
 
 Leadership can request a decision on an exact saved report. Route the request
 to the single currently assigned PM with project and evidence access. The PM
-can approve or reject that exact version from the project page. The dashboard,
+opens report review from the project page and can approve or reject that exact
+version. The dashboard,
 email preview and editable PowerPoint display the resulting approval state.
 
 Reuse the report snapshot, existing decision shape and append-only audit

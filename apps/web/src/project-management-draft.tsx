@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProjectManagementDraftOutput, ProjectReportDecision } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
@@ -89,10 +90,11 @@ export function ProjectManagementDraft({ projectId, scope, request, isCurrent }:
 export function ProjectReportApproval({ projectId, scope, request, isCurrent }: {
   projectId: string; scope: string; request: RequestFn; isCurrent: () => boolean;
 }) {
+  const [opened, setOpened] = useState(false);
   const client = useQueryClient();
   const path = `/projects/${projectId}/management-report-approval`;
   const key = ["project-report-approval", projectId, scope] as const;
-  const review = useQuery({ queryKey: key, enabled: isCurrent(), retry: false, refetchOnWindowFocus: "always",
+  const review = useQuery({ queryKey: key, enabled: opened && isCurrent(), retry: false, refetchOnWindowFocus: "always",
     queryFn: async () => {
       const raw = await request(path, undefined, 170_000, undefined, undefined, isCurrent);
       if (raw === null) return null;
@@ -117,13 +119,19 @@ export function ProjectReportApproval({ projectId, scope, request, isCurrent }: 
   },
     onError: () => isCurrent() ? review.refetch() : undefined,
   });
-  const report = isCurrent() && review.isSuccess && !review.isFetching && !decide.isPending ? review.data : null;
+  const report = opened && isCurrent() && review.isSuccess && !review.isFetching && !decide.isPending ? review.data : null;
   const pending = report?.snapshotId && report.approval?.state === "PENDING"
     ? { snapshotId: report.snapshotId, requestId: report.approval.requestId } : null;
   return <section className="panel" aria-label="Project report approval">
     <h2>Management report approval</h2>
-    {review.isSuccess && !review.isFetching && review.data === null && <p>No report has been submitted for your review.</p>}
-    {(review.isError || decide.isError) && <Message error>The report review is unavailable.</Message>}
+    <Button className="secondary" disabled={review.isFetching || decide.isPending || !isCurrent()} onClick={() => {
+      if (!isCurrent()) return;
+      if (opened) void review.refetch();
+      else setOpened(true);
+    }}>Check report approvals</Button>
+    {opened && review.isFetching && <p role="status">Checking report access…</p>}
+    {opened && review.isSuccess && !review.isFetching && review.data === null && <p>No report is available for your review.</p>}
+    {opened && (review.isError || decide.isError) && <Message error>The report review is unavailable.</Message>}
     {decide.isPending && <p role="status">Recording your decision…</p>}
     {report && <DraftSummary report={report} />}
     {pending && <>
