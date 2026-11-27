@@ -134,6 +134,14 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     factType: "project.forecast", sourceId: fixture.lastForecast.sourceId, observedAt: fixture.lastPmUpdateAt,
   })]));
   expect(Math.floor((Date.parse(before.updateFreshness.assessedAt) - Date.parse(fixture.lastPmUpdateAt)) / 86400000)).toBe(9);
+  await leaderAccess(false, fixture.lastForecast.sourceId, fixture.readers);
+  try {
+    const restrictedFreshness = await request.get(answerPath, { headers: leaderHeaders });
+    expect(restrictedFreshness.status()).toBe(200);
+    expect(await restrictedFreshness.json()).toMatchObject({ updateFreshness: null, jiraBlocker: before.jiraBlocker });
+  } finally {
+    await leaderAccess(true, fixture.lastForecast.sourceId, fixture.readers);
+  }
   expect(before.updateFreshness).toEqual({
     state: authorizedUpdate.freshness.state, sourceDateField: authorizedUpdate.freshness.sourceDateField,
     sourceDate: authorizedUpdate.freshness.sourceDate, assessedAt: authorizedUpdate.freshness.assessedAt, openObligation: true,

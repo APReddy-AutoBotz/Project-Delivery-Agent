@@ -209,16 +209,6 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       idempotencyKey: randomUUID(), effectiveAt: "2026-01-01T00:00:00.000Z",
       definition: { tiers: [{ selectors: [selector(sourceA)] }], conflictBehavior: "REQUEST_RECONCILIATION" } },
     { correlationId: randomUUID() });
-    let lastForecast;
-    if (lastPmUpdateAt) {
-      const { forecastEnd } = atlasSpreadsheetDates();
-      lastForecast = await append(pm, "project.forecast", { type: "date", value: forecastEnd },
-        `The PM last reported a forecast finish of ${forecastEnd}.`, lastPmUpdateAt);
-      await authority.appendPolicy(admin, { projectId, factType: "project.forecast", expectedRevision: 0,
-        idempotencyKey: randomUUID(), effectiveAt: lastPmUpdateAt.toISOString(),
-        definition: { tiers: [{ selectors: [selector(lastForecast)] }], conflictBehavior: "REQUEST_RECONCILIATION" },
-      }, { correlationId: randomUUID() });
-    }
     const requiredFacts = [
       { factType: "project.status", label: atlasApproval ? "API access status" : "Current status" },
       { factType: "project.forecast", label: atlasApproval
@@ -230,13 +220,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       escalationRecipientSubject: pm.subject, quietHoursStartLocal: null, quietHoursEndLocal: null }, randomUUID());
     const initial = await updates.assess(admin, projectId, randomUUID());
     assert.equal(initial.obligation?.state, "OPEN");
-    const expectedPosition = (status) => [status.sourceId, ...(lastForecast ? [lastForecast.sourceId] : [])].sort();
-    assert.deepEqual(initial.knownPosition.map((entry) => entry.sourceId).sort(), expectedPosition(sourceA));
-    if (lastPmUpdateAt) {
-      assert.equal(initial.freshness.sourceDateField, "project.latestValidUpdateAt");
-      assert.equal(initial.freshness.sourceDate, lastPmUpdateAt.toISOString());
-      assert.equal(initial.freshness.state, "STALE");
-    }
+    assert.deepEqual(initial.knownPosition.map((entry) => entry.sourceId), [sourceA.sourceId]);
     const activation = await updates.activateEngagement(admin, projectId, 1, randomUUID());
     assert(activation?.mode === "CAPTURE");
     const loadStages = async (generation) => (await pool.query(`SELECT s.*,o.id AS "outboxId" FROM public."ProjectUpdateStage" s
@@ -329,7 +313,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
         conflictBehavior: "REQUEST_RECONCILIATION" } }, { correlationId: randomUUID() });
     const correlationId = randomUUID();
     const current = await updates.assess(admin, projectId, correlationId);
-    assert.deepEqual(current.knownPosition.map((entry) => entry.sourceId).sort(), expectedPosition(sourceB));
+    assert.deepEqual(current.knownPosition.map((entry) => entry.sourceId), [sourceB.sourceId]);
     const assessments = (await pool.query(`SELECT a.id FROM public."ProjectUpdateAssessment" a
       JOIN public."AuditEvent" e ON e."customerId"=a."customerId" AND e.id=a."auditEventId"
       WHERE a."customerId"=$1 AND a."projectId"=$2 AND e."correlationId"=$3`, [customerId, projectId, correlationId])).rows;
@@ -342,6 +326,24 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     const ownerEscalation = await capture(ownerStages[3], current, assessments[0].id);
     const escalation = earlyPm ?? await capture(pmStage, current, assessments[0].id);
     if (earlyPm) assert(Date.parse(ownerEscalation.capturedAt) > Date.parse(escalation.capturedAt));
+    let lastForecast;
+    if (lastPmUpdateAt) {
+      // The original incomplete cycle uses project creation time, so all its
+      // captured stages are already due. Recovering the older forecast supplies
+      // complete stale evidence without rescheduling the existing request.
+      const { forecastEnd } = atlasSpreadsheetDates();
+      lastForecast = await append(pm, "project.forecast", { type: "date", value: forecastEnd },
+        `The PM last reported a forecast finish of ${forecastEnd}.`, lastPmUpdateAt);
+      await authority.appendPolicy(admin, { projectId, factType: "project.forecast", expectedRevision: 0,
+        idempotencyKey: randomUUID(), effectiveAt: lastPmUpdateAt.toISOString(),
+        definition: { tiers: [{ selectors: [selector(lastForecast)] }], conflictBehavior: "REQUEST_RECONCILIATION" },
+      }, { correlationId: randomUUID() });
+      const reassessed = await updates.assess(admin, projectId, randomUUID());
+      assert.equal(reassessed.obligation?.id, initial.obligation?.id);
+      assert.equal(reassessed.freshness.sourceDateField, "project.latestValidUpdateAt");
+      assert.equal(reassessed.freshness.sourceDate, lastPmUpdateAt.toISOString());
+      assert.equal(reassessed.freshness.state, "STALE");
+    }
     const privateResponse = "PRIVATE_OWNER_RESPONSE_" + randomUUID();
     await updates.submitResponse(owner, request.locator,
       { text: privateResponse, idempotencyKey: randomUUID(), correctsResponseId: null }, randomUUID());

@@ -23,9 +23,11 @@ assessment metadata to leadership.
 For GOLDEN-004, use the isolated Atlas fixture to record a complete PM update
 nine days before assessment under a seven-day freshness policy. Seed the
 historical observation times at insert using the existing fixture transaction
-pattern. Exercise the real authority evaluation and saved assessment. Verify
+pattern. Capture the due stages from the original incomplete cycle first, then
+save the older forecast and reassess under the same active obligation. Verify
 the stale date, current system-verified Jira blocker and active clarification
-in the same leadership answer, without presenting the stale narrative.
+in the same leadership answer. Revoke a contributing source to verify that
+the date derived from the old update is withheld alongside the stale narrative.
 
 When the current stale-update obligation is open, check the owner invitation
 with the existing Atlas leadership authorization. Identify a clarification
