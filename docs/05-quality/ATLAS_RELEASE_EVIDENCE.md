@@ -20,6 +20,7 @@ remaining acceptance criteria and customer release gates.
 | INT-RPT-004 | A later owner reply and newer receipt produce different live facts. The original approved snapshot and recipient inbox retain their earlier facts and report revision. | [PR #210 main browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45876005787/job/140103130119) |
 | E2E-ACC-005 | The existing GOLDEN-002 browser journey checks the text labels for reported GREEN and calculated RED, explains the overdue milestone, blocker and stale update inputs, and shows the recommended PM review. | [PR #238 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298558/job/140469403105) |
 | SEC-UPD-003 | The real HTTP integration suite denies expired, invalid and unauthorized invitations and preserves response and content counts. The packaged restore then uses the same working pre-backup invitation to prove restored read and submit denial under runtime database quarantine. | [PR #127 main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40966514743) and [PR #209 main packaged restore evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45874601256/artifacts/15145801163) |
+| AI-UPD-004, E2E-UPD-004 | The synthetic interpreter returns schema-valid status and forecast proposals from the retained reply. The native case checks that fact versions stay unchanged until human confirmation. The Atlas browser reaches PM review from the reply and requires approval before it records the simulated Jira action. | [Main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46072007594) · [Main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46072007594/job/140750960137) |
 | GOLDEN-006, FAIL-010 | PMO asks the owner for clarification after an ambiguous reply. The original reply cannot confirm the requested fact. The owner can correct it through the active invitation. A forecast-only request asks for the exact date. Confirmation of an independent fact preserves the focused question, including when the authorization change requires a replacement invitation. | [PR #215 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45883519852/job/140128425260), [PR #226 fact-specific clarification](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45935364088/job/140297210252) |
 | INT-EVD-006 | Each confirmation records the exact reviewer and audit time and links the original captured response to the confirmed fact version and evidence. The native test checks the retained original text under both reviewer-private and service-readable conditions. | [PR #224 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45928632248/job/140275843064) |
 | FAIL-016 | A renderer error or invalid deck leaves the Atlas report pending. A retry with a valid PowerPoint records the approval once. | [PR #214 main code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45881407447/job/140121387791) |
@@ -29,6 +30,18 @@ remaining acceptance criteria and customer release gates.
 The build uses PptxGenJS on a Linux runner and checks editable text and
 report metadata in the generated deck. General reporting acceptance remains
 open under Issue #13.
+
+## Secure invitation and reply proposal acceptance
+
+AC-UPD-003 and AC-UPD-004 use existing hosted evidence. The API denies
+expired, invalid and wrong-recipient invitations on read and submit. A valid
+reply yields a proposed interpretation inside the authorized project. A
+separate human review governs fact confirmation and Jira action.
+[Main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46072007594/job/140750960137).
+
+STORY-018 still requires AC-UPD-009 coverage for all configured recipients and
+approved email notification. Customer SMTP delivery remains gated by the
+foundation and customer configuration.
 
 ## Versioned report software acceptance
 
