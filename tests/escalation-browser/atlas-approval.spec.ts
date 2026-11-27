@@ -394,6 +394,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(answer).toContainText("A simulated escalation was captured for the assigned PM.");
   await expect(answer).toContainText("The PM confirmed that delayed API access caused the go-live delay.");
   await expect(answer).toContainText("The PM assessed forecast confidence as medium.");
+  await expect(answer).toContainText("Agent inference. The open integration blocker may still affect the forecast.");
   await expect(answer.getByText("Draft a question for the assigned PM", { exact: true })).toHaveCount(0);
   for (const [label, evidence] of [
     ["Schedule evidence", `Baseline 2026-10-15. Forecast 2026-10-29. Reviewed portfolio CSV receipt ${spreadsheet.receiptId}`],
@@ -418,6 +419,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const completeAnswer = await request.get(answerPath, { headers: leaderHeaders });
   expect(completeAnswer.status()).toBe(200);
   const complete = await completeAnswer.json();
+  expect(complete.forecastInference).toEqual({ classification: "AGENT_INFERENCE",
+    scheduleRevision: complete.schedule.revision, milestoneId: complete.integrationStart.milestoneId,
+    blockerMappingId: fixture.jiraIntake.mappingId });
   expect(complete.pmEscalation).toEqual({
     requestId: fixture.escalation.requestId, capturedAt: fixture.escalation.capturedAt, availableUntil: expect.any(String),
   });
@@ -429,11 +433,14 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   try {
     const withheld = await request.get(answerPath, { headers: leaderHeaders });
     expect(withheld.status()).toBe(200);
-    expect(await withheld.json()).toMatchObject({ jiraBlocker: null, schedule: complete.schedule });
+    const withoutBlocker = await withheld.json();
+    expect(withoutBlocker).toMatchObject({ jiraBlocker: null, schedule: complete.schedule });
+    expect(withoutBlocker).not.toHaveProperty("forecastInference");
     await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
     await expect(answer.getByRole("link", { name: "Schedule evidence" })).toBeVisible();
     await expect(answer.getByText("The synthetic Jira blocker ATLAS-248 is open.", { exact: true })).toHaveCount(0);
     await expect(answer.getByRole("link", { name: "Jira blocker evidence" })).toHaveCount(0);
+    await expect(answer.getByText("Agent inference.", { exact: true })).toHaveCount(0);
   } finally {
     await jiraAccess(true);
   }
@@ -478,6 +485,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
     await expect(answer).toContainText("Schedule movement is unavailable.");
     await expect(answer.getByRole("link", { name: "Schedule evidence" })).toHaveCount(0);
+    await expect(answer.getByText("Agent inference.", { exact: true })).toHaveCount(0);
     await expect(answer.getByRole("link", { name: "Jira blocker evidence" })).toBeVisible();
     await expect(answer.getByRole("link", { name: "Integration start evidence" })).toBeVisible();
     await expect(answer).not.toContainText(spreadsheet.receiptId);

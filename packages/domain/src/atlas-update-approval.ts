@@ -122,6 +122,12 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
     mappingId: z.uuid(),
     issueKey: z.literal(atlasJiraBlockerKey),
   }).nullable(),
+  forecastInference: z.strictObject({
+    classification: z.literal("AGENT_INFERENCE"),
+    scheduleRevision: atlasScheduleSchema.shape.revision,
+    milestoneId: z.uuid(),
+    blockerMappingId: z.uuid(),
+  }).optional(),
   pmEscalation: z.strictObject({
     requestId: z.uuid(),
     capturedAt: z.iso.datetime(),

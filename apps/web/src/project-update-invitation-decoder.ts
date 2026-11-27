@@ -261,7 +261,7 @@ function decodeAtlasLeadershipFacts(value: unknown, projectId: string): AtlasLea
 
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
-  const { integrationStart, jiraBlocker, pmEscalation, priorSnapshot, updateFreshness, delayClarificationState, ...facts } = value;
+  const { integrationStart, jiraBlocker, forecastInference, pmEscalation, priorSnapshot, updateFreshness, delayClarificationState, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer) return null;
   if (delayClarificationState !== undefined && (!answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 || answer.delayAssessment ||
@@ -287,6 +287,12 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
     return null;
   if (jiraBlocker !== null && (!object(jiraBlocker) || !keys(jiraBlocker, ["mappingId", "issueKey"]) ||
       !uuid(jiraBlocker.mappingId) || jiraBlocker.issueKey !== "ATLAS-248")) return null;
+  if (forecastInference !== undefined && (!object(forecastInference) ||
+      !keys(forecastInference, ["classification", "scheduleRevision", "milestoneId", "blockerMappingId"]) ||
+      forecastInference.classification !== "AGENT_INFERENCE" || !answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 ||
+      !object(integrationStart) || !object(jiraBlocker) || forecastInference.scheduleRevision !== answer.schedule.revision ||
+      forecastInference.milestoneId !== integrationStart.milestoneId || forecastInference.blockerMappingId !== jiraBlocker.mappingId))
+    return null;
   if (pmEscalation !== null && (!answer.ownerReply || !object(pmEscalation) ||
       !keys(pmEscalation, ["requestId", "capturedAt", "availableUntil"]) || !uuid(pmEscalation.requestId) ||
       !instant(pmEscalation.capturedAt) || !instant(pmEscalation.availableUntil) ||
