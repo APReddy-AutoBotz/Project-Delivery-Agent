@@ -52,6 +52,7 @@ try {
     config.AUTH_MODE === "development" && config.DATA_MODE === "synthetic" &&
       config.NODE_ENV !== "production" && config.DEPLOYMENT_MODE === "local",
     loadCapturedReplyInterpreter(process.env.PDAA_REPLY_INTERPRETATION_FILE, config),
+    ingestion,
   );
   const connectorRuntime = new DatabaseConnectorRuntimeRepository(db, new CredentialKeyRingVault(config.credentialKeys));
   const { app } = await createApp(

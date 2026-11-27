@@ -72,8 +72,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const retained = await submitReply(text);
   const reviewer = await request.post("/api/auth/development", { data: { persona: "pmo-portfolio" } });
   expect(reviewer.status()).toBe(200);
+  const reviewerHeaders = { Authorization: "Bearer " + (await reviewer.json()).token };
   const clarificationRequest = await request.post(projectPath + "/project-update-status-clarifications", {
-    headers: { Authorization: "Bearer " + (await reviewer.json()).token },
+    headers: reviewerHeaders,
     data: { requestId: fixture.request.requestId, responseId: retained.responseId, factType: "project.forecast" },
   });
   expect(clarificationRequest.status()).toBe(200);
@@ -109,6 +110,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
       proposals: [{ factType: "jira.status", value: { type: "text", value: "To Do" } }] }],
   });
   const spreadsheet = fixture.spreadsheetIntake;
+  expect(before.scheduleCitation).toMatchObject({ sourceId: spreadsheet.sourceId, receiptId: spreadsheet.receiptId });
   const reviewedImport = await request.get(`/api/ingestion/sources/${spreadsheet.sourceId}/receipts/${spreadsheet.receiptId}`, {
     headers: leaderHeaders,
   });
@@ -394,7 +396,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(answer).toContainText("The PM assessed forecast confidence as medium.");
   await expect(answer.getByText("Draft a question for the assigned PM", { exact: true })).toHaveCount(0);
   for (const [label, evidence] of [
-    ["Schedule evidence", "Baseline 2026-10-15. Forecast 2026-10-29."],
+    ["Schedule evidence", `Baseline 2026-10-15. Forecast 2026-10-29. Reviewed portfolio CSV receipt ${spreadsheet.receiptId}`],
     ["Update freshness evidence", `Assessed at ${before.updateFreshness.assessedAt}. Latest verified update at ${fixture.lastPmUpdateAt}.`],
     ["Integration start evidence", "Planned start 2026-10-05. Actual start 2026-10-08."],
     ["Jira blocker evidence", "Synthetic Jira issue ATLAS-248, recorded in source mapping"],
@@ -456,11 +458,35 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const { snapshot, highlights, livePath } = await saved.json();
   expect(snapshot).toMatchObject({
     schedule: { movementDays: 14 }, ownerReply: { accessStatus: "ACCESS_PENDING" }, receipt, delayAssessment: assessment, approvalState: "DRAFT",
+    scheduleCitation: before.scheduleCitation,
   });
   expect(snapshot.id).not.toBe(originalReport.snapshot.id);
   const earlier = await request.get(`${reportPath}?snapshotId=${originalReport.snapshot.id}`, { headers: leaderHeaders });
   expect(earlier.status()).toBe(200);
   expect(await earlier.json()).toMatchObject({ snapshot: originalReport.snapshot, highlights: originalReport.highlights });
+  const sources = await request.get("/api/ingestion/sources", { headers: reviewerHeaders });
+  expect(sources.status()).toBe(200);
+  const { configuration } = (await sources.json()).find((source: { sourceId: string }) => source.sourceId === spreadsheet.sourceId);
+  const configureSpreadsheet = (allowed: boolean) => request.post("/api/ingestion/sources/configuration", {
+    headers: reviewerHeaders,
+    data: { ...configuration, projects: configuration.projects.map((project: { readers: string[] }) => ({
+      ...project, readers: project.readers.filter((subject) => allowed || subject !== "leader-atlas"),
+    })) },
+  });
+  expect((await configureSpreadsheet(false)).status()).toBe(201);
+  try {
+    await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
+    await expect(answer).toContainText("Schedule movement is unavailable.");
+    await expect(answer.getByRole("link", { name: "Schedule evidence" })).toHaveCount(0);
+    await expect(answer.getByRole("link", { name: "Jira blocker evidence" })).toBeVisible();
+    await expect(answer.getByRole("link", { name: "Integration start evidence" })).toBeVisible();
+    await expect(answer).not.toContainText(spreadsheet.receiptId);
+    expect((await request.get(`${reportPath}?snapshotId=${snapshot.id}`, { headers: leaderHeaders })).status()).toBe(404);
+  } finally {
+    expect((await configureSpreadsheet(true)).status()).toBe(201);
+  }
+  await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
+  await expect(answer.locator(`#atlas-schedule-${fixture.projectId}`)).toContainText(spreadsheet.receiptId);
   await expect(report).toContainText(snapshot.id);
   await expect(report).toContainText("14 days later");
   const email = report.locator("details");

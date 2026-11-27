@@ -8,8 +8,13 @@ import { decodeAtlasDistributedReport, decodeAtlasDistributionReceipt, decodeAtl
 import type { RequestFn } from "./request-types.js";
 
 const approvalLabels = { DRAFT: "Draft", PENDING: "Awaiting PM approval", APPROVED: "Final · Approved", REJECTED: "Rejected" };
+const reportDeadline = (report: AtlasManagementPreview | null | undefined) => {
+  const owner = report?.snapshot.ownerReply.availableUntil;
+  const spreadsheet = report?.snapshot.scheduleCitation?.availableUntil;
+  return spreadsheet && owner && spreadsheet < owner ? spreadsheet : owner;
+};
 const available = (report: AtlasManagementPreview | null | undefined) =>
-  Boolean(report && Date.parse(report.snapshot.ownerReply.availableUntil) > Date.now());
+  Date.parse(reportDeadline(report) ?? "") > Date.now();
 
 function useReportExpiry(expiry: string | undefined, refresh: () => unknown) {
   useEffect(() => {
@@ -68,7 +73,7 @@ export function AtlasManagementSnapshot({ projectId, scope, request, isCurrent, 
     onSettled: () => isCurrent() ? refresh() : undefined,
   });
   const report = isCurrent() && query.isSuccess && !query.isFetching && available(query.data) ? query.data : null;
-  useReportExpiry(report?.snapshot.ownerReply.availableUntil, refresh);
+  useReportExpiry(reportDeadline(report), refresh);
 
   async function download(expectedId: string) {
     setDownloading(true);
@@ -131,7 +136,7 @@ export function AtlasReportApproval({ projectId, scope, request, isCurrent }: {
   });
   const refresh = review.refetch;
   const report = isCurrent() && review.isSuccess && !review.isFetching && available(review.data) ? review.data : null;
-  useReportExpiry(report?.snapshot.ownerReply.availableUntil, refresh);
+  useReportExpiry(reportDeadline(report), refresh);
   const decide = useMutation({
     mutationFn: async (command: { snapshotId: string; requestId: string; decision: "APPROVED" | "REJECTED" }) => {
       const raw = await request(path, { method: "POST", body: JSON.stringify(command) }, 4096);
@@ -193,7 +198,7 @@ export function AtlasReportInbox({ projectId, scope, request, isCurrent }: {
   });
   const refresh = delivery.refetch;
   const report = isCurrent() && delivery.isSuccess && !delivery.isFetching && available(delivery.data) ? delivery.data : null;
-  useReportExpiry(report?.snapshot.ownerReply.availableUntil, refresh);
+  useReportExpiry(reportDeadline(report), refresh);
 
   async function download(expectedReceiptId: string) {
     setDownloading(true);

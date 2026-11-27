@@ -58,7 +58,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const refresh = query.refetch;
   const answer = asked && isCurrent() && query.isSuccess && !query.isFetching ? query.data : null;
   const expiry = [answer?.ownerReply?.availableUntil, answer?.pmEscalation?.availableUntil,
-    answer?.priorSnapshot?.facts.ownerReply?.availableUntil, answer?.updateFreshness?.activeClarification?.availableUntil]
+    answer?.priorSnapshot?.facts.ownerReply?.availableUntil, answer?.updateFreshness?.activeClarification?.availableUntil,
+    answer?.scheduleCitation?.availableUntil, answer?.priorSnapshot?.facts.scheduleCitation?.availableUntil]
     .filter((date): date is string => Boolean(date)).sort()[0];
   useEffect(() => {
     if (!expiry) return;
@@ -69,8 +70,9 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   }, [expiry, refresh]);
   const reply = answer?.ownerReply && Date.parse(answer.ownerReply.availableUntil) > Date.now() ? answer.ownerReply : null;
   const receipt = reply ? answer?.receipt : null;
-  const assessment = receipt ? answer?.delayAssessment : null;
-  const schedule = answer?.schedule;
+  const spreadsheet = answer?.scheduleCitation;
+  const schedule = !spreadsheet || Date.parse(spreadsheet.availableUntil) > Date.now() ? answer?.schedule : null;
+  const assessment = receipt && schedule ? answer?.delayAssessment : null;
   const integration = answer?.integrationStart;
   const blocker = answer?.jiraBlocker;
   const freshness = answer?.updateFreshness;
@@ -158,11 +160,15 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         {askPm.isError && currentClarification && <Message error>Could not request clarification. Refresh the answer and try again.</Message>}
       </details>}
       {prior?.facts.ownerReply && Date.parse(prior.facts.ownerReply.availableUntil) > Date.now() &&
-        <AtlasSnapshotChanges current={{ ...answer, ownerReply: reply, receipt: receipt ?? null, delayAssessment: assessment ?? null }} prior={prior} />}
+        (!prior.facts.scheduleCitation || Date.parse(prior.facts.scheduleCitation.availableUntil) > Date.now()) &&
+        <AtlasSnapshotChanges current={{ ...answer, schedule: schedule ?? null, ownerReply: reply, receipt: receipt ?? null,
+          delayAssessment: assessment ?? null }} prior={prior} />}
       <h3>Evidence</h3>
       <p>Checked at {answer.asOf}.</p>
       <ul>
-        {schedule && <li id={scheduleRef} tabIndex={-1}>Synthetic canonical schedule, revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.</li>}
+        {schedule && <li id={scheduleRef} tabIndex={-1}>Synthetic canonical schedule, revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
+          {spreadsheet && <> Reviewed portfolio CSV receipt {spreadsheet.receiptId}, recorded at {spreadsheet.reviewedAt}.</>}
+        </li>}
         {freshness && <li id={freshnessRef} tabIndex={-1}>Assessed at {freshness.assessedAt}.{" "}
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? "Latest verified update" : "Project created"}{" "}
           at {freshness.sourceDate}.

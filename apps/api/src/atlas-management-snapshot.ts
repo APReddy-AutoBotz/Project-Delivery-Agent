@@ -6,12 +6,13 @@ import type { AtlasManagementOutput, AtlasManagementPreview, AtlasManagementSnap
 const PptxGenJS = pptxgen as unknown as (typeof import("pptxgenjs"))["default"];
 
 export function atlasManagementPreview(snapshot: AtlasManagementSnapshot): AtlasManagementPreview {
-  const { schedule, ownerReply, receipt, delayAssessment } = snapshot;
+  const { schedule, scheduleCitation, ownerReply, receipt, delayAssessment } = snapshot;
   const movement = schedule.movementDays === null ? "Movement unknown"
     : schedule.movementDays === 0 ? "No date movement"
       : `${Math.abs(schedule.movementDays)} days ${schedule.movementDays > 0 ? "later" : "earlier"}`;
   const highlights = [
-    `Schedule: ${schedule.baseline ?? "unknown"} baseline, ${schedule.forecast ?? "unknown"} forecast. ${movement}. Schedule revision ${schedule.revision}.`,
+    `Schedule: ${schedule.baseline ?? "unknown"} baseline, ${schedule.forecast ?? "unknown"} forecast. ${movement}. Schedule revision ${schedule.revision}.` +
+      (scheduleCitation ? ` Reviewed portfolio CSV receipt ${scheduleCitation.receiptId}.` : ""),
     `API access was ${ownerReply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} in the owner-confirmed reply ${ownerReply.responseId} at ${ownerReply.receivedAt}. ` +
       `Evidence availability ends ${ownerReply.availableUntil}.`,
     `The PM recorded a simulated ${receipt.target} comment. Receipt ${receipt.id}, recorded at ${receipt.recordedAt}.`,

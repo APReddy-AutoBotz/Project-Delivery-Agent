@@ -235,10 +235,15 @@ export function decodeAtlasApproval(value: unknown): AtlasApprovalView | null {
 }
 
 function decodeAtlasLeadershipFacts(value: unknown, projectId: string): AtlasLeadershipFacts | null {
-  if (!object(value) || !keys(value, ["projectId", "asOf", "schedule", "ownerReply", "receipt", "delayAssessment"]) ||
+  if (!object(value) || !keys(value, ["projectId", "asOf", "schedule", "ownerReply", "receipt", "delayAssessment"], ["scheduleCitation"]) ||
       value.projectId !== projectId || !instant(value.asOf)) return null;
   const schedule = decodeAtlasSchedule(value.schedule);
   if (value.schedule !== null && !schedule) return null;
+  const citation = value.scheduleCitation;
+  if (citation !== undefined && (!schedule?.baseline || !schedule.forecast || !object(citation) ||
+      !keys(citation, ["sourceId", "receiptId", "reviewedAt", "availableUntil"]) ||
+      !uuid(citation.sourceId) || !uuid(citation.receiptId) || !instant(citation.reviewedAt) || !instant(citation.availableUntil) ||
+      citation.reviewedAt > value.asOf || citation.availableUntil <= value.asOf)) return null;
   const reply = value.ownerReply;
   if (reply !== null && (!object(reply) || !keys(reply, ["responseId", "receivedAt", "availableUntil", "accessStatus"]) ||
       !uuid(reply.responseId) || !instant(reply.receivedAt) || !instant(reply.availableUntil) ||
@@ -276,11 +281,11 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
       !instant(clarification.requestedAt) || !instant(clarification.availableUntil) ||
       Date.parse(clarification.requestedAt) > Date.parse(answer.asOf) || Date.parse(clarification.availableUntil) <= Date.parse(answer.asOf)))
     return null;
-  if (integrationStart !== null && (!answer.schedule || !object(integrationStart) ||
+  if (integrationStart !== null && (!object(integrationStart) ||
       !keys(integrationStart, ["milestoneId", "planned", "actual"]) || !uuid(integrationStart.milestoneId) ||
       !date(integrationStart.planned) || !date(integrationStart.actual) || integrationStart.actual <= integrationStart.planned))
     return null;
-  if (jiraBlocker !== null && (!answer.schedule || !object(jiraBlocker) || !keys(jiraBlocker, ["mappingId", "issueKey"]) ||
+  if (jiraBlocker !== null && (!object(jiraBlocker) || !keys(jiraBlocker, ["mappingId", "issueKey"]) ||
       !uuid(jiraBlocker.mappingId) || jiraBlocker.issueKey !== "ATLAS-248")) return null;
   if (pmEscalation !== null && (!answer.ownerReply || !object(pmEscalation) ||
       !keys(pmEscalation, ["requestId", "capturedAt", "availableUntil"]) || !uuid(pmEscalation.requestId) ||
@@ -291,7 +296,8 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
     if (!object(priorSnapshot) || !keys(priorSnapshot, ["id", "facts"]) || !uuid(priorSnapshot.id)) return null;
     const prior = decodeAtlasLeadershipFacts(priorSnapshot.facts, projectId);
     if (!prior?.schedule || !prior.ownerReply || !prior.receipt || Date.parse(prior.asOf) > Date.parse(answer.asOf) ||
-        Date.parse(prior.ownerReply.availableUntil) <= Date.parse(answer.asOf)) return null;
+        Date.parse(prior.ownerReply.availableUntil) <= Date.parse(answer.asOf) ||
+        (prior.scheduleCitation && prior.scheduleCitation.availableUntil <= answer.asOf)) return null;
   }
   return value as AtlasLeadershipAnswer;
 }
