@@ -12,13 +12,16 @@ tests:
   - tests/escalation-browser/atlas-approval.spec.ts
 - id: AI-ADV-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-ADV-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The same underlying concern is expressed as an operational action for the PM and as a decision/intervention
     need for leadership.
-  evidence: []
+  evidence:
+  - tests/blocker-age-advice.integration.test.ts
+  - tests/e2e/leadership-blocker-age.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: AI-PROVIDER-002
   release: R1
   status: planned
@@ -873,13 +876,16 @@ tests:
   evidence: []
 - id: GOLDEN-012
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-ADV-003
   specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
   behavior: The same underlying concern is expressed as an operational action for the PM and as a decision/intervention
     need for leadership.
-  evidence: []
+  evidence:
+  - tests/blocker-age-advice.integration.test.ts
+  - tests/e2e/leadership-blocker-age.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: GOLDEN-013
   release: R1
   status: implemented
@@ -1036,13 +1042,15 @@ tests:
   - "Exact candidate fbad59b97f444ba6b8a69bf8767d8a4e14b950d4 passed Foundation https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39725089999; actual merge 58da66bcb4d2db78b5d7f3e1e6adf8ffdaced758 passed post-merge Foundation https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/39727701669"
 - id: INT-CON-006
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-006
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Expired credentials change connector health to failed or degraded and show a safe administrator-facing
     reason without exposing the secret.
-  evidence: []
+  evidence:
+  - tests/connector-runtime.integration.test.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: INT-CON-007
   release: R1
   status: implemented
@@ -1390,13 +1398,15 @@ tests:
   - docs/05-quality/PORTFOLIO_AUTHORIZATION_VALIDATION.md
 - id: SEC-CON-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-CON-006
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Expired credentials change connector health to failed or degraded and show a safe administrator-facing
     reason without exposing the secret.
-  evidence: []
+  evidence:
+  - tests/connector-runtime.integration.test.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: SEC-EVD-005
   release: R1
   status: implemented

@@ -156,9 +156,38 @@ AC-ADV-004 checks that the recommendation's action and outcome omit personal
 blame even when the source contains it. AC-ADV-005 is covered by the same
 native Atlas queue journey with no provider configured and by the queue unit
 tests. Acceptance takes effect after independent review, required hosted checks
-and merge. The role-specific GOLDEN-012 scenario remains under STORY-026.
+and merge.
 [Main code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46037767885/job/140637422599) ·
 [Main native and browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46037767885/job/140637422110).
+
+## Role-specific action queue acceptance
+
+STORY-026 combines the [ranked PM queue](#pm-queue-ordering-and-recommendation-framework-acceptance)
+and [assigned-project access](#assigned-pm-queue-access-acceptance) with AC-ADV-003.
+The native GOLDEN-012 fixture uses a critical dependency opened four calendar days
+earlier and a milestone forecast two calendar days ahead. All three roles see the
+same dependency and milestone. The PM sees the named dependency owner and a
+forecast review. The Scrum Master sees impediment follow-up and sprint impact
+review. Leadership sees the intervention need. The native test verifies current
+grants and source access under the restricted API database role. The browser
+exercises the role-specific panels. Acceptance takes effect after independent
+review, required hosted checks and merge.
+[Implementation PR](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/261) ·
+[Main native and browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46079535098/job/140775052476).
+
+## Synthetic Jira failure evidence for release readiness
+
+The release readiness criteria reuse the Jira connector tests on main.
+AC-CON-004 sends the same authenticated webhook twice, verifies one observation,
+and counts one downstream update obligation. AC-CON-006 runs a queued
+connector read with a revoked synthetic refresh credential. It verifies that sync stops,
+the source health becomes `FAILED` with `INVALID_CREDENTIALS`, and the
+administrator's reauthorization response excludes both credentials and the
+provider's error. The existing integration and redaction assertions cover
+INT-CON-006 and SEC-CON-001. Live Jira staging remains parked.
+[Webhook acceptance](JIRA_WEBHOOK_RECONCILIATION_ACCEPTANCE.md) ·
+[Credential failure main checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36225662968) ·
+[Current native checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46079535098/job/140775052476).
 
 ## Reply clarification and confirmation acceptance
 
