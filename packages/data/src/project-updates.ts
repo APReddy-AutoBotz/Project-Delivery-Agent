@@ -1532,12 +1532,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (!grants.length) return "CAPTURE_GATE_CLOSED" as const;
     }
     const capturedAt = await this.now(tx);
-    const requiredFacts = policyFacts(prepared.policy.requiredFacts)
-      .filter((fact) => stage.factTypes.includes(fact.factType));
+    const policyRequiredFacts = policyFacts(prepared.policy.requiredFacts);
+    const requiredFacts = policyRequiredFacts.filter((fact) => stage.factTypes.includes(fact.factType));
     const rendered = renderProjectUpdateCapture({
       project: { id: projectId, code: prepared.view.project.code, name: prepared.view.project.name },
       kind: stage.kind, policyRevision: prepared.policy.revision, dueAt: stage.logicalDueAt,
       capturedAt: iso(capturedAt), requiredFacts,
+      clarifyRemainingFacts: stage.kind === "REQUEST" && stage.recipientRole === "OWNER" &&
+        stage.generation > 1 && requiredFacts.length < policyRequiredFacts.length,
       knownPosition: prepared.view.knownPosition, dependencies: exactDependencies,
       responseReviewerSubjects: configuration.responseReviewerSubjects,
     });

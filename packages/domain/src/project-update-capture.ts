@@ -130,6 +130,7 @@ export const projectUpdateCaptureRenderInputSchema = z.strictObject({
   dueAt: instant,
   capturedAt: instant,
   requiredFacts: z.array(projectUpdateRequiredFactSchema).min(1).max(100),
+  clarifyRemainingFacts: z.boolean().optional(),
   knownPosition: z.array(projectUpdateKnownPositionSchema).max(1000),
   dependencies: z.array(projectUpdateFactReferenceSchema).max(1000),
   responseReviewerSubjects: z.array(canonicalSubjectSchema).max(32),
@@ -171,6 +172,10 @@ export type ProjectUpdateCaptureRenderInput = z.infer<
  */
 export function renderProjectUpdateCapture(value: unknown) {
   const input = projectUpdateCaptureRenderInputSchema.parse(value);
+  const followUpQuestions = input.clarifyRemainingFacts ? input.requiredFacts.map(({ factType }) =>
+    factType === "project.status" ? projectUpdateClarificationQuestion
+      : factType === "project.forecast" ? projectUpdateForecastClarificationQuestion : null
+  ).filter((question) => question !== null) : [];
   const lines = [
     input.kind === "REQUEST" ? "Project update requested"
       : input.kind === "REMINDER" ? "Project update reminder" : "Project update escalation",
@@ -184,6 +189,7 @@ export function renderProjectUpdateCapture(value: unknown) {
         position.label + ": " + JSON.stringify(position.value))),
     "Information still required:",
     ...input.requiredFacts.map((fact) => "- " + fact.label),
+    ...followUpQuestions,
     "Your response is recorded as unconfirmed. Facts and reminders change only after authorized confirmation or current source evidence.",
     "No Jira change is made by submitting a response.",
     "Raw-response reviewers: " + (input.responseReviewerSubjects.length

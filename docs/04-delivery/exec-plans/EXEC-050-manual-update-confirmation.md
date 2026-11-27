@@ -23,6 +23,8 @@ reuse the same review and invitation to ask for the exact forecast date.
 For a reply covering both fields, apply a clarification to the selected fact.
 The reviewer can confirm an independent fact from the same reply. The owner
 sees one focused prompt for the pending fields through the active invitation.
+If confirmation satisfies one fact and cadence replaces the invitation, the
+replacement asks the same focused question for the supported fact still due.
 
 ## In scope
 
@@ -92,6 +94,9 @@ existing follow-up schedule in place.
 Reuse the status and forecast event types to identify the selected fact. The
 request accepts an optional selector. When it is omitted, the existing
 status-first selection applies. No response or stored event shape changes.
+Build the replacement request's question from its current required facts
+and the existing question templates. The capture still checks the new
+recipient's current source access. The old invitation remains invalid.
 
 ## Security and privacy impact
 
@@ -127,6 +132,8 @@ rolls back both statements, and that a successful pair creates two attributable
 receipts and satisfies the pending reminders when both sources qualify.
 Use the existing engagement suite to prove an unclear status can stay open
 while the reviewer confirms an explicit forecast from the same retained reply.
+Verify both a reviewer-private statement and a source-qualified forecast that
+creates a replacement invitation.
 Run the required hosted checks on the exact candidate.
 
 ## Rollback and recovery
