@@ -87,6 +87,10 @@ Verified the signed archive checksums, official image digest and Linux binary.
 Refreshed the existing policies and compared all 22 pinned files to the immutable
 publisher source.
 
+The first packaged run found Debian Perl `5.36.0-7+deb12u4`, the fixed version
+for CVE-2026-8376. Keep its scanner findings in the evidence without applying the
+older binary's architecture disposition. [Debian security tracker](https://security-tracker.debian.org/tracker/CVE-2026-8376)
+
 ## Decisions made
 
 Use the official multi-platform image digest and retain the existing Node major

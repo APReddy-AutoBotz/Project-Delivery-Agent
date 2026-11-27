@@ -553,6 +553,18 @@ describe("Perl architecture evidence (NFR-SEC-010 / AC-MNT-004)", () => {
       ),
     ).toEqual(["not_applicable", "not_applicable"]);
   });
+  it("keeps scanner findings on the Debian fixed package outside the old build's disposition", () => {
+    const f = fixture();
+    const pkg = f.sbom.artifacts[0];
+    pkg.version = "5.36.0-7+deb12u4";
+    pkg.purl = `pkg:deb/debian/perl-base@${pkg.version}`;
+    for (const match of f.scan.matches) match.artifact = structuredClone(pkg);
+    const raw = encode(f.scan);
+    expect(deriveReviewedPerlRows(f)).toEqual([]);
+    expect(encode(f.scan)).toEqual(raw);
+    pkg.version = "5.36.0-7+deb12u5";
+    expect(() => deriveReviewedPerlRows(f)).toThrow();
+  });
   type AdvisoryFix = {
     state: string;
     versions: string[];
