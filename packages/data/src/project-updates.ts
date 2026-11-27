@@ -38,6 +38,7 @@ import {
   previewProjectUpdateSchedule,
   type ProjectUpdateSchedulePreview,
   projectUpdateKnownPositionSchema,
+  projectUpdateAssessmentViewSchema,
   selectProjectUpdateTimestamp,
   canonicalSubjectSchema,
   projectUpdateRequiredFactSchema,
@@ -2504,6 +2505,18 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return matches.length === 1 ? { mappingId: mapping.id, issueKey: atlasJiraBlockerKey } : null;
   }
 
+  private async atlasUpdateFreshness(tx: Tx, current: Actor, projectId: string) {
+    const policy = await this.loadObservationPolicy(tx, current.customerId, projectId);
+    if (!policy) return null;
+    const row = await this.latestAssessmentRow(tx, current, projectId, policy.policyRevisionId);
+    if (!row) return null;
+    const stored = safeObject.safeParse(jsonValue(row.result));
+    const freshness = projectUpdateAssessmentViewSchema.shape.freshness.safeParse(stored.data?.freshness);
+    if (!freshness.success || freshness.data.assessedAt !== iso(row.assessedAt)) return null;
+    const { state, assessedAt, sourceDate, sourceDateField } = freshness.data;
+    return { state, assessedAt, sourceDate, sourceDateField, openObligation: row.obligationState === "OPEN" };
+  }
+
   async atlasLeadershipAnswer(actorValue: Actor, projectValue: string, priorSnapshotId?: string) {
     const current = this.atlasLeadershipActor(actorValue);
     const projectId = parseProjectId(projectValue);
@@ -2519,13 +2532,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const prior = priorId ? await this.savedAtlasManagementSnapshot(tx, current.customerId, projectId, current.subject, priorId) : null;
       if (priorId && !prior) throw new ProjectUpdateError("DENIED");
       if (prior) await this.authorizeAtlasReportOrigin(tx, current, prior, "leadership");
+      const updateFreshness = await this.atlasUpdateFreshness(tx, current, projectId);
       const assessedAt = await this.now(tx);
       const blocker = answer.schedule ? await this.atlasJiraBlocker(tx, current, projectId, assessedAt) : null;
       const asOf = iso(assessedAt);
       if ((answer.ownerReply && answer.ownerReply.availableUntil <= asOf) ||
           (prior && (prior.facts.ownerReply.availableUntil <= asOf || prior.facts.asOf > asOf)))
         throw new ProjectUpdateError("DENIED");
-      return atlasLeadershipAnswerSchema.parse({ ...answer, asOf,
+      return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness,
         integrationStart: milestone?.plannedStart && milestone.actualStart && milestone.actualStart > milestone.plannedStart
           ? { milestoneId: milestone.id, planned: iso(milestone.plannedStart).slice(0, 10),
             actual: iso(milestone.actualStart).slice(0, 10) } : null,

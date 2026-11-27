@@ -169,9 +169,17 @@ function decodeAtlasLeadershipFacts(value: unknown, projectId: string): AtlasLea
 
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
-  const { integrationStart, jiraBlocker, pmEscalation, priorSnapshot, ...facts } = value;
+  const { integrationStart, jiraBlocker, pmEscalation, priorSnapshot, updateFreshness, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer) return null;
+  if (updateFreshness !== null && updateFreshness !== undefined && (!object(updateFreshness) ||
+      !keys(updateFreshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "openObligation"]) ||
+      (updateFreshness.state !== "CURRENT" && updateFreshness.state !== "STALE") ||
+      (updateFreshness.sourceDateField !== "project.createdAt" && updateFreshness.sourceDateField !== "project.latestValidUpdateAt") ||
+      !instant(updateFreshness.assessedAt) || !instant(updateFreshness.sourceDate) ||
+      Date.parse(updateFreshness.sourceDate) > Date.parse(updateFreshness.assessedAt) ||
+      Date.parse(updateFreshness.assessedAt) > Date.parse(answer.asOf) ||
+      typeof updateFreshness.openObligation !== "boolean")) return null;
   if (integrationStart !== null && (!answer.schedule || !object(integrationStart) ||
       !keys(integrationStart, ["milestoneId", "planned", "actual"]) || !uuid(integrationStart.milestoneId) ||
       !date(integrationStart.planned) || !date(integrationStart.actual) || integrationStart.actual <= integrationStart.planned))

@@ -71,6 +71,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const before = await beforeApproval.json();
   expect(before).toMatchObject({
     schedule: { baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 }, ownerReply: null, receipt: null,
+    updateFreshness: { state: "STALE", sourceDateField: "project.createdAt", openObligation: true },
     jiraBlocker: { mappingId: fixture.jiraIntake.mappingId, issueKey: "ATLAS-248" },
   });
   const intakePath = `/api/ingestion/sources/${fixture.jiraIntake.sourceId}/receipts/${fixture.jiraIntake.receiptId}`;
@@ -118,6 +119,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     factType: "project.status", authorityRevision: 2, sourceId: fixture.sourceB.sourceId,
     value: { type: "text", value: fixture.sourceMarkerB },
   })]);
+  expect(before.updateFreshness).toEqual({
+    state: authorizedUpdate.freshness.state, sourceDateField: authorizedUpdate.freshness.sourceDateField,
+    sourceDate: authorizedUpdate.freshness.sourceDate, assessedAt: authorizedUpdate.freshness.assessedAt, openObligation: true,
+  });
   expect((await request.get(answerPath, { headers: managerHeaders })).status()).toBe(404);
   expect((await request.get(reportPath, { headers: managerHeaders })).status()).toBe(404);
   const record = () => request.post(receiptPath, { headers: managerHeaders, data: { approvalId } });
@@ -225,6 +230,8 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const answer = page.getByRole("region", { name: "Atlas leadership answer" });
   await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
   await expect(answer).toContainText("14 days later");
+  await expect(answer).toContainText("The latest saved assessment marked the project update stale.");
+  await expect(answer).toContainText("A project update remains due.");
   await expect(answer).toContainText("Integration testing started late.");
   await expect(answer).toContainText("The synthetic Jira blocker ATLAS-248 is open.");
   await expect(answer).toContainText("API access was pending at the time of the reply");
@@ -233,6 +240,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(answer).toContainText("The PM assessed forecast confidence as medium.");
   for (const [label, evidence] of [
     ["Schedule evidence", "Baseline 2026-10-15. Forecast 2026-10-29."],
+    ["Update freshness evidence", `Assessed at ${before.updateFreshness.assessedAt}. Project created at ${before.updateFreshness.sourceDate}.`],
     ["Integration start evidence", "Planned start 2026-10-05. Actual start 2026-10-08."],
     ["Jira blocker evidence", "Synthetic Jira issue ATLAS-248, recorded in source mapping"],
     ["Reply evidence", "Human-confirmed owner reply"],
