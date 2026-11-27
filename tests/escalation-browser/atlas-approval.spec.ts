@@ -34,7 +34,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await page.getByRole("button", { name: /Atlas contributor/ }).click();
   const updateRequest = page.getByRole("region", { name: "Respond to update request" });
   await expect(updateRequest.getByRole("heading", { level: 2 })).toHaveText("Atlas · Delivery approval: update requested");
-  const context = updateRequest.locator(".update-plain-text");
+  const context = updateRequest.locator(":scope > p.update-plain-text");
   await expect(context).toContainText("The integration team last reported that API access was pending on ATLAS-248.");
   await expect(context).toContainText("Expected API access date, current owner and impact on the integration forecast");
   const reply = updateRequest.getByRole("textbox", { name: "Your update (unconfirmed)" });
