@@ -43,7 +43,8 @@ it("binds the compatible provider to the operator-configured synthetic endpoint 
       .toThrow("Reply interpretation configuration unavailable");
     const provider = loadCapturedReplyInterpreter(configFile, config, request)!;
     const allowed = ["project.forecast"] as const;
-    expect(readGroundedReplySuggestions(reply, allowed, await provider.interpret(reply, allowed))).toEqual(suggestions);
+    const retained = reply + "\nUnrelated internal contact: synthetic-canary@example.test";
+    expect(readGroundedReplySuggestions(retained, allowed, await provider.interpret(retained, allowed))).toEqual(suggestions);
     const [target, init] = request.mock.calls[0]!;
     expect(String(target)).toBe(endpoint);
     expect(init).toMatchObject({ method: "POST", redirect: "error", signal: expect.any(AbortSignal) });
@@ -51,7 +52,10 @@ it("binds the compatible provider to the operator-configured synthetic endpoint 
     expect(envelope).toEqual({ model: "fixture-model", store: false, max_completion_tokens: 400,
       response_format: { type: "json_object" } });
     expect(messages).toHaveLength(2);
-    expect(JSON.parse(messages[1].content)).toEqual({ allowedFactTypes: allowed, reply });
+    expect(JSON.parse(messages[1].content)).toEqual({ allowedFactTypes: allowed, reply: "Forecast: 2026-12-08" });
+    expect(await provider.interpret("Status: Integration is ready.\nForecast: 2026-12-08 is uncertain.", allowed))
+      .toEqual({ suggestions: [] });
+    expect(request).toHaveBeenCalledTimes(1);
     request.mockRejectedValueOnce(new DOMException("Synthetic timeout", "TimeoutError"));
     await expect(provider.interpret(reply, allowed)).rejects.toThrow(/^Reply interpretation unavailable$/u);
   } finally {
