@@ -1,11 +1,11 @@
 # EXEC-054: Node runtime security release
 
-Status: In Progress
+Status: Completed
 Owner: Implementation controller
 Requirement IDs: NFR-SEC-010
 GitHub issue: [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14)
 Target release: R1
-Last updated: 2026-11-26
+Last updated: 2026-11-27
 
 ## Objective
 
@@ -25,8 +25,8 @@ findings continue through their release gates.
 
 ## Current state
 
-The previous main image uses Node 24.19.0. The 24.22.3 release includes the
-Node 24.22.1 fixes and the additional 24.22.3 fixes for the selected findings.
+The prior release images used Node 24.19.0. The rebuilt images use Node
+24.22.3, which includes the 24.22.1 and 24.22.3 fixes for the selected findings.
 [Node 24.22.1](https://nodejs.org/en/blog/release/v24.22.1) and
 [Node 24.22.3](https://nodejs.org/en/blog/release/v24.22.3)
 
@@ -103,10 +103,25 @@ actual runtime and layer inventories and review remaining findings before releas
 
 ## Validation evidence
 
-The existing focused distribution suites pass with the regenerated pins. Hosted
-results for the exact reviewed tree and the rebuilt image scan are pending.
+The focused distribution suites and hosted candidate checks passed. The
+candidate archive binds the rebuilt API, worker and operations binaries to
+Node 24.22.3. Its six scans contain zero of the 11 selected earlier Node findings.
+[Candidate checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45924480774) ·
+[Candidate scanner archive](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45924480774/artifacts/15167335278)
+
+The post-merge archive binds the rebuilt images to merge
+`439a9d33c7d8d61153c02ce735dc5b6cbc7a75a9` and the reviewed tree
+`ac26fdcd376241971b1ad2a17537c697ecf01c1e`. Its SHA-256 is
+`b899631da5348121073ba7a46229b9fe01e7228fb477c6b08cb9ef503f3d77fd`.
+The runtime and all-layer scans of API, worker and operations contain zero
+of the 11 selected findings and zero high or critical Node binary findings.
+[Main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45927372795) ·
+[Main Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45927372739) ·
+[Main scanner archive](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45927372795/artifacts/15167976372)
 
 ## Completion summary
 
-The candidate contains the pinned runtime update. Merge and the release evidence
-checkpoint depend on the remaining checks.
+[PR #221](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/221)
+merged the pinned runtime update and both post-merge workflows passed.
+Commercial distribution still requires inventory, license and notice,
+remaining vulnerability, distributed-layer, and trusted signing reviews.

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseIngestionRepository, DatabaseProjectFactRepository,
+import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseHealthAssessmentRepository, DatabaseIngestionRepository, DatabaseProjectFactRepository,
   DatabaseAuthorityRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
 import { atlasApprovalProjectCode, atlasIntegrationMilestoneKey, atlasJiraBlockerKey,
   renderProjectUpdateCapture } from "../../packages/domain/dist/index.js";
@@ -66,6 +66,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
         dates: { baselineStart: null, baselineEnd: null, plannedStart: "2026-10-05", plannedEnd: null,
           forecastStart: null, forecastEnd: null, actualStart: "2026-10-08", actualEnd: null },
       });
+      canonical.raidItems = canonical.raidItems.map((item) => ({ ...item, state: "COMPLETE" }));
       canonical.raidItems.push({
         key: jiraIssue.key, kind: "ISSUE", title: "Integration API access blocker",
         description: "Synthetic Jira issue tracking the missing API access for integration testing.",
@@ -136,29 +137,60 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     const updates = new DatabaseProjectUpdateRepository(db, service, zones,
       () => ({ globalShadowMode: "false", configuration }));
     const facts = new DatabaseProjectFactRepository(db), authority = new DatabaseAuthorityRepository(db);
-    const sourceMarkerA = "HISTORICAL_SOURCE_A_" + randomUUID();
-    const sourceMarkerB = "CURRENT_SOURCE_B_" + randomUUID();
+    const sourceMarkerA = atlasApproval
+      ? `The integration team last reported that API access was pending on ${jiraIssue.key}.`
+      : "HISTORICAL_SOURCE_A_" + randomUUID();
+    const sourceMarkerB = atlasApproval
+      ? `The delivery team still needs an access date and an updated integration forecast for ${jiraIssue.key}.`
+      : "CURRENT_SOURCE_B_" + randomUUID();
     const readers = [admin.subject, writer.subject, owner.subject, pm.subject, service];
     if (atlasApproval) readers.push("leader-atlas");
-    const append = async (actor, marker) => {
-      const fact = await db.projectFact.findFirst({ where: { customerId, projectId, factType: "project.status" } });
-      const result = await facts.appendHumanStatement(actor, { projectId, factType: "project.status",
+    const append = async (actor, factType, value, originalStatement) => {
+      const fact = await db.projectFact.findFirst({ where: { customerId, projectId, factType } });
+      const result = await facts.appendHumanStatement(actor, { projectId, factType,
         expectedRevision: fact?.revision ?? 0, idempotencyKey: randomUUID(), effectiveAt: now.toISOString(),
-        value: { type: "text", value: marker }, originalStatement: marker }, { correlationId: randomUUID() });
+        value, originalStatement }, { correlationId: randomUUID() });
       await facts.setSourceAccess(admin, { projectId, sourceId: result.entry.sourceId,
         expectedRevision: result.entry.sourceAccessRevision, state: "AVAILABLE", readers }, { correlationId: randomUUID() });
       // Authority instance identity is the per-fact source stream UUID.
       return { sourceId: result.entry.sourceId, instanceId: result.entry.sourceId };
     };
-    const selector = (source) => ({ sourceType: "human_statement", instanceId: source.instanceId,
-      requiredApproval: "NOT_REQUIRED", validity: { basis: "observedAt", durationMs: 31536000000 } });
-    const sourceA = await append(admin, sourceMarkerA);
+    const selector = (source, validity = { basis: "observedAt", durationMs: 31536000000 }) => ({
+      sourceType: "human_statement", instanceId: source.instanceId, requiredApproval: "NOT_REQUIRED", validity,
+    });
+    if (atlasApproval) {
+      const blocker = await db.raidItem.findFirstOrThrow({ where: { customerId, projectId, key: jiraIssue.key } });
+      const minimumBlockerAgeDays = 5;
+      await new DatabaseHealthAssessmentRepository(db).setBlockerAgeThresholdPolicy(admin, {
+        expectedRevision: 0, minimumBlockerAgeDays, auditRetentionHours: 720,
+      }, randomUUID());
+      const openedAt = new Date(now.getTime() - (minimumBlockerAgeDays + 2) * 86400000).toISOString().slice(0, 10);
+      const dailyValidity = { basis: "observedAt", durationMs: 86400000 };
+      for (const [factType, value, validity, statement] of [
+        ["project.open_blocker_inventory_complete", { type: "boolean", value: true }, dailyValidity,
+          `${jiraIssue.key} is the only open item in the Atlas blocker inventory.`],
+        [`raid_item.${blocker.id}.blocks_delivery`, { type: "boolean", value: true }, dailyValidity,
+          `${jiraIssue.key} blocks delivery of the integration work.`],
+        [`raid_item.${blocker.id}.opened_at`, { type: "date", value: openedAt }, { mode: "UNTIL_SUPERSEDED" },
+          `${jiraIssue.key} was opened on ${openedAt}.`],
+      ]) {
+        const source = await append(admin, factType, value, statement);
+        await authority.appendPolicy(admin, {
+          projectId, factType, expectedRevision: 0, idempotencyKey: randomUUID(), effectiveAt: now.toISOString(),
+          definition: { tiers: [{ selectors: [selector(source, validity)] }], conflictBehavior: "REQUEST_RECONCILIATION" },
+        }, { correlationId: randomUUID() });
+      }
+    }
+    const sourceA = await append(admin, "project.status", { type: "text", value: sourceMarkerA }, sourceMarkerA);
     await authority.appendPolicy(admin, { projectId, factType: "project.status", expectedRevision: 0,
       idempotencyKey: randomUUID(), effectiveAt: "2026-01-01T00:00:00.000Z",
       definition: { tiers: [{ selectors: [selector(sourceA)] }], conflictBehavior: "REQUEST_RECONCILIATION" } },
     { correlationId: randomUUID() });
-    const requiredFacts = [{ factType: "project.status", label: "Current status" },
-      { factType: "project.forecast", label: "Current forecast" }];
+    const requiredFacts = [
+      { factType: "project.status", label: atlasApproval ? "API access status" : "Current status" },
+      { factType: "project.forecast", label: atlasApproval
+        ? "Expected API access date, current owner and impact on the integration forecast" : "Current forecast" },
+    ];
     await updates.setPolicy(admin, projectId, { expectedRevision: 0, freshnessWindowSeconds: 3600,
       timeZone: "UTC", requiredFacts, responsibleSubject: owner.subject, scheduledScanEnabled: true,
       reminderBusinessDayOffsets: [1, 2], escalationAfterBusinessDays: 3,
@@ -251,7 +283,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       sameClockIds[0], new Date(request.capturedAt));
     assert(reminder.requestId < request.requestId && reminder.capturedAt === request.capturedAt);
     const secondReminder = await capture(ownerStages[2], initial, ownerStages[2].assessmentId);
-    const sourceB = await append(writer, sourceMarkerB);
+    const sourceB = await append(writer, "project.status", { type: "text", value: sourceMarkerB }, sourceMarkerB);
     await authority.appendPolicy(admin, { projectId, factType: "project.status", expectedRevision: 1,
       idempotencyKey: randomUUID(), effectiveAt: "2026-01-02T00:00:00.000Z",
       definition: { tiers: [{ selectors: [selector(sourceB)] }, { selectors: [selector(sourceA)] }],

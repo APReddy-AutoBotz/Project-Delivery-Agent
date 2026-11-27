@@ -32,7 +32,12 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   };
   await page.goto("/update-requests/" + fixture.request.locator);
   await page.getByRole("button", { name: /Atlas contributor/ }).click();
-  const reply = page.getByRole("textbox", { name: "Your update (unconfirmed)" });
+  const updateRequest = page.getByRole("region", { name: "Respond to update request" });
+  await expect(updateRequest.getByRole("heading", { level: 2 })).toHaveText("Atlas · Delivery approval: update requested");
+  const context = updateRequest.locator(":scope > p.update-plain-text");
+  await expect(context).toContainText("The integration team last reported that API access was pending on ATLAS-248.");
+  await expect(context).toContainText("Expected API access date, current owner and impact on the integration forecast");
+  const reply = updateRequest.getByRole("textbox", { name: "Your update (unconfirmed)" });
   const submitReply = async (text: string) => {
     await reply.fill(text);
     const saved = page.waitForResponse((value) => value.url().endsWith("/responses") && value.request().method() === "POST");
@@ -100,6 +105,19 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const manager = await request.post("/api/auth/development", { data: { persona: "pm-atlas" } });
   expect(manager.status()).toBe(200);
   const managerHeaders = { Authorization: "Bearer " + (await manager.json()).token };
+  const updateAssessment = await request.get(projectPath + "/project-update-assessments/latest", { headers: managerHeaders });
+  expect(updateAssessment.status()).toBe(200);
+  const authorizedUpdate = await updateAssessment.json();
+  expect(authorizedUpdate).toMatchObject({
+    project: { id: fixture.projectId },
+    policy: { responsibleSubject: "owner-atlas" },
+    obligation: { state: "OPEN" },
+    completeness: { state: "INCOMPLETE" },
+  });
+  expect(authorizedUpdate.knownPosition).toEqual([expect.objectContaining({
+    factType: "project.status", authorityRevision: 2, sourceId: fixture.sourceB.sourceId,
+    value: { type: "text", value: fixture.sourceMarkerB },
+  })]);
   expect((await request.get(answerPath, { headers: managerHeaders })).status()).toBe(404);
   expect((await request.get(reportPath, { headers: managerHeaders })).status()).toBe(404);
   const record = () => request.post(receiptPath, { headers: managerHeaders, data: { approvalId } });
@@ -111,10 +129,18 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const queuePath = "/api/pm/action-queue";
   const pendingQueue = await request.get(queuePath, { headers: managerHeaders });
   expect(pendingQueue.status()).toBe(200);
-  expect((await pendingQueue.json()).items).toContainEqual({
+  const pendingItems = (await pendingQueue.json()).items;
+  expect(pendingItems).toContainEqual({
     projectId: fixture.projectId, facet: "ATLAS_APPROVAL", index: null, key: approvalId, priority: "HIGH", category: "APPROVAL",
   });
+  expect(pendingItems).toContainEqual({
+    projectId: fixture.projectId, facet: "BLOCKER_AGE", index: null, key: "blocker-age", priority: "MEDIUM", category: "BLOCKER_REVIEW",
+  });
   expect((await request.get(queuePath, { headers: leaderHeaders })).status()).toBe(404);
+  const blockerReview = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: "Atlas · Delivery approval · MEDIUM · BLOCKER REVIEW" }),
+  });
+  await expect(blockerReview.getByText("ATLAS-248", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Review Atlas comment" }).click();
   const approval = page.getByRole("region", { name: "Atlas demo approval" });
   await expect(approval).toContainText("ATLAS-248");
