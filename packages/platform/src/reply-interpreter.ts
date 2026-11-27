@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
-import type { CapturedReplyInterpreter } from "@pdaa/domain";
+import { extractExplicitCapturedFacts, type CapturedReplyInterpreter } from "@pdaa/domain";
 import { readSecretFile, type Config } from "./config.js";
 
 const providerConfig = z.strictObject({
@@ -67,6 +67,12 @@ export function loadCapturedReplyInterpreter(
       metadata: { provider: "OPENAI_COMPATIBLE", model: parsed.model,
         promptRevision: "captured-reply-v1", schemaRevision: "captured-reply-v1" },
       async interpret(text, allowed): Promise<unknown> {
+        const explicit = extractExplicitCapturedFacts(text, true);
+        const reply = allowed.flatMap((factType) => {
+          const value = explicit[factType];
+          return value === undefined ? [] : [`${factType === "project.status" ? "Status" : "Forecast"}: ${value}`];
+        }).join("\n");
+        if (!reply) return { suggestions: [] };
         if (active) throw new Error("Reply interpretation unavailable");
         active = true;
         try {
@@ -76,7 +82,7 @@ export function loadCapturedReplyInterpreter(
             body: JSON.stringify({ model: parsed.model, store: false, max_completion_tokens: 400,
               response_format: { type: "json_object" },
               messages: [{ role: "system", content: prompt },
-                { role: "user", content: JSON.stringify({ allowedFactTypes: allowed, reply: text }) }],
+                { role: "user", content: JSON.stringify({ allowedFactTypes: allowed, reply }) }],
             }),
           });
           return JSON.parse(await completionContent(response)) as unknown;

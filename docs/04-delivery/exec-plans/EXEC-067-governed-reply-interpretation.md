@@ -13,8 +13,10 @@ Run the provider outside repository transactions. Treat the reply as untrusted d
 Use a first-party structured interface shared by a deterministic fixture and
 an operator-configured private endpoint. The initial routing policy permits an
 explicitly enabled local synthetic development or test configuration. The
-request carries the retained response text and the supported field types. Use a
-bounded request and a strict response schema. Check each proposal against the
+request carries only explicit values for supported, allowed fields. The original
+reply stays in capture storage for authorized review and grounding. Skip the
+provider when there is no qualifying value. Use a bounded request and a strict
+response schema. Check each proposal against the
 complete value explicitly stated on a status or forecast line. Expose accepted
 proposals as agent inference and route confirmation through the existing review.
 Manual entry and the current deterministic suggestions cover unavailable and
