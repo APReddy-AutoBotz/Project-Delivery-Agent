@@ -28,10 +28,18 @@ text. Replacing the reply or losing current access removes the item.
 
 For the GOLDEN-005 offer path, show a focused question for the assigned PM
 when the verified schedule slipped and a confirmed cause is unavailable.
-Reuse the authorized schedule dates. This draft gives the leader a question
-to raise with the PM. Sending and tracking a new request is a separate action
-under AC-QA-006. Verify the draft with sparse Jira evidence and verify that a
-confirmed cause removes the offer.
+Reuse the authorized schedule dates. The scoped leadership user can submit the
+draft to the assigned PM's Atlas project panel under AC-QA-006. The server
+rechecks the current schedule, unknown cause, assigned PM and capture gate.
+It records one scoped audit event per schedule revision, PM and issuance epoch.
+The confirmation closes the exact request in the same audit record, so a later
+owner reply cannot reopen it on the same schedule. An old schedule or closed
+capture gate also removes the request from the current panel. Audit access
+follows the existing access rules. This in-app request stays in Atlas. Verify
+the draft with sparse Jira evidence, a successful submission and replay, access
+denial, and removal after the PM confirms a cause. The authorized answer uses
+the same eligibility check to keep the draft readable after resolution without
+offering another submission.
 
 Use the saved Atlas browser fixture to verify a change after a later owner
 reply and comment, plus access denial. Verify that the answer identifies the

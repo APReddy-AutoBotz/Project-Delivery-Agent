@@ -60,6 +60,8 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async decideAtlasApproval() { throw new ProjectUpdateError("DENIED"); },
   async recordAtlasComment() { throw new ProjectUpdateError("DENIED"); },
   async confirmAtlasDelay() { throw new ProjectUpdateError("DENIED"); },
+  async atlasDelayClarification() { throw new ProjectUpdateError("DENIED"); },
+  async requestAtlasDelayClarification() { throw new ProjectUpdateError("DENIED"); },
   async atlasLeadershipAnswer() { throw new ProjectUpdateError("DENIED"); },
   async atlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async createAtlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
@@ -153,6 +155,19 @@ export class ProjectUpdateController {
     const actor = await this.actor(req);
     if (!z.uuid().optional().safeParse(priorSnapshotId).success) throw new HttpException("", 400);
     return this.run(() => this.repository.atlasLeadershipAnswer(actor, this.projectId(rawId), priorSnapshotId));
+  }
+
+  @Get("atlas-delay-clarification")
+  async atlasDelayClarification(@Req() req: Request, @Param("id") rawId: string) {
+    const actor = await this.actor(req);
+    return this.run(() => this.repository.atlasDelayClarification(actor, this.projectId(rawId)));
+  }
+
+  @Post("atlas-delay-clarification")
+  @HttpCode(200)
+  async requestAtlasDelayClarification(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    return this.run(() => this.repository.requestAtlasDelayClarification(actor, this.projectId(rawId), body, req.correlationId));
   }
 
   @Get("atlas-management-snapshot")

@@ -42,6 +42,13 @@ export const atlasScheduleSchema = z.strictObject({
   movementDays: z.number().int().nullable(),
 });
 export type AtlasSchedule = z.infer<typeof atlasScheduleSchema>;
+export const atlasDelayClarificationCommandSchema = z.strictObject({
+  scheduleRevision: atlasScheduleSchema.shape.revision,
+});
+export const atlasDelayClarificationSchema = z.strictObject({
+  id: z.uuid(), requestedAt: z.iso.datetime(), schedule: atlasScheduleSchema,
+});
+export type AtlasDelayClarification = z.infer<typeof atlasDelayClarificationSchema>;
 export const atlasForecastConfidenceSchema = z.enum(["MEDIUM", "LOW", "UNKNOWN"]);
 export const atlasDelayCommandSchema = z.strictObject({
   approvalId: z.uuid(),
@@ -94,6 +101,7 @@ export const atlasLeadershipFactsSchema = z.strictObject({
 });
 export type AtlasLeadershipFacts = z.infer<typeof atlasLeadershipFactsSchema>;
 export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
+  delayClarificationState: z.enum(["AVAILABLE", "REQUESTED", "RESOLVED"]).optional(),
   updateFreshness: projectUpdateAssessmentViewSchema.shape.freshness.pick({
     state: true, assessedAt: true, sourceDate: true, sourceDateField: true,
   }).extend({

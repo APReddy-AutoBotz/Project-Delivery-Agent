@@ -210,7 +210,19 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(await (await record()).json()).toEqual(receipt);
   const unknown = await request.get(answerPath, { headers: leaderHeaders });
   expect(unknown.status()).toBe(200);
-  expect(await unknown.json()).toMatchObject({ delayAssessment: null, receipt });
+  const unknownFacts = await unknown.json();
+  expect(unknownFacts).toMatchObject({ delayAssessment: null, receipt, delayClarificationState: "AVAILABLE" });
+  const delayClarificationPath = projectPath + "/atlas-delay-clarification";
+  const clarificationCommand = { scheduleRevision: unknownFacts.schedule.revision };
+  expect((await request.post(delayClarificationPath, { headers: managerHeaders, data: clarificationCommand })).status()).toBe(404);
+  expect((await request.get(delayClarificationPath, { headers: leaderHeaders })).status()).toBe(404);
+  expect((await request.post(delayClarificationPath, {
+    headers: leaderHeaders, data: { scheduleRevision: clarificationCommand.scheduleRevision + 1 },
+  })).status()).toBe(409);
+  const beforeClarification = await request.get(delayClarificationPath, { headers: managerHeaders });
+  expect(beforeClarification.status()).toBe(200);
+  expect(await beforeClarification.json()).toBeNull();
+  let savedDelayClarification: unknown;
   const unknownCausePage = await page.context().newPage();
   try {
     await leaderAccess(false, fixture.jiraIntake.factSourceId, fixture.jiraIntake.sourceReaders);
@@ -224,9 +236,33 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await expect(unknownAnswer.getByRole("link", { name: "Jira blocker evidence" })).toHaveCount(0);
     await unknownAnswer.getByText("Draft a question for the assigned PM", { exact: true }).click();
     await expect(unknownAnswer.getByText("What caused the forecast finish date to move from 2026-10-15 to 2026-10-29? Please link the evidence that confirms the cause.", { exact: true })).toBeVisible();
+    const saved = unknownCausePage.waitForResponse((response) =>
+      response.url().endsWith(delayClarificationPath) && response.request().method() === "POST");
+    await unknownAnswer.getByRole("button", { name: "Ask the assigned PM" }).click();
+    const submitted = await saved;
+    expect(submitted.status()).toBe(200);
+    savedDelayClarification = await submitted.json();
+    expect(savedDelayClarification).toMatchObject({ id: expect.any(String), schedule: unknownFacts.schedule });
+    await expect(unknownAnswer).toContainText("Clarification added to the assigned PM’s Atlas project panel.");
   } finally {
     await unknownCausePage.close();
     await leaderAccess(true, fixture.jiraIntake.factSourceId, fixture.jiraIntake.sourceReaders);
+  }
+  const clarificationReplay = await request.post(delayClarificationPath, { headers: leaderHeaders, data: clarificationCommand });
+  expect(clarificationReplay.status()).toBe(200);
+  expect(await clarificationReplay.json()).toEqual(savedDelayClarification);
+  const assignedClarification = await request.get(delayClarificationPath, { headers: managerHeaders });
+  expect(assignedClarification.status()).toBe(200);
+  expect(await assignedClarification.json()).toEqual(savedDelayClarification);
+  const pmClarificationPage = await page.context().newPage();
+  try {
+    await pmClarificationPage.goto("/");
+    await pmClarificationPage.getByRole("button", { name: /Project manager/ }).click();
+    await pmClarificationPage.getByRole("button", { name: /Atlas · Delivery approval/ }).click();
+    const pmClarification = pmClarificationPage.getByRole("region", { name: "Leadership clarification" });
+    await expect(pmClarification).toContainText("What caused the forecast finish date to move from 2026-10-15 to 2026-10-29?");
+  } finally {
+    await pmClarificationPage.close();
   }
   const originalDraft = await request.post(reportPath, { headers: leaderHeaders, data: {} });
   expect(originalDraft.status()).toBe(200);
@@ -246,6 +282,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   })).status()).toBe(409);
   await confirmDelay.click();
   await expect(delayForm).toContainText("PM delay assessment recorded. Forecast confidence is medium.");
+  const resolvedClarification = await request.get(delayClarificationPath, { headers: managerHeaders });
+  expect(resolvedClarification.status()).toBe(200);
+  expect(await resolvedClarification.json()).toBeNull();
+  expect((await request.post(delayClarificationPath, { headers: leaderHeaders, data: clarificationCommand })).status()).toBe(409);
   const delayReplay = await request.post(delayPath, { headers: managerHeaders, data: delayCommand });
   expect(delayReplay.status()).toBe(200);
   const assessment = await delayReplay.json();
@@ -459,8 +499,12 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const pending = await request.get(answerPath, { headers: leaderHeaders });
   expect(pending.status()).toBe(200);
   const pendingAnswer = await pending.json();
-  expect(pendingAnswer).toMatchObject({ ownerReply: null, receipt: null });
+  expect(pendingAnswer).toMatchObject({ ownerReply: null, receipt: null, delayClarificationState: "RESOLVED" });
   expect(pendingAnswer.updateFreshness).not.toHaveProperty("activeClarification");
+  const afterReplacement = await request.get(delayClarificationPath, { headers: managerHeaders });
+  expect(afterReplacement.status()).toBe(200);
+  expect(await afterReplacement.json()).toBeNull();
+  expect((await request.post(delayClarificationPath, { headers: leaderHeaders, data: clarificationCommand })).status()).toBe(409);
   const restoredComment = "API access was restored. Infrastructure will verify access with the integration team.";
   expect((await request.post(projectPath + "/atlas-approval", {
     headers: managerHeaders, data: { approvalId: nextComment.approvalId, decision: "APPROVED", proposedComment: restoredComment },
@@ -587,6 +631,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(access.getByRole("cell", { name: "Pending" })).toBeVisible();
   await expect(access.getByRole("cell", { name: "Restored" })).toBeVisible();
   await expect(changes).toContainText(snapshot.id);
+  await answer.getByText("Draft a question for the assigned PM", { exact: true }).click();
+  await expect(answer).toContainText("The request for this schedule has been answered.");
+  await expect(answer.getByRole("button", { name: "Ask the assigned PM", includeHidden: true })).toHaveCount(0);
 
   await leaderAccess(false);
   expect((await request.get(answerPath, { headers: leaderHeaders })).status()).toBe(404);

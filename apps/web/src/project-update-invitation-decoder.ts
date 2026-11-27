@@ -1,4 +1,4 @@
-import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasDelayClarification, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -102,6 +102,14 @@ function decodeAtlasSchedule(value: unknown): AtlasSchedule | null {
 
 const date = (value: unknown): value is string => typeof value === "string" && instant(value + "T00:00:00.000Z");
 
+export function decodeAtlasDelayClarification(value: unknown): AtlasDelayClarification | null {
+  if (!object(value) || !keys(value, ["id", "requestedAt", "schedule"]) || !uuid(value.id) || !instant(value.requestedAt))
+    return null;
+  const schedule = decodeAtlasSchedule(value.schedule);
+  return schedule && (schedule.movementDays ?? 0) > 0
+    ? { id: value.id, requestedAt: value.requestedAt, schedule } : null;
+}
+
 export function decodeAtlasDelayAssessment(value: unknown): AtlasDelayAssessment | null {
   if (!object(value) || !keys(value, ["approvalId", "receiptId", "scheduleRevision", "cause", "confidence", "id", "confirmedBy", "confirmedAt"]) ||
       !uuid(value.approvalId) || !uuid(value.receiptId) || !uuid(value.id) || !subject(value.confirmedBy) ||
@@ -169,9 +177,11 @@ function decodeAtlasLeadershipFacts(value: unknown, projectId: string): AtlasLea
 
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
-  const { integrationStart, jiraBlocker, pmEscalation, priorSnapshot, updateFreshness, ...facts } = value;
+  const { integrationStart, jiraBlocker, pmEscalation, priorSnapshot, updateFreshness, delayClarificationState, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer) return null;
+  if (delayClarificationState !== undefined && (!answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 || answer.delayAssessment ||
+      typeof delayClarificationState !== "string" || !["AVAILABLE", "REQUESTED", "RESOLVED"].includes(delayClarificationState))) return null;
   if (updateFreshness !== null && updateFreshness !== undefined && (!object(updateFreshness) ||
       !keys(updateFreshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "openObligation"], ["activeClarification"]) ||
       (updateFreshness.state !== "CURRENT" && updateFreshness.state !== "STALE") ||

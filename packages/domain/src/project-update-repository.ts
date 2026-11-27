@@ -1,6 +1,6 @@
 // TR-API-001: application port depends on contracts without schema cycles.
 import type { Actor } from "./actor.js";
-import type { AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasManagementSnapshot, AtlasReportDistributionReceipt } from "./atlas-update-approval.js";
+import type { AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasDelayClarification, AtlasLeadershipAnswer, AtlasManagementSnapshot, AtlasReportDistributionReceipt } from "./atlas-update-approval.js";
 import type { IngestionReassessmentRetry, IngestionReassessmentItem, IngestionReassessmentPage } from "./ingestion-reassessment.js";
 import type { ProjectUpdateEngagementView } from "./project-update-engagement.js";
 import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt,
@@ -32,6 +32,8 @@ export interface ProjectUpdateRepository {
   decideAtlasApproval(actor: Actor, projectId: string, decision: unknown, correlationId: string): Promise<AtlasApprovalView>;
   recordAtlasComment(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasCommentReceipt>;
   confirmAtlasDelay(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasDelayAssessment>;
+  atlasDelayClarification(actor: Actor, projectId: string): Promise<AtlasDelayClarification | null>;
+  requestAtlasDelayClarification(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasDelayClarification>;
   atlasLeadershipAnswer(actor: Actor, projectId: string, priorSnapshotId?: string): Promise<AtlasLeadershipAnswer>;
   atlasManagementSnapshot(actor: Actor, projectId: string, snapshotId?: string): Promise<AtlasManagementSnapshot | null>;
   createAtlasManagementSnapshot(actor: Actor, projectId: string, correlationId: string): Promise<AtlasManagementSnapshot>;

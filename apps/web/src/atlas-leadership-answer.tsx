@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { AtlasLeadershipAnswer as Answer, AtlasLeadershipFacts } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
-import { decodeAtlasLeadershipAnswer } from "./project-update-invitation-decoder.js";
+import { decodeAtlasDelayClarification, decodeAtlasLeadershipAnswer } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
 import { AtlasManagementSnapshot } from "./atlas-management-snapshot.js";
+import { atlasDelayClarificationQuestion } from "./atlas-update-approval.js";
 
 const snapshotIdFormat = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 
@@ -87,6 +88,20 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const receiptRef = `atlas-receipt-${projectId}`;
   const assessmentRef = `atlas-delay-assessment-${projectId}`;
   const days = schedule?.movementDays ?? null;
+  const askPm = useMutation({
+    mutationFn: async ({ scheduleRevision }: { scheduleRevision: number; scope: string; asOf: string }) => {
+      if (!isCurrent()) throw new Error("Atlas project access changed");
+      const raw = await request(`/projects/${projectId}/atlas-delay-clarification`, {
+        method: "POST", body: JSON.stringify({ scheduleRevision }),
+      }, 4096, undefined, undefined, isCurrent);
+      const result = decodeAtlasDelayClarification(raw);
+      if (result?.schedule.revision !== scheduleRevision) throw new Error("Atlas clarification could not be verified");
+      return result;
+    },
+  });
+  const currentClarification = askPm.variables?.scope === scope && askPm.variables.scheduleRevision === schedule?.revision &&
+    askPm.variables.asOf === answer?.asOf;
+  const askedPmForSchedule = currentClarification && askPm.isSuccess;
   const movement = days === null ? "Schedule movement is unavailable."
     : days === 0 ? "The baseline and forecast dates match."
       : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`;
@@ -131,9 +146,16 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         ? <p>The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as {assessment.confidence.toLowerCase()}.{" "}
           <a href={`#${assessmentRef}`}>PM assessment evidence</a></p>
         : <p>The verified cause of the schedule change and confidence in the forecast remain unknown.</p>}
-      {!assessment && days !== null && days > 0 && <details>
+      {!assessment && schedule && days !== null && days > 0 && <details>
         <summary>Draft a question for the assigned PM</summary>
-        <p>What caused the forecast finish date to move from {schedule?.baseline} to {schedule?.forecast}? Please link the evidence that confirms the cause.</p>
+        <p>{atlasDelayClarificationQuestion(schedule)}</p>
+        {(askedPmForSchedule || answer.delayClarificationState === "REQUESTED") &&
+          <Message>Clarification added to the assigned PM’s Atlas project panel.</Message>}
+        {!askedPmForSchedule && answer.delayClarificationState === "AVAILABLE" &&
+          <Button className="secondary" disabled={askPm.isPending || !isCurrent()}
+            onClick={() => askPm.mutate({ scheduleRevision: schedule.revision, scope, asOf: answer.asOf })}>Ask the assigned PM</Button>}
+        {answer.delayClarificationState === "RESOLVED" && <p>The request for this schedule has been answered.</p>}
+        {askPm.isError && currentClarification && <Message error>Could not request clarification. Refresh the answer and try again.</Message>}
       </details>}
       {prior?.facts.ownerReply && Date.parse(prior.facts.ownerReply.availableUntil) > Date.now() &&
         <AtlasSnapshotChanges current={{ ...answer, ownerReply: reply, receipt: receipt ?? null, delayAssessment: assessment ?? null }} prior={prior} />}
