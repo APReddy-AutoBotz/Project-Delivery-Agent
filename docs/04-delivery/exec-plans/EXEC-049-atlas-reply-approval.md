@@ -338,3 +338,11 @@ isolated fixture and verifies refusal, replacement, fresh approval and
 successful simulated execution. This exercises the synthetic portion of
 [Issue #10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10).
 For rollback, revert the code and reseed the disposable fixture.
+
+## Source freshness on the management snapshot
+
+For FR-RPT-007 and INT-RPT-002, show when the owner submitted the reply saved
+with the snapshot and when its evidence availability ends. The
+dashboard, email preview and PowerPoint use the same text. The existing browser
+journey also checks the report ID, reporting period, generation timestamp,
+approval state and editable PowerPoint text.

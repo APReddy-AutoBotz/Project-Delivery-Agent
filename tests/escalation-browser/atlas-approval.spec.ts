@@ -325,6 +325,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(email).toContainText("Final · Approved");
   await expect(email).toContainText(snapshot.id);
   await expect(email).toContainText(highlights[0]);
+  const sourceDeadline = `Evidence availability ends ${snapshot.ownerReply.availableUntil}.`;
+  await expect(report).toContainText(sourceDeadline);
+  await expect(email).toContainText(sourceDeadline);
   await expect(email.getByRole("link")).toHaveAttribute("href", livePath);
   await expect(report).not.toContainText(text);
   const inbox = page.getByRole("region", { name: "Atlas report inbox" });
@@ -352,6 +355,8 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(slide).toContain("Final • Approved");
   expect(slide).toContain(finalReport.approval.decidedAt);
   expect(slide).toContain(assessment.id);
+  expect(slide).toContain(snapshot.ownerReply.receivedAt);
+  expect(slide).toContain(sourceDeadline);
   for (const highlight of highlights) expect(slide).toContain(highlight);
 
   const owner = await request.post("/api/auth/development", { data: { persona: "owner-atlas" } });

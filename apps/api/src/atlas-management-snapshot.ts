@@ -11,7 +11,8 @@ export function atlasManagementPreview(snapshot: AtlasManagementSnapshot): Atlas
       : `${Math.abs(schedule.movementDays)} days ${schedule.movementDays > 0 ? "later" : "earlier"}`;
   const highlights = [
     `Schedule: ${schedule.baseline ?? "unknown"} baseline, ${schedule.forecast ?? "unknown"} forecast. ${movement}. Schedule revision ${schedule.revision}.`,
-    `API access was ${ownerReply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} in the owner-confirmed reply ${ownerReply.responseId} at ${ownerReply.receivedAt}.`,
+    `API access was ${ownerReply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} in the owner-confirmed reply ${ownerReply.responseId} at ${ownerReply.receivedAt}. ` +
+      `Evidence availability ends ${ownerReply.availableUntil}.`,
     `The PM recorded a simulated ${receipt.target} comment. Receipt ${receipt.id}, recorded at ${receipt.recordedAt}.`,
     delayAssessment
       ? `The PM confirmed that delayed API access caused the go-live delay. PM forecast confidence is ${delayAssessment.confidence.toLowerCase()}. Assessment ${delayAssessment.id} at ${delayAssessment.confirmedAt}.`
