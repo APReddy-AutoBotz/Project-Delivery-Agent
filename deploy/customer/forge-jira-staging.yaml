@@ -1,0 +1,9 @@
+# EXEC-055. Add to the customer composition on the approved staging host only.
+services:
+  api:
+    environment:
+      PDAA_FORGE_JIRA_STAGING_FILE: /run/secrets/forge-jira-staging
+    secrets: [forge-jira-staging]
+secrets:
+  forge-jira-staging:
+    file: ${PDAA_FORGE_JIRA_STAGING_FILE:?}

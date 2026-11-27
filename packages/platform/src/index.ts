@@ -17,6 +17,7 @@ export {
   type DatabaseTransport,
 } from "./config.js";
 export { assertSyntheticDatabaseUrl } from "./database-target.js";
+export { createForgeJiraInvocationVerifier, forgeJiraStagingBindingSchema, type ForgeJiraStagingBinding } from "./forge-jira-invocation.js";
 export { createOutboundDispatcher } from "./outbound.js";
 export {
   signConnectorTaskRequest,

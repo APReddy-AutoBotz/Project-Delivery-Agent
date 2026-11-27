@@ -151,6 +151,7 @@
 - `docs/04-delivery/exec-plans/EXEC-007-milestone-reconciliation.md`: canonical Stages 1-3 merged; later generic scalar requests are merged through EXEC-008, while shared story acceptance remains open.
 - `docs/04-delivery/exec-plans/EXEC-008-scalar-reconciliation.md`: merged durable scalar request, original proof, permissions and recovery; separate story/release acceptance remains open.
 - `docs/04-delivery/exec-plans/EXEC-009-read-only-ingestion.md`: approved synthetic-first ingestion stages; internal read contract, durable proposal persistence, Jira issue reader and OAuth/webhook/reconciliation runtime checkpoints, with full Jira entity coverage and user-facing ingestion still outstanding.
+- `docs/04-delivery/exec-plans/EXEC-055-forge-jira-staging.md`: staging-only Jira connection probe for OD-013, including customer endpoint configuration and pending real installation evidence.
 - `docs/04-delivery/exec-plans/EXEC-010-health-assessment-persistence.md`: stored deterministic schedule-health assessment and current acceptance limits.
 - `docs/04-delivery/exec-plans/EXEC-011-authority-backed-blocker-age.md`: source-authorized blocker-age assessment and evidence gates.
 - `docs/04-delivery/exec-plans/EXEC-012-update-freshness-and-completeness.md`: proposed durable freshness, completeness and update-obligation workflow.
