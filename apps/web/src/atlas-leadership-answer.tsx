@@ -131,6 +131,10 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         ? <p>The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as {assessment.confidence.toLowerCase()}.{" "}
           <a href={`#${assessmentRef}`}>PM assessment evidence</a></p>
         : <p>The verified cause of the schedule change and confidence in the forecast remain unknown.</p>}
+      {!assessment && days !== null && days > 0 && <details>
+        <summary>Draft a question for the assigned PM</summary>
+        <p>What caused the forecast finish date to move from {schedule?.baseline} to {schedule?.forecast}? Please link the evidence that confirms the cause.</p>
+      </details>}
       {prior?.facts.ownerReply && Date.parse(prior.facts.ownerReply.availableUntil) > Date.now() &&
         <AtlasSnapshotChanges current={{ ...answer, ownerReply: reply, receipt: receipt ?? null, delayAssessment: assessment ?? null }} prior={prior} />}
       <h3>Evidence</h3>
