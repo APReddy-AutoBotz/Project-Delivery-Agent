@@ -3437,7 +3437,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         updateFreshness.activeClarification = undefined;
       if ((answer.ownerReply && answer.ownerReply.availableUntil <= asOf) ||
           (answer.scheduleCitation && answer.scheduleCitation.availableUntil <= asOf) ||
-          (prior && (prior.facts.ownerReply.availableUntil <= asOf || prior.facts.asOf > asOf)))
+          (prior && (prior.facts.ownerReply.availableUntil <= asOf || prior.facts.asOf > asOf ||
+            (prior.facts.scheduleCitation && prior.facts.scheduleCitation.availableUntil <= asOf))))
         throw new ProjectUpdateError("DENIED");
       return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness, delayClarificationState,
         integrationStart: milestone?.plannedStart && milestone.actualStart && milestone.actualStart > milestone.plannedStart
