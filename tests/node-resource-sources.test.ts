@@ -135,7 +135,7 @@ describe("selected original source policy and exact bytes", () => {
     );
     expect(policy.sources).toHaveLength(7);
     expect(policy.sources.reduce((n: number, s: any) => n + s.size, 0)).toBe(
-      78421,
+      79252,
     );
     expect(new Set(policy.sources.map((s: any) => s.section)).size).toBe(6);
   });

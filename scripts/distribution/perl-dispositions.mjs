@@ -150,11 +150,12 @@ export function capturePerlMatchEnvelope(match, rule) {
 
 // Pure capture supports independent replay/tests. Only derivePerlDispositions
 // authorizes rows, after checking the independently trusted checkout anchors.
+const perlSourcePackages = (sbom) =>
+  sbom.artifacts.filter((p) => (p.metadata?.source || p.name) === "perl");
+
 export function capturePerlScopeFacts({ inspection, sbom, analysis }) {
   const layers = inspection.RootFS.Layers;
-  const packages = sbom.artifacts.filter(
-    (p) => (p.metadata?.source || p.name) === "perl",
-  );
+  const packages = perlSourcePackages(sbom);
   assert(packages.length > 0, "Missing Perl source packages");
   const ids = new Map();
   for (const f of sbom.files) {
@@ -319,6 +320,24 @@ export function deriveReviewedPerlRows({
     (s) => s.target === target && s.scope === scope,
   );
   assert(expected, "Unreviewed Perl target/scope");
+  const sourcePackages = perlSourcePackages(sbom);
+  if (
+    sourcePackages.length > 0 &&
+    sourcePackages.every((p) =>
+      p.type === "deb" &&
+      p.purl?.startsWith("pkg:deb/debian/") &&
+      policy.rule.advisory.fix.versions.includes(p.version)
+    )
+  ) {
+    assert.deepEqual(
+      sourcePackages.map((p) => p.name).sort(),
+      expected.packageNames,
+      "Perl package set changed",
+    );
+    // The architecture disposition belongs to the original analyzed build.
+    // The current Debian package's scanner findings stay in the raw report.
+    return [];
+  }
   const { facts, packages, normalize } = capturePerlScopeFacts({
     inspection,
     sbom,

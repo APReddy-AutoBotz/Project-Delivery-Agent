@@ -258,14 +258,13 @@ original notice hashes. README capture and explicit RxJS parent attribution clos
 the twelve identified evidence gaps only; complete npm/source-header/OS/native
 attribution and the remaining security/signing gates stay open.
 
-## Existing Node binary/component source coverage, 2026-09-08
+## Node binary and component source coverage
 
 The [Node policy](../../scripts/distribution/node-components.json) records the
-existing Node 24.19.0 binary, exact process metadata, eleven reviewed original
+Node 24.22.3 binary, exact process metadata, eleven reviewed original
 source-file hashes and the complete original notice partition. The source commit
-is `cdc1b38d40cb567b7ad0b39c86addf830a0af0ae`; publisher source URLs are retained
-with each file. This is source/metadata attribution for an existing dependency,
-not new package adoption or a license choice.
+is `e63cab040c09d43ceef8cb35508c40044614e906`. Each file record includes its
+publisher source URL.
 
 The 29 metadata keys comprise the runtime, 21 versioned libraries, two ABI/API
 values, three ICU-related data values and two empty disabled QUIC values. Eighteen
@@ -288,9 +287,9 @@ update through existing runtime boundaries with fresh binary/metadata/notice pin
 and complete immutable acceptance. No source archive or new library is copied
 into customer images by this evidence increment.
 
-## Node supplemental source notices, 2026-09-08
+## Node supplemental source notices
 
-No dependency is added or upgraded. The [supplemental policy](../../scripts/distribution/node-supplemental.json)
+The [supplemental policy](../../scripts/distribution/node-supplemental.json)
 pins four original files at the same Node source commit and 150 notice outputs for
 the existing API, worker and operations binary. Full original sources are
 authenticated in a build stage; final images contain only notice bytes and index.
@@ -298,7 +297,7 @@ authenticated in a build stage; final images contain only notice bytes and index
 | Existing component | Original source observation                                                                                                                       | Packaged evidence                                                                     | Remaining review                                            |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | nbytes 0.1.4       | Original `deps/nbytes/LICENSE` headed MIT License, crediting Node.js                                                                              | Complete original 1,064-byte file                                                     | Component/source applicability and full distribution review |
-| SQLite 3.53.3      | Original copyright-disclaimer/blessing and public-domain language in amalgamation/header comments                                                 | 149 complete original comment extracts, 144,879 bytes, retaining separate occurrences | Conditional/platform/header and actual linked composition   |
+| SQLite 3.54.1      | Original copyright-disclaimer/blessing and public-domain language in amalgamation/header comments                                                 | 149 complete original comment extracts, 145,431 bytes, retaining separate occurrences | Conditional/platform/header and actual linked composition   |
 | ncrypto 0.0.1      | No component-specific notice in its seven-file subtree; README describes Node-internal extraction, with an OpenSSL formatting reference in source | Explicit unresolved supplemental status; no borrowed notice                           | Determine original attribution and applicability            |
 
 The policy records exact publisher URLs, full parent-source sizes/SHA-256, output
@@ -310,14 +309,14 @@ a reproducible build. Existing root-notice gaps remain separately recorded.
 Owner: implementation controller for source maintenance and implementation;
 legal/product review remains required for distribution. Replacement/recovery is
 a reviewed Node/source-policy update or packaging revert with fresh immutable
-acceptance. No licence choice, dependency version or connector-scope change occurs.
+acceptance.
 
-## Observed Node native resource table, 2026-09-08
+## Observed Node native resource table
 
 The [resource policy](../../scripts/distribution/node-resources.json) records the
-existing binary's 371 string resources and one own undefined `configs` property,
-including descriptors and lossless UTF-8 sizes/digests. No dependency is adopted
-or upgraded. The collector runs a fixed bounded probe in API, worker and
+binary's 392 string resources and one own undefined `configs` property, including
+descriptors and lossless UTF-8 sizes and digests. The collector runs a fixed
+bounded probe in API, worker and
 operations; independent inspection reproduced every observation. Resource bodies
 are neither evaluated nor redistributed as new source files.
 
@@ -329,13 +328,13 @@ classification follows from this probe. ncrypto and native/tool/generated-source
 membership remain unresolved. Owner and recovery remain the implementation
 controller and a reviewed evidence-policy revert with fresh validation.
 
-## Selected Node source/resource originals, 2026-09-08
+## Selected Node source and resource originals
 
 The [source policy](../../scripts/distribution/node-resource-sources.json) records
 seven exact JavaScript originals at the same reviewed Node commit. Independent
 checks authenticated complete original sizes, SHA-256 and Git blob SHA-1 from
 retained GitHub metadata/raw files. All seven original size/SHA-256 pairs match
-the independently observed resources, totaling 78,421 bytes without normalization.
+the independently observed resources, totaling 79,252 bytes without normalization.
 
 The selected paths are `lib/punycode.js`, `lib/internal/freeze_intrinsics.js`,
 `lib/internal/fs/rimraf.js`, both `lib/internal/fs/cp/cp.js` and `cp-sync.js`,

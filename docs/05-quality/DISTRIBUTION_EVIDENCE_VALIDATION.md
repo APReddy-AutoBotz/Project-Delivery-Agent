@@ -459,8 +459,8 @@ the schema-2 runtime/layer increment requires new accepted images and matching C
 API/worker preparation removes global npm/Corepack/Yarn payloads and commands.
 The final runtime copies that cleaned filesystem into a fresh layer graph while
 preserving its explicit execution configuration. Operations now retains Node's
-original bundled notice. `scripts/distribution/runtime-policy.json` binds Node
-24.19.0 to the unchanged publisher notice hash. Both scanner scopes reject a
+original bundled notice. `scripts/distribution/runtime-policy.json` binds the
+pinned Node version to its publisher notice hash. Both scanner scopes reject a
 missing/changed notice, unexpected Node version, package-manager package record,
 global payload or command link, including material hidden by a later deletion.
 
