@@ -146,11 +146,20 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     factType: "project.forecast", sourceId: fixture.lastForecast.sourceId, observedAt: fixture.lastPmUpdateAt,
   })]));
   expect(Math.floor((Date.parse(before.updateFreshness.assessedAt) - Date.parse(fixture.lastPmUpdateAt)) / 86400000)).toBe(9);
+  const protectedReportPath = projectPath + "/management-draft";
+  const protectedPreview = await request.get(protectedReportPath, { headers: leaderHeaders });
+  expect(protectedPreview.status()).toBe(200);
+  const protectedDraft = (await protectedPreview.json()).draft;
+  expect(protectedDraft.updateFreshness.sourceDateField).toBe("project.latestValidUpdateAt");
+  const protectedSave = await request.post(protectedReportPath, { headers: leaderHeaders, data: protectedDraft });
+  expect(protectedSave.status()).toBe(200);
+  const protectedSnapshotPath = `${protectedReportPath}?snapshotId=${(await protectedSave.json()).snapshotId}`;
   await leaderAccess(false, fixture.lastForecast.sourceId, fixture.readers);
   try {
     const restrictedFreshness = await request.get(answerPath, { headers: leaderHeaders });
     expect(restrictedFreshness.status()).toBe(200);
     expect(await restrictedFreshness.json()).toMatchObject({ updateFreshness: null, jiraBlocker: before.jiraBlocker });
+    expect((await request.get(protectedSnapshotPath, { headers: leaderHeaders })).status()).toBe(404);
   } finally {
     await leaderAccess(true, fixture.lastForecast.sourceId, fixture.readers);
   }
@@ -766,6 +775,20 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await expect(draftEmail).toContainText(highlight);
     expect(draftSlide).toContain(highlight);
   }
+  const saveResult = page.waitForResponse((response) => response.url().endsWith(draftPath) && response.request().method() === "POST");
+  await draftPanel.getByRole("button", { name: "Save snapshot" }).click();
+  const savedResponse = await saveResult;
+  expect(savedResponse.status()).toBe(200);
+  const savedReport = await savedResponse.json();
+  expect(savedReport.snapshotId).toMatch(/^[a-f0-9-]{36}$/u);
+  expect(savedReport.draft).toEqual({ ...draft, asOf: savedReport.draft.asOf });
+  await expect(draftPanel).toContainText(savedReport.snapshotId);
+  const replayedSave = await request.post(draftPath, { headers: leaderHeaders, data: draft });
+  expect(replayedSave.status()).toBe(200);
+  expect(await replayedSave.json()).toMatchObject({ snapshotId: savedReport.snapshotId, draft: savedReport.draft });
+
+  await draftPanel.getByRole("button", { name: "Preview management draft" }).click();
+  await expect(draftPanel.getByRole("button", { name: "Save snapshot" })).toBeVisible();
   const changedPolicyDb = createDatabase(target.toString());
   try {
     await new DatabaseProjectUpdateRepository(changedPolicyDb).setPolicy(fixture.admin, allowedProjectId,
@@ -780,4 +803,21 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(draftPanel).toContainText("The management draft is unavailable.");
   await expect(draftPanel.getByRole("button", { name: "Download editable PowerPoint" })).toHaveCount(0);
   expect(staleDownloads).toBe(0);
+
+  expect((await request.post(draftPath, { headers: leaderHeaders, data: draft })).status()).toBe(409);
+  expect((await request.get(`${projectPath}/management-draft?snapshotId=${savedReport.snapshotId}`,
+    { headers: leaderHeaders })).status()).toBe(404);
+  const latestSaved = page.waitForResponse((response) => response.url().endsWith(draftPath + "?snapshotId=latest"));
+  await draftPanel.getByRole("button", { name: "Open latest saved draft" }).click();
+  const reopened = await (await latestSaved).json();
+  expect(reopened).toMatchObject({ snapshotId: savedReport.snapshotId, draft: savedReport.draft, highlights: savedReport.highlights });
+  await expect(draftPanel).toContainText(savedReport.snapshotId);
+  await draftEmail.getByText("Leadership email preview").click();
+  await expect(draftEmail).toContainText(savedReport.snapshotId);
+  const exportSaved = page.waitForEvent("download");
+  await draftPanel.getByRole("button", { name: "Download editable PowerPoint" }).click();
+  const savedSlide = await firstSlide((await (await exportSaved).path())!);
+  expect(savedSlide).toContain(savedReport.snapshotId);
+  expect(savedSlide).toContain(savedReport.draft.asOf);
+  for (const highlight of savedReport.highlights) expect(savedSlide).toContain(highlight);
 });

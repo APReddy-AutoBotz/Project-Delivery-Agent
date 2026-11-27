@@ -22,7 +22,8 @@ import {
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
   atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
   isCurrentProjectScheduleQuestion, projectLeadershipAnswerSchema, projectLeadershipQuestionSchema,
-  projectManagementDraftSchema,
+  projectManagementDraftSchema, projectManagementSnapshotSchema,
+  type ProjectManagementDraft,
   atlasReportApprovalRequestSchema, atlasReportDecisionSchema,
   atlasReportVersionSchema, atlasReportDistributionReceiptSchema, atlasReportRecipientSubject,
   suggestAtlasAccessStatus,
@@ -87,6 +88,8 @@ const atlasManagementSnapshotEvent = "atlas_demo.management_snapshot.created";
 const atlasReportRequestedEvent = "atlas_demo.report_approval.requested";
 const atlasReportDecidedEvent = "atlas_demo.report_approval.decided";
 const atlasReportDistributedEvent = "atlas_demo.report.distributed";
+const projectReportSavedEvent = "project_report.draft.saved";
+const savedProjectReportDetail = z.strictObject({ projectId: z.uuid(), draft: projectManagementDraftSchema });
 const payloadDigestSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const capturedFactConfirmedEvents: Record<CapturedUpdateFactType, string> = {
   "project.status": "project_update.response.status_confirmed",
@@ -2615,6 +2618,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (!policy) return null;
     const row = await this.latestAssessmentRow(tx, current, projectId, policy.policyRevisionId);
     if (!row) return null;
+    const freshness = await this.readableUpdateFreshness(tx, current, projectId, row);
+    return freshness ? { assessmentId: row.id, obligationId: row.obligationId,
+      freshness: { ...freshness, openObligation: row.obligationState === "OPEN" } } : null;
+  }
+
+  private async readableUpdateFreshness(tx: Tx, current: Actor, projectId: string,
+    row: Pick<AssessmentRow, "result" | "assessedAt" | "dependencies" | "requiredFacts">) {
     const stored = safeObject.safeParse(jsonValue(row.result));
     const freshness = projectUpdateAssessmentViewSchema.shape.freshness.safeParse(stored.data?.freshness);
     if (!freshness.success || freshness.data.assessedAt !== iso(row.assessedAt)) return null;
@@ -2624,9 +2634,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (!dependencies.success || (await this.resolveKnownPosition(tx, current, projectId, dependencies.data, row.requiredFacts)).length !== dependencies.data.length)
         return null;
     }
-    const openObligation = row.obligationState === "OPEN";
-    return { assessmentId: row.id, obligationId: row.obligationId,
-      freshness: { state, assessedAt, sourceDate, sourceDateField, openObligation } };
+    return { state, assessedAt, sourceDate, sourceDateField };
   }
 
   private async atlasUpdateFreshness(tx: Tx, current: Actor, projectId: string) {
@@ -2659,20 +2667,88 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     }, "ReadCommitted");
   }
 
-  async projectManagementDraft(actorValue: Actor, projectValue: string) {
+  private reportingLeader(actorValue: Actor): Actor {
     const current = parseActor(actorValue);
-    const projectId = parseProjectId(projectValue);
     if (!current.roles.includes("leadership")) throw new ProjectUpdateError("DENIED");
-    const leader: Actor = { ...current, roles: ["leadership"] };
+    return { ...current, roles: ["leadership"] };
+  }
+
+  private async currentProjectManagementDraft(tx: Tx, leader: Actor, projectId: string) {
+    const project = await tx.project.findFirstOrThrow({
+      where: { id: projectId, customerId: leader.customerId },
+      select: { code: true, name: true },
+    });
+    const facts = await this.currentProjectLeadershipFacts(tx, leader, projectId);
+    return projectManagementDraftSchema.parse({ ...facts, project,
+      approvalState: "DRAFT", reportingPeriod: facts.asOf.slice(0, 7) });
+  }
+
+  async projectManagementDraft(actorValue: Actor, projectValue: string) {
+    const leader = this.reportingLeader(actorValue);
+    const projectId = parseProjectId(projectValue);
     return this.transaction(async (tx) => {
       await this.authorize(tx, leader, projectId, false);
-      const project = await tx.project.findFirstOrThrow({
-        where: { id: projectId, customerId: leader.customerId },
-        select: { code: true, name: true },
-      });
-      const facts = await this.currentProjectLeadershipFacts(tx, leader, projectId);
-      return projectManagementDraftSchema.parse({ ...facts, project,
-        approvalState: "DRAFT", reportingPeriod: facts.asOf.slice(0, 7) });
+      return this.currentProjectManagementDraft(tx, leader, projectId);
+    }, "ReadCommitted");
+  }
+
+  private async savedProjectManagementSnapshot(tx: Tx, leader: Actor, projectId: string, snapshotId?: string) {
+    const saved = await tx.auditEvent.findFirst({
+      where: { customerId: leader.customerId, actor: leader.subject, event: projectReportSavedEvent,
+        ...(snapshotId && { id: snapshotId }), detail: { path: ["projectId"], equals: projectId } },
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }], select: { id: true, detail: true, occurredAt: true },
+    });
+    if (!saved) return null;
+    const { projectId: savedProjectId, draft } = savedProjectReportDetail.parse(saved.detail);
+    if (savedProjectId !== projectId || draft.projectId !== projectId || draft.asOf !== iso(saved.occurredAt))
+      throw new ProjectUpdateError("UNAVAILABLE");
+    return projectManagementSnapshotSchema.parse({ snapshotId: saved.id, draft });
+  }
+
+  private async authorizeSavedReportFreshness(tx: Tx, leader: Actor,
+    projectId: string, saved: NonNullable<ProjectManagementDraft["updateFreshness"]>) {
+    const [row] = await tx.$queryRaw<Pick<AssessmentRow, "result" | "assessedAt" | "dependencies" | "requiredFacts">[]>`
+      SELECT a.result,a."assessedAt",a.dependencies,r."requiredFacts"
+      FROM public."ProjectUpdateAssessment" a
+      JOIN public."ProjectUpdatePolicyRevision" r ON (r."customerId",r."projectId",r.id)=
+        (a."customerId",a."projectId",a."policyRevisionId")
+      WHERE a."customerId"=${leader.customerId}::uuid AND a."projectId"=${projectId}::uuid AND a.id=${saved.assessmentId}::uuid`;
+    const readable = row && await this.readableUpdateFreshness(tx, leader, projectId, row);
+    if (!readable || readable.assessedAt !== saved.assessedAt || readable.state !== saved.state ||
+        readable.sourceDate !== saved.sourceDate || readable.sourceDateField !== saved.sourceDateField)
+      throw new ProjectUpdateError("DENIED");
+  }
+
+  async projectManagementSnapshot(actorValue: Actor, projectValue: string, snapshotValue: string) {
+    const leader = this.reportingLeader(actorValue);
+    const projectId = parseProjectId(projectValue);
+    const snapshotId = snapshotValue === "latest" ? undefined : parseProjectId(snapshotValue);
+    return this.transaction(async (tx) => {
+      await this.authorize(tx, leader, projectId, false);
+      const saved = await this.savedProjectManagementSnapshot(tx, leader, projectId, snapshotId);
+      if (!saved) throw new ProjectUpdateError("DENIED");
+      if (saved.draft.updateFreshness)
+        await this.authorizeSavedReportFreshness(tx, leader, projectId, saved.draft.updateFreshness);
+      return saved;
+    }, "ReadCommitted");
+  }
+
+  async saveProjectManagementSnapshot(actorValue: Actor, projectValue: string, expected: ProjectManagementDraft, correlationValue: string) {
+    const leader = this.reportingLeader(actorValue);
+    const projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    return this.transaction(async (tx) => {
+      await this.authorize(tx, leader, projectId, false);
+      await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0)) IS NULL AS locked",
+        stringify(["project-report", leader.customerId, projectId, leader.subject]));
+      const draft = await this.currentProjectManagementDraft(tx, leader, projectId);
+      if (hash({ ...expected, asOf: draft.asOf }) !== hash(draft)) throw new ProjectUpdateError("CONFLICT");
+      const previous = await this.savedProjectManagementSnapshot(tx, leader, projectId);
+      if (previous && hash({ ...previous.draft, asOf: draft.asOf }) === hash(draft)) return previous;
+      const saved = await tx.auditEvent.create({ data: { customerId: leader.customerId, actor: leader.subject,
+        event: projectReportSavedEvent, correlationId, detail: { projectId, draft }, occurredAt: new Date(draft.asOf),
+      }, select: { id: true } });
+      return projectManagementSnapshotSchema.parse({ snapshotId: saved.id, draft });
     }, "ReadCommitted");
   }
 
