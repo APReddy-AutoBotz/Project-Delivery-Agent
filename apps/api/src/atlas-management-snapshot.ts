@@ -1,6 +1,6 @@
 import pptxgen from "pptxgenjs";
 import type { AtlasManagementOutput, AtlasManagementPreview, AtlasManagementSnapshot, ProjectManagementDraft,
-  ProjectManagementDraftOutput, ProjectReportApproval } from "@pdaa/domain";
+  ProjectManagementDraftOutput, ProjectReportApproval, ProjectReportDelivery } from "@pdaa/domain";
 
 // Node loads the ESM constructor while the publisher types describe the CommonJS module.
 const PptxGenJS = pptxgen as unknown as (typeof import("pptxgenjs"))["default"];
@@ -61,7 +61,7 @@ export async function renderAtlasManagementSnapshot(snapshot: AtlasManagementSna
 }
 
 export async function renderProjectManagementDraft(draft: ProjectManagementDraft, snapshotId?: string,
-  approval?: ProjectReportApproval): Promise<ProjectManagementDraftOutput> {
+  approval?: ProjectReportApproval, delivery?: ProjectReportDelivery): Promise<ProjectManagementDraftOutput> {
   const { schedule, updateFreshness } = draft;
   const highlights = [schedule
     ? `Canonical schedule revision ${schedule.revision}. Baseline ${schedule.baseline ?? "unknown"}. Forecast ${schedule.forecast ?? "unknown"}.`
@@ -76,11 +76,11 @@ export async function renderProjectManagementDraft(draft: ProjectManagementDraft
   }
   const powerpointBase64 = await renderManagementDeck({
     title: approval?.state === "APPROVED" ? "Project management report" : "Project management draft",
-    metadata: `${approvalLabels[approval?.state ?? "DRAFT"]} • Reporting month ${draft.reportingPeriod}`,
+    metadata: `${approvalLabels[approval?.state ?? "DRAFT"]}${delivery ? " • Delivered in-app" : ""} • Reporting month ${draft.reportingPeriod}`,
     highlights,
     footer: `${draft.project.name} (${draft.project.code})\nProject ${draft.projectId}\n` +
       (snapshotId ? `Snapshot ${snapshotId}\n` : "") + `Generated ${draft.asOf} (UTC)`,
   });
-  return { draft, ...(snapshotId && { snapshotId }), ...(approval && { approval }),
+  return { draft, ...(snapshotId && { snapshotId }), ...(approval && { approval }), ...(delivery && { delivery }),
     highlights, livePath: `/?project=${draft.projectId}`, powerpointBase64 };
 }

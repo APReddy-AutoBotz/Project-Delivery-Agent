@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ProjectManagementDraftOutput, ProjectReportDecision } from "@pdaa/domain";
+import type { ProjectManagementDraftOutput, ProjectReportDecision, ProjectReportVersion } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
 import { downloadManagementPowerPoint } from "./management-download.js";
 import { decodeProjectManagementDraft } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
 
 type DraftAction = { scope: string } & (
-  | { action: "preview" | "latest" }
+  | { action: "preview" | "latest" | "delivered" }
   | { action: "save" | "download" | "request"; displayed: ProjectManagementDraftOutput }
 );
 
@@ -20,6 +20,7 @@ function DraftSummary({ report }: { report: ProjectManagementDraftOutput }) {
     {report.snapshotId && <p>Saved snapshot <strong>{report.snapshotId}</strong></p>}
     <p>Generated {report.draft.asOf} (UTC)</p>
     {report.approval?.decidedAt && <p>Decision recorded {report.approval.decidedAt} (UTC)</p>}
+    {report.delivery && <p>Delivered in-app at {report.delivery.deliveredAt} (UTC). Receipt {report.delivery.id}</p>}
     <ul>{report.highlights.map((highlight) => <li key={highlight}>{highlight}</li>)}</ul>
   </>;
 }
@@ -30,7 +31,7 @@ export function ProjectManagementDraft({ projectId, scope, request, isCurrent }:
   const preview = useMutation({ mutationFn: async (command: DraftAction) => {
     if (!isCurrent()) throw new Error("Project access changed");
     const download = command.action === "download" ? command.displayed : null;
-    const snapshotId = command.action === "latest" ? "latest" : download?.snapshotId;
+    const snapshotId = command.action === "latest" || command.action === "delivered" ? command.action : download?.snapshotId;
     const suffix = command.action === "request" ? "/approval-request" : snapshotId ? `?snapshotId=${snapshotId}` : "";
     const path = `/projects/${projectId}/management-draft${suffix}`;
     const init: RequestInit = command.action === "save"
@@ -42,12 +43,15 @@ export function ProjectManagementDraft({ projectId, scope, request, isCurrent }:
     const report = decodeProjectManagementDraft(raw, projectId);
     if (!report || !isCurrent() || ((command.action === "save" || command.action === "latest") && !report.snapshotId))
       throw new Error("Project draft unavailable");
+    if (command.action === "delivered" && !report.delivery)
+      throw new Error("Delivered report unavailable");
     if (command.action === "request" && (report.snapshotId !== command.displayed.snapshotId || !report.approval))
       throw new Error("Report approval request unavailable");
     if (download) {
       const reread = download.snapshotId ? report.draft : { ...report.draft, asOf: download.draft.asOf };
       if (report.snapshotId !== download.snapshotId || JSON.stringify(reread) !== JSON.stringify(download.draft) ||
-          JSON.stringify(report.approval) !== JSON.stringify(download.approval))
+          JSON.stringify(report.approval) !== JSON.stringify(download.approval) ||
+          JSON.stringify(report.delivery) !== JSON.stringify(download.delivery))
         throw new Error("The displayed project facts changed");
       downloadManagementPowerPoint(download.powerpointBase64,
         `project-${projectId}-${download.snapshotId ?? download.draft.reportingPeriod}-draft.pptx`);
@@ -63,6 +67,8 @@ export function ProjectManagementDraft({ projectId, scope, request, isCurrent }:
       onClick={() => { if (isCurrent()) preview.mutate({ scope, action: "preview" }); }}>Preview management draft</Button>
     <Button className="secondary" disabled={preview.isPending || !isCurrent()}
       onClick={() => { if (isCurrent()) preview.mutate({ scope, action: "latest" }); }}>Open latest saved draft</Button>
+    <Button className="secondary" disabled={preview.isPending || !isCurrent()}
+      onClick={() => { if (isCurrent()) preview.mutate({ scope, action: "delivered" }); }}>Open delivered report</Button>
     {current && preview.isPending && <p role="status">
       {preview.variables?.action === "download" ? "Checking draft access…" : "Preparing management draft…"}
     </p>}
@@ -103,13 +109,15 @@ export function ProjectReportApproval({ projectId, scope, request, isCurrent }: 
       return report;
     },
   });
-  const decide = useMutation({ mutationFn: async (command: ProjectReportDecision) => {
+  const manage = useMutation({ mutationFn: async (command: ProjectReportDecision | ProjectReportVersion) => {
     if (!isCurrent()) throw new Error("Project access changed");
-    const raw = await request(path, { method: "POST", body: JSON.stringify(command) }, 170_000, undefined, undefined, isCurrent);
+    const decision = "decision" in command ? command.decision : null;
+    const raw = await request(decision ? path : path + "/delivery", { method: "POST", body: JSON.stringify(command) },
+      170_000, undefined, undefined, isCurrent);
     const report = decodeProjectManagementDraft(raw, projectId);
     if (!isCurrent() || report?.snapshotId !== command.snapshotId ||
-        report.approval?.requestId !== command.requestId || report.approval.state !== command.decision)
-      throw new Error("Report decision unavailable");
+        report.approval?.requestId !== command.requestId || (decision ? report.approval.state !== decision : !report.delivery))
+      throw new Error("Report action unavailable");
     return report;
   }, onSuccess: (report) => {
     if (isCurrent()) {
@@ -119,28 +127,35 @@ export function ProjectReportApproval({ projectId, scope, request, isCurrent }: 
   },
     onError: () => isCurrent() ? review.refetch() : undefined,
   });
-  const report = opened && isCurrent() && review.isSuccess && !review.isFetching && !decide.isPending ? review.data : null;
-  const pending = report?.snapshotId && report.approval?.state === "PENDING"
-    ? { snapshotId: report.snapshotId, requestId: report.approval.requestId } : null;
+  const report = opened && isCurrent() && review.isSuccess && !review.isFetching && !manage.isPending ? review.data : null;
+  const version = report?.snapshotId && report.approval ? { snapshotId: report.snapshotId, requestId: report.approval.requestId } : null;
   return <section className="panel" aria-label="Project report approval">
     <h2>Management report approval</h2>
-    <Button className="secondary" disabled={review.isFetching || decide.isPending || !isCurrent()} onClick={() => {
+    <Button className="secondary" disabled={review.isFetching || manage.isPending || !isCurrent()} onClick={() => {
       if (!isCurrent()) return;
       if (opened) void review.refetch();
       else setOpened(true);
     }}>Check report approvals</Button>
     {opened && review.isFetching && <p role="status">Checking report access…</p>}
     {opened && review.isSuccess && !review.isFetching && review.data === null && <p>No report is available for your review.</p>}
-    {opened && (review.isError || decide.isError) && <Message error>The report review is unavailable.</Message>}
-    {decide.isPending && <p role="status">Recording your decision…</p>}
+    {opened && (review.isError || manage.isError) && <Message error>The report review is unavailable.</Message>}
+    {opened && manage.isPending && <p role="status">
+      {manage.variables && "decision" in manage.variables ? "Recording your decision…" : "Delivering approved report…"}
+    </p>}
+    {opened && isCurrent() && manage.isSuccess && manage.variables && !("decision" in manage.variables) && manage.data?.delivery &&
+      <p role="status">Delivery recorded. Receipt {manage.data.delivery.id}</p>}
     {report && <DraftSummary report={report} />}
-    {pending && <>
+    {version && report?.approval?.state === "PENDING" && <>
       <Button className="primary" onClick={() => {
-        if (isCurrent()) decide.mutate({ ...pending, decision: "APPROVED" });
+        if (isCurrent()) manage.mutate({ ...version, decision: "APPROVED" });
       }}>Approve saved report</Button>
       <Button className="secondary" onClick={() => {
-        if (isCurrent()) decide.mutate({ ...pending, decision: "REJECTED" });
+        if (isCurrent()) manage.mutate({ ...version, decision: "REJECTED" });
       }}>Reject saved report</Button>
     </>}
+    {version && report?.approval?.state === "APPROVED" && !report.delivery &&
+      <Button className="primary" onClick={() => {
+        if (isCurrent()) manage.mutate(version);
+      }}>Deliver to requesting leader</Button>}
   </section>;
 }
