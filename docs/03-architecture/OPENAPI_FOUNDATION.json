@@ -57334,6 +57334,12 @@
                               "additionalProperties": false
                             }
                           },
+                          "interpretationAvailable": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          },
                           "statusReview": {
                             "oneOf": [
                               {
@@ -59067,6 +59073,407 @@
                   "requestId",
                   "responseId",
                   "facts"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/project-update-reply-interpretations": {
+      "post": {
+        "operationId": "ProjectUpdateController_interpretCapturedReply",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "requestId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "responseId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "classification": {
+                      "type": "string",
+                      "enum": [
+                        "AGENT_INFERENCE"
+                      ]
+                    },
+                    "suggestions": {
+                      "maxItems": 2,
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "factType": {
+                                "type": "string",
+                                "enum": [
+                                  "project.status"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 500,
+                                "pattern": "^[^\\p{Cc}\\p{Surrogate}]+$"
+                              }
+                            },
+                            "required": [
+                              "factType",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "factType": {
+                                "type": "string",
+                                "enum": [
+                                  "project.forecast"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              }
+                            },
+                            "required": [
+                              "factType",
+                              "value"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "requestId",
+                    "responseId",
+                    "classification",
+                    "suggestions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Invalid request"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        401
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Sign-in required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Access denied"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        404
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Resource unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        409
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Creation conflicts with an existing request or record"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        413
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Request body too large"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        415
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Unsupported media type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        500
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Internal server error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "number",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Service unavailable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Project updates"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "responseId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "requestId",
+                  "responseId"
                 ],
                 "additionalProperties": false
               }

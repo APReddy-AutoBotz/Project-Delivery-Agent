@@ -111,6 +111,8 @@ import {
   atlasReportReviewSchema,
   atlasDistributedReportSchema,
   projectUpdateCaptureHistorySchema,
+  capturedReplyInterpretationRequestSchema,
+  capturedReplyInterpretationSchema,
   projectUpdateCaptureGenerationSchema,
   projectUpdateClarificationRequestSchema,
   projectUpdateClarificationReceiptSchema,
@@ -379,6 +381,11 @@ export const contracts: Record<string, RouteContract> = {
     status: 200, response: projectUpdateCaptureHistorySchema,
     parameters: { id: z.uuid() }, query: { cursor: z.uuid().optional() },
     errors: [400, 403, 404, 503],
+  },
+  "post /api/projects/{id}/project-update-reply-interpretations": {
+    status: 200, request: capturedReplyInterpretationRequestSchema,
+    response: capturedReplyInterpretationSchema, parameters: { id: z.uuid() },
+    errors: [400, 404, 409, 503],
   },
   "post /api/projects/{id}/project-update-status-confirmations": {
     status: 200, request: projectUpdateStatusConfirmationSchema, response: projectUpdateStatusConfirmationReceiptSchema,
