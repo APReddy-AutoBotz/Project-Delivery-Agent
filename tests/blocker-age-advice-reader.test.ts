@@ -105,10 +105,10 @@ function leadershipFixture() {
         return state.project ? [{ id: projectId, portfolioId }] : [];
       }
       if (sql.includes('FROM public."AccessGrant"')) {
-        expect(sql).toContain("role='leadership'");
+        expect(sql).toContain("role=$5");
         expect(sql).toContain('"scopeType"=\'project\'');
         expect(sql).toContain('"scopeType"=\'portfolio\'');
-        expect(args).toEqual([actor.customerId, actor.subject, projectId, portfolioId]);
+        expect(args).toEqual([actor.customerId, actor.subject, projectId, portfolioId, "leadership"]);
         return state.grant ? [{ id: "50000000-0000-4000-8000-000000000001" }] : [];
       }
       if (sql.includes("pg_advisory_xact_lock_shared")) {

@@ -164,7 +164,7 @@ const config = loadConfig({
 });
 let app: Awaited<ReturnType<typeof createApp>>["app"];
 let spec: Awaited<ReturnType<typeof createApp>>["spec"];
-let base: string, operator: string, manager: string, leader: string, pmoPortfolio: string;
+let base: string, operator: string, manager: string, leader: string, pmoPortfolio: string, scrumMaster: string;
 let check: ReturnType<typeof compileContract>;
 const covered = new Set<string>();
 const evidence = evidenceContractFixture();
@@ -639,8 +639,12 @@ beforeAll(async () => {
     healthAssessmentRepository,
     projectUpdateRepository,
     { read: vi.fn(async () => buildPmActionQueue([])) },
-    { readLeadership: vi.fn(async (_actor, projectId) => buildBlockerAgeAdvice({ projectId, audience: "leadership",
-      asOf: "2026-10-21T11:00:00.000Z", coverage: "UNASSESSABLE", threshold: null, inventory: null, noOpenBlockers: null, candidates: [] })) },
+    {
+      readLeadership: vi.fn(async (_actor, projectId) => buildBlockerAgeAdvice({ projectId, audience: "leadership",
+        asOf: "2026-10-21T11:00:00.000Z", coverage: "UNASSESSABLE", threshold: null, inventory: null, noOpenBlockers: null, candidates: [] })),
+      readScrumMaster: vi.fn(async (_actor, projectId) => buildBlockerAgeAdvice({ projectId, audience: "scrum_master",
+        asOf: "2026-10-21T11:00:00.000Z", coverage: "UNASSESSABLE", threshold: null, inventory: null, noOpenBlockers: null, candidates: [] })),
+    },
     { readLeadership: vi.fn(async (_actor, projectId, selectedMilestone) => ({ projectId, milestoneId: selectedMilestone,
       asOf: "2026-10-21T11:00:00.000Z", ruleRevision: "milestone-required-state/v1" as const, outcome: "NOT_DETECTED" as const })) },
     { readLeadership: vi.fn(async (_actor, projectId, factId) => ({ projectId, factId, factType: "project.forecast",
@@ -666,6 +670,7 @@ beforeAll(async () => {
   manager = await identity.developmentToken("pm-atlas");
   leader = await identity.developmentToken("leader-atlas");
   pmoPortfolio = await identity.developmentToken("pmo-portfolio");
+  scrumMaster = await identity.developmentToken("scrum-atlas");
 });
 afterAll(async () => {
   await app?.close();
@@ -951,6 +956,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request("/api/pm/action-queue", 200, manager);
   await request("/api/pmo/portfolio-update-freshness", 200, pmoPortfolio);
   await request(`/api/projects/${project.id}/leadership-blocker-age-suggestions`, 200, leader);
+  await request(`/api/projects/${project.id}/scrum-master-blocker-age-suggestions`, 200, scrumMaster);
   await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-conflict-observation`, 200, leader);
   await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-manager-request-observation`, 200, leader);
   await request(`/api/projects/${project.id}/milestones/${milestoneId}/leadership-state-disagreement`, 200, leader);
@@ -1168,7 +1174,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(108);
+  expect(covered.size).toBe(109);
   assertContractSnapshot(
     spec,
     JSON.parse(

@@ -73,7 +73,39 @@ const comparePointers = (left: Pointer, right: Pointer) => priorities.indexOf(le
   compare(left.facet, right.facet) || compare(left.key, right.key);
 const fingerprint = (pointer: Pointer) => JSON.stringify([pointer.projectId, pointer.facet, pointer.index, pointer.key, pointer.priority, pointer.category]);
 
-export function decodeBlockerAge(value: unknown, projectId: string, audience: "project_manager" | "leadership"): PmActionQueue["projects"][number]["blockerAge"] {
+type BlockerAudience = PmActionQueue["projects"][number]["blockerAge"]["audience"];
+function blockerAction(audience: BlockerAudience, value: unknown) {
+  const dependency = value === undefined ? null : object(value);
+  let owner = false;
+  if (dependency) {
+    revision(dependency.policyRevision, 1);
+    if (dependency.milestone !== null) {
+      const milestone = object(dependency.milestone), date = string(milestone.dueDate);
+      identifier(milestone.id); string(milestone.key);
+      const day = Date.parse(`${date}T00:00:00.000Z`);
+      if (!/^\d{4}-\d\d-\d\d$/.test(date) || !Number.isFinite(day) ||
+          new Date(day).toISOString().slice(0, 10) !== date || integer(milestone.daysUntilDue) < 0) fail();
+      oneOf(milestone.dateField, ["forecastEnd", "plannedEnd"] as const);
+    }
+    if (dependency.escalationOwner !== null) {
+      if (audience !== "project_manager") fail();
+      const escalation = object(dependency.escalationOwner);
+      for (const field of [escalation.subject, escalation.name]) {
+        const text = string(field);
+        if (!text.trim() || text.length > 200) fail();
+      }
+      owner = true;
+    }
+  }
+  if (audience === "scrum_master") return "Follow up on the impediment and review its impact on the sprint.";
+  if (audience === "leadership") return "Review the aged blocker and decide whether an intervention is needed.";
+  if (!dependency) return "Review the aged blocker and decide the next delivery action.";
+  return owner
+    ? "Review escalation to the named dependency owner and reassess the project forecast."
+    : "Confirm a dependency owner for escalation and reassess the project forecast.";
+}
+
+export function decodeBlockerAge(value: unknown, projectId: string, audience: BlockerAudience): PmActionQueue["projects"][number]["blockerAge"] {
   const blocker = object(value);
   if (blocker.projectId !== projectId || blocker.audience !== audience || blocker.ruleRevision !== "blocker-age@1" ||
       blocker.orderRevision !== "blocker-review-order@1" || blocker.timeZone !== "UTC") fail();
@@ -102,7 +134,7 @@ export function decodeBlockerAge(value: unknown, projectId: string, audience: "p
       raidIds.add(raidId);
       previous = order;
       oneOf(item.state, ["OPEN", "IN_PROGRESS"] as const);
-      if (item.suggestedAction !== (audience === "project_manager" ? "Review the aged blocker and decide the next delivery action." : "Review the aged blocker and decide whether an intervention is needed.") ||
+      if (item.suggestedAction !== blockerAction(audience, item.criticalDependency) ||
           item.expectedOutcome !== "A reviewed next step for the blocker and its delivery impact.") fail();
       blockerProof(item.classification, `raid_item.${raidId}.blocks_delivery`, "FINITE");
       blockerProof(item.openedAtProof, `raid_item.${raidId}.opened_at`, "UNTIL_SUPERSEDED");

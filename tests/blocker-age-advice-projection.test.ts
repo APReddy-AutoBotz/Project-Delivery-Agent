@@ -25,7 +25,7 @@ function fixture() {
     candidateCount: 1, noOpenBlockers: false }, newConflicts: [] };
   const build = vi.spyOn(assessment, "buildBlockerAgeAssessmentInTransaction").mockResolvedValue(built as never);
   const readable = vi.spyOn(DatabaseHealthAssessmentRepository.prototype, "sourcesReadableInTransaction").mockResolvedValue(true);
-  const tx = { $queryRawUnsafe: vi.fn(async (sql: string, customer: string, project: string, payload: string, subject: string, time: Date) => {
+  const tx = { $queryRaw: vi.fn(async () => []), $queryRawUnsafe: vi.fn(async (sql: string, customer: string, project: string, payload: string, subject: string, time: Date) => {
     expect(sql).toContain("jsonb_to_recordset"); expect(customer).toBe(actor.customerId); expect(project).toBe(projectId);
     expect(subject).toBe(actor.subject); expect(time).toEqual(asOf);
     return (JSON.parse(payload) as { factId: string; factType: string; factRevision: number; policyId: string;

@@ -4,7 +4,7 @@ export type WireIdentity = { customerId: string; subject: string; roles: string[
 
 const wireUuid = (value: unknown): value is string => typeof value === "string" &&
   /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/.test(value);
-const wireRoles = new Set(["leadership", "project_manager", "portfolio_manager", "contributor", "pmo_admin", "system_admin"]);
+const wireRoles = new Set(["leadership", "project_manager", "scrum_master", "portfolio_manager", "contributor", "pmo_admin", "system_admin"]);
 const identityBodyLimit = 65_536;
 
 export function decodeWireIdentity(value: unknown): WireIdentity | undefined {

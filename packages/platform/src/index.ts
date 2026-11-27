@@ -73,7 +73,7 @@ export class IdentityService {
     };
   }
   async developmentToken(
-    persona: "pm-atlas" | "leader-atlas" | "operator" | "pmo-portfolio" | "owner-atlas",
+    persona: "pm-atlas" | "leader-atlas" | "operator" | "pmo-portfolio" | "owner-atlas" | "scrum-atlas",
   ): Promise<string> {
     if (
       this.config.AUTH_MODE !== "development" ||
@@ -81,17 +81,15 @@ export class IdentityService {
       this.config.DATA_MODE !== "synthetic"
     )
       throw new Error("Development login disabled");
-    const roles: Role[] =
-      persona === "operator"
-        ? ["system_admin"]
-        : persona === "pmo-portfolio"
-          ? ["pmo_admin"]
-          : persona === "leader-atlas"
-            ? ["leadership"]
-            : persona === "owner-atlas"
-              ? ["contributor"]
-              : ["project_manager"];
-    return new SignJWT({ roles })
+    const roleByPersona: Record<typeof persona, Role> = {
+      operator: "system_admin",
+      "pmo-portfolio": "pmo_admin",
+      "leader-atlas": "leadership",
+      "owner-atlas": "contributor",
+      "pm-atlas": "project_manager",
+      "scrum-atlas": "scrum_master",
+    };
+    return new SignJWT({ roles: [roleByPersona[persona]] })
       .setProtectedHeader({ alg: "HS256" })
       .setSubject(persona)
       .setIssuer("pdaa:local")

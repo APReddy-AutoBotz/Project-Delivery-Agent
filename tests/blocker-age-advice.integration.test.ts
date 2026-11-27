@@ -20,22 +20,36 @@ it("reads current source-authorized blocker review under the API role and withho
   const admin: Actor = { customerId, subject: `blocker-admin-${randomUUID()}`, roles: ["pmo_admin"] };
   const pm: Actor = { customerId, subject: `blocker-pm-${randomUUID()}`, roles: ["project_manager"] };
   const leader: Actor = { customerId, subject: `blocker-leader-${randomUUID()}`, roles: ["leadership"] };
+  const scrum: Actor = { customerId, subject: `blocker-scrum-${randomUUID()}`, roles: ["scrum_master"] };
+  const dependencyOwner = "synthetic-dependency-owner", ownerName = "Synthetic dependency coordinator";
   await db.customer.create({ data: { id: customerId, name: "Synthetic blocker advice customer" } });
   await db.portfolio.create({ data: { id: portfolioId, customerId, name: "Synthetic blocker advice portfolio" } });
   await db.accessGrant.createMany({ data: [
     { customerId, subject: admin.subject, scopeType: "portfolio", scopeId: portfolioId, role: "pmo_admin" },
     { customerId, subject: pm.subject, scopeType: "portfolio", scopeId: portfolioId, role: "project_manager" },
     { customerId, subject: leader.subject, scopeType: "portfolio", scopeId: portfolioId, role: "leadership" },
+    { customerId, subject: scrum.subject, scopeType: "portfolio", scopeId: portfolioId, role: "scrum_master" },
+    { customerId, subject: dependencyOwner, scopeType: "portfolio", scopeId: portfolioId, role: "contributor" },
   ] });
+  const [{ now }] = await db.$queryRawUnsafe<{ now: Date }[]>("SELECT date_trunc('milliseconds',clock_timestamp()) AS now");
+  const calendarDay = 86_400_000;
+  const due = new Date(now!.getTime() + 2 * calendarDay).toISOString().slice(0, 10);
   const input = canonicalFixture(portfolioId);
-  input.responsibilities = input.responsibilities.map((item) => item.role === "PROJECT_MANAGER" ? { ...item, subject: pm.subject } : item);
-  input.raidItems = input.raidItems.map((item, index) => ({ ...item, state: index === 0 ? "OPEN" : "COMPLETE" }));
+  input.responsibilities = input.responsibilities.map((item) => {
+    if (item.role === "PROJECT_MANAGER") return { ...item, subject: pm.subject };
+    if (item.role === "SCRUM_MASTER") return { ...item, subject: scrum.subject };
+    if (item.role === "RESPONSIBLE_OWNER") return { ...item, subject: dependencyOwner, displayName: ownerName };
+    return item;
+  });
+  input.milestones = input.milestones.map((item) => ({ ...item, dates: { ...item.dates, forecastEnd: due } }));
+  input.raidItems = input.raidItems.map((item) => item.kind === "DEPENDENCY"
+    ? { ...item, state: "OPEN", ownerSubject: dependencyOwner } : { ...item, state: "COMPLETE" });
   const projectId = (await new DatabaseCanonicalProjectRepository(db).createProject(admin, canonicalProjectCreateSchema.parse(input), randomUUID())).id;
   const health = new DatabaseHealthAssessmentRepository(db);
-  await health.setBlockerAgeThresholdPolicy(admin, { expectedRevision: 0, minimumBlockerAgeDays: 5, auditRetentionHours: 720 }, randomUUID());
+  await health.setBlockerAgeThresholdPolicy(admin, { expectedRevision: 0, minimumBlockerAgeDays: 4, auditRetentionHours: 720 }, randomUUID());
   const raid = await db.raidItem.findFirstOrThrow({ where: { customerId, projectId, state: "OPEN" } });
-  const [{ now }] = await db.$queryRawUnsafe<{ now: Date }[]>("SELECT date_trunc('milliseconds',clock_timestamp()) AS now");
-  const effectiveAt = new Date(now!.getTime() - 60_000).toISOString(), openedAt = new Date(now!.getTime() - 10 * 86400000).toISOString().slice(0, 10);
+  const milestone = await db.milestone.findFirstOrThrow({ where: { customerId, projectId, key: "MS-1" } });
+  const effectiveAt = new Date(now!.getTime() - 60_000).toISOString(), openedAt = new Date(now!.getTime() - 4 * calendarDay).toISOString().slice(0, 10);
   const current: AuthorityDefinition = { tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null,
     requiredApproval: "NOT_REQUIRED", validity: { basis: "observedAt", durationMs: 86400000 } }] }], conflictBehavior: "REQUEST_RECONCILIATION" };
   const ongoing: AuthorityDefinition = { tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: null,
@@ -46,7 +60,7 @@ it("reads current source-authorized blocker review under the API role and withho
     const statement = await facts.appendHumanStatement(admin, { projectId, factType, expectedRevision: 0, idempotencyKey: randomUUID(),
       value, effectiveAt, validUntil: null, originalStatement: "Synthetic current blocker evidence." }, context);
     const access = await facts.setSourceAccess(admin, { projectId, sourceId: statement.entry.sourceId,
-      expectedRevision: statement.entry.sourceAccessRevision, state: "AVAILABLE", readers: [admin.subject, pm.subject, leader.subject] }, context);
+      expectedRevision: statement.entry.sourceAccessRevision, state: "AVAILABLE", readers: [admin.subject, pm.subject, leader.subject, scrum.subject] }, context);
     return { access, statement, policy: policy.event };
   }
   const inventory = await add("project.open_blocker_inventory_complete", { type: "boolean", value: true }, current);
@@ -55,6 +69,10 @@ it("reads current source-authorized blocker review under the API role and withho
   await health.setRetention(admin, { contentRetentionHours: 24, auditRetentionHours: 48, idempotencyRetentionHours: 72 }, randomUUID());
   const saved = await health.create(pm, projectId, "synthetic-blocker-saved", randomUUID());
   expect(saved).toMatchObject({ contentAvailable: true, blockerAgeCoverage: "COMPLETE" });
+  const schedule = await health.setScheduleHealthPolicy(admin, projectId, {
+    expectedRevision: 0, timeZone: "UTC", defaultMinimumOverdueDays: 1, targetOverrides: [],
+    criticalTargets: { raidItemIds: [raid.id], milestoneIds: [milestone.id] },
+  }, randomUUID());
   const writes: string[] = [];
   const inspectSql = (sql: string) => {
     if (possibleMutation(sql)) {
@@ -100,11 +118,23 @@ it("reads current source-authorized blocker review under the API role and withho
   try { pmResult = await queue.read(pm); }
   catch (error) { expect(writes, "Read-only SQL interceptor flagged a statement").toEqual([]); throw error; }
   const leaderResult = await leadership.readLeadership(leader, projectId);
+  const scrumResult = await leadership.readScrumMaster(scrum, projectId);
   expect(pmResult.projects).toHaveLength(1);
   const pmFacet = pmResult.projects[0]!.blockerAge;
   const calendarAge = (asOf: string) => (Date.parse(`${asOf.slice(0, 10)}T00:00:00Z`) - Date.parse(`${openedAt}T00:00:00Z`)) / 86400000;
   expect(pmFacet).toMatchObject({ coverage: "COMPLETE", items: [{ raidItemId: raid.id, ageDays: calendarAge(pmFacet.asOf) }] });
-  expect(calendarAge(pmFacet.asOf)).toBeGreaterThanOrEqual(5);
+  expect(calendarAge(pmFacet.asOf)).toBeGreaterThanOrEqual(4);
+  for (const observed of [pmFacet, leaderResult, scrumResult]) {
+    expect(observed.items[0]).toMatchObject({ raidItemId: raid.id, ageDays: calendarAge(observed.asOf),
+      criticalDependency: { policyRevision: schedule.revision,
+        milestone: { id: milestone.id, key: milestone.key, dueDate: due, dateField: "forecastEnd",
+          daysUntilDue: (Date.parse(`${due}T00:00:00Z`) - Date.parse(`${observed.asOf.slice(0, 10)}T00:00:00Z`)) / calendarDay },
+        escalationOwner: observed.audience === "project_manager" ? { subject: dependencyOwner, name: ownerName } : null },
+    });
+  }
+  expect(pmFacet.items[0]!.suggestedAction).toContain("reassess the project forecast");
+  expect(scrumResult.items[0]!.suggestedAction).toBe("Follow up on the impediment and review its impact on the sprint.");
+  await expect(leadership.readScrumMaster(leader, projectId)).rejects.toMatchObject({ code: "DENIED" });
   expect(leaderResult).toMatchObject({ audience: "leadership", coverage: "COMPLETE", items: [{ raidItemId: raid.id }] });
   expect(leaderResult.items[0]!.ageDays).toBe(calendarAge(leaderResult.asOf));
   expect(leaderResult.items[0]!.suggestedAction).toContain("intervention");
@@ -118,6 +148,8 @@ it("reads current source-authorized blocker review under the API role and withho
   await expect(leadership.readLeadership({ ...pm, roles: ["project_manager", "leadership"] }, projectId)).rejects.toMatchObject({ code: "DENIED" });
   expect(await snapshot()).toEqual(before);
   expect(writes).toEqual([]);
+  await db.accessGrant.deleteMany({ where: { customerId, subject: scrum.subject } });
+  await expect(leadership.readScrumMaster(scrum, projectId)).rejects.toMatchObject({ code: "DENIED" });
   await health.setBlockerAgeThresholdPolicy(admin, { expectedRevision: 1, minimumBlockerAgeDays: 3650, auditRetentionHours: 720 }, randomUUID());
   const revised = await leadership.readLeadership(leader, projectId);
   expect(revised).toMatchObject({ coverage: "COMPLETE", threshold: { minimumBlockerAgeDays: 3650, revision: 2 }, noOpenBlockers: false, items: [] });
@@ -136,7 +168,7 @@ it("reads current source-authorized blocker review under the API role and withho
   expect(restrictedQueue.projects[0]!.schedule.audience).toBe("project_manager");
   expect(await health.latest(pm, projectId)).toMatchObject({ assessmentId: saved.assessmentId, contentAvailable: false, input: null, result: null });
   // With both actors restored, exercise both supported source-access lock orders.
-  await health.setBlockerAgeThresholdPolicy(admin, { expectedRevision: 2, minimumBlockerAgeDays: 5, auditRetentionHours: 720 }, randomUUID());
+  await health.setBlockerAgeThresholdPolicy(admin, { expectedRevision: 2, minimumBlockerAgeDays: 4, auditRetentionHours: 720 }, randomUUID());
   let restored = await facts.setSourceAccess(admin, { projectId, sourceId: classification.access.sourceId, expectedRevision: revoked.revision,
     state: "AVAILABLE", readers: [admin.subject, pm.subject, leader.subject] }, context);
   expect((await leadership.readLeadership(leader, projectId)).items[0]!.classification).toMatchObject({
@@ -311,14 +343,14 @@ it("reads current source-authorized blocker review under the API role and withho
   try {
     await Promise.race([heldThresholdReady, heldThresholdRead.then(() => { throw new Error("Threshold reader exited before barrier"); })]);
     laterThresholdWriter = new DatabaseHealthAssessmentRepository(laterThresholdDb as never).setBlockerAgeThresholdPolicy(admin,
-      { expectedRevision: 4, minimumBlockerAgeDays: 5, auditRetentionHours: 720 }, randomUUID()); void laterThresholdWriter.catch(() => {});
+      { expectedRevision: 4, minimumBlockerAgeDays: 4, auditRetentionHours: 720 }, randomUUID()); void laterThresholdWriter.catch(() => {});
     await Promise.race([laterThresholdReady, laterThresholdWriter.then(() => { throw new Error("Threshold writer exited before barrier"); })]);
     thresholdReaderFirstBlocked = await isBlocked(laterThresholdPid, heldThresholdPid, ["pg_advisory_xact_lock("]);
   } finally { releaseHeldThreshold(); await Promise.allSettled(laterThresholdWriter ? [heldThresholdRead, laterThresholdWriter] : [heldThresholdRead]); }
   expect(thresholdReaderFirstBlocked).toBe(true);
   expect(await heldThresholdRead).toMatchObject({ coverage: "COMPLETE", threshold: { revision: 4, minimumBlockerAgeDays: 3650 }, items: [] });
   await laterThresholdWriter;
-  expect(await leadership.readLeadership(leader, projectId)).toMatchObject({ coverage: "COMPLETE", threshold: { revision: 5, minimumBlockerAgeDays: 5 },
+  expect(await leadership.readLeadership(leader, projectId)).toMatchObject({ coverage: "COMPLETE", threshold: { revision: 5, minimumBlockerAgeDays: 4 },
     items: [{ raidItemId: raid.id }] });
   // Policy changes are supported project writers. Exercise both orders using
   // the actual project-row blocker, then restore the active policy.

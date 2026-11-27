@@ -7,7 +7,8 @@ import { DatabaseHealthAssessmentRepository } from "./health-assessment.js";
 import { actorInput } from "./fact-authorization.js";
 
 type Tx = Prisma.TransactionClient;
-type Audience = "project_manager" | "leadership";
+type Audience = BlockerAgeAdvice["audience"];
+type AdviceItem = BlockerAgeAdvice["items"][number];
 const id = z.uuid().regex(/^[0-9a-f-]+$/);
 const rawProof = z.object({ status: z.enum(["RESOLVED", "UNKNOWN"]), value: z.unknown(), factId: id.nullable(),
   versionIds: z.array(id).max(1000), evidenceIds: z.array(id).max(1000) });
@@ -47,6 +48,57 @@ function binding(raw: RawProof, expectedType: string, expectedValue: boolean | s
     policyThroughRevision: row.policyThroughRevision, policyRevisionId: row.policyRevisionId,
     policyRevision: row.policyRevision, versionIds: [...raw.versionIds].sort(compare),
     evidenceIds: [...raw.evidenceIds].sort(compare), expectedValue, validity };
+}
+
+async function criticalDependencies(tx: Tx, actor: Actor, projectId: string, audience: Audience,
+  raidIds: string[], asOf: Date) {
+  type Row = {
+    raidId: string; policyRevision: number; milestoneId: string | null; milestoneKey: string;
+    dueDate: Date; daysUntilDue: number; dateField: "forecastEnd" | "plannedEnd";
+    ownerSubject: string | null; ownerName: string;
+  };
+  if (!raidIds.length) return new Map<string, AdviceItem["criticalDependency"]>();
+  const rows = await tx.$queryRaw<Row[]>`
+    WITH policy AS (
+      SELECT revision, "criticalTargets", (${asOf}::timestamptz AT TIME ZONE "timeZone")::date AS today
+      FROM public."ScheduleHealthPolicyRevision"
+      WHERE "customerId"=${actor.customerId}::uuid AND "projectId"=${projectId}::uuid
+      ORDER BY revision DESC LIMIT 1
+    )
+    SELECT r.id AS "raidId", p.revision AS "policyRevision", m.id AS "milestoneId", m.key AS "milestoneKey",
+      m.due AS "dueDate", m.due-p.today AS "daysUntilDue", m."dateField",
+      g.subject AS "ownerSubject", coalesce(a."displayName", g.subject) AS "ownerName"
+    FROM policy p
+    JOIN public."RaidItem" r ON r."customerId"=${actor.customerId}::uuid AND r."projectId"=${projectId}::uuid
+      AND r.id=ANY(${raidIds}::uuid[]) AND r.kind='DEPENDENCY' AND r.state IN ('OPEN','IN_PROGRESS')
+      AND p."criticalTargets"->'raidItemIds' ? r.id::text
+    JOIN public."Project" project ON project."customerId"=r."customerId" AND project.id=r."projectId"
+    LEFT JOIN LATERAL (
+      SELECT id, key, coalesce("forecastEnd","plannedEnd") AS due,
+        CASE WHEN "forecastEnd" IS NULL THEN 'plannedEnd' ELSE 'forecastEnd' END AS "dateField"
+      FROM public."Milestone" m WHERE m."customerId"=r."customerId" AND m."projectId"=r."projectId"
+        AND m.state IN ('OPEN','IN_PROGRESS') AND p."criticalTargets"->'milestoneIds' ? m.id::text
+        AND coalesce(m."forecastEnd",m."plannedEnd")>=p.today
+      ORDER BY due,m.id LIMIT 1
+    ) m ON true
+    LEFT JOIN LATERAL (
+      SELECT subject FROM public."AccessGrant" owner
+      WHERE ${audience}='project_manager' AND owner."customerId"=r."customerId" AND owner.subject=r."ownerSubject"
+        AND owner.role<>'system_admin' AND ((owner."scopeType"='project' AND owner."scopeId"=r."projectId")
+          OR (owner."scopeType"='portfolio' AND owner."scopeId"=project."portfolioId"))
+      ORDER BY id LIMIT 1 FOR SHARE
+    ) g ON true
+    LEFT JOIN LATERAL (
+      SELECT "displayName" FROM public."ProjectResponsibility" a
+      WHERE a."customerId"=r."customerId" AND a."projectId"=r."projectId" AND a.subject=g.subject
+      ORDER BY (a.role='RESPONSIBLE_OWNER') DESC,a.id LIMIT 1
+    ) a ON true`;
+  return new Map<string, AdviceItem["criticalDependency"]>(rows.map((row) => [row.raidId, {
+    policyRevision: row.policyRevision,
+    milestone: row.milestoneId ? { id: row.milestoneId, key: row.milestoneKey, dateField: row.dateField,
+      dueDate: row.dueDate.toISOString().slice(0, 10), daysUntilDue: row.daysUntilDue } : null,
+    escalationOwner: row.ownerSubject ? { subject: row.ownerSubject, name: row.ownerName } : null,
+  }]));
 }
 
 // Caller must have authenticated the actor, enforced the requested audience,
@@ -169,12 +221,14 @@ export async function observeBlockerAgeAdviceInTransaction(tx: Tx, db: Database,
       supports: bound.map((row) => ({ versionId: row.versionId, evidenceId: row.evidenceId, sourceId: row.sourceId, accessRevision: row.accessRevision })) };
   });
   if (rows.length !== proofs.reduce((sum, entry) => sum + entry.versionIds.length, 0)) return fail();
+  const critical = await criticalDependencies(tx, actor, projectId, audience, aged.map((candidate) => candidate.raidItemId), built.asOf);
   const advice = buildBlockerAgeAdvice({ projectId, audience, asOf: built.asOf.toISOString(), coverage: built.coverage,
     threshold: { minimumBlockerAgeDays: threshold.minimumBlockerAgeDays, revision: threshold.revision },
     inventory: projected[0], noOpenBlockers: result.noOpenBlockers, candidates: aged.map((candidate) => ({
       raidItemId: candidate.raidItemId, key: candidate.key, state: candidate.state, openedAt: candidate.openedAt!.value,
       classification: projected[positions.get(candidate.raidItemId)!.classification],
       openedAtProof: projected[positions.get(candidate.raidItemId)!.openedAt!],
+      ...(critical.has(candidate.raidItemId) && { criticalDependency: critical.get(candidate.raidItemId) }),
     })) });
   for (const item of advice.items) {
     const source = aged.find((candidate) => candidate.raidItemId === item.raidItemId);
@@ -202,11 +256,17 @@ export async function blockerThresholdInTransaction(tx: Tx, customerId: string):
 // never a fallback from the assigned-PM queue.
 export class DatabaseBlockerAgeAdviceRepository implements BlockerAgeAdviceRepository {
   constructor(private readonly db: Database) {}
-  async readLeadership(value: Actor, requestedProject: string): Promise<BlockerAgeAdvice> {
+  readLeadership(value: Actor, requestedProject: string) {
+    return this.read(value, requestedProject, "leadership");
+  }
+  readScrumMaster(value: Actor, requestedProject: string) {
+    return this.read(value, requestedProject, "scrum_master");
+  }
+  private async read(value: Actor, requestedProject: string, audience: "leadership" | "scrum_master"): Promise<BlockerAgeAdvice> {
     let actor: Actor, projectId: string;
     try { actor = actorInput(value); projectId = projectFactIdSchema.parse(requestedProject); }
     catch { throw new BlockerAgeAdviceError("DENIED"); }
-    if (!actor.roles.includes("leadership")) throw new BlockerAgeAdviceError("DENIED");
+    if (!actor.roles.includes(audience)) throw new BlockerAgeAdviceError("DENIED");
     try {
       return await this.db.$transaction(async (tx) => {
         await tx.$executeRawUnsafe("SET LOCAL statement_timeout='8s'");
@@ -215,15 +275,22 @@ export class DatabaseBlockerAgeAdviceRepository implements BlockerAgeAdviceRepos
           'SELECT id,"portfolioId" FROM public."Project" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR SHARE', actor.customerId, projectId);
         if (projects.length !== 1 || projects[0]!.id !== projectId) throw new BlockerAgeAdviceError("DENIED");
         const grants = await tx.$queryRawUnsafe<{ id: string }[]>(
-          `SELECT id FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND role='leadership'
+          `SELECT id FROM public."AccessGrant" WHERE "customerId"=$1::uuid AND subject=$2 AND role=$5
             AND (("scopeType"='project' AND "scopeId"=$3::uuid) OR ("scopeType"='portfolio' AND "scopeId"=$4::uuid)) ORDER BY id FOR SHARE`,
-          actor.customerId, actor.subject, projectId, projects[0]!.portfolioId);
+          actor.customerId, actor.subject, projectId, projects[0]!.portfolioId, audience);
         if (!grants.length) throw new BlockerAgeAdviceError("DENIED");
         const policy = await blockerThresholdInTransaction(tx, actor.customerId);
         const canonical = await tx.$queryRawUnsafe<{ sealed: boolean }[]>(
           'SELECT sealed FROM public."CanonicalProject" WHERE "customerId"=$1::uuid AND id=$2::uuid FOR SHARE', actor.customerId, projectId);
         if (canonical.length > 1) return fail();
-        return observeBlockerAgeAdviceInTransaction(tx, this.db, actor, projectId, "leadership", policy, canonical[0]?.sealed === true);
+        const sealed = canonical[0]?.sealed === true;
+        if (audience === "scrum_master") {
+          const assignment = sealed && await tx.projectResponsibility.findFirst({ where: {
+            customerId: actor.customerId, projectId, role: "SCRUM_MASTER", subject: actor.subject,
+          }, select: { id: true } });
+          if (!assignment) throw new BlockerAgeAdviceError("DENIED");
+        }
+        return observeBlockerAgeAdviceInTransaction(tx, this.db, actor, projectId, audience, policy, sealed);
       }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 20000 });
     } catch (error) {
       if (error instanceof BlockerAgeAdviceError && error.code === "DENIED") throw error;
