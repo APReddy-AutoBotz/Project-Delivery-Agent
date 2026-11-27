@@ -6,7 +6,7 @@ import { decodeInvitation, decodeInvitationReceipt } from "./project-update-invi
 import { CanonicalCreationWriteRegistry, canonicalCommandFingerprint, canonicalCreationOwner } from "./canonical-creation-write-registry.js";
 import { ManagedReadRegistry } from "./managed-read-registry.js";
 import { managedRead } from "./managed-read.js";
-import type { ProjectUpdateCaptureHistory as CaptureHistory, ProjectUpdateRecipientRequestView,
+import type { CapturedUpdateFactType, ProjectUpdateCaptureHistory as CaptureHistory, ProjectUpdateRecipientRequestView,
   ProjectUpdateClarificationReceipt, ProjectUpdateFactConfirmation, ProjectUpdateFactConfirmationReceipt,
   ProjectUpdateStatusConfirmationReceipt } from "@pdaa/domain";
 import { ConfirmAtlasReply } from "./atlas-update-approval.js";
@@ -71,14 +71,12 @@ function FactConfirmation({ label, receipt }: { label: string; receipt: ProjectU
 
 function ManualFactReview({ statusReview, forecastReview, submit, clarify, current }: ManualReview & {
   submit: (facts: ConfirmationItems) => Promise<unknown>;
-  clarify: () => Promise<unknown>; current: () => boolean;
+  clarify: (factType: CapturedUpdateFactType) => Promise<unknown>; current: () => boolean;
 }) {
   const [status, setStatus] = useState(() => statusReview?.state === "PENDING" ? statusReview.suggestedValue ?? "" : "");
   const [forecast, setForecast] = useState(() => forecastReview?.state === "PENDING" ? forecastReview.suggestedValue ?? "" : "");
   const pendingStatus = statusReview?.state === "PENDING" ? statusReview : null;
   const pendingForecast = forecastReview?.state === "PENDING" ? forecastReview : null;
-  const canClarify = pendingStatus || (!statusReview && pendingForecast);
-  const clarificationRequest = [statusReview, forecastReview].find((review) => review?.state === "CLARIFICATION_REQUESTED");
   const validStatus = status.trim().length > 0 && new TextEncoder().encode(status).length <= 500 &&
     !/[\p{Cc}\p{Surrogate}]/u.test(status);
   const validForecast = /^\d{4}-\d{2}-\d{2}$/u.test(forecast) && !forecast.startsWith("0000-");
@@ -96,17 +94,20 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
     },
   });
   const clarification = useMutation({
-    mutationFn: async () => {
-      if (!current() || !canClarify) throw new Error("Manual review unavailable");
-      await clarify();
+    mutationFn: async (factType: CapturedUpdateFactType) => {
+      const review = factType === "project.status" ? pendingStatus : pendingForecast;
+      if (!current() || !review) throw new Error("Manual review unavailable");
+      await clarify(factType);
     },
   });
   const busy = confirmation.isPending || clarification.isPending;
   return <section aria-label="Manual project update review">
     {statusReview?.state === "CONFIRMED" && <FactConfirmation label="Project status" receipt={statusReview} />}
     {forecastReview?.state === "CONFIRMED" && <FactConfirmation label="Project forecast" receipt={forecastReview} />}
-    {clarificationRequest?.state === "CLARIFICATION_REQUESTED" &&
-      <p>Clarification requested at {clarificationRequest.requestedAt}. Awaiting an updated response from the owner.</p>}
+    {statusReview?.state === "CLARIFICATION_REQUESTED" &&
+      <p>Status clarification requested at {statusReview.requestedAt}. Awaiting an updated response from the owner.</p>}
+    {forecastReview?.state === "CLARIFICATION_REQUESTED" &&
+      <p>Forecast clarification requested at {forecastReview.requestedAt}. Awaiting an updated response from the owner.</p>}
     {(pendingStatus?.suggestedValue || pendingForecast?.suggestedValue) &&
       <p>Values from the reply are suggestions. Review or edit them before confirming.</p>}
     {pendingStatus && <label className="field"><span>Confirmed project status</span>
@@ -120,7 +121,12 @@ function ManualFactReview({ statusReview, forecastReview, submit, clarify, curre
       onClick={() => confirmation.mutate()}>
       {pendingStatus && pendingForecast ? "Confirm entered facts" : pendingStatus ? "Confirm project status" : "Confirm project forecast"}
     </Button>}
-    {canClarify && <Button disabled={busy || !current()} onClick={() => clarification.mutate()}>Request clarification</Button>}
+    {pendingStatus && <Button disabled={busy || !current()} onClick={() => clarification.mutate("project.status")}>
+      {pendingForecast ? "Request status clarification" : "Request clarification"}
+    </Button>}
+    {pendingForecast && <Button disabled={busy || !current()} onClick={() => clarification.mutate("project.forecast")}>
+      {pendingStatus ? "Request forecast clarification" : "Request clarification"}
+    </Button>}
     {confirmation.isError && <Message error>Could not verify the confirmation. Check the current response and try again.</Message>}
     {clarification.isError && <Message error>Could not verify the clarification request. Check the current response and try again.</Message>}
   </section>;
@@ -366,10 +372,10 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
         ]);
     }
   }
-  async function requestClarification(requestId: string, responseId: string) {
+  async function requestClarification(requestId: string, responseId: string, factType: CapturedUpdateFactType) {
     try {
       const receipt = await request<ProjectUpdateClarificationReceipt>(`/projects/${projectId}/project-update-status-clarifications`, {
-        method: "POST", body: JSON.stringify({ requestId, responseId }),
+        method: "POST", body: JSON.stringify({ requestId, responseId, factType }),
       }, 4096, undefined, undefined, current);
       if (receipt.responseId !== responseId) throw new Error("Clarification receipt mismatch");
     } finally {
@@ -396,7 +402,7 @@ export function ProjectUpdateCaptureHistory({ projectId, request, pmoAdmin, admi
             {entry.recipientPath && <a href={entry.recipientPath}>Respond to this request</a>}
             <Responses entries={entry.responses} />
             {pmoAdmin && responseId && <ManualFactReview key={reviewKey} statusReview={statusReview} forecastReview={forecastReview}
-              current={current} clarify={() => requestClarification(entry.requestId, responseId)}
+              current={current} clarify={(factType) => requestClarification(entry.requestId, responseId, factType)}
               submit={(facts) => confirmFacts(entry.requestId, responseId, facts)} />}
           </article>;
         })}

@@ -252,9 +252,12 @@ export type ProjectUpdateEscalationContext = z.infer<typeof projectUpdateEscalat
 
 export const projectUpdateClarificationQuestion = "What is the current project status? If it depends on another person or a date, who is responsible and what is the exact calendar date, if known?";
 export const projectUpdateForecastClarificationQuestion = "What is the current forecast finish date? Please provide the exact calendar date, if known.";
+const capturedFactTypeSchema = z.enum(["project.status", "project.forecast"]);
+export type CapturedUpdateFactType = z.infer<typeof capturedFactTypeSchema>;
 export const projectUpdateClarificationRequestSchema = z.strictObject({
   requestId: z.uuid(),
   responseId: z.uuid(),
+  factType: capturedFactTypeSchema.optional(),
 });
 export const projectUpdateClarificationReceiptSchema = z.strictObject({
   responseId: z.uuid(),
@@ -308,8 +311,6 @@ export const projectUpdateStatusConfirmationSchema = z.strictObject({
   expectedRevision: captureFactRevision,
   status: capturedStatusValue,
 });
-const capturedFactTypeSchema = z.enum(["project.status", "project.forecast"]);
-export type CapturedUpdateFactType = z.infer<typeof capturedFactTypeSchema>;
 export function extractExplicitCapturedFacts(text: string): Partial<Record<CapturedUpdateFactType, string>> {
   const seen = new Set<CapturedUpdateFactType>();
   const values: Partial<Record<CapturedUpdateFactType, string>> = {};

@@ -94,7 +94,7 @@ const capturedFactClarifications = {
   "project.forecast": { event: "project_update.response.forecast_clarification_requested", question: projectUpdateForecastClarificationQuestion },
 } as const;
 const clarificationFactType = (required: ReadonlySet<string>) => capturedFactTypes.find((factType) => required.has(factType));
-const storedCapturedClarification = projectUpdateClarificationRequestSchema.extend({
+const storedCapturedClarification = projectUpdateClarificationRequestSchema.omit({ factType: true }).extend({
   projectId: z.uuid(), captureIssuanceEpoch: z.uuid(),
 });
 const storedCapturedFactConfirmation = z.strictObject({
@@ -1909,11 +1909,20 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const responses = await this.responseHistory(tx, current, projectId, row.requestId);
       const latest = responses[0];
       const requiredFacts = policyFacts(row.requiredFacts);
-      const factType = clarificationFactType(new Set(requiredFacts.map((fact) => fact.factType)));
-      const requested = latest?.contentState === "PRESENT" && latest.text !== null && row.recipientRole === "OWNER" &&
-        latest.submittedBy === current.subject && factType
-        ? await this.capturedClarification(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch, factType)
-        : null;
+      let clarification: ProjectUpdateRecipientRequestView["clarification"];
+      if (latest?.contentState === "PRESENT" && latest.text !== null && row.recipientRole === "OWNER" &&
+          latest.submittedBy === current.subject) {
+        const questions = [];
+        for (const factType of capturedFactTypes) {
+          if (requiredFacts.some((fact) => fact.factType === factType) &&
+              await this.capturedClarification(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch, factType))
+            questions.push(capturedFactClarifications[factType].question);
+        }
+        const question = questions.length === 2
+          ? "What is the current project status, who is responsible if it is blocked, and what is the forecast finish date? Use an exact calendar date if known."
+          : questions[0];
+        if (question) clarification = { responseId: latest.id, question };
+      }
       const atlasInterpretation = this.atlasDemoEnabled && row.code === atlasApprovalProjectCode &&
         row.stageKind === "REQUEST" && row.recipientRole === "OWNER" && latest?.contentState === "PRESENT" &&
         latest.text !== null && latest.submittedBy === current.subject
@@ -1927,10 +1936,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         expiresAt: iso(row.expiresAt), body: row.body,
         requiredFacts,
         rawResponseReaders: [...new Set([row.recipientSubject, ...reviewers])],
-        responses, atlasInterpretation,
-        clarification: requested && factType ? {
-          responseId: requested.responseId, question: capturedFactClarifications[factType].question,
-        } : undefined,
+        responses, atlasInterpretation, clarification,
         escalationContext: await this.escalationContext(tx, current, projectId, row, asOf),
       });
     });
@@ -2057,8 +2063,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
       const { requestId, responseId } = parsed.data;
       const { row, latest, required } = await this.reviewCapturedReply(tx, current, projectId, requestId, responseId, []);
-      const factType = clarificationFactType(required);
-      if (!factType) throw new ProjectUpdateError("CONFLICT");
+      const factType = parsed.data.factType ?? clarificationFactType(required);
+      if (!factType || !required.has(factType)) throw new ProjectUpdateError("CONFLICT");
       const previous = await this.capturedClarification(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch, factType);
       if (previous) return previous;
       if (await this.capturedFactConfirmation(tx, current.customerId, projectId, requestId,
@@ -2097,17 +2103,16 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const parsed = projectUpdateFactConfirmationSchema.safeParse(value);
       if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
       const { requestId, responseId, facts: confirmationItems } = parsed.data;
-      const { row, latest, policy, required } = await this.reviewCapturedReply(tx, current, projectId, requestId, responseId,
+      const { row, latest, policy } = await this.reviewCapturedReply(tx, current, projectId, requestId, responseId,
         confirmationItems.map(({ factType }) => factType));
-      const clarify = clarificationFactType(required);
-      if (clarify && await this.capturedClarification(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch, clarify))
-        throw new ProjectUpdateError("CONFLICT");
 
       const facts = new DatabaseProjectFactRepository(this.db);
       const receipts = new Map<CapturedUpdateFactType, z.infer<typeof projectUpdateStatusConfirmationReceiptSchema>>();
       const written: { factType: CapturedUpdateFactType; payloadDigest: string; factId: string; versionId: string; evidenceId: string }[] = [];
       for (const item of confirmationItems) {
         const { factType, expectedRevision } = item;
+        if (await this.capturedClarification(tx, current.customerId, projectId, requestId, responseId, row.issuanceEpoch, factType))
+          throw new ProjectUpdateError("CONFLICT");
         const payloadDigest = hash({ requestId, responseId, expectedRevision,
           [factType === capturedStatusFactType ? "status" : "forecast"]: item.value });
         const previous = await this.capturedFactConfirmation(tx, current.customerId, projectId, requestId,
@@ -2917,19 +2922,19 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         if (frozenReviewer && row.recipientRole === "OWNER" && latest?.contentState === "PRESENT" && latest.text !== null &&
             latest.submittedBy === row.recipientSubject) {
           const required = new Set(policyFacts(row.capturedRequiredFacts).map(({ factType }) => factType));
-          const clarify = clarificationFactType(required);
-          const requested = status === "ACTIVE" && clarify
-            ? await this.capturedClarification(tx, current.customerId, projectId, row.requestId, latest.id, row.issuanceEpoch, clarify)
-            : null;
-          const suggestions = status === "ACTIVE" && !requested ? extractExplicitCapturedFacts(latest.text) : {};
+          const suggestions = status === "ACTIVE" ? extractExplicitCapturedFacts(latest.text) : {};
           for (const factType of capturedFactTypes) {
             if (!required.has(factType)) continue;
             const confirmed = await this.capturedFactConfirmation(tx, current.customerId, projectId, row.requestId,
               latest.id, row.issuanceEpoch, factType);
+            const requested = !confirmed && status === "ACTIVE"
+              ? await this.capturedClarification(tx, current.customerId, projectId, row.requestId,
+                latest.id, row.issuanceEpoch, factType)
+              : null;
             let review: typeof forecastReview;
-            if (requested && factType === clarify) review = { state: "CLARIFICATION_REQUESTED", ...requested };
-            else if (confirmed) review = { state: "CONFIRMED", ...confirmed.receipt };
-            else if (status === "ACTIVE" && !requested) {
+            if (confirmed) review = { state: "CONFIRMED", ...confirmed.receipt };
+            else if (requested) review = { state: "CLARIFICATION_REQUESTED", ...requested };
+            else if (status === "ACTIVE") {
               let expectedRevision = factRevisions.get(factType);
               if (expectedRevision === undefined) {
                 expectedRevision = (await tx.projectFact.findFirst({

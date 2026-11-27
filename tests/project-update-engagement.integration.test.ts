@@ -317,6 +317,15 @@ it("GOLDEN-006: asks the owner to clarify an ambiguous reply before allowing sta
   expect(await db.projectUpdateEngagement.findUniqueOrThrow({ where: { id: activation.engagementId } }))
     .toMatchObject({ state: "ACTIVE", generation: 1, sourceSatisfiedFactTypes: [] });
 
+  const forecastClarification = await f.capture.requestCapturedStatusClarification(f.admin, projectId, {
+    ...command, factType: "project.forecast",
+  }, randomUUID());
+  expect((await f.capture.captureHistory(f.admin, projectId)).entries[0]?.forecastReview)
+    .toEqual({ state: "CLARIFICATION_REQUESTED", ...forecastClarification });
+  expect((await f.capture.invitation(f.owner, locator)).clarification).toEqual({
+    responseId: initial.responseId, question: expect.stringMatching(/current project status.*forecast finish date/u),
+  });
+
   const corrected = await f.capture.submitResponse(f.owner, locator, {
     text: "Casey owns the fix. The expected date is 6 December 2026 and work is still blocked.",
     idempotencyKey: randomUUID(), correctsResponseId: initial.responseId,
@@ -325,6 +334,46 @@ it("GOLDEN-006: asks the owner to clarify an ambiguous reply before allowing sta
   await expect(clarify(f.admin)).rejects.toMatchObject({ code: "CONFLICT" });
   expect((await f.capture.captureHistory(f.admin, projectId)).entries[0]?.statusReview)
     .toEqual({ state: "PENDING", responseId: corrected.responseId, expectedRevision: 0 });
+});
+
+it("FR-UPD-008/009: confirms the explicit forecast while the owner clarifies status", async () => {
+  const f = await captureFixture();
+  const { projectId } = f;
+  await f.capture.activateEngagement(f.admin, projectId, 1, randomUUID());
+  await f.capture.processEngagements(1);
+  const history = await f.capture.captureHistory(f.owner, projectId);
+  if ([0, 6].includes(new Date().getUTCDay())) { expect(history.entries).toEqual([]); return; }
+  const { requestId, recipientPath } = history.entries[0]!;
+  const locator = recipientPath!.split("/").at(-1)!;
+  const { responseId } = await f.capture.submitResponse(f.owner, locator, {
+    text: "It may be blocked.\nForecast: 2026-12-08", idempotencyKey: randomUUID(),
+  }, randomUUID());
+  const command = { requestId, responseId };
+  const clarification = await f.capture.requestCapturedStatusClarification(f.admin, projectId, {
+    ...command, factType: "project.status",
+  }, randomUUID());
+  expect((await f.capture.captureHistory(f.admin, projectId)).entries[0]).toMatchObject({
+    statusReview: { state: "CLARIFICATION_REQUESTED", ...clarification },
+    forecastReview: { state: "PENDING", responseId, expectedRevision: 0, suggestedValue: "2026-12-08" },
+  });
+
+  const forecast = { factType: "project.forecast", expectedRevision: 0, value: "2026-12-08" } as const;
+  const confirm = (facts: unknown[]) => f.capture.confirmCapturedFacts(f.admin, projectId, {
+    ...command, facts,
+  }, randomUUID());
+  await expect(confirm([forecast, { factType: "project.status", expectedRevision: 0, value: "Blocked" }]))
+    .rejects.toMatchObject({ code: "CONFLICT" });
+  expect(await db.projectFactVersion.count({ where: { customerId: f.admin.customerId, projectId } })).toBe(0);
+  const [receipt] = await confirm([forecast]);
+  expect(receipt).toMatchObject({ factType: "project.forecast", responseId, confirmedBy: f.admin.subject });
+  expect(await confirm([forecast])).toEqual([receipt]);
+  expect((await f.capture.captureHistory(f.admin, projectId)).entries[0]).toMatchObject({
+    statusReview: { state: "CLARIFICATION_REQUESTED", ...clarification },
+    forecastReview: { state: "CONFIRMED", responseId, receiptId: receipt!.receiptId },
+  });
+  expect((await f.capture.invitation(f.owner, locator)).clarification).toMatchObject({
+    responseId, question: expect.stringMatching(/current project status/u),
+  });
 });
 
 it("FR-UPD-009: asks for the exact date when a forecast is the only captured fact", async () => {
@@ -342,6 +391,9 @@ it("FR-UPD-009: asks for the exact date when a forecast is the only captured fac
     text: "It should be ready next week.", idempotencyKey: randomUUID(),
   }, randomUUID());
   const command = { requestId, responseId };
+  await expect(f.capture.requestCapturedStatusClarification(f.admin, projectId, {
+    ...command, factType: "project.status",
+  }, randomUUID())).rejects.toMatchObject({ code: "CONFLICT" });
   const receipt = await f.capture.requestCapturedStatusClarification(f.admin, projectId, command, randomUUID());
   const review = (await f.capture.captureHistory(f.admin, projectId)).entries[0]!;
   expect(review.statusReview).toBeUndefined();
