@@ -1087,12 +1087,14 @@ tests:
   - docs/05-quality/MILESTONE_CONSISTENCY_VALIDATION.md
 - id: INT-EVD-006
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-006
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A confirmed response records the confirming user, timestamp, original response and linked evidence.
-  evidence: []
+  evidence:
+  - tests/project-update-engagement.integration.test.ts
+  - .github/workflows/foundation-validation.yml
 - id: INT-HLT-005
   release: R1
   status: implemented

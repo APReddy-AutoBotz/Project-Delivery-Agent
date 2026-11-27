@@ -150,6 +150,10 @@ statement and receipt with the pending work.
 Record the exact reviewed candidate, hosted checks and observed workflow
 results in its pull request.
 
+INT-EVD-006 checks that the confirmation's reviewer and timestamp match the
+audit event, the event references the original captured reply and the confirmed
+fact version, and the original text stays in retained response content.
+
 ## Completion summary
 
 The first increment covers the manual status workflow within the existing

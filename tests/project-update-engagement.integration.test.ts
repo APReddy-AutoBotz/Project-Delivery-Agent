@@ -199,8 +199,18 @@ it.each(["service-readable", "reviewer-private"] as const)("AC-EVD-006 / AC-UPD-
   const receipt = await confirm(reviewer);
   expect(receipt).toMatchObject({ responseId: response.responseId, confirmedBy: reviewer.subject, factSatisfied: shared });
   const event = await db.auditEvent.findUniqueOrThrow({ where: { id: receipt.receiptId } });
+  expect(event.actor).toBe(reviewer.subject);
+  expect(receipt.confirmedAt).toBe(event.occurredAt.toISOString());
   expect(event.detail).toMatchObject({ projectId, requestId: request.requestId, responseId: response.responseId,
     factId: prior.factId, versionId: expect.any(String), evidenceId: expect.any(String) });
+  const submitted = await db.projectUpdateResponse.findFirstOrThrow({
+    where: { customerId, projectId, requestId: request.requestId, id: response.responseId },
+  });
+  expect(submitted.submittedBy).toBe(f.owner.subject);
+  const retained = await db.projectUpdateResponseContent.findFirstOrThrow({
+    where: { customerId, projectId, responseId: submitted.id },
+  });
+  expect(retained).toMatchObject({ state: "PRESENT", body: original });
   const version = await db.projectFactVersion.findFirstOrThrow({ where: { customerId, projectId, factId: prior.factId,
     revision: 2 }, include: { evidence: true } });
   expect(version).toMatchObject({ value: { type: "text", value: command.status }, provenance: "HUMAN_CONFIRMED",
