@@ -1,20 +1,60 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import type { ProjectLeadershipAnswer as Answer, ProjectLeadershipFacts } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
 import { decodeProjectLeadershipAnswer } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
+
+const snapshotIdFormat = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
+
+function updateSource(update: ProjectLeadershipFacts["updateFreshness"]) {
+  if (!update) return null;
+  const label = update.sourceDateField === "project.createdAt" ? "Project created" : "Latest verified update";
+  return `${label} at ${update.sourceDate}`;
+}
+
+function ProjectSnapshotComparison({ answer }: { answer: Extract<Answer, { state: "COMPARISON" }> }) {
+  const { priorSnapshot: prior } = answer;
+  const fields = [
+    ["Baseline date", prior.schedule?.baseline, answer.schedule?.baseline],
+    ["Forecast date", prior.schedule?.forecast, answer.schedule?.forecast],
+    ["Update freshness", prior.updateFreshness?.state.toLowerCase(), answer.updateFreshness?.state.toLowerCase()],
+    ["Update source", updateSource(prior.updateFreshness), updateSource(answer.updateFreshness)],
+    ["Update obligation", prior.updateFreshness?.openObligation, answer.updateFreshness?.openObligation],
+  ] as const;
+  const changes = fields.filter(([, before, after]) => (before ?? null) !== (after ?? null));
+  const display = (value: string | boolean | null | undefined) => typeof value === "boolean"
+    ? value ? "Update due" : "No update due" : value ?? "Unavailable";
+  return <section aria-label="Changes since the saved snapshot" aria-live="polite">
+    <h3>Changes since the saved snapshot</h3>
+    <p>Saved snapshot {prior.id} at {prior.asOf}. Current evidence checked at {answer.asOf}.</p>
+    {changes.length ? <table>
+      <thead><tr><th scope="col">Fact</th><th scope="col">Saved snapshot</th><th scope="col">Current</th></tr></thead>
+      <tbody>{changes.map(([label, before, after]) => <tr key={label}>
+        <th scope="row">{label}</th><td>{display(before)}</td><td>{display(after)}</td>
+      </tr>)}</tbody>
+    </table> : <p>No changes in the available fields.</p>}
+    <ul>
+      <li>Saved schedule revision {prior.schedule?.revision ?? "unavailable"} and update assessment {prior.updateFreshness?.assessmentId ?? "unavailable"}.</li>
+      <li>Current schedule revision {answer.schedule?.revision ?? "unavailable"} and update assessment {answer.updateFreshness?.assessmentId ?? "unavailable"}.</li>
+    </ul>
+  </section>;
+}
 
 export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }: {
   projectId: string; scope: string; request: RequestFn; isCurrent: () => boolean;
 }) {
   const [question, setQuestion] = useState("");
-  const ask = useMutation({ mutationFn: async ({ text }: { text: string; scope: string }) => {
+  const [snapshotInput, setSnapshotInput] = useState("");
+  const snapshotId = snapshotInput.trim().toLowerCase();
+  const ask = useMutation({ mutationFn: async ({ text, priorSnapshotId }: { text: string; scope: string; priorSnapshotId?: string }) => {
     if (!isCurrent()) throw new Error("Project access changed");
     const raw = await request(`/projects/${projectId}/leadership-answer`, {
-      method: "POST", body: JSON.stringify({ question: text }),
+      method: "POST", body: JSON.stringify({ question: text, priorSnapshotId }),
     }, 4096, undefined, undefined, isCurrent);
     const answer = decodeProjectLeadershipAnswer(raw, projectId);
-    if (!answer) throw new Error("Project answer unavailable");
+    if (!answer || (answer.state === "COMPARISON" ? answer.priorSnapshot.id : undefined) !== priorSnapshotId)
+      throw new Error("Project answer unavailable");
     return answer;
   } });
   const current = ask.variables?.scope === scope && isCurrent();
@@ -38,9 +78,22 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
       </label>
       <Button className="secondary" type="submit" disabled={!question.trim() || ask.isPending || !isCurrent()}>Ask</Button>
     </form>
+    <form onSubmit={(event) => {
+      event.preventDefault();
+      if (snapshotIdFormat.test(snapshotId) && isCurrent() && !ask.isPending)
+        ask.mutate({ text: "What changed since this snapshot?", scope, priorSnapshotId: snapshotId });
+    }}>
+      <label className="field"><span>Saved snapshot ID</span>
+        <input value={snapshotInput} onChange={(event) => setSnapshotInput(event.currentTarget.value)} maxLength={36} />
+      </label>
+      <Button className="secondary" type="submit" disabled={!snapshotIdFormat.test(snapshotId) || ask.isPending || !isCurrent()}>
+        Compare with current facts
+      </Button>
+    </form>
     {current && ask.isPending && <p role="status">Checking project evidence…</p>}
     {current && ask.isError && <Message error>The project answer is unavailable.</Message>}
     {result?.state === "CLARIFY" && <Message>Ask about the current schedule or delay for the selected project.</Message>}
+    {result?.state === "COMPARISON" && <ProjectSnapshotComparison answer={result} />}
     {answer && <div aria-live="polite">
       <p>{days === null ? "Schedule movement is unavailable." : days === 0 ? "The baseline and forecast dates match."
         : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`}

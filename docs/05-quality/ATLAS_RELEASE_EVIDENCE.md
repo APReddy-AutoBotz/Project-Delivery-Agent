@@ -14,10 +14,11 @@ remaining acceptance criteria and customer release gates.
 | FR-QA-006 saved freshness | The leadership answer identifies the same saved stale-update assessment, age basis and open update obligation available to the assigned PM. | [PR #228 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45938830290/job/140308182834) |
 | GOLDEN-004 | The leadership answer flags a complete nine-day-old PM update under the seven-day policy, identifies the active clarification and continues to show the current system-verified Jira blocker. When source access is revoked, the saved freshness metadata is withheld. | [PR #233 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45959361661/job/140373243211) |
 | GOLDEN-005 | The leadership answer shows a verified delay and an unknown cause with Jira evidence withheld. Leadership submits the question to the assigned PM's Atlas panel. Replay returns the same request. Cause confirmation closes it even after an owner replaces their reply on that schedule. | [PR #232 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45951850756/job/140349291397) |
-| Atlas project access | After a leader's grant moves to a different project in the same customer, copied Atlas answer, comparison and report evidence URLs return the same denial as missing project URLs. | [PR #234 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45959508138/job/140373707750) |
+| SEC-EVD-005, SEC-QA-007 | After a leader's grant moves to a different project in the same customer, copied Atlas answer, comparison and report evidence URLs return the same denial as missing project URLs. The normal leadership question also denies the formerly authorized project and answers only for the selected authorized project. | [PR #234 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45959508138/job/140373707750), [PR #235 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45971299850/job/140412121922) |
 | INT-RPT-001 | The browser checks the same saved snapshot ID and fact highlights in the project report, leadership email preview and editable PowerPoint, including the linked authenticated project. The PM approves that exact snapshot before in-app distribution. | [PR #197 main browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45785125378/job/139789853496) |
 | INT-RPT-002 | The Linux browser downloads the editable approved PowerPoint and verifies the report period, generation timestamp, approval state, and the owner reply's recorded time and availability deadline. The dashboard and email preview show the same deadline. | [PR #223 main browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45927676380/job/140272766229) |
 | INT-RPT-004 | A later owner reply and newer receipt produce different live facts. The original approved snapshot and recipient inbox retain their earlier facts and report revision. | [PR #210 main browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45876005787/job/140103130119) |
+| E2E-ACC-005 | The existing GOLDEN-002 browser journey checks the text labels for reported GREEN and calculated RED, explains the overdue milestone, blocker and stale update inputs, and shows the recommended PM review. | [PR #238 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298558/job/140469403105) |
 | SEC-UPD-003 | The real HTTP integration suite denies expired, invalid and unauthorized invitations and preserves response and content counts. The packaged restore then uses the same working pre-backup invitation to prove restored read and submit denial under runtime database quarantine. | [PR #127 main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/40966514743) and [PR #209 main packaged restore evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45874601256/artifacts/15145801163) |
 | GOLDEN-006, FAIL-010 | PMO asks the owner for clarification after an ambiguous reply. The original reply cannot confirm the requested fact. The owner can correct it through the active invitation. A forecast-only request asks for the exact date. Confirmation of an independent fact preserves the focused question, including when the authorization change requires a replacement invitation. | [PR #215 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45883519852/job/140128425260), [PR #226 fact-specific clarification](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45935364088/job/140297210252) |
 | INT-EVD-006 | Each confirmation records the exact reviewer and audit time and links the original captured response to the confirmed fact version and evidence. The native test checks the retained original text under both reviewer-private and service-readable conditions. | [PR #224 main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45928632248/job/140275843064) |
@@ -28,6 +29,25 @@ remaining acceptance criteria and customer release gates.
 The build uses PptxGenJS on a Linux runner and checks editable text and
 report metadata in the generated deck. General reporting acceptance remains
 open under Issue #13.
+
+## Versioned report software acceptance
+
+STORY-031 covers the frozen fact set used by the project report, leadership
+email preview and editable PowerPoint. This decision takes effect after the
+acceptance record receives independent review and passes required hosted checks
+and verified merge.
+
+| Criterion | Executed evidence |
+| --- | --- |
+| AC-RPT-001 | Atlas uses one saved report ID across the dashboard, email preview and editable deck. The normal project view repeats the same check on a second canonical project, including the revision and original generation time. The assigned PM approves that same ID. [Atlas browser](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45785125378/job/139789853496) · [Normal project browser](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298558/job/140469403105) |
+| AC-RPT-004 | The finalized Atlas snapshot and its recipient inbox keep their earlier access status and comment receipt after a newer owner reply and receipt arrive. The normal project snapshot retains its original presentation after the active update policy changes, and a current source revocation blocks reopening a protected snapshot. [Atlas browser](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45876005787/job/140103130119) · [Normal project browser](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298558/job/140469403105) |
+
+The normal project evidence is from the verified PR #238 merge `b2b0e59f`.
+The snapshot uses existing append-only audit storage. Recovery retains those
+records if the application route is reverted. Portfolio dashboards, report
+content and customer release gates remain open under their existing decisions.
+[Main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298558) ·
+[Main Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298547)
 
 The [Atlas browser journey](../../tests/escalation-browser/atlas-approval.spec.ts)
 checks that the owner invitation shows the last reported status for ATLAS-248

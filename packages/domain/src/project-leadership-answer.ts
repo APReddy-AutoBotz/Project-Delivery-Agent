@@ -9,7 +9,10 @@ export const projectLeadershipScheduleSchema = z.strictObject({
 });
 export type ProjectLeadershipSchedule = z.infer<typeof projectLeadershipScheduleSchema>;
 
-export const projectLeadershipQuestionSchema = z.strictObject({ question: z.string().trim().min(1).max(256) });
+export const projectLeadershipQuestionSchema = z.strictObject({
+  question: z.string().trim().min(1).max(256),
+  priorSnapshotId: z.uuid().optional(),
+});
 
 export const projectLeadershipFactsSchema = z.strictObject({
   projectId: z.uuid(),
@@ -19,6 +22,7 @@ export const projectLeadershipFactsSchema = z.strictObject({
     state: true, assessedAt: true, sourceDate: true, sourceDateField: true,
   }).extend({ assessmentId: z.uuid(), openObligation: z.boolean() }).nullable(),
 });
+export type ProjectLeadershipFacts = z.infer<typeof projectLeadershipFactsSchema>;
 
 export const projectLeadershipAnswerSchema = z.discriminatedUnion("state", [
   z.strictObject({ state: z.literal("CLARIFY") }),
@@ -26,10 +30,18 @@ export const projectLeadershipAnswerSchema = z.discriminatedUnion("state", [
     state: z.literal("ANSWERED"),
     cause: z.literal("UNKNOWN"),
   }),
+  projectLeadershipFactsSchema.extend({
+    state: z.literal("COMPARISON"),
+    priorSnapshot: projectLeadershipFactsSchema.omit({ projectId: true }).extend({ id: z.uuid() }),
+  }),
 ]);
 export type ProjectLeadershipAnswer = z.infer<typeof projectLeadershipAnswerSchema>;
 
 export function isCurrentProjectScheduleQuestion(question: string) {
   return /^(?:why is (?:this|the) project delayed|what is (?:this|the) project(?:'s)? schedule status|what is the schedule status of this project)\??$/u
     .test(question.trim().toLowerCase().replace(/\s+/g, " ").replace(/’/g, "'"));
+}
+
+export function isProjectSnapshotComparisonQuestion(question: string) {
+  return /^what changed since (?:this|the) (?:saved )?snapshot\??$/u.test(question.trim().toLowerCase().replace(/\s+/gu, " "));
 }

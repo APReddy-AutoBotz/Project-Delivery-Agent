@@ -699,7 +699,7 @@ stories:
   acceptance_criteria:
   - AC-RPT-001
   - AC-RPT-004
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13
 - id: STORY-032

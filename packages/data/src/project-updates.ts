@@ -21,7 +21,7 @@ import {
   atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
   atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
-  isCurrentProjectScheduleQuestion, projectLeadershipAnswerSchema, projectLeadershipQuestionSchema,
+  isCurrentProjectScheduleQuestion, isProjectSnapshotComparisonQuestion, projectLeadershipAnswerSchema, projectLeadershipQuestionSchema,
   projectManagementDraftSchema, projectManagementSnapshotSchema,
   projectReportApprovalSchema, projectReportApprovalRequestSchema, projectReportDecisionSchema,
   projectReportVersionSchema, projectReportDeliverySchema,
@@ -2669,13 +2669,23 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   }
 
   async projectLeadershipAnswer(actorValue: Actor, projectValue: string, question: unknown) {
-    const current = parseActor(actorValue);
     const projectId = parseProjectId(projectValue);
     const parsed = projectLeadershipQuestionSchema.safeParse(question);
     if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+    const { priorSnapshotId } = parsed.data;
+    const compare = priorSnapshotId !== undefined && isProjectSnapshotComparisonQuestion(parsed.data.question);
+    const current = compare ? this.reportingActor(actorValue, "leadership") : parseActor(actorValue);
     return this.transaction(async (tx) => {
       await this.authorize(tx, current, projectId, false);
-      if (!isCurrentProjectScheduleQuestion(parsed.data.question))
+      if (compare) {
+        const saved = await this.readableProjectReport(tx, current, projectId, current.subject, priorSnapshotId.toLowerCase());
+        const facts = await this.currentProjectLeadershipFacts(tx, current, projectId);
+        const { asOf, schedule, updateFreshness } = saved.draft;
+        if (asOf > facts.asOf) throw new ProjectUpdateError("DENIED");
+        return projectLeadershipAnswerSchema.parse({ ...facts, state: "COMPARISON",
+          priorSnapshot: { id: saved.snapshotId, asOf, schedule, updateFreshness } });
+      }
+      if (priorSnapshotId || !isCurrentProjectScheduleQuestion(parsed.data.question))
         return projectLeadershipAnswerSchema.parse({ state: "CLARIFY" });
       const facts = await this.currentProjectLeadershipFacts(tx, current, projectId);
       return projectLeadershipAnswerSchema.parse({ ...facts, state: "ANSWERED", cause: "UNKNOWN" });

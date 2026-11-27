@@ -158,6 +158,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const protectedSnapshotId = (await protectedSave.json()).snapshotId;
   const protectedSnapshotPath = `${protectedReportPath}?snapshotId=${protectedSnapshotId}`;
   const protectedApprovalPath = protectedReportPath + "/approval-request";
+  const historicalQuestion = "What changed since this snapshot?";
+  const protectedComparison = { headers: leaderHeaders, data: { question: historicalQuestion, priorSnapshotId: protectedSnapshotId } };
+  expect((await request.post(projectPath + "/leadership-answer", protectedComparison)).status()).toBe(200);
   let fallbackReviewSnapshotId: string;
   await leaderAccess(false, fixture.lastForecast.sourceId, fixture.readers);
   try {
@@ -165,6 +168,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     expect(restrictedFreshness.status()).toBe(200);
     expect(await restrictedFreshness.json()).toMatchObject({ updateFreshness: null, jiraBlocker: before.jiraBlocker });
     expect((await request.get(protectedSnapshotPath, { headers: leaderHeaders })).status()).toBe(404);
+    expect((await request.post(projectPath + "/leadership-answer", protectedComparison)).status()).toBe(404);
     const fallback = await request.get(protectedReportPath, { headers: leaderHeaders });
     expect(fallback.status()).toBe(200);
     const fallbackDraft = (await fallback.json()).draft;
@@ -840,6 +844,30 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(draftPanel.getByRole("button", { name: "Download editable PowerPoint" })).toHaveCount(0);
   expect(staleDownloads).toBe(0);
 
+  const compareProjectPath = `/api/projects/${allowedProjectId}/leadership-answer`;
+  const compareCommand = { question: historicalQuestion, priorSnapshotId: savedReport.snapshotId };
+  const comparedProject = page.waitForResponse((response) => response.url().endsWith(compareProjectPath));
+  await projectAnswer.getByLabel("Saved snapshot ID").fill(savedReport.snapshotId);
+  await projectAnswer.getByRole("button", { name: "Compare with current facts" }).click();
+  const comparedProjectResponse = await comparedProject;
+  expect(comparedProjectResponse.status()).toBe(200);
+  expect(await comparedProjectResponse.json()).toMatchObject({ state: "COMPARISON", projectId: allowedProjectId,
+    updateFreshness: null, priorSnapshot: { id: savedReport.snapshotId, asOf: savedReport.draft.asOf,
+      updateFreshness: savedReport.draft.updateFreshness } });
+  const comparison = projectAnswer.getByRole("region", { name: "Changes since the saved snapshot" });
+  const freshnessChange = comparison.getByRole("row").filter({ hasText: "Update freshness" });
+  await expect(freshnessChange.getByRole("cell", { name: "current", exact: true })).toBeVisible();
+  await expect(freshnessChange.getByRole("cell", { name: "Unavailable", exact: true })).toBeVisible();
+  await expect(comparison).toContainText(savedReport.draft.updateFreshness.assessmentId);
+  await comparison.screenshot({ path: "artifacts/project-report-comparison.png" });
+  const [wrongProjectSnapshot, missingSnapshot, managerComparison] = await Promise.all([
+    request.post(compareProjectPath, { headers: leaderHeaders, data: { ...compareCommand, priorSnapshotId: fallbackReviewSnapshotId } }),
+    request.post(compareProjectPath, { headers: leaderHeaders, data: { ...compareCommand, priorSnapshotId: randomUUID() } }),
+    request.post(compareProjectPath, { headers: managerHeaders, data: compareCommand }),
+  ]);
+  expect([wrongProjectSnapshot.status(), missingSnapshot.status(), managerComparison.status()]).toEqual([404, 404, 404]);
+  expect(await wrongProjectSnapshot.json()).toEqual(await missingSnapshot.json());
+
   expect((await request.post(draftPath, { headers: leaderHeaders, data: draft })).status()).toBe(409);
   expect((await request.get(`${projectPath}/management-draft?snapshotId=${savedReport.snapshotId}`,
     { headers: leaderHeaders })).status()).toBe(404);
@@ -920,6 +948,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   try {
     const revoked = await deliveryDb.accessGrant.deleteMany({ where: recipientGrant });
     expect(revoked.count).toBe(1);
+    expect((await request.post(compareProjectPath, { headers: leaderHeaders, data: compareCommand })).status()).toBe(404);
     expect((await request.post(deliveryPath, { headers: managerHeaders, data: deliveryCommand })).status()).toBe(404);
   } finally {
     await deliveryDb.accessGrant.create({ data: recipientGrant });
@@ -965,7 +994,11 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await draftEmail.getByText("Leadership email preview").click();
   await expect(draftEmail).toContainText(savedReport.snapshotId);
   await expect(draftEmail).toContainText("Final · Approved");
-  const deliveredSlide = await firstSlide(Buffer.from(deliveredOutput.powerpointBase64, "base64"));
+  const deliveredDownloadReady = page.waitForEvent("download");
+  await draftPanel.getByRole("button", { name: "Download editable PowerPoint" }).click();
+  const deliveredDownload = await deliveredDownloadReady;
+  expect(deliveredDownload.suggestedFilename()).toBe(`project-${allowedProjectId}-${savedReport.snapshotId}-approved.pptx`);
+  const deliveredSlide = await firstSlide((await deliveredDownload.path())!);
   expect(deliveredSlide).toContain("Final • Approved • Delivered in-app");
   for (const highlight of deliveredOutput.highlights) {
     await expect(draftEmail).toContainText(highlight);

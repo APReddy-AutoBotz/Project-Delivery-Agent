@@ -1,5 +1,12 @@
 # Decision Log
 
+## STORY-031 report-run fact set software acceptance, 2026-11-27
+
+Accept the frozen report-run fact set under existing controller delegation.
+This decision takes effect after independent review, required checks and
+verified merge of the acceptance record. Issue #13 remains open for the rest
+of the reporting scope. [Acceptance evidence](../05-quality/ATLAS_RELEASE_EVIDENCE.md#versioned-report-software-acceptance)
+
 ## EXEC-048 delivery concern design approval, 2026-11-23
 
 Approve the bounded [EXEC-048 design](../04-delivery/exec-plans/EXEC-048-delivery-concern.md)

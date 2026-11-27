@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { projectUpdateClarificationQuestion, projectUpdateRecipientRequestViewSchema,
   projectUpdateResponseReceiptSchema } from "../packages/domain/src/project-update-capture.js";
-import { decodeInvitation, decodeInvitationReceipt } from "../apps/web/src/project-update-invitation-decoder.js";
+import { decodeInvitation, decodeInvitationReceipt, decodeProjectLeadershipAnswer } from "../apps/web/src/project-update-invitation-decoder.js";
 
 const id = "30000000-0000-4000-8000-000000000001", other = "40000000-0000-4000-8000-000000000001";
 const at = "2026-01-01T00:00:00.000Z", later = "2026-01-02T00:00:00.000Z";
@@ -9,6 +9,17 @@ const base = { requestId: id, project: { id, code: "S", name: "Synthetic" }, sta
   expiresAt: later, body: "Synthetic request", requiredFacts: [{ factType: "project.forecast", label: "Forecast" }],
   rawResponseReaders: ["recipient"], responses: [], escalationContext: null };
 const receipt = { responseId: other, requestId: id, receivedAt: at, state: "UNCONFIRMED", message: "Response recorded; required facts remain unconfirmed." };
+
+it("validates both sets of scoped evidence in a leadership comparison", () => {
+  const priorSnapshot = { id: other, asOf: at, schedule: { revision: 1, baseline: "2026-01-01", forecast: "2026-01-03", movementDays: 2 },
+    updateFreshness: null };
+  const comparison = { state: "COMPARISON", projectId: id, asOf: later, schedule: null, updateFreshness: null, priorSnapshot };
+  expect(decodeProjectLeadershipAnswer(comparison, id)).toEqual(comparison);
+  expect(decodeProjectLeadershipAnswer(comparison, other)).toBeNull();
+  expect(decodeProjectLeadershipAnswer({ ...comparison, priorSnapshot: { ...priorSnapshot, asOf: "2026-01-03T00:00:00.000Z" } }, id)).toBeNull();
+  expect(decodeProjectLeadershipAnswer({ ...comparison, priorSnapshot: { ...priorSnapshot,
+    schedule: { ...priorSnapshot.schedule, movementDays: 12 } } }, id)).toBeNull();
+});
 
 it("matches representative invitation and receipt wire schemas", () => {
   const values: unknown[] = [base, { ...base, escalationContext: undefined }, { ...base, extra: true }, null,

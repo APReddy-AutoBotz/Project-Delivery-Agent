@@ -164,12 +164,15 @@ tests:
   evidence: []
 - id: E2E-ACC-005
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-RPT-005
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Health uses labels and explanation rather than color alone.
-  evidence: []
+  evidence:
+  - tests/e2e/delivery-concern.spec.ts
+  - scripts/acceptance/delivery-concern-workflow.mjs
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: E2E-ADM-002
   release: R1
   status: implemented
@@ -1374,13 +1377,15 @@ tests:
   evidence: []
 - id: SEC-EVD-005
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-EVD-005
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A user without access to the source project cannot open or retrieve its evidence, even through a copied
     evidence URL.
-  evidence: []
+  evidence:
+  - tests/escalation-browser/atlas-approval.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: SEC-OUTBOUND-003
   release: R0
   status: implemented
@@ -1408,13 +1413,15 @@ tests:
   evidence: []
 - id: SEC-QA-007
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-QA-007
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A user authorized for Project A receives no fact, title, person or evidence from Project B in answers
     or citations.
-  evidence: []
+  evidence:
+  - tests/escalation-browser/atlas-approval.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: SEC-QA-009
   release: R1
   status: planned
