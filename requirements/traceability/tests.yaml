@@ -785,13 +785,15 @@ tests:
   evidence: []
 - id: GOLDEN-005
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-QA-006
   specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
   behavior: When delay is verified but cause is not, the answer states that the cause is unknown and can create
     a clarification request.
-  evidence: []
+  evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
+  - tests/escalation-browser/atlas-approval.spec.ts
 - id: GOLDEN-006
   release: R1
   status: implemented
