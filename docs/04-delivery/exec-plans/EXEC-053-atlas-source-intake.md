@@ -1,7 +1,7 @@
 # EXEC-053 Atlas source intake
 
 - Requirements: BR-004, BR-005, PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
-- Acceptance: Source intake portion of AC-PRO-001 and E2E-HERO-001
+- Acceptance: Source intake and Jira status authority portions of AC-PRO-001 and E2E-HERO-001
 - GitHub issue: [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14)
 
 Run the existing Jira read-only sync against a local, synthetic transport for
@@ -16,8 +16,16 @@ It uses the isolated demo customer's own ingestion retention and reader grants.
 The demo schedule comes from the sample portfolio spreadsheet's CSV export.
 The fixture maps the row to the same Atlas project and uses the existing
 preview and reviewed import. The browser checks that its reviewed date
-proposals match the dates displayed in the leadership answer. Field authority
-for connector-backed facts in this journey remains open for E2E-HERO-001.
+proposals match the dates displayed in the leadership answer.
+
+Use Atlas's existing Jira ingestion receipt to admit the approved status of
+the issue as required integration work. Reuse the source observation admission
+and field authority rules from [EXEC-047](EXEC-047-source-observation-authority.md).
+The leadership answer shows the open blocker when its existing mapping agrees
+with a current, authorized Jira observation for the same issue and revision.
+When source access is revoked, the blocker citation drops from the live answer.
+The reviewed CSV dates still occupy the proposal path. Their field authority
+remains open for E2E-HERO-001.
 
 Validate the existing Jira adapter, the current Atlas browser journey and the
 packaged GOLDEN-003 proof through their existing checks. Revert this change and

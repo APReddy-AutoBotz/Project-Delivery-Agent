@@ -372,7 +372,7 @@ async function ageReviewedWorkbook(pool, customerId, fixture, workbook) {
   }
 }
 
-async function admitInputs(pool, customerId, projectId, inputs) {
+export async function admitSyntheticSourceInputs(pool, customerId, projectId, actorSubject, inputs) {
   const tx = await pool.connect();
   try {
     await tx.query("BEGIN; SET LOCAL ROLE pdaa_migrate");
@@ -409,7 +409,7 @@ async function admitInputs(pool, customerId, projectId, inputs) {
               },
             ],
           },
-          pmo,
+          actorSubject,
           input.targetKind,
           input.targetId,
         ],
@@ -481,7 +481,7 @@ export async function admitGoldenSources(pool, database, customerId, fixture) {
       jiraSourceId,
     );
     await ageReviewedWorkbook(pool, customerId, fixture, workbook);
-    const admitted = await admitInputs(pool, customerId, fixture.projectId, [
+    const admitted = await admitSyntheticSourceInputs(pool, customerId, fixture.projectId, pmo, [
       ...jira.map((input, index) => ({
         ...input,
         targetKind: "WORK_ITEM",

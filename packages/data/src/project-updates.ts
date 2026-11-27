@@ -2465,6 +2465,45 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     }
   }
 
+  private async atlasJiraBlocker(tx: Tx, current: Actor, projectId: string, asOf: Date) {
+    const scope = { customerId: current.customerId, projectId };
+    const mapping = await tx.canonicalSourceMapping.findFirst({
+      where: { ...scope, sourceSystem: "Jira", instanceKey: "atlas-demo", externalType: "issue",
+        externalId: atlasJiraBlockerKey, targetType: "RAID_ITEM",
+        raidItem: { key: atlasJiraBlockerKey, kind: "ISSUE", state: "OPEN" } },
+      select: { id: true, externalRevision: true, url: true },
+    });
+    if (!mapping?.externalRevision || !mapping.url) return null;
+    const binding = await tx.canonicalStateBinding.findFirst({
+      where: { ...scope, targetKind: "WORK_ITEM", field: "state", sealed: true,
+        workItem: { key: atlasJiraBlockerKey } },
+      select: { fact: { select: { id: true, factType: true, revision: true } } },
+    });
+    if (!binding) return null;
+    const { result } = await this.authority.prepareAssessmentInTransaction(tx, current, {
+      projectId, fact: binding.fact, asOf, allowSourceObservations: true,
+    });
+    if (result.status !== "RESOLVED" || result.resolvedValue?.type !== "text" || result.resolvedValue.value !== "OPEN" ||
+        result.supportingVersionIds.length !== 1) return null;
+    const support = result.versions.find((version) => version.id === result.supportingVersionIds[0]);
+    if (support?.visibility !== "available" || support.provenance !== "SYSTEM_VERIFIED" ||
+        support.source.recordType !== "jira.issue" || support.assessment.freshness !== "CURRENT") return null;
+    const matches = await tx.$queryRaw<{ matched: boolean }[]>`
+      SELECT true AS matched FROM public."IngestionFactStream" stream
+      JOIN public."IngestionExternalRecord" record ON
+        (record."customerId",record."sourceId",record.id)=(stream."customerId",stream."sourceId",stream."recordId")
+      JOIN public."IngestionSourceRevision" revision ON
+        (revision."customerId",revision."sourceId",revision."recordId")=(record."customerId",record."sourceId",record.id)
+      JOIN public."IngestionSource" source ON
+        (source."customerId",source.id)=(record."customerId",record."sourceId")
+      WHERE stream."customerId"=${scope.customerId}::uuid AND stream.id=${support.source.recordId}::uuid
+        AND stream."factType"='jira.status' AND record."projectId"=${projectId}::uuid
+        AND record."recordType"='jira.issue' AND record."recordKey"=${atlasJiraBlockerKey}
+        AND revision.id=${support.source.revision}::uuid AND revision.revision=${mapping.externalRevision}
+        AND source."sourceType"='jira' AND source.origin || '/browse/' || record."recordKey"=${mapping.url}`;
+    return matches.length === 1 ? { mappingId: mapping.id, issueKey: atlasJiraBlockerKey } : null;
+  }
+
   async atlasLeadershipAnswer(actorValue: Actor, projectValue: string, priorSnapshotId?: string) {
     const current = this.atlasLeadershipActor(actorValue);
     const projectId = parseProjectId(projectValue);
@@ -2476,17 +2515,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         where: { ...scope, key: atlasIntegrationMilestoneKey },
         select: { id: true, plannedStart: true, actualStart: true },
       });
-      const blocker = answer.schedule && await tx.canonicalSourceMapping.findFirst({
-        where: { ...scope, sourceSystem: "Jira", instanceKey: "atlas-demo", externalType: "issue",
-          externalId: atlasJiraBlockerKey, targetType: "RAID_ITEM",
-          raidItem: { key: atlasJiraBlockerKey, kind: "ISSUE", state: "OPEN" } },
-        select: { id: true },
-      });
       const escalation = approved && await this.atlasPmEscalation(tx, current, projectId, approved);
       const prior = priorId ? await this.savedAtlasManagementSnapshot(tx, current.customerId, projectId, current.subject, priorId) : null;
       if (priorId && !prior) throw new ProjectUpdateError("DENIED");
       if (prior) await this.authorizeAtlasReportOrigin(tx, current, prior, "leadership");
-      const asOf = iso(await this.now(tx));
+      const assessedAt = await this.now(tx);
+      const blocker = answer.schedule ? await this.atlasJiraBlocker(tx, current, projectId, assessedAt) : null;
+      const asOf = iso(assessedAt);
       if ((answer.ownerReply && answer.ownerReply.availableUntil <= asOf) ||
           (prior && (prior.facts.ownerReply.availableUntil <= asOf || prior.facts.asOf > asOf)))
         throw new ProjectUpdateError("DENIED");
@@ -2494,7 +2529,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         integrationStart: milestone?.plannedStart && milestone.actualStart && milestone.actualStart > milestone.plannedStart
           ? { milestoneId: milestone.id, planned: iso(milestone.plannedStart).slice(0, 10),
             actual: iso(milestone.actualStart).slice(0, 10) } : null,
-        jiraBlocker: blocker ? { mappingId: blocker.id, issueKey: atlasJiraBlockerKey } : null,
+        jiraBlocker: blocker,
         pmEscalation: escalation && escalation.availableUntil > asOf ? escalation : null,
         priorSnapshot: prior ? { id: prior.id, facts: prior.facts } : undefined,
       });
