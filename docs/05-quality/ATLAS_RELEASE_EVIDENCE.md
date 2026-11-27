@@ -156,7 +156,22 @@ required hosted checks and merge.
 | Criterion | Executed evidence |
 | --- | --- |
 | AC-UPD-005 | A reviewer requests a focused clarification after an ambiguous reply. An attempt to confirm that original reply is denied and no canonical fact version is created. The owner sees the question on the secure invitation and can correct the reply. Forecast and status clarification are tracked separately, so confirmation of one fact preserves the other open question. [Main clarification checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45883519852/job/140128425260) · [Main fact-specific checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45935364088/job/140297210252) |
-| AC-EVD-006 | Native confirmation checks bind the reviewer, audit timestamp and original response to the new fact version and evidence. The test reads the original retained text through its authorized evidence path, including reviewer-private and service-readable cases. [Main audit checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45928632248/job/140275843064) |
+| AC-EVD-006 | Native confirmation checks bind the reviewer, audit timestamp and original response to the new fact version and evidence. They verify the original text in scoped database storage and check reviewer access to capture history in reviewer-private and service-readable cases. [Main audit checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45928632248/job/140275843064) |
 
 Approved provider routing and customer email delivery are tracked in their
 respective acceptance criteria.
+
+## Leadership project and time scope acceptance
+
+STORY-027 covers a question bound to the selected authorized project. The
+answer uses its current schedule or the exact prior snapshot the user selects.
+Acceptance takes effect after independent review, required checks and merge.
+
+| Criterion | Executed evidence |
+| --- | --- |
+| AC-QA-001 | The authorized Atlas answer shows the baseline, forecast, verified cause, PM action and forecast confidence with their evidence. [Main Atlas checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45785125378/job/139789853496) |
+| AC-EVD-005 and AC-QA-007 | The same browser tests reopen the copied Atlas links after the leader's project grant changes. Answers, comparisons, reports and evidence return the same denial as a missing project. The authorized project continues to answer from its own records. [Main Atlas denial](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45959508138/job/140373707750) · [Main project denial](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45971299850/job/140412121922) |
+| AC-QA-009 | The real selected-project answer returns the locked canonical June 30 baseline and July 15 forecast. A cross-project request naming Draco returns generic guidance to ask about the selected project's schedule. The historical comparison reads the exact authorized snapshot and denies missing, unknown and wrong-project snapshot IDs. Project identity and the dates come from scoped structured records. [Main selected-project scope](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45971299850/job/140412121922) · [Main snapshot comparison](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46029444289/job/140609205410) |
+
+Claim composition and explicit inference labels are tracked under STORY-028
+and STORY-029.

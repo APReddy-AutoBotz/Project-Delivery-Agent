@@ -628,9 +628,16 @@ stories:
   - AC-QA-001
   - AC-QA-007
   - AC-QA-009
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/197
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/234
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/235
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/244
+  implementation_evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: STORY-028
   epic: EPIC-08
   title: Implement claim and citation composer

@@ -833,14 +833,16 @@ tests:
   evidence: []
 - id: GOLDEN-008
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-QA-009
   specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
   behavior: Resolve exactly one authorized project and reporting time or request clarification. A contradictory
     semantic match cannot replace authoritative structured dates/status. Multi-project aggregation is deferred and
     inaccessible project names or evidence are never disclosed.
-  evidence: []
+  evidence:
+  - tests/escalation-browser/atlas-approval.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: GOLDEN-009
   release: R1
   status: planned
@@ -1434,14 +1436,16 @@ tests:
   - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: SEC-QA-009
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-QA-009
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Resolve exactly one authorized project and reporting time or request clarification. A contradictory
     semantic match cannot replace authoritative structured dates/status. Multi-project aggregation is deferred and
     inaccessible project names or evidence are never disclosed.
-  evidence: []
+  evidence:
+  - tests/escalation-browser/atlas-approval.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: SEC-RPT-003
   release: R1
   status: implemented
