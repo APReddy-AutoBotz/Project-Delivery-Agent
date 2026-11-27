@@ -582,7 +582,12 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   atlasLeadershipAnswer: vi.fn(async () => ({
     ...atlasLeadershipFixture,
     integrationStart: { milestoneId: project.id, planned: "2026-10-05", actual: "2026-10-08" },
-    jiraBlocker: { mappingId: project.id, issueKey: "ATLAS-248" as const },
+    jiraBlocker: { mappingId: project.id, issueKey: "ATLAS-248" as const, claim: {
+      claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: project.id, factId: project.id,
+      versionId: project.id, evidenceIds: [project.id], policyRevisionId: project.id, assessedAt: atlasLeadershipFixture.asOf,
+      provenance: "SYSTEM_VERIFIED" as const, freshness: "CURRENT" as const, conflict: "NONE" as const,
+      classification: "SYSTEM_VERIFIED" as const,
+    } },
     forecastInference: { classification: "AGENT_INFERENCE" as const, scheduleRevision: 1,
       milestoneId: project.id, blockerMappingId: project.id },
     pmEscalation: { requestId: project.id, capturedAt: "2026-10-01T12:00:00.000Z",

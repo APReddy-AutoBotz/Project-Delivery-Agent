@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { canonicalSubjectSchema } from "./canonical-project.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
-import { projectDelayClarificationCommandSchema, projectDelayClarificationSchema, projectLeadershipScheduleSchema } from "./project-leadership-answer.js";
+import { projectDelayClarificationCommandSchema, projectDelayClarificationSchema, projectLeadershipScheduleSchema,
+  settledLeadershipClaimSchema } from "./project-leadership-answer.js";
 import { projectReportApprovalRequestSchema, projectReportDecisionSchema, projectReportVersionSchema } from "./project-management-draft.js";
 
 export const atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
 export const atlasIntegrationMilestoneKey = "INTEGRATION-TESTING";
 export const atlasJiraBlockerKey = "ATLAS-248";
+export const atlasJiraBlockerClaimText = "The synthetic Jira blocker ATLAS-248 is open.";
 export const atlasSpreadsheetOrigin = "https://atlas-spreadsheet.example.test";
 export const atlasSpreadsheetRow = "ATLAS-DELIVERY";
 export const atlasCommentTemplate = "atlas-comment@1";
@@ -121,6 +123,8 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
   jiraBlocker: z.strictObject({
     mappingId: z.uuid(),
     issueKey: z.literal(atlasJiraBlockerKey),
+    claim: settledLeadershipClaimSchema.safeExtend({ claimText: z.literal(atlasJiraBlockerClaimText),
+      provenance: z.literal("SYSTEM_VERIFIED"), classification: z.literal("SYSTEM_VERIFIED") }),
   }).nullable(),
   forecastInference: z.strictObject({
     classification: z.literal("AGENT_INFERENCE"),
@@ -137,7 +141,8 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
     id: z.uuid(),
     facts: atlasLeadershipFactsSchema,
   }).optional(),
-});
+}).refine(({ jiraBlocker, projectId, asOf }) => !jiraBlocker ||
+  (jiraBlocker.claim.projectId === projectId && jiraBlocker.claim.assessedAt === asOf));
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
 
 export const atlasManagementFactsSchema = atlasLeadershipFactsSchema.extend({

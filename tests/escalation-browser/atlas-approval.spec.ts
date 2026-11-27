@@ -99,7 +99,11 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     schedule: { baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 }, ownerReply: null, receipt: null,
     updateFreshness: { state: "STALE", sourceDateField: "project.latestValidUpdateAt", sourceDate: fixture.lastPmUpdateAt,
       openObligation: true },
-    jiraBlocker: { mappingId: fixture.jiraIntake.mappingId, issueKey: "ATLAS-248" },
+    jiraBlocker: { mappingId: fixture.jiraIntake.mappingId, issueKey: "ATLAS-248", claim: {
+      claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: fixture.projectId, assessedAt: before.asOf,
+      factId: expect.any(String), versionId: expect.any(String), policyRevisionId: expect.any(String),
+      evidenceIds: [expect.any(String)], provenance: "SYSTEM_VERIFIED", classification: "SYSTEM_VERIFIED", freshness: "CURRENT", conflict: "NONE",
+    } },
   });
   const intakePath = `/api/ingestion/sources/${fixture.jiraIntake.sourceId}/receipts/${fixture.jiraIntake.receiptId}`;
   const intake = await request.get(intakePath, { headers: leaderHeaders });
@@ -169,7 +173,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   try {
     const restrictedFreshness = await request.get(answerPath, { headers: leaderHeaders });
     expect(restrictedFreshness.status()).toBe(200);
-    expect(await restrictedFreshness.json()).toMatchObject({ updateFreshness: null, jiraBlocker: before.jiraBlocker });
+    const restrictedAnswer = await restrictedFreshness.json();
+    expect(restrictedAnswer).toMatchObject({ updateFreshness: null, jiraBlocker: {
+      ...before.jiraBlocker, claim: { ...before.jiraBlocker.claim, assessedAt: restrictedAnswer.asOf },
+    } });
     expect((await request.get(protectedSnapshotPath, { headers: leaderHeaders })).status()).toBe(404);
     expect((await request.post(projectPath + "/leadership-answer", protectedComparison)).status()).toBe(404);
     const fallback = await request.get(protectedReportPath, { headers: leaderHeaders });
@@ -400,7 +407,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     ["Schedule evidence", `Baseline 2026-10-15. Forecast 2026-10-29. Reviewed portfolio CSV receipt ${spreadsheet.receiptId}`],
     ["Update freshness evidence", `Assessed at ${before.updateFreshness.assessedAt}. Latest verified update at ${fixture.lastPmUpdateAt}.`],
     ["Integration start evidence", "Planned start 2026-10-05. Actual start 2026-10-08."],
-    ["Jira blocker evidence", "Synthetic Jira issue ATLAS-248, recorded in source mapping"],
+    ["Jira blocker evidence", `Evidence ${before.jiraBlocker.claim.evidenceIds[0]}`],
     ["Reply evidence", "Human-confirmed owner reply"],
     ["Receipt evidence", receipt.id],
     ["PM escalation evidence", `${fixture.escalation.requestId}, captured at ${fixture.escalation.capturedAt}`],
@@ -1133,7 +1140,14 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await page.getByRole("button", { name: /Leadership/ }).click();
   await page.getByRole("button", { name: /Second synthetic project/ }).click();
   await projectAnswer.getByLabel("Project question").fill(genericQuestion.question);
+  const groundedAnswer = page.waitForResponse((response) => response.url().endsWith(compareProjectPath));
   await projectAnswer.getByRole("button", { name: "Ask", exact: true }).click();
+  const groundedResponse = await groundedAnswer;
+  expect(groundedResponse.status()).toBe(200);
+  const grounded = await groundedResponse.json();
+  expect(grounded.delayCause.claim).toMatchObject({ projectId: allowedProjectId, assessedAt: grounded.asOf,
+    versionId: delayEvidence.id, evidenceIds: [delayEvidence.evidenceId], claimText: `PM-confirmed delay cause · ${causeText}`,
+    provenance: "HUMAN_CONFIRMED", classification: "HUMAN_CONFIRMED", freshness: "CURRENT", conflict: "NONE" });
   await expect(projectAnswer).toContainText(`PM-confirmed delay cause · ${causeText}`);
   const causeLink = projectAnswer.getByRole("link", { name: "Cause evidence" });
   await expect(causeLink).toBeVisible();

@@ -19,7 +19,7 @@ import {
   atlasApprovalDecisionSchema, atlasApprovalProjectCode, atlasApprovalViewSchema, atlasComment,
   atlasCommentTemplate, atlasReplyConfirmationSchema,
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
-  atlasIntegrationMilestoneKey, atlasJiraBlockerKey, atlasLeadershipAnswerSchema, atlasLeadershipFactsSchema,
+  atlasIntegrationMilestoneKey, atlasJiraBlockerKey, atlasJiraBlockerClaimText, atlasLeadershipAnswerSchema, atlasLeadershipFactsSchema,
   atlasScheduleCitationSchema, atlasSpreadsheetOrigin, atlasSpreadsheetRow, IngestionPersistenceError,
   atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
@@ -27,7 +27,7 @@ import {
   isCurrentProjectScheduleQuestion, isProjectSnapshotComparisonQuestion, projectLeadershipAnswerSchema, projectLeadershipQuestionSchema,
   projectDelayClarificationCommandSchema, projectDelayClarificationSchema,
   projectDelayCauseFactType, projectDelayCauseEvidenceSchema, projectDelayCauseCommandSchema,
-  projectDelayCauseConfirmationSchema, projectDelayClarificationReviewSchema,
+  projectDelayCauseConfirmationSchema, projectDelayClarificationReviewSchema, composeSettledLeadershipClaim,
   projectManagementDraftSchema, projectManagementSnapshotSchema,
   projectReportApprovalSchema, projectReportApprovalRequestSchema, projectReportDecisionSchema,
   projectReportVersionSchema, projectReportDeliverySchema,
@@ -2779,11 +2779,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const { result } = await this.authority.prepareAssessmentInTransaction(tx, current, {
       projectId, fact: binding.fact, asOf, allowSourceObservations: true,
     });
-    if (result.status !== "RESOLVED" || result.resolvedValue?.type !== "text" || result.resolvedValue.value !== "OPEN" ||
-        result.supportingVersionIds.length !== 1) return null;
-    const support = result.versions.find((version) => version.id === result.supportingVersionIds[0]);
-    if (support?.visibility !== "available" || support.provenance !== "SYSTEM_VERIFIED" ||
-        support.source.recordType !== "jira.issue" || support.assessment.freshness !== "CURRENT") return null;
+    const grounded = composeSettledLeadershipClaim(result, "SYSTEM_VERIFIED", (value) =>
+      value.type === "text" && value.value === "OPEN" ? atlasJiraBlockerClaimText : null);
+    if (!grounded || grounded.support.source.recordType !== "jira.issue") return null;
+    const { claim, support } = grounded;
     const matches = await tx.$queryRaw<{ matched: boolean }[]>`
       SELECT true AS matched FROM public."IngestionFactStream" stream
       JOIN public."IngestionExternalRecord" record ON
@@ -2797,7 +2796,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         AND record."recordType"='jira.issue' AND record."recordKey"=${atlasJiraBlockerKey}
         AND revision.id=${support.source.revision}::uuid AND revision.revision=${mapping.externalRevision}
         AND source."sourceType"='jira' AND source.origin || '/browse/' || record."recordKey"=${mapping.url}`;
-    return matches.length === 1 ? { mappingId: mapping.id, issueKey: atlasJiraBlockerKey } : null;
+    return matches.length === 1 ? { mappingId: mapping.id, issueKey: atlasJiraBlockerKey, claim } : null;
   }
 
   private async atlasActiveClarification(tx: Tx, current: Actor, projectId: string, obligationId: string) {
@@ -2943,7 +2942,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const saved = await this.findDelayClarification(tx, manager.customerId, projectId, manager.subject, schedule.revision,
       projectDelayClarificationEvent);
     if (!saved) return null;
-    const causeEvidence = await this.currentProjectDelayCauseEvidence(tx, manager, projectId, await this.now(tx));
+    const causeEvidence = (await this.currentProjectDelayCauseEvidence(tx, manager, projectId, await this.now(tx)))?.evidence;
     const confirmation = causeEvidence && await this.projectDelayCauseConfirmation(tx, manager.customerId, projectId,
       manager.subject, saved.id, causeEvidence.versionId);
     return projectDelayClarificationReviewSchema.parse({ id: saved.id, requestedAt: iso(saved.occurredAt), schedule,
@@ -2956,15 +2955,15 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     } }, select: { id: true, factType: true, revision: true } });
     if (!fact) return null;
     const { result } = await this.authority.prepareAssessmentInTransaction(tx, viewer, { projectId, fact, asOf });
-    if (result.status !== "RESOLVED" || result.revalidationRequired || result.conflict !== "NONE" ||
-        result.resolvedValue?.type !== "text" || result.supportingVersionIds.length !== 1 || result.supportingEvidenceIds.length !== 1)
-      return null;
-    const source = result.versions.find((version) => version.id === result.supportingVersionIds[0]);
-    if (source?.visibility !== "available" || source.provenance !== "HUMAN_CONFIRMED" || source.assessment.freshness !== "CURRENT")
-      return null;
-    const evidence = projectDelayCauseEvidenceSchema.safeParse({ factId: fact.id, versionId: source.id,
-      evidenceId: result.supportingEvidenceIds[0], observedAt: source.observedAt, value: result.resolvedValue.value });
-    return evidence.success ? evidence.data : null;
+    const value = result.resolvedValue;
+    if (value?.type !== "text" || result.supportingEvidenceIds.length !== 1) return null;
+    const grounded = composeSettledLeadershipClaim(result, "HUMAN_CONFIRMED", (resolved) =>
+      resolved.type === "text" ? `PM-confirmed delay cause · ${resolved.value}` : null);
+    if (!grounded) return null;
+    const { claim, support } = grounded;
+    const evidence = projectDelayCauseEvidenceSchema.safeParse({ factId: claim.factId, versionId: claim.versionId,
+      evidenceId: claim.evidenceIds[0], observedAt: support.observedAt, value: value.value });
+    return evidence.success ? { evidence: evidence.data, claim } : null;
   }
 
   private async projectDelayCauseConfirmation(tx: Tx, customerId: string, projectId: string, manager: string,
@@ -2979,13 +2978,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   }
 
   private async confirmedProjectDelayCause(tx: Tx, viewer: Actor, projectId: string, schedule: AtlasSchedule, asOf: Date) {
-    const evidence = await this.currentProjectDelayCauseEvidence(tx, viewer, projectId, asOf);
-    if (!evidence) return null;
+    const grounded = await this.currentProjectDelayCauseEvidence(tx, viewer, projectId, asOf);
+    if (!grounded) return null;
+    const { evidence } = grounded;
     const manager = await this.assignedProjectManager(tx, viewer.customerId, projectId);
     if (!manager) return null;
     const saved = await this.findDelayClarification(tx, viewer.customerId, projectId, manager, schedule.revision, projectDelayClarificationEvent);
     const confirmation = saved && await this.projectDelayCauseConfirmation(tx, viewer.customerId, projectId, manager, saved.id, evidence.versionId);
-    return confirmation && confirmation.confirmedAt <= iso(asOf) ? { evidence, confirmation } : null;
+    return confirmation && confirmation.confirmedAt <= iso(asOf) ? { ...grounded, confirmation } : null;
   }
 
   async confirmProjectDelayCause(actorValue: Actor, projectValue: string, command: unknown, correlationValue: string) {

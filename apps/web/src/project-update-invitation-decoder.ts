@@ -122,6 +122,15 @@ function validProjectLeadershipFacts(value: Record<string, unknown>): value is R
 
 const leadershipFactKeys = ["asOf", "schedule", "updateFreshness"];
 
+function matchesSettledClaim(value: unknown, projectId: string, asOf: string, provenance: "SYSTEM_VERIFIED" | "HUMAN_CONFIRMED", text: string) {
+  return object(value) && keys(value, ["claimText", "projectId", "factId", "versionId", "evidenceIds", "policyRevisionId",
+    "assessedAt", "provenance", "freshness", "conflict", "classification"]) &&
+    value.projectId === projectId && value.assessedAt === asOf && value.provenance === provenance && value.classification === provenance &&
+    value.freshness === "CURRENT" && value.conflict === "NONE" && value.claimText === text &&
+    uuid(value.factId) && uuid(value.versionId) && uuid(value.policyRevisionId) &&
+    dense(value.evidenceIds, 1, 64) && value.evidenceIds.every(uuid) && new Set(value.evidenceIds).size === value.evidenceIds.length;
+}
+
 export function decodeProjectLeadershipAnswer(value: unknown, projectId: string): ProjectLeadershipAnswer | null {
   if (!object(value)) return null;
   if (value.state === "CLARIFY" && keys(value, ["state"])) return { state: "CLARIFY" };
@@ -138,11 +147,15 @@ export function decodeProjectLeadershipAnswer(value: unknown, projectId: string)
   }
   const delay = value.delayCause;
   if (value.state === "ANSWERED" && value.cause === "HUMAN_CONFIRMED" && keys(value, [...required, "cause", "delayCause"]) &&
-      object(delay) && keys(delay, ["evidence", "confirmation"])) {
+      object(delay) && keys(delay, ["evidence", "confirmation", "claim"])) {
     const evidence = decodeProjectDelayCauseEvidence(delay.evidence);
     const confirmation = decodeProjectDelayCauseConfirmation(delay.confirmation);
     const schedule = decodeAtlasSchedule(value.schedule);
-    return evidence && confirmation && evidence.versionId === confirmation.versionId &&
+    const claim = delay.claim;
+    return evidence && confirmation && evidence.versionId === confirmation.versionId && object(claim) &&
+      matchesSettledClaim(claim, projectId, value.asOf, "HUMAN_CONFIRMED", `PM-confirmed delay cause · ${evidence.value}`) &&
+      claim.factId === evidence.factId && claim.versionId === evidence.versionId &&
+      dense(claim.evidenceIds, 1, 1) && claim.evidenceIds[0] === evidence.evidenceId &&
       (schedule?.movementDays ?? 0) > 0 && Date.parse(evidence.observedAt) <= Date.parse(confirmation.confirmedAt) &&
       Date.parse(confirmation.confirmedAt) <= Date.parse(value.asOf) ? value as ProjectLeadershipAnswer : null;
   }
@@ -285,8 +298,9 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
       !keys(integrationStart, ["milestoneId", "planned", "actual"]) || !uuid(integrationStart.milestoneId) ||
       !date(integrationStart.planned) || !date(integrationStart.actual) || integrationStart.actual <= integrationStart.planned))
     return null;
-  if (jiraBlocker !== null && (!object(jiraBlocker) || !keys(jiraBlocker, ["mappingId", "issueKey"]) ||
-      !uuid(jiraBlocker.mappingId) || jiraBlocker.issueKey !== "ATLAS-248")) return null;
+  if (jiraBlocker !== null && (!object(jiraBlocker) || !keys(jiraBlocker, ["mappingId", "issueKey", "claim"]) ||
+      !uuid(jiraBlocker.mappingId) || jiraBlocker.issueKey !== "ATLAS-248" ||
+      !matchesSettledClaim(jiraBlocker.claim, projectId, answer.asOf, "SYSTEM_VERIFIED", "The synthetic Jira blocker ATLAS-248 is open."))) return null;
   if (forecastInference !== undefined && (!object(forecastInference) ||
       !keys(forecastInference, ["classification", "scheduleRevision", "milestoneId", "blockerMappingId"]) ||
       forecastInference.classification !== "AGENT_INFERENCE" || !answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 ||
