@@ -1,12 +1,13 @@
 import "../apps/api/dist/app.js";
 import { expect, it, vi } from "vitest";
-import { renderAtlasManagementSnapshot } from "../apps/api/dist/atlas-management-snapshot.js";
+import { renderAtlasManagementSnapshot, renderProjectManagementDraft } from "../apps/api/dist/atlas-management-snapshot.js";
 import { ProjectUpdateController, unavailableProjectUpdateRepository } from "../apps/api/dist/project-update-controller.js";
-import type { AtlasManagementSnapshot } from "../packages/domain/dist/index.js";
+import type { AtlasManagementSnapshot, ProjectManagementSnapshot } from "../packages/domain/dist/index.js";
 
 vi.mock("../apps/api/dist/atlas-management-snapshot.js", async (original) => ({
   ...await original<typeof import("../apps/api/dist/atlas-management-snapshot.js")>(),
   renderAtlasManagementSnapshot: vi.fn(),
+  renderProjectManagementDraft: vi.fn(),
 }));
 
 it("leaves the report awaiting approval when its final PowerPoint cannot be rendered", async () => {
@@ -45,4 +46,34 @@ it("leaves the report awaiting approval when its final PowerPoint cannot be rend
   await expect(controller.decideAtlasReportApproval(req, projectId, approve)).resolves.toMatchObject({ snapshot: approved });
   expect(render).toHaveBeenNthCalledWith(3, approved);
   expect(recordDecision).toHaveBeenCalledExactlyOnceWith(actor, projectId, approve, req.correlationId);
+});
+
+it("rejects a malformed selected-project deck before recording approval", async () => {
+  const projectId = "30000000-0000-4000-8000-000000000001";
+  const snapshotId = "30000000-0000-4000-8000-000000000002";
+  const requestId = "30000000-0000-4000-8000-000000000003";
+  const asOf = "2026-10-01T12:00:00.000Z", requestedAt = "2026-10-01T12:01:00.000Z";
+  const actor = { customerId: "10000000-0000-4000-8000-000000000001", subject: "pm-atlas", roles: ["project_manager"] };
+  const req = { headers: { authorization: "Bearer fixture" }, correlationId: "50000000-0000-4000-8000-000000000001" };
+  const pending: ProjectManagementSnapshot = { snapshotId, draft: { projectId, asOf,
+    project: { code: "REPORT", name: "Synthetic report" }, approvalState: "DRAFT", reportingPeriod: "2026-10",
+    schedule: null, updateFreshness: null }, approval: { requestId, requestedAt, state: "PENDING", decidedAt: null } };
+  const approved: ProjectManagementSnapshot = { ...pending,
+    approval: { requestId, requestedAt, state: "APPROVED", decidedAt: "2026-10-01T12:02:00.000Z" } };
+  const recordDecision = vi.fn().mockResolvedValue(approved);
+  const render = vi.mocked(renderProjectManagementDraft);
+  render.mockResolvedValueOnce({ ...approved, highlights: ["Schedule unavailable."],
+    livePath: `/?project=${projectId}`, powerpointBase64: "not a deck" });
+  const actual = await vi.importActual<typeof import("../apps/api/dist/atlas-management-snapshot.js")>(
+    "../apps/api/dist/atlas-management-snapshot.js");
+  render.mockImplementation(actual.renderProjectManagementDraft);
+  const controller = new ProjectUpdateController({ ...unavailableProjectUpdateRepository,
+    projectReportForManager: vi.fn().mockResolvedValue(pending), decideProjectReportApproval: recordDecision,
+  }, { authenticate: vi.fn().mockResolvedValue(actor) } as never);
+  const command = { snapshotId, requestId, decision: "APPROVED" };
+
+  await expect(controller.decideProjectReportApproval(req, projectId, command)).rejects.toMatchObject({ status: 503, response: "" });
+  expect(recordDecision).not.toHaveBeenCalled();
+  await expect(controller.decideProjectReportApproval(req, projectId, command)).resolves.toMatchObject(approved);
+  expect(recordDecision).toHaveBeenCalledExactlyOnceWith(actor, projectId, command, req.correlationId);
 });

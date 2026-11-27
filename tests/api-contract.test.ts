@@ -493,6 +493,10 @@ const projectManagementDraftFixture = { projectId: project.id, asOf: "2026-10-21
   schedule: { revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 },
 };
 const projectManagementSnapshotFixture = { snapshotId: project.id, draft: projectManagementDraftFixture };
+const projectReportPendingFixture = { ...projectManagementSnapshotFixture,
+  approval: { requestId: project.id, requestedAt: "2026-10-21T11:01:00.000Z", state: "PENDING" as const, decidedAt: null } };
+const projectReportApprovedFixture = { ...projectReportPendingFixture,
+  approval: { ...projectReportPendingFixture.approval, state: "APPROVED" as const, decidedAt: "2026-10-21T11:02:00.000Z" } };
 const projectUpdateRepository: ProjectUpdateRepository = {
   projectLeadershipAnswer: vi.fn(async () => ({ state: "ANSWERED" as const, projectId: project.id,
     asOf: "2026-10-21T11:00:00.000Z", cause: "UNKNOWN" as const, updateFreshness: null,
@@ -501,6 +505,9 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   projectManagementDraft: vi.fn(async () => projectManagementDraftFixture),
   projectManagementSnapshot: vi.fn(async () => projectManagementSnapshotFixture),
   saveProjectManagementSnapshot: vi.fn(async () => projectManagementSnapshotFixture),
+  requestProjectReportApproval: vi.fn(async () => projectReportPendingFixture),
+  projectReportForManager: vi.fn(async () => projectReportPendingFixture),
+  decideProjectReportApproval: vi.fn(async () => projectReportApprovedFixture),
   atlasDelayClarification: vi.fn(async () => null),
   requestAtlasDelayClarification: vi.fn(async () => ({
     id: project.id, requestedAt: "2026-10-21T11:00:00.000Z",
@@ -805,6 +812,10 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request(`/api/projects/${project.id}/management-draft`, 200, leader);
   await request(`/api/projects/${project.id}/management-draft?snapshotId=${project.id}`, 200, leader);
   await request(`/api/projects/${project.id}/management-draft`, 200, leader, "POST", projectManagementDraftFixture);
+  await request(`/api/projects/${project.id}/management-draft/approval-request`, 200, leader, "POST", { snapshotId: project.id });
+  await request(`/api/projects/${project.id}/management-report-approval`, 200, manager);
+  await request(`/api/projects/${project.id}/management-report-approval`, 200, manager, "POST",
+    { snapshotId: project.id, requestId: project.id, decision: "APPROVED" });
   await request(`/api/projects/${project.id}/atlas-delay-clarification`, 200, manager);
   await request(`/api/projects/${project.id}/atlas-delay-clarification`, 200, leader, "POST", { scheduleRevision: 1 });
   const atlasReport = `/api/projects/${project.id}/atlas-management-snapshot`;
@@ -1105,7 +1116,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(98);
+  expect(covered.size).toBe(101);
   assertContractSnapshot(
     spec,
     JSON.parse(

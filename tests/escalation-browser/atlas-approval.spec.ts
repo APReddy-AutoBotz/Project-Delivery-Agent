@@ -6,8 +6,9 @@ import yauzl from "yauzl";
 import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectFactRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
 import { canonicalFixture } from "../../scripts/acceptance/canonical-projects.mjs";
 
-async function firstSlide(path: string) {
-  const archive = await yauzl.openPromise(path, { lazyEntries: true });
+async function firstSlide(file: string | Buffer) {
+  const archive = typeof file === "string" ? await yauzl.openPromise(file, { lazyEntries: true })
+    : await yauzl.fromBufferPromise(file, { lazyEntries: true });
   try {
     for await (const entry of archive.eachEntry()) {
       if (entry.fileName === "ppt/slides/slide1.xml")
@@ -153,13 +154,43 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(protectedDraft.updateFreshness.sourceDateField).toBe("project.latestValidUpdateAt");
   const protectedSave = await request.post(protectedReportPath, { headers: leaderHeaders, data: protectedDraft });
   expect(protectedSave.status()).toBe(200);
-  const protectedSnapshotPath = `${protectedReportPath}?snapshotId=${(await protectedSave.json()).snapshotId}`;
+  const protectedSnapshotId = (await protectedSave.json()).snapshotId;
+  const protectedSnapshotPath = `${protectedReportPath}?snapshotId=${protectedSnapshotId}`;
+  const protectedApprovalPath = protectedReportPath + "/approval-request";
+  let fallbackReviewSnapshotId: string;
   await leaderAccess(false, fixture.lastForecast.sourceId, fixture.readers);
   try {
     const restrictedFreshness = await request.get(answerPath, { headers: leaderHeaders });
     expect(restrictedFreshness.status()).toBe(200);
     expect(await restrictedFreshness.json()).toMatchObject({ updateFreshness: null, jiraBlocker: before.jiraBlocker });
     expect((await request.get(protectedSnapshotPath, { headers: leaderHeaders })).status()).toBe(404);
+    const fallback = await request.get(protectedReportPath, { headers: leaderHeaders });
+    expect(fallback.status()).toBe(200);
+    const fallbackDraft = (await fallback.json()).draft;
+    expect(fallbackDraft.updateFreshness).toBeNull();
+    const fallbackSave = await request.post(protectedReportPath, { headers: leaderHeaders, data: fallbackDraft });
+    expect(fallbackSave.status()).toBe(200);
+    fallbackReviewSnapshotId = (await fallbackSave.json()).snapshotId;
+    expect((await request.post(protectedApprovalPath, {
+      headers: leaderHeaders, data: { snapshotId: fallbackReviewSnapshotId },
+    })).status()).toBe(200);
+  } finally {
+    await leaderAccess(true, fixture.lastForecast.sourceId, fixture.readers);
+  }
+  const protectedHandoff = await request.post(protectedApprovalPath, {
+    headers: leaderHeaders, data: { snapshotId: protectedSnapshotId },
+  });
+  expect(protectedHandoff.status()).toBe(200);
+  const protectedApproval = (await protectedHandoff.json()).approval;
+  const protectedManagerPath = projectPath + "/management-report-approval";
+  await leaderAccess(true, fixture.lastForecast.sourceId, fixture.readers.filter((subject: string) => subject !== "pm-atlas"));
+  try {
+    const readableEarlier = await request.get(protectedManagerPath, { headers: managerHeaders });
+    expect(readableEarlier.status()).toBe(200);
+    expect(await readableEarlier.json()).toMatchObject({ snapshotId: fallbackReviewSnapshotId, approval: { state: "PENDING" } });
+    expect((await request.post(protectedManagerPath, { headers: managerHeaders,
+      data: { snapshotId: protectedSnapshotId, requestId: protectedApproval.requestId, decision: "APPROVED" },
+    })).status()).toBe(404);
   } finally {
     await leaderAccess(true, fixture.lastForecast.sourceId, fixture.readers);
   }
@@ -693,8 +724,11 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   try {
     const atlas = await scopeDb.project.findFirstOrThrow({ where: { customerId: fixture.customerId, id: fixture.projectId },
       select: { portfolioId: true } });
+    const canonical = canonicalFixture(atlas.portfolioId);
     const created = await new DatabaseCanonicalProjectRepository(scopeDb).createProject(fixture.admin, {
-      ...canonicalFixture(atlas.portfolioId), code: "SCOPE-CHECK", name: "Second synthetic project",
+      ...canonical, code: "SCOPE-CHECK", name: "Second synthetic project",
+      responsibilities: canonical.responsibilities.map((role) =>
+        role.role === "PROJECT_MANAGER" ? { ...role, subject: "pm-atlas" } : role),
     }, randomUUID());
     allowedProjectId = created.id;
     const updates = new DatabaseProjectUpdateRepository(scopeDb);
@@ -703,6 +737,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await scopeDb.$transaction(async (tx) => {
       const grant = { customerId: fixture.customerId, subject: "leader-atlas", scopeType: "project", role: "leadership" };
       await tx.accessGrant.create({ data: { ...grant, scopeId: allowedProjectId } });
+      await tx.accessGrant.create({ data: { ...grant, subject: "pm-atlas", scopeId: allowedProjectId, role: "project_manager" } });
       const removed = await tx.accessGrant.deleteMany({ where: { ...grant, scopeId: fixture.projectId } });
       expect(removed.count).toBe(1);
     });
@@ -820,4 +855,57 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(savedSlide).toContain(savedReport.snapshotId);
   expect(savedSlide).toContain(savedReport.draft.asOf);
   for (const highlight of savedReport.highlights) expect(savedSlide).toContain(highlight);
+
+  const approvalRequestPath = draftPath + "/approval-request";
+  const requestedApproval = page.waitForResponse((response) => response.url().endsWith(approvalRequestPath));
+  await draftPanel.getByRole("button", { name: "Request PM approval" }).click();
+  const requested = await requestedApproval;
+  expect(requested.status()).toBe(200);
+  const pendingReport = await requested.json();
+  expect(pendingReport).toMatchObject({ snapshotId: savedReport.snapshotId, draft: savedReport.draft,
+    approval: { state: "PENDING", decidedAt: null } });
+  await expect(draftPanel).toContainText("Awaiting PM approval");
+  const managerReportPath = `/api/projects/${allowedProjectId}/management-report-approval`;
+  const decisionCommand = { snapshotId: savedReport.snapshotId, requestId: pendingReport.approval.requestId, decision: "APPROVED" };
+  expect((await request.post(managerReportPath, { headers: leaderHeaders, data: decisionCommand })).status()).toBe(404);
+  expect((await request.post(managerReportPath, { headers: managerHeaders,
+    data: { ...decisionCommand, snapshotId: randomUUID() } })).status()).toBe(409);
+  const repeatHandoff = await request.post(approvalRequestPath, { headers: leaderHeaders, data: { snapshotId: savedReport.snapshotId } });
+  expect(repeatHandoff.status()).toBe(200);
+  expect(await repeatHandoff.json()).toMatchObject({ approval: pendingReport.approval });
+
+  const currentPreview = await request.get(draftPath, { headers: leaderHeaders });
+  expect(currentPreview.status()).toBe(200);
+  const nextSave = await request.post(draftPath, { headers: leaderHeaders, data: (await currentPreview.json()).draft });
+  expect(nextSave.status()).toBe(200);
+  const followingSnapshotId = (await nextSave.json()).snapshotId;
+  expect(followingSnapshotId).not.toBe(savedReport.snapshotId);
+  const followingHandoff = await request.post(approvalRequestPath, { headers: leaderHeaders, data: { snapshotId: followingSnapshotId } });
+  expect(followingHandoff.status()).toBe(200);
+  const followingApproval = (await followingHandoff.json()).approval;
+  const latestPending = await request.get(managerReportPath, { headers: managerHeaders });
+  expect(latestPending.status()).toBe(200);
+  expect(await latestPending.json()).toMatchObject({ snapshotId: followingSnapshotId, approval: { state: "PENDING" } });
+  const rejectFollowing = await request.post(managerReportPath, { headers: managerHeaders,
+    data: { snapshotId: followingSnapshotId, requestId: followingApproval.requestId, decision: "REJECTED" } });
+  expect(rejectFollowing.status()).toBe(200);
+  expect(await rejectFollowing.json()).toMatchObject({ snapshotId: followingSnapshotId, approval: { state: "REJECTED" } });
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto("/");
+  await page.getByRole("button", { name: /Project manager/ }).click();
+  await page.getByRole("button", { name: /Second synthetic project/ }).click();
+  const selectedProjectApproval = page.getByRole("region", { name: "Project report approval" });
+  await expect(selectedProjectApproval).toContainText(savedReport.snapshotId);
+  await selectedProjectApproval.getByRole("button", { name: "Approve saved report" }).click();
+  await expect(selectedProjectApproval).toContainText("Final · Approved");
+  const approvedProjectReport = await request.get(`${draftPath}?snapshotId=${savedReport.snapshotId}`, { headers: leaderHeaders });
+  expect(approvedProjectReport.status()).toBe(200);
+  const finalProjectReport = await approvedProjectReport.json();
+  expect(finalProjectReport).toMatchObject({ snapshotId: savedReport.snapshotId, draft: savedReport.draft,
+    highlights: savedReport.highlights, approval: { requestId: pendingReport.approval.requestId, state: "APPROVED" } });
+  const finalProjectSlide = await firstSlide(Buffer.from(finalProjectReport.powerpointBase64, "base64"));
+  expect(finalProjectSlide).toContain("Final • Approved");
+  expect(finalProjectSlide).toContain(savedReport.snapshotId);
+  expect(finalProjectSlide).toContain(savedReport.draft.asOf);
 });

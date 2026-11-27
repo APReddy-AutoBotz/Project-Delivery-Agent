@@ -2,6 +2,7 @@ import { z } from "zod";
 import { canonicalSubjectSchema } from "./canonical-project.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
 import { projectLeadershipScheduleSchema } from "./project-leadership-answer.js";
+import { projectReportApprovalRequestSchema, projectReportDecisionSchema, projectReportVersionSchema } from "./project-management-draft.js";
 
 export const atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
 export const atlasIntegrationMilestoneKey = "INTEGRATION-TESTING";
@@ -156,13 +157,9 @@ export const atlasManagementOutputSchema = atlasManagementPreviewSchema.extend({
   powerpointBase64: z.string().max(196608).regex(/^UEsDB[A-Za-z0-9+/]+={0,2}$/u),
 });
 export type AtlasManagementOutput = z.infer<typeof atlasManagementOutputSchema>;
-export const atlasReportApprovalRequestSchema = z.strictObject({ snapshotId: z.uuid() });
-export const atlasReportVersionSchema = atlasReportApprovalRequestSchema.extend({
-  requestId: z.uuid(),
-});
-export const atlasReportDecisionSchema = atlasReportVersionSchema.extend({
-  decision: atlasApprovalDecisionSchema.shape.decision,
-});
+export const atlasReportApprovalRequestSchema = projectReportApprovalRequestSchema;
+export const atlasReportVersionSchema = projectReportVersionSchema;
+export const atlasReportDecisionSchema = projectReportDecisionSchema;
 export const atlasReportRecipientSubject = "leader-atlas";
 export const atlasReportDistributionReceiptSchema = atlasReportVersionSchema.extend({
   id: z.uuid(),

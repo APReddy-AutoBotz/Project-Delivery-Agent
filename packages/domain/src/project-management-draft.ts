@@ -11,9 +11,22 @@ export const projectManagementDraftSchema = projectLeadershipFactsSchema.extend(
 });
 export type ProjectManagementDraft = z.infer<typeof projectManagementDraftSchema>;
 
+export const projectReportApprovalRequestSchema = z.strictObject({ snapshotId: z.uuid() });
+export const projectReportVersionSchema = projectReportApprovalRequestSchema.extend({ requestId: z.uuid() });
+export const projectReportDecisionSchema = projectReportVersionSchema.extend({ decision: z.enum(["APPROVED", "REJECTED"]) });
+export type ProjectReportDecision = z.infer<typeof projectReportDecisionSchema>;
+
+const reportApproval = z.strictObject({ requestId: z.uuid(), requestedAt: z.iso.datetime() });
+export const projectReportApprovalSchema = z.discriminatedUnion("state", [
+  reportApproval.extend({ state: z.literal("PENDING"), decidedAt: z.null() }),
+  reportApproval.extend({ state: z.enum(["APPROVED", "REJECTED"]), decidedAt: z.iso.datetime() }),
+]);
+export type ProjectReportApproval = z.infer<typeof projectReportApprovalSchema>;
+
 export const projectManagementSnapshotSchema = z.strictObject({
   snapshotId: z.uuid(),
   draft: projectManagementDraftSchema,
+  approval: projectReportApprovalSchema.optional(),
 });
 export type ProjectManagementSnapshot = z.infer<typeof projectManagementSnapshotSchema>;
 export const projectManagementSnapshotSelectorSchema = z.union([z.uuid(), z.literal("latest")]);
@@ -21,8 +34,10 @@ export const projectManagementSnapshotSelectorSchema = z.union([z.uuid(), z.lite
 export const projectManagementDraftOutputSchema = z.strictObject({
   draft: projectManagementDraftSchema,
   snapshotId: z.uuid().optional(),
+  approval: projectReportApprovalSchema.optional(),
   highlights: z.array(z.string().min(1).max(400)).min(1).max(4),
   livePath: z.string().min(1).max(64),
-  powerpointBase64: z.string().min(1).max(160_000),
+  powerpointBase64: z.string().max(160_000).regex(/^UEsDB[A-Za-z0-9+/]+={0,2}$/u)
+    .refine((value) => value.length % 4 === 0),
 });
 export type ProjectManagementDraftOutput = z.infer<typeof projectManagementDraftOutputSchema>;

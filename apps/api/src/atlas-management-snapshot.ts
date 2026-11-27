@@ -1,6 +1,6 @@
 import pptxgen from "pptxgenjs";
 import type { AtlasManagementOutput, AtlasManagementPreview, AtlasManagementSnapshot, ProjectManagementDraft,
-  ProjectManagementDraftOutput } from "@pdaa/domain";
+  ProjectManagementDraftOutput, ProjectReportApproval } from "@pdaa/domain";
 
 // Node loads the ESM constructor while the publisher types describe the CommonJS module.
 const PptxGenJS = pptxgen as unknown as (typeof import("pptxgenjs"))["default"];
@@ -60,7 +60,8 @@ export async function renderAtlasManagementSnapshot(snapshot: AtlasManagementSna
   return { ...preview, livePath: `/?project=${snapshot.projectId}`, powerpointBase64 };
 }
 
-export async function renderProjectManagementDraft(draft: ProjectManagementDraft, snapshotId?: string): Promise<ProjectManagementDraftOutput> {
+export async function renderProjectManagementDraft(draft: ProjectManagementDraft, snapshotId?: string,
+  approval?: ProjectReportApproval): Promise<ProjectManagementDraftOutput> {
   const { schedule, updateFreshness } = draft;
   const highlights = [schedule
     ? `Canonical schedule revision ${schedule.revision}. Baseline ${schedule.baseline ?? "unknown"}. Forecast ${schedule.forecast ?? "unknown"}.`
@@ -74,11 +75,12 @@ export async function renderProjectManagementDraft(draft: ProjectManagementDraft
     highlights.push("Saved update freshness unavailable.");
   }
   const powerpointBase64 = await renderManagementDeck({
-    title: "Project management draft",
-    metadata: `Draft • Reporting month ${draft.reportingPeriod}`,
+    title: approval?.state === "APPROVED" ? "Project management report" : "Project management draft",
+    metadata: `${approvalLabels[approval?.state ?? "DRAFT"]} • Reporting month ${draft.reportingPeriod}`,
     highlights,
     footer: `${draft.project.name} (${draft.project.code})\nProject ${draft.projectId}\n` +
       (snapshotId ? `Snapshot ${snapshotId}\n` : "") + `Generated ${draft.asOf} (UTC)`,
   });
-  return { draft, ...(snapshotId && { snapshotId }), highlights, livePath: `/?project=${draft.projectId}`, powerpointBase64 };
+  return { draft, ...(snapshotId && { snapshotId }), ...(approval && { approval }),
+    highlights, livePath: `/?project=${draft.projectId}`, powerpointBase64 };
 }
