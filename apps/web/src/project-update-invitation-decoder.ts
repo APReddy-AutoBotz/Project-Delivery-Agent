@@ -1,4 +1,4 @@
-import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasDelayClarification, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasDelayClarification, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectLeadershipAnswer, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -101,6 +101,28 @@ function decodeAtlasSchedule(value: unknown): AtlasSchedule | null {
 }
 
 const date = (value: unknown): value is string => typeof value === "string" && instant(value + "T00:00:00.000Z");
+
+export function decodeProjectLeadershipAnswer(value: unknown, projectId: string): ProjectLeadershipAnswer | null {
+  if (!object(value)) return null;
+  if (value.state === "CLARIFY" && keys(value, ["state"])) return { state: "CLARIFY" };
+  if (value.state !== "ANSWERED" || value.projectId !== projectId || value.cause !== "UNKNOWN" || !instant(value.asOf) ||
+      !keys(value, ["state", "projectId", "asOf", "cause", "schedule", "updateFreshness"])) return null;
+  if (value.schedule !== null) {
+    const schedule = decodeAtlasSchedule(value.schedule);
+    if (!schedule) return null;
+    const movement = schedule.baseline && schedule.forecast
+      ? (Date.parse(schedule.forecast) - Date.parse(schedule.baseline)) / 86400000 : null;
+    if (schedule.movementDays !== movement) return null;
+  }
+  const freshness = value.updateFreshness;
+  if (freshness !== null && (!object(freshness) || !keys(freshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "assessmentId", "openObligation"]) ||
+      !uuid(freshness.assessmentId) || !instant(freshness.assessedAt) || !instant(freshness.sourceDate) ||
+      Date.parse(freshness.sourceDate) > Date.parse(freshness.assessedAt) || Date.parse(freshness.assessedAt) > Date.parse(value.asOf) ||
+      (freshness.state !== "CURRENT" && freshness.state !== "STALE") ||
+      (freshness.sourceDateField !== "project.createdAt" && freshness.sourceDateField !== "project.latestValidUpdateAt") ||
+      typeof freshness.openObligation !== "boolean")) return null;
+  return value as ProjectLeadershipAnswer;
+}
 
 export function decodeAtlasDelayClarification(value: unknown): AtlasDelayClarification | null {
   if (!object(value) || !keys(value, ["id", "requestedAt", "schedule"]) || !uuid(value.id) || !instant(value.requestedAt))
