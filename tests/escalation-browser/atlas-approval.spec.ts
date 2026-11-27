@@ -18,13 +18,13 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const target = new URL(process.env.PDAA_ESCALATION_BROWSER_DATABASE_URL!);
   expect(["127.0.0.1", "localhost"]).toContain(target.hostname);
   expect(target.pathname).toMatch(/^\/pdaa_test_[0-9]+$/);
-  const leaderAccess = async (allowed: boolean, sourceId = fixture.sourceA.sourceId) => {
+  const leaderAccess = async (allowed: boolean, sourceId = fixture.sourceA.sourceId, readers = fixture.readers) => {
     const db = createDatabase(target.toString());
     try {
       const access = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId } });
       await new DatabaseProjectFactRepository(db).setSourceAccess(fixture.admin, {
         projectId: fixture.projectId, sourceId, expectedRevision: access.revision,
-        state: "AVAILABLE", readers: fixture.readers.filter((subject: string) => allowed || subject !== "leader-atlas"),
+        state: "AVAILABLE", readers: readers.filter((subject: string) => allowed || subject !== "leader-atlas"),
       }, { correlationId: randomUUID() });
     } finally {
       await db.$disconnect();
@@ -256,6 +256,19 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(JSON.stringify(complete)).not.toContain(fixture.escalation.locator);
   expect(JSON.stringify(complete)).not.toContain(fixture.sourceMarkerB);
   expect(JSON.stringify(complete)).not.toContain(editedComment);
+  const jiraAccess = (allowed: boolean) => leaderAccess(allowed, fixture.jiraIntake.factSourceId, fixture.jiraIntake.sourceReaders);
+  await jiraAccess(false);
+  try {
+    const withheld = await request.get(answerPath, { headers: leaderHeaders });
+    expect(withheld.status()).toBe(200);
+    expect(await withheld.json()).toMatchObject({ jiraBlocker: null, schedule: complete.schedule });
+    await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
+    await expect(answer.getByRole("link", { name: "Schedule evidence" })).toBeVisible();
+    await expect(answer.getByText("The synthetic Jira blocker ATLAS-248 is open.", { exact: true })).toHaveCount(0);
+    await expect(answer.getByRole("link", { name: "Jira blocker evidence" })).toHaveCount(0);
+  } finally {
+    await jiraAccess(true);
+  }
   await leaderAccess(false, fixture.sourceB.sourceId);
   try {
     await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();

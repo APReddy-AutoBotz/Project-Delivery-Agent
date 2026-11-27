@@ -66,6 +66,12 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
         dates: { baselineStart: null, baselineEnd: null, plannedStart: "2026-10-05", plannedEnd: null,
           forecastStart: null, forecastEnd: null, actualStart: "2026-10-08", actualEnd: null },
       });
+      canonical.workItems.push({
+        key: jiraIssue.key, title: "Resolve integration API access", state: "OPEN", sprintKey: null,
+        dates: { baselineStart: null, baselineEnd: null, plannedStart: null, plannedEnd: null,
+          forecastStart: null, forecastEnd: null, actualStart: null, actualEnd: null },
+      });
+      canonical.requiredWorkItems.push({ milestoneKey: atlasIntegrationMilestoneKey, workItemKey: jiraIssue.key });
       canonical.raidItems = canonical.raidItems.map((item) => ({ ...item, state: "COMPLETE" }));
       canonical.raidItems.push({
         key: jiraIssue.key, kind: "ISSUE", title: "Integration API access blocker",
@@ -84,6 +90,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     const project = await new DatabaseCanonicalProjectRepository(birth).createProject(
       admin, canonical, randomUUID());
     const projectId = project.id;
+    const facts = new DatabaseProjectFactRepository(db);
     for (const actor of [owner, pm]) await db.accessGrant.create({ data: {
       customerId, subject: actor.subject, scopeType: "project", scopeId: projectId, role: actor.roles[0],
     } });
@@ -91,23 +98,27 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       customerId, subject: "leader-atlas", scopeType: "project", scopeId: projectId, role: "leadership",
     } });
     if (jiraIssue) {
-      const { ingestSyntheticJiraIssues } = await import("./golden-source-observations.mjs");
+      const { admissionSubject, admitSyntheticSourceInputs, ingestSyntheticJiraIssues } = await import("./golden-source-observations.mjs");
       const retentionAdmin = { customerId, subject: "atlas-demo-retention", roles: ["system_admin"] };
-      await db.accessGrant.create({ data: {
-        customerId, subject: retentionAdmin.subject, scopeType: "project", scopeId: projectId, role: "system_admin",
-      } });
+      await db.accessGrant.createMany({ data: [
+        { customerId, subject: retentionAdmin.subject, scopeType: "project", scopeId: projectId, role: "system_admin" },
+        { customerId, subject: admissionSubject, scopeType: "project", scopeId: projectId, role: "project_manager" },
+      ] });
       const ingestion = new DatabaseIngestionRepository(db, new CredentialVault(randomBytes(32).toString("base64")));
       await ingestion.setRetention(retentionAdmin, { retentionHours: 24 }, randomUUID());
       const sourceReaders = [admin.subject, pm.subject, "leader-atlas"];
       spreadsheetIntake = await reviewAtlasSpreadsheet(ingestion, admin, projectId, sourceReaders);
       const { sourceId, receiptId } = await ingestSyntheticJiraIssues(db, {
         actor: admin, projectId, origin: jiraOrigin, jiraProject: jiraIssue.fields.project.key,
-        readers: sourceReaders, issues: [jiraIssue],
+        readers: [...sourceReaders, admissionSubject], issues: [jiraIssue],
       });
       const mappings = await db.$queryRaw`
-        SELECT mapping.id AS "mappingId" FROM public."IngestionRowOutcome" outcome
+        SELECT mapping.id AS "mappingId", outcome.ordinal, stream.id AS "streamId"
+        FROM public."IngestionRowOutcome" outcome
         JOIN public."IngestionSourceRevision" revision ON
           (revision."customerId",revision."sourceId",revision.id)=(outcome."customerId",outcome."sourceId",outcome."sourceRevisionId")
+        JOIN public."IngestionFactStream" stream ON (stream."customerId",stream."sourceId",stream."recordId")=
+          (outcome."customerId",outcome."sourceId",outcome."recordId") AND stream."factType"='jira.status'
         JOIN public."CanonicalSourceMapping" mapping ON (mapping."customerId",mapping."projectId",
           mapping."externalId",mapping."externalRevision")=(outcome."customerId",outcome."projectId",outcome."recordKey",revision.revision)
         WHERE (outcome."customerId",outcome."sourceId",outcome."projectId",outcome."receiptId")=
@@ -115,7 +126,15 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
           AND outcome.state='ACCEPTED' AND mapping."sourceSystem"='Jira' AND mapping."instanceKey"='atlas-demo'
           AND mapping."targetType"='RAID_ITEM'`;
       assert.equal(mappings.length, 1);
-      jiraIntake = { sourceId, receiptId, mappingId: mappings[0].mappingId };
+      const { mappingId, streamId, ordinal } = mappings[0];
+      const workItem = await db.workItem.findFirstOrThrow({ where: { customerId, projectId, key: jiraIssue.key } });
+      const [admitted] = await admitSyntheticSourceInputs(pool, customerId, projectId, admin.subject, [{
+        streamId, ordinal, receiptId, targetKind: "WORK_ITEM", targetId: workItem.id, type: "jira",
+        states: { "To Do": "OPEN" }, snapshotField: null,
+      }]);
+      await facts.setSourceAccess(admin, { projectId, sourceId: admitted.source, expectedRevision: 1,
+        state: "AVAILABLE", readers: sourceReaders }, { correlationId: randomUUID() });
+      jiraIntake = { sourceId, receiptId, mappingId, factSourceId: admitted.source, sourceReaders };
     }
     const audit = async (connection, event, detail = {}) => {
       const id = randomUUID();
@@ -136,7 +155,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     const zones = { customerId, customerTimeZone: "UTC", recipientTimeZones: [] };
     const updates = new DatabaseProjectUpdateRepository(db, service, zones,
       () => ({ globalShadowMode: "false", configuration }));
-    const facts = new DatabaseProjectFactRepository(db), authority = new DatabaseAuthorityRepository(db);
+    const authority = new DatabaseAuthorityRepository(db);
     const sourceMarkerA = atlasApproval
       ? `The integration team last reported that API access was pending on ${jiraIssue.key}.`
       : "HISTORICAL_SOURCE_A_" + randomUUID();
