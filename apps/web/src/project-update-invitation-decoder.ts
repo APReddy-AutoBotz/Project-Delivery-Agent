@@ -101,15 +101,15 @@ function decodeAtlasSchedule(value: unknown): AtlasSchedule | null {
 }
 
 const date = (value: unknown): value is string => typeof value === "string" && instant(value + "T00:00:00.000Z");
+const scheduleMovement = ({ baseline, forecast }: AtlasSchedule) => baseline && forecast
+  ? (Date.parse(forecast) - Date.parse(baseline)) / 86400000 : null;
 
 function validProjectLeadershipFacts(value: Record<string, unknown>): value is Record<string, unknown> & { asOf: string } {
   if (!instant(value.asOf)) return false;
   if (value.schedule !== null) {
     const schedule = decodeAtlasSchedule(value.schedule);
     if (!schedule) return false;
-    const movement = schedule.baseline && schedule.forecast
-      ? (Date.parse(schedule.forecast) - Date.parse(schedule.baseline)) / 86400000 : null;
-    if (schedule.movementDays !== movement) return false;
+    if (schedule.movementDays !== scheduleMovement(schedule)) return false;
   }
   const freshness = value.updateFreshness;
   return freshness === null || (object(freshness) && keys(freshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "assessmentId", "openObligation"]) &&
@@ -294,9 +294,12 @@ function matchesAtlasReceiptClaims(value: unknown, answer: AtlasLeadershipFacts)
       claim.freshness === "CURRENT" && claim.conflict === "NONE" && claim[proofKey] === proofId &&
       Array.isArray(claim.evidenceIds) && claim.evidenceIds.length === evidenceIds.length &&
       claim.evidenceIds.every((id, index) => evidenceIds[index] === id);
-  if (schedule && scheduleCitation && !match(claims[expected++], "REVIEWED_SCHEDULE",
-      atlasScheduleMovementText(schedule.movementDays), [scheduleCitation.receiptId], scheduleCitation.availableUntil,
-      "SYSTEM_VERIFIED", "sourceId", scheduleCitation.sourceId)) return false;
+  if (schedule && scheduleCitation) {
+    const movement = scheduleMovement(schedule);
+    if (movement === null || movement !== schedule.movementDays || !match(claims[expected++], "REVIEWED_SCHEDULE",
+        atlasScheduleMovementText(movement), [scheduleCitation.receiptId], scheduleCitation.availableUntil,
+        "SYSTEM_VERIFIED", "sourceId", scheduleCitation.sourceId)) return false;
+  }
   if (schedule && delayAssessment && receipt && ownerReply) {
     const deadline = scheduleCitation && Date.parse(scheduleCitation.availableUntil) < Date.parse(ownerReply.availableUntil)
       ? scheduleCitation.availableUntil : ownerReply.availableUntil;

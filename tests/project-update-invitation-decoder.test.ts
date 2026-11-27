@@ -39,6 +39,10 @@ it("requires exact Atlas schedule and PM statements while their supporting recei
   expect(receiptClaims.map(({ validUntil }) => validUntil)).toEqual([availableUntil, availableUntil]);
   expect(atlasLeadershipAnswerSchema.safeParse(answer).success).toBe(true);
   expect(decodeAtlasLeadershipAnswer(answer, id)).toEqual(answer);
+  const changedMovement = { ...answer, schedule: { ...answer.schedule, movementDays: 40 },
+    receiptClaims: [{ ...receiptClaims[0], claimText: "The forecast is 40 days later than the baseline." }, receiptClaims[1]] };
+  expect(atlasLeadershipAnswerSchema.safeParse(changedMovement).success).toBe(false);
+  expect(decodeAtlasLeadershipAnswer(changedMovement, id)).toBeNull();
   for (const unsupported of [undefined, receiptClaims.slice(1), [
     { ...receiptClaims[0], claimText: "The forecast is 40 days later than the baseline." }, receiptClaims[1],
   ], [receiptClaims[0], { ...receiptClaims[1], evidenceIds: [id, other] }], [

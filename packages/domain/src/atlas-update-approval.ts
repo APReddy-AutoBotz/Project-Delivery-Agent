@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { canonicalSubjectSchema } from "./canonical-project.js";
+import { canonicalDateSchema, canonicalSubjectSchema } from "./canonical-project.js";
+import { calendarDayDifference } from "./overdue-signals.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
 import { projectDelayClarificationCommandSchema, projectDelayClarificationSchema, projectLeadershipScheduleSchema,
   settledLeadershipClaimSchema } from "./project-leadership-answer.js";
@@ -122,12 +123,18 @@ const atlasReceiptClaimsSchema = z.array(z.discriminatedUnion("kind", [
   }),
 ])).max(2);
 
+function reviewedMovementDays(schedule: AtlasSchedule | null) {
+  const { baseline, forecast } = schedule ?? {};
+  return canonicalDateSchema.safeParse(baseline).success && canonicalDateSchema.safeParse(forecast).success
+    ? calendarDayDifference(forecast, baseline) : null;
+}
+
 export function composeAtlasReceiptClaims(facts: AtlasLeadershipFacts) {
   const { projectId, asOf: assessedAt, schedule, scheduleCitation, ownerReply, delayAssessment, receipt } = facts;
   if (!schedule) return [];
   const scope = { projectId, assessedAt, scheduleRevision: schedule.revision, freshness: "CURRENT", conflict: "NONE" } as const;
   const claims: z.input<typeof atlasReceiptClaimsSchema> = [];
-  const days = schedule.movementDays;
+  const days = scheduleCitation ? reviewedMovementDays(schedule) : null;
   if (days !== null && scheduleCitation) claims.push({
     ...scope, kind: "REVIEWED_SCHEDULE", sourceId: scheduleCitation.sourceId,
     evidenceIds: [scheduleCitation.receiptId], validUntil: scheduleCitation.availableUntil,
@@ -187,6 +194,11 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
   }).optional(),
 }).refine(({ jiraBlocker, projectId, asOf }) => !jiraBlocker ||
   (jiraBlocker.claim.projectId === projectId && jiraBlocker.claim.assessedAt === asOf))
+  .refine(({ scheduleCitation, schedule }) => {
+    if (!scheduleCitation) return true;
+    const days = reviewedMovementDays(schedule);
+    return days !== null && days === schedule?.movementDays;
+  })
   .refine((answer) => JSON.stringify(answer.receiptClaims ?? []) === JSON.stringify(composeAtlasReceiptClaims(answer)));
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
 
