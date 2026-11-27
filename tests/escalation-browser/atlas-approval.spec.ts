@@ -1139,50 +1139,67 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(comparedDigest).toContain("No change in the available baseline and forecast finish dates.");
   expect(comparedDigest).toContain("Update freshness changed from current to unavailable.");
 
-  const restoreAtlasDb = createDatabase(target.toString());
+  const digestDb = createDatabase(target.toString());
   try {
-    await restoreAtlasDb.accessGrant.create({ data: { ...recipientGrant, scopeId: fixture.projectId } });
-    const policy = await restoreAtlasDb.projectUpdatePolicy.findFirstOrThrow({
-      where: { customerId: fixture.customerId, projectId: fixture.projectId, key: "project-update" },
-    });
-    await new DatabaseProjectUpdateRepository(restoreAtlasDb).setPolicy(fixture.admin, fixture.projectId, {
-      ...scopePolicy, expectedRevision: policy.revision, responsibleSubject: fixture.owner.subject,
-    }, randomUUID());
-  } finally { await restoreAtlasDb.$disconnect(); }
-  const fallbackHandoff = await request.post(protectedApprovalPath, {
-    headers: leaderHeaders, data: { snapshotId: fallbackReviewSnapshotId },
-  });
-  expect(fallbackHandoff.status()).toBe(200);
-  const fallbackRequestId = (await fallbackHandoff.json()).approval.requestId;
-  for (const version of [{ snapshotId: fallbackReviewSnapshotId, requestId: fallbackRequestId },
-    { snapshotId: protectedSnapshotId, requestId: protectedApproval.requestId }]) {
-    expect((await request.post(protectedManagerPath, { headers: managerHeaders,
+    const facts = new DatabaseProjectFactRepository(digestDb);
+    const updates = new DatabaseProjectUpdateRepository(digestDb);
+    const factType = "project.status";
+    const recordedAt = new Date(Date.now() - 1000).toISOString();
+    const { entry } = await facts.appendHumanStatement(fixture.pm, {
+      projectId: allowedProjectId, factType, expectedRevision: 0, idempotencyKey: randomUUID(), effectiveAt: recordedAt,
+      value: { type: "text", value: "Integration review in progress." }, originalStatement: "Integration review in progress.",
+    }, { correlationId: randomUUID() });
+    const backgroundReaders = [fixture.admin.subject, fixture.service];
+    const readers = [...backgroundReaders, "pm-atlas", "leader-atlas"];
+    const changeAccess = (expectedRevision: number, nextReaders: string[]) => facts.setSourceAccess(fixture.admin, {
+      projectId: allowedProjectId, sourceId: entry.sourceId, expectedRevision, state: "AVAILABLE", readers: nextReaders,
+    }, { correlationId: randomUUID() });
+    const access = await changeAccess(entry.sourceAccessRevision, readers);
+    await new DatabaseAuthorityRepository(digestDb).appendPolicy(fixture.admin, {
+      projectId: allowedProjectId, factType, expectedRevision: 0, idempotencyKey: randomUUID(), effectiveAt: recordedAt,
+      definition: { tiers: [{ selectors: [{ sourceType: "human_statement", instanceId: entry.sourceId,
+        requiredApproval: "NOT_REQUIRED", validity: { basis: "observedAt", durationMs: 86400_000 } }] }],
+        conflictBehavior: "REQUEST_RECONCILIATION" },
+    }, { correlationId: randomUUID() });
+    const assessed = await updates.assess(fixture.admin, allowedProjectId, randomUUID());
+    expect(assessed.freshness.sourceDateField).toBe("project.latestValidUpdateAt");
+    const sourcePreview = await request.get(draftPath, { headers: leaderHeaders });
+    expect(sourcePreview.status()).toBe(200);
+    const sourceDraft = (await sourcePreview.json()).draft;
+    expect(sourceDraft.updateFreshness).toMatchObject({ state: "CURRENT", sourceDateField: "project.latestValidUpdateAt" });
+    const savedSourceReport = await request.post(draftPath, { headers: leaderHeaders, data: sourceDraft });
+    expect(savedSourceReport.status()).toBe(200);
+    const { snapshotId: sourceSnapshotId } = await savedSourceReport.json();
+    const sourceHandoff = await request.post(approvalRequestPath, { headers: leaderHeaders, data: { snapshotId: sourceSnapshotId } });
+    expect(sourceHandoff.status()).toBe(200);
+    const version = { snapshotId: sourceSnapshotId, requestId: (await sourceHandoff.json()).approval.requestId };
+    expect((await request.post(managerReportPath, { headers: managerHeaders,
       data: { ...version, decision: "APPROVED" } })).status()).toBe(200);
-    expect((await request.post(protectedManagerPath + "/delivery", {
-      headers: managerHeaders, data: version,
-    })).status()).toBe(200);
-  }
-  const capturedDigest = await request.get(protectedReportPath, { headers: leaderHeaders });
-  expect(capturedDigest.status()).toBe(200);
-  const protectedComparisonDraft = (await capturedDigest.json()).draft;
-  expect(protectedComparisonDraft).toMatchObject({ updateFreshness: null,
-    digest: { previousReport: { snapshotId: protectedSnapshotId, freshnessState: "STALE" } } });
-  const savedDigest = await request.post(protectedReportPath, { headers: leaderHeaders, data: protectedComparisonDraft });
-  expect(savedDigest.status()).toBe(200);
-  const digestId = (await savedDigest.json()).snapshotId;
-  const digestApproval = await request.post(protectedApprovalPath, { headers: leaderHeaders, data: { snapshotId: digestId } });
-  expect(digestApproval.status()).toBe(200);
-  const digestRequestId = (await digestApproval.json()).approval.requestId;
-  await leaderAccess(false, fixture.lastForecast.sourceId, fixture.readers.filter((subject: string) => subject !== "pm-atlas"));
-  try {
-    expect((await request.get(protectedSnapshotPath, { headers: leaderHeaders })).status()).toBe(404);
-    expect((await request.get(`${protectedReportPath}?snapshotId=${digestId}`, { headers: leaderHeaders })).status()).toBe(404);
-    expect((await request.post(protectedManagerPath, { headers: managerHeaders,
-      data: { snapshotId: digestId, requestId: digestRequestId, decision: "APPROVED" } })).status()).toBe(404);
-    const fallbackComparison = await request.get(protectedReportPath, { headers: leaderHeaders });
-    expect(fallbackComparison.status()).toBe(200);
-    expect(await fallbackComparison.json()).toMatchObject({
-      draft: { digest: { previousReport: { snapshotId: fallbackReviewSnapshotId, freshnessState: null } } },
-    });
-  } finally { await leaderAccess(true, fixture.lastForecast.sourceId, fixture.readers); }
+    expect((await request.post(deliveryPath, { headers: managerHeaders, data: version })).status()).toBe(200);
+    await updates.setPolicy(fixture.admin, allowedProjectId, { ...scopePolicy, expectedRevision: 3,
+      freshnessWindowSeconds: 4 * 86400 }, randomUUID());
+    const capturedDigest = await request.get(draftPath, { headers: leaderHeaders });
+    expect(capturedDigest.status()).toBe(200);
+    const protectedComparisonDraft = (await capturedDigest.json()).draft;
+    expect(protectedComparisonDraft).toMatchObject({ updateFreshness: null,
+      digest: { previousReport: { snapshotId: sourceSnapshotId, freshnessState: "CURRENT" } } });
+    const savedDigest = await request.post(draftPath, { headers: leaderHeaders, data: protectedComparisonDraft });
+    expect(savedDigest.status()).toBe(200);
+    const digestId = (await savedDigest.json()).snapshotId;
+    const digestApproval = await request.post(approvalRequestPath, { headers: leaderHeaders, data: { snapshotId: digestId } });
+    expect(digestApproval.status()).toBe(200);
+    const digestRequestId = (await digestApproval.json()).approval.requestId;
+    const revoked = await changeAccess(access.revision, backgroundReaders);
+    try {
+      for (const id of [sourceSnapshotId, digestId])
+        expect((await request.get(`${draftPath}?snapshotId=${id}`, { headers: leaderHeaders })).status()).toBe(404);
+      expect((await request.post(managerReportPath, { headers: managerHeaders,
+        data: { snapshotId: digestId, requestId: digestRequestId, decision: "APPROVED" } })).status()).toBe(404);
+      const fallbackComparison = await request.get(draftPath, { headers: leaderHeaders });
+      expect(fallbackComparison.status()).toBe(200);
+      expect(await fallbackComparison.json()).toMatchObject({
+        draft: { digest: { previousReport: { snapshotId: savedReport.snapshotId, freshnessState: "CURRENT" } } },
+      });
+    } finally { await changeAccess(revoked.revision, readers); }
+  } finally { await digestDb.$disconnect(); }
 });
