@@ -2505,6 +2505,40 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return matches.length === 1 ? { mappingId: mapping.id, issueKey: atlasJiraBlockerKey } : null;
   }
 
+  private async atlasActiveClarification(tx: Tx, current: Actor, projectId: string, obligationId: string) {
+    const [invitation] = await tx.$queryRaw<{ locator: string }[]>`
+      SELECT i.locator FROM public."ProjectUpdateEngagement" e
+      JOIN public."ProjectUpdateStage" s ON (s."customerId",s."projectId",s."engagementId",s.generation)=
+        (e."customerId",e."projectId",e.id,e.generation)
+      JOIN public."ProjectUpdateCapturedRequest" r ON (r."customerId",r."projectId",r."stageId")=
+        (s."customerId",s."projectId",s.id)
+      JOIN public."ProjectUpdateInvitation" i ON (i."customerId",i."projectId",i."requestId")=
+        (r."customerId",r."projectId",r.id)
+      WHERE (e."customerId",e."projectId",e."obligationId")=
+        (${current.customerId}::uuid,${projectId}::uuid,${obligationId}::uuid)
+        AND e.state='ACTIVE' AND s.kind='REQUEST' AND s."recipientRole"='OWNER'
+      ORDER BY r."capturedAt" DESC,r.id DESC LIMIT 1`;
+    if (!invitation) return undefined;
+    const capture = await this.authorizedInvitation(tx, current, invitation.locator, "leadership").catch((error: unknown) => {
+      if (error instanceof ProjectUpdateError && error.code === "DENIED") return null;
+      throw error;
+    });
+    if (!capture) return undefined;
+    const { row, asOf } = capture;
+    const latest = await this.latestRetainedReply(tx, current.customerId, projectId, row.requestId, asOf);
+    if (!latest || latest.submittedBy !== row.recipientSubject) return undefined;
+    const required = policyFacts(row.requiredFacts);
+    const availableUntil = iso(new Date(Math.min(row.expiresAt.getTime(), row.purgeAfter.getTime(), latest.purgeAfter.getTime())));
+    const due = await Promise.all(capturedFactTypes.filter((type) => required.some(({ factType }) => factType === type))
+      .map(async (factType) => {
+        const clarification = await this.capturedClarification(tx, current.customerId, projectId, row.requestId,
+          latest.id, row.issuanceEpoch, factType);
+        return clarification && { factType, clarificationId: clarification.clarificationId,
+          requestedAt: clarification.requestedAt, availableUntil };
+      }));
+    return due.filter((entry) => entry !== null).sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))[0];
+  }
+
   private async atlasUpdateFreshness(tx: Tx, current: Actor, projectId: string) {
     const policy = await this.loadObservationPolicy(tx, current.customerId, projectId);
     if (!policy) return null;
@@ -2514,7 +2548,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const freshness = projectUpdateAssessmentViewSchema.shape.freshness.safeParse(stored.data?.freshness);
     if (!freshness.success || freshness.data.assessedAt !== iso(row.assessedAt)) return null;
     const { state, assessedAt, sourceDate, sourceDateField } = freshness.data;
-    return { state, assessedAt, sourceDate, sourceDateField, openObligation: row.obligationState === "OPEN" };
+    const openObligation = row.obligationState === "OPEN";
+    const activeClarification = state === "STALE" && openObligation && row.obligationId
+      ? await this.atlasActiveClarification(tx, current, projectId, row.obligationId) : undefined;
+    return { state, assessedAt, sourceDate, sourceDateField, openObligation, activeClarification };
   }
 
   async atlasLeadershipAnswer(actorValue: Actor, projectValue: string, priorSnapshotId?: string) {
@@ -2536,6 +2573,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const assessedAt = await this.now(tx);
       const blocker = answer.schedule ? await this.atlasJiraBlocker(tx, current, projectId, assessedAt) : null;
       const asOf = iso(assessedAt);
+      if (updateFreshness?.activeClarification && updateFreshness.activeClarification.availableUntil <= asOf)
+        updateFreshness.activeClarification = undefined;
       if ((answer.ownerReply && answer.ownerReply.availableUntil <= asOf) ||
           (prior && (prior.facts.ownerReply.availableUntil <= asOf || prior.facts.asOf > asOf)))
         throw new ProjectUpdateError("DENIED");

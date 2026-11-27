@@ -57,7 +57,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const refresh = query.refetch;
   const answer = asked && isCurrent() && query.isSuccess && !query.isFetching ? query.data : null;
   const expiry = [answer?.ownerReply?.availableUntil, answer?.pmEscalation?.availableUntil,
-    answer?.priorSnapshot?.facts.ownerReply?.availableUntil].filter((date): date is string => Boolean(date)).sort()[0];
+    answer?.priorSnapshot?.facts.ownerReply?.availableUntil, answer?.updateFreshness?.activeClarification?.availableUntil]
+    .filter((date): date is string => Boolean(date)).sort()[0];
   useEffect(() => {
     if (!expiry) return;
     const delay = Date.parse(expiry) - Date.now();
@@ -72,6 +73,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const integration = answer?.integrationStart;
   const blocker = answer?.jiraBlocker;
   const freshness = answer?.updateFreshness;
+  const pending = freshness?.activeClarification;
+  const clarification = pending && Date.parse(pending.availableUntil) > Date.now() ? pending : null;
   const escalation = reply && answer?.pmEscalation && Date.parse(answer.pmEscalation.availableUntil) > Date.now()
     ? answer.pmEscalation : null;
   const prior = answer?.priorSnapshot;
@@ -112,6 +115,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
       <p>{movement} {schedule && <a href={`#${scheduleRef}`}>Schedule evidence</a>}</p>
       {freshness && <p>The latest saved assessment marked the project update {freshness.state.toLowerCase()}.{" "}
         {freshness.openObligation && "A project update remains due. "}
+        {clarification && `A clarification about the ${clarification.factType === "project.forecast" ? "forecast finish date" : "project status"} is open. `}
         <a href={`#${freshnessRef}`}>Update freshness evidence</a></p>}
       {integration && <p>Integration testing started late. <a href={`#${integrationRef}`}>Integration start evidence</a></p>}
       {blocker && <p>The synthetic Jira blocker {blocker.issueKey} is open. <a href={`#${blockerRef}`}>Jira blocker evidence</a></p>}
@@ -135,7 +139,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         {schedule && <li id={scheduleRef} tabIndex={-1}>Synthetic canonical schedule, revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.</li>}
         {freshness && <li id={freshnessRef} tabIndex={-1}>Assessed at {freshness.assessedAt}.{" "}
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? "Latest verified update" : "Project created"}{" "}
-          at {freshness.sourceDate}.</li>}
+          at {freshness.sourceDate}.
+          {clarification && ` Clarification ${clarification.clarificationId} requested at ${clarification.requestedAt}.`}</li>}
         {integration && <li id={integrationRef} tabIndex={-1}>Synthetic integration milestone {integration.milestoneId}. Planned start {integration.planned}. Actual start {integration.actual}.</li>}
         {blocker && <li id={blockerRef} tabIndex={-1}>Synthetic Jira issue {blocker.issueKey}, recorded in source mapping {blocker.mappingId}.</li>}
         {reply && <li id={replyRef} tabIndex={-1}>Human-confirmed owner reply {reply.responseId}, recorded at {reply.receivedAt}.</li>}

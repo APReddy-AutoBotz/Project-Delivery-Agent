@@ -20,8 +20,15 @@ live answer. Present the saved assessment time, its age basis and whether an
 update remains due. Use the existing Atlas project scope and return only the
 assessment metadata to leadership.
 
+When the current stale-update obligation is open, check the owner invitation
+with the existing Atlas leadership authorization. Identify a clarification
+for the latest retained reply by its recorded ID, time and requested fact.
+The projection omits invitation credentials, recipient identity and reply
+text. Replacing the reply or losing current access removes the item.
+
 Use the saved Atlas browser fixture to verify a change after a later owner
 reply and comment, plus access denial. Verify that the answer identifies the
 stale update evidence alongside the source-authorized Jira blocker. Run the
-existing contract suite and required hosted checks. Reverting removes the
-optional projections.
+existing contract suite and required hosted checks. Extend the browser journey
+to cover clarification and its removal after a replacement reply. Reverting
+removes the optional projections.

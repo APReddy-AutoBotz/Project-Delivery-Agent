@@ -173,13 +173,20 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer) return null;
   if (updateFreshness !== null && updateFreshness !== undefined && (!object(updateFreshness) ||
-      !keys(updateFreshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "openObligation"]) ||
+      !keys(updateFreshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "openObligation"], ["activeClarification"]) ||
       (updateFreshness.state !== "CURRENT" && updateFreshness.state !== "STALE") ||
       (updateFreshness.sourceDateField !== "project.createdAt" && updateFreshness.sourceDateField !== "project.latestValidUpdateAt") ||
       !instant(updateFreshness.assessedAt) || !instant(updateFreshness.sourceDate) ||
       Date.parse(updateFreshness.sourceDate) > Date.parse(updateFreshness.assessedAt) ||
       Date.parse(updateFreshness.assessedAt) > Date.parse(answer.asOf) ||
       typeof updateFreshness.openObligation !== "boolean")) return null;
+  const clarification = object(updateFreshness) ? updateFreshness.activeClarification : undefined;
+  if (clarification !== undefined && (!object(updateFreshness) || updateFreshness.state !== "STALE" || !updateFreshness.openObligation ||
+      !object(clarification) || !keys(clarification, ["clarificationId", "factType", "requestedAt", "availableUntil"]) ||
+      !uuid(clarification.clarificationId) || (clarification.factType !== "project.status" && clarification.factType !== "project.forecast") ||
+      !instant(clarification.requestedAt) || !instant(clarification.availableUntil) ||
+      Date.parse(clarification.requestedAt) > Date.parse(answer.asOf) || Date.parse(clarification.availableUntil) <= Date.parse(answer.asOf)))
+    return null;
   if (integrationStart !== null && (!answer.schedule || !object(integrationStart) ||
       !keys(integrationStart, ["milestoneId", "planned", "actual"]) || !uuid(integrationStart.milestoneId) ||
       !date(integrationStart.planned) || !date(integrationStart.actual) || integrationStart.actual <= integrationStart.planned))

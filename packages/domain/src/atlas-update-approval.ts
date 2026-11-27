@@ -96,7 +96,13 @@ export type AtlasLeadershipFacts = z.infer<typeof atlasLeadershipFactsSchema>;
 export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
   updateFreshness: projectUpdateAssessmentViewSchema.shape.freshness.pick({
     state: true, assessedAt: true, sourceDate: true, sourceDateField: true,
-  }).extend({ openObligation: z.boolean() }).nullable().optional(),
+  }).extend({
+    openObligation: z.boolean(),
+    activeClarification: z.strictObject({
+      clarificationId: z.uuid(), factType: z.enum(["project.status", "project.forecast"]),
+      requestedAt: z.iso.datetime(), availableUntil: z.iso.datetime(),
+    }).optional(),
+  }).nullable().optional(),
   integrationStart: z.strictObject({
     milestoneId: z.uuid(),
     planned: z.iso.date(),
