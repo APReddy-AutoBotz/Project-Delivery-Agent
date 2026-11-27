@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalSubjectSchema } from "./canonical-project.js";
 import { projectLeadershipFactsSchema, projectLeadershipScheduleSchema } from "./project-leadership-answer.js";
 
 const reportLabel = (max: number) => z.string().min(1).max(max)
@@ -28,6 +29,30 @@ export const projectReportDeliverySchema = projectReportVersionSchema.extend({ i
 export type ProjectReportDelivery = z.infer<typeof projectReportDeliverySchema>;
 export const projectReportDecisionSchema = projectReportVersionSchema.extend({ decision: z.enum(["APPROVED", "REJECTED"]) });
 export type ProjectReportDecision = z.infer<typeof projectReportDecisionSchema>;
+
+export const projectReportEvents = {
+  draftSaved: "project_report.draft.saved",
+  approvalRequested: "project_report.approval.requested",
+  decisionRecorded: "project_report.approval.decided",
+  delivered: "project_report.delivered",
+} as const;
+const reportAuditEvent = z.enum(projectReportEvents);
+export const projectReportAuditSearchSchema = z.strictObject({
+  actor: canonicalSubjectSchema.optional(), event: reportAuditEvent.optional(), after: z.uuid().optional(),
+  from: z.iso.datetime({ precision: 3 }).optional(), until: z.iso.datetime({ precision: 3 }).optional(),
+}).refine(({ from, until }) =>
+  !from?.startsWith("0000") && !until?.startsWith("0000") && (!from || !until || from < until));
+export type ProjectReportAuditSearch = z.infer<typeof projectReportAuditSearchSchema>;
+export const projectReportAuditPageSize = 30;
+export const projectReportAuditPageSchema = z.strictObject({
+  projectId: z.uuid(), next: z.uuid().nullable(),
+  entries: z.array(z.strictObject({
+    id: z.uuid(), snapshotId: z.uuid(), actor: canonicalSubjectSchema, event: reportAuditEvent,
+    occurredAt: z.iso.datetime({ precision: 3 }), correlationId: z.uuid(),
+    decision: z.union([projectReportDecisionSchema.shape.decision, z.null()]),
+  })).max(projectReportAuditPageSize),
+});
+export type ProjectReportAuditPage = z.infer<typeof projectReportAuditPageSchema>;
 
 const reportApproval = z.strictObject({ requestId: z.uuid(), requestedAt: z.iso.datetime() });
 export const projectReportApprovalSchema = z.discriminatedUnion("state", [

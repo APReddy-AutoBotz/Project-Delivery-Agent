@@ -30,7 +30,8 @@ import {
   projectDelayCauseConfirmationSchema, projectDelayClarificationReviewSchema, composeSettledLeadershipClaim,
   projectManagementDraftSchema, projectManagementSnapshotSchema,
   projectReportApprovalSchema, projectReportApprovalRequestSchema, projectReportDecisionSchema,
-  projectReportVersionSchema, projectReportDeliverySchema,
+  projectReportVersionSchema, projectReportDeliverySchema, projectReportEvents,
+  projectReportAuditSearchSchema, projectReportAuditPageSchema, projectReportAuditPageSize, type ProjectReportAuditSearch,
   type ProjectManagementDraft, type ProjectManagementSnapshot, type ProjectReportApproval, type ProjectReportDecision, type ProjectReportVersion,
   atlasReportApprovalRequestSchema, atlasReportDecisionSchema,
   atlasReportVersionSchema, atlasReportDistributionReceiptSchema, atlasReportRecipientSubject,
@@ -100,10 +101,8 @@ const atlasReportDecidedEvent = "atlas_demo.report_approval.decided";
 const atlasReportDistributedEvent = "atlas_demo.report.distributed";
 const projectDelayClarificationEvent = "project_delay.clarification_requested";
 const projectDelayCauseConfirmedEvent = "project_delay.cause_confirmed";
-const projectReportSavedEvent = "project_report.draft.saved";
-const projectReportRequestedEvent = "project_report.approval.requested";
-const projectReportDecidedEvent = "project_report.approval.decided";
-const projectReportDeliveredEvent = "project_report.delivered";
+const { draftSaved: projectReportSavedEvent, approvalRequested: projectReportRequestedEvent,
+  decisionRecorded: projectReportDecidedEvent, delivered: projectReportDeliveredEvent } = projectReportEvents;
 const savedProjectReportDetail = z.strictObject({ projectId: z.uuid(), draft: projectManagementDraftSchema });
 const storedProjectReportRequest = projectReportApprovalRequestSchema.extend({ projectId: z.uuid(), approver: canonicalSubjectSchema });
 const storedProjectReportDecision = projectReportDecisionSchema.extend({ projectId: z.uuid() });
@@ -3050,7 +3049,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       ? subject : null;
   }
 
-  private reportingActor(actorValue: Actor, role: "leadership" | "project_manager"): Actor {
+  private reportingActor(actorValue: Actor, role: "leadership" | "project_manager" | "pmo_admin"): Actor {
     const current = parseActor(actorValue);
     if (!current.roles.includes(role)) throw new ProjectUpdateError("DENIED");
     return { ...current, roles: [role] };
@@ -3304,6 +3303,39 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const { id } = await this.recordProjectAuditEvent(tx, leader, projectReportRequestedEvent, correlationId,
         { projectId, snapshotId, approver }, now);
       return { ...snapshot, approval: projectReportApprovalSchema.parse({ requestId: id, requestedAt, state: "PENDING", decidedAt: null }) };
+    }, "ReadCommitted");
+  }
+
+  async projectReportAudit(actorValue: Actor, projectValue: string, search: ProjectReportAuditSearch) {
+    const current = this.reportingActor(actorValue, "pmo_admin");
+    const projectId = parseProjectId(projectValue);
+    const parsed = projectReportAuditSearchSchema.safeParse(search);
+    if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+    const { actor = null, event = null, after = null, from = null, until = null } = parsed.data;
+    return this.transaction(async (tx) => {
+      await this.authorize(tx, current, projectId, false);
+      type AuditRow = Omit<z.input<typeof projectReportAuditPageSchema.shape.entries.element>, "occurredAt"> & { occurredAt: Date };
+      const rows = await tx.$queryRaw<AuditRow[]>`
+        WITH matching AS (
+          SELECT id, actor, event, "occurredAt", "correlationId",
+            CASE WHEN event=${projectReportSavedEvent} THEN id::text ELSE detail->>'snapshotId' END AS "snapshotId",
+            CASE WHEN event=${projectReportDecidedEvent} THEN detail->>'decision' END AS decision
+          FROM public."AuditEvent"
+          WHERE "customerId"=${current.customerId}::uuid AND detail->>'projectId'=${projectId}
+            AND event IN (${projectReportSavedEvent},${projectReportRequestedEvent},${projectReportDecidedEvent},${projectReportDeliveredEvent})
+            AND (${actor}::text IS NULL OR actor=${actor}) AND (${event}::text IS NULL OR event=${event})
+            AND (${from}::timestamptz IS NULL OR "occurredAt">=(${from}::timestamptz AT TIME ZONE 'UTC'))
+            AND (${until}::timestamptz IS NULL OR "occurredAt"<(${until}::timestamptz AT TIME ZONE 'UTC'))
+        )
+        SELECT entry.* FROM matching entry
+        WHERE ${after}::uuid IS NULL OR EXISTS (
+          SELECT 1 FROM matching boundary WHERE boundary.id=${after}::uuid
+            AND (entry."occurredAt",entry.id)<(boundary."occurredAt",boundary.id)
+        )
+        ORDER BY entry."occurredAt" DESC,entry.id DESC LIMIT ${projectReportAuditPageSize + 1}`;
+      const entries = rows.slice(0, projectReportAuditPageSize).map((row) => ({ ...row, occurredAt: iso(row.occurredAt) }));
+      return projectReportAuditPageSchema.parse({ projectId, entries,
+        next: rows.length > projectReportAuditPageSize ? entries.at(-1)?.id : null });
     }, "ReadCommitted");
   }
 
