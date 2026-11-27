@@ -676,9 +676,16 @@ stories:
   - AC-QA-005
   - AC-QA-006
   - AC-QA-008
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/197
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/233
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/244
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/253
+  implementation_evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: STORY-030
   epic: EPIC-09
   title: Implement live project and portfolio views
