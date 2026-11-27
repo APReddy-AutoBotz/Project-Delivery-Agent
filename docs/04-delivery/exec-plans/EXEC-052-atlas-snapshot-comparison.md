@@ -1,7 +1,7 @@
 # EXEC-052 Atlas snapshot comparison
 
 - Status: In progress
-- Requirements: FR-QA-006, FR-QA-008 and FR-QA-010
+- Requirements: FR-QA-006, FR-QA-008, FR-QA-010, FR-QA-012, FR-EVD-009 and NFR-SEC-001
 - Evidence: freshness portion of AC-QA-004, AC-QA-008 and INT-QA-008
 - GitHub issue [#12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12)
 
@@ -56,3 +56,9 @@ stale update evidence alongside the source-authorized Jira blocker. Run the
 existing contract suite and required hosted checks. Extend the browser journey
 to cover clarification and its removal after a replacement reply. Reverting
 removes the optional projections.
+
+Verify the project boundary for SEC-QA-007 and SEC-EVD-005 through the existing
+Atlas browser journey. Open an authorized saved evidence URL first. Then move
+the same user's grant to another project in the same customer and verify that
+Atlas leaves discovery. Compare copied Atlas answer, comparison, final report
+and saved evidence responses against their missing-project equivalents.
