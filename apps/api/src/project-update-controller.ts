@@ -30,6 +30,7 @@ import {
   projectManagementDraftOutputSchema,
   projectManagementSnapshotSelectorSchema,
   projectReportApprovalRequestSchema,
+  projectReportAuditSearchSchema,
   projectReportDecisionSchema,
   projectReportVersionSchema,
   ingestionReassessmentRetrySchema,
@@ -87,6 +88,7 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async projectReportForManager() { throw new ProjectUpdateError("DENIED"); },
   async decideProjectReportApproval() { throw new ProjectUpdateError("DENIED"); },
   async deliverProjectReport() { throw new ProjectUpdateError("DENIED"); },
+  async projectReportAudit() { throw new ProjectUpdateError("DENIED"); },
   async atlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async createAtlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async requestAtlasReportApproval() { throw new ProjectUpdateError("DENIED"); },
@@ -308,6 +310,15 @@ export class ProjectUpdateController {
     if (!command.success) throw new HttpException("", 400);
     const saved = await this.run(() => this.repository.deliverProjectReport(actor, this.projectId(rawId), command.data, req.correlationId));
     return this.renderSavedManagementReport(saved);
+  }
+
+  @Get("management-report-audit")
+  async projectReportAudit(@Req() req: Request, @Param("id") rawId: string, @Query() query: unknown) {
+    const actor = await this.actor(req);
+    if (!actor.roles.includes("pmo_admin")) throw new HttpException("", 404);
+    const search = projectReportAuditSearchSchema.safeParse(query);
+    if (!search.success) throw new HttpException("", 400);
+    return this.run(() => this.repository.projectReportAudit(actor, this.projectId(rawId), search.data));
   }
 
   private renderSavedManagementReport(saved: ProjectManagementSnapshot) {

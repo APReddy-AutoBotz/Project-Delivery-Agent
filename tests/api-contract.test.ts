@@ -523,6 +523,10 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   projectReportForManager: vi.fn(async () => projectReportPendingFixture),
   decideProjectReportApproval: vi.fn(async () => projectReportApprovedFixture),
   deliverProjectReport: vi.fn(async () => projectReportDeliveredFixture),
+  projectReportAudit: vi.fn(async () => ({ projectId: project.id, next: null, entries: [{
+    id: project.id, snapshotId: project.id, actor: "pm-atlas", event: "project_report.delivered" as const,
+    occurredAt: projectReportDeliveredFixture.delivery.deliveredAt, correlationId: project.id, decision: null,
+  }] })),
   atlasDelayClarification: vi.fn(async () => null),
   requestAtlasDelayClarification: vi.fn(async () => ({
     id: project.id, requestedAt: "2026-10-21T11:00:00.000Z",
@@ -857,6 +861,10 @@ it("CI-FND-001: every actual serialized success matches its published schema and
     { snapshotId: project.id, requestId: project.id, decision: "APPROVED" });
   await request(`/api/projects/${project.id}/management-report-approval/delivery`, 200, manager, "POST",
     { snapshotId: project.id, requestId: project.id });
+  const reportAudit = `/api/projects/${project.id}/management-report-audit`;
+  await request(`${reportAudit}?actor=pm-atlas&event=project_report.delivered`, 200, pmoPortfolio);
+  await request(reportAudit, 404, manager);
+  await request(`${reportAudit}?from=2026-10-22T00:00:00.000Z&until=2026-10-21T00:00:00.000Z`, 400, pmoPortfolio);
   await request(`/api/projects/${project.id}/atlas-delay-clarification`, 200, manager);
   await request(`/api/projects/${project.id}/atlas-delay-clarification`, 200, leader, "POST", { scheduleRevision: 1 });
   const atlasReport = `/api/projects/${project.id}/atlas-management-snapshot`;
@@ -1160,7 +1168,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(107);
+  expect(covered.size).toBe(108);
   assertContractSnapshot(
     spec,
     JSON.parse(

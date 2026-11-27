@@ -1129,6 +1129,27 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(replayDelivery.status()).toBe(200);
   expect(await replayDelivery.json()).toMatchObject({ delivery: deliveredReport.delivery });
 
+  const reportAudit = `/api/projects/${allowedProjectId}/management-report-audit`;
+  const audit = await request.get(reportAudit, { headers: reviewerHeaders });
+  expect(audit.status()).toBe(200);
+  expect((await audit.json()).entries).toEqual(expect.arrayContaining([
+    expect.objectContaining({ snapshotId: savedReport.snapshotId, event: "project_report.draft.saved", actor: "leader-atlas" }),
+    expect.objectContaining({ snapshotId: savedReport.snapshotId, event: "project_report.approval.requested", actor: "leader-atlas" }),
+    expect.objectContaining({ snapshotId: savedReport.snapshotId, event: "project_report.approval.decided", actor: "pm-atlas", decision: "APPROVED" }),
+  ]));
+  const auditFilters = new URLSearchParams({ event: "project_report.delivered", actor: "pm-atlas", from: deliveredReport.delivery.deliveredAt });
+  const filtered = await request.get(`${reportAudit}?${auditFilters}`, { headers: reviewerHeaders });
+  expect(filtered.status()).toBe(200);
+  expect(await filtered.json()).toEqual({ projectId: allowedProjectId, next: null, entries: [{
+    id: deliveredReport.delivery.id, snapshotId: savedReport.snapshotId, actor: "pm-atlas", event: "project_report.delivered",
+    occurredAt: deliveredReport.delivery.deliveredAt, correlationId: expect.any(String), decision: null,
+  }] });
+  const after = await request.get(`${reportAudit}?${auditFilters}&after=${deliveredReport.delivery.id}`, { headers: reviewerHeaders });
+  expect(after.status()).toBe(200);
+  expect(await after.json()).toEqual({ projectId: allowedProjectId, next: null, entries: [] });
+  expect((await request.get(reportAudit, { headers: managerHeaders })).status()).toBe(404);
+  expect((await request.get(`/api/projects/${randomUUID()}/management-report-audit`, { headers: reviewerHeaders })).status()).toBe(404);
+
   const latestDraft = await request.get(`${draftPath}?snapshotId=latest`, { headers: leaderHeaders });
   expect(latestDraft.status()).toBe(200);
   expect(await latestDraft.json()).toMatchObject({ snapshotId: followingSnapshotId });
