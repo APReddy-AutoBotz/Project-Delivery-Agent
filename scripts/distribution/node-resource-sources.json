@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "reviewRequired": true,
-  "sourceCommit": "cdc1b38d40cb567b7ad0b39c86addf830a0af0ae",
+  "sourceCommit": "e63cab040c09d43ceef8cb35508c40044614e906",
   "binary": {
     "path": "/usr/local/bin/node",
-    "size": 125989464,
-    "sha256": "bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12"
+    "size": 126891984,
+    "sha256": "a7ec1b37e6ff9d187e4198c5b6df9a4eb1c74dd31804fb3bac55cc4ceca1ac01"
   },
-  "rootNoticeSha256": "148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5",
+  "rootNoticeSha256": "5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace",
   "sources": [
     {
       "section": "Punycode.js",
@@ -37,17 +37,17 @@
       "section": "node-fs-extra",
       "resourceId": "internal/fs/cp/cp",
       "path": "lib/internal/fs/cp/cp.js",
-      "size": 11066,
-      "sha256": "1519e09b5129cc66f6eae0448e9e860c9cc9ae83dcde721efb7f818e4324a196",
-      "gitBlobSha1": "10c52b11463445566caeebf7cdb3d5d535e3bf50"
+      "size": 11332,
+      "sha256": "ddf480cfe9659740acab10a4fd81c5d2cd275a7e805ffdefe1d0ea180916d721",
+      "gitBlobSha1": "35fcefb12d10d0fc6157786e8b2c03b34c30bcbe"
     },
     {
       "section": "node-fs-extra",
       "resourceId": "internal/fs/cp/cp-sync",
       "path": "lib/internal/fs/cp/cp-sync.js",
-      "size": 7031,
-      "sha256": "cfa9592d9d11b1791282373a1de86d422ec4562203e7edf5b5a72abcc979dfc6",
-      "gitBlobSha1": "03fcae9b7cdbdabc51001a27711d80e516e4b600"
+      "size": 7432,
+      "sha256": "6a24c5f51d450e1d1b22deeac5f72cdd4e39d34f04fa995a11dfe230acb524f3",
+      "gitBlobSha1": "cdbec3e6796ec5f72d5e6a03035118762680c7b1"
     },
     {
       "section": "on-exit-leak-free",
@@ -61,9 +61,9 @@
       "section": "sonic-boom",
       "resourceId": "internal/streams/fast-utf8-stream",
       "path": "lib/internal/streams/fast-utf8-stream.js",
-      "size": 24624,
-      "sha256": "a6a66430a8f93cf5b6d7c90e16386bb2429ae3309672242e914a0a28bc9f71ef",
-      "gitBlobSha1": "00b038e79bfadcd9ec62b0885a2b978989bd40f1"
+      "size": 24788,
+      "sha256": "018dd5e874a090dc08e6fb17f3f1e4ca630025bc51289e3bdfc9d2d527b2056b",
+      "gitBlobSha1": "6ca12878fd40201a66d78d455e34972299789fa1"
     }
   ]
 }

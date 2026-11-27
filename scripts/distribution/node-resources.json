@@ -3,14 +3,14 @@
   "reviewRequired": true,
   "binary": {
     "path": "/usr/local/bin/node",
-    "size": 125989464,
-    "sha256": "bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12"
+    "size": 126891984,
+    "sha256": "a7ec1b37e6ff9d187e4198c5b6df9a4eb1c74dd31804fb3bac55cc4ceca1ac01"
   },
-  "rootNoticeSha256": "148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5",
-  "sourceCommit": "cdc1b38d40cb567b7ad0b39c86addf830a0af0ae",
+  "rootNoticeSha256": "5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace",
+  "sourceCommit": "e63cab040c09d43ceef8cb35508c40044614e906",
   "snapshot": {
     "schemaVersion": 1,
-    "version": "v24.19.0",
+    "version": "v24.22.3",
     "arch": "x64",
     "platform": "linux",
     "execPath": "/usr/local/bin/node",
@@ -23,8 +23,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 21871,
-        "sha256": "45bfd382a959c7107817a4f9d10dfb8c4853d382ad8bf51541c950f48e9c91b5"
+        "size": 23729,
+        "sha256": "e522fe285ce1bf44f90fa71c96530b1d242dc5dd20359c566654f45e88c39428"
       },
       {
         "id": "_http_client",
@@ -34,8 +34,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 38410,
-        "sha256": "0fa540c3384ea9d512c5b541004afe52dd24ec351b3d851768aedf7a2cfee386"
+        "size": 39814,
+        "sha256": "6240240eb8e1c3dd4c0c8aeed891e7ee197ca987de3d889c27a902aa93132430"
       },
       {
         "id": "_http_common",
@@ -56,8 +56,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 15688,
-        "sha256": "24c177fb6151c5b0131cb1658d1c9f0107b8137630b15be20401fb0f76a605c3"
+        "size": 17446,
+        "sha256": "3d2db8b8aa4e55ec1e47874098cbbb8ed92bc415e577969c3f5d8f6106973f24"
       },
       {
         "id": "_http_outgoing",
@@ -67,8 +67,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 36545,
-        "sha256": "559c44b487506f13adb16b8299a61ede3358c3b1a8d1cfa6ccff1b17f8d33d55"
+        "size": 40446,
+        "sha256": "83d526bb21ee5fd3ffe54f5737c290ce36e4b004a07a723a861b280684af6054"
       },
       {
         "id": "_http_server",
@@ -78,8 +78,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 43615,
-        "sha256": "cefc145685c39e44b0d1cbb8731e57f9d4fbf0ab851ac63c7108c669a5fc08d9"
+        "size": 43902,
+        "sha256": "cd81e1020a8f2b3f6731b2db28648d889ec99db4fbff45ed608821bcc4209be9"
       },
       {
         "id": "_stream_duplex",
@@ -199,8 +199,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 9013,
-        "sha256": "fa88748e8443544189029826955f0cdb7386473a0b7191956d7529a22457dff7"
+        "size": 8944,
+        "sha256": "93e6dfdd4f1ef69f8c4209d0e114e340bc75aa97c6be6edd3808777bed19a9f5"
       },
       {
         "id": "buffer",
@@ -210,8 +210,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 42256,
-        "sha256": "0a10082cf34f780ce17c52d7f744a41b3a1354334550db4a578f87357600e59f"
+        "size": 43022,
+        "sha256": "d959ca3c1e8cdf66df901d0342a719fa2dd155024142ec82772c197f3009262a"
       },
       {
         "id": "child_process",
@@ -221,8 +221,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 29162,
-        "sha256": "df028ee287a6adad4bb69bd5daf4975311ceffe19c95c18fdc9f0662ea32ef68"
+        "size": 29270,
+        "sha256": "eddc8cfc5e4d645249747039e9d6cd6b1e2ab76083d52e420aca26aa173fc987"
       },
       {
         "id": "cluster",
@@ -274,8 +274,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8719,
-        "sha256": "5398618275f5d575ffe26329a80aab5920f060c58856aaccb84b995a1748bcc8"
+        "size": 8936,
+        "sha256": "2624db34b212d51f1410a9ff8720abd2f28298ead04c388135d36228d9910f2d"
       },
       {
         "id": "dgram",
@@ -285,8 +285,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 34063,
-        "sha256": "666c529ec4eecc173f14736a487301730fba1a838de1f76484de02cd77038098"
+        "size": 34099,
+        "sha256": "5ad926c099064cd72de416007400833c5b4a7c5dd6094e0332a674fff73518b0"
       },
       {
         "id": "diagnostics_channel",
@@ -296,8 +296,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 11043,
-        "sha256": "d26df2e24a591389675b9e09404793497251e6677f71e6eac7c53b6d34898d28"
+        "size": 11754,
+        "sha256": "661a7f5b475ca6401af2dd421e7108b93e23b7faccdc8cc2394deb4a2baf585b"
       },
       {
         "id": "dns",
@@ -307,8 +307,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 9448,
-        "sha256": "f1ffb2166e148ea229d56100a16db5f97afe4377b5a528a23a10569827bbbe9a"
+        "size": 9505,
+        "sha256": "cdee9f2243b3305daeab53f4acce8aa3f0e73209fe441774a81514def31677e3"
       },
       {
         "id": "dns/promises",
@@ -340,8 +340,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 36115,
-        "sha256": "00b82a669fd6299ea5f3916473eb922a74018f96612b290024fffe399580f2c1"
+        "size": 36257,
+        "sha256": "6da38d011d60d106a55616f6d4d67c59cb61b6478d7a247c85bd576b867547a8"
       },
       {
         "id": "fs",
@@ -351,8 +351,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 90251,
-        "sha256": "3bc50106d3d35dd4dd34faaa2086d0df72f9182c5f6c25225094dbbd34f691cf"
+        "size": 91862,
+        "sha256": "b0cf8dc9859b7c4a8cacd45234fa121cbe9e334aef11225b00d596e228b0785e"
       },
       {
         "id": "fs/promises",
@@ -373,8 +373,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8274,
-        "sha256": "4e8f6347631eb73481e6bd11b26a53c4bd89b3cff42a4fed2eac7e8d48e6293e"
+        "size": 8324,
+        "sha256": "07c2dd7ad4235a7d5a6b8a36042882f6f45538d4b90570835fd738e93872d00a"
       },
       {
         "id": "http2",
@@ -395,8 +395,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 22642,
-        "sha256": "7ae6e70c63d3b9540438ddd4ba599f8b804443cd6231d5a6ca9fc31e1b82994b"
+        "size": 25982,
+        "sha256": "4f191147bebaf881acb6204cc7ab4895594bc414b1d2a24b68c7779513a39089"
       },
       {
         "id": "inspector",
@@ -428,8 +428,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 17953,
-        "sha256": "3302a512a8882723e4cb756113ed53f2f24216d1a16c187d33e3ba663f236cbc"
+        "size": 18641,
+        "sha256": "dd3bc16d894bc8ef115de84c2cafa3f30428fe80a7b57869bd1d607efa94e75f"
       },
       {
         "id": "internal/assert",
@@ -494,8 +494,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 1571,
-        "sha256": "7860efa14c0ef1e0ca7a230b4c52b91a79cf186ab6b9816d8c38665fd55a27cf"
+        "size": 1579,
+        "sha256": "d8f8b52582fed7e01207e6a541b057a60ef05d78128b1f5c540cc4bb1bb4a667"
       },
       {
         "id": "internal/async_hooks",
@@ -505,8 +505,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 20527,
-        "sha256": "08a5d05e584c48a6f51edd61e1e6cb117906d763e521e4b8dc2c7227462bbdca"
+        "size": 20647,
+        "sha256": "bf746ecffaac177955132c9858a38af67701494f276ce1cc51519c554a8ca99f"
       },
       {
         "id": "internal/async_local_storage/async_context_frame",
@@ -516,8 +516,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 1736,
-        "sha256": "6786d7c61fd97c37405744413c7e0f605cafb33627f6b76b592840f1d2422764"
+        "size": 1869,
+        "sha256": "919044ffc9e56b55c4b5a0799169fb19f098b19c3a1a920b23ff9248ef772fb9"
       },
       {
         "id": "internal/async_local_storage/async_hooks",
@@ -527,8 +527,19 @@
           "configurable": true,
           "writable": true
         },
-        "size": 3430,
-        "sha256": "eea3319577b1d10267b19d0668b54cf5ad4d4d986050b640035cdd98f69b7d15"
+        "size": 4161,
+        "sha256": "8360a58bd8fade723a6f62dd0d8049512e44bb6fa2c10582b876a32b845930ae"
+      },
+      {
+        "id": "internal/async_local_storage/run_scope",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 487,
+        "sha256": "b90752745991b6372b12e64e01037bc0a03fde4daeb23e21b146fe4839a7ba8a"
       },
       {
         "id": "internal/blob",
@@ -538,8 +549,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 14470,
-        "sha256": "d609c6919b357bdbf1256ae4a1e242e7ef65295dfde0c7cdddf99e25dacb7df2"
+        "size": 16858,
+        "sha256": "65c3c701e63b78ede75004132bc4ea4f3b8265f72eeef475c6e0eebfd6402aa1"
       },
       {
         "id": "internal/blocklist",
@@ -549,8 +560,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8358,
-        "sha256": "f58284eedbadf7949c84371592ba4352815cf873d51c71341295e1072c257524"
+        "size": 13443,
+        "sha256": "25acac05f97390e6b9667d52c29d2a9b648f6b48ca568bf0b2d84375167c66f8"
       },
       {
         "id": "internal/bootstrap/node",
@@ -571,8 +582,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 15448,
-        "sha256": "6b19b7e820c099e28748019277b1cfdcdf2f1167c4f937f2645072764d2ac421"
+        "size": 15476,
+        "sha256": "8db85b38d50172c48a3ec0f6d423b68e9c8ed13c08667da47dc167956c4e0172"
       },
       {
         "id": "internal/bootstrap/shadow_realm",
@@ -648,8 +659,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 4553,
-        "sha256": "ad6a968e4b6f6b117f1e6666e91926afc57426f9c86771df98d81d1bfbfbe97f"
+        "size": 4511,
+        "sha256": "f1c4629daa9b7e89f1e57114230bf0f3a0843c0435726743df0a15e345e0c302"
       },
       {
         "id": "internal/buffer",
@@ -659,8 +670,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 33183,
-        "sha256": "ce1f2b80ecaf7f4d8ef3ff5d40e77e48c4413760e1a743c8c1b24cabfc1c25d8"
+        "size": 33468,
+        "sha256": "4a0f2a91d3cb3cfe8c6dd111bcf6828e9176cacc84304db3372033277e16c0b6"
       },
       {
         "id": "internal/child_process",
@@ -670,8 +681,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 32777,
-        "sha256": "ace05809adf0d02482984f6b9fb8418b3c788df2d8fb8fec3527bfcfd7465d2f"
+        "size": 33644,
+        "sha256": "87563c6fe8b13a971586e6dc5203c9c320bf913c395dc003e8d1bf743d60d1e4"
       },
       {
         "id": "internal/child_process/serialization",
@@ -692,8 +703,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 2887,
-        "sha256": "2fe1a0ac73f6101f581a70e266ba72c6a45d3260ee0d0dec024d01ee398525ca"
+        "size": 2932,
+        "sha256": "02ef9145e420038d2f82966da3ac3ddade577fb431e5951bd7f6f1fabf21e756"
       },
       {
         "id": "internal/cluster/child",
@@ -769,8 +780,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 21776,
-        "sha256": "6cdad6113815cecbe8c914af86835499dbf2b3bbd617babec9e24af779c8aeaa"
+        "size": 22149,
+        "sha256": "4dd5bc4aaa8014db502e888b4ae7b760d5c5723478a3e2feb38f1b632d4a1f3f"
       },
       {
         "id": "internal/console/global",
@@ -802,8 +813,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 6483,
-        "sha256": "a826e542b4afa3990ddb34efa3d54092054ac6122d8f2c56eefbdef79bf63316"
+        "size": 6528,
+        "sha256": "0b3f21598d3e3eff1db03c0a388a7598ea7affa737824fb6e977c81097f85f6e"
       },
       {
         "id": "internal/crypto/argon2",
@@ -813,8 +824,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 6287,
-        "sha256": "438980141317dc5676d10d12b11068e41f35797e7f18a96daf96b7a693fcce27"
+        "size": 6337,
+        "sha256": "3cc13eff1b93d65d5d678ff48bfb9f7d765b03824856da6cd1a7a5ca03b05b90"
       },
       {
         "id": "internal/crypto/certificate",
@@ -835,8 +846,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 5898,
-        "sha256": "35fb0dee76ab7711330c27a76358ed1bdc82915ab7d265308af5e4617ef86e3c"
+        "size": 5692,
+        "sha256": "89676f133aedfd12576e5ffa00360890dc7f98f0e6c7a1e917fab0d051033093"
       },
       {
         "id": "internal/crypto/chacha20_poly1305",
@@ -857,8 +868,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8802,
-        "sha256": "01fe70ec6e0dbd58cc56ce5e1c3b2fae95787b3359eb370c193145ca0f347cd2"
+        "size": 9705,
+        "sha256": "86c5e1e7435d24f22d18836f7f9afba4cacd1aed6e3a074547be4ed34b90216b"
       },
       {
         "id": "internal/crypto/diffiehellman",
@@ -868,8 +879,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 11385,
-        "sha256": "78b02568434976088420337ed388ec2b7276fabf3a1f7c530103501fe1c7c80c"
+        "size": 11453,
+        "sha256": "e96f18ac12dcfe3e349dc4eea798225f9897beb4875bf6c8eea94d6cd940222b"
       },
       {
         "id": "internal/crypto/ec",
@@ -879,8 +890,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 7212,
-        "sha256": "539baa58595f308f05c17e925f19dd4b3f14d0decdc4b8ac99ffbd0bd5791c9c"
+        "size": 7240,
+        "sha256": "bbda06b5d503dbbf7f3fdfac0a846f75c27ed08f3062e45273a4990d09765544"
       },
       {
         "id": "internal/crypto/hash",
@@ -890,8 +901,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 9232,
-        "sha256": "11f6fe61bdfae7f424c18724e304dfb1895e254258432f12fa6d33dc4907d854"
+        "size": 11625,
+        "sha256": "81cd490af90bf83963add3929b95273d651182e81030e09310550ef07a5ed57a"
       },
       {
         "id": "internal/crypto/hashnames",
@@ -901,8 +912,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 2814,
-        "sha256": "ed7278f15c582de1d17ea6e9d71fdeb2b4340dc2884a747452aa3d8af327a7b4"
+        "size": 3129,
+        "sha256": "c744fa34b51e31f6b0557c57da54821170d7a273623272109fb1b673e66888cc"
       },
       {
         "id": "internal/crypto/hkdf",
@@ -912,8 +923,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 3427,
-        "sha256": "a9e974e76c8c3f20f6ba6002a0190906cb1754fcdc9bbc8f46ea91c267f0a02e"
+        "size": 4311,
+        "sha256": "00a978e17ad4acf21c98857243bf8e7fbcb3d29bd612bbe0ec2c53412fbee78e"
       },
       {
         "id": "internal/crypto/kem",
@@ -927,6 +938,17 @@
         "sha256": "66bcc81f3b1784b79850053a860d9350ee240abea0bef858c0e800669f855fd1"
       },
       {
+        "id": "internal/crypto/kem_hybrids",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 32385,
+        "sha256": "3866420edb26a6c9e4c342931df40e678a9c313101606be39765b41f2deeacb0"
+      },
+      {
         "id": "internal/crypto/keygen",
         "kind": "utf8",
         "descriptor": {
@@ -934,8 +956,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 12266,
-        "sha256": "e6ad8c0fc882c53abe402d883776ed550093d336bb358ff2bf75f4b730041a6b"
+        "size": 10988,
+        "sha256": "8e9aaf8975444be85af2ca32d127d04f37bd87312176cce56a61bb6bdf31dfe6"
       },
       {
         "id": "internal/crypto/keys",
@@ -945,8 +967,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 39748,
-        "sha256": "3f5836dbb49400b530cee3b15f60b7e0e4651469d8220671461312323489e915"
+        "size": 47676,
+        "sha256": "0dfb49ded4e10345198841a43a85cca08530b707816ac128c48804f0c53fb3e7"
       },
       {
         "id": "internal/crypto/mac",
@@ -956,8 +978,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 4508,
-        "sha256": "c1788054601029960fca37f3bdb84f6ed69d3e54259b52ba3e8b32df8f106c37"
+        "size": 4637,
+        "sha256": "db08f973571eb69800dd799d2f2f35bad1ada322b86330eedc5469928fd8febb"
       },
       {
         "id": "internal/crypto/ml_dsa",
@@ -967,8 +989,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 6151,
-        "sha256": "0c554ea9d47129e505a33fe3c39cd6170f899dcb99beb954192679c8af818a52"
+        "size": 6062,
+        "sha256": "f314b2d48e6320a864d4719a1c3488dbb9ee0565ffe35a353aac590faffc80b8"
       },
       {
         "id": "internal/crypto/ml_kem",
@@ -978,8 +1000,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 6137,
-        "sha256": "93825c90e7084b1c9436eca9bf3359ada69255efead6ab76af70d04708d57814"
+        "size": 6036,
+        "sha256": "d3e025d0607246a576d2b7ef2e545a2782699cd23e67fb65f6e05d4f69b78cdd"
       },
       {
         "id": "internal/crypto/pbkdf2",
@@ -993,6 +1015,17 @@
         "sha256": "3740e4460d6c88315e6e423159e29ad66f4843700d173c3715705f671c976e2d"
       },
       {
+        "id": "internal/crypto/provider_mac",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 6804,
+        "sha256": "83a6d5bad9d6c56a541307b0a71900271c0f85783ff0587f769cba5416a7bd05"
+      },
+      {
         "id": "internal/crypto/random",
         "kind": "utf8",
         "descriptor": {
@@ -1000,8 +1033,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 17775,
-        "sha256": "c38bb04ee73a711945095b5393d1598372b4b8be6f39a572582d0aea9e7d2e8b"
+        "size": 18741,
+        "sha256": "0a70ff8bbccd19976dd36aa91602a49162b125c679c97c09d73007237d5ec1ee"
       },
       {
         "id": "internal/crypto/rsa",
@@ -1011,8 +1044,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 7537,
-        "sha256": "33b46b8195144c245470879b21d7edd3c310ea3ac64796889a2ce42db8eb4c27"
+        "size": 7131,
+        "sha256": "60e54f45bf2e3872e2d4a5a1b5a6abc0fc36078dc4a1659666cad453f05ece50"
       },
       {
         "id": "internal/crypto/scrypt",
@@ -1044,8 +1077,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 29438,
-        "sha256": "49947d3140455b078c881bfc0f3027119564e49e83ead85eba4868070756b59b"
+        "size": 34154,
+        "sha256": "147d411aeb7025c0ba8cc3428cd9c6cd9007509efbb0027f11eb75e8dfea45c6"
       },
       {
         "id": "internal/crypto/webcrypto",
@@ -1055,8 +1088,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 57026,
-        "sha256": "466b4543661af1fe8f0e369391e743a0a8c9de1b1e81252e4e384ddb72a4f2ba"
+        "size": 61049,
+        "sha256": "ccc21503fb8c7c80f1f4746d3b4caaaac0a249c9f3aaf20e4bdb40a4f24c15d5"
       },
       {
         "id": "internal/crypto/webcrypto_util",
@@ -1066,8 +1099,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 7421,
-        "sha256": "2ab3a5e1a92b7211d5b44ce9dfd6dcd776855d4172052f36465a90b508c5e9c6"
+        "size": 7332,
+        "sha256": "adcabbaa03f9aeffce99f3e9c2960de99debe7f9af839f64ca2e9e99638aac63"
       },
       {
         "id": "internal/crypto/webidl",
@@ -1077,8 +1110,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 21007,
-        "sha256": "3bdaa42be192d89404d782cf5ba5e472dce6e4ec28e30c45bb91ca98a40f4ae2"
+        "size": 23187,
+        "sha256": "5eaffdf3b9f55640d71d866563a924ef915cc6d2840f12dd9ba56309be953065"
       },
       {
         "id": "internal/crypto/x509",
@@ -1088,8 +1121,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 11225,
-        "sha256": "eb8831ace2f2c5f7f4e06ba5ad0e964d5991b3b40b6cf135166c89585d6dd00d"
+        "size": 13128,
+        "sha256": "359d33b5fcca4930bda1f1301f41a3b43804168220b7aa6fc94f35ef42c69eb9"
       },
       {
         "id": "internal/data_url",
@@ -1099,8 +1132,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 10461,
-        "sha256": "8f6158d827130c2edbf8cf6d027fd622b1346b847ff4eb4276beb733bc499217"
+        "size": 10407,
+        "sha256": "7288520251c17c83220b453f85528b88fa39d8948db01d1ee9ca4be87948e487"
       },
       {
         "id": "internal/debugger/inspect",
@@ -1110,8 +1143,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 9845,
-        "sha256": "633ea10453236607050df7d3ceb959eac9c8c40596d8da05aff784b816939176"
+        "size": 9875,
+        "sha256": "ec378a59d544640d9e649d33127019ed1e51173c129459358b4cbb90f920e3e9"
       },
       {
         "id": "internal/debugger/inspect_client",
@@ -1132,8 +1165,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 6594,
-        "sha256": "65cbeede2bcb10a751b15136bd3a20feca9c0d924a37ab07f316d2516ca38af3"
+        "size": 12887,
+        "sha256": "06a572e966b3316d6155a4fd387493ae9942acf852d6d356c4c614d281c71bcf"
       },
       {
         "id": "internal/debugger/inspect_probe",
@@ -1143,8 +1176,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 37598,
-        "sha256": "535ad356fa3d1b117f3a6ae303963a7f8e124d029dc623cebd165e24df39292c"
+        "size": 40385,
+        "sha256": "a87f17a8fb7e50d3b0a029b4ef46e0b9fd2fd41b933bef88f63f62461750b128"
       },
       {
         "id": "internal/debugger/inspect_repl",
@@ -1154,8 +1187,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 37865,
-        "sha256": "2de7192c83d3f7b825efaf188f3cbd15771f242b5af6f9fd6c4e351b8d9933ce"
+        "size": 38085,
+        "sha256": "44921d05caa0947caa30dcfe4e1c11e707732ba0cdb96746ab2f597525f15e65"
       },
       {
         "id": "internal/deps/acorn/acorn-walk/dist/walk",
@@ -1176,8 +1209,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 244682,
-        "sha256": "b373ccd10e9deb63654289f73216eeefcaf0405d9ee24289aabf596b91b4c318"
+        "size": 245232,
+        "sha256": "fc3ed7b81e58464715d0291402892f22c3d86ea75302645a330390f85d8015c9"
       },
       {
         "id": "internal/deps/amaro/dist/index",
@@ -1187,8 +1220,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 3796290,
-        "sha256": "d2d2209e9144a92b538d7394815fac36c7bfd710310cee3321d702229c5ddea5"
+        "size": 3801362,
+        "sha256": "5b0ab7d67ded7ebf38e62cca22e2f464c6ea9eb0deed7cab32fd9169efcf9286"
       },
       {
         "id": "internal/deps/minimatch/index",
@@ -1198,8 +1231,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 65295,
-        "sha256": "23f1e425aa0813670574fe2c0241f591ef5463aacf2a23e3284654a49245fd4c"
+        "size": 67160,
+        "sha256": "f96315be454e1579bb685f035b015aca6c33d7275f03707f74d6c82089250c30"
       },
       {
         "id": "internal/deps/undici/undici",
@@ -1209,8 +1242,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 758136,
-        "sha256": "19e00833036e7d25f20da1bc70dd4b19dd3081c051bfc9eea8f70d026534cad4"
+        "size": 770076,
+        "sha256": "03f20135a1bf7dbafaa8a55588eb5b6b1cc0c03f729fb386111548c114eecfaa"
       },
       {
         "id": "internal/deps/v8/tools/arguments",
@@ -1352,8 +1385,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 2791,
-        "sha256": "40546f29bdb814a2e5079eb94e424c31acda1a66adf74336333da1b2508c7480"
+        "size": 2809,
+        "sha256": "0b085e0e74a64f7048d6e0bfd1486cd732e6df2a14317f1c977e912f6d988e42"
       },
       {
         "id": "internal/dns/promises",
@@ -1363,8 +1396,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 10605,
-        "sha256": "fe4d4381023ff65041ac18cbf42711de6454714fa7473a9ff1f5f99f73e5872d"
+        "size": 10660,
+        "sha256": "1d297d9dbdbb6ff0528781b0ebca780cf85afb8a11d64c9256f0d332014b5bfc"
       },
       {
         "id": "internal/dns/utils",
@@ -1374,8 +1407,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 10191,
-        "sha256": "1fc54051638bc0746304416b3d7528116a6fd39dd5a375b1fa28ae5217d835ea"
+        "size": 10320,
+        "sha256": "d1144519337a9e5e2bf768d3e15eac7f0a83d1dc83bc349d45984ee68c3c3545"
       },
       {
         "id": "internal/encoding",
@@ -1429,8 +1462,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 70520,
-        "sha256": "305e3de72f2927cf20ef1f15a11bdd963375a2d9960bbf42544bba9875827d37"
+        "size": 72985,
+        "sha256": "04f3017097d444ba6c8311f4353ffcdaffa6268aeb03cb231f98e931f17e2208"
       },
       {
         "id": "internal/errors/error_source",
@@ -1451,8 +1484,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 32787,
-        "sha256": "0b32915b2dcae0570966075f329a2aa650cc51f6bf68a6fb96303fa7f245093a"
+        "size": 33492,
+        "sha256": "66623ec0bc68f09be040e6b5df9e3e24370196f2453ca5dfd907b3d9b8d08e55"
       },
       {
         "id": "internal/events/abort_listener",
@@ -1528,8 +1561,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 11066,
-        "sha256": "1519e09b5129cc66f6eae0448e9e860c9cc9ae83dcde721efb7f818e4324a196"
+        "size": 11332,
+        "sha256": "ddf480cfe9659740acab10a4fd81c5d2cd275a7e805ffdefe1d0ea180916d721"
       },
       {
         "id": "internal/fs/cp/cp-sync",
@@ -1539,8 +1572,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 7031,
-        "sha256": "cfa9592d9d11b1791282373a1de86d422ec4562203e7edf5b5a72abcc979dfc6"
+        "size": 7432,
+        "sha256": "6a24c5f51d450e1d1b22deeac5f72cdd4e39d34f04fa995a11dfe230acb524f3"
       },
       {
         "id": "internal/fs/dir",
@@ -1561,8 +1594,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 31395,
-        "sha256": "17c1d082f351da05c92c4efe6a6119cea8c88d22badd381986101a81efd82da8"
+        "size": 31580,
+        "sha256": "ecee340045b8d9d2f4ebca8f20ffa69306613c838e28d916d89eecb78ef12a64"
       },
       {
         "id": "internal/fs/promises",
@@ -1572,8 +1605,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 36749,
-        "sha256": "13e788399ddc3b2caa2778a726841d33a5587d74631d854da4846ba666e6607b"
+        "size": 57442,
+        "sha256": "166fb04ac113ec85e27fd8e8b0ef1107e983756e79eb5dce3458c62ef59548d9"
       },
       {
         "id": "internal/fs/read/context",
@@ -1594,8 +1627,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 7983,
-        "sha256": "eadf213663a69df4ab9c57505457d0d6e486f3154513497373c2c93d62ed00da"
+        "size": 11194,
+        "sha256": "115dd87a6635266b6fbd7dd6fe57e4848dd9657c984931ab8933e95b85cfe1ad"
       },
       {
         "id": "internal/fs/rimraf",
@@ -1616,8 +1649,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 15565,
-        "sha256": "f43ccd6f33688e4fe585428dba8d9b47e8f5e95358dbffe850c998e09ed4b78e"
+        "size": 17015,
+        "sha256": "0e5350d76f5bd597896e876f11863cf86c691061fb502f5fdc44be89315cd66e"
       },
       {
         "id": "internal/fs/sync_write_stream",
@@ -1671,8 +1704,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8498,
-        "sha256": "f58d668e628819bbf078690ac3c14a4c7250c530df6c1b6a41d1df97b1d2ce8d"
+        "size": 29161,
+        "sha256": "de76bb051c13a36a63d9855684b219d3370b9640be8a104d4bb8893830a5f7f4"
       },
       {
         "id": "internal/http",
@@ -1682,8 +1715,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 9445,
-        "sha256": "d8ab1e14124c261de26ae7bb23a5e8a1785f8eeee280673edd93aeec31f748d6"
+        "size": 10426,
+        "sha256": "ff9d2c9f7873d167ae1553b4688c99cdf099edf294fb069a47d0df2ff71a263e"
       },
       {
         "id": "internal/http2/compat",
@@ -1693,8 +1726,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 24421,
-        "sha256": "447f1d80a0d43f3399fc744941ca174a3206a3b6e2d00d387ec2b6283d7fbdfc"
+        "size": 24431,
+        "sha256": "26eed2cf8852985197a5f933e2c45733ec7d73250a434754b1d34cc182f7ec4f"
       },
       {
         "id": "internal/http2/core",
@@ -1704,8 +1737,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 118072,
-        "sha256": "31ddb447c69a906be3f49d3aef7d35ff29ed7dddd466de38c98c34d531423318"
+        "size": 120727,
+        "sha256": "c12bcc0cbad75f0bf164a891512db441aef7a9f1f29287254df591f17acc0685"
       },
       {
         "id": "internal/http2/util",
@@ -1715,8 +1748,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 33388,
-        "sha256": "b6ede34b800bfe3d17717d49d3036b2bacd967f19c1a2073c75a98558e73c5c0"
+        "size": 33798,
+        "sha256": "23c50bb66f8cf53aff8db08d0991da7195ad431b1d22eb46468a12920eb88e58"
       },
       {
         "id": "internal/inspector/network",
@@ -1726,8 +1759,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 2165,
-        "sha256": "014138ec8911423e6101663521c201aed808b7a1ec462856d07fcd215c7d7e07"
+        "size": 2083,
+        "sha256": "4018b6a1fdc8eeae1cf74217205f2afe289acbd58ed994ef3257649e24dffa67"
       },
       {
         "id": "internal/inspector/network_http",
@@ -1858,8 +1891,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 2126,
-        "sha256": "d66e0456087439803d24f7a16a0fa125ce477d68537fddd025d56bd9496f55d2"
+        "size": 2708,
+        "sha256": "85010bc6b79d3d87a8a2b7de1850f0c09c972599e7cecacbf8e9ca0abb9593cb"
       },
       {
         "id": "internal/main/embedding",
@@ -1924,8 +1957,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8145,
-        "sha256": "44c47fc16993f3256467d5bd5e72b7ab00f74a747c2e34d66b10f6958c18fe22"
+        "size": 8638,
+        "sha256": "8ef0eee336acc15c12d7d38bd3acb7404a3b375a15633f8ea35fdf57051103a4"
       },
       {
         "id": "internal/main/prof_process",
@@ -2001,8 +2034,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 11377,
-        "sha256": "f34ca40f84cc35a00e0065d4a776bfc740f9ab132d94fe02367eb05fe469ed4a"
+        "size": 12088,
+        "sha256": "e5ceac067b978a61c1100c8e861a0191216d899c8ffdc745650038bea0a11980"
       },
       {
         "id": "internal/modules/cjs/loader",
@@ -2012,8 +2045,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 74566,
-        "sha256": "4b871382714cc980dfb6f779e1d18a82856e76d954f1eb901ff256f1360d0e0f"
+        "size": 76480,
+        "sha256": "a3e3ee095d409597bf224522411607aa7d2f4747cf42b5329179bf3b4b5528ed"
       },
       {
         "id": "internal/modules/customization_hooks",
@@ -2034,8 +2067,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 4333,
-        "sha256": "1fc4c423d9f8c317826ec292d6d3a7bfde074f60c7a9f4b98b727af5e862a6fe"
+        "size": 4481,
+        "sha256": "7382916badbf1f3c9d67f5a05dc9a8a7aa5ba88fc0f2565173010efce735fe3e"
       },
       {
         "id": "internal/modules/esm/create_dynamic_module",
@@ -2056,8 +2089,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 9829,
-        "sha256": "ed2a7cd27bbc6d66dc0b890dd6d0d2effa5eb4a2d1a1f5f9713afb5ec0826e5a"
+        "size": 9820,
+        "sha256": "49cd2aaeb92ac62f41336a8e6733adbfdc9238778a389ce7a84b3b590e868ea0"
       },
       {
         "id": "internal/modules/esm/hooks",
@@ -2067,8 +2100,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 28552,
-        "sha256": "ac6dd7e1da92df706fb6430831248f665d81b7aea00675053e8647dbe28d9ef3"
+        "size": 28562,
+        "sha256": "44c463b4177e2a194e5e64bf61af776f0886ea7a38eaf10effb8e57fe6936c06"
       },
       {
         "id": "internal/modules/esm/initialize_import_meta",
@@ -2089,8 +2122,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 6026,
-        "sha256": "4d05a5d723f74acdd895ae7f919c43ffc70ae0ad7d86dac39ebe7011f8cb792d"
+        "size": 6017,
+        "sha256": "3420c3cc40385d69a930baf6d219a3e563965a09d0c18c2c2ffdd177bf1ccecf"
       },
       {
         "id": "internal/modules/esm/loader",
@@ -2100,8 +2133,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 39544,
-        "sha256": "1aaf8d994d129fa42c4d391f5a6b4bc233e2ab4b1c079285029c3ecaf825b76d"
+        "size": 39862,
+        "sha256": "9887e4673ca2d78be60c9270704f83077fc9e9890da5d4391b045f0802e1f13b"
       },
       {
         "id": "internal/modules/esm/module_job",
@@ -2111,8 +2144,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 21793,
-        "sha256": "370caf2e75ecb01c44212e59a896e181f442871a227b54df193cd23eb34a34a0"
+        "size": 26326,
+        "sha256": "1a8f350a32ce47b4e45b2251fc15f4438d322b5b9d227dc74d5f9846fb0ccacf"
       },
       {
         "id": "internal/modules/esm/module_map",
@@ -2133,8 +2166,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 39356,
-        "sha256": "d9fb8b7b9c3345c872993f764d252d4fe463ce05b83c925e26f0297f2fcc3268"
+        "size": 40004,
+        "sha256": "f9dca95cba1ce43a4a0797009715c90cde3eb951b2efd98578fe5f7d700c25e3"
       },
       {
         "id": "internal/modules/esm/shared_constants",
@@ -2155,8 +2188,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 26801,
-        "sha256": "019b48f389fb452659e8768f6a4f0dfbcfaf999ddb6669d624a5fc7264b73a91"
+        "size": 26815,
+        "sha256": "029cc3eb148b61058ce760c934a39450d3c9e4834e304c33b9e819338f94bd06"
       },
       {
         "id": "internal/modules/esm/utils",
@@ -2166,8 +2199,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 13195,
-        "sha256": "dfd930e378b23228046a87155c5116a107494c5cd2ab4b4be04e52e16bfe9ca3"
+        "size": 13698,
+        "sha256": "b737c8a28ca65b8328160be677de67772c2ba713d5590ea5a6c19eb447cf284b"
       },
       {
         "id": "internal/modules/esm/worker",
@@ -2188,8 +2221,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 15922,
-        "sha256": "c5b90b1ca1465e0feb20f92d7668d343d2a9982ca09647940ad23911a371eecb"
+        "size": 16403,
+        "sha256": "3d6d6d7c7257610dcee83c76f29d6314ba56af5560faf50650a025fd9a56bbb3"
       },
       {
         "id": "internal/modules/package_json_reader",
@@ -2199,8 +2232,19 @@
           "configurable": true,
           "writable": true
         },
-        "size": 10998,
-        "sha256": "f398dd7232fb76fe507c9f2768d2500b6afad10c74b8ad48c8aed2adb9508f61"
+        "size": 12315,
+        "sha256": "aa4cdbfcb7f9fc33fadec17d790760d1ef120e53b84c62b31f6d9ca6678a93f7"
+      },
+      {
+        "id": "internal/modules/package_map",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 9140,
+        "sha256": "042618365512ba66a874f229b30f9b91d90d6fddfedb0ba26e39142503b77038"
       },
       {
         "id": "internal/modules/run_main",
@@ -2243,8 +2287,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 3240,
-        "sha256": "2b9bf5e57d8c3606bffc4aa91ab8a59595df2fa4a8eb475473521c4a3cc59d1f"
+        "size": 3306,
+        "sha256": "9e4d1998d06991d173856a44c5fdb28b679877708d4fd8331d2637256bf65302"
       },
       {
         "id": "internal/options",
@@ -2265,8 +2309,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 6496,
-        "sha256": "9a7a82d0a6b9a3ad85d87335fb75f123211b2715208e704548f3cd2e50fa1d73"
+        "size": 6515,
+        "sha256": "471eac397d23a8f13ffc5bf16026cf728165f6cb1362c57224a136e050f6f8de"
       },
       {
         "id": "internal/per_context/messageport",
@@ -2298,8 +2342,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 1983,
-        "sha256": "00b89687f99baaa3c92c862972bab1e62265ff9dfd288afe4465303123e38b47"
+        "size": 2032,
+        "sha256": "d5e91040e37b2ff78da0ab8f679141e650d01fcdc2d359223189f03a270e0994"
       },
       {
         "id": "internal/perf/event_loop_utilization",
@@ -2320,8 +2364,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 3858,
-        "sha256": "3ecac721d8650e10b175086a1d4d5ed0a2dbba58174ab157057eb83d6b219d3f"
+        "size": 3885,
+        "sha256": "6087b5c7ec02bb1ead1d3ae0a981fdb0dd5d73e66042b4536a211d6454f15f5f"
       },
       {
         "id": "internal/perf/observe",
@@ -2331,8 +2375,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 16758,
-        "sha256": "4317a10d8d147dd1a2bf27a83bb84c80c36d131c91895fa314130f4808de283a"
+        "size": 16864,
+        "sha256": "c24da9485a7e9ed3f71732a56cadc9652944ced21673f9eb70005a19734d6fd9"
       },
       {
         "id": "internal/perf/performance",
@@ -2364,8 +2408,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8319,
-        "sha256": "ad7ffef84d082bf0bd97f5e85bc99548a80a5205dc5a245573debde84a7601f4"
+        "size": 9841,
+        "sha256": "1866a80999446a7af63801fdfa061b0edc0d6164d86427f801d66465e4de7b79"
       },
       {
         "id": "internal/perf/timerify",
@@ -2441,8 +2485,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 16578,
-        "sha256": "f3bca509ca9ae6be403fcbc0133c45760c6cc76f21f890c8f494f2934efc9e7b"
+        "size": 16763,
+        "sha256": "4c4bf8e32964fe1a18e15ea4a38ead7738955685af7db5555e0d40ea6cc7bece"
       },
       {
         "id": "internal/process/permission",
@@ -2452,8 +2496,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 1110,
-        "sha256": "10b6b5457b9678c7d2484cc84fb5e16ce62189d44a657ed21f317050a757ab2c"
+        "size": 1436,
+        "sha256": "9393020830ad0b819f6204849fdaee2913130bcf2d15f4243c3863502090d720"
       },
       {
         "id": "internal/process/pre_execution",
@@ -2463,8 +2507,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 24514,
-        "sha256": "7e31423af5b85f29ed9e1573c324e8be0ed065018aa233eb686589af241a1c1a"
+        "size": 25702,
+        "sha256": "2277b59de0d339bb091fb7e4bdddf251097958d488a34060e87616514a8f7717"
       },
       {
         "id": "internal/process/promises",
@@ -2555,6 +2599,17 @@
         "sha256": "92d0cbd561d7cce93936b083d56d2a41063d177f3aa6772ae2c1871f160163d1"
       },
       {
+        "id": "internal/quic/diagnostics",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3614,
+        "sha256": "57672e572c6f3221231ede16f1a7f65c733cfedd9c0aae8b3e77d2a472e56b7f"
+      },
+      {
         "id": "internal/quic/quic",
         "kind": "utf8",
         "descriptor": {
@@ -2562,8 +2617,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 72987,
-        "sha256": "bebddce6b81d0666ad3867cb33cc086726662b17ce48da1e9519370af5c2fd19"
+        "size": 186443,
+        "sha256": "37ee222d50688d28879705183b5ba915e29e524783a1b541c74124540fd5e6eb"
       },
       {
         "id": "internal/quic/state",
@@ -2573,8 +2628,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 18915,
-        "sha256": "d45fcf1fd44638bbcb294674b76a65b388930e9d6d3bad0703f1d5476051473b"
+        "size": 30230,
+        "sha256": "c4bba0bb41a68879dda0a510bfed80bb4750de7d1e9c936201ded28f2db4ebf3"
       },
       {
         "id": "internal/quic/stats",
@@ -2584,8 +2639,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 20139,
-        "sha256": "4215508bad830ac727842024d433559d795bf4a1bfe33e814d30fb7631aafb7f"
+        "size": 31763,
+        "sha256": "e5cf1b943b8085fd4dc7202c123e0a1c4ed36a88b35b9e1c3db24fe2ae45432e"
       },
       {
         "id": "internal/quic/symbols",
@@ -2595,8 +2650,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 1949,
-        "sha256": "6bd81ddd56d1ede3a8fd7e92711a0b14da558aba0bc3d7fa3a94eeed58b984bd"
+        "size": 2597,
+        "sha256": "cee075eed2c732cecc52c0f80f49ce057f37e4c494b77e63819a9b53599d094e"
       },
       {
         "id": "internal/readline/callbacks",
@@ -2628,8 +2683,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 47331,
-        "sha256": "d10af47bb8d1393c6fb1de3a3faa253ffb7f7ee8ec1c36e697eccff607d778e5"
+        "size": 47413,
+        "sha256": "f44550c930d874922437a194116987f36cb541eed1dc074c8b851728c75d2549"
       },
       {
         "id": "internal/readline/promises",
@@ -2694,8 +2749,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 12789,
-        "sha256": "19069b28f75bb9925170ef8e14aee7351214a5d06a3270024d237bdb1b804b7f"
+        "size": 13356,
+        "sha256": "66d3bd99bc1422dd10b1ce79574d0efe926c0628409b56a5dc685c35e9020c5e"
       },
       {
         "id": "internal/repl/utils",
@@ -2727,8 +2782,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 4472,
-        "sha256": "95cb2dcb091311231f62fc08bddc62e00b1db85d915452055821c7597a16248a"
+        "size": 4481,
+        "sha256": "6c83f92944f86b7e5514755868c280ef15fdfe1f9a3654e600c9fab967c12b67"
       },
       {
         "id": "internal/source_map/prepare_stack_trace",
@@ -2760,8 +2815,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 15985,
-        "sha256": "f6a6823663845852670293f788fab72e8f216534525756ecee28aee330998767"
+        "size": 16969,
+        "sha256": "a3ae7c8990dd0739dc65004e114d423b1fd11f3a4c1305f0f7be3d970ecd46c4"
       },
       {
         "id": "internal/source_map/source_map_cache_map",
@@ -2782,8 +2837,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 7322,
-        "sha256": "bfdad04241cc86e8eccb1cfdd0c3aea0f355a348535be50d92c0e8fb74be9d3a"
+        "size": 7687,
+        "sha256": "e114197ceac878eeb7e61410c5ccdbf3d23071be6d583220260f1364557769e6"
       },
       {
         "id": "internal/streams/add-abort-signal",
@@ -2837,8 +2892,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8565,
-        "sha256": "507d9fbf1d2a644f7b9f69a12d6c91fe94fecdc5199ad640f94e77e70c564e7c"
+        "size": 8964,
+        "sha256": "d25869b26e3bf39f6c0f0e3aa7928599650e774ace181129f37d5514b5cad8ba"
       },
       {
         "id": "internal/streams/duplexpair",
@@ -2859,8 +2914,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8882,
-        "sha256": "f6a0d6902051d5db33aa9ce76ca9be063ffbf4dcdd05cc27299e9e8709632a44"
+        "size": 10805,
+        "sha256": "5c317c5a14a7feedaddc594a2a7a7a6d7d955e6347d8e58172e2e34af43aeb29"
       },
       {
         "id": "internal/streams/fast-utf8-stream",
@@ -2870,8 +2925,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 24624,
-        "sha256": "a6a66430a8f93cf5b6d7c90e16386bb2429ae3309672242e914a0a28bc9f71ef"
+        "size": 24788,
+        "sha256": "018dd5e874a090dc08e6fb17f3f1e4ca630025bc51289e3bdfc9d2d527b2056b"
       },
       {
         "id": "internal/streams/from",
@@ -2883,6 +2938,138 @@
         },
         "size": 4628,
         "sha256": "4999ebb66e39a5aac7c246c6a521a7832159dc6436c1d5a1f0756a700d82e286"
+      },
+      {
+        "id": "internal/streams/iter/broadcast",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 27032,
+        "sha256": "2784f4460f473381467ed34ad5d1cbc263946f05992c0777afdd79cee9c9e720"
+      },
+      {
+        "id": "internal/streams/iter/classic",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 26930,
+        "sha256": "bfcf0fd418c1ccdfc3e057e7a9e4af77459132a06181c26c3dcb8b5201fd7e54"
+      },
+      {
+        "id": "internal/streams/iter/consumers",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 17432,
+        "sha256": "d0d8d97fff9f9413969db606fd3f3e13ba0810097762e6556420b0bb6b2b6c1b"
+      },
+      {
+        "id": "internal/streams/iter/duplex",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3229,
+        "sha256": "702fa47202942a26f34112f55b267c4222dccacdab4764323d2c6fc504cbfe1a"
+      },
+      {
+        "id": "internal/streams/iter/from",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 18512,
+        "sha256": "ac33bba8dd52b419aadd3b891cdd32901377e4d3534ba42b87f7fe063bfea680"
+      },
+      {
+        "id": "internal/streams/iter/pull",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 33795,
+        "sha256": "83b1855b115fd11161655febc0eb9d91eed77c2aa3e64f3748634b862e09d66b"
+      },
+      {
+        "id": "internal/streams/iter/push",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 22415,
+        "sha256": "24d0b0d4878288a385facd7dae683a79bbf905101ed00ecfa414a6738b796ac1"
+      },
+      {
+        "id": "internal/streams/iter/ringbuffer",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3730,
+        "sha256": "93e005367d1c3d240f8a57ba8f85b93fe747b3014a1f35b1408f1e45b0551717"
+      },
+      {
+        "id": "internal/streams/iter/share",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 24149,
+        "sha256": "b0604b2922ad81ed2ace6f481c470e4cebdca2dff64222f0d75343d1169dddb4"
+      },
+      {
+        "id": "internal/streams/iter/transform",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 27839,
+        "sha256": "9df8f059622909758d6acafa41e2f3a8c1df26c098d1fdfee0bfe4f13fc51281"
+      },
+      {
+        "id": "internal/streams/iter/types",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 2398,
+        "sha256": "ce46f861feb4165f43543330fe4b690ca7a8b4774f2402915943815361960cda"
+      },
+      {
+        "id": "internal/streams/iter/utils",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 10561,
+        "sha256": "3e9053e6034e3171e26384aefa8fa308ada94dcd285ebc3cbf1ff06608ab7982"
       },
       {
         "id": "internal/streams/lazy_transform",
@@ -2947,8 +3134,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 52150,
-        "sha256": "1d59ea7a8aa44fe8b9715cc1bb69c7327549997baa5a2f6ae4a3fcc45b8b95ae"
+        "size": 55708,
+        "sha256": "477355edf8b415fd0525546cc20adce5e4609c906926a29493042581d23a9bc7"
       },
       {
         "id": "internal/streams/state",
@@ -2991,8 +3178,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 33559,
-        "sha256": "7aae77c483373029827412567e695c31c654ad8d405370d64a7480a46998bcc5"
+        "size": 33784,
+        "sha256": "7dd6d1a64c989f00c0899caed2378d3e69da3e745e8ff99c5e73a1b3796a8782"
       },
       {
         "id": "internal/test/binding",
@@ -3035,8 +3222,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 25298,
-        "sha256": "f55a1971af99b0ff53b15b406ae99227f95364f0c48831e56b440b1dff2c6b42"
+        "size": 25974,
+        "sha256": "a63f6591d735373bbdfa1be2d11537c0ab2c49396f45611edbd2a9a230495dd7"
       },
       {
         "id": "internal/test_runner/harness",
@@ -3068,8 +3255,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 28814,
-        "sha256": "2e3f742b84a139746debf1ed3f9aeddc6765011d12462a750035d90c2acb8594"
+        "size": 32175,
+        "sha256": "cc6bd26d9087e175671911108d989a5dee3a1edcb3904110f5919c24da16d745"
       },
       {
         "id": "internal/test_runner/mock/mock_timers",
@@ -3079,8 +3266,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 22824,
-        "sha256": "fcc324ca41b8c72a6a315f533ba4aff2e69c1d590c7057d5475bc8e83d8b8083"
+        "size": 22826,
+        "sha256": "06b114f37a3104e66a991de1c583a10df6fb12c2923cf21e01303fe8d1a2457b"
       },
       {
         "id": "internal/test_runner/reporter/dot",
@@ -3090,8 +3277,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 1087,
-        "sha256": "b3fc367af72e95ec57f4d4423d6555934de55124f4e21f1e2af57fdf364d5b7a"
+        "size": 1889,
+        "sha256": "ab82cbe06c52059ee7559beb0433b98a4c2775b4f378f1a59880d477bf6d3505"
       },
       {
         "id": "internal/test_runner/reporter/junit",
@@ -3101,8 +3288,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 6062,
-        "sha256": "172a3fc540d7283d6ade005201359dac8744da0be3ae53d347fbd318b6337374"
+        "size": 6093,
+        "sha256": "a61753b2b81d86e373a5190100b4790f63f8533bd647504a090896d4742c4a9f"
       },
       {
         "id": "internal/test_runner/reporter/lcov",
@@ -3134,8 +3321,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 4743,
-        "sha256": "2077200dd9130524d888fb002f96a4e2da50f1c57ab2895b1c22a34959020242"
+        "size": 4754,
+        "sha256": "e4b4523c0b6f2762d14f5a3c19267241fe8ad3a11144a526b9b06134eb9bce09"
       },
       {
         "id": "internal/test_runner/reporter/tap",
@@ -3145,8 +3332,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 8786,
-        "sha256": "b01091a4d358064062ed6784170960af1a25ced8cd4ea9469c41ab4ec80ded38"
+        "size": 8809,
+        "sha256": "3aadb6a08fab850e8dc365cc14432fa77464c2b7f794b934c91426bc5c513f3b"
       },
       {
         "id": "internal/test_runner/reporter/utils",
@@ -3156,8 +3343,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 2955,
-        "sha256": "f1aee5a5b8af7d6252240448ad8a9546d08c9a4235582ea63887eee6af8b9931"
+        "size": 3030,
+        "sha256": "8972181c8d7d9ca5041d79035f791ae9de0bb3d1696fd6cd42dd900e289ac1cc"
       },
       {
         "id": "internal/test_runner/reporter/v8-serializer",
@@ -3167,8 +3354,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 1459,
-        "sha256": "703c91cd034964dfb41deed5e79971fe061ab154220d8a8bb5adcc9af48b06bc"
+        "size": 1525,
+        "sha256": "4ba29df088da8ad5ed1c62aed8da5f3a6130e279e60ed337bb139cd01ab4b071"
       },
       {
         "id": "internal/test_runner/runner",
@@ -3178,8 +3365,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 35690,
-        "sha256": "e04e397be4e579f1fb08ecf239fb2914035f7ffe26be5bc629f45aa4313a0b68"
+        "size": 36253,
+        "sha256": "b1bb09fb385d58ef4bc751153c3e36a8b95165f4768642bd273cc2d466fd0e1f"
       },
       {
         "id": "internal/test_runner/snapshot",
@@ -3211,8 +3398,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 54900,
-        "sha256": "21570a32454209d42032d73e87676f6d9ff178827740b8a770ff314c510bb476"
+        "size": 55792,
+        "sha256": "6329a64a8825bf217d60526f7a53fd89af6fc5107ad9f15d41b825b19a587fa2"
       },
       {
         "id": "internal/test_runner/tests_stream",
@@ -3222,8 +3409,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 4015,
-        "sha256": "49946df9b229df7193f2f3e7a612d17b62f9b62667094c14c8f6cff20cb697bd"
+        "size": 4413,
+        "sha256": "0ddef67b9d250ce914a0733e56af9e7ff334106a083f8bb6c05caad84859a2b3"
       },
       {
         "id": "internal/test_runner/utils",
@@ -3233,8 +3420,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 23288,
-        "sha256": "aa047506eac62cc394eab0add5cca72796d1ea7d36273ac7a0fd9d47dd76fd32"
+        "size": 23011,
+        "sha256": "56bc4b056d4f77ff87a9e691a385e91dff0c15ac47e4444179c5b7fdd0a26013"
       },
       {
         "id": "internal/timers",
@@ -3244,8 +3431,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 22130,
-        "sha256": "fe9891c314a12c21cfde7d086bf43b49d46ac56bb574f1210978972c2ecf5922"
+        "size": 23962,
+        "sha256": "8ef50a8988efbec26a40514518e89789acc2f7085418c2cc526f89f72cf8251e"
       },
       {
         "id": "internal/tls/common",
@@ -3255,8 +3442,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 4789,
-        "sha256": "b377f317786dbc6bf34feeac9f711e9a2a11aa34e3622a9b0eaf50a42276ec9c"
+        "size": 5134,
+        "sha256": "5ec63cac54471bc40cd0fbb3da5b1c8933e6110676c92411a4e6f971b5369316"
       },
       {
         "id": "internal/tls/secure-context",
@@ -3266,8 +3453,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 11053,
-        "sha256": "7721bf2e7244c551ade9e3c79455018f1a2b400257e40f604c26ab12c2f0a218"
+        "size": 10978,
+        "sha256": "1c2863b2a8c9703d3ac0d5aac708d626d8ac24aef305df148b9af3e65d66dd08"
       },
       {
         "id": "internal/tls/wrap",
@@ -3277,8 +3464,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 55164,
-        "sha256": "7d059ba88f31308614efb930da8053afb0365c6c4e13db1d16a6e18b3e3fb034"
+        "size": 56351,
+        "sha256": "6e1944b8bac0aab955682dcf9c5fbbf61b2b994a8991a66eb17da90e6662c135"
       },
       {
         "id": "internal/trace_events_async_hooks",
@@ -3310,8 +3497,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 53408,
-        "sha256": "d25783bc5729bdbd60eb3026794f833d6a33176b0ccb76573c9a65177bd8b5cc"
+        "size": 54644,
+        "sha256": "06de7fd12795785d16dd716c2cb7d61db3198a799230ddfe3ae86249472f73c9"
       },
       {
         "id": "internal/util",
@@ -3343,8 +3530,19 @@
           "configurable": true,
           "writable": true
         },
-        "size": 30207,
-        "sha256": "1a58c16d2e37277fc07d8fcc74b8a1ee1586c30e9984f4ed3e3a8bca7d4c25af"
+        "size": 31472,
+        "sha256": "c994d75e6ba098687b3da012d9b94154019b8b19a82899d1290ba09b8301ce5c"
+      },
+      {
+        "id": "internal/util/debounce",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 5543,
+        "sha256": "86b225b4251b6b26a0990a9bfe584b8e45856f8dc9c5b716ab7a625afb368058"
       },
       {
         "id": "internal/util/debuglog",
@@ -3376,8 +3574,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 93593,
-        "sha256": "578e96c3e776b17152dfc9331befe13fb84953575197b1bea7db78564efaa8c7"
+        "size": 93793,
+        "sha256": "671d637e4509b7089ae59d0e6e41dc2b83171994d614006c9121a8c5ccb9b410"
       },
       {
         "id": "internal/util/inspector",
@@ -3387,8 +3585,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 3929,
-        "sha256": "96ff6b3a871860e1720964aae93835b4e416bd1c8564f192b7aabb1149b621d8"
+        "size": 3873,
+        "sha256": "7b4f4143c330634416f6868938b49152d3bc8ab23d32886653fcf1b7b831dd42"
       },
       {
         "id": "internal/util/parse_args/parse_args",
@@ -3413,6 +3611,17 @@
         "sha256": "98d6355bd61ad6bbf6087b9bb7a16fa4f5dc7fdd7f0280e82fd86a88dae99a2f"
       },
       {
+        "id": "internal/util/throttle",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 8719,
+        "sha256": "7c0f69ea777c06d21ce446a38002403e87d558eae2130d45f81cb6185d3ebc03"
+      },
+      {
         "id": "internal/util/trace_sigint",
         "kind": "utf8",
         "descriptor": {
@@ -3431,8 +3640,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 2744,
-        "sha256": "9fee21497045f91bb4501c8e915b2f2b79da06e24b8970e26d559584ec9f2da9"
+        "size": 2830,
+        "sha256": "beac0621a76eadd93f40ca285b0122fac8b3021257af0bdca17b561dffc91807"
       },
       {
         "id": "internal/v8/startup_snapshot",
@@ -3442,8 +3651,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 3897,
-        "sha256": "ca0c3355a13bc0eb75185d0bf2bfdaa110504a3f74e085d91ff8a5e1868b9c93"
+        "size": 4451,
+        "sha256": "4eee95d7fa66dff0d64e84da2511bdfc2edd42ed3ebec99590618004c1c2701c"
       },
       {
         "id": "internal/v8_prof_polyfill",
@@ -3530,8 +3739,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 36239,
-        "sha256": "723ff57823d4621621ca3e5ae8a7c402445bddef051cff78ec4d29ccbbcf1cfe"
+        "size": 37345,
+        "sha256": "80c2dc49056c8558928ec4a062a16430f26c5e264780bde2608489f6f60a1168"
       },
       {
         "id": "internal/webstorage",
@@ -3552,8 +3761,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 28450,
-        "sha256": "bcf55ad97faa9fcea3fcc47a9771000d1f62b70e7864ee55a3619d4671a3deb0"
+        "size": 31068,
+        "sha256": "4ec5d9c51b32f8c3f31861d076415dd2c0d8bb2c7b762bf4155826e56d7d7144"
       },
       {
         "id": "internal/webstreams/compression",
@@ -3574,8 +3783,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 5089,
-        "sha256": "87eea35876600480d6908a5a8721527b5f2c0db3aa3c9ea44f16e6944ca61b34"
+        "size": 5097,
+        "sha256": "88ecaf7b67ff16ca999945312d791e31b0c90742f46d13d25c69d01d5450b945"
       },
       {
         "id": "internal/webstreams/queuingstrategies",
@@ -3596,8 +3805,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 106722,
-        "sha256": "565b9cad63d2b39fd4871826bba2cb34a7f261ee9ba4c5ee78143ac82562ee73"
+        "size": 118964,
+        "sha256": "235021350c4e0b79707089e6b7f5822ad3c58e6150516da0e99e3038eb46b919"
       },
       {
         "id": "internal/webstreams/transfer",
@@ -3607,8 +3816,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 7993,
-        "sha256": "9bbab82488e2d2ae3038a56504a6cb305d1868b2356f6d429a3e56d688a032a8"
+        "size": 5729,
+        "sha256": "89053e3328060085c2b4396ba06cd4017ca09b0abab85df3bb98c48485d17e29"
       },
       {
         "id": "internal/webstreams/transformstream",
@@ -3618,8 +3827,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 19281,
-        "sha256": "326c448902d369a1238a60ea37468087fbd5183e21f00f594a30d085299f567c"
+        "size": 24362,
+        "sha256": "228b9d05e58bb2f9741077453b198d1d0bc700d79dbd1fb0231d463df7da0702"
       },
       {
         "id": "internal/webstreams/util",
@@ -3629,8 +3838,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 7232,
-        "sha256": "5cc11caf02d495de8ed4259c271f41ffad2db8c6e7119742057c1a80ac1291b5"
+        "size": 14435,
+        "sha256": "eb3d0c40edd55314356c73f1f44fe949a09b6a4f998dd31cf513170442643d86"
       },
       {
         "id": "internal/webstreams/writablestream",
@@ -3640,8 +3849,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 41249,
-        "sha256": "e7c1dbeb8de9a045404b5b1d4994f955dc2c48d8fe5dd67301d6474520043087"
+        "size": 44821,
+        "sha256": "3bd6f7164d3fc4316c2f25af8e21a8ac4d640c7d2021a7cc2f1d725a2350a7e2"
       },
       {
         "id": "internal/worker",
@@ -3673,8 +3882,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 14151,
-        "sha256": "b4c084d5fc9329b90467a5554f95a2e32dd4434785d82cb20849ef2268419f8a"
+        "size": 14108,
+        "sha256": "6d0d59a7ed960d214906da5934698ec873703652faca4dc2657ef7b9501dec9e"
       },
       {
         "id": "internal/worker/js_transferable",
@@ -3717,8 +3926,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 77720,
-        "sha256": "5f110da3a2bbec06e97c72b41c83b9d2554cea6ae87b7eebcfed86ca6ef82e98"
+        "size": 88394,
+        "sha256": "24db4f4a58808f0935265b1a71150989cec8601e971f07ca531d16004f3d6c43"
       },
       {
         "id": "os",
@@ -3739,8 +3948,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 52691,
-        "sha256": "dd326ecdc2d6ad2025c4991f4b480d76a9f1d52b7f6d0988a5dc0a1d02de5209"
+        "size": 52498,
+        "sha256": "f05ab2a1f33102880bb8c5052cb0e634a001112883da897f3498492bef67f3f6"
       },
       {
         "id": "path/posix",
@@ -3772,8 +3981,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 1235,
-        "sha256": "4464d395ecde3d4ef16607b57b36d007af764190203ec3f1b905427d2f25f234"
+        "size": 1337,
+        "sha256": "2b0ca08375c9b22750d05daa08b18f8d9b835dd8e4e5fbb2796bbeb2fbe389e1"
       },
       {
         "id": "process",
@@ -3816,8 +4025,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 482,
-        "sha256": "04974f256a7a82cdaebe6bd79385d2cf050d3140ec4d7af745323d60b3d6389a"
+        "size": 879,
+        "sha256": "89b8eea41ee77fe21ee3d82d594bd059f9b561a272a0bf5302ed934c9946ec1d"
       },
       {
         "id": "readline",
@@ -3827,8 +4036,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 12801,
-        "sha256": "9a316ea2f324340976c4ad23b3e08053a76867ba8fbcf20537497b07fa3a1cea"
+        "size": 12955,
+        "sha256": "07a2ed16e48bebbd0b999823e68d7995ca36246bcc5f2b6c128f9549ae35391f"
       },
       {
         "id": "readline/promises",
@@ -3897,6 +4106,17 @@
         "sha256": "c30b6273efd77b5122d9b01c6dec58ec6d7708e72d49d60a4aa63bd3ba3831a6"
       },
       {
+        "id": "stream/iter",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 3228,
+        "sha256": "1d0a072cf0b035481d33974b317f3393d40706e897cdf7335ebf53cf028e670b"
+      },
+      {
         "id": "stream/promises",
         "kind": "utf8",
         "descriptor": {
@@ -3959,8 +4179,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 1201,
-        "sha256": "c76d9bd0d79c0ad6206f8e78ea5ec1b33e86137157265a31e2b0577167d023a7"
+        "size": 1211,
+        "sha256": "e4dee73334fdd5ceeb6f672128a247060c6ea4440edf0f854064d06f1bb75043"
       },
       {
         "id": "timers",
@@ -3970,8 +4190,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 7045,
-        "sha256": "23e988eb60371fea0b5eb8a7aeb8a50665fea00483a9f6eb8f3742fe3c2c2b27"
+        "size": 7217,
+        "sha256": "54f6d373fd165a4ede481f30ba4f2483f13aa98252c73a311fb3d78ecf77d40e"
       },
       {
         "id": "timers/promises",
@@ -3992,8 +4212,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 14925,
-        "sha256": "7cecb2573a9f6c8726fc423cc7821c8e1cb20fa5b5f4d56893c5c3f5ecbff88c"
+        "size": 16719,
+        "sha256": "e3096a40fafa90eb2a0e125d2e7f720b18562757bc8a9827029bf35051b5b461"
       },
       {
         "id": "trace_events",
@@ -4003,8 +4223,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 2160,
-        "sha256": "5904a5be8175319e76542598e2fbe33094cc15a5a6841930f2aa859abe24e349"
+        "size": 2192,
+        "sha256": "5cfd4b8faea1d2bcd090dfda98db3e5a09aeb44192f5989efa82ba6c584e4a6d"
       },
       {
         "id": "tty",
@@ -4014,8 +4234,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 5045,
-        "sha256": "9d05c1f3cbacb47623d49eeb09dd185cca4d80bcdfb4ed769fde90e0535ffe7b"
+        "size": 5617,
+        "sha256": "119d25f6e820b3a082a17fde3e242207604149614c6f421be8c83dfb0631b0d2"
       },
       {
         "id": "url",
@@ -4036,8 +4256,8 @@
           "configurable": true,
           "writable": true
         },
-        "size": 20289,
-        "sha256": "96dfdc936ba7eb3289714c24b2fbdb9e50758c5815d4a5954b878a51e4562cd9"
+        "size": 20754,
+        "sha256": "5337b3b5c0a9cccadcb7cb7c4c439742a5565fea768e2a54184b421b2d5c8276"
       },
       {
         "id": "util/types",
@@ -4102,8 +4322,19 @@
           "configurable": true,
           "writable": true
         },
-        "size": 32405,
-        "sha256": "399cb4e2b3f31269cc52278a1f1bb4ab7838e3c0ccdc5262e41a8824b1f438a5"
+        "size": 32996,
+        "sha256": "51c36bcb0ad42ae1c3b8ff47c9d600969130252f5b5601a9e6e4546017c96efb"
+      },
+      {
+        "id": "zlib/iter",
+        "kind": "utf8",
+        "descriptor": {
+          "enumerable": true,
+          "configurable": true,
+          "writable": true
+        },
+        "size": 1163,
+        "sha256": "979961ee12e7aa6db9492c787c1f95a2bc7ad11b6a0b83add86f5342a0ffe920"
       }
     ]
   }

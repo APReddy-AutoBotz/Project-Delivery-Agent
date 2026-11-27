@@ -54,7 +54,7 @@ PostgreSQL is used as a separate service under the PostgreSQL License. No enterp
 
 Browser builds now include original component license files in `THIRD_PARTY_NOTICES.txt` with a corresponding `third-party-components.json` inventory. CI retains observed image notice bytes in its distribution-review evidence. These artifacts supplement this direct development inventory; complete OS/binary/transitive legal review remains required before distribution. See `docs/05-quality/DISTRIBUTION_EVIDENCE_VALIDATION.md`.
 
-Node 24.19.0's original bundled notice remains at `/usr/local/LICENSE` in API/worker
+Node 24.22.3's original bundled notice remains at `/usr/local/LICENSE` in API/worker
 and is copied unchanged to `/usr/local/share/doc/node/LICENSE` in operations.
 Its exact publisher source and checksum are recorded in the foundation image
 register and enforced by the distribution runtime policy. npm/Corepack/Yarn are
@@ -105,7 +105,7 @@ source/header/platform review. No generic notice or legal approval is substitute
 The [Node supplemental policy](scripts/distribution/node-supplemental.json) pins
 four complete original source files from the same reviewed Node commit. The build
 preserves nbytes 0.1.4's complete original LICENSE and all 149 identified SQLite
-3.53.3 attribution comments under `/usr/local/share/doc/node/supplements/` in API,
+3.54.1 attribution comments under `/usr/local/share/doc/node/supplements/` in API,
 worker and operations, alongside an index of source parents and exact byte spans.
 SQLite files are explicitly named original source extracts, including repeated
 and conditional/header occurrences; the original complete Node LICENSE remains.

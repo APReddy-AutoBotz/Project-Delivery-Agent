@@ -6,7 +6,7 @@ certify every operating-system package license. No images are pushed by this wor
 
 | Image | Manifest SHA-256 | Purpose | Publisher / application license |
 |---|---|---|---|
-| node:24.19.0-bookworm-slim | a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df | Node 24 build and API/worker runtime | [Node official image](https://github.com/nodejs/docker-node); Node MIT and bundled notices |
+| node:24.22.3-bookworm-slim | 873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530 | Build, API, worker, operations and XLSX images | [Node official image](https://github.com/nodejs/docker-node), Node MIT and bundled notices |
 | pgvector/pgvector:0.8.6-pg17-bookworm | cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f | Isolated bundled/external PostgreSQL with vector availability | [pgvector](https://github.com/pgvector/pgvector); PostgreSQL license |
 | caddy:2.11.4-alpine | 5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 | TLS ingress and static web | [Caddy](https://github.com/caddyserver/caddy); Apache-2.0 |
 | golang:1.26.8-alpine3.23 | 33ce311e5eecedee48ec1b84419c1306e9fbd71009f0d5c3f2a6904b579c1ecc | Build-only toolchain for the existing Caddy 2.11.4 release | [Go official image](https://github.com/docker-library/golang); Go BSD-3-Clause |
@@ -99,16 +99,16 @@ inventory. Removal occurs before the scratch copy so discarded bytes are absent
 from lower layers. Remaining OS, Go and browser dependencies retain their own
 license, notice and vulnerability review gates. No new dependency is adopted.
 
-The 2026-09-07 increment retains the exact image pins above. API/worker copy the
+API and worker images copy the
 prepared Node filesystem into a fresh layer graph after removing unused npm,
 Corepack and Yarn payloads and command links. The build and acceptance stages
 retain their development tools. Both runtime and all-layer scans enforce the
 customer tooling boundary; the full customer acceptance suite remains required.
 
 Node's original `/usr/local/LICENSE` is preserved in API/worker and copied to
-`/usr/local/share/doc/node/LICENSE` in operations. Its 157606 bytes and SHA-256
-`148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5` match the
-[publisher's v24.19.0 source notice](https://raw.githubusercontent.com/nodejs/node/cdc1b38d40cb567b7ad0b39c86addf830a0af0ae/LICENSE).
+`/usr/local/share/doc/node/LICENSE` in operations. Its 157609 bytes and SHA-256
+`5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace` match the
+[publisher's v24.22.3 source notice](https://raw.githubusercontent.com/nodejs/node/e63cab040c09d43ceef8cb35508c40044614e906/LICENSE).
 The machine-readable runtime policy enforces this hash and version. Preserving
 the complete notice does not certify complete binary component reconciliation or
 resolve the separate OS/transitive legal review.

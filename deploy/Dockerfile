@@ -1,5 +1,5 @@
 # TR-DEP-001, TR-DEP-003: controlled acceptance images; distribution gates remain open.
-FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS build
+FROM node:24.22.3-bookworm-slim@sha256:873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530 AS build
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN npm install --global pnpm@11.19.0
 WORKDIR /workspace
@@ -23,7 +23,7 @@ RUN node scripts/inspect-runtime.mjs /out/api && node scripts/inspect-runtime.mj
 RUN node scripts/inspect-runtime.mjs /out/operations
 
 # AC-MNT-004: authenticate only the pinned original source files in a build stage.
-FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS node-notice-build
+FROM node:24.22.3-bookworm-slim@sha256:873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530 AS node-notice-build
 WORKDIR /collector
 COPY scripts/package-node-notices.mjs ./scripts/package-node-notices.mjs
 COPY scripts/distribution/evidence.mjs scripts/distribution/node-components.mjs scripts/distribution/node-components.json scripts/distribution/node-supplemental.mjs scripts/distribution/node-supplemental.json ./scripts/distribution/
@@ -34,7 +34,7 @@ RUN --network=none node scripts/package-node-notices.mjs package /node-sources /
 FROM scratch AS node-notices
 COPY --from=node-notice-build /out-node-notices/ /
 
-FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS runtime-files
+FROM node:24.22.3-bookworm-slim@sha256:873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530 AS runtime-files
 # These package managers are build tools. Keep Node's /usr/local/LICENSE intact.
 RUN rm -rf /usr/local/lib/node_modules /opt/yarn-v1.22.22 && \
     rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
@@ -46,7 +46,7 @@ COPY --from=node-notices / /usr/local/share/doc/node/supplements/
 FROM scratch AS runtime
 COPY --from=runtime-files / /
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ENV NODE_VERSION=24.19.0
+ENV NODE_VERSION=24.22.3
 ENV NODE_ENV=production
 USER node
 WORKDIR /app
@@ -125,7 +125,7 @@ COPY deploy/Caddyfile /etc/caddy/Caddyfile
 CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
 
 # Build/test tooling is separate from application images and is not a distributable.
-FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS acceptance
+FROM node:24.22.3-bookworm-slim@sha256:873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530 AS acceptance
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /workspace
 COPY --from=build /workspace/node_modules ./node_modules
