@@ -18,8 +18,9 @@ function advice(projectId: string, audience: "leadership" | "project_manager") {
       classification: proof(`raid_item.${raid}.blocks_delivery`, 11, "FINITE"), openedAtProof: proof(`raid_item.${raid}.opened_at`, 12, "UNTIL_SUPERSEDED") }] });
 }
 
-test("EXEC-027: leadership blocker review hides denied and late results across project and session changes", async ({ page }) => {
+test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence across project and session changes", async ({ page }) => {
   let persona = "", reads = 0, state: "success" | "denied" | "invalid" | "held" = "success";
+  let causeReads = 0;
   let release!: () => void, arrived!: () => void, settled!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
   const entered = new Promise<void>((resolve) => { arrived = resolve; });
@@ -35,6 +36,22 @@ test("EXEC-027: leadership blocker review hides denied and late results across p
     if (path === "/pm/action-queue") return route.fulfill({ json: buildPmActionQueue([]) });
     const project = projects.find((entry) => path === `/projects/${entry.id}`);
     if (project) return route.fulfill({ json: project });
+    if (path === `/projects/${id(1)}/leadership-answer`) {
+      const now = Date.now();
+      const checkedAt = new Date(now).toISOString();
+      const facts = { state: "ANSWERED", projectId: id(1), asOf: checkedAt, updateFreshness: null,
+        schedule: { revision: 1, baseline: "2026-10-17", forecast: "2026-10-21", movementDays: 4 } };
+      if (++causeReads > 1) return route.fulfill({ json: { ...facts, cause: "UNKNOWN" } });
+      const value = "Confirmed integration delay";
+      return route.fulfill({ json: { ...facts, cause: "HUMAN_CONFIRMED", delayCause: {
+        evidence: { factId: id(70), versionId: id(71), evidenceId: id(72), observedAt: checkedAt, value },
+        confirmation: { id: id(73), clarificationId: id(74), versionId: id(71), confirmedAt: checkedAt },
+        claim: { claimText: `PM-confirmed delay cause · ${value}`, projectId: id(1), factId: id(70), versionId: id(71),
+          evidenceIds: [id(72)], policyRevisionId: id(75), assessedAt: checkedAt,
+          validUntil: new Date(now + 15000).toISOString(), provenance: "HUMAN_CONFIRMED", classification: "HUMAN_CONFIRMED",
+          freshness: "CURRENT", conflict: "NONE" },
+      } } });
+    }
     const selected = projects.find((entry) => path === `/projects/${entry.id}/leadership-blocker-age-suggestions`);
     if (selected) {
       reads++;
@@ -46,11 +63,20 @@ test("EXEC-027: leadership blocker review hides denied and late results across p
     }
     return route.fulfill({ status: 404, json: { message: "Not found" } });
   });
+  await page.clock.install();
   await page.goto("/"); await page.getByRole("button", { name: /^Leadership / }).click();
   await page.getByRole("button", { name: /Synthetic blocker 1/ }).click();
   const panel = page.getByRole("region", { name: "Blocker-age review" });
   await expect(panel).toContainText("ISSUE-FIRST"); await expect(panel).toContainText("whether an intervention is needed");
   await expect(panel).toContainText("Authorized inventory evidence");
+  const answer = page.getByRole("region", { name: "Project leadership answer" });
+  await answer.getByLabel("Project question").fill("Why is this project delayed?");
+  await answer.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(answer.getByRole("link", { name: "Cause evidence" })).toBeVisible();
+  await page.clock.fastForward(16000);
+  await expect(answer).toContainText("The cause of the delay is unknown.");
+  await expect(answer.getByRole("link", { name: "Cause evidence" })).toHaveCount(0);
+  expect(causeReads).toBe(2);
   state = "denied"; await panel.getByRole("button", { name: "Refresh blocker review" }).click();
   await expect(panel).toContainText("Blocker-age review is unavailable"); await expect(panel).not.toContainText("ISSUE-FIRST");
   state = "invalid"; await panel.getByRole("button", { name: "Refresh blocker review" }).click();

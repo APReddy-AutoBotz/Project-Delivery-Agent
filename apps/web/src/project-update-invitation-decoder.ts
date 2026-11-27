@@ -124,9 +124,10 @@ const leadershipFactKeys = ["asOf", "schedule", "updateFreshness"];
 
 function matchesSettledClaim(value: unknown, projectId: string, asOf: string, provenance: "SYSTEM_VERIFIED" | "HUMAN_CONFIRMED", text: string) {
   return object(value) && keys(value, ["claimText", "projectId", "factId", "versionId", "evidenceIds", "policyRevisionId",
-    "assessedAt", "provenance", "freshness", "conflict", "classification"]) &&
+    "assessedAt", "validUntil", "provenance", "freshness", "conflict", "classification"]) &&
     value.projectId === projectId && value.assessedAt === asOf && value.provenance === provenance && value.classification === provenance &&
     value.freshness === "CURRENT" && value.conflict === "NONE" && value.claimText === text &&
+    (value.validUntil === null || (instant(value.validUntil) && Date.parse(value.validUntil) > Date.parse(asOf))) &&
     uuid(value.factId) && uuid(value.versionId) && uuid(value.policyRevisionId) &&
     dense(value.evidenceIds, 1, 64) && value.evidenceIds.every(uuid) && new Set(value.evidenceIds).size === value.evidenceIds.length;
 }

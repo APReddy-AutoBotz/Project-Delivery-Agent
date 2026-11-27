@@ -585,6 +585,7 @@ const projectUpdateRepository: ProjectUpdateRepository = {
     jiraBlocker: { mappingId: project.id, issueKey: "ATLAS-248" as const, claim: {
       claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: project.id, factId: project.id,
       versionId: project.id, evidenceIds: [project.id], policyRevisionId: project.id, assessedAt: atlasLeadershipFixture.asOf,
+      validUntil: "2026-10-02T12:00:00.000Z",
       provenance: "SYSTEM_VERIFIED" as const, freshness: "CURRENT" as const, conflict: "NONE" as const,
       classification: "SYSTEM_VERIFIED" as const,
     } },

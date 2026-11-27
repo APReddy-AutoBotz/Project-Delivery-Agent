@@ -107,7 +107,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
       openObligation: true },
     jiraBlocker: { mappingId: fixture.jiraIntake.mappingId, issueKey: "ATLAS-248", claim: {
       claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: fixture.projectId, assessedAt: before.asOf,
-      factId: expect.any(String), versionId: expect.any(String), policyRevisionId: expect.any(String),
+      factId: expect.any(String), versionId: expect.any(String), policyRevisionId: expect.any(String), validUntil: expect.any(String),
       evidenceIds: [expect.any(String)], provenance: "SYSTEM_VERIFIED", classification: "SYSTEM_VERIFIED", freshness: "CURRENT", conflict: "NONE",
     } },
   });
@@ -1153,7 +1153,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const grounded = await groundedResponse.json();
   expect(grounded.delayCause.claim).toMatchObject({ projectId: allowedProjectId, assessedAt: grounded.asOf,
     versionId: delayEvidence.id, evidenceIds: [delayEvidence.evidenceId], claimText: `PM-confirmed delay cause · ${causeText}`,
-    provenance: "HUMAN_CONFIRMED", classification: "HUMAN_CONFIRMED", freshness: "CURRENT", conflict: "NONE" });
+    provenance: "HUMAN_CONFIRMED", classification: "HUMAN_CONFIRMED", freshness: "CURRENT", conflict: "NONE", validUntil: expect.any(String) });
   await expect(projectAnswer).toContainText(`PM-confirmed delay cause · ${causeText}`);
   const causeLink = projectAnswer.getByRole("link", { name: "Cause evidence" });
   await expect(causeLink).toBeVisible();
