@@ -39,8 +39,10 @@ list, project detail, grant POST and grant DELETE. Authentication must reject
 before authorization. Transport failures, expired-token 403s or changed response
 contracts cannot satisfy this check.
 
-The browser reselects the already loaded project after its cache becomes stale.
-Its real detail request must receive 401 with the original bearer. The session-ended
+After real expiry, the same browser tab sends one scoped detail request with
+the original bearer and requires a real 401. The response listener is armed
+before expiry so an earlier protected denial still fails the proof. The app
+continues its own expiry cleanup while the verifier request runs. The session-ended
 alert and enabled organization sign-in appear, project names/details disappear,
 and local/session storage remains empty. Customer, portfolio, project, grant,
 audit and migration projections remain identical throughout; heartbeat changes

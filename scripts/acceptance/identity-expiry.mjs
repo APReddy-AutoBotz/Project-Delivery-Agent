@@ -345,8 +345,8 @@ export async function checkIdentityExpiry(browser) {
     const wait = expiryWaitMs(claims);
     assert(wait < remaining());
     console.log("Waiting for natural fixture access-token expiry");
-    // Arm before waiting: any real protected polling response may clear the
-    // entire session first. No mocked response, paused poll, reload or clock.
+    // Arm before waiting so an early protected denial still fails the proof.
+    // The application can clear itself before its next protected poll.
     const protectedPaths = [
       prefix,
       prefix + "/canonical",
@@ -364,6 +364,19 @@ export async function checkIdentityExpiry(browser) {
     void browserExpired.catch(() => {});
     await delay(wait);
     assert(Date.now() > claims.exp * 1000);
+    stage = "expired-browser-read";
+    // The live tab uses the same issued bearer for one same-origin proof read.
+    // This fetch is independent of the application's own session cleanup.
+    const expiredBrowserStatus = await page.evaluate(async ({ path, bearer }) => {
+      const response = await fetch(path, {
+        headers: { authorization: bearer },
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "error",
+      });
+      return response.status;
+    }, { path: scalarPath, bearer: authorization });
+    assert.equal(expiredBrowserStatus, 401);
     stage = "expired";
     const denied = {
       status: 401,
