@@ -17,10 +17,10 @@ const project = z.strictObject({
     expiresAt: z.iso.datetime() }).optional(),
 });
 const priority = z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW"]);
-const category = z.enum(["APPROVAL", "BLOCKER_REVIEW", "UPDATE_FOLLOW_UP", "RECONCILIATION", "SCHEDULE_REVIEW", "EVIDENCE_REVIEW"]);
+const scheduleCategory = z.enum(["RECONCILIATION", "SCHEDULE_REVIEW", "EVIDENCE_REVIEW"]);
 const pointer = z.discriminatedUnion("facet", [
   z.strictObject({ projectId: z.uuid(), facet: z.literal("SCHEDULE"), index: z.number().int().min(0).max(100),
-    key: z.string(), priority, category }),
+    key: z.string(), priority, category: scheduleCategory }),
   z.strictObject({ projectId: z.uuid(), facet: z.literal("UPDATE"), index: z.null(),
     key: z.literal("update-information"), priority: z.literal("MEDIUM"), category: z.literal("UPDATE_FOLLOW_UP") }),
   z.strictObject({ projectId: z.uuid(), facet: z.literal("ATLAS_APPROVAL"), index: z.null(),

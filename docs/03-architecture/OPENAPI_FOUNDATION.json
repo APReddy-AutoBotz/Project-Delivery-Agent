@@ -57332,9 +57332,6 @@
                               "category": {
                                 "type": "string",
                                 "enum": [
-                                  "APPROVAL",
-                                  "BLOCKER_REVIEW",
-                                  "UPDATE_FOLLOW_UP",
                                   "RECONCILIATION",
                                   "SCHEDULE_REVIEW",
                                   "EVIDENCE_REVIEW"
