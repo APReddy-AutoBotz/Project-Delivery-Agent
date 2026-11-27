@@ -5,10 +5,13 @@ FR-CON-006/007 and FR-EVD-003/004/006/007/009. ADR-007 and ADR-009 apply.
 
 Bind the Atlas schedule to the exact portfolio row selected in the existing
 reviewed CSV import. Use the sealed Atlas source mapping to identify the row
-and reuse receipt integrity, current source readers and retention checks inside
-the project transaction. Require two typed dates that match the approved
+and reuse receipt integrity and current source readers inside the project
+transaction. Hold the retention policy while reading the receipt and its
+availability deadline. Require two typed dates that match the approved
 canonical schedule revision. Unavailable, ambiguous or conflicting reviewed
-evidence prevents the configured Atlas answer from using those dates. Earlier
+evidence prevents the configured Atlas answer from using those dates. The
+Jira blocker and integration milestone are evaluated with their own evidence.
+Earlier
 Atlas fixtures without that mapping retain their canonical schedule behavior.
 
 Show the reviewed receipt in the existing schedule citation. Keep the receipt

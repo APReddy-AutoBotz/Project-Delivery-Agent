@@ -281,11 +281,11 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
       !instant(clarification.requestedAt) || !instant(clarification.availableUntil) ||
       Date.parse(clarification.requestedAt) > Date.parse(answer.asOf) || Date.parse(clarification.availableUntil) <= Date.parse(answer.asOf)))
     return null;
-  if (integrationStart !== null && (!answer.schedule || !object(integrationStart) ||
+  if (integrationStart !== null && (!object(integrationStart) ||
       !keys(integrationStart, ["milestoneId", "planned", "actual"]) || !uuid(integrationStart.milestoneId) ||
       !date(integrationStart.planned) || !date(integrationStart.actual) || integrationStart.actual <= integrationStart.planned))
     return null;
-  if (jiraBlocker !== null && (!answer.schedule || !object(jiraBlocker) || !keys(jiraBlocker, ["mappingId", "issueKey"]) ||
+  if (jiraBlocker !== null && (!object(jiraBlocker) || !keys(jiraBlocker, ["mappingId", "issueKey"]) ||
       !uuid(jiraBlocker.mappingId) || jiraBlocker.issueKey !== "ATLAS-248")) return null;
   if (pmEscalation !== null && (!answer.ownerReply || !object(pmEscalation) ||
       !keys(pmEscalation, ["requestId", "capturedAt", "availableUntil"]) || !uuid(pmEscalation.requestId) ||

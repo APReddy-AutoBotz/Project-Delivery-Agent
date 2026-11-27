@@ -478,6 +478,8 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
     await expect(answer).toContainText("Schedule movement is unavailable.");
     await expect(answer.getByRole("link", { name: "Schedule evidence" })).toHaveCount(0);
+    await expect(answer.getByRole("link", { name: "Jira blocker evidence" })).toBeVisible();
+    await expect(answer.getByRole("link", { name: "Integration start evidence" })).toBeVisible();
     await expect(answer).not.toContainText(spreadsheet.receiptId);
     expect((await request.get(`${reportPath}?snapshotId=${snapshot.id}`, { headers: leaderHeaders })).status()).toBe(404);
   } finally {

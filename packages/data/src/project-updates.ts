@@ -2711,7 +2711,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
 
   private async loadAtlasLeadershipAnswer(tx: Tx, current: Actor, projectId: string) {
     const approved = await this.loadAtlasApproval(tx, current, projectId, "leadership");
-    const reviewed = await this.currentAtlasSchedule(tx, current, projectId);
+    const canonical = await this.canonicalProjectSchedule(tx, current.customerId, projectId);
+    const reviewed = await this.atlasScheduleEvidence(tx, current, projectId, canonical);
     const schedule = reviewed?.schedule ?? null;
     const view = approved?.view;
     const delayReview = approved && await this.atlasDelayReview(tx, current.customerId, projectId,
@@ -2728,7 +2729,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       receipt: view?.receipt ?? null,
       delayAssessment: delayReview?.assessment ?? null,
     });
-    return { answer, locator: approved?.locator, approver: view?.approver, approved };
+    return { answer, locator: approved?.locator, approver: view?.approver, approved, hasCanonicalSchedule: Boolean(canonical) };
   }
 
   private async atlasPmEscalation(tx: Tx, current: Actor, projectId: string, origin: {
@@ -3414,12 +3415,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const projectId = parseProjectId(projectValue);
     const priorId = priorSnapshotId === undefined ? undefined : parseProjectId(priorSnapshotId);
     return this.transaction(async (tx) => {
-      const { answer, approved } = await this.loadAtlasLeadershipAnswer(tx, current, projectId);
+      const { answer, approved, hasCanonicalSchedule } = await this.loadAtlasLeadershipAnswer(tx, current, projectId);
       const scope = { customerId: current.customerId, projectId };
-      const milestone = answer.schedule && await tx.milestone.findFirst({
+      const milestone = hasCanonicalSchedule ? await tx.milestone.findFirst({
         where: { ...scope, key: atlasIntegrationMilestoneKey },
         select: { id: true, plannedStart: true, actualStart: true },
-      });
+      }) : null;
       const escalation = approved && await this.atlasPmEscalation(tx, current, projectId, approved);
       const prior = priorId ? await this.savedAtlasManagementSnapshot(tx, current.customerId, projectId, current.subject, priorId) : null;
       if (priorId && !prior) throw new ProjectUpdateError("DENIED");
@@ -3430,7 +3431,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const delayClarificationState = !clarification ? undefined
         : clarification.closed ? "RESOLVED" : clarification.clarification ? "REQUESTED" : "AVAILABLE";
       const assessedAt = await this.now(tx);
-      const blocker = answer.schedule ? await this.atlasJiraBlocker(tx, current, projectId, assessedAt) : null;
+      const blocker = hasCanonicalSchedule ? await this.atlasJiraBlocker(tx, current, projectId, assessedAt) : null;
       const asOf = iso(assessedAt);
       if (updateFreshness?.activeClarification && updateFreshness.activeClarification.availableUntil <= asOf)
         updateFreshness.activeClarification = undefined;

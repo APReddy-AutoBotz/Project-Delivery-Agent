@@ -73,8 +73,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const spreadsheet = answer?.scheduleCitation;
   const schedule = !spreadsheet || Date.parse(spreadsheet.availableUntil) > Date.now() ? answer?.schedule : null;
   const assessment = receipt && schedule ? answer?.delayAssessment : null;
-  const integration = schedule ? answer?.integrationStart : null;
-  const blocker = schedule ? answer?.jiraBlocker : null;
+  const integration = answer?.integrationStart;
+  const blocker = answer?.jiraBlocker;
   const freshness = answer?.updateFreshness;
   const pending = freshness?.activeClarification;
   const clarification = pending && Date.parse(pending.availableUntil) > Date.now() ? pending : null;

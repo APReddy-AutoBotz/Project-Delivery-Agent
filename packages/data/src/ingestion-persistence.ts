@@ -2539,15 +2539,17 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     const { projectId, origin, sheet, rowKey } = input;
     const recordKey = csvIdentityKey(sheet, rowKey);
     const recordType = csvType(sheet);
+    const [policy] = await tx.$queryRaw<{ retentionHours: number }[]>`
+      SELECT "retentionHours" FROM public."IngestionRetentionPolicy" WHERE "customerId"=${actor.customerId}::uuid FOR SHARE`;
+    if (!policy) return null;
     const rows = await tx.$queryRaw<{ sourceId: string; receiptId: string; availableUntil: Date }[]>`
       SELECT r."sourceId", r.id AS "receiptId",
-        v."receivedAt"+make_interval(hours=>p."retentionHours") AS "availableUntil"
+        v."receivedAt"+make_interval(hours=>${policy.retentionHours}::integer) AS "availableUntil"
       FROM public."IngestionOperationReceipt" r
       JOIN public."IngestionSource" s ON (s."customerId",s.id)=(r."customerId",r."sourceId")
       JOIN public."IngestionRowOutcome" o ON (o."customerId",o."sourceId",o."receiptId")=(r."customerId",r."sourceId",r.id)
       JOIN public."IngestionSourceRevision" v ON (v."customerId",v."sourceId",v."recordId",v.id)=
         (o."customerId",o."sourceId",o."recordId",o."sourceRevisionId")
-      JOIN public."IngestionRetentionPolicy" p ON p."customerId"=r."customerId"
       WHERE r."customerId"=${actor.customerId}::uuid AND r.kind='CSV_REVIEWED_IMPORT'
         AND s."sourceType"='csv' AND s.origin=${origin} AND o."projectId"=${projectId}::uuid
         AND o."recordKey"=${recordKey} AND o.state='ACCEPTED'
