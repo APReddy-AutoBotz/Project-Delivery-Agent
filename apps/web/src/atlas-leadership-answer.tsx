@@ -57,15 +57,17 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   });
   const refresh = query.refetch;
   const answer = asked && isCurrent() && query.isSuccess && !query.isFetching ? query.data : null;
+  const now = Date.now();
   const expiry = [answer?.ownerReply?.availableUntil, answer?.pmEscalation?.availableUntil,
     answer?.priorSnapshot?.facts.ownerReply?.availableUntil, answer?.updateFreshness?.activeClarification?.availableUntil,
-    answer?.scheduleCitation?.availableUntil, answer?.priorSnapshot?.facts.scheduleCitation?.availableUntil]
-    .filter((date): date is string => Boolean(date)).sort()[0];
+    answer?.scheduleCitation?.availableUntil, answer?.priorSnapshot?.facts.scheduleCitation?.availableUntil,
+    answer?.jiraBlocker?.claim.validUntil]
+    .filter((date): date is string => Boolean(date && Date.parse(date) > now)).sort()[0];
   useEffect(() => {
     if (!expiry) return;
     const delay = Date.parse(expiry) - Date.now();
-    if (delay <= 0) return;
-    const timer = window.setTimeout(() => void refresh(), delay);
+    if (delay <= 0) { void refresh(); return; }
+    const timer = window.setTimeout(() => void refresh(), Math.min(delay, 2_147_483_647));
     return () => clearTimeout(timer);
   }, [expiry, refresh]);
   const reply = answer?.ownerReply && Date.parse(answer.ownerReply.availableUntil) > Date.now() ? answer.ownerReply : null;
@@ -74,7 +76,9 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const schedule = !spreadsheet || Date.parse(spreadsheet.availableUntil) > Date.now() ? answer?.schedule : null;
   const assessment = receipt && schedule ? answer?.delayAssessment : null;
   const integration = answer?.integrationStart;
-  const blocker = answer?.jiraBlocker;
+  const candidateBlocker = answer?.jiraBlocker;
+  const blocker = candidateBlocker && (candidateBlocker.claim.validUntil === null ||
+    Date.parse(candidateBlocker.claim.validUntil) > Date.now()) ? candidateBlocker : null;
   const freshness = answer?.updateFreshness;
   const pending = freshness?.activeClarification;
   const clarification = pending && Date.parse(pending.availableUntil) > Date.now() ? pending : null;
@@ -136,7 +140,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         <a href={`#${freshnessRef}`}>Update freshness evidence</a></p>}
       {integration && <p>Integration testing started late. <a href={`#${integrationRef}`}>Integration start evidence</a></p>}
       {blocker && <p>{blocker.claim.claimText} <a href={`#${blockerRef}`}>Jira blocker evidence</a></p>}
-      {schedule && answer.forecastInference && <p><strong>Agent inference.</strong> The open integration blocker may still affect the forecast.
+      {schedule && blocker && answer.forecastInference && <p><strong>Agent inference.</strong> The open integration blocker may still affect the forecast.
         {" "}<a href={`#${scheduleRef}`}>Schedule</a> · <a href={`#${integrationRef}`}>Integration start</a> · <a href={`#${blockerRef}`}>Open blocker</a>
       </p>}
       {reply && <p>The owner confirmed API access was {reply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} at the time of the reply.{" "}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { ProjectLeadershipAnswer as Answer, ProjectLeadershipFacts } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
@@ -61,6 +61,25 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
   const current = ask.variables?.scope === scope && isCurrent();
   const result = current && ask.isSuccess ? ask.data : null;
   const answer = result?.state === "ANSWERED" ? result : null;
+  const confirmed = answer?.cause === "HUMAN_CONFIRMED" ? answer.delayCause : null;
+  const expiry = confirmed?.claim.validUntil;
+  const cause = confirmed && (!expiry || Date.parse(expiry) > Date.now()) ? confirmed : null;
+  const submitted = ask.variables;
+  const refresh = ask.mutate;
+  const latestQuestion = useRef<typeof submitted>(undefined);
+  const submitQuestion = (value: NonNullable<typeof submitted>) => {
+    latestQuestion.current = value;
+    refresh(value);
+  };
+  useEffect(() => {
+    if (!expiry || !submitted) return;
+    const delay = Date.parse(expiry) - Date.now();
+    if (delay <= 0) return;
+    const timer = window.setTimeout(() => {
+      if (isCurrent() && latestQuestion.current === submitted) refresh(submitted);
+    }, Math.min(delay, 2_147_483_647));
+    return () => clearTimeout(timer);
+  }, [expiry, isCurrent, refresh, submitted]);
   const schedule = answer?.schedule;
   const days = schedule?.movementDays ?? null;
   const freshness = answer?.updateFreshness;
@@ -72,7 +91,7 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
     <h2>Ask about this project</h2>
     <form onSubmit={(event) => {
       event.preventDefault();
-      if (question.trim() && isCurrent() && !ask.isPending) ask.mutate({ text: question.trim(), scope });
+      if (question.trim() && isCurrent() && !ask.isPending) submitQuestion({ text: question.trim(), scope });
     }}>
       <label className="field"><span>Project question</span>
         <input value={question} onChange={(event) => setQuestion(event.currentTarget.value)} maxLength={256}
@@ -83,7 +102,7 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
     <form onSubmit={(event) => {
       event.preventDefault();
       if (snapshotIdFormat.test(snapshotId) && isCurrent() && !ask.isPending)
-        ask.mutate({ text: "What changed since this snapshot?", scope, priorSnapshotId: snapshotId });
+        submitQuestion({ text: "What changed since this snapshot?", scope, priorSnapshotId: snapshotId });
     }}>
       <label className="field"><span>Saved snapshot ID</span>
         <input value={snapshotInput} onChange={(event) => setSnapshotInput(event.currentTarget.value)} maxLength={36} />
@@ -101,8 +120,9 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
         : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`}
         {schedule && <> <a href={`#${scheduleEvidence}`}>Schedule evidence</a></>}
       </p>
-      {answer.cause === "HUMAN_CONFIRMED" && <p className="update-plain-text">{answer.delayCause.claim.claimText} <a href={`#${causeEvidence}`}>
+      {cause && <p className="update-plain-text">{cause.claim.claimText} <a href={`#${causeEvidence}`}>
         Cause evidence</a></p>}
+      {confirmed && !cause && <p>The cause evidence has expired. Ask again to check current evidence.</p>}
       {answer.cause === "UNKNOWN" && schedule && days !== null && days > 0 && <>
         <p>The cause of the delay is unknown.</p>
         {answer.pendingDelayClarification ?
@@ -119,8 +139,8 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
           Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.</li>}
         {freshness && <li id={updateEvidence} tabIndex={-1}>Assessment {freshness.assessmentId} at {freshness.assessedAt}.
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? " Latest verified update" : " Project created"} at {freshness.sourceDate}.</li>}
-        {answer.cause === "HUMAN_CONFIRMED" && <li id={causeEvidence} tabIndex={-1}>
-          Evidence {answer.delayCause.claim.evidenceIds[0]}. PM confirmation {answer.delayCause.confirmation.id} at {answer.delayCause.confirmation.confirmedAt}.
+        {cause && <li id={causeEvidence} tabIndex={-1}>
+          Evidence {cause.claim.evidenceIds[0]}. PM confirmation {cause.confirmation.id} at {cause.confirmation.confirmedAt}.
         </li>}
       </ul>}
     </div>}

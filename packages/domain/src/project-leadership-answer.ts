@@ -7,10 +7,11 @@ const claimText = z.string().min(1).max(540).refine((value) => value.trim().leng
 export const settledLeadershipClaimSchema = z.strictObject({
   claimText,
   projectId: z.uuid(), factId: z.uuid(), versionId: z.uuid(), evidenceIds: z.array(z.uuid()).min(1).max(64),
-  policyRevisionId: z.uuid(), assessedAt: z.iso.datetime(),
+  policyRevisionId: z.uuid(), assessedAt: z.iso.datetime(), validUntil: z.iso.datetime().nullable(),
   provenance: settledProvenance, freshness: z.literal("CURRENT"), conflict: z.literal("NONE"),
   classification: settledProvenance,
-}).refine((claim) => claim.classification === claim.provenance && new Set(claim.evidenceIds).size === claim.evidenceIds.length);
+}).refine((claim) => claim.classification === claim.provenance && new Set(claim.evidenceIds).size === claim.evidenceIds.length &&
+  (claim.validUntil === null || Date.parse(claim.validUntil) > Date.parse(claim.assessedAt)));
 export type SettledLeadershipClaim = z.infer<typeof settledLeadershipClaimSchema>;
 
 // The caller retrieves the authority assessment under the viewer's current project and source permissions.
@@ -26,7 +27,7 @@ export function composeSettledLeadershipClaim(result: AuthorityAssessment, prove
       !support.evidenceIds.every((id) => result.supportingEvidenceIds.includes(id))) return null;
   const parsed = settledLeadershipClaimSchema.safeParse({ claimText: render(result.resolvedValue),
     projectId: result.scope.projectId, factId: result.scope.factId, versionId: support.id, evidenceIds: result.supportingEvidenceIds,
-    policyRevisionId: result.policy.revisionId, ...support.assessment });
+    policyRevisionId: result.policy.revisionId, validUntil: support.assessedValidUntil, ...support.assessment });
   return parsed.success ? { claim: parsed.data, support } : null;
 }
 

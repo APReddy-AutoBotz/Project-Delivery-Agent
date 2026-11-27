@@ -37,7 +37,7 @@ it("binds a pending delay request to its schedule and preserves supported eviden
     const review = { id, requestedAt: at, schedule, causeEvidence: evidence, confirmation };
     const claim = { claimText: `PM-confirmed delay cause · ${value}`, projectId: id, factId: id, versionId: other,
       evidenceIds: [id], policyRevisionId: other, assessedAt: later, provenance: "HUMAN_CONFIRMED",
-      freshness: "CURRENT", conflict: "NONE", classification: "HUMAN_CONFIRMED" };
+      freshness: "CURRENT", conflict: "NONE", classification: "HUMAN_CONFIRMED", validUntil: "2026-01-03T00:00:00.000Z" };
     const answer = { state: "ANSWERED", projectId: id, asOf: later, schedule, updateFreshness: null, cause: "HUMAN_CONFIRMED",
       delayCause: { evidence, confirmation, claim } };
     expect(decodeProjectDelayClarificationReview(review)).toEqual(readable ? review : null);
@@ -46,7 +46,7 @@ it("binds a pending delay request to its schedule and preserves supported eviden
     expect(projectLeadershipAnswerSchema.safeParse(answer).success).toBe(readable);
     if (readable) {
       for (const invalid of [{ claimText: "The forecast moved by 99 days." }, { evidenceIds: [other] }, { projectId: other },
-        { freshness: "STALE" }, { conflict: "CONFLICTING" }, { assessedAt: at }]) {
+        { freshness: "STALE" }, { conflict: "CONFLICTING" }, { assessedAt: at }, { validUntil: later }]) {
         const unsupported = { ...answer, delayCause: { ...answer.delayCause, claim: { ...claim, ...invalid } } };
         expect(decodeProjectLeadershipAnswer(unsupported, id)).toBeNull();
         expect(projectLeadershipAnswerSchema.safeParse(unsupported).success).toBe(false);

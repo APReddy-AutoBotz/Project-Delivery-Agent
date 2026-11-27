@@ -46,7 +46,9 @@ the selected project's PM-confirmed delay cause. Compose each sentence from the
 resolved value and attach the exact fact, version, evidence and policy revision.
 Carry provenance, freshness, conflict and assessment time separately. The browser
 checks the returned claim against the answer scope and renders its validated text.
-The existing unknown-cause state and source revocation checks still apply.
+Include the authority deadline in the claim and recheck the answer when it
+arrives. Withdraw the Atlas inference with its expired Jira support. The existing
+unknown-cause state and source revocation checks still apply.
 
 This increment covers two statements with immutable source versions. Other
 answer statements and validation of model wording remain open under STORY-028.
