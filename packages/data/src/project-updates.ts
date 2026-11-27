@@ -48,6 +48,7 @@ import {
   type ProjectUpdateSchedulePreview,
   projectUpdateKnownPositionSchema,
   projectUpdateAssessmentViewSchema,
+  portfolioUpdateFreshnessPageSchema, portfolioUpdatePageSize, type PortfolioUpdateFreshnessPage,
   selectProjectUpdateTimestamp,
   canonicalSubjectSchema,
   projectUpdateRequiredFactSchema,
@@ -291,7 +292,7 @@ type Resolution = {
       }>;
     }>;
   } | null;
-  versions: Array<{ id: string; visibility: string; sourceType?: string }>;
+  versions: Array<{ id: string; visibility: string; sourceType?: string; eligibilityReasons?: string[] }>;
 };
 const projectIdSchema = z.uuid().refine((value) => value === value.toLowerCase());
 const correlationSchema = z.uuid();
@@ -516,6 +517,94 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return rows[0];
   }
 
+  async portfolioFreshness(actorValue: Actor, after: string | null): Promise<PortfolioUpdateFreshnessPage> {
+    const actor = parseActor(actorValue);
+    const roles = actor.roles.filter((role) => role === "pmo_admin" || role === "portfolio_manager");
+    if (!roles.length) throw new ProjectUpdateError("DENIED");
+    const current = { ...actor, roles };
+    const cursor = after === null ? null : parseProjectId(after);
+    return this.transaction(async (tx) => {
+      const candidates = await tx.$queryRaw<Pick<ProjectRow, "id" | "code" | "name">[]>`
+        SELECT p.id,p.code,p.name FROM public."Project" p
+        WHERE p."customerId"=${current.customerId}::uuid
+          AND (${cursor}::uuid IS NULL OR p.id>${cursor}::uuid)
+          AND EXISTS (
+            SELECT 1 FROM public."AccessGrant" g
+            WHERE g."customerId"=p."customerId" AND g.subject=${current.subject}
+              AND g.role=ANY(${roles}::text[])
+              AND ((g."scopeType"='project' AND g."scopeId"=p.id)
+                OR (g."scopeType"='portfolio' AND g."scopeId"=p."portfolioId"))
+          )
+        ORDER BY p.id LIMIT ${portfolioUpdatePageSize + 1}`;
+      const page = candidates.slice(0, portfolioUpdatePageSize);
+      // Read the source projection only after any writer holding a Project
+      // lock has committed, using the current grants and source readers.
+      for (const project of page) await this.authorize(tx, current, project.id, false);
+      const asOf = await this.now(tx);
+      const projects = [];
+      for (const { id, code, name } of page) projects.push({ id, code, name,
+        assessment: await this.portfolioProjectFreshness(tx, current, id, asOf) });
+      return portfolioUpdateFreshnessPageSchema.parse({
+        asOf: iso(asOf), projects,
+        next: candidates.length > portfolioUpdatePageSize ? page.at(-1)?.id : null,
+      });
+    }, "ReadCommitted");
+  }
+
+  private async portfolioProjectFreshness(tx: Tx, current: Actor, id: string, asOf: Date) {
+    const policy = await this.loadObservationPolicy(tx, current.customerId, id);
+    if (!policy) return { state: "UNCONFIGURED" as const };
+    try {
+      const project = await this.loadProject(tx, current.customerId, id);
+      const { requiredFacts, facts } = await this.loadRequiredUpdateFacts(tx, current, id, policy);
+      const { completeness, source, staleFactTypes, latestValidUpdateAt, freshnessThresholdAt, freshnessAssessment } =
+        await this.prepareUpdateObservation(tx, current, id, project, policy, requiredFacts, asOf, facts, true);
+      return {
+        state: freshnessAssessment.freshness.state,
+        lastVerifiedUpdateAt: latestValidUpdateAt,
+        updateDueAt: freshnessAssessment.obligation?.dueAt ?? null,
+        openObligation: source.remainingFactTypes.length ? await this.portfolioOpenObligation(
+          tx, current, id, policy, freshnessThresholdAt,
+        ) : null,
+        missing: completeness.missing.map(({ factType, label }) => ({ factType, label })),
+        stale: requiredFacts.filter((fact) => staleFactTypes.has(fact.factType)),
+        conflicts: completeness.factAssessments.filter((fact) => fact.conflict === "CONFLICTING")
+          .map(({ factType, label }) => ({ factType, label })),
+      };
+    } catch (error) {
+      if (error instanceof ProjectUpdateError && error.code === "UNAVAILABLE")
+        return { state: "UNAVAILABLE" as const };
+      throw error;
+    }
+  }
+
+  private async portfolioOpenObligation(tx: Tx, current: Actor, id: string, policy: PolicyRow, thresholdAt: Date) {
+    const [row] = await tx.$queryRaw<Array<Pick<AssessmentRow, "result" | "assessedAt" | "dependencies"> & { id: string; dueAt: Date }>>`
+      SELECT o.id,o."freshnessThresholdAt" AS "dueAt",a.result,a."assessedAt",a.dependencies
+      FROM public."ProjectUpdateObligation" o JOIN public."ProjectUpdateAssessment" a
+        ON a."customerId"=o."customerId" AND a."projectId"=o."projectId" AND a.id=o."assessmentId"
+      WHERE o."customerId"=${current.customerId}::uuid AND o."projectId"=${id}::uuid
+        AND o.state='OPEN' AND o."policyRevisionId"=${policy.policyRevisionId}::uuid
+        AND (o."freshnessThresholdAt"=${thresholdAt} OR EXISTS (
+          SELECT 1 FROM public."ProjectUpdateEngagement" e
+          WHERE e."customerId"=o."customerId" AND e."projectId"=o."projectId"
+            AND e."obligationId"=o.id AND e."policyRevisionId"=o."policyRevisionId" AND e.state IN ('ACTIVE','PAUSED')
+        ))`;
+    if (!row) return null;
+    const origin = await this.readableUpdateFreshness(tx, current, id, { ...row, requiredFacts: policy.requiredFacts });
+    return origin && Date.parse(origin.sourceDate) + policy.freshnessWindowSeconds * 1000 === row.dueAt.getTime()
+      ? { id: row.id, dueAt: iso(row.dueAt) } : null;
+  }
+
+  private async loadRequiredUpdateFacts(tx: Tx, current: Actor, id: string, policy: PolicyRow) {
+    const requiredFacts = policyFacts(policy.requiredFacts);
+    const facts = await tx.$queryRawUnsafe<FactRow[]>(
+      'SELECT id,"factType",revision FROM public."ProjectFact" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factType"=ANY($3::text[]) ORDER BY "factType",id FOR SHARE',
+      current.customerId, id, requiredFacts.map((fact) => fact.factType),
+    );
+    return { requiredFacts, facts };
+  }
+
   async policy(actorValue: Actor, projectValue: string) {
     const current = parseActor(actorValue);
     const id = parseProjectId(projectValue);
@@ -574,11 +663,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         audience, approvalItems: "UNAVAILABLE",
       });
       const project = await this.loadProject(tx, current.customerId, id);
-      const requiredFacts = policyFacts(policy.requiredFacts);
-      const facts = await tx.$queryRawUnsafe<FactRow[]>(
-        'SELECT id,"factType",revision FROM public."ProjectFact" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "factType"=ANY($3::text[]) ORDER BY "factType",id FOR SHARE',
-        current.customerId, id, requiredFacts.map((fact) => fact.factType),
-      );
+      const { requiredFacts, facts } = await this.loadRequiredUpdateFacts(tx, current, id, policy);
       const asOf = await this.now(tx);
       const result = await this.prepareUpdateObservation(tx, current, id, project, policy, requiredFacts, asOf, facts, true);
       return buildUpdateAdviceSnapshot({
@@ -838,6 +923,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const knownPosition: ProjectUpdateKnownPosition[] = [];
       const trustedTimes: number[] = [];
       const sourceChecks: Array<{ factType: string; sourceState: "MISSING" | "UNKNOWN" | "RESOLVED"; trustedTimes: string[] }> = [];
+      const staleFactTypes = new Set<string>();
       let allTrusted = true;
       for (const requirement of requiredFacts) {
         const check = { factType: requirement.factType, sourceState: "MISSING" as "MISSING" | "UNKNOWN" | "RESOLVED", trustedTimes: [] as string[] };
@@ -893,6 +979,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         }
         if (strictRead && status === "REVALIDATION_REQUIRED")
           throw new ProjectUpdateError("UNAVAILABLE");
+        if (status === "UNKNOWN" && resolved.versions.some((version) =>
+          version.visibility === "available" && version.eligibilityReasons?.length === 1 &&
+          version.eligibilityReasons[0] === "STALE")) staleFactTypes.add(requirement.factType);
         if (readDependencies) {
           for (const version of prepared.versions) {
             readDependencies.set(fact.id + ":" + version.sourceId, {
@@ -996,6 +1085,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const source = deriveProjectUpdateSourceSatisfaction({
         asOf: iso(asOf), freshnessWindowSeconds: policy.freshnessWindowSeconds, checks: sourceChecks,
       });
+      for (const fact of source.facts) {
+        if (fact.sourceState === "RESOLVED" && fact.state === "UNRESOLVED") staleFactTypes.add(fact.factType);
+      }
       const completeness = assessProjectCompleteness({
         assessedAt: iso(asOf),
         projectId: id,
@@ -1036,7 +1128,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           requiredFacts,
         },
       });
-      return { source, completeness, allTrusted, evidence, knownPosition,
+      return { source, completeness, allTrusted, evidence, knownPosition, staleFactTypes,
         latestValidUpdateAt, freshnessThresholdAt, freshnessAssessment };
   }
 

@@ -394,6 +394,35 @@ it("denies after a concurrent qualifying grant revocation commits", async () => 
   await denied;
   expect(observedWait).toBe(true);
 });
+it("reads portfolio source permissions after project discovery", async () => {
+  const f = await fixture();
+  const { entry } = await f.append(f.writer, [f.admin.subject, f.writer.subject]);
+  await f.policy(31_536_000_000);
+  const access = await db.factSourceAccess.findUniqueOrThrow({ where: { sourceId: entry.sourceId } });
+  const before = await f.updates.portfolioFreshness(f.admin, null);
+  expect(before.projects).toEqual([expect.objectContaining({ id: f.projectId, assessment: expect.objectContaining({
+    state: "STALE", lastVerifiedUpdateAt: expect.any(String),
+  }) })]);
+
+  const readDatabase = { $transaction: (operation: (tx: unknown) => Promise<unknown>, options: unknown) =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL ROLE pdaa_api");
+      return operation(new Proxy(tx, { get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "$queryRaw") return async (sql: TemplateStringsArray, ...args: unknown[]) => {
+          const result = await Reflect.apply(value, target, [sql, ...args]);
+          if (sql.join("").includes('SELECT p.id,p.code,p.name FROM public."Project" p')) {
+            await f.facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: entry.sourceId,
+              expectedRevision: access.revision, state: "AVAILABLE", readers: [f.writer.subject] }, { correlationId: randomUUID() });
+          }
+          return result;
+        };
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+    }, options as never) };
+  const after = await new DatabaseProjectUpdateRepository(readDatabase as never).portfolioFreshness(f.admin, null);
+  expect(after.projects).toEqual([expect.objectContaining({ id: f.projectId, assessment: { state: "UNAVAILABLE" } })]);
+});
 it("reports an accessible conflict without persisting prepared authority results", async () => {
   const f = await fixture();
   const leader: Actor = { customerId: f.customerId, subject: `update-conflict-reader-${randomUUID()}`, roles: ["leadership"] };

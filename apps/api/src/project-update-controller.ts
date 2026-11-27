@@ -49,6 +49,7 @@ type Request = {
 export const PROJECT_UPDATE_REPOSITORY = "PROJECT_UPDATE_REPOSITORY";
 export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async updateSuggestions() { throw new ProjectUpdateError("UNAVAILABLE"); },
+  async portfolioFreshness() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async policy() { return null; },
   async setPolicy() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async assess() { throw new ProjectUpdateError("UNAVAILABLE"); },
@@ -95,6 +96,36 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async purgeCaptureContent() { throw new ProjectUpdateError("UNAVAILABLE"); },
   async beginCaptureGeneration() { throw new ProjectUpdateError("UNAVAILABLE"); },
 };
+
+@ApiTags("Project updates")
+@ApiBearerAuth()
+@Controller("api/pmo")
+export class PortfolioUpdateFreshnessController {
+  constructor(
+    @Inject(PROJECT_UPDATE_REPOSITORY) private readonly repository: ProjectUpdateRepository,
+    @Inject(IdentityService) private readonly identity: IdentityService,
+  ) {}
+
+  @Get("portfolio-update-freshness")
+  async read(@Req() req: Request, @Query() query: unknown) {
+    const header = req.headers.authorization;
+    if (!header?.startsWith("Bearer ") || header.length > 16384)
+      throw new HttpException("", 401);
+    let actor: Actor;
+    try { actor = await this.identity.authenticate(header.slice(7)); }
+    catch { throw new HttpException("", 401); }
+    if (!actor.roles.some((role) => role === "pmo_admin" || role === "portfolio_manager"))
+      throw new HttpException("", 404);
+    const parsed = z.strictObject({ after: projectFactIdSchema.optional() }).safeParse(query);
+    if (!parsed.success) throw new HttpException("", 400);
+    try { return await this.repository.portfolioFreshness(actor, parsed.data.after ?? null); }
+    catch (error) {
+      if (error instanceof ProjectUpdateError)
+        throw new HttpException("", error.code === "DENIED" ? 404 : error.code === "INVALID_REQUEST" ? 400 : 503);
+      throw error;
+    }
+  }
+}
 
 @ApiTags("Project updates")
 @ApiBearerAuth()

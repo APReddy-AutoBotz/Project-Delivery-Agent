@@ -341,6 +341,28 @@ export const projectUpdateAssessmentViewSchema = z.strictObject({
   knownPosition: z.array(projectUpdateKnownPositionSchema).max(1000),
 });
 
+export const portfolioUpdatePageSize = 10;
+export const portfolioUpdateFreshnessPageSchema = z.strictObject({
+  asOf: z.iso.datetime(),
+  projects: z.array(projectUpdateAssessmentViewSchema.shape.project.pick({ id: true, code: true, name: true }).extend({
+    assessment: z.discriminatedUnion("state", [
+      z.strictObject({ state: z.literal("UNCONFIGURED") }),
+      z.strictObject({ state: z.literal("UNAVAILABLE") }),
+      z.strictObject({
+        state: z.enum(["CURRENT", "STALE"]),
+        lastVerifiedUpdateAt: z.iso.datetime().nullable(),
+        updateDueAt: z.iso.datetime().nullable(),
+        openObligation: projectUpdateAssessmentViewSchema.shape.obligation.unwrap().pick({ id: true, dueAt: true }).nullable(),
+        missing: z.array(projectUpdateRequiredFactSchema).max(100),
+        stale: z.array(projectUpdateRequiredFactSchema).max(100),
+        conflicts: z.array(projectUpdateRequiredFactSchema).max(100),
+      }),
+    ]),
+  })).max(portfolioUpdatePageSize),
+  next: z.uuid().nullable(),
+});
+export type PortfolioUpdateFreshnessPage = z.infer<typeof portfolioUpdateFreshnessPageSchema>;
+
 export class ProjectUpdateError extends Error {
   constructor(
     readonly code:
