@@ -122,7 +122,7 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
       <p className="muted">Review ordering {queue.rankPolicyRevision}; priorities help organize review and do not establish a project health rating.</p>
       {queue.projects.filter((project) => project.update.availability === "UNCONFIGURED").map((project) =>
         <p key={project.projectId}>{project.name}: no update policy was configured as of {project.update.asOf}.</p>)}
-      {queue.items.length === 0 ? <p>No action suggestions from the available observations.</p> :
+      {queue.items.length === 0 ? <p>No schedule or update suggestions were produced from the available observations.</p> :
         <div className="space-y-4">{queue.items.map((pointer) => {
           const project = projects.get(pointer.projectId);
           if (!project) return null;
