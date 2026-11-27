@@ -266,7 +266,7 @@ export function decodeAtlasManagementOutput(value: unknown, projectId: string): 
 }
 
 export function decodeProjectManagementDraft(value: unknown, projectId: string): ProjectManagementDraftOutput | null {
-  if (!object(value) || !keys(value, ["draft", "highlights", "livePath", "powerpointBase64"], ["snapshotId"]) ||
+  if (!object(value) || !keys(value, ["draft", "highlights", "livePath", "powerpointBase64"], ["snapshotId", "approval"]) ||
       (value.snapshotId !== undefined && !uuid(value.snapshotId))) return null;
   const { draft, highlights, livePath, powerpointBase64 } = value;
   if (!object(draft) || !keys(draft, ["projectId", "asOf", "schedule", "updateFreshness", "project", "approvalState", "reportingPeriod"]) ||
@@ -280,6 +280,14 @@ export function decodeProjectManagementDraft(value: unknown, projectId: string):
         typeof value === "string" && value.length <= 160 && label(value, 640))) return null;
   const answer = decodeProjectLeadershipAnswer({ ...facts, state: "ANSWERED", cause: "UNKNOWN" }, projectId);
   if (answer?.state !== "ANSWERED" || approvalState !== "DRAFT" || reportingPeriod !== answer.asOf.slice(0, 7)) return null;
+  const approval = value.approval;
+  if (approval !== undefined) {
+    if (!value.snapshotId || !object(approval) || !keys(approval, ["requestId", "requestedAt", "state", "decidedAt"]) ||
+        !uuid(approval.requestId) || !instant(approval.requestedAt) || Date.parse(approval.requestedAt) < Date.parse(answer.asOf)) return null;
+    if (approval.state === "PENDING" ? approval.decidedAt !== null :
+        (approval.state !== "APPROVED" && approval.state !== "REJECTED") || !instant(approval.decidedAt) ||
+        Date.parse(approval.decidedAt) < Date.parse(approval.requestedAt)) return null;
+  }
   return value as ProjectManagementDraftOutput;
 }
 
