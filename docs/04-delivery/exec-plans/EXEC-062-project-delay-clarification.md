@@ -20,6 +20,8 @@ by the current authority policy.
 Reuse the Atlas clarification contract, project authorization and audit
 storage. An exact retry returns the existing request. A changed schedule
 requires a fresh answer. The read and request stay within the application.
+When an authorized leader asks again, show the existing request for the current
+schedule and assigned PM while the cause remains unknown.
 The synthetic Atlas project keeps its original clarification workflow.
 
 Extend the existing Atlas browser journey on the second canonical project.

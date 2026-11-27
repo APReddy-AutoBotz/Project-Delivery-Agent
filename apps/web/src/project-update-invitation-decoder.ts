@@ -127,8 +127,15 @@ export function decodeProjectLeadershipAnswer(value: unknown, projectId: string)
   if (value.state === "CLARIFY" && keys(value, ["state"])) return { state: "CLARIFY" };
   if (value.projectId !== projectId || !validProjectLeadershipFacts(value)) return null;
   const required = ["state", "projectId", ...leadershipFactKeys];
-  if (value.state === "ANSWERED" && value.cause === "UNKNOWN" && keys(value, [...required, "cause"]))
+  if (value.state === "ANSWERED" && value.cause === "UNKNOWN" && keys(value, [...required, "cause"], ["pendingDelayClarification"])) {
+    if (value.pendingDelayClarification !== undefined) {
+      const pending = decodeProjectDelayClarification(value.pendingDelayClarification);
+      const schedule = decodeAtlasSchedule(value.schedule);
+      if (!pending || !schedule || pending.schedule.revision !== schedule.revision || pending.schedule.baseline !== schedule.baseline ||
+          pending.schedule.forecast !== schedule.forecast || Date.parse(pending.requestedAt) > Date.parse(value.asOf)) return null;
+    }
     return value as ProjectLeadershipAnswer;
+  }
   const delay = value.delayCause;
   if (value.state === "ANSWERED" && value.cause === "HUMAN_CONFIRMED" && keys(value, [...required, "cause", "delayCause"]) &&
       object(delay) && keys(delay, ["evidence", "confirmation"])) {

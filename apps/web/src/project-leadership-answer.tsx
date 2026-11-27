@@ -105,8 +105,10 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
         Cause evidence</a></p>}
       {answer.cause === "UNKNOWN" && schedule && days !== null && days > 0 && <>
         <p>The cause of the delay is unknown.</p>
-        <RequestProjectDelayClarification key={JSON.stringify([scope, schedule.revision])}
-          projectId={projectId} schedule={schedule} request={request} isCurrent={isCurrent} />
+        {answer.pendingDelayClarification ?
+          <p>Delay evidence requested. Request {answer.pendingDelayClarification.id}.</p> :
+          <RequestProjectDelayClarification key={JSON.stringify([scope, schedule.revision])}
+            projectId={projectId} schedule={schedule} request={request} isCurrent={isCurrent} />}
       </>}
       {freshness && <p>The latest saved assessment found the project {freshness.state.toLowerCase()} under its update policy.
         {freshness.openObligation && " A project update remains due."} <a href={`#${updateEvidence}`}>Update evidence</a>

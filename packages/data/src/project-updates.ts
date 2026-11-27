@@ -2694,11 +2694,31 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (priorSnapshotId || !isCurrentProjectScheduleQuestion(parsed.data.question))
         return projectLeadershipAnswerSchema.parse({ state: "CLARIFY" });
       const facts = await this.currentProjectLeadershipFacts(tx, current, projectId);
-      const delayCause = facts.schedule && (facts.schedule.movementDays ?? 0) > 0 &&
-        await this.confirmedProjectDelayCause(tx, current, projectId, facts.schedule, new Date(facts.asOf));
+      const delayedSchedule = facts.schedule && (facts.schedule.movementDays ?? 0) > 0 ? facts.schedule : null;
+      const delayCause = delayedSchedule &&
+        await this.confirmedProjectDelayCause(tx, current, projectId, delayedSchedule, new Date(facts.asOf));
       if (delayCause) return projectLeadershipAnswerSchema.parse({ ...facts, state: "ANSWERED", cause: "HUMAN_CONFIRMED", delayCause });
-      return projectLeadershipAnswerSchema.parse({ ...facts, state: "ANSWERED", cause: "UNKNOWN" });
+      const pendingDelayClarification = delayedSchedule && current.roles.includes("leadership")
+        ? await this.openProjectDelayRequest(tx, current, projectId, delayedSchedule, facts.asOf) : null;
+      return projectLeadershipAnswerSchema.parse({ ...facts, state: "ANSWERED", cause: "UNKNOWN",
+        ...(pendingDelayClarification && { pendingDelayClarification }) });
     }, "ReadCommitted");
+  }
+
+  private async openProjectDelayRequest(tx: Tx, actor: Actor, projectId: string, schedule: AtlasSchedule, asOf: string) {
+    const leader = this.reportingActor(actor, "leadership");
+    try {
+      await this.authorize(tx, leader, projectId, false);
+      await this.authorizeProjectDelayWorkflow(tx, leader.customerId, projectId);
+    } catch (error) {
+      if (error instanceof ProjectUpdateError && error.code === "DENIED") return null;
+      throw error;
+    }
+    const manager = await this.assignedProjectManager(tx, leader.customerId, projectId);
+    if (!manager || manager === leader.subject) return null;
+    const saved = await this.findDelayClarification(tx, leader.customerId, projectId, manager, schedule.revision, projectDelayClarificationEvent);
+    if (!saved || iso(saved.occurredAt) > asOf) return null;
+    return projectDelayClarificationSchema.parse({ id: saved.id, requestedAt: iso(saved.occurredAt), schedule });
   }
 
   async projectDelayClarification(actorValue: Actor, projectValue: string) {
