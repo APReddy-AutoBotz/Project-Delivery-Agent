@@ -492,6 +492,11 @@ const projectUpdateRepository: ProjectUpdateRepository = {
     asOf: "2026-10-21T11:00:00.000Z", cause: "UNKNOWN" as const, updateFreshness: null,
     schedule: { revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 },
   })),
+  projectManagementDraft: vi.fn(async () => ({ projectId: project.id, asOf: "2026-10-21T11:00:00.000Z",
+    project: { code: "DRAFT-CHECK", name: "Synthetic report project" },
+    approvalState: "DRAFT" as const, reportingPeriod: "2026-10", updateFreshness: null,
+    schedule: { revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 },
+  })),
   atlasDelayClarification: vi.fn(async () => null),
   requestAtlasDelayClarification: vi.fn(async () => ({
     id: project.id, requestedAt: "2026-10-21T11:00:00.000Z",
@@ -793,6 +798,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request(`/api/projects/${project.id}/atlas-leadership-answer`, 200, leader);
   await request(`/api/projects/${project.id}/atlas-leadership-answer?priorSnapshotId=${project.id}`, 200, leader);
   await request(`/api/projects/${project.id}/leadership-answer`, 200, leader, "POST", { question: "Why is this project delayed?" });
+  await request(`/api/projects/${project.id}/management-draft`, 200, leader);
   await request(`/api/projects/${project.id}/atlas-delay-clarification`, 200, manager);
   await request(`/api/projects/${project.id}/atlas-delay-clarification`, 200, leader, "POST", { scheduleRevision: 1 });
   const atlasReport = `/api/projects/${project.id}/atlas-management-snapshot`;
@@ -1093,7 +1099,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(96);
+  expect(covered.size).toBe(97);
   assertContractSnapshot(
     spec,
     JSON.parse(

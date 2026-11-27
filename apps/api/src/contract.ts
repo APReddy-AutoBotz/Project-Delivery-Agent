@@ -86,6 +86,7 @@ import {
   atlasLeadershipAnswerSchema,
   projectLeadershipQuestionSchema,
   projectLeadershipAnswerSchema,
+  projectManagementDraftOutputSchema,
   atlasDelayCommandSchema,
   atlasDelayAssessmentSchema,
   atlasDelayClarificationCommandSchema,
@@ -285,6 +286,10 @@ export const contracts: Record<string, RouteContract> = {
   "post /api/projects/{id}/leadership-answer": {
     status: 200, request: projectLeadershipQuestionSchema, response: projectLeadershipAnswerSchema,
     parameters: { id: z.uuid() }, errors: [400, 403, 404, 413, 415, 503],
+  },
+  "get /api/projects/{id}/management-draft": {
+    status: 200, response: projectManagementDraftOutputSchema,
+    parameters: { id: z.uuid() }, errors: [404, 503],
   },
   "post /api/projects/{id}/atlas-delay-confirmation": {
     status: 200, request: atlasDelayCommandSchema, response: atlasDelayAssessmentSchema,

@@ -6,6 +6,17 @@ import yauzl from "yauzl";
 import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectFactRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
 import { canonicalFixture } from "../../scripts/acceptance/canonical-projects.mjs";
 
+async function firstSlide(path: string) {
+  const archive = await yauzl.openPromise(path, { lazyEntries: true });
+  try {
+    for await (const entry of archive.eachEntry()) {
+      if (entry.fileName === "ppt/slides/slide1.xml")
+        return await readStreamText(await archive.openReadStreamPromise(entry));
+    }
+  } finally { archive.close(); }
+  throw new Error("The deck has no first slide");
+}
+
 test("Atlas reply, PM delay evidence and distributed final report share the same evidence", async ({ page, request }) => {
   const fixture = JSON.parse(readFileSync(process.env.PDAA_ESCALATION_FIXTURE_PATH!, "utf8"));
   const projectPath = `/api/projects/${fixture.projectId}`;
@@ -475,14 +486,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await inbox.getByRole("button", { name: "Download distributed PowerPoint" }).click();
   const download = await downloadReady;
   expect(download.suggestedFilename()).toBe(`atlas-${snapshot.id}.pptx`);
-  const archive = await yauzl.openPromise((await download.path())!, { lazyEntries: true });
-  let slide = "";
-  try {
-    for await (const entry of archive.eachEntry()) {
-      if (entry.fileName === "ppt/slides/slide1.xml")
-        slide = await readStreamText(await archive.openReadStreamPromise(entry));
-    }
-  } finally { archive.close(); }
+  const slide = await firstSlide((await download.path())!);
   expect(slide).toContain("<a:t>Atlas management snapshot</a:t>");
   expect(slide).toContain(snapshot.id);
   expect(slide).toContain(snapshot.asOf);
@@ -673,6 +677,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect((await request.get(comparePath, { headers: leaderHeaders })).status()).toBe(200);
 
   let allowedProjectId: string;
+  const scopePolicy = { expectedRevision: 0, freshnessWindowSeconds: 7 * 86400,
+    timeZone: "UTC", requiredFacts: [{ factType: "project.status", label: "Current status" }],
+    responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false };
   const scopeDb = createDatabase(target.toString());
   try {
     const atlas = await scopeDb.project.findFirstOrThrow({ where: { customerId: fixture.customerId, id: fixture.projectId },
@@ -682,9 +689,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     }, randomUUID());
     allowedProjectId = created.id;
     const updates = new DatabaseProjectUpdateRepository(scopeDb);
-    await updates.setPolicy(fixture.admin, allowedProjectId, { expectedRevision: 0, freshnessWindowSeconds: 7 * 86400,
-      timeZone: "UTC", requiredFacts: [{ factType: "project.status", label: "Current status" }],
-      responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false }, randomUUID());
+    await updates.setPolicy(fixture.admin, allowedProjectId, scopePolicy, randomUUID());
     await updates.assess(fixture.admin, allowedProjectId, randomUUID());
     await scopeDb.$transaction(async (tx) => {
       const grant = { customerId: fixture.customerId, subject: "leader-atlas", scopeType: "project", role: "leadership" };
@@ -730,4 +735,49 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await projectAnswer.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(projectAnswer).toContainText("Ask about the current schedule or delay for the selected project.");
   await expect(projectAnswer.getByRole("link", { name: "Schedule evidence" })).toHaveCount(0);
+
+  const draftPath = `/api/projects/${allowedProjectId}/management-draft`;
+  const hiddenDraft = await request.get(projectPath + "/management-draft", { headers: leaderHeaders });
+  expect(hiddenDraft.status()).toBe(404);
+  const draftPanel = page.getByRole("region", { name: "Project management draft" });
+  const receivedDraft = page.waitForResponse((response) => response.url().endsWith(draftPath));
+  await draftPanel.getByRole("button", { name: "Preview management draft" }).click();
+  const draftResponse = await receivedDraft;
+  expect(draftResponse.status()).toBe(200);
+  const { draft, highlights: draftHighlights } = await draftResponse.json();
+  expect(draft).toMatchObject({ approvalState: "DRAFT", projectId: allowedProjectId,
+    project: { code: "SCOPE-CHECK", name: "Second synthetic project" },
+    schedule: { baseline: "2026-06-30", forecast: "2026-07-15", movementDays: 15 },
+    updateFreshness: { state: "CURRENT", sourceDateField: "project.createdAt" } });
+  await expect(draftPanel).toContainText(`Draft · Reporting month ${draft.reportingPeriod}`);
+  const draftEmail = draftPanel.locator("details");
+  await draftEmail.getByText("Leadership email preview").click();
+  await expect(draftEmail.getByRole("link")).toHaveAttribute("href", `/?project=${allowedProjectId}`);
+  const draftDownloadReady = page.waitForEvent("download");
+  await draftPanel.getByRole("button", { name: "Download editable PowerPoint" }).click();
+  const draftDownload = await draftDownloadReady;
+  expect(draftDownload.suggestedFilename()).toBe(`project-${allowedProjectId}-${draft.reportingPeriod}-draft.pptx`);
+  const draftSlide = await firstSlide((await draftDownload.path())!);
+  expect(draftSlide).toContain("Second synthetic project (SCOPE-CHECK)");
+  expect(draftSlide).toContain(`Draft • Reporting month ${draft.reportingPeriod}`);
+  expect(draftSlide).toContain(draft.asOf);
+  for (const highlight of draftHighlights) {
+    await expect(draftPanel).toContainText(highlight);
+    await expect(draftEmail).toContainText(highlight);
+    expect(draftSlide).toContain(highlight);
+  }
+  const changedPolicyDb = createDatabase(target.toString());
+  try {
+    await new DatabaseProjectUpdateRepository(changedPolicyDb).setPolicy(fixture.admin, allowedProjectId,
+      { ...scopePolicy, expectedRevision: 1, freshnessWindowSeconds: 6 * 86400 }, randomUUID());
+  } finally { await changedPolicyDb.$disconnect(); }
+  const changedExport = page.waitForResponse((response) => response.url().endsWith(draftPath));
+  let staleDownloads = 0;
+  page.on("download", () => { staleDownloads++; });
+  await draftPanel.getByRole("button", { name: "Download editable PowerPoint" }).click();
+  const currentDraft = await (await changedExport).json();
+  expect(currentDraft.draft.updateFreshness).toBeNull();
+  await expect(draftPanel).toContainText("The management draft is unavailable.");
+  await expect(draftPanel.getByRole("button", { name: "Download editable PowerPoint" })).toHaveCount(0);
+  expect(staleDownloads).toBe(0);
 });

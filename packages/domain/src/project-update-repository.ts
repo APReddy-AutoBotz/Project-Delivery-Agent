@@ -8,6 +8,7 @@ import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, Pr
 import type { ProjectUpdatePolicyView, ProjectUpdatePolicyChange, ProjectUpdateAssessmentView } from "./project-updates.js";
 import type { ProjectUpdateSchedulePreview } from "./project-update-schedule.js";
 import type { ProjectLeadershipAnswer } from "./project-leadership-answer.js";
+import type { ProjectManagementDraft } from "./project-management-draft.js";
 import type { UpdateAdviceSnapshot } from "./update-advice.js";
 
 export interface ProjectUpdateRepository {
@@ -37,6 +38,7 @@ export interface ProjectUpdateRepository {
   requestAtlasDelayClarification(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasDelayClarification>;
   atlasLeadershipAnswer(actor: Actor, projectId: string, priorSnapshotId?: string): Promise<AtlasLeadershipAnswer>;
   projectLeadershipAnswer(actor: Actor, projectId: string, question: unknown): Promise<ProjectLeadershipAnswer>;
+  projectManagementDraft(actor: Actor, projectId: string): Promise<ProjectManagementDraft>;
   atlasManagementSnapshot(actor: Actor, projectId: string, snapshotId?: string): Promise<AtlasManagementSnapshot | null>;
   createAtlasManagementSnapshot(actor: Actor, projectId: string, correlationId: string): Promise<AtlasManagementSnapshot>;
   requestAtlasReportApproval(actor: Actor, projectId: string, request: unknown, correlationId: string): Promise<AtlasManagementSnapshot>;

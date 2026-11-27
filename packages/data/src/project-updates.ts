@@ -22,6 +22,7 @@ import {
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
   atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
   isCurrentProjectScheduleQuestion, projectLeadershipAnswerSchema, projectLeadershipQuestionSchema,
+  projectManagementDraftSchema,
   atlasReportApprovalRequestSchema, atlasReportDecisionSchema,
   atlasReportVersionSchema, atlasReportDistributionReceiptSchema, atlasReportRecipientSubject,
   suggestAtlasAccessStatus,
@@ -2637,6 +2638,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return { ...freshness, activeClarification };
   }
 
+  private async currentProjectLeadershipFacts(tx: Tx, current: Actor, projectId: string) {
+    const schedule = await this.canonicalProjectSchedule(tx, current.customerId, projectId);
+    const observed = await this.currentProjectFreshness(tx, current, projectId);
+    return { projectId, asOf: iso(await this.now(tx)), schedule,
+      updateFreshness: observed ? { assessmentId: observed.assessmentId, ...observed.freshness } : null };
+  }
+
   async projectLeadershipAnswer(actorValue: Actor, projectValue: string, question: unknown) {
     const current = parseActor(actorValue);
     const projectId = parseProjectId(projectValue);
@@ -2646,10 +2654,25 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       await this.authorize(tx, current, projectId, false);
       if (!isCurrentProjectScheduleQuestion(parsed.data.question))
         return projectLeadershipAnswerSchema.parse({ state: "CLARIFY" });
-      const schedule = await this.canonicalProjectSchedule(tx, current.customerId, projectId);
-      const observed = await this.currentProjectFreshness(tx, current, projectId);
-      return projectLeadershipAnswerSchema.parse({ state: "ANSWERED", projectId, asOf: iso(await this.now(tx)),
-        schedule, cause: "UNKNOWN", updateFreshness: observed ? { assessmentId: observed.assessmentId, ...observed.freshness } : null });
+      const facts = await this.currentProjectLeadershipFacts(tx, current, projectId);
+      return projectLeadershipAnswerSchema.parse({ ...facts, state: "ANSWERED", cause: "UNKNOWN" });
+    }, "ReadCommitted");
+  }
+
+  async projectManagementDraft(actorValue: Actor, projectValue: string) {
+    const current = parseActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    if (!current.roles.includes("leadership")) throw new ProjectUpdateError("DENIED");
+    const leader: Actor = { ...current, roles: ["leadership"] };
+    return this.transaction(async (tx) => {
+      await this.authorize(tx, leader, projectId, false);
+      const project = await tx.project.findFirstOrThrow({
+        where: { id: projectId, customerId: leader.customerId },
+        select: { code: true, name: true },
+      });
+      const facts = await this.currentProjectLeadershipFacts(tx, leader, projectId);
+      return projectManagementDraftSchema.parse({ ...facts, project,
+        approvalState: "DRAFT", reportingPeriod: facts.asOf.slice(0, 7) });
     }, "ReadCommitted");
   }
 
