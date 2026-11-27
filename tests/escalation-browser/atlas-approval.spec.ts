@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { text as readStreamText } from "node:stream/consumers";
 import yauzl from "yauzl";
-import { createDatabase, DatabaseProjectFactRepository } from "../../packages/data/dist/index.js";
+import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectFactRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
+import { canonicalFixture } from "../../scripts/acceptance/canonical-projects.mjs";
 
 test("Atlas reply, PM delay evidence and distributed final report share the same evidence", async ({ page, request }) => {
   const fixture = JSON.parse(readFileSync(process.env.PDAA_ESCALATION_FIXTURE_PATH!, "utf8"));
@@ -671,16 +672,21 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(await authorizedEvidence.json()).toMatchObject({ assessmentId, result: { status: "RESOLVED" } });
   expect((await request.get(comparePath, { headers: leaderHeaders })).status()).toBe(200);
 
-  const allowedProjectId = randomUUID();
+  let allowedProjectId: string;
   const scopeDb = createDatabase(target.toString());
   try {
+    const atlas = await scopeDb.project.findFirstOrThrow({ where: { customerId: fixture.customerId, id: fixture.projectId },
+      select: { portfolioId: true } });
+    const created = await new DatabaseCanonicalProjectRepository(scopeDb).createProject(fixture.admin, {
+      ...canonicalFixture(atlas.portfolioId), code: "SCOPE-CHECK", name: "Second synthetic project",
+    }, randomUUID());
+    allowedProjectId = created.id;
+    const updates = new DatabaseProjectUpdateRepository(scopeDb);
+    await updates.setPolicy(fixture.admin, allowedProjectId, { expectedRevision: 0, freshnessWindowSeconds: 7 * 86400,
+      timeZone: "UTC", requiredFacts: [{ factType: "project.status", label: "Current status" }],
+      responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false }, randomUUID());
+    await updates.assess(fixture.admin, allowedProjectId, randomUUID());
     await scopeDb.$transaction(async (tx) => {
-      const atlas = await tx.project.findFirstOrThrow({ where: { customerId: fixture.customerId, id: fixture.projectId },
-        select: { portfolioId: true } });
-      await tx.project.create({ data: {
-        id: allowedProjectId, customerId: fixture.customerId, portfolioId: atlas.portfolioId,
-        code: "SCOPE-CHECK", name: "Second synthetic project", description: "Project-access fixture", reportedStatus: "GREEN",
-      } });
       const grant = { customerId: fixture.customerId, subject: "leader-atlas", scopeType: "project", role: "leadership" };
       await tx.accessGrant.create({ data: { ...grant, scopeId: allowedProjectId } });
       const removed = await tx.accessGrant.deleteMany({ where: { ...grant, scopeId: fixture.projectId } });
@@ -700,4 +706,28 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     expect(missing.status()).toBe(404);
     expect(await deniedProject.json()).toEqual(await missing.json());
   }
+  const genericQuestion = { question: "Why is this project delayed?" };
+  const [forbiddenAnswer, absentAnswer] = await Promise.all([projectPath, missingProject].map((path) =>
+    request.post(`${path}/leadership-answer`, { headers: leaderHeaders, data: genericQuestion })));
+  expect(forbiddenAnswer.status()).toBe(404);
+  expect(absentAnswer.status()).toBe(404);
+  expect(await forbiddenAnswer.json()).toEqual(await absentAnswer.json());
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto("/");
+  await page.getByRole("button", { name: /Leadership/ }).click();
+  await page.getByRole("button", { name: /Second synthetic project/ }).click();
+  const projectAnswer = page.getByRole("region", { name: "Project leadership answer" });
+  await projectAnswer.getByLabel("Project question").fill(genericQuestion.question);
+  await projectAnswer.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(projectAnswer).toContainText("The forecast is 15 days later than the baseline.");
+  await expect(projectAnswer).toContainText("The cause of the delay is unknown.");
+  await expect(projectAnswer).toContainText("Baseline 2026-06-30. Forecast 2026-07-15.");
+  await expect(projectAnswer).toContainText("The latest saved assessment found the project current under its update policy.");
+  await expect(projectAnswer.getByRole("link", { name: "Update evidence" })).toHaveAttribute("href", `#project-answer-update-${allowedProjectId}`);
+  const unsupported = "Compare this project with confidential Project Draco.";
+  await projectAnswer.getByLabel("Project question").fill(unsupported);
+  await projectAnswer.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(projectAnswer).toContainText("Ask about the current schedule or delay for the selected project.");
+  await expect(projectAnswer.getByRole("link", { name: "Schedule evidence" })).toHaveCount(0);
 });

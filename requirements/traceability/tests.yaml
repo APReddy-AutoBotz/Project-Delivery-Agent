@@ -777,12 +777,14 @@ tests:
   - scripts/xlsx-runtime/run-customer.mjs
 - id: GOLDEN-004
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-QA-004
   specification: docs/05-quality/GOLDEN_TEST_SCENARIOS.md
   behavior: The answer states when the latest project update is stale and identifies the active clarification request.
-  evidence: []
+  evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
+  - tests/escalation-browser/atlas-approval.spec.ts
 - id: GOLDEN-005
   release: R1
   status: implemented

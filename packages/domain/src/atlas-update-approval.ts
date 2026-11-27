@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { canonicalSubjectSchema } from "./canonical-project.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
+import { projectLeadershipScheduleSchema } from "./project-leadership-answer.js";
 
 export const atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
 export const atlasIntegrationMilestoneKey = "INTEGRATION-TESTING";
@@ -35,12 +36,7 @@ export const atlasCommentReceiptSchema = z.strictObject({
   result: z.literal("SIMULATED"),
 });
 export type AtlasCommentReceipt = z.infer<typeof atlasCommentReceiptSchema>;
-export const atlasScheduleSchema = z.strictObject({
-  revision: z.number().int().min(1),
-  baseline: z.iso.date().nullable(),
-  forecast: z.iso.date().nullable(),
-  movementDays: z.number().int().nullable(),
-});
+export const atlasScheduleSchema = projectLeadershipScheduleSchema;
 export type AtlasSchedule = z.infer<typeof atlasScheduleSchema>;
 export const atlasDelayClarificationCommandSchema = z.strictObject({
   scheduleRevision: atlasScheduleSchema.shape.revision,
