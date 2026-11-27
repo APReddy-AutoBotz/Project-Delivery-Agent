@@ -83,6 +83,6 @@ test("PMO sees current update obligations, stale facts and conflicts only on sha
   await expect(row.getByRole("cell").nth(3)).toHaveText("Delivery status");
   await expect(overview.getByRole("row", { name: /PMO-HIDDEN/ })).toHaveCount(0);
   await expect(overview).not.toContainText("Synthetic authority says");
-  await row.getByRole("button", { name: /PMO-UPDATE/ }).click();
+  await row.getByRole("link", { name: "Open PMO-UPDATE" }).click();
   await expect(page.getByRole("heading", { name: "Portfolio update review", level: 1 })).toBeVisible();
 });

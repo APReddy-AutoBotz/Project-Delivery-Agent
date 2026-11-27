@@ -41,7 +41,9 @@ contracts cannot satisfy this check.
 
 After real expiry, the same browser tab sends one scoped detail request with
 the original bearer and requires a real 401. The response listener is armed
-before expiry so an earlier protected denial still fails the proof. The app
+before expiry so an earlier protected denial still fails the proof. The receipt
+uses the explicit GET response, whose body remains available even when app
+cleanup cancels an in-flight protected poll. The app
 continues its own expiry cleanup while the verifier request runs. The session-ended
 alert and enabled organization sign-in appear, project names/details disappear,
 and local/session storage remains empty. Customer, portfolio, project, grant,

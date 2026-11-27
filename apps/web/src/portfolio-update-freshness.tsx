@@ -94,9 +94,15 @@ export function PortfolioUpdateFreshness({ scope, request, isCurrent, openProjec
         <thead><tr>{["Project", "Update freshness", "Missing facts", "Stale facts", "Unresolved conflicts"].map((heading) =>
           <th className="p-2" scope="col" key={heading}>{heading}</th>)}</tr></thead>
         <tbody>{page.projects.map(({ id, name, code, assessment }) => <tr key={id} className="border-t align-top">
-          <th className="p-2" scope="row"><Button className="secondary" onClick={() => {
-            if (canUsePage()) openProject(id);
-          }}>{code} · {name}</Button></th>
+          <th className="p-2 space-y-1" scope="row">
+            <p>{name}</p>
+            <a className="underline" href={`/?project=${id}`} onClick={(event) => {
+              if (!canUsePage()) { event.preventDefault(); return; }
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              openProject(id);
+            }}>Open {code}</a>
+          </th>
           {assessment.state === "UNCONFIGURED" || assessment.state === "UNAVAILABLE"
             ? <td className="p-2" colSpan={4}>{assessment.state === "UNCONFIGURED" ? "Update policy is unconfigured" : "Update assessment unavailable"}</td>
             : <>
