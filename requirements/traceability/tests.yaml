@@ -327,14 +327,17 @@ tests:
   - docs/05-quality/PROJECT_EVIDENCE_WORKFLOW_VALIDATION.md
 - id: E2E-HERO-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-PRO-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The synthetic hero workflow retains Jira and the spreadsheet as source systems, normalizes a tool-neutral
     project, versions facts/evidence and applies field authority, detects missing/stale information, asks the correct
     owner a contextual question, and presents an evidence-backed answer without replacing project-management tools.
-  evidence: []
+  evidence:
+  - scripts/acceptance/escalation-history.mjs
+  - tests/escalation-browser/atlas-approval.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: E2E-HLT-003
   release: R1
   status: implemented
