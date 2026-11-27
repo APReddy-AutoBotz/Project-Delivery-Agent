@@ -509,6 +509,7 @@ export async function customerProfiles({
           profile,
           project: name,
           status: "passed",
+          configurationVariant: JSON.parse(readFileSync(join(evidence, "customer-configuration-variant.json"), "utf8")),
           projectFactPersistence,
           csvImport,
           csvComparison,
@@ -557,5 +558,10 @@ export async function customerProfiles({
     for (const key of Object.keys(env)) delete env[key];
     Object.assign(env, previous);
   }
+  const [bundled, external] = results;
+  assert.deepEqual(bundled.images, external.images);
+  for (const field of ["sourceSystem", "mappingPrefix", "forecastLabel", "freshnessSeconds", "escalationDays", "overdueDays"])
+    assert.notEqual(bundled.configurationVariant[field], external.configurationVariant[field]);
+  assert.notEqual(bundled.configurationVariant.report.approver, external.configurationVariant.report.approver);
   return results;
 }

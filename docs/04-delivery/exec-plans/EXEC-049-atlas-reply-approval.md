@@ -346,3 +346,18 @@ with the snapshot and when its evidence availability ends. The
 dashboard, email preview and PowerPoint use the same text. The existing browser
 journey also checks the report ID, reporting period, generation timestamp,
 approval state and editable PowerPoint text.
+
+## Packaged customer configuration variants
+
+Exercise the configuration portion of AC-MNT-001 and E2E-MNT-001 through the
+existing packaged customer browser proof. Give the bundled and external
+profiles different canonical mappings, forecast labels, freshness periods,
+escalation timing and overdue thresholds. Confirm each profile returns its
+configured values and rejects an invalid time zone before applying the valid
+policy. The existing delivery concern assessment verifies the applied
+threshold in both profiles. Use the configured project manager in each
+profile to verify approval routing for that project's saved report revision.
+Compare the profile evidence and verify identical application image references.
+
+The synthetic settings are supplied by the acceptance harness. Pilot
+measurements remain open under STORY-038.
