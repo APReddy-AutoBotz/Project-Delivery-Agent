@@ -5,7 +5,7 @@ import { Button, Message } from "./components.js";
 import { decodeAtlasDelayClarification, decodeAtlasLeadershipAnswer } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
 import { AtlasManagementSnapshot } from "./atlas-management-snapshot.js";
-import { atlasDelayClarificationQuestion } from "./atlas-update-approval.js";
+import { delayClarificationQuestion } from "./project-delay-clarification.js";
 
 const snapshotIdFormat = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 
@@ -148,7 +148,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         : <p>The verified cause of the schedule change and confidence in the forecast remain unknown.</p>}
       {!assessment && schedule && days !== null && days > 0 && <details>
         <summary>Draft a question for the assigned PM</summary>
-        <p>{atlasDelayClarificationQuestion(schedule)}</p>
+        <p>{delayClarificationQuestion(schedule)}</p>
         {(askedPmForSchedule || answer.delayClarificationState === "REQUESTED") &&
           <Message>Clarification added to the assigned PM’s Atlas project panel.</Message>}
         {!askedPmForSchedule && answer.delayClarificationState === "AVAILABLE" &&

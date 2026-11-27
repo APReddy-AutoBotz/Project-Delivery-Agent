@@ -32,6 +32,7 @@ import { ProjectUpdateResponse } from "./project-update-response.js";
 import { AtlasPmApproval, atlasReviewProjectCode } from "./atlas-update-approval.js";
 import { AtlasLeadershipAnswer } from "./atlas-leadership-answer.js";
 import { ProjectLeadershipAnswer } from "./project-leadership-answer.js";
+import { ProjectDelayClarificationReview } from "./project-delay-clarification.js";
 import { ProjectManagementDraft, ProjectReportApproval } from "./project-management-draft.js";
 import { AtlasReportApproval, AtlasReportInbox } from "./atlas-management-snapshot.js";
 import { CsvIngestion } from "./csv-ingestion.js";
@@ -1098,9 +1099,12 @@ function App() {
                       request={projectRequest} isCurrent={isCurrentProjectAdmission} /></>}
                   {projectVisible && project.data && me.data?.roles.includes("project_manager") &&
                     (project.data.code !== atlasReviewProjectCode || auth.data?.mode !== "development" || auth.data.dataMode !== "synthetic") &&
+                    <><ProjectDelayClarificationReview key={`delay-review:${project.data.id}`} projectId={project.data.id}
+                      scope={JSON.stringify([renderedSessionGeneration, selectionEpoch, me.data.subject])}
+                      request={projectRequest} isCurrent={isCurrentProjectAdmission} />
                     <ProjectReportApproval key={`report-approval:${project.data.id}`} projectId={project.data.id}
                       scope={JSON.stringify([renderedSessionGeneration, selectionEpoch, me.data.subject])}
-                      request={projectRequest} isCurrent={isCurrentProjectAdmission} />}
+                      request={projectRequest} isCurrent={isCurrentProjectAdmission} /></>}
                   {retainedProject && (
                     <ProjectUpdates
                       key={`project-updates:${retainedProject.id}`}

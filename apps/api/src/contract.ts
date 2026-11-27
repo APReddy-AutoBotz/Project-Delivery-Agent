@@ -86,6 +86,11 @@ import {
   atlasLeadershipAnswerSchema,
   projectLeadershipQuestionSchema,
   projectLeadershipAnswerSchema,
+  projectDelayClarificationCommandSchema,
+  projectDelayClarificationSchema,
+  projectDelayClarificationReviewSchema,
+  projectDelayCauseCommandSchema,
+  projectDelayCauseConfirmationSchema,
   projectManagementDraftOutputSchema,
   projectManagementDraftSchema,
   projectManagementSnapshotSelectorSchema,
@@ -291,6 +296,18 @@ export const contracts: Record<string, RouteContract> = {
   "post /api/projects/{id}/leadership-answer": {
     status: 200, request: projectLeadershipQuestionSchema, response: projectLeadershipAnswerSchema,
     parameters: { id: z.uuid() }, errors: [400, 403, 404, 413, 415, 503],
+  },
+  "get /api/projects/{id}/delay-clarification": {
+    status: 200, response: projectDelayClarificationReviewSchema.nullable(),
+    parameters: { id: z.uuid() }, errors: [400, 403, 404, 503],
+  },
+  "post /api/projects/{id}/delay-clarification": {
+    status: 200, request: projectDelayClarificationCommandSchema, response: projectDelayClarificationSchema,
+    parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
+  },
+  "post /api/projects/{id}/delay-clarification/confirmation": {
+    status: 200, request: projectDelayCauseCommandSchema, response: projectDelayCauseConfirmationSchema,
+    parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
   },
   "get /api/projects/{id}/management-draft": {
     status: 200, response: projectManagementDraftOutputSchema,

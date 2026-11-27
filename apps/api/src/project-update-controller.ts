@@ -74,6 +74,9 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async requestAtlasDelayClarification() { throw new ProjectUpdateError("DENIED"); },
   async atlasLeadershipAnswer() { throw new ProjectUpdateError("DENIED"); },
   async projectLeadershipAnswer() { throw new ProjectUpdateError("DENIED"); },
+  async projectDelayClarification() { throw new ProjectUpdateError("DENIED"); },
+  async requestProjectDelayClarification() { throw new ProjectUpdateError("DENIED"); },
+  async confirmProjectDelayCause() { throw new ProjectUpdateError("DENIED"); },
   async projectManagementDraft() { throw new ProjectUpdateError("DENIED"); },
   async projectManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async saveProjectManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
@@ -180,6 +183,26 @@ export class ProjectUpdateController {
   async projectLeadershipAnswer(@Req() req: Request, @Param("id") rawId: string, @Body() question: unknown) {
     const actor = await this.actor(req);
     return this.run(() => this.repository.projectLeadershipAnswer(actor, this.projectId(rawId), question));
+  }
+
+  @Get("delay-clarification")
+  async projectDelayClarification(@Req() req: Request, @Param("id") rawId: string) {
+    const actor = await this.actor(req);
+    return this.run(() => this.repository.projectDelayClarification(actor, this.projectId(rawId)));
+  }
+
+  @Post("delay-clarification")
+  @HttpCode(200)
+  async requestProjectDelayClarification(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    return this.run(() => this.repository.requestProjectDelayClarification(actor, this.projectId(rawId), body, req.correlationId));
+  }
+
+  @Post("delay-clarification/confirmation")
+  @HttpCode(200)
+  async confirmProjectDelayCause(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    return this.run(() => this.repository.confirmProjectDelayCause(actor, this.projectId(rawId), body, req.correlationId));
   }
 
   @Get("management-draft")

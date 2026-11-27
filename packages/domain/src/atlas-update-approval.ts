@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { canonicalSubjectSchema } from "./canonical-project.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
-import { projectLeadershipScheduleSchema } from "./project-leadership-answer.js";
+import { projectDelayClarificationCommandSchema, projectDelayClarificationSchema, projectLeadershipScheduleSchema } from "./project-leadership-answer.js";
 import { projectReportApprovalRequestSchema, projectReportDecisionSchema, projectReportVersionSchema } from "./project-management-draft.js";
 
 export const atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
@@ -39,12 +39,8 @@ export const atlasCommentReceiptSchema = z.strictObject({
 export type AtlasCommentReceipt = z.infer<typeof atlasCommentReceiptSchema>;
 export const atlasScheduleSchema = projectLeadershipScheduleSchema;
 export type AtlasSchedule = z.infer<typeof atlasScheduleSchema>;
-export const atlasDelayClarificationCommandSchema = z.strictObject({
-  scheduleRevision: atlasScheduleSchema.shape.revision,
-});
-export const atlasDelayClarificationSchema = z.strictObject({
-  id: z.uuid(), requestedAt: z.iso.datetime(), schedule: atlasScheduleSchema,
-});
+export const atlasDelayClarificationCommandSchema = projectDelayClarificationCommandSchema;
+export const atlasDelayClarificationSchema = projectDelayClarificationSchema;
 export type AtlasDelayClarification = z.infer<typeof atlasDelayClarificationSchema>;
 export const atlasForecastConfidenceSchema = z.enum(["MEDIUM", "LOW", "UNKNOWN"]);
 export const atlasDelayCommandSchema = z.strictObject({

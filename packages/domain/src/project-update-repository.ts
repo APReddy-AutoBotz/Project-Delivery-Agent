@@ -7,7 +7,8 @@ import type { ProjectUpdateCaptureHistory, ProjectUpdateRecipientRequestView, Pr
   ProjectUpdateClarificationReceipt, ProjectUpdateFactConfirmationReceipt, ProjectUpdateStatusConfirmationReceipt } from "./project-update-capture.js";
 import type { ProjectUpdatePolicyView, ProjectUpdatePolicyChange, ProjectUpdateAssessmentView } from "./project-updates.js";
 import type { ProjectUpdateSchedulePreview } from "./project-update-schedule.js";
-import type { ProjectLeadershipAnswer } from "./project-leadership-answer.js";
+import type { ProjectDelayCauseConfirmation, ProjectDelayClarification, ProjectDelayClarificationReview,
+  ProjectLeadershipAnswer } from "./project-leadership-answer.js";
 import type { ProjectManagementDraft, ProjectManagementSnapshot, ProjectReportDecision, ProjectReportVersion } from "./project-management-draft.js";
 import type { UpdateAdviceSnapshot } from "./update-advice.js";
 
@@ -38,6 +39,9 @@ export interface ProjectUpdateRepository {
   requestAtlasDelayClarification(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<AtlasDelayClarification>;
   atlasLeadershipAnswer(actor: Actor, projectId: string, priorSnapshotId?: string): Promise<AtlasLeadershipAnswer>;
   projectLeadershipAnswer(actor: Actor, projectId: string, question: unknown): Promise<ProjectLeadershipAnswer>;
+  projectDelayClarification(actor: Actor, projectId: string): Promise<ProjectDelayClarificationReview | null>;
+  requestProjectDelayClarification(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<ProjectDelayClarification>;
+  confirmProjectDelayCause(actor: Actor, projectId: string, command: unknown, correlationId: string): Promise<ProjectDelayCauseConfirmation>;
   projectManagementDraft(actor: Actor, projectId: string): Promise<ProjectManagementDraft>;
   projectManagementSnapshot(actor: Actor, projectId: string, snapshotId: string): Promise<ProjectManagementSnapshot>;
   saveProjectManagementSnapshot(actor: Actor, projectId: string, expected: ProjectManagementDraft, correlationId: string): Promise<ProjectManagementSnapshot>;

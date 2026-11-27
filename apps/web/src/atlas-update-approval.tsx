@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { atlasApprovalProjectCode, AtlasAccessStatus, AtlasApprovalView, AtlasDelayAssessment, AtlasSchedule } from "@pdaa/domain";
+import type { atlasApprovalProjectCode, AtlasAccessStatus, AtlasApprovalView, AtlasDelayAssessment } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
+import { delayClarificationQuestion } from "./project-delay-clarification.js";
 import type { RequestFn } from "./request-types.js";
 import { atlasCommentMaxLength, decodeAtlasApproval, decodeAtlasCommentReceipt, decodeAtlasDelayAssessment, decodeAtlasDelayClarification,
   validAtlasApprovalComment } from "./project-update-invitation-decoder.js";
 
 export const atlasReviewProjectCode: typeof atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
-
-export function atlasDelayClarificationQuestion(schedule: AtlasSchedule) {
-  return `What caused the forecast finish date to move from ${schedule.baseline} to ${schedule.forecast}? Please link the evidence that confirms the cause.`;
-}
 
 function AtlasDelayConfirmation({ projectId, proposal, request, isCurrent, refresh }: {
   projectId: string; proposal: AtlasApprovalView; request: RequestFn; isCurrent: () => boolean; refresh: () => Promise<unknown>;
@@ -178,7 +175,7 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
     <h2>Atlas demo approval</h2>
     {pendingClarification && <section aria-label="Leadership clarification">
       <h3>Leadership asked about the delay</h3>
-      <p>{atlasDelayClarificationQuestion(pendingClarification.schedule)}</p>
+      <p>{delayClarificationQuestion(pendingClarification.schedule)}</p>
       <p>Requested at {pendingClarification.requestedAt}.</p>
     </section>}
     {review.isFetching && <p role="status">Checking for a confirmed reply…</p>}
