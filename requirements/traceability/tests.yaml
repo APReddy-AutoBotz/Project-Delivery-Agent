@@ -61,12 +61,15 @@ tests:
   - tests/delivery-advice.test.ts
 - id: AI-UPD-004
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-UPD-004
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A valid free-text reply produces schema-valid proposed facts and does not directly write to Jira.
-  evidence: []
+  evidence:
+  - tests/captured-reply-interpretation.test.ts
+  - tests/project-update-engagement.integration.test.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: AI-UPD-005
   release: R1
   status: implemented
@@ -429,12 +432,14 @@ tests:
   - docs/05-quality/FRESHNESS_COMPLETENESS_ACCEPTANCE.md
 - id: E2E-UPD-004
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-UPD-004
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A valid free-text reply produces schema-valid proposed facts and does not directly write to Jira.
-  evidence: []
+  evidence:
+  - tests/escalation-browser/atlas-approval.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: E2E-UPD-009
   release: R1
   status: planned
