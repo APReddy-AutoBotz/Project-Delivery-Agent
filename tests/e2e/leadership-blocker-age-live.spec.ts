@@ -75,4 +75,17 @@ test("EXEC-027: live leadership review rechecks authorized blocker sources", asy
   expect(JSON.stringify(withheld)).not.toContain(classification.sourceId);
   await panel.getByRole("button", { name: "Refresh blocker review" }).click();
   await expect(panel).toContainText("Blocker-age review is unavailable"); await expect(panel).not.toContainText(raid.key);
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto("/");
+  await page.getByRole("button", { name: /^Project manager / }).click();
+  const queue = page.getByRole("region", { name: "Action suggestions" });
+  await expect(queue.getByRole("heading", { name: `${input.name} · MEDIUM · BLOCKER REVIEW` })).toBeVisible();
+  await expect(queue.getByText(raid.key, { exact: true })).toHaveCount(1);
+  const pmRevoked = await api("pmo-portfolio", classification.accessPath, "POST", { projectId, sourceId: classification.sourceId,
+    expectedRevision: (await revoked.json()).revision, state: "AVAILABLE", readers: ["pmo-portfolio"] });
+  expect(pmRevoked.status()).toBe(200);
+  await queue.getByRole("button", { name: "Refresh suggestions" }).click();
+  await expect(queue).toContainText("Blocker-age review is unavailable");
+  await expect(queue.getByText(raid.key, { exact: true })).toHaveCount(0);
 });

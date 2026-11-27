@@ -91,6 +91,8 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
   const renderedRefresh = refreshAction.current;
   const queue = current.phase === "ready" ? current.data : undefined;
   const projects = new Map(queue?.projects.map((project) => [project.projectId, project]) ?? []);
+  const unrankedBlockers = queue?.projects.filter(({ blockerAge }) =>
+    queue.rankPolicyRevision !== "pm-review-order@3" || !blockerAge.items.length) ?? [];
   const isCurrentQueue = React.useCallback(() => Boolean(isCurrentPublication() && state.value.phase === "ready"),
     [isCurrentPublication, state.value.phase]);
   const requestFactory = React.useMemo(() => createPreviewRequestFactory({ queueCurrent: isCurrentQueue,
@@ -127,8 +129,9 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
           const schedule = pointer.facet === "SCHEDULE" ? project.schedule.items[pointer.index] : undefined;
           const update = pointer.facet === "UPDATE" && project.update.availability === "AVAILABLE" ? project.update : undefined;
           const atlasApproval = pointer.facet === "ATLAS_APPROVAL" ? project.pendingAtlasApproval : undefined;
+          const blockerAge = pointer.facet === "BLOCKER_AGE" ? project.blockerAge : undefined;
           const item = schedule ?? update?.suggestion;
-          if (!item && !atlasApproval) return null;
+          if (!item && !atlasApproval && !blockerAge) return null;
           return <article key={`${pointer.projectId}:${pointer.facet}:${pointer.key}`} className="rounded-lg border border-slate-200 p-4 space-y-2">
             <h3>{project.name} · {pointer.priority} · {pointer.category.replaceAll("_", " ")}</h3>
             {item && <>
@@ -137,6 +140,7 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
               <p><strong>Expected outcome:</strong> {item.expectedOutcome}</p>
             </>}
             {atlasApproval && <p>Review the pending comment for {atlasApproval.target}. The decision expires at {atlasApproval.expiresAt}.</p>}
+            {blockerAge && <BlockerAgeObservation facet={blockerAge} />}
             {schedule && <>
               <p className="muted">Schedule evaluated at {project.schedule.asOf}; rule {schedule.triggeringRule.key}@{schedule.triggeringRule.revision}.</p>
               {schedule.trigger.kind === "DELIVERY_SIGNAL" ? <SignalEvidence signal={schedule.trigger.signal} /> : <div className="space-y-2">
@@ -160,10 +164,10 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
             </Button>
           </article>;
         })}</div>}
-      <section aria-labelledby="blocker-review-heading" className="space-y-3">
+      {unrankedBlockers.length > 0 && <section aria-labelledby="blocker-review-heading" className="space-y-3">
         <h3 id="blocker-review-heading">Blocker-age review</h3>
         <p className="muted">Age identifies items to review; it does not establish criticality or assign an owner.</p>
-        {queue.projects.map((project) => {
+        {unrankedBlockers.map((project) => {
           const facet = project.blockerAge;
           return <div key={project.projectId} className="rounded-lg border border-slate-200 p-4 space-y-2">
             <h4>{project.name}</h4>
@@ -171,7 +175,7 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
             <Button className="secondary" onClick={() => openQueueProject(project.projectId)}>Open project</Button>
           </div>;
         })}
-      </section>
+      </section>}
       <PmReconciliationPreview key={JSON.stringify([scope, subject, state.epoch, queue.projects.map((project) => [project.projectId, project.name])])}
         projects={queue.projects.map((project) => ({ projectId: project.projectId, name: project.name }))}
         subject={subject} requestFactory={requestFactory} openRequest={openQueueRequest} invalidateRef={previewInvalidate}

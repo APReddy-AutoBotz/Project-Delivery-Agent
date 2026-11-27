@@ -26,7 +26,7 @@ const scalar = (value: unknown) => {
       !(typeof value === "number" && Number.isFinite(value))) fail();
 };
 const priorities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
-const categories = ["APPROVAL", "UPDATE_FOLLOW_UP", "RECONCILIATION", "SCHEDULE_REVIEW", "EVIDENCE_REVIEW"] as const;
+const categories = ["APPROVAL", "BLOCKER_REVIEW", "UPDATE_FOLLOW_UP", "RECONCILIATION", "SCHEDULE_REVIEW", "EVIDENCE_REVIEW"] as const;
 const identifier = (value: unknown) => {
   const id = string(value);
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) fail();
@@ -117,7 +117,8 @@ export function decodePmQueue(value: unknown): PmActionQueue {
       coverage.blockerAge !== "AVAILABLE_OR_UNASSESSABLE" || coverage.otherCategories !== "UNAVAILABLE") fail();
   if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 2 * 1024 * 1024) fail();
   const expected: Pointer[] = [], projects = new Set<string>();
-  let blockerCount = 0, priorProject = "";
+  const rankBlockers = queue.rankPolicyRevision === "pm-review-order@3";
+  let uncountedBlockers = 0, priorProject = "";
   for (const entry of array(queue.projects, 25)) {
     const project = object(entry), projectId = identifier(project.projectId);
     const name = string(project.name);
@@ -134,7 +135,10 @@ export function decodePmQueue(value: unknown): PmActionQueue {
     }
     const schedule = object(project.schedule), update = object(project.update);
     const blocker = decodeBlockerAge(project.blockerAge, projectId, "project_manager");
-    blockerCount += blocker.items.length;
+    if (rankBlockers && blocker.items.length) {
+      expected.push({ projectId, facet: "BLOCKER_AGE", index: null, key: "blocker-age", priority: "MEDIUM", category: "BLOCKER_REVIEW" });
+      uncountedBlockers += blocker.items.length - 1;
+    } else uncountedBlockers += blocker.items.length;
     if (schedule.projectId !== projectId || update.projectId !== projectId || schedule.audience !== "project_manager" ||
         update.audience !== "project_manager" || schedule.coverage !== "SCHEDULE_ONLY" || schedule.sourceAuthority !== "NOT_ASSESSED" ||
         schedule.approvalItems !== "UNAVAILABLE" || update.approvalItems !== "UNAVAILABLE" ||
@@ -189,14 +193,15 @@ export function decodePmQueue(value: unknown): PmActionQueue {
     } else if (update.availability !== "UNCONFIGURED") fail();
   }
   const hasApproval = expected.some(({ facet }) => facet === "ATLAS_APPROVAL");
-  if (queue.rankPolicyRevision !== (hasApproval ? "pm-review-order@2" : "pm-review-order@1") ||
+  if ((rankBlockers ? !expected.some(({ facet }) => facet === "BLOCKER_AGE") :
+    queue.rankPolicyRevision !== (hasApproval ? "pm-review-order@2" : "pm-review-order@1")) ||
       coverage.approvals !== (hasApproval ? "ATLAS_DEMO_ONLY" : "UNAVAILABLE")) fail();
   expected.sort(comparePointers);
   const actual = array(queue.items, 500);
-  if (actual.length + blockerCount > 500) fail();
+  if (actual.length + uncountedBlockers > 500) fail();
   if (actual.length !== expected.length) fail();
   for (const [index, value] of actual.entries()) {
-    const item = object(value), projectId = identifier(item.projectId), facet = oneOf(item.facet, ["SCHEDULE", "UPDATE", "ATLAS_APPROVAL"] as const);
+    const item = object(value), projectId = identifier(item.projectId), facet = oneOf(item.facet, ["SCHEDULE", "UPDATE", "ATLAS_APPROVAL", "BLOCKER_AGE"] as const);
     const priority = oneOf(item.priority, priorities), category = oneOf(item.category, categories), key = string(item.key);
     if (facet === "SCHEDULE") integer(item.index);
     else if (item.index !== null) fail();

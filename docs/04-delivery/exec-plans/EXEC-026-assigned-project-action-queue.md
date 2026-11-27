@@ -137,3 +137,17 @@ source authority; in the PR #120 merge, approvals, blocker-age and other
 categories are unavailable.
 This is partial queue groundwork, not acceptance of AC-ADV-002, Issue #11, any
 story or a release hold. Original19/20 capture remains stopped.
+
+## Rank authorized blocker reviews
+
+For FR-ADV-002 and FR-RPT-002, show a medium-priority review group for each
+assigned project with aged blockers supported by current authorized evidence.
+Reuse the scoped blocker-age observation and its existing evidence disclosure.
+Aged blocker reviews appear after higher priorities and before other medium
+update follow-ups. The blocker and source details use the existing view.
+
+Queue order revision 3 covers ranked blocker reviews. The browser still accepts
+the prior revisions and can display unavailable blocker observations. The
+existing item and response size limits apply. Validate prioritization, existing
+order revisions and source revocation through the current queue and blocker-age
+checks. Revert the projection and web changes to restore the separate review.
