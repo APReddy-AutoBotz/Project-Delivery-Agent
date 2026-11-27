@@ -850,7 +850,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     project: { code: "SCOPE-CHECK", name: "Second synthetic project" },
     schedule: { baseline: "2026-06-30", forecast: "2026-07-15", movementDays: 15 },
     updateFreshness: { state: "CURRENT", sourceDateField: "project.createdAt" },
-    digest: { previousReport: null, decisions: [{ key: "D-01", title: "Confirm the integration environment" }], moreDecisions: false } });
+    digest: { previousReport: null, decisions: [
+      { key: "D-01", title: "Confirm the integration environment" },
+      { key: "RAID-4", title: "Synthetic DECISION" },
+    ], moreDecisions: false } });
   await expect(draftPanel).toContainText(`Draft · Reporting month ${draft.reportingPeriod}`);
   const draftEmail = draftPanel.locator("details");
   await draftEmail.getByText("Leadership email preview").click();
