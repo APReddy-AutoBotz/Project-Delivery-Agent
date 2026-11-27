@@ -9,7 +9,39 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  change-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      scope: ${{ steps.scope.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'pull_request'
+        with:
+          node-version: '24'
+      - name: Classify the exact tested change
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          scope=full
+          classifier="${BASE_SHA}:.github/scripts/foundation-change-scope.mjs"
+          if [[ "$GITHUB_EVENT_NAME" == pull_request && "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] &&
+             git cat-file -e "$classifier" 2>/dev/null; then
+            scope=$(git show --no-textconv "$classifier" | node --input-type=module - "$GITHUB_EVENT_NAME" "$BASE_SHA" "$HEAD_SHA")
+          fi
+          printf 'value=%s\n' "$scope" >> "$GITHUB_OUTPUT"
+          printf 'Foundation validation scope is %s\n' "$scope"
   xlsx-isolation:
+    needs: change-scope
+    if: needs.change-scope.outputs.scope != 'evidence-only'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -33,6 +65,8 @@ jobs:
             artifacts/xlsx-runtime-package.json
           if-no-files-found: error
   xlsx-customer-bridge:
+    needs: change-scope
+    if: needs.change-scope.outputs.scope != 'evidence-only'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -52,6 +86,8 @@ jobs:
           path: artifacts/xlsx-customer-bridge.json
           if-no-files-found: error
   code-checks:
+    needs: change-scope
+    if: needs.change-scope.outputs.scope != 'evidence-only'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -73,6 +109,8 @@ jobs:
         if: always()
         run: pnpm audit --audit-level high
   database-and-browser:
+    needs: change-scope
+    if: needs.change-scope.outputs.scope != 'evidence-only'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -153,17 +191,32 @@ jobs:
       - if: always()
         run: docker compose down
   verify:
-    needs: [code-checks, database-and-browser]
+    needs: [change-scope, code-checks, database-and-browser]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require code, database and browser checks
+        shell: bash
         env:
+          CHANGE_SCOPE: ${{ needs.change-scope.outputs.scope }}
+          CHANGE_SCOPE_RESULT: ${{ needs.change-scope.result }}
           CODE_RESULT: ${{ needs.code-checks.result }}
           DATABASE_AND_BROWSER_RESULT: ${{ needs.database-and-browser.result }}
-        run: test "$CODE_RESULT" = success && test "$DATABASE_AND_BROWSER_RESULT" = success
+        run: |
+          test "$CHANGE_SCOPE_RESULT" = success
+          if [[ "$CHANGE_SCOPE" == evidence-only ]]; then
+            test "$GITHUB_EVENT_NAME" = pull_request
+            test "$CODE_RESULT" = skipped
+            test "$DATABASE_AND_BROWSER_RESULT" = skipped
+          else
+            test "$CHANGE_SCOPE" = full
+            test "$CODE_RESULT" = success
+            test "$DATABASE_AND_BROWSER_RESULT" = success
+          fi
   production-boundary:
+    needs: change-scope
+    if: needs.change-scope.outputs.scope != 'evidence-only'
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
