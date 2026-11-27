@@ -38,16 +38,18 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     } });
     const now = (await pool.query("SELECT date_trunc('milliseconds',clock_timestamp()) AS now")).rows[0].now;
     const createdAt = new Date(now.getTime() - 14 * 86400000);
-    const birth = { $transaction: (operation, options) => db.$transaction(async (tx) => operation(
+    const fixtureCreateTimestamp = (model, field, timestamp) => ({ $transaction: (operation, options) => db.$transaction(async (tx) => operation(
       new Proxy(tx, { get(object, key) {
-        if (key === "canonicalProject") return new Proxy(object.canonicalProject, { get(delegate, method) {
-          if (method === "create") return (args) => delegate.create({ ...args, data: { ...args.data, createdAt } });
+        if (key === model) return new Proxy(object[model], { get(delegate, method) {
+          if (method === "create") return (args) => delegate.create({ ...args, data: { ...args.data, [field]: timestamp } });
           const value = Reflect.get(delegate, method);
           return typeof value === "function" ? value.bind(delegate) : value;
         } });
         const value = Reflect.get(object, key);
         return typeof value === "function" ? value.bind(object) : value;
-      } })), options) };
+      } })), options) });
+    const birth = fixtureCreateTimestamp("canonicalProject", "createdAt", createdAt);
+    const lastPmUpdateAt = atlasApproval ? new Date(now.getTime() - 9 * 86400000) : null;
     const canonical = canonicalFixture(portfolioId);
     let jiraIssue, jiraIntake, spreadsheetIntake;
     const jiraOrigin = "https://atlas-fixture.example.test";
@@ -91,6 +93,8 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       admin, canonical, randomUUID());
     const projectId = project.id;
     const facts = new DatabaseProjectFactRepository(db);
+    const historicalFacts = lastPmUpdateAt
+      ? new DatabaseProjectFactRepository(fixtureCreateTimestamp("factEvidence", "observedAt", lastPmUpdateAt)) : null;
     for (const actor of [owner, pm]) await db.accessGrant.create({ data: {
       customerId, subject: actor.subject, scopeType: "project", scopeId: projectId, role: actor.roles[0],
     } });
@@ -164,10 +168,10 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       : "CURRENT_SOURCE_B_" + randomUUID();
     const readers = [admin.subject, writer.subject, owner.subject, pm.subject, service];
     if (atlasApproval) readers.push("leader-atlas");
-    const append = async (actor, factType, value, originalStatement) => {
+    const append = async (actor, factType, value, originalStatement, observedAt = null) => {
       const fact = await db.projectFact.findFirst({ where: { customerId, projectId, factType } });
-      const result = await facts.appendHumanStatement(actor, { projectId, factType,
-        expectedRevision: fact?.revision ?? 0, idempotencyKey: randomUUID(), effectiveAt: now.toISOString(),
+      const result = await (observedAt ? historicalFacts : facts).appendHumanStatement(actor, { projectId, factType,
+        expectedRevision: fact?.revision ?? 0, idempotencyKey: randomUUID(), effectiveAt: (observedAt ?? now).toISOString(),
         value, originalStatement }, { correlationId: randomUUID() });
       await facts.setSourceAccess(admin, { projectId, sourceId: result.entry.sourceId,
         expectedRevision: result.entry.sourceAccessRevision, state: "AVAILABLE", readers }, { correlationId: randomUUID() });
@@ -200,7 +204,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
         }, { correlationId: randomUUID() });
       }
     }
-    const sourceA = await append(admin, "project.status", { type: "text", value: sourceMarkerA }, sourceMarkerA);
+    const sourceA = await append(atlasApproval ? pm : admin, "project.status", { type: "text", value: sourceMarkerA }, sourceMarkerA, lastPmUpdateAt);
     await authority.appendPolicy(admin, { projectId, factType: "project.status", expectedRevision: 0,
       idempotencyKey: randomUUID(), effectiveAt: "2026-01-01T00:00:00.000Z",
       definition: { tiers: [{ selectors: [selector(sourceA)] }], conflictBehavior: "REQUEST_RECONCILIATION" } },
@@ -210,7 +214,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       { factType: "project.forecast", label: atlasApproval
         ? "Expected API access date, current owner and impact on the integration forecast" : "Current forecast" },
     ];
-    await updates.setPolicy(admin, projectId, { expectedRevision: 0, freshnessWindowSeconds: 3600,
+    await updates.setPolicy(admin, projectId, { expectedRevision: 0, freshnessWindowSeconds: atlasApproval ? 7 * 86400 : 3600,
       timeZone: "UTC", requiredFacts, responsibleSubject: owner.subject, scheduledScanEnabled: true,
       reminderBusinessDayOffsets: [1, 2], escalationAfterBusinessDays: 3,
       escalationRecipientSubject: pm.subject, quietHoursStartLocal: null, quietHoursEndLocal: null }, randomUUID());
@@ -302,7 +306,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       sameClockIds[0], new Date(request.capturedAt));
     assert(reminder.requestId < request.requestId && reminder.capturedAt === request.capturedAt);
     const secondReminder = await capture(ownerStages[2], initial, ownerStages[2].assessmentId);
-    const sourceB = await append(writer, "project.status", { type: "text", value: sourceMarkerB }, sourceMarkerB);
+    const sourceB = await append(writer, "project.status", { type: "text", value: sourceMarkerB }, sourceMarkerB, lastPmUpdateAt);
     await authority.appendPolicy(admin, { projectId, factType: "project.status", expectedRevision: 1,
       idempotencyKey: randomUUID(), effectiveAt: "2026-01-02T00:00:00.000Z",
       definition: { tiers: [{ selectors: [selector(sourceB)] }, { selectors: [selector(sourceA)] }],
@@ -322,6 +326,24 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     const ownerEscalation = await capture(ownerStages[3], current, assessments[0].id);
     const escalation = earlyPm ?? await capture(pmStage, current, assessments[0].id);
     if (earlyPm) assert(Date.parse(ownerEscalation.capturedAt) > Date.parse(escalation.capturedAt));
+    let lastForecast;
+    if (lastPmUpdateAt) {
+      // The original incomplete cycle uses project creation time, so all its
+      // captured stages are already due. Recovering the older forecast supplies
+      // complete stale evidence without rescheduling the existing request.
+      const { forecastEnd } = atlasSpreadsheetDates();
+      lastForecast = await append(pm, "project.forecast", { type: "date", value: forecastEnd },
+        `The PM last reported a forecast finish of ${forecastEnd}.`, lastPmUpdateAt);
+      await authority.appendPolicy(admin, { projectId, factType: "project.forecast", expectedRevision: 0,
+        idempotencyKey: randomUUID(), effectiveAt: lastPmUpdateAt.toISOString(),
+        definition: { tiers: [{ selectors: [selector(lastForecast)] }], conflictBehavior: "REQUEST_RECONCILIATION" },
+      }, { correlationId: randomUUID() });
+      const reassessed = await updates.assess(admin, projectId, randomUUID());
+      assert.equal(reassessed.obligation?.id, initial.obligation?.id);
+      assert.equal(reassessed.freshness.sourceDateField, "project.latestValidUpdateAt");
+      assert.equal(reassessed.freshness.sourceDate, lastPmUpdateAt.toISOString());
+      assert.equal(reassessed.freshness.state, "STALE");
+    }
     const privateResponse = "PRIVATE_OWNER_RESPONSE_" + randomUUID();
     await updates.submitResponse(owner, request.locator,
       { text: privateResponse, idempotencyKey: randomUUID(), correctsResponseId: null }, randomUUID());
@@ -330,6 +352,6 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
     return { customerId, projectId, admin, writer, owner, pm, service, zones, configuration, readers,
       sourceA, sourceB, sourceMarkerA, sourceMarkerB, privateResponse,
       request, reminder, secondReminder, ownerEscalation, escalation, olderCycle,
-      engagementId: activation.engagementId, jiraIntake, spreadsheetIntake };
+      engagementId: activation.engagementId, jiraIntake, spreadsheetIntake, lastPmUpdateAt: lastPmUpdateAt?.toISOString(), lastForecast };
   } finally { await db.$disconnect(); await pool.end(); }
 }

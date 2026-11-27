@@ -81,7 +81,8 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const before = await beforeApproval.json();
   expect(before).toMatchObject({
     schedule: { baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 }, ownerReply: null, receipt: null,
-    updateFreshness: { state: "STALE", sourceDateField: "project.createdAt", openObligation: true },
+    updateFreshness: { state: "STALE", sourceDateField: "project.latestValidUpdateAt", sourceDate: fixture.lastPmUpdateAt,
+      openObligation: true },
     jiraBlocker: { mappingId: fixture.jiraIntake.mappingId, issueKey: "ATLAS-248" },
   });
   const intakePath = `/api/ingestion/sources/${fixture.jiraIntake.sourceId}/receipts/${fixture.jiraIntake.receiptId}`;
@@ -121,14 +122,26 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const authorizedUpdate = await updateAssessment.json();
   expect(authorizedUpdate).toMatchObject({
     project: { id: fixture.projectId },
-    policy: { responsibleSubject: "owner-atlas" },
+    policy: { responsibleSubject: "owner-atlas", freshnessWindowSeconds: 7 * 86400 },
     obligation: { state: "OPEN" },
-    completeness: { state: "INCOMPLETE" },
+    completeness: { state: "COMPLETE" },
   });
-  expect(authorizedUpdate.knownPosition).toEqual([expect.objectContaining({
+  expect(authorizedUpdate.knownPosition).toHaveLength(2);
+  expect(authorizedUpdate.knownPosition).toEqual(expect.arrayContaining([expect.objectContaining({
     factType: "project.status", authorityRevision: 2, sourceId: fixture.sourceB.sourceId,
-    value: { type: "text", value: fixture.sourceMarkerB },
-  })]);
+    value: { type: "text", value: fixture.sourceMarkerB }, observedAt: fixture.lastPmUpdateAt,
+  }), expect.objectContaining({
+    factType: "project.forecast", sourceId: fixture.lastForecast.sourceId, observedAt: fixture.lastPmUpdateAt,
+  })]));
+  expect(Math.floor((Date.parse(before.updateFreshness.assessedAt) - Date.parse(fixture.lastPmUpdateAt)) / 86400000)).toBe(9);
+  await leaderAccess(false, fixture.lastForecast.sourceId, fixture.readers);
+  try {
+    const restrictedFreshness = await request.get(answerPath, { headers: leaderHeaders });
+    expect(restrictedFreshness.status()).toBe(200);
+    expect(await restrictedFreshness.json()).toMatchObject({ updateFreshness: null, jiraBlocker: before.jiraBlocker });
+  } finally {
+    await leaderAccess(true, fixture.lastForecast.sourceId, fixture.readers);
+  }
   expect(before.updateFreshness).toEqual({
     state: authorizedUpdate.freshness.state, sourceDateField: authorizedUpdate.freshness.sourceDateField,
     sourceDate: authorizedUpdate.freshness.sourceDate, assessedAt: authorizedUpdate.freshness.assessedAt, openObligation: true,
@@ -311,7 +324,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(answer.getByText("Draft a question for the assigned PM", { exact: true })).toHaveCount(0);
   for (const [label, evidence] of [
     ["Schedule evidence", "Baseline 2026-10-15. Forecast 2026-10-29."],
-    ["Update freshness evidence", `Assessed at ${before.updateFreshness.assessedAt}. Project created at ${before.updateFreshness.sourceDate}.`],
+    ["Update freshness evidence", `Assessed at ${before.updateFreshness.assessedAt}. Latest verified update at ${fixture.lastPmUpdateAt}.`],
     ["Integration start evidence", "Planned start 2026-10-05. Actual start 2026-10-08."],
     ["Jira blocker evidence", "Synthetic Jira issue ATLAS-248, recorded in source mapping"],
     ["Reply evidence", "Human-confirmed owner reply"],
@@ -325,6 +338,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await expect(answer.locator(anchor!)).toContainText(evidence!);
   }
   await expect(answer).not.toContainText(/access was restored|developer|budget/i);
+  await expect(answer).not.toContainText(fixture.sourceMarkerA);
+  await expect(answer).not.toContainText(fixture.sourceMarkerB);
+  await expect(answer.locator(`#atlas-blocker-${fixture.projectId}`)).toContainText("System verified.");
   await expect(page.locator("body")).not.toContainText(text);
   const completeAnswer = await request.get(answerPath, { headers: leaderHeaders });
   expect(completeAnswer.status()).toBe(200);

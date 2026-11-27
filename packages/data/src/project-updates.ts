@@ -2617,6 +2617,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const freshness = projectUpdateAssessmentViewSchema.shape.freshness.safeParse(stored.data?.freshness);
     if (!freshness.success || freshness.data.assessedAt !== iso(row.assessedAt)) return null;
     const { state, assessedAt, sourceDate, sourceDateField } = freshness.data;
+    if (sourceDateField === "project.latestValidUpdateAt") {
+      const dependencies = z.array(projectUpdateFactReferenceSchema).min(1).max(1000).safeParse(jsonValue(row.dependencies));
+      if (!dependencies.success || (await this.resolveKnownPosition(tx, current, projectId, dependencies.data, row.requiredFacts)).length !== dependencies.data.length)
+        return null;
+    }
     const openObligation = row.obligationState === "OPEN";
     const activeClarification = state === "STALE" && openObligation && row.obligationId
       ? await this.atlasActiveClarification(tx, current, projectId, row.obligationId) : undefined;
