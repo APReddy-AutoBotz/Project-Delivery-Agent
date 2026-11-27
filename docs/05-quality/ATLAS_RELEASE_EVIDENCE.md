@@ -90,3 +90,29 @@ check the exact assessment binding and deny unavailable historical access.
 The browser checks both dates and clears the comparison when the selection
 changes. [PR #217 code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45898212812/job/140177282682)
 and [PR #217 browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45898212812/job/140177282758).
+
+## Selected-project email digest software acceptance
+
+STORY-033 covers the selected-project email preview. The preview compares the
+current report with the latest readable delivered snapshot, summarizes schedule
+and update freshness changes, and lists open decision needs. It links to the
+authenticated project and uses the same frozen report facts as the editable
+deck. The browser checks the link, open and completed decisions, the exact
+prior snapshot, unchanged schedule dates, and the change from current to
+unavailable freshness in the preview and deck. It also
+checks that revoking access to the earlier evidence withholds the dependent
+draft and blocks its approval. This record takes effect after required hosted
+checks, independent review and merge.
+[Main browser evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46024420243/job/140592001303)
+
+## Assigned PM queue access acceptance
+
+AC-RPT-003 is covered by the PM action queue tests on the same exact main
+revision. Native checks verify that PM assignments and matching project or
+portfolio grants are both required, including revocation, dual-role and
+cross-customer cases. The HTTP tests check that the queue rejects caller-supplied
+scope. Browser checks cover session changes and a PM opening a pending project
+report from the queue after another request was approved. Queue coverage is
+part of [STORY-030 and Issue #13](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13).
+[Main native and browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46024420243/job/140592001303) ·
+[Main code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46024420243/job/140592001224)
