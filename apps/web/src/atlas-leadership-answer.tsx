@@ -89,7 +89,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const assessmentRef = `atlas-delay-assessment-${projectId}`;
   const days = schedule?.movementDays ?? null;
   const askPm = useMutation({
-    mutationFn: async ({ scheduleRevision }: { scheduleRevision: number; scope: string }) => {
+    mutationFn: async ({ scheduleRevision }: { scheduleRevision: number; scope: string; asOf: string }) => {
       if (!isCurrent()) throw new Error("Atlas project access changed");
       const raw = await request(`/projects/${projectId}/atlas-delay-clarification`, {
         method: "POST", body: JSON.stringify({ scheduleRevision }),
@@ -99,7 +99,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
       return result;
     },
   });
-  const currentClarification = askPm.variables?.scope === scope && askPm.variables.scheduleRevision === schedule?.revision;
+  const currentClarification = askPm.variables?.scope === scope && askPm.variables.scheduleRevision === schedule?.revision &&
+    askPm.variables.asOf === answer?.asOf;
   const askedPmForSchedule = currentClarification && askPm.isSuccess;
   const movement = days === null ? "Schedule movement is unavailable."
     : days === 0 ? "The baseline and forecast dates match."
@@ -150,7 +151,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         <p>{atlasDelayClarificationQuestion(schedule)}</p>
         {askedPmForSchedule ? <Message>Clarification added to the assigned PM’s Atlas project panel.</Message>
           : <Button className="secondary" disabled={askPm.isPending || !isCurrent()}
-            onClick={() => askPm.mutate({ scheduleRevision: schedule.revision, scope })}>Ask the assigned PM</Button>}
+            onClick={() => askPm.mutate({ scheduleRevision: schedule.revision, scope, asOf: answer.asOf })}>Ask the assigned PM</Button>}
         {askPm.isError && currentClarification && <Message error>Could not request clarification. Refresh the answer and try again.</Message>}
       </details>}
       {prior?.facts.ownerReply && Date.parse(prior.facts.ownerReply.availableUntil) > Date.now() &&

@@ -80,6 +80,7 @@ const atlasFixtureChangedEvent = "atlas_demo.fixture.changed";
 const atlasFixtureSourceSubject = "atlas-jira-fixture";
 const atlasProposalRefreshedEvent = "atlas_demo.proposal.refreshed";
 const atlasDelayConfirmedEvent = "atlas_demo.delay.confirmed";
+const atlasDelayClarificationEvent = "atlas_demo.delay.clarification_requested";
 const atlasManagementSnapshotEvent = "atlas_demo.management_snapshot.created";
 const atlasReportRequestedEvent = "atlas_demo.report_approval.requested";
 const atlasReportDecidedEvent = "atlas_demo.report_approval.decided";
@@ -140,7 +141,7 @@ const storedAtlasProposalRefresh = z.strictObject({
   proposedComment: atlasApprovalViewSchema.shape.proposedComment,
 });
 const storedAtlasDelay = atlasDelayCommandSchema.extend({
-  projectId: z.uuid(), responseId: z.uuid(), captureIssuanceEpoch: z.uuid(),
+  projectId: z.uuid(), responseId: z.uuid(), captureIssuanceEpoch: z.uuid(), clarificationId: z.uuid().optional(),
 });
 const storedAtlasManagementSnapshot = z.strictObject({
   projectId: z.uuid(), locator: z.uuid(), captureIssuanceEpoch: z.uuid(), facts: atlasManagementFactsSchema,
@@ -2405,8 +2406,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           (review.assessment && review.assessment.confidence !== confidence))
         throw new ProjectUpdateError("CONFLICT");
       if (review.assessment) return review.assessment;
+      const clarification = await this.findAtlasDelayClarification(tx, current.customerId, projectId,
+        current.subject, scheduleRevision, captureIssuanceEpoch);
       const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasDelayConfirmedEvent,
-        { ...parsed.data, projectId, responseId: view.responseId, captureIssuanceEpoch });
+        { ...parsed.data, projectId, responseId: view.responseId, captureIssuanceEpoch, clarificationId: clarification?.id });
       const event = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true } });
       if (event.occurredAt >= new Date(view.expiresAt)) throw new ProjectUpdateError("DENIED");
       return atlasDelayAssessmentSchema.parse({ ...parsed.data, id, confirmedBy: current.subject, confirmedAt: iso(event.occurredAt) });
@@ -2417,6 +2420,18 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const actor = parseActor(actorValue);
     if (!actor.roles.includes("leadership")) throw new ProjectUpdateError("DENIED");
     return { ...actor, roles: ["leadership"] };
+  }
+
+  private findAtlasDelayClarification(tx: Tx, customerId: string, projectId: string, pm: string,
+    scheduleRevision: number, issuanceEpoch: string) {
+    return tx.auditEvent.findFirst({
+      where: { customerId, event: atlasDelayClarificationEvent, AND: [
+        { detail: { path: ["projectId"], equals: projectId } },
+        { detail: { path: ["scheduleRevision"], equals: scheduleRevision } },
+        { detail: { path: ["recipient"], equals: pm } },
+        { detail: { path: ["captureIssuanceEpoch"], equals: issuanceEpoch } },
+      ] }, select: { id: true, occurredAt: true },
+    });
   }
 
   private async pendingAtlasDelayClarification(tx: Tx, current: Actor, projectId: string, audience: "pm" | "leadership") {
@@ -2431,16 +2446,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (!pm || (audience === "pm" && pm !== current.subject) ||
         !await this.recipientAuthorized(tx, current.customerId, projectId, pm, "PROJECT_MANAGER"))
       return null;
-    const event = "atlas_demo.delay.clarification_requested";
-    const saved = await tx.auditEvent.findFirst({
-      where: { customerId: current.customerId, event, AND: [
-        { detail: { path: ["projectId"], equals: projectId } },
-        { detail: { path: ["scheduleRevision"], equals: schedule.revision } },
-        { detail: { path: ["recipient"], equals: pm } },
-        { detail: { path: ["captureIssuanceEpoch"], equals: configuration.issuanceEpoch } },
-      ] }, select: { id: true, occurredAt: true },
-    });
-    return { pm, event, schedule, clarification: saved
+    const saved = await this.findAtlasDelayClarification(tx, current.customerId, projectId, pm, schedule.revision, configuration.issuanceEpoch);
+    if (saved && await tx.auditEvent.findFirst({
+      where: { customerId: current.customerId, actor: pm, event: atlasDelayConfirmedEvent,
+        detail: { path: ["clarificationId"], equals: saved.id } },
+      select: { id: true },
+    })) return null;
+    return { pm, schedule, clarification: saved
       ? atlasDelayClarificationSchema.parse({ id: saved.id, requestedAt: iso(saved.occurredAt), schedule }) : null };
   }
 
@@ -2462,7 +2474,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (!pending || pending.schedule.revision !== parsed.data.scheduleRevision)
         throw new ProjectUpdateError("CONFLICT");
       if (pending.clarification) return pending.clarification;
-      const id = await this.engagementAudit(tx, current, projectId, correlationId, pending.event, {
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasDelayClarificationEvent, {
         projectId, scheduleRevision: pending.schedule.revision, recipient: pending.pm,
       });
       const { occurredAt } = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true } });

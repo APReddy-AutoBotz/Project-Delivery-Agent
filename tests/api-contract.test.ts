@@ -1088,7 +1088,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(93);
+  expect(covered.size).toBe(95);
   assertContractSnapshot(
     spec,
     JSON.parse(

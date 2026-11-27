@@ -32,9 +32,10 @@ Reuse the authorized schedule dates. The scoped leadership user can submit the
 draft to the assigned PM's Atlas project panel under AC-QA-006. The server
 rechecks the current schedule, unknown cause, assigned PM and capture gate.
 It records one scoped audit event per schedule revision, PM and issuance epoch.
-An old schedule, confirmed cause or closed capture gate removes the request from
-the current panel. Existing audit history remains available through its own
-access rules. This is an in-app request. It uses neither email nor Jira. Verify
+The confirmation closes the exact request in the same audit record, so a later
+owner reply cannot reopen it on the same schedule. An old schedule or closed
+capture gate also removes the request from the current panel. Audit access
+follows the existing access rules. This in-app request stays in Atlas. Verify
 the draft with sparse Jira evidence, a successful submission and replay, access
 denial, and removal after the PM confirms a cause.
 

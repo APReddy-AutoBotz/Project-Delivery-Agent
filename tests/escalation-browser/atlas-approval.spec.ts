@@ -501,6 +501,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const pendingAnswer = await pending.json();
   expect(pendingAnswer).toMatchObject({ ownerReply: null, receipt: null });
   expect(pendingAnswer.updateFreshness).not.toHaveProperty("activeClarification");
+  const afterReplacement = await request.get(delayClarificationPath, { headers: managerHeaders });
+  expect(afterReplacement.status()).toBe(200);
+  expect(await afterReplacement.json()).toBeNull();
+  expect((await request.post(delayClarificationPath, { headers: leaderHeaders, data: clarificationCommand })).status()).toBe(409);
   const restoredComment = "API access was restored. Infrastructure will verify access with the integration team.";
   expect((await request.post(projectPath + "/atlas-approval", {
     headers: managerHeaders, data: { approvalId: nextComment.approvalId, decision: "APPROVED", proposedComment: restoredComment },
