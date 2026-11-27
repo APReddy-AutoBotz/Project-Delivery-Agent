@@ -7,20 +7,23 @@ Bind the Atlas schedule to the exact portfolio row selected in the existing
 reviewed CSV import. Use the sealed Atlas source mapping to identify the row
 and reuse receipt integrity and current source readers inside the project
 transaction. Hold the retention policy while reading the receipt and its
-availability deadline. Require two typed dates that match the approved
-canonical schedule revision. Unavailable, ambiguous or conflicting reviewed
-evidence prevents the configured Atlas answer from using those dates. The
-Jira blocker and integration milestone are evaluated with their own evidence.
-Earlier
-Atlas fixtures without that mapping retain their canonical schedule behavior.
+availability deadline. Read both typed dates from the authorized reviewed row
+and calculate movement from those dates. The sealed Atlas mapping supplies dates
+that the project leaves unset. Reviewed values must agree with any populated
+canonical date because existing approvals are bound to the project revision.
+Unavailable, ambiguous or disagreeing rows leave the schedule unavailable. The
+Jira blocker and integration milestone use their own evidence. Earlier fixtures
+without the mapping retain the canonical schedule.
 
 Show the reviewed receipt in the existing schedule citation. Keep the receipt
-identity with any new frozen Atlas snapshot and recheck access to the same
-receipt before opening, approving or distributing it. No imported row directly
-writes a canonical fact. The normal CSV import, general field authority and
-production connector scope continue through their own approved workflows.
+identity with any new frozen Atlas snapshot and recheck access and exact saved
+dates against that receipt before opening, approving or distributing it. The
+project and source locks keep the candidate row stable during the assessment.
+Reviewed imports remain proposals in the general CSV workflow. Canonical facts
+and connector scopes keep their existing approval paths.
 
-Extend the existing native Atlas journey with one scoped source revocation
-and restoration before report approval. Verify the existing receipt and dates
-in the answer, withholding after revocation and the exact saved report after
-restoration. Roll back the Atlas resolver and use a fresh synthetic fixture.
+The native Atlas journey leaves the two canonical finish dates unset. Check that
+the leadership answer and frozen report derive both dates from the reviewed
+spreadsheet and the canonical record retains its unset dates. Reuse the source
+revocation and restoration to verify withholding and scope. Roll back the Atlas
+resolver and use a fresh synthetic fixture.

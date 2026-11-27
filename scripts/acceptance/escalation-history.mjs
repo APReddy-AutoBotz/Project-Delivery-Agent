@@ -62,7 +62,7 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       } };
       canonical.code = atlasApprovalProjectCode;
       canonical.name = "Atlas · Delivery approval";
-      canonical.dates = { ...canonical.dates, ...atlasSpreadsheetDates() };
+      canonical.dates = { ...canonical.dates, baselineEnd: null, forecastEnd: null };
       canonical.milestones.push({
         key: atlasIntegrationMilestoneKey, name: "Integration testing", state: "IN_PROGRESS",
         dates: { baselineStart: null, baselineEnd: null, plannedStart: "2026-10-05", plannedEnd: null,
