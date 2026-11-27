@@ -684,9 +684,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     const updates = new DatabaseProjectUpdateRepository(scopeDb);
     await updates.setPolicy(fixture.admin, allowedProjectId, { expectedRevision: 0, freshnessWindowSeconds: 7 * 86400,
       timeZone: "UTC", requiredFacts: [{ factType: "project.status", label: "Current status" }],
-      responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false,
-      reminderBusinessDayOffsets: [1, 2], escalationAfterBusinessDays: 3,
-      escalationRecipientSubject: null, quietHoursStartLocal: null, quietHoursEndLocal: null }, randomUUID());
+      responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false }, randomUUID());
     await updates.assess(fixture.admin, allowedProjectId, randomUUID());
     await scopeDb.$transaction(async (tx) => {
       const grant = { customerId: fixture.customerId, subject: "leader-atlas", scopeType: "project", role: "leadership" };
