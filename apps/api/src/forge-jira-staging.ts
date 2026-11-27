@@ -72,7 +72,7 @@ export function installForgeJiraStagingRoute(
       return;
     }
     const now = Date.now();
-    // Forge can repeat a delivery. A successful check is reusable only until its FIT expires.
+    // Forge can repeat a delivery. Reuse the outcome only until its FIT expires.
     for (const [id, entry] of recent) {
       if (entry.expiresAt <= now) recent.delete(id);
     }
@@ -103,7 +103,6 @@ export function installForgeJiraStagingRoute(
     }
 
     const status = await entry.result;
-    if (status !== 200 && recent.get(invocation.id) === entry) recent.delete(invocation.id);
     if (status === 429) {
       throttled(response);
       return;

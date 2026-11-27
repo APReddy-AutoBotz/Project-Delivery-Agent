@@ -114,7 +114,9 @@ describe("Forge Jira staging connection", () => {
       .mockResolvedValueOnce(Response.json({ id: "10002" }))
       .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "Retry-After": "120" } }));
     const call = harness(fetchImpl);
-    expect((await call(await sign({ id: "denied" }))).status).toHaveBeenCalledWith(403);
+    const denied = await sign({ id: "denied" });
+    expect((await call(denied)).status).toHaveBeenCalledWith(403);
+    expect((await call(denied)).status).toHaveBeenCalledWith(403);
     expect((await call(await sign({ id: "different-project" }))).status).toHaveBeenCalledWith(503);
     const limited = await call(await sign({ id: "limited" }));
     expect(limited.status).toHaveBeenCalledWith(429);

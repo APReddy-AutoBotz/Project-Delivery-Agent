@@ -60,8 +60,8 @@ The route is absent by default. An enabled route accepts an exact commercial
 Forge staging binding. It checks the intended app, installation, module and
 Jira site before the system token can be used. Tokens, request bodies and Jira
 project data are excluded from responses and logs. The app uses read scopes.
-The API retains successful invocation IDs in memory until the FIT expires to
-avoid repeating reads on duplicate delivery. Provider `Retry-After` temporarily
+The API retains recent outcomes by invocation ID until the FIT expires to avoid
+repeating reads on duplicate delivery. Provider `Retry-After` temporarily
 pauses outbound requests for the staging binding.
 
 ## Connector and permission impact
