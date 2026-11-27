@@ -1,7 +1,7 @@
 # EXEC-052 Atlas snapshot comparison
 
 - Status: In progress
-- Requirements: FR-QA-006 and FR-QA-010
+- Requirements: FR-QA-006, FR-QA-008 and FR-QA-010
 - Evidence: freshness portion of AC-QA-004, AC-QA-008 and INT-QA-008
 - GitHub issue [#12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12)
 
@@ -25,6 +25,13 @@ with the existing Atlas leadership authorization. Identify a clarification
 for the latest retained reply by its recorded ID, time and requested fact.
 The projection omits invitation credentials, recipient identity and reply
 text. Replacing the reply or losing current access removes the item.
+
+For the GOLDEN-005 offer path, show a focused question for the assigned PM
+when the verified schedule slipped and a confirmed cause is unavailable.
+Reuse the authorized schedule dates. This draft gives the leader a question
+to raise with the PM. Sending and tracking a new request is a separate action
+under AC-QA-006. Verify the draft with sparse Jira evidence and verify that a
+confirmed cause removes the offer.
 
 Use the saved Atlas browser fixture to verify a change after a later owner
 reply and comment, plus access denial. Verify that the answer identifies the

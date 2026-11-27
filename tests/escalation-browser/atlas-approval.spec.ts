@@ -211,6 +211,23 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const unknown = await request.get(answerPath, { headers: leaderHeaders });
   expect(unknown.status()).toBe(200);
   expect(await unknown.json()).toMatchObject({ delayAssessment: null, receipt });
+  const unknownCausePage = await page.context().newPage();
+  try {
+    await leaderAccess(false, fixture.jiraIntake.factSourceId, fixture.jiraIntake.sourceReaders);
+    await unknownCausePage.goto("/");
+    await unknownCausePage.getByRole("button", { name: /Leadership/ }).click();
+    await unknownCausePage.getByRole("button", { name: /Atlas · Delivery approval/ }).click();
+    const unknownAnswer = unknownCausePage.getByRole("region", { name: "Atlas leadership answer" });
+    await unknownAnswer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
+    await expect(unknownAnswer).toContainText("The forecast is 14 days later than the baseline.");
+    await expect(unknownAnswer).toContainText("The verified cause of the schedule change and confidence in the forecast remain unknown.");
+    await expect(unknownAnswer.getByRole("link", { name: "Jira blocker evidence" })).toHaveCount(0);
+    await unknownAnswer.getByText("Draft a question for the assigned PM", { exact: true }).click();
+    await expect(unknownAnswer.getByText("What caused the forecast finish date to move from 2026-10-15 to 2026-10-29? Please link the evidence that confirms the cause.", { exact: true })).toBeVisible();
+  } finally {
+    await unknownCausePage.close();
+    await leaderAccess(true, fixture.jiraIntake.factSourceId, fixture.jiraIntake.sourceReaders);
+  }
   const originalDraft = await request.post(reportPath, { headers: leaderHeaders, data: {} });
   expect(originalDraft.status()).toBe(200);
   const originalReport = await originalDraft.json();
@@ -251,6 +268,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(answer).toContainText("A simulated escalation was captured for the assigned PM.");
   await expect(answer).toContainText("The PM confirmed that delayed API access caused the go-live delay.");
   await expect(answer).toContainText("The PM assessed forecast confidence as medium.");
+  await expect(answer.getByText("Draft a question for the assigned PM", { exact: true })).toHaveCount(0);
   for (const [label, evidence] of [
     ["Schedule evidence", "Baseline 2026-10-15. Forecast 2026-10-29."],
     ["Update freshness evidence", `Assessed at ${before.updateFreshness.assessedAt}. Project created at ${before.updateFreshness.sourceDate}.`],
