@@ -151,13 +151,19 @@ describe("EXEC-026 PM queue composition", () => {
     projects[0] = observation(1, { targets: 50, update: true });
     expect(() => buildPmActionQueue(projects)).toThrow("Action queue unavailable");
   });
-  it("counts blocker review alongside ranked items and preserves its separate order", () => {
+  it("ranks authorized blocker review and keeps the same 500-item budget", () => {
     const projects = Array.from({ length: 10 }, (_, i) => observation(i + 1, { targets: i === 0 ? 49 : 50 }));
     projects[0] = { ...projects[0]!, blockerAge: aged(id(1)) };
     const queue = buildPmActionQueue(projects);
-    expect(queue.items).toHaveLength(499);
+    expect(queue.rankPolicyRevision).toBe("pm-review-order@3");
+    expect(queue.items).toHaveLength(500);
+    expect(queue.items[0]).toMatchObject({ projectId: id(1), facet: "BLOCKER_AGE", priority: "MEDIUM", category: "BLOCKER_REVIEW" });
     expect(queue.projects[0]!.blockerAge.items).toHaveLength(1);
     expect(decodePmQueue(JSON.parse(JSON.stringify(queue)))).toEqual(queue);
+    const legacy = { ...queue, rankPolicyRevision: "pm-review-order@1", items: queue.items.slice(1) };
+    expect(pmActionQueueSchema.safeParse(legacy).success).toBe(true);
+    expect(decodePmQueue(legacy)).toEqual(legacy);
+    expect(() => decodePmQueue({ ...queue, items: legacy.items })).toThrow("Invalid action queue presentation");
     projects[0] = { ...observation(1, { targets: 50 }), blockerAge: aged(id(1)) };
     expect(() => buildPmActionQueue(projects)).toThrow("Action queue unavailable");
     const wrong = structuredClone(queue); wrong.projects[0]!.blockerAge.projectId = id(2);

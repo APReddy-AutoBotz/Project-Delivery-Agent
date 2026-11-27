@@ -53612,7 +53612,8 @@
                       "type": "string",
                       "enum": [
                         "pm-review-order@1",
-                        "pm-review-order@2"
+                        "pm-review-order@2",
+                        "pm-review-order@3"
                       ]
                     },
                     "coverage": {
@@ -57332,6 +57333,7 @@
                                 "type": "string",
                                 "enum": [
                                   "APPROVAL",
+                                  "BLOCKER_REVIEW",
                                   "UPDATE_FOLLOW_UP",
                                   "RECONCILIATION",
                                   "SCHEDULE_REVIEW",
@@ -57435,6 +57437,56 @@
                                 "type": "string",
                                 "enum": [
                                   "APPROVAL"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "projectId",
+                              "facet",
+                              "index",
+                              "key",
+                              "priority",
+                              "category"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "projectId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "facet": {
+                                "type": "string",
+                                "enum": [
+                                  "BLOCKER_AGE"
+                                ]
+                              },
+                              "index": {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              },
+                              "key": {
+                                "type": "string",
+                                "enum": [
+                                  "blocker-age"
+                                ]
+                              },
+                              "priority": {
+                                "type": "string",
+                                "enum": [
+                                  "MEDIUM"
+                                ]
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "BLOCKER_REVIEW"
                                 ]
                               }
                             },
