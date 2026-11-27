@@ -19,6 +19,12 @@ export function BlockerAgeObservation({ facet }: { facet: BlockerAgeAdvice }) {
       {facet.coverage === "PARTIAL" && <p>Some blocker information could not be assessed.</p>}
       {facet.items.map((item) => <article key={item.raidItemId} className="space-y-1">
         <p><strong>{item.key}</strong> · {item.state.replaceAll("_", " ")} · {item.ageDays} days since {item.sourceDateField}: {item.openedAt} UTC</p>
+        {item.criticalDependency && <p>Critical dependency · Schedule policy revision {item.criticalDependency.policyRevision}</p>}
+        {item.criticalDependency?.milestone && <p>
+          Upcoming milestone {item.criticalDependency.milestone.key} · {item.criticalDependency.milestone.dateField === "forecastEnd" ? "Forecast" : "Planned"} date {item.criticalDependency.milestone.dueDate}
+          {" "}({item.criticalDependency.milestone.daysUntilDue} days from the assessment date)
+        </p>}
+        {item.criticalDependency?.escalationOwner && <p>Escalation owner {item.criticalDependency.escalationOwner.name}</p>}
         <p>{item.suggestedAction} {item.expectedOutcome}</p>
         <details><summary>Authorized evidence references</summary>
           {[item.classification, item.openedAtProof].map((proof) => <ProofReference key={proof.factId} proof={proof} />)}

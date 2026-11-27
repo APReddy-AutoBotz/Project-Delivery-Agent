@@ -8,6 +8,7 @@ type Request = { headers: Record<string, string | undefined> };
 export const BLOCKER_AGE_ADVICE_REPOSITORY = "BLOCKER_AGE_ADVICE_REPOSITORY";
 export const unavailableBlockerAgeAdviceRepository: BlockerAgeAdviceRepository = {
   async readLeadership() { throw new BlockerAgeAdviceError("UNAVAILABLE"); },
+  async readScrumMaster() { throw new BlockerAgeAdviceError("UNAVAILABLE"); },
 };
 
 @ApiTags("Blocker-age review")
@@ -18,7 +19,16 @@ export class BlockerAgeAdviceController {
     @Inject(IdentityService) private readonly identity: IdentityService) {}
 
   @Get("leadership-blocker-age-suggestions")
-  async read(@Req() request: Request, @Param("id") projectId: string, @Query() query: unknown) {
+  read(@Req() request: Request, @Param("id") projectId: string, @Query() query: unknown) {
+    return this.readAudience(request, projectId, query, "leadership");
+  }
+
+  @Get("scrum-master-blocker-age-suggestions")
+  readScrumMaster(@Req() request: Request, @Param("id") projectId: string, @Query() query: unknown) {
+    return this.readAudience(request, projectId, query, "scrum_master");
+  }
+
+  private async readAudience(request: Request, projectId: string, query: unknown, audience: "leadership" | "scrum_master") {
     const header = request.headers.authorization;
     if (typeof header !== "string" || !header.startsWith("Bearer ") || header.length > 16384) throw new HttpException("", 401);
     let actor: Actor;
@@ -27,8 +37,9 @@ export class BlockerAgeAdviceController {
     if (!projectFactIdSchema.safeParse(projectId).success) throw new HttpException("", 404);
     if (!z.strictObject({}).safeParse(query).success) throw new HttpException("", 400);
     try {
-      const result = await this.repository.readLeadership(actor, projectId);
-      if (result.projectId !== projectId || result.audience !== "leadership") throw new InternalServerErrorException();
+      const result = audience === "leadership" ? await this.repository.readLeadership(actor, projectId)
+        : await this.repository.readScrumMaster(actor, projectId);
+      if (result.projectId !== projectId || result.audience !== audience) throw new InternalServerErrorException();
       return result;
     }
     catch (error) {

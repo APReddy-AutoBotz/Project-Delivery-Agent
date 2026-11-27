@@ -21,7 +21,7 @@ import { HealthScopeFence } from "./health-scope-fence.js";
 import { HealthScopeProvider } from "./health-scope-context.js";
 import { DeliverySuggestions } from "./delivery-suggestions.js";
 import { UpdateSuggestions } from "./update-suggestions.js";
-import { LeadershipBlockerAge } from "./leadership-blocker-age.js";
+import { BlockerAgeReview } from "./leadership-blocker-age.js";
 import { PmActionQueuePanel } from "./pm-action-queue.js";
 import { discardResponse, readBoundedJson, readCompleteJson } from "./bounded-json.js";
 import { IngestionReassessmentPreview } from "./ingestion-reassessment-preview-panel.js";
@@ -1147,14 +1147,13 @@ function App() {
                       request={projectRequest}
                     />
                   )}
-                  {project.data && me.data?.roles.includes("leadership") && !project.isFetching && !project.isError && (
-                    <LeadershipBlockerAge
-                      key={`leadership-blocker:${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
-                      projectId={project.data.id}
-                      scope={`${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${project.data.id}`}
-                      request={projectRequest}
-                    />
-                  )}
+                  {project.data && me.data && identityCurrent() && !project.isFetching && !project.isError && (["leadership", "scrum_master"] as const)
+                    .filter((audience) => me.data?.roles.includes(audience)).map((audience) => {
+                      const selected = project.data!;
+                      const scope = `${audience}:${sessionGeneration}:${me.data!.customerId}:${me.data!.subject}:${selected.id}`;
+                      return <BlockerAgeReview key={scope} projectId={selected.id} scope={scope}
+                        request={projectRequest} audience={audience} />;
+                    })}
                   {project.data && me.data?.roles.includes("pmo_admin") && !me.isFetching && !me.isError && !project.isFetching && !project.isError && (
                     <IngestionReassessmentPreview
                       key={`ingestion-reassessment:${sessionGeneration}:${me.data.customerId}:${me.data.subject}:${me.data.roles.join(",")}:${project.data.id}`}
@@ -1567,6 +1566,7 @@ function PlatformView({ actor, request, ownerScope, admissionScope, isCurrentSco
                 {[
                   "contributor",
                   "project_manager",
+                  "scrum_master",
                   "portfolio_manager",
                   "leadership",
                   "pmo_admin",

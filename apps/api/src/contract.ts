@@ -64,6 +64,7 @@ import {
   updateAdviceSnapshotSchema,
   pmActionQueueSchema,
   leadershipBlockerAgeAdviceSchema,
+  scrumMasterBlockerAgeAdviceSchema,
   milestoneConflictObservationSchema,
   milestoneRequestObservationSchema,
   milestoneStateDisagreementSchema,
@@ -157,7 +158,7 @@ export const accessOperationWireSchema = z.array(z.strictObject({
   occurredAt: z.iso.datetime().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
 })).max(30);
 export const developmentSchema = z.strictObject({
-  persona: z.enum(["pm-atlas", "leader-atlas", "operator", "pmo-portfolio", "owner-atlas"]),
+  persona: z.enum(["pm-atlas", "leader-atlas", "operator", "pmo-portfolio", "owner-atlas", "scrum-atlas"]),
 });
 const project = z.strictObject({
   id: z.uuid(),
@@ -783,6 +784,12 @@ export const contracts: Record<string, RouteContract> = {
   "get /api/projects/{id}/leadership-blocker-age-suggestions": {
     status: 200,
     response: leadershipBlockerAgeAdviceSchema,
+    parameters: { id: z.uuid() },
+    errors: [400, 404, 503],
+  },
+  "get /api/projects/{id}/scrum-master-blocker-age-suggestions": {
+    status: 200,
+    response: scrumMasterBlockerAgeAdviceSchema,
     parameters: { id: z.uuid() },
     errors: [400, 404, 503],
   },

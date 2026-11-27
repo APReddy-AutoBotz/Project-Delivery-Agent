@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { atlasApprovalProjectCode, buildBlockerAgeAdvice, buildPmActionQueue } from "../../packages/domain/dist/index.js";
+import { atlasApprovalProjectCode, buildBlockerAgeAdvice, buildPmActionQueue, type BlockerAgeAdvice } from "../../packages/domain/dist/index.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const id = (number: number) => `30000000-0000-4000-8000-${String(number).padStart(12, "0")}`;
@@ -7,7 +7,7 @@ const projects = [1, 2].map((number) => ({ id: id(number), portfolioId: id(50), 
   description: "Synthetic browser project", reportedStatus: "UNKNOWN" }));
 const atlas = { ...projects[0]!, id: id(4), code: atlasApprovalProjectCode, name: "Synthetic Atlas deadline" };
 const asOf = "2026-10-21T11:00:00.000Z";
-function advice(projectId: string, audience: "leadership" | "project_manager") {
+function advice(projectId: string, audience: BlockerAgeAdvice["audience"]) {
   const raid = id(3);
   const proof = (factType: string, n: number, validity: "FINITE" | "UNTIL_SUPERSEDED") => ({ factId: id(n), factType, factRevision: 1,
     policyId: id(n + 100), policyRevisionId: id(n + 200), policyRevision: 1, status: "RESOLVED", provenance: "HUMAN_CONFIRMED",
@@ -16,7 +16,10 @@ function advice(projectId: string, audience: "leadership" | "project_manager") {
   return buildBlockerAgeAdvice({ projectId, audience, asOf, coverage: "COMPLETE", threshold: { minimumBlockerAgeDays: 5, revision: 1 },
     noOpenBlockers: false, inventory: proof("project.open_blocker_inventory_complete", 10, "FINITE"),
     candidates: [{ raidItemId: raid, key: `ISSUE-${projectId === id(1) ? "FIRST" : "SECOND"}`, state: "OPEN", openedAt: "2026-10-16",
-      classification: proof(`raid_item.${raid}.blocks_delivery`, 11, "FINITE"), openedAtProof: proof(`raid_item.${raid}.opened_at`, 12, "UNTIL_SUPERSEDED") }] });
+      classification: proof(`raid_item.${raid}.blocks_delivery`, 11, "FINITE"), openedAtProof: proof(`raid_item.${raid}.opened_at`, 12, "UNTIL_SUPERSEDED"),
+      ...(audience === "scrum_master" && { criticalDependency: { policyRevision: 1, escalationOwner: null,
+        milestone: { id: id(60), key: "MS-1", dateField: "forecastEnd", dueDate: "2026-10-23", daysUntilDue: 2 } } }),
+    }] });
 }
 
 test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence across project and session changes", async ({ page }) => {
@@ -31,7 +34,7 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
     if (path === "/auth/config") return route.fulfill({ json: { mode: "development", dataMode: "synthetic", scope: "openid", resource: "" } });
     if (path === "/auth/development") { persona = route.request().postDataJSON().persona; return route.fulfill({ json: { token: `synthetic-${persona}` } }); }
     if (path === "/me") return route.fulfill({ json: { subject: persona, customerId,
-      roles: persona === "leader-atlas" ? ["leadership", "project_manager"] : ["project_manager"] } });
+      roles: persona === "leader-atlas" ? ["leadership", "project_manager", "scrum_master"] : ["project_manager"] } });
     if (path === "/projects") return route.fulfill({ json: [...projects, atlas] });
     if (path === "/project-setup") return route.fulfill({ json: { portfolios: [] } });
     if (path === "/pm/action-queue") return route.fulfill({ json: buildPmActionQueue([]) });
@@ -69,6 +72,8 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
           freshness: "CURRENT", conflict: "NONE" } }, forecastInference: { classification: "AGENT_INFERENCE",
         scheduleRevision: 1, milestoneId: id(81), blockerMappingId: id(82) } } });
     }
+    const sprintProject = projects.find((entry) => path === `/projects/${entry.id}/scrum-master-blocker-age-suggestions`);
+    if (sprintProject) return route.fulfill({ json: advice(sprintProject.id, "scrum_master") }).catch(() => {});
     const selected = projects.find((entry) => path === `/projects/${entry.id}/leadership-blocker-age-suggestions`);
     if (selected) {
       reads++;
@@ -86,6 +91,10 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
   const panel = page.getByRole("region", { name: "Blocker-age review" });
   await expect(panel).toContainText("ISSUE-FIRST"); await expect(panel).toContainText("whether an intervention is needed");
   await expect(panel).toContainText("Authorized inventory evidence");
+  const sprint = page.getByRole("region", { name: "Sprint impediments" });
+  await expect(sprint).toContainText("ISSUE-FIRST");
+  await expect(sprint).toContainText("Upcoming milestone MS-1");
+  await expect(sprint).toContainText("review its impact on the sprint");
   const answer = page.getByRole("region", { name: "Project leadership answer" });
   await answer.getByLabel("Project question").fill("Why is this project delayed?");
   await answer.getByRole("button", { name: "Ask", exact: true }).click();
@@ -129,4 +138,5 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
   await page.getByRole("button", { name: /^Project manager / }).click();
   await page.getByRole("button", { name: /Synthetic blocker 1/ }).click();
   await expect(page.getByRole("region", { name: "Blocker-age review" })).toHaveCount(0);
+  await expect(sprint).toHaveCount(0);
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { canonicalDateSchema, canonicalKeySchema } from "./canonical-project.js";
+import { canonicalDateSchema, canonicalKeySchema, canonicalSubjectSchema } from "./canonical-project.js";
 import { evaluateBlockerAgeSignals } from "./blocker-age-signals.js";
 import type { Actor } from "./actor.js";
 import { fitsBlockerAgeBudget } from "./blocker-age-budget.js";
@@ -7,7 +7,7 @@ import { fitsBlockerAgeBudget } from "./blocker-age-budget.js";
 // EXEC-027 / FR-HLT-004 / FR-ADV-007: the caller must supply current,
 // authorized proof bindings obtained under the transaction's source gates.
 const instant = z.iso.datetime({ precision: 3 });
-const audience = z.enum(["project_manager", "leadership"]);
+const audience = z.enum(["project_manager", "scrum_master", "leadership"]);
 const revision = z.number().int().min(1).max(2147483647);
 const id = z.uuid().regex(/^[0-9a-f-]+$/);
 const factType = z.string().min(1).max(160).regex(/^[a-z][a-z0-9_.-]*$/);
@@ -22,9 +22,20 @@ const proof = z.strictObject({
   supports: z.array(support).min(1).max(1000),
 });
 const threshold = z.strictObject({ minimumBlockerAgeDays: z.number().int().min(1).max(3650), revision });
+const criticalDependency = z.strictObject({
+  policyRevision: revision,
+  milestone: z.strictObject({
+    id, key: canonicalKeySchema, dueDate: canonicalDateSchema, daysUntilDue: z.number().int().nonnegative(),
+    dateField: z.enum(["forecastEnd", "plannedEnd"]),
+  }).nullable(),
+  escalationOwner: z.strictObject({
+    subject: canonicalSubjectSchema, name: canonicalSubjectSchema,
+  }).nullable(),
+});
 const candidate = z.strictObject({
   raidItemId: id, key: canonicalKeySchema, state: z.enum(["OPEN", "IN_PROGRESS"]),
   openedAt: canonicalDateSchema, classification: proof, openedAtProof: proof,
+  criticalDependency: criticalDependency.optional(),
 });
 const item = candidate.extend({
   ageDays: z.number().int().min(0), sourceDateField: z.literal("opened_at"),
@@ -43,12 +54,15 @@ const unassessable = z.strictObject({
   noOpenBlockers: z.null(), items: z.array(item).max(0),
 });
 const compare = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
-const textFor = (role: z.infer<typeof audience>) => ({
-  suggestedAction: role === "project_manager"
-    ? "Review the aged blocker and decide the next delivery action."
-    : "Review the aged blocker and decide whether an intervention is needed.",
-  expectedOutcome: "A reviewed next step for the blocker and its delivery impact.",
-});
+const expectedOutcome = "A reviewed next step for the blocker and its delivery impact.";
+function actionFor(role: z.infer<typeof audience>, dependency: z.infer<typeof criticalDependency> | undefined) {
+  if (role === "scrum_master") return "Follow up on the impediment and review its impact on the sprint.";
+  if (role === "leadership") return "Review the aged blocker and decide whether an intervention is needed.";
+  if (!dependency) return "Review the aged blocker and decide the next delivery action.";
+  return dependency.escalationOwner
+    ? "Review escalation to the named dependency owner and reassess the project forecast."
+    : "Confirm a dependency owner for escalation and reassess the project forecast.";
+}
 function validProof(value: z.infer<typeof proof>, expectedType: string, validity: "FINITE" | "UNTIL_SUPERSEDED") {
   if (value.factType !== expectedType || value.validity !== validity || value.supports.length > value.factRevision) return false;
   const versions = value.supports.map((entry) => entry.versionId.toLowerCase());
@@ -100,8 +114,9 @@ function validateAdvice(value: z.infer<typeof blockerAgeAdviceBase>, context: z.
     if (keys.has(candidate.key) || ids.has(raidId) ||
         !validProof(candidate.classification, `raid_item.${raidId}.blocks_delivery`, "FINITE") ||
         !validProof(candidate.openedAtProof, `raid_item.${raidId}.opened_at`, "UNTIL_SUPERSEDED") ||
-        candidate.suggestedAction !== textFor(value.audience).suggestedAction ||
-        candidate.expectedOutcome !== textFor(value.audience).expectedOutcome ||
+        (value.audience !== "project_manager" && candidate.criticalDependency?.escalationOwner != null) ||
+        candidate.suggestedAction !== actionFor(value.audience, candidate.criticalDependency) ||
+        candidate.expectedOutcome !== expectedOutcome ||
         (index > 0 && (compare(value.items[index - 1]!.key, candidate.key) > 0 ||
           (value.items[index - 1]!.key === candidate.key && compare(value.items[index - 1]!.raidItemId, candidate.raidItemId) >= 0)))) invalid();
     keys.add(candidate.key); ids.add(raidId);
@@ -121,12 +136,18 @@ export const leadershipBlockerAgeAdviceSchema = z.discriminatedUnion("coverage",
   evaluated.extend({ coverage: z.literal("PARTIAL"), audience: z.literal("leadership") }),
   unassessable.extend({ audience: z.literal("leadership") }),
 ]).superRefine(validateAdvice);
+export const scrumMasterBlockerAgeAdviceSchema = z.discriminatedUnion("coverage", [
+  evaluated.extend({ coverage: z.literal("COMPLETE"), audience: z.literal("scrum_master") }),
+  evaluated.extend({ coverage: z.literal("PARTIAL"), audience: z.literal("scrum_master") }),
+  unassessable.extend({ audience: z.literal("scrum_master") }),
+]).superRefine(validateAdvice);
 export type BlockerAgeAdvice = z.infer<typeof blockerAgeAdviceSchema>;
 export class BlockerAgeAdviceError extends Error {
   constructor(readonly code: "DENIED" | "UNAVAILABLE") { super(code); this.name = "BlockerAgeAdviceError"; }
 }
 export interface BlockerAgeAdviceRepository {
   readLeadership(actor: Actor, projectId: string): Promise<BlockerAgeAdvice>;
+  readScrumMaster(actor: Actor, projectId: string): Promise<BlockerAgeAdvice>;
 }
 
 const request = z.strictObject({
@@ -153,7 +174,8 @@ export function buildBlockerAgeAdvice(value: unknown): BlockerAgeAdvice {
   const items = input.candidates.map((candidate) => {
     const age = ages.get(candidate.key);
     if (!age || age.status !== "AGED" || age.ageDays === null) throw new Error("Invalid blocker-age advice");
-    return { ...candidate, ageDays: age.ageDays, sourceDateField: "opened_at" as const, ...textFor(input.audience) };
+    return { ...candidate, ageDays: age.ageDays, sourceDateField: "opened_at" as const,
+      suggestedAction: actionFor(input.audience, candidate.criticalDependency), expectedOutcome };
   }).sort((a, b) => compare(a.key, b.key) || compare(a.raidItemId, b.raidItemId));
   return blockerAgeAdviceSchema.parse({ ...base, coverage: input.coverage, threshold: input.threshold,
     inventory: input.inventory, noOpenBlockers: input.noOpenBlockers, items });
