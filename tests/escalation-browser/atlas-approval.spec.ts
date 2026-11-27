@@ -823,6 +823,16 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(delayResponse.status()).toBe(200);
   const delayRequest = await delayResponse.json();
   await expect(projectAnswer).toContainText(`Delay evidence requested. Request ${delayRequest.id}.`);
+  const rereadDelay = page.waitForResponse((response) => response.url().endsWith(`/api/projects/${allowedProjectId}/leadership-answer`));
+  await projectAnswer.getByRole("button", { name: "Ask", exact: true }).click();
+  expect(await (await rereadDelay).json()).toMatchObject({ cause: "UNKNOWN", pendingDelayClarification: delayRequest });
+  await expect(projectAnswer).toContainText(`Delay evidence requested. Request ${delayRequest.id}.`);
+  await expect(projectAnswer.getByRole("button", { name: "Ask the assigned PM", includeHidden: true })).toHaveCount(0);
+  const pmScheduleAnswer = await request.post(`/api/projects/${allowedProjectId}/leadership-answer`, {
+    headers: managerHeaders, data: genericQuestion,
+  });
+  expect(pmScheduleAnswer.status()).toBe(200);
+  expect(await pmScheduleAnswer.json()).not.toHaveProperty("pendingDelayClarification");
   const projectDelayCommand = { scheduleRevision: delayRequest.schedule.revision };
   const replayedDelay = await request.post(projectDelayPath, { headers: leaderHeaders, data: projectDelayCommand });
   expect(replayedDelay.status()).toBe(200);

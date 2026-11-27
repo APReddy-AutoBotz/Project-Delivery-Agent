@@ -49,6 +49,35 @@ content and customer release gates remain open under their existing decisions.
 [Main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298558) ·
 [Main Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298547)
 
+## Selected-project PowerPoint software acceptance
+
+STORY-032 covers editable selected-project PowerPoint reports and the related
+metadata and accessibility criteria. This acceptance takes effect after the
+record passes independent review and required hosted checks and merges.
+Portfolio dashboards and customer release approval remain open.
+
+| Criterion | Executed evidence |
+| --- | --- |
+| AC-RPT-001 | The project view, email preview and editable deck use the same saved report ID and fact highlights through approval and delivery. [Main browser](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46012061356/job/140549796330) |
+| AC-RPT-002 | The hosted Linux browser opens editable slide XML and checks period, generation time, saved identity, approval state and source freshness. The normal approved and delivered decks display Confidential. If rendering fails or returns an invalid deck, the request remains pending and a valid retry can approve it once. [Freshness and timestamps](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45927676380/job/140272766229) · [Classification and delivery](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46012061356/job/140549796330) · [Renderer failure and retry](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45881407447/job/140121387791) |
+| AC-RPT-005 | GOLDEN-002 explains the reported and calculated health labels and the overdue, blocker and freshness inputs in the project view. [Health browser evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298558/job/140469403105) |
+
+The normal project proof is from the independently reviewed PR #242 merge
+`953d5e66`. Its actual main checks passed. Reverting the renderer change
+preserves saved report IDs, facts and approval receipts.
+[Main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46012061356) ·
+[Main Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46012061330)
+
+## Selected-project question evidence
+
+| Criterion | Executed evidence |
+| --- | --- |
+| AC-QA-006 | A measured delay with unavailable cause evidence shows an unknown cause. Leadership can record a request for the current schedule and the assigned PM can open it. A retry returns the same request. The normal project path also confirms an authorized cause and withholds it when its source grant is revoked. [Atlas workflow](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45951850756/job/140349291397) · [Normal project workflow](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46012061356/job/140549796330) |
+| AC-QA-008 | A leader can compare a selected saved snapshot with the current project facts. The comparison keeps the earlier snapshot ID and excludes unreadable or out-of-project evidence. [Atlas comparison](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45876005787/job/140103130119) · [Normal project comparison](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45999905312/job/140508579631) |
+
+The comparison scope is selected saved snapshots. The remaining leadership
+requirements stay open under [Issue #12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12).
+
 The [Atlas browser journey](../../tests/escalation-browser/atlas-approval.spec.ts)
 checks that the owner invitation shows the last reported status for ATLAS-248
 and asks for the missing forecast information. The assigned PM reads the newer

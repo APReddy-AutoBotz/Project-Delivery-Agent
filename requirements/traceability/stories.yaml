@@ -719,9 +719,16 @@ stories:
   - AC-RPT-001
   - AC-RPT-002
   - AC-RPT-005
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/214
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/223
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/238
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/242
+  implementation_evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: STORY-033
   epic: EPIC-09
   title: Implement email digest preview

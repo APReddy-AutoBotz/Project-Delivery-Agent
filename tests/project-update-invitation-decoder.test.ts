@@ -23,8 +23,13 @@ it("validates both sets of scoped evidence in a leadership comparison", () => {
     schedule: { ...priorSnapshot.schedule, movementDays: 12 } } }, id)).toBeNull();
 });
 
-it("preserves supported multibyte and multiline delay evidence in both views", () => {
+it("binds a pending delay request to its schedule and preserves supported evidence text", () => {
   const schedule = { revision: 1, baseline: "2026-01-01", forecast: "2026-01-03", movementDays: 2 };
+  const pending = { id, requestedAt: at, schedule };
+  const unknown = { state: "ANSWERED", projectId: id, asOf: later, schedule, updateFreshness: null, cause: "UNKNOWN" };
+  expect(decodeProjectLeadershipAnswer({ ...unknown, pendingDelayClarification: pending }, id)).not.toBeNull();
+  expect(decodeProjectLeadershipAnswer({ ...unknown,
+    pendingDelayClarification: { ...pending, schedule: { ...schedule, revision: 2 } } }, id)).toBeNull();
   const confirmation = { id, clarificationId: id, versionId: other, confirmedAt: later };
   for (const [value, readable] of [[`${"検".repeat(200)}\n設備の確認を待ちました。`, true],
     ["検".repeat(501), false], ["Invalid\0text", false]] as const) {

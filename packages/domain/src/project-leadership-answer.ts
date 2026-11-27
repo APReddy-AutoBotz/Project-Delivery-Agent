@@ -54,6 +54,7 @@ export const projectLeadershipAnswerSchema = z.union([
   projectLeadershipFactsSchema.extend({
     state: z.literal("ANSWERED"),
     cause: z.literal("UNKNOWN"),
+    pendingDelayClarification: projectDelayClarificationSchema.optional(),
   }),
   projectLeadershipFactsSchema.extend({
     state: z.literal("ANSWERED"),
