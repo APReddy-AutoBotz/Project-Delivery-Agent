@@ -3440,10 +3440,15 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           (prior && (prior.facts.ownerReply.availableUntil <= asOf || prior.facts.asOf > asOf ||
             (prior.facts.scheduleCitation && prior.facts.scheduleCitation.availableUntil <= asOf))))
         throw new ProjectUpdateError("DENIED");
+      const integrationStart = milestone?.plannedStart && milestone.actualStart && milestone.actualStart > milestone.plannedStart
+        ? { milestoneId: milestone.id, planned: iso(milestone.plannedStart).slice(0, 10),
+          actual: iso(milestone.actualStart).slice(0, 10) } : null;
+      const schedule = answer.schedule;
+      const forecastInference = schedule && (schedule.movementDays ?? 0) > 0 && integrationStart && blocker
+        ? { classification: "AGENT_INFERENCE" as const, scheduleRevision: schedule.revision,
+          milestoneId: integrationStart.milestoneId, blockerMappingId: blocker.mappingId } : undefined;
       return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness, delayClarificationState,
-        integrationStart: milestone?.plannedStart && milestone.actualStart && milestone.actualStart > milestone.plannedStart
-          ? { milestoneId: milestone.id, planned: iso(milestone.plannedStart).slice(0, 10),
-            actual: iso(milestone.actualStart).slice(0, 10) } : null,
+        integrationStart, forecastInference,
         jiraBlocker: blocker,
         pmEscalation: escalation && escalation.availableUntil > asOf ? escalation : null,
         priorSnapshot: prior ? { id: prior.id, facts: prior.facts } : undefined,

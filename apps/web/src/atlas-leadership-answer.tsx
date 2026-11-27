@@ -136,6 +136,9 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         <a href={`#${freshnessRef}`}>Update freshness evidence</a></p>}
       {integration && <p>Integration testing started late. <a href={`#${integrationRef}`}>Integration start evidence</a></p>}
       {blocker && <p>The synthetic Jira blocker {blocker.issueKey} is open. <a href={`#${blockerRef}`}>Jira blocker evidence</a></p>}
+      {schedule && answer.forecastInference && <p><strong>Agent inference.</strong> The open integration blocker may still affect the forecast.
+        {" "}<a href={`#${scheduleRef}`}>Schedule</a> · <a href={`#${integrationRef}`}>Integration start</a> · <a href={`#${blockerRef}`}>Open blocker</a>
+      </p>}
       {reply && <p>The owner confirmed API access was {reply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} at the time of the reply.{" "}
         <a href={`#${replyRef}`}>Reply evidence</a></p>}
       {receipt && <p>The PM recorded a simulated comment for {receipt.target}.{" "}

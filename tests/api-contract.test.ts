@@ -583,6 +583,8 @@ const projectUpdateRepository: ProjectUpdateRepository = {
     ...atlasLeadershipFixture,
     integrationStart: { milestoneId: project.id, planned: "2026-10-05", actual: "2026-10-08" },
     jiraBlocker: { mappingId: project.id, issueKey: "ATLAS-248" as const },
+    forecastInference: { classification: "AGENT_INFERENCE" as const, scheduleRevision: 1,
+      milestoneId: project.id, blockerMappingId: project.id },
     pmEscalation: { requestId: project.id, capturedAt: "2026-10-01T12:00:00.000Z",
       availableUntil: "2026-10-02T12:00:00.000Z" },
   })),
