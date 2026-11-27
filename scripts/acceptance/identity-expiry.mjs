@@ -345,8 +345,8 @@ export async function checkIdentityExpiry(browser) {
     const wait = expiryWaitMs(claims);
     assert(wait < remaining());
     console.log("Waiting for natural fixture access-token expiry");
-    // Arm before waiting: any real protected polling response may clear the
-    // entire session first. No mocked response, paused poll, reload or clock.
+    // Arm before waiting so an early protected denial still fails the proof.
+    // The application can clear itself before its next protected poll.
     const protectedPaths = [
       prefix,
       prefix + "/canonical",
@@ -364,6 +364,30 @@ export async function checkIdentityExpiry(browser) {
     void browserExpired.catch(() => {});
     await delay(wait);
     assert(Date.now() > claims.exp * 1000);
+    stage = "expired-browser-read";
+    // The live tab uses the same issued bearer for one same-origin proof read.
+    // This fetch is independent of the application's own session cleanup.
+    const probeHeader = "x-pdaa-synthetic-expiry-probe";
+    let probeAt;
+    const capturedProbe = page.waitForResponse(async (response) => {
+      if (response.url() !== base + scalarPath || response.request().method() !== "GET") return false;
+      const arrivedAt = Date.now();
+      if (await response.request().headerValue(probeHeader) !== runId) return false;
+      probeAt = arrivedAt;
+      return true;
+    }, { timeout: Math.min(remaining(), 10000) });
+    void capturedProbe.catch(() => {});
+    const expiredBrowserStatus = await page.evaluate(async ({ path, bearer, header, probe }) => {
+      const response = await fetch(path, {
+        headers: { authorization: bearer, [header]: probe },
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "error",
+      });
+      await response.arrayBuffer();
+      return response.status;
+    }, { path: scalarPath, bearer: authorization, header: probeHeader, probe: runId });
+    assert.equal(expiredBrowserStatus, 401);
     stage = "expired";
     const denied = {
       status: 401,
@@ -381,30 +405,34 @@ export async function checkIdentityExpiry(browser) {
         denied,
       );
     assert.deepEqual(await projection(), baseline);
-    stage = "browser";
+    stage = "expired-scalar-api-denials";
     const denials = [];
     for (const path of [scalarPath, prefix + "/scalar-reconciliation-requests"])
       denials.push(await request(path, "GET", undefined, true));
-    const { response, arrivedAt: browserDenialAt } = await browserExpired;
-    assert(Number.isSafeInteger(browserDenialAt));
-    assert(browserDenialAt >= claims.exp * 1000);
+    stage = "browser-first-denial";
+    const firstDenial = await browserExpired;
+    assert(Number.isSafeInteger(firstDenial.arrivedAt));
+    assert(firstDenial.arrivedAt >= claims.exp * 1000);
+    assert.equal(await firstDenial.response.request().headerValue("authorization"), authorization);
+    stage = "browser-probe-receipt";
+    const response = await capturedProbe;
+    assert(Number.isSafeInteger(probeAt) && probeAt >= claims.exp * 1000);
     assert.equal(response.status(), 401);
-    assert.equal(
-      await response.request().headerValue("authorization"),
-      authorization,
-    );
+    assert.equal(await response.request().headerValue("authorization"), authorization);
     const browserDenial = await observe(
-      new URL(response.url()).pathname,
+      scalarPath,
       response.status(),
       Buffer.from(await response.body()),
-      browserDenialAt,
+      probeAt,
     );
+    stage = "browser-cleanup-notice";
     await expect(page.getByRole("alert")).toContainText(
       "Your session has ended",
     );
     await expect(
       page.getByRole("button", { name: "Sign in with your organization" }),
     ).toBeEnabled();
+    stage = "browser-cleared-protected-content";
     for (const text of [
       "Atlas · Customer platform",
       "Draco · Data migration",
@@ -421,6 +449,7 @@ export async function checkIdentityExpiry(browser) {
     ).toHaveCount(0);
     for (const text of ["2026-10-01", "2026-10-02", created.assessment.asOf])
       await expect(page.locator("body")).not.toContainText(text);
+    stage = "browser-cleared-storage";
     assert.deepEqual(
       await page.evaluate(() => ({
         local: Object.keys(window.localStorage),
@@ -428,6 +457,7 @@ export async function checkIdentityExpiry(browser) {
       })),
       { local: [], session: [] },
     );
+    stage = "browser-cleanup-disclosure";
     await capture(page);
     await capture.close();
     capture = undefined;
