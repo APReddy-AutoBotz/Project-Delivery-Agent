@@ -52,7 +52,7 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
     if (!isCurrent()) throw new Error("Project access changed");
     const raw = await request(`/projects/${projectId}/leadership-answer`, {
       method: "POST", body: JSON.stringify({ question: text, priorSnapshotId }),
-    }, 4096, undefined, undefined, isCurrent);
+    }, 8192, undefined, undefined, isCurrent);
     const answer = decodeProjectLeadershipAnswer(raw, projectId);
     if (!answer || (answer.state === "COMPARISON" ? answer.priorSnapshot.id : undefined) !== priorSnapshotId)
       throw new Error("Project answer unavailable");
@@ -101,7 +101,7 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
         : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`}
         {schedule && <> <a href={`#${scheduleEvidence}`}>Schedule evidence</a></>}
       </p>
-      {answer.cause === "HUMAN_CONFIRMED" && <p className="update-plain-text">PM-confirmed delay cause · {answer.delayCause.evidence.value} <a href={`#${causeEvidence}`}>
+      {answer.cause === "HUMAN_CONFIRMED" && <p className="update-plain-text">{answer.delayCause.claim.claimText} <a href={`#${causeEvidence}`}>
         Cause evidence</a></p>}
       {answer.cause === "UNKNOWN" && schedule && days !== null && days > 0 && <>
         <p>The cause of the delay is unknown.</p>
@@ -120,7 +120,7 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
         {freshness && <li id={updateEvidence} tabIndex={-1}>Assessment {freshness.assessmentId} at {freshness.assessedAt}.
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? " Latest verified update" : " Project created"} at {freshness.sourceDate}.</li>}
         {answer.cause === "HUMAN_CONFIRMED" && <li id={causeEvidence} tabIndex={-1}>
-          Evidence {answer.delayCause.evidence.evidenceId}. PM confirmation {answer.delayCause.confirmation.id} at {answer.delayCause.confirmation.confirmedAt}.
+          Evidence {answer.delayCause.claim.evidenceIds[0]}. PM confirmation {answer.delayCause.confirmation.id} at {answer.delayCause.confirmation.confirmedAt}.
         </li>}
       </ul>}
     </div>}

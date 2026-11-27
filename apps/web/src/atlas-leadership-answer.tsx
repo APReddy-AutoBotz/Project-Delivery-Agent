@@ -135,7 +135,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         {clarification && `A clarification about the ${clarification.factType === "project.forecast" ? "forecast finish date" : "project status"} is open. `}
         <a href={`#${freshnessRef}`}>Update freshness evidence</a></p>}
       {integration && <p>Integration testing started late. <a href={`#${integrationRef}`}>Integration start evidence</a></p>}
-      {blocker && <p>The synthetic Jira blocker {blocker.issueKey} is open. <a href={`#${blockerRef}`}>Jira blocker evidence</a></p>}
+      {blocker && <p>{blocker.claim.claimText} <a href={`#${blockerRef}`}>Jira blocker evidence</a></p>}
       {schedule && answer.forecastInference && <p><strong>Agent inference.</strong> The open integration blocker may still affect the forecast.
         {" "}<a href={`#${scheduleRef}`}>Schedule</a> · <a href={`#${integrationRef}`}>Integration start</a> · <a href={`#${blockerRef}`}>Open blocker</a>
       </p>}
@@ -177,7 +177,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
           at {freshness.sourceDate}.
           {clarification && ` Clarification ${clarification.clarificationId} requested at ${clarification.requestedAt}.`}</li>}
         {integration && <li id={integrationRef} tabIndex={-1}>Synthetic integration milestone {integration.milestoneId}. Planned start {integration.planned}. Actual start {integration.actual}.</li>}
-        {blocker && <li id={blockerRef} tabIndex={-1}>Synthetic Jira issue {blocker.issueKey}, recorded in source mapping {blocker.mappingId}. System verified.</li>}
+        {blocker && <li id={blockerRef} tabIndex={-1}>Synthetic Jira issue {blocker.issueKey}, recorded in source mapping {blocker.mappingId}. System verified.
+          {" "}Evidence {blocker.claim.evidenceIds.join(", ")}.</li>}
         {reply && <li id={replyRef} tabIndex={-1}>Human-confirmed owner reply {reply.responseId}, recorded at {reply.receivedAt}.</li>}
         {receipt && <li id={receiptRef} tabIndex={-1}>Simulated receipt {receipt.id}, fixture revision {receipt.fixtureRevision}, recorded at {receipt.recordedAt}.</li>}
         {escalation && <li id={escalationRef} tabIndex={-1}>Simulated PM escalation {escalation.requestId}, captured at {escalation.capturedAt}.</li>}

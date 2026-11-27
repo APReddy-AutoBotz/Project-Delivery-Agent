@@ -35,3 +35,22 @@ the Atlas fixture designation. Verify the date difference and source references,
 the unsupported-question response and denial on the formerly authorized Atlas
 project. Verify the API contract and run the required hosted checks. Revert the
 increment to remove the selected-project panel and read endpoint.
+
+## Authority-backed answer claims
+
+STORY-028 and AC-QA-002. FR-QA-003, FR-QA-004, TR-AI-003, NFR-AI-002,
+PR-010 and BR-004 apply with ADR-006 and ADR-009.
+
+Use the existing scoped authority reader for the current Atlas Jira blocker and
+the selected project's PM-confirmed delay cause. Compose each sentence from the
+resolved value and attach the exact fact, version, evidence and policy revision.
+Carry provenance, freshness, conflict and assessment time separately. The browser
+checks the returned claim against the answer scope and renders its validated text.
+The existing unknown-cause state and source revocation checks still apply.
+
+This increment covers two statements with immutable source versions. Other
+answer statements and validation of model wording remain open under STORY-028.
+There is no new provider, connector scope, migration or external action. Extend
+the existing decoder and native browser cases to exercise the claim and its
+withdrawal. Revert the API and web changes together to restore the prior response
+shape.
