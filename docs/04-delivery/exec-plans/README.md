@@ -2,6 +2,8 @@
 
 ## Active implementation
 
+- [EXEC-054: Node runtime security release](EXEC-054-node-runtime-security-release.md) — refresh and verify the pinned Node release images.
+
 - [EXEC-052 Atlas snapshot comparison](EXEC-052-atlas-snapshot-comparison.md) — compare current Atlas facts with an authorized saved snapshot.
 
 - [EXEC-051: Atlas comment attempt recovery](EXEC-051-atlas-comment-attempt-recovery.md) — one durable synthetic comment attempt and exact receipt recovery.
