@@ -153,6 +153,12 @@ same HTTPS interface. Original Go/Caddy notices are retained and hash-checked.
 Exact build-image pins, sources, runtime paths and unresolved distribution review
 are in [FOUNDATION_IMAGE_REGISTER.md](FOUNDATION_IMAGE_REGISTER.md).
 
+On 2026-11-27 the Product Owner included the patch updates to PostgreSQL 17.12
+and pgvector 0.8.7, Caddy 2.11.9, Go 1.26.11 and the pinned Alpine zlib and
+OpenSSL packages.
+The refreshed compiled inventory remains subject to independent review and the
+packaged distribution checks. [Patch evidence plan](../04-delivery/exec-plans/EXEC-063-release-image-security-patches.md)
+
 Development-only image evidence tooling is recorded in
 [DISTRIBUTION_TOOL_REGISTER.md](DISTRIBUTION_TOOL_REGISTER.md). Syft 1.51.1 and
 Grype 0.118.0 are checksum-pinned Apache-2.0 publisher executables; neither is a
@@ -212,15 +218,15 @@ and original-notice review obligations remain open.
 ## Compiled Go attribution inventory, 2026-09-08
 
 The machine-readable [Caddy module inventory](../../scripts/distribution/caddy-modules.json)
-registers each of the existing 144 non-stdlib modules (Caddy plus 143 dependencies)
-with its exact version, compiled h1 and original attribution paths/sizes/hashes.
-All entries are **review-required**, not new dependency or license approvals.
+registers every compiled non-stdlib module with its exact version, compiled h1
+and original attribution paths, sizes and hashes. All entries are
+**review-required** before distribution.
 Consumer: the foundation HTTPS gateway. Owner: implementation controller for
 maintenance and security, with legal/product review before commercial distribution.
 Replacement path: a reviewed Caddy/module/toolchain build behind the same HTTPS
 interface; any module or notice pin change requires independent review.
 
-The 197 original files form a source-module superset. For example, the existing
+The original notice files cover the full source modules. For example, the existing
 zeebo/blake3 source includes CC0, quic-go's assets notice has logo/trademark terms,
 and nebula's Windows Wintun subtree has a separate prebuilt-DLL agreement. Their
 presence in source archives does not establish that the associated platform/asset
