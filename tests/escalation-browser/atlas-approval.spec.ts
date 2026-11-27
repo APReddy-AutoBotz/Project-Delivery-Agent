@@ -657,4 +657,47 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect((await request.get(reportPath, { headers: leaderHeaders })).status()).toBe(404);
   expect((await request.get(finalPath, { headers: leaderHeaders })).status()).toBe(404);
   expect((await request.get(distributionPath, { headers: leaderHeaders })).status()).toBe(404);
+
+  await leaderAccess(true);
+  const capturedEvidence = await request.post(`${projectPath}/assessments`, {
+    headers: leaderHeaders,
+    data: { projectId: fixture.projectId, factType: "project.status", idempotencyKey: randomUUID() },
+  });
+  expect(capturedEvidence.status()).toBe(201);
+  const { assessmentId } = await capturedEvidence.json();
+  const copiedEvidence = `${projectPath}/assessments/${assessmentId}`;
+  const authorizedEvidence = await request.get(copiedEvidence, { headers: leaderHeaders });
+  expect(authorizedEvidence.status()).toBe(200);
+  expect(await authorizedEvidence.json()).toMatchObject({ assessmentId, result: { status: "RESOLVED" } });
+  expect((await request.get(comparePath, { headers: leaderHeaders })).status()).toBe(200);
+
+  const allowedProjectId = randomUUID();
+  const scopeDb = createDatabase(target.toString());
+  try {
+    await scopeDb.$transaction(async (tx) => {
+      const atlas = await tx.project.findFirstOrThrow({ where: { customerId: fixture.customerId, id: fixture.projectId },
+        select: { portfolioId: true } });
+      await tx.project.create({ data: {
+        id: allowedProjectId, customerId: fixture.customerId, portfolioId: atlas.portfolioId,
+        code: "SCOPE-CHECK", name: "Second synthetic project", description: "Project-access fixture", reportedStatus: "GREEN",
+      } });
+      const grant = { customerId: fixture.customerId, subject: "leader-atlas", scopeType: "project", role: "leadership" };
+      await tx.accessGrant.create({ data: { ...grant, scopeId: allowedProjectId } });
+      const removed = await tx.accessGrant.deleteMany({ where: { ...grant, scopeId: fixture.projectId } });
+      expect(removed.count).toBe(1);
+    });
+  } finally { await scopeDb.$disconnect(); }
+  const visibleProjects = await request.get("/api/projects", { headers: leaderHeaders });
+  expect(visibleProjects.status()).toBe(200);
+  expect(await visibleProjects.json()).toEqual([expect.objectContaining({ id: allowedProjectId, name: "Second synthetic project" })]);
+  expect((await request.get(`/api/projects/${allowedProjectId}`, { headers: leaderHeaders })).status()).toBe(200);
+
+  const missingProject = `/api/projects/${randomUUID()}`;
+  for (const path of [answerPath, comparePath, finalPath, copiedEvidence]) {
+    const [deniedProject, missing] = await Promise.all([path, path.replace(projectPath, missingProject)].map((url) =>
+      request.get(url, { headers: leaderHeaders })));
+    expect(deniedProject.status()).toBe(404);
+    expect(missing.status()).toBe(404);
+    expect(await deniedProject.json()).toEqual(await missing.json());
+  }
 });
