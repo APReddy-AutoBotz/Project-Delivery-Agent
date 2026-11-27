@@ -2558,13 +2558,17 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       throw error;
     }
     const now = await this.now(tx);
-    if (!reviewed || reviewed.availableUntil <= now || reviewed.reviewedAt > iso(now) ||
-        !schedule.baseline || !schedule.forecast || reviewed.proposals.length !== 2 ||
-        !reviewed.proposals.some(({ factType, value }) => factType === "project.baseline" && value.type === "date" && value.value === schedule.baseline) ||
-        !reviewed.proposals.some(({ factType, value }) => factType === "project.forecast" && value.type === "date" && value.value === schedule.forecast))
-      return null;
+    if (!reviewed || reviewed.availableUntil <= now || reviewed.reviewedAt > iso(now) || reviewed.proposals.length !== 2) return null;
+    const baseline = reviewed.proposals.find(({ factType }) => factType === "project.baseline")?.value;
+    const forecast = reviewed.proposals.find(({ factType }) => factType === "project.forecast")?.value;
+    if (baseline?.type !== "date" || forecast?.type !== "date") return null;
+    // Existing schedule revisions and frozen reports must keep their recorded dates.
+    if (((expected || schedule.baseline !== null) && baseline.value !== schedule.baseline) ||
+        ((expected || schedule.forecast !== null) && forecast.value !== schedule.forecast)) return null;
     const { sourceId, receiptId, reviewedAt, availableUntil } = reviewed;
-    return { schedule, citation: atlasScheduleCitationSchema.parse({ sourceId, receiptId, reviewedAt, availableUntil: iso(availableUntil) }) };
+    return { schedule: { revision: schedule.revision, baseline: baseline.value, forecast: forecast.value,
+      movementDays: calendarDayDifference(forecast.value, baseline.value) },
+    citation: atlasScheduleCitationSchema.parse({ sourceId, receiptId, reviewedAt, availableUntil: iso(availableUntil) }) };
   }
 
   private async currentAtlasSchedule(tx: Tx, actor: Actor, projectId: string) {

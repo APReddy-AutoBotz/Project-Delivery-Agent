@@ -169,7 +169,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
       <h3>Evidence</h3>
       <p>Checked at {answer.asOf}.</p>
       <ul>
-        {schedule && <li id={scheduleRef} tabIndex={-1}>Synthetic canonical schedule, revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
+        {schedule && <li id={scheduleRef} tabIndex={-1}>{spreadsheet ? "Atlas project" : "Synthetic canonical schedule"} revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
           {spreadsheet && <> Reviewed portfolio CSV receipt {spreadsheet.receiptId}, recorded at {spreadsheet.reviewedAt}.</>}
         </li>}
         {freshness && <li id={freshnessRef} tabIndex={-1}>Assessed at {freshness.assessedAt}.{" "}

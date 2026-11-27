@@ -95,6 +95,12 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const beforeApproval = await request.get(answerPath, { headers: leaderHeaders });
   expect(beforeApproval.status()).toBe(200);
   const before = await beforeApproval.json();
+  const seededSchedule = await request.post(projectPath + "/leadership-answer", { headers: leaderHeaders,
+    data: { question: "What is the schedule status of this project?" } });
+  expect(seededSchedule.status()).toBe(200);
+  expect(await seededSchedule.json()).toMatchObject({
+    schedule: { baseline: null, forecast: null, movementDays: null },
+  });
   expect(before).toMatchObject({
     schedule: { baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 }, ownerReply: null, receipt: null,
     updateFreshness: { state: "STALE", sourceDateField: "project.latestValidUpdateAt", sourceDate: fixture.lastPmUpdateAt,
