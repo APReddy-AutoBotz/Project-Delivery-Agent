@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { canonicalSubjectSchema } from "./canonical-project.js";
+import { canonicalDateSchema, canonicalSubjectSchema } from "./canonical-project.js";
+import { calendarDayDifference } from "./overdue-signals.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
 import { projectDelayClarificationCommandSchema, projectDelayClarificationSchema, projectLeadershipScheduleSchema,
   settledLeadershipClaimSchema } from "./project-leadership-answer.js";
@@ -104,7 +105,57 @@ export const atlasLeadershipFactsSchema = z.strictObject({
   delayAssessment: atlasDelayAssessmentSchema.nullable(),
 });
 export type AtlasLeadershipFacts = z.infer<typeof atlasLeadershipFactsSchema>;
+const atlasReceiptClaim = z.strictObject({
+  projectId: z.uuid(), assessedAt: z.iso.datetime(), validUntil: z.iso.datetime(),
+  scheduleRevision: atlasScheduleSchema.shape.revision,
+  claimText: z.string().min(1).max(200), freshness: z.literal("CURRENT"), conflict: z.literal("NONE"),
+});
+const atlasReceiptClaimsSchema = z.array(z.discriminatedUnion("kind", [
+  atlasReceiptClaim.extend({
+    kind: z.literal("REVIEWED_SCHEDULE"), sourceId: z.uuid(),
+    evidenceIds: z.array(z.uuid()).length(1),
+    provenance: z.literal("SYSTEM_VERIFIED"), classification: z.literal("SYSTEM_VERIFIED"),
+  }),
+  atlasReceiptClaim.extend({
+    kind: z.literal("PM_DELAY_ASSESSMENT"), assessmentId: z.uuid(),
+    evidenceIds: z.array(z.uuid()).length(2),
+    provenance: z.literal("HUMAN_CONFIRMED"), classification: z.literal("HUMAN_CONFIRMED"),
+  }),
+])).max(2);
+
+function reviewedMovementDays(schedule: AtlasSchedule | null) {
+  const { baseline, forecast } = schedule ?? {};
+  return canonicalDateSchema.safeParse(baseline).success && canonicalDateSchema.safeParse(forecast).success
+    ? calendarDayDifference(forecast, baseline) : null;
+}
+
+export function composeAtlasReceiptClaims(facts: AtlasLeadershipFacts) {
+  const { projectId, asOf: assessedAt, schedule, scheduleCitation, ownerReply, delayAssessment, receipt } = facts;
+  if (!schedule) return [];
+  const scope = { projectId, assessedAt, scheduleRevision: schedule.revision, freshness: "CURRENT", conflict: "NONE" } as const;
+  const claims: z.input<typeof atlasReceiptClaimsSchema> = [];
+  const days = scheduleCitation ? reviewedMovementDays(schedule) : null;
+  if (days !== null && scheduleCitation) claims.push({
+    ...scope, kind: "REVIEWED_SCHEDULE", sourceId: scheduleCitation.sourceId,
+    evidenceIds: [scheduleCitation.receiptId], validUntil: scheduleCitation.availableUntil,
+    provenance: "SYSTEM_VERIFIED", classification: "SYSTEM_VERIFIED",
+    claimText: days === 0 ? "The baseline and forecast dates match."
+      : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`,
+  });
+  if (ownerReply && delayAssessment && receipt) {
+    const validUntil = scheduleCitation && Date.parse(scheduleCitation.availableUntil) < Date.parse(ownerReply.availableUntil)
+      ? scheduleCitation.availableUntil : ownerReply.availableUntil;
+    claims.push({ ...scope, kind: "PM_DELAY_ASSESSMENT", assessmentId: delayAssessment.id,
+      evidenceIds: [delayAssessment.id, receipt.id], validUntil,
+      provenance: "HUMAN_CONFIRMED", classification: "HUMAN_CONFIRMED",
+      claimText: `The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as ${delayAssessment.confidence.toLowerCase()}.`,
+    });
+  }
+  return atlasReceiptClaimsSchema.parse(claims);
+}
+
 export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
+  receiptClaims: atlasReceiptClaimsSchema.optional(),
   delayClarificationState: z.enum(["AVAILABLE", "REQUESTED", "RESOLVED"]).optional(),
   updateFreshness: projectUpdateAssessmentViewSchema.shape.freshness.pick({
     state: true, assessedAt: true, sourceDate: true, sourceDateField: true,
@@ -142,7 +193,13 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
     facts: atlasLeadershipFactsSchema,
   }).optional(),
 }).refine(({ jiraBlocker, projectId, asOf }) => !jiraBlocker ||
-  (jiraBlocker.claim.projectId === projectId && jiraBlocker.claim.assessedAt === asOf));
+  (jiraBlocker.claim.projectId === projectId && jiraBlocker.claim.assessedAt === asOf))
+  .refine(({ scheduleCitation, schedule }) => {
+    if (!scheduleCitation) return true;
+    const days = reviewedMovementDays(schedule);
+    return days !== null && days === schedule?.movementDays;
+  })
+  .refine((answer) => JSON.stringify(answer.receiptClaims ?? []) === JSON.stringify(composeAtlasReceiptClaims(answer)));
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
 
 export const atlasManagementFactsSchema = atlasLeadershipFactsSchema.extend({

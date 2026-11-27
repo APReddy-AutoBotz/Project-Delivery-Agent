@@ -56,3 +56,16 @@ There is no new provider, connector scope, migration or external action. Extend
 the existing decoder and native browser cases to exercise the claim and its
 withdrawal. Revert the API and web changes together to restore the prior response
 shape.
+
+## Atlas receipt-backed statements
+
+Compose the reviewed schedule movement and the PM-confirmed cause and
+confidence from the receipts already authorized by the Atlas answer read.
+Bind the displayed wording to the exact project, schedule revision,
+supporting receipt IDs and answer time. Reuse the existing spreadsheet and
+reply expiry checks to withdraw these statements when their support expires.
+Apply this to the live answer. Saved reports retain their own fact sets.
+
+Verify the exact wording and receipt bindings in the existing Atlas journey
+and the browser decoder. STORY-028 and AC-QA-002 also cover the other answer
+statements and model output validation.

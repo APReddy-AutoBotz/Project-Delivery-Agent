@@ -21,6 +21,7 @@ import {
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
   atlasIntegrationMilestoneKey, atlasJiraBlockerKey, atlasJiraBlockerClaimText, atlasLeadershipAnswerSchema, atlasLeadershipFactsSchema,
   atlasScheduleCitationSchema, atlasSpreadsheetOrigin, atlasSpreadsheetRow, IngestionPersistenceError,
+  composeAtlasReceiptClaims,
   atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
   atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
@@ -3483,7 +3484,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const forecastInference = schedule && (schedule.movementDays ?? 0) > 0 && integrationStart && blocker
         ? { classification: "AGENT_INFERENCE" as const, scheduleRevision: schedule.revision,
           milestoneId: integrationStart.milestoneId, blockerMappingId: blocker.mappingId } : undefined;
+      const receiptClaims = composeAtlasReceiptClaims({ ...answer, asOf });
       return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness, delayClarificationState,
+        ...(receiptClaims.length > 0 && { receiptClaims }),
         integrationStart, forecastInference,
         jiraBlocker: blocker,
         pmEscalation: escalation && escalation.availableUntil > asOf ? escalation : null,

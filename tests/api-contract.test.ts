@@ -27,7 +27,7 @@ import {
   ingestionConfigurationSchema,
   ingestionReceiptReadResultSchema,
 } from "../packages/domain/src/index.js";
-import { buildBlockerAgeAdvice, buildPmActionQueue, ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
+import { buildBlockerAgeAdvice, buildPmActionQueue, composeAtlasReceiptClaims, ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
 import { HealthAssessmentError, ProjectUpdateError } from "../packages/domain/dist/index.js";
 import type {
   ScheduleAdviceHealthRepository,
@@ -585,6 +585,7 @@ const projectUpdateRepository: ProjectUpdateRepository = {
     confirmedAt: "2026-10-01T12:02:30.000Z" })),
   atlasLeadershipAnswer: vi.fn(async () => ({
     ...atlasLeadershipFixture,
+    receiptClaims: composeAtlasReceiptClaims(atlasLeadershipFixture),
     integrationStart: { milestoneId: project.id, planned: "2026-10-05", actual: "2026-10-08" },
     jiraBlocker: { mappingId: project.id, issueKey: "ATLAS-248" as const, claim: {
       claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: project.id, factId: project.id,
