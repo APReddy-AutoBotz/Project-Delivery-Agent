@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { canonicalSubjectSchema } from "./canonical-project.js";
+import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
 
 export const atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
 export const atlasIntegrationMilestoneKey = "INTEGRATION-TESTING";
@@ -93,6 +94,9 @@ export const atlasLeadershipFactsSchema = z.strictObject({
 });
 export type AtlasLeadershipFacts = z.infer<typeof atlasLeadershipFactsSchema>;
 export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
+  updateFreshness: projectUpdateAssessmentViewSchema.shape.freshness.pick({
+    state: true, assessedAt: true, sourceDate: true, sourceDateField: true,
+  }).extend({ openObligation: z.boolean() }).nullable().optional(),
   integrationStart: z.strictObject({
     milestoneId: z.uuid(),
     planned: z.iso.date(),
