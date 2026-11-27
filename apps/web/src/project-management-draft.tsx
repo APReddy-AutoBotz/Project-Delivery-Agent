@@ -53,8 +53,9 @@ export function ProjectManagementDraft({ projectId, scope, request, isCurrent }:
           JSON.stringify(report.approval) !== JSON.stringify(download.approval) ||
           JSON.stringify(report.delivery) !== JSON.stringify(download.delivery))
         throw new Error("The displayed project facts changed");
+      const status = download.approval?.state === "APPROVED" ? "approved" : "draft";
       downloadManagementPowerPoint(download.powerpointBase64,
-        `project-${projectId}-${download.snapshotId ?? download.draft.reportingPeriod}-draft.pptx`);
+        `project-${projectId}-${download.snapshotId ?? download.draft.reportingPeriod}-${status}.pptx`);
       return download;
     }
     return report;

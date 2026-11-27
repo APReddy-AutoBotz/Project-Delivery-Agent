@@ -102,25 +102,37 @@ function decodeAtlasSchedule(value: unknown): AtlasSchedule | null {
 
 const date = (value: unknown): value is string => typeof value === "string" && instant(value + "T00:00:00.000Z");
 
+function validProjectLeadershipFacts(value: Record<string, unknown>): value is Record<string, unknown> & { asOf: string } {
+  if (!instant(value.asOf)) return false;
+  if (value.schedule !== null) {
+    const schedule = decodeAtlasSchedule(value.schedule);
+    if (!schedule) return false;
+    const movement = schedule.baseline && schedule.forecast
+      ? (Date.parse(schedule.forecast) - Date.parse(schedule.baseline)) / 86400000 : null;
+    if (schedule.movementDays !== movement) return false;
+  }
+  const freshness = value.updateFreshness;
+  return freshness === null || (object(freshness) && keys(freshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "assessmentId", "openObligation"]) &&
+    uuid(freshness.assessmentId) && instant(freshness.assessedAt) && instant(freshness.sourceDate) &&
+    Date.parse(freshness.sourceDate) <= Date.parse(freshness.assessedAt) && Date.parse(freshness.assessedAt) <= Date.parse(value.asOf) &&
+    (freshness.state === "CURRENT" || freshness.state === "STALE") &&
+    (freshness.sourceDateField === "project.createdAt" || freshness.sourceDateField === "project.latestValidUpdateAt") &&
+    typeof freshness.openObligation === "boolean");
+}
+
+const leadershipFactKeys = ["asOf", "schedule", "updateFreshness"];
+
 export function decodeProjectLeadershipAnswer(value: unknown, projectId: string): ProjectLeadershipAnswer | null {
   if (!object(value)) return null;
   if (value.state === "CLARIFY" && keys(value, ["state"])) return { state: "CLARIFY" };
-  if (value.state !== "ANSWERED" || value.projectId !== projectId || value.cause !== "UNKNOWN" || !instant(value.asOf) ||
-      !keys(value, ["state", "projectId", "asOf", "cause", "schedule", "updateFreshness"])) return null;
-  if (value.schedule !== null) {
-    const schedule = decodeAtlasSchedule(value.schedule);
-    if (!schedule) return null;
-    const movement = schedule.baseline && schedule.forecast
-      ? (Date.parse(schedule.forecast) - Date.parse(schedule.baseline)) / 86400000 : null;
-    if (schedule.movementDays !== movement) return null;
-  }
-  const freshness = value.updateFreshness;
-  if (freshness !== null && (!object(freshness) || !keys(freshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "assessmentId", "openObligation"]) ||
-      !uuid(freshness.assessmentId) || !instant(freshness.assessedAt) || !instant(freshness.sourceDate) ||
-      Date.parse(freshness.sourceDate) > Date.parse(freshness.assessedAt) || Date.parse(freshness.assessedAt) > Date.parse(value.asOf) ||
-      (freshness.state !== "CURRENT" && freshness.state !== "STALE") ||
-      (freshness.sourceDateField !== "project.createdAt" && freshness.sourceDateField !== "project.latestValidUpdateAt") ||
-      typeof freshness.openObligation !== "boolean")) return null;
+  if (value.projectId !== projectId || !validProjectLeadershipFacts(value)) return null;
+  const required = ["state", "projectId", ...leadershipFactKeys];
+  if (value.state === "ANSWERED" && value.cause === "UNKNOWN" && keys(value, [...required, "cause"]))
+    return value as ProjectLeadershipAnswer;
+  const prior = value.priorSnapshot;
+  if (value.state !== "COMPARISON" || !keys(value, [...required, "priorSnapshot"]) || !object(prior) ||
+      !keys(prior, ["id", ...leadershipFactKeys]) || !uuid(prior.id) || !validProjectLeadershipFacts(prior) ||
+      Date.parse(prior.asOf) > Date.parse(value.asOf)) return null;
   return value as ProjectLeadershipAnswer;
 }
 

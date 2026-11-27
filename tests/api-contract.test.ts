@@ -499,11 +499,15 @@ const projectReportApprovedFixture = { ...projectReportPendingFixture,
   approval: { ...projectReportPendingFixture.approval, state: "APPROVED" as const, decidedAt: "2026-10-21T11:02:00.000Z" } };
 const projectReportDeliveredFixture = { ...projectReportApprovedFixture,
   delivery: { id: project.id, snapshotId: project.id, requestId: project.id, deliveredAt: "2026-10-21T11:03:00.000Z" } };
+const projectAnswerFixture = { projectId: project.id, asOf: "2026-10-21T11:00:00.000Z", updateFreshness: null,
+  schedule: { revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 } };
 const projectUpdateRepository: ProjectUpdateRepository = {
-  projectLeadershipAnswer: vi.fn(async () => ({ state: "ANSWERED" as const, projectId: project.id,
-    asOf: "2026-10-21T11:00:00.000Z", cause: "UNKNOWN" as const, updateFreshness: null,
-    schedule: { revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 },
-  })),
+  projectLeadershipAnswer: vi.fn(async (_actor, _projectId, body) => {
+    const priorSnapshotId = (body as { priorSnapshotId?: string }).priorSnapshotId;
+    if (priorSnapshotId) return { ...projectAnswerFixture, state: "COMPARISON" as const,
+      priorSnapshot: { id: priorSnapshotId, asOf: "2026-10-20T11:00:00.000Z", schedule: null, updateFreshness: null } };
+    return { ...projectAnswerFixture, state: "ANSWERED" as const, cause: "UNKNOWN" as const };
+  }),
   projectManagementDraft: vi.fn(async () => projectManagementDraftFixture),
   projectManagementSnapshot: vi.fn(async (_actor, _projectId, selector) =>
     selector === "delivered" ? projectReportDeliveredFixture : projectManagementSnapshotFixture),
@@ -813,6 +817,8 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request(`/api/projects/${project.id}/atlas-leadership-answer`, 200, leader);
   await request(`/api/projects/${project.id}/atlas-leadership-answer?priorSnapshotId=${project.id}`, 200, leader);
   await request(`/api/projects/${project.id}/leadership-answer`, 200, leader, "POST", { question: "Why is this project delayed?" });
+  await request(`/api/projects/${project.id}/leadership-answer`, 200, leader, "POST",
+    { question: "What changed since this snapshot?", priorSnapshotId: project.id });
   await request(`/api/projects/${project.id}/management-draft`, 200, leader);
   await request(`/api/projects/${project.id}/management-draft?snapshotId=${project.id}`, 200, leader);
   await request(`/api/projects/${project.id}/management-draft?snapshotId=delivered`, 200, leader);

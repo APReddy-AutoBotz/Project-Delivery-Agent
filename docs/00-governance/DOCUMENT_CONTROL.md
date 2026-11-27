@@ -1,5 +1,12 @@
 # Document Control
 
+## STORY-031 report-run fact set software acceptance, 2026-11-27
+
+Under the Product Owner's existing delegation, the controller accepts
+STORY-031 once the acceptance record passes independent review, required
+hosted checks and verified merge. The executed evidence covers AC-RPT-001
+and AC-RPT-004. [Acceptance evidence](../05-quality/ATLAS_RELEASE_EVIDENCE.md#versioned-report-software-acceptance)
+
 ## EXEC-048 delivery concern design, 2026-11-23
 
 The delegated controller approved the independently reviewed
