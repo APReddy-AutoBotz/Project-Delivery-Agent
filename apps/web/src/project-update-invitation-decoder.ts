@@ -1,4 +1,4 @@
-import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasDelayClarification, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -101,6 +101,14 @@ function decodeAtlasSchedule(value: unknown): AtlasSchedule | null {
 }
 
 const date = (value: unknown): value is string => typeof value === "string" && instant(value + "T00:00:00.000Z");
+
+export function decodeAtlasDelayClarification(value: unknown): AtlasDelayClarification | null {
+  if (!object(value) || !keys(value, ["id", "requestedAt", "schedule"]) || !uuid(value.id) || !instant(value.requestedAt))
+    return null;
+  const schedule = decodeAtlasSchedule(value.schedule);
+  return schedule && (schedule.movementDays ?? 0) > 0
+    ? { id: value.id, requestedAt: value.requestedAt, schedule } : null;
+}
 
 export function decodeAtlasDelayAssessment(value: unknown): AtlasDelayAssessment | null {
   if (!object(value) || !keys(value, ["approvalId", "receiptId", "scheduleRevision", "cause", "confidence", "id", "confirmedBy", "confirmedAt"]) ||

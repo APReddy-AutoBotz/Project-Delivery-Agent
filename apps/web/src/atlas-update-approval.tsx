@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { atlasApprovalProjectCode, AtlasAccessStatus, AtlasApprovalView, AtlasDelayAssessment } from "@pdaa/domain";
+import type { atlasApprovalProjectCode, AtlasAccessStatus, AtlasApprovalView, AtlasDelayAssessment, AtlasSchedule } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
 import type { RequestFn } from "./request-types.js";
-import { atlasCommentMaxLength, decodeAtlasApproval, decodeAtlasCommentReceipt, decodeAtlasDelayAssessment,
+import { atlasCommentMaxLength, decodeAtlasApproval, decodeAtlasCommentReceipt, decodeAtlasDelayAssessment, decodeAtlasDelayClarification,
   validAtlasApprovalComment } from "./project-update-invitation-decoder.js";
 
 export const atlasReviewProjectCode: typeof atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
+
+export function atlasDelayClarificationQuestion(schedule: AtlasSchedule) {
+  return `What caused the forecast finish date to move from ${schedule.baseline} to ${schedule.forecast}? Please link the evidence that confirms the cause.`;
+}
 
 function AtlasDelayConfirmation({ projectId, proposal, request, isCurrent, refresh }: {
   projectId: string; proposal: AtlasApprovalView; request: RequestFn; isCurrent: () => boolean; refresh: () => Promise<unknown>;
@@ -98,6 +102,18 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
   projectId: string; scope: string; request: RequestFn; isCurrent: () => boolean;
 }) {
   const path = `/projects/${projectId}/atlas-approval`;
+  const clarification = useQuery({
+    queryKey: ["atlas-delay-clarification", projectId, scope],
+    queryFn: async () => {
+      const raw = await request(`/projects/${projectId}/atlas-delay-clarification`, undefined, 4096);
+      if (raw === null) return null;
+      const parsed = decodeAtlasDelayClarification(raw);
+      if (!parsed) throw new Error("Atlas clarification was unavailable");
+      return parsed;
+    },
+    enabled: isCurrent(), retry: false, refetchOnWindowFocus: "always",
+  });
+  const pendingClarification = isCurrent() && clarification.isSuccess && !clarification.isFetching ? clarification.data : null;
   const review = useQuery({
     queryKey: ["atlas-demo-approval", projectId, scope],
     queryFn: async () => {
@@ -160,6 +176,11 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
 
   return <section className="panel" aria-label="Atlas demo approval">
     <h2>Atlas demo approval</h2>
+    {pendingClarification && <section aria-label="Leadership clarification">
+      <h3>Leadership asked about the delay</h3>
+      <p>{atlasDelayClarificationQuestion(pendingClarification.schedule)}</p>
+      <p>Requested at {pendingClarification.requestedAt}.</p>
+    </section>}
     {review.isFetching && <p role="status">Checking for a confirmed reply…</p>}
     {review.isError && <Message error>The Atlas review is unavailable.</Message>}
     {review.isSuccess && !review.isFetching && !proposal && <p>No current owner-confirmed reply.</p>}
@@ -201,7 +222,7 @@ export function AtlasPmApproval({ projectId, scope, request, isCurrent }: {
         </dl>
       </section>}
       {proposal.delayReview && !expired && <AtlasDelayConfirmation key={proposal.receipt?.id} projectId={projectId}
-        proposal={proposal} request={request} isCurrent={isCurrent} refresh={refresh} />}
+        proposal={proposal} request={request} isCurrent={isCurrent} refresh={() => Promise.all([refresh(), clarification.refetch()])} />}
     </>}
     {failedApprovalId && failedApprovalId === proposal?.approvalId &&
       <Message error>Could not verify the Atlas update. Review the current proposal before retrying.</Message>}

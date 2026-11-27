@@ -86,6 +86,8 @@ import {
   atlasLeadershipAnswerSchema,
   atlasDelayCommandSchema,
   atlasDelayAssessmentSchema,
+  atlasDelayClarificationCommandSchema,
+  atlasDelayClarificationSchema,
   atlasManagementOutputSchema,
   atlasManagementPreviewSchema,
   atlasReportApprovalRequestSchema,
@@ -280,6 +282,14 @@ export const contracts: Record<string, RouteContract> = {
   },
   "post /api/projects/{id}/atlas-delay-confirmation": {
     status: 200, request: atlasDelayCommandSchema, response: atlasDelayAssessmentSchema,
+    parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
+  },
+  "get /api/projects/{id}/atlas-delay-clarification": {
+    status: 200, response: atlasDelayClarificationSchema.nullable(),
+    parameters: { id: z.uuid() }, errors: [403, 404, 503],
+  },
+  "post /api/projects/{id}/atlas-delay-clarification": {
+    status: 200, request: atlasDelayClarificationCommandSchema, response: atlasDelayClarificationSchema,
     parameters: { id: z.uuid() }, errors: [400, 403, 404, 409, 413, 415, 503],
   },
   "get /api/projects/{id}/atlas-management-snapshot": {

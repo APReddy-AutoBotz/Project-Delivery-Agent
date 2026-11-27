@@ -19,7 +19,8 @@ import {
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
   atlasIntegrationMilestoneKey, atlasJiraBlockerKey, atlasLeadershipAnswerSchema, atlasLeadershipFactsSchema,
   atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
-  atlasDelayAssessmentSchema, atlasDelayCommandSchema, type AtlasApprovalView, type AtlasSchedule,
+  atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
+  atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
   atlasReportApprovalRequestSchema, atlasReportDecisionSchema,
   atlasReportVersionSchema, atlasReportDistributionReceiptSchema, atlasReportRecipientSubject,
   suggestAtlasAccessStatus,
@@ -2416,6 +2417,57 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const actor = parseActor(actorValue);
     if (!actor.roles.includes("leadership")) throw new ProjectUpdateError("DENIED");
     return { ...actor, roles: ["leadership"] };
+  }
+
+  private async pendingAtlasDelayClarification(tx: Tx, current: Actor, projectId: string, audience: "pm" | "leadership") {
+    const approved = await this.loadAtlasApproval(tx, current, projectId, audience);
+    const configuration = this.captureConfiguration(current.customerId);
+    if (!configuration || !await this.captureGate(tx, current.customerId, configuration)) return null;
+    const schedule = await this.atlasSchedule(tx, current.customerId, projectId);
+    if (!schedule || (schedule.movementDays ?? 0) <= 0) return null;
+    if (approved?.view.receipt && (await this.atlasDelayReview(tx, current.customerId, projectId,
+      approved.view, approved.captureIssuanceEpoch, schedule))?.assessment) return null;
+    const pm = (await this.loadPolicy(tx, current.customerId, projectId))?.escalationRecipientSubject;
+    if (!pm || (audience === "pm" && pm !== current.subject) ||
+        !await this.recipientAuthorized(tx, current.customerId, projectId, pm, "PROJECT_MANAGER"))
+      return null;
+    const event = "atlas_demo.delay.clarification_requested";
+    const saved = await tx.auditEvent.findFirst({
+      where: { customerId: current.customerId, event, AND: [
+        { detail: { path: ["projectId"], equals: projectId } },
+        { detail: { path: ["scheduleRevision"], equals: schedule.revision } },
+        { detail: { path: ["recipient"], equals: pm } },
+        { detail: { path: ["captureIssuanceEpoch"], equals: configuration.issuanceEpoch } },
+      ] }, select: { id: true, occurredAt: true },
+    });
+    return { pm, event, schedule, clarification: saved
+      ? atlasDelayClarificationSchema.parse({ id: saved.id, requestedAt: iso(saved.occurredAt), schedule }) : null };
+  }
+
+  async atlasDelayClarification(actorValue: Actor, projectValue: string) {
+    const current = parseActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    return this.transaction(async (tx) => (await this.pendingAtlasDelayClarification(tx, current, projectId, "pm"))?.clarification ?? null,
+      "ReadCommitted");
+  }
+
+  async requestAtlasDelayClarification(actorValue: Actor, projectValue: string, command: unknown, correlationValue: string) {
+    const current = this.atlasLeadershipActor(actorValue);
+    const projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    const parsed = atlasDelayClarificationCommandSchema.safeParse(command);
+    if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+    return this.transaction(async (tx) => {
+      const pending = await this.pendingAtlasDelayClarification(tx, current, projectId, "leadership");
+      if (!pending || pending.schedule.revision !== parsed.data.scheduleRevision)
+        throw new ProjectUpdateError("CONFLICT");
+      if (pending.clarification) return pending.clarification;
+      const id = await this.engagementAudit(tx, current, projectId, correlationId, pending.event, {
+        projectId, scheduleRevision: pending.schedule.revision, recipient: pending.pm,
+      });
+      const { occurredAt } = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true } });
+      return atlasDelayClarificationSchema.parse({ id, requestedAt: iso(occurredAt), schedule: pending.schedule });
+    }, "ReadCommitted");
   }
 
   private async loadAtlasLeadershipAnswer(tx: Tx, current: Actor, projectId: string) {
