@@ -57,15 +57,16 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   });
   const refresh = query.refetch;
   const answer = asked && isCurrent() && query.isSuccess && !query.isFetching ? query.data : null;
+  const now = Date.now();
   const expiry = [answer?.ownerReply?.availableUntil, answer?.pmEscalation?.availableUntil,
     answer?.priorSnapshot?.facts.ownerReply?.availableUntil, answer?.updateFreshness?.activeClarification?.availableUntil,
     answer?.scheduleCitation?.availableUntil, answer?.priorSnapshot?.facts.scheduleCitation?.availableUntil,
     answer?.jiraBlocker?.claim.validUntil]
-    .filter((date): date is string => Boolean(date)).sort()[0];
+    .filter((date): date is string => Boolean(date && Date.parse(date) > now)).sort()[0];
   useEffect(() => {
     if (!expiry) return;
     const delay = Date.parse(expiry) - Date.now();
-    if (delay <= 0) return;
+    if (delay <= 0) { void refresh(); return; }
     const timer = window.setTimeout(() => void refresh(), Math.min(delay, 2_147_483_647));
     return () => clearTimeout(timer);
   }, [expiry, refresh]);

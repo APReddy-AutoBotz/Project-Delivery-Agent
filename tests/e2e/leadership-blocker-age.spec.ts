@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { buildBlockerAgeAdvice, buildPmActionQueue } from "../../packages/domain/dist/index.js";
+import { atlasApprovalProjectCode, buildBlockerAgeAdvice, buildPmActionQueue } from "../../packages/domain/dist/index.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const id = (number: number) => `30000000-0000-4000-8000-${String(number).padStart(12, "0")}`;
 const projects = [1, 2].map((number) => ({ id: id(number), portfolioId: id(50), code: `BLK-${number}`, name: `Synthetic blocker ${number}`,
   description: "Synthetic browser project", reportedStatus: "UNKNOWN" }));
+const atlas = { ...projects[0]!, id: id(4), code: atlasApprovalProjectCode, name: "Synthetic Atlas deadline" };
 const asOf = "2026-10-21T11:00:00.000Z";
 function advice(projectId: string, audience: "leadership" | "project_manager") {
   const raid = id(3);
@@ -20,7 +21,7 @@ function advice(projectId: string, audience: "leadership" | "project_manager") {
 
 test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence across project and session changes", async ({ page }) => {
   let persona = "", reads = 0, state: "success" | "denied" | "invalid" | "held" = "success";
-  let causeReads = 0;
+  let causeReads = 0, atlasReads = 0;
   let release!: () => void, arrived!: () => void, settled!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
   const entered = new Promise<void>((resolve) => { arrived = resolve; });
@@ -31,10 +32,10 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
     if (path === "/auth/development") { persona = route.request().postDataJSON().persona; return route.fulfill({ json: { token: `synthetic-${persona}` } }); }
     if (path === "/me") return route.fulfill({ json: { subject: persona, customerId,
       roles: persona === "leader-atlas" ? ["leadership", "project_manager"] : ["project_manager"] } });
-    if (path === "/projects") return route.fulfill({ json: projects });
+    if (path === "/projects") return route.fulfill({ json: [...projects, atlas] });
     if (path === "/project-setup") return route.fulfill({ json: { portfolios: [] } });
     if (path === "/pm/action-queue") return route.fulfill({ json: buildPmActionQueue([]) });
-    const project = projects.find((entry) => path === `/projects/${entry.id}`);
+    const project = [...projects, atlas].find((entry) => path === `/projects/${entry.id}`);
     if (project) return route.fulfill({ json: project });
     if (path === `/projects/${id(1)}/leadership-answer`) {
       const now = Date.now();
@@ -51,6 +52,22 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
           validUntil: new Date(now + 15000).toISOString(), provenance: "HUMAN_CONFIRMED", classification: "HUMAN_CONFIRMED",
           freshness: "CURRENT", conflict: "NONE" },
       } } });
+    }
+    if (path === `/projects/${atlas.id}/atlas-leadership-answer`) {
+      const now = Date.now();
+      const checkedAt = new Date(now).toISOString();
+      const facts = { projectId: atlas.id, asOf: checkedAt,
+        schedule: { revision: 1, baseline: "2026-10-17", forecast: "2026-10-21", movementDays: 4 },
+        ownerReply: { responseId: id(80), receivedAt: checkedAt, availableUntil: new Date(now + 5000).toISOString(),
+          accessStatus: "ACCESS_PENDING" }, receipt: null, delayAssessment: null, pmEscalation: null,
+        integrationStart: { milestoneId: id(81), planned: "2026-10-12", actual: "2026-10-13" } };
+      if (++atlasReads > 1) return route.fulfill({ json: { ...facts, jiraBlocker: null } });
+      return route.fulfill({ json: { ...facts, jiraBlocker: { mappingId: id(82), issueKey: "ATLAS-248",
+        claim: { claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: atlas.id, factId: id(83),
+          versionId: id(84), evidenceIds: [id(85)], policyRevisionId: id(86), assessedAt: checkedAt,
+          validUntil: new Date(now + 30000).toISOString(), provenance: "SYSTEM_VERIFIED", classification: "SYSTEM_VERIFIED",
+          freshness: "CURRENT", conflict: "NONE" } }, forecastInference: { classification: "AGENT_INFERENCE",
+        scheduleRevision: 1, milestoneId: id(81), blockerMappingId: id(82) } } });
     }
     const selected = projects.find((entry) => path === `/projects/${entry.id}/leadership-blocker-age-suggestions`);
     if (selected) {
@@ -98,6 +115,16 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
   } finally { release(); }
   await finished;
   await expect(panel).toContainText("ISSUE-FIRST"); await expect(panel).not.toContainText("ISSUE-SECOND");
+  await page.getByRole("button", { name: "← All projects" }).click();
+  await page.getByRole("button", { name: /Synthetic Atlas deadline/ }).click();
+  const atlasAnswer = page.getByRole("region", { name: "Atlas leadership answer" });
+  await atlasAnswer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
+  await expect(atlasAnswer).toContainText("Agent inference.");
+  await expect(atlasAnswer.getByRole("link", { name: "Reply evidence" })).toHaveCount(0);
+  await page.clock.fastForward(16000);
+  await expect(atlasAnswer.getByRole("link", { name: "Jira blocker evidence" })).toHaveCount(0);
+  await expect(atlasAnswer).not.toContainText("Agent inference.");
+  expect(atlasReads).toBe(2);
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.getByRole("button", { name: /^Project manager / }).click();
   await page.getByRole("button", { name: /Synthetic blocker 1/ }).click();
