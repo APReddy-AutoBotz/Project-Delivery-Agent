@@ -11,8 +11,16 @@ export const projectManagementDraftSchema = projectLeadershipFactsSchema.extend(
 });
 export type ProjectManagementDraft = z.infer<typeof projectManagementDraftSchema>;
 
+export const projectManagementSnapshotSchema = z.strictObject({
+  snapshotId: z.uuid(),
+  draft: projectManagementDraftSchema,
+});
+export type ProjectManagementSnapshot = z.infer<typeof projectManagementSnapshotSchema>;
+export const projectManagementSnapshotSelectorSchema = z.union([z.uuid(), z.literal("latest")]);
+
 export const projectManagementDraftOutputSchema = z.strictObject({
   draft: projectManagementDraftSchema,
+  snapshotId: z.uuid().optional(),
   highlights: z.array(z.string().min(1).max(400)).min(1).max(4),
   livePath: z.string().min(1).max(64),
   powerpointBase64: z.string().min(1).max(160_000),

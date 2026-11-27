@@ -266,7 +266,8 @@ export function decodeAtlasManagementOutput(value: unknown, projectId: string): 
 }
 
 export function decodeProjectManagementDraft(value: unknown, projectId: string): ProjectManagementDraftOutput | null {
-  if (!object(value) || !keys(value, ["draft", "highlights", "livePath", "powerpointBase64"])) return null;
+  if (!object(value) || !keys(value, ["draft", "highlights", "livePath", "powerpointBase64"], ["snapshotId"]) ||
+      (value.snapshotId !== undefined && !uuid(value.snapshotId))) return null;
   const { draft, highlights, livePath, powerpointBase64 } = value;
   if (!object(draft) || !keys(draft, ["projectId", "asOf", "schedule", "updateFreshness", "project", "approvalState", "reportingPeriod"]) ||
       livePath !== `/?project=${projectId}` || typeof powerpointBase64 !== "string" || powerpointBase64.length > 160000 ||

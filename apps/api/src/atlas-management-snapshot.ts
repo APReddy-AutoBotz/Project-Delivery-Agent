@@ -60,7 +60,7 @@ export async function renderAtlasManagementSnapshot(snapshot: AtlasManagementSna
   return { ...preview, livePath: `/?project=${snapshot.projectId}`, powerpointBase64 };
 }
 
-export async function renderProjectManagementDraft(draft: ProjectManagementDraft): Promise<ProjectManagementDraftOutput> {
+export async function renderProjectManagementDraft(draft: ProjectManagementDraft, snapshotId?: string): Promise<ProjectManagementDraftOutput> {
   const { schedule, updateFreshness } = draft;
   const highlights = [schedule
     ? `Canonical schedule revision ${schedule.revision}. Baseline ${schedule.baseline ?? "unknown"}. Forecast ${schedule.forecast ?? "unknown"}.`
@@ -77,7 +77,8 @@ export async function renderProjectManagementDraft(draft: ProjectManagementDraft
     title: "Project management draft",
     metadata: `Draft • Reporting month ${draft.reportingPeriod}`,
     highlights,
-    footer: `${draft.project.name} (${draft.project.code})\nProject ${draft.projectId}\nGenerated ${draft.asOf} (UTC)`,
+    footer: `${draft.project.name} (${draft.project.code})\nProject ${draft.projectId}\n` +
+      (snapshotId ? `Snapshot ${snapshotId}\n` : "") + `Generated ${draft.asOf} (UTC)`,
   });
-  return { draft, highlights, livePath: `/?project=${draft.projectId}`, powerpointBase64 };
+  return { draft, ...(snapshotId && { snapshotId }), highlights, livePath: `/?project=${draft.projectId}`, powerpointBase64 };
 }

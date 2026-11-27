@@ -87,6 +87,8 @@ import {
   projectLeadershipQuestionSchema,
   projectLeadershipAnswerSchema,
   projectManagementDraftOutputSchema,
+  projectManagementDraftSchema,
+  projectManagementSnapshotSelectorSchema,
   atlasDelayCommandSchema,
   atlasDelayAssessmentSchema,
   atlasDelayClarificationCommandSchema,
@@ -289,7 +291,12 @@ export const contracts: Record<string, RouteContract> = {
   },
   "get /api/projects/{id}/management-draft": {
     status: 200, response: projectManagementDraftOutputSchema,
-    parameters: { id: z.uuid() }, errors: [404, 503],
+    parameters: { id: z.uuid() }, query: { snapshotId: projectManagementSnapshotSelectorSchema.optional() },
+    errors: [400, 404, 503],
+  },
+  "post /api/projects/{id}/management-draft": {
+    status: 200, request: projectManagementDraftSchema, response: projectManagementDraftOutputSchema,
+    parameters: { id: z.uuid() }, errors: [400, 404, 409, 413, 415, 503],
   },
   "post /api/projects/{id}/atlas-delay-confirmation": {
     status: 200, request: atlasDelayCommandSchema, response: atlasDelayAssessmentSchema,
