@@ -7,16 +7,16 @@ import { createDatabase, DatabaseAuthorityRepository, DatabaseCanonicalProjectRe
   DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
 import { canonicalFixture } from "../../scripts/acceptance/canonical-projects.mjs";
 
-async function firstSlide(file: string | Buffer) {
+async function readSlide(file: string | Buffer, slide = 1) {
   const archive = typeof file === "string" ? await yauzl.openPromise(file, { lazyEntries: true })
     : await yauzl.fromBufferPromise(file, { lazyEntries: true });
   try {
     for await (const entry of archive.eachEntry()) {
-      if (entry.fileName === "ppt/slides/slide1.xml")
+      if (entry.fileName === `ppt/slides/slide${slide}.xml`)
         return await readStreamText(await archive.openReadStreamPromise(entry));
     }
   } finally { archive.close(); }
-  throw new Error("The deck has no first slide");
+  throw new Error(`The deck has no slide ${slide}`);
 }
 
 test("Atlas reply, PM delay evidence and distributed final report share the same evidence", async ({ page, request }) => {
@@ -535,7 +535,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await inbox.getByRole("button", { name: "Download distributed PowerPoint" }).click();
   const download = await downloadReady;
   expect(download.suggestedFilename()).toBe(`atlas-${snapshot.id}.pptx`);
-  const slide = await firstSlide((await download.path())!);
+  const slide = await readSlide((await download.path())!);
   expect(slide).toContain("<a:t>Atlas management snapshot</a:t>");
   expect(slide).toContain(snapshot.id);
   expect(slide).toContain(snapshot.asOf);
@@ -742,6 +742,11 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
       ...canonical, code: "SCOPE-CHECK", name: "Second synthetic project",
       responsibilities: canonical.responsibilities.map((role) =>
         role.role === "PROJECT_MANAGER" ? { ...role, subject: "pm-atlas" } : role),
+      raidItems: [...canonical.raidItems,
+        { key: "D-01", kind: "DECISION", title: "Confirm\u0085the integration environment",
+          state: "OPEN", description: "", ownerSubject: null },
+        { key: "D-02", kind: "DECISION", title: "Completed budget decision",
+          state: "COMPLETE", description: "", ownerSubject: null }],
     }, randomUUID());
     allowedProjectId = created.id;
     const updates = new DatabaseProjectUpdateRepository(scopeDb);
@@ -844,16 +849,19 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(draft).toMatchObject({ approvalState: "DRAFT", projectId: allowedProjectId,
     project: { code: "SCOPE-CHECK", name: "Second synthetic project" },
     schedule: { baseline: "2026-06-30", forecast: "2026-07-15", movementDays: 15 },
-    updateFreshness: { state: "CURRENT", sourceDateField: "project.createdAt" } });
+    updateFreshness: { state: "CURRENT", sourceDateField: "project.createdAt" },
+    digest: { previousReport: null, decisions: [{ key: "D-01", title: "Confirm the integration environment" }], moreDecisions: false } });
   await expect(draftPanel).toContainText(`Draft · Reporting month ${draft.reportingPeriod}`);
   const draftEmail = draftPanel.locator("details");
   await draftEmail.getByText("Leadership email preview").click();
   await expect(draftEmail.getByRole("link")).toHaveAttribute("href", `/?project=${allowedProjectId}`);
+  await expect(draftEmail).toContainText("Open decision D-01 · Confirm the integration environment");
+  await expect(draftEmail).not.toContainText("Completed budget decision");
   const draftDownloadReady = page.waitForEvent("download");
   await draftPanel.getByRole("button", { name: "Download editable PowerPoint" }).click();
   const draftDownload = await draftDownloadReady;
   expect(draftDownload.suggestedFilename()).toBe(`project-${allowedProjectId}-${draft.reportingPeriod}-draft.pptx`);
-  const draftSlide = await firstSlide((await draftDownload.path())!);
+  const draftSlide = await readSlide((await draftDownload.path())!);
   expect(draftSlide).toContain("Second synthetic project (SCOPE-CHECK)");
   expect(draftSlide).toContain(`Draft • Reporting month ${draft.reportingPeriod}`);
   expect(draftSlide).toContain(draft.asOf);
@@ -927,7 +935,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(draftEmail).toContainText(savedReport.snapshotId);
   const exportSaved = page.waitForEvent("download");
   await draftPanel.getByRole("button", { name: "Download editable PowerPoint" }).click();
-  const savedSlide = await firstSlide((await (await exportSaved).path())!);
+  const savedSlide = await readSlide((await (await exportSaved).path())!);
   expect(savedSlide).toContain(savedReport.snapshotId);
   expect(savedSlide).toContain(savedReport.draft.asOf);
   for (const highlight of savedReport.highlights) expect(savedSlide).toContain(highlight);
@@ -973,7 +981,11 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.goto("/");
   await page.getByRole("button", { name: /Project manager/ }).click();
-  await page.getByRole("button", { name: /Second synthetic project/ }).click();
+  const reportQueue = page.getByRole("region", { name: "Action suggestions" });
+  const pendingReportCard = reportQueue.getByRole("article").filter({ hasText: savedReport.snapshotId });
+  await expect(pendingReportCard.getByRole("heading", { name: "Second synthetic project · HIGH · APPROVAL" })).toBeVisible();
+  await expect(reportQueue).not.toContainText(followingSnapshotId);
+  await pendingReportCard.getByRole("button", { name: "Open project" }).click();
   const projectDelayReview = page.getByRole("region", { name: "Project delay evidence request" });
   await projectDelayReview.getByRole("button", { name: "Check delay requests" }).click();
   await expect(projectDelayReview).toContainText(questionText);
@@ -999,12 +1011,17 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(selectedProjectApproval).toContainText(savedReport.snapshotId);
   await selectedProjectApproval.getByRole("button", { name: "Approve saved report" }).click();
   await expect(selectedProjectApproval).toContainText("Final · Approved");
+  const afterReportApproval = await request.get(queuePath, { headers: managerHeaders });
+  expect(afterReportApproval.status()).toBe(200);
+  expect((await afterReportApproval.json()).items).not.toContainEqual(expect.objectContaining({
+    projectId: allowedProjectId, facet: "PROJECT_REPORT_APPROVAL",
+  }));
   const approvedProjectReport = await request.get(`${draftPath}?snapshotId=${savedReport.snapshotId}`, { headers: leaderHeaders });
   expect(approvedProjectReport.status()).toBe(200);
   const finalProjectReport = await approvedProjectReport.json();
   expect(finalProjectReport).toMatchObject({ snapshotId: savedReport.snapshotId, draft: savedReport.draft,
     highlights: savedReport.highlights, approval: { requestId: pendingReport.approval.requestId, state: "APPROVED" } });
-  const finalProjectSlide = await firstSlide(Buffer.from(finalProjectReport.powerpointBase64, "base64"));
+  const finalProjectSlide = await readSlide(Buffer.from(finalProjectReport.powerpointBase64, "base64"));
   expect(finalProjectSlide).toContain("Final • Approved");
   expect(finalProjectSlide).toContain(`Reporting month ${savedReport.draft.reportingPeriod} • Confidential`);
   expect(finalProjectSlide).toContain(savedReport.snapshotId);
@@ -1089,11 +1106,80 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await draftPanel.getByRole("button", { name: "Download editable PowerPoint" }).click();
   const deliveredDownload = await deliveredDownloadReady;
   expect(deliveredDownload.suggestedFilename()).toBe(`project-${allowedProjectId}-${savedReport.snapshotId}-approved.pptx`);
-  const deliveredSlide = await firstSlide((await deliveredDownload.path())!);
+  const deliveredSlide = await readSlide((await deliveredDownload.path())!);
   expect(deliveredSlide).toContain("Final • Approved • Delivered in-app");
   expect(deliveredSlide).toContain(`Reporting month ${savedReport.draft.reportingPeriod} • Confidential`);
   for (const highlight of deliveredOutput.highlights) {
     await expect(draftEmail).toContainText(highlight);
     expect(deliveredSlide).toContain(highlight);
   }
+  const originalDigest = await readSlide((await deliveredDownload.path())!, 2);
+  expect(originalDigest).toContain("Open decision D-01 · Confirm the integration environment");
+  expect(deliveredOutput.draft.digest.previousReport).toBeNull();
+  const digestPolicyDb = createDatabase(target.toString());
+  try {
+    await new DatabaseProjectUpdateRepository(digestPolicyDb).setPolicy(fixture.admin, allowedProjectId,
+      { ...scopePolicy, expectedRevision: 2, freshnessWindowSeconds: 5 * 86400 }, randomUUID());
+  } finally { await digestPolicyDb.$disconnect(); }
+  const newDigestResponse = page.waitForResponse((response) => response.url().endsWith(draftPath));
+  await draftPanel.getByRole("button", { name: "Preview management draft" }).click();
+  const newerDigest = await newDigestResponse;
+  expect(newerDigest.status()).toBe(200);
+  const summary = await newerDigest.json();
+  expect(summary.draft.digest.previousReport).toEqual({ snapshotId: savedReport.snapshotId,
+    asOf: savedReport.draft.asOf, schedule: savedReport.draft.schedule, freshnessState: "CURRENT" });
+  await draftEmail.getByText("Leadership email preview").click();
+  await expect(draftEmail).toContainText("No change in the available baseline and forecast finish dates.");
+  await expect(draftEmail).toContainText("Update freshness changed from current to unavailable.");
+  const comparedDigest = await readSlide(Buffer.from(summary.powerpointBase64, "base64"), 2);
+  expect(comparedDigest).toContain(savedReport.snapshotId);
+  expect(comparedDigest).toContain("No change in the available baseline and forecast finish dates.");
+  expect(comparedDigest).toContain("Update freshness changed from current to unavailable.");
+
+  const restoreAtlasDb = createDatabase(target.toString());
+  try {
+    await restoreAtlasDb.accessGrant.create({ data: { ...recipientGrant, scopeId: fixture.projectId } });
+    const policy = await restoreAtlasDb.projectUpdatePolicy.findFirstOrThrow({
+      where: { customerId: fixture.customerId, projectId: fixture.projectId, key: "project-update" },
+    });
+    await new DatabaseProjectUpdateRepository(restoreAtlasDb).setPolicy(fixture.admin, fixture.projectId, {
+      ...scopePolicy, expectedRevision: policy.revision, responsibleSubject: fixture.owner.subject,
+    }, randomUUID());
+  } finally { await restoreAtlasDb.$disconnect(); }
+  const fallbackHandoff = await request.post(protectedApprovalPath, {
+    headers: leaderHeaders, data: { snapshotId: fallbackReviewSnapshotId },
+  });
+  expect(fallbackHandoff.status()).toBe(200);
+  const fallbackRequestId = (await fallbackHandoff.json()).approval.requestId;
+  for (const version of [{ snapshotId: fallbackReviewSnapshotId, requestId: fallbackRequestId },
+    { snapshotId: protectedSnapshotId, requestId: protectedApproval.requestId }]) {
+    expect((await request.post(protectedManagerPath, { headers: managerHeaders,
+      data: { ...version, decision: "APPROVED" } })).status()).toBe(200);
+    expect((await request.post(protectedManagerPath + "/delivery", {
+      headers: managerHeaders, data: version,
+    })).status()).toBe(200);
+  }
+  const capturedDigest = await request.get(protectedReportPath, { headers: leaderHeaders });
+  expect(capturedDigest.status()).toBe(200);
+  const protectedComparisonDraft = (await capturedDigest.json()).draft;
+  expect(protectedComparisonDraft).toMatchObject({ updateFreshness: null,
+    digest: { previousReport: { snapshotId: protectedSnapshotId, freshnessState: "STALE" } } });
+  const savedDigest = await request.post(protectedReportPath, { headers: leaderHeaders, data: protectedComparisonDraft });
+  expect(savedDigest.status()).toBe(200);
+  const digestId = (await savedDigest.json()).snapshotId;
+  const digestApproval = await request.post(protectedApprovalPath, { headers: leaderHeaders, data: { snapshotId: digestId } });
+  expect(digestApproval.status()).toBe(200);
+  const digestRequestId = (await digestApproval.json()).approval.requestId;
+  await leaderAccess(false, fixture.lastForecast.sourceId, fixture.readers.filter((subject: string) => subject !== "pm-atlas"));
+  try {
+    expect((await request.get(protectedSnapshotPath, { headers: leaderHeaders })).status()).toBe(404);
+    expect((await request.get(`${protectedReportPath}?snapshotId=${digestId}`, { headers: leaderHeaders })).status()).toBe(404);
+    expect((await request.post(protectedManagerPath, { headers: managerHeaders,
+      data: { snapshotId: digestId, requestId: digestRequestId, decision: "APPROVED" } })).status()).toBe(404);
+    const fallbackComparison = await request.get(protectedReportPath, { headers: leaderHeaders });
+    expect(fallbackComparison.status()).toBe(200);
+    expect(await fallbackComparison.json()).toMatchObject({
+      draft: { digest: { previousReport: { snapshotId: fallbackReviewSnapshotId, freshnessState: null } } },
+    });
+  } finally { await leaderAccess(true, fixture.lastForecast.sourceId, fixture.readers); }
 });

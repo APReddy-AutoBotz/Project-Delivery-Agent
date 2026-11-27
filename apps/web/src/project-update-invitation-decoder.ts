@@ -316,20 +316,35 @@ export function decodeAtlasManagementOutput(value: unknown, projectId: string): 
 }
 
 export function decodeProjectManagementDraft(value: unknown, projectId: string): ProjectManagementDraftOutput | null {
-  if (!object(value) || !keys(value, ["draft", "highlights", "livePath", "powerpointBase64"], ["snapshotId", "approval", "delivery"]) ||
+  if (!object(value) || !keys(value, ["draft", "highlights", "livePath", "powerpointBase64"], ["snapshotId", "approval", "delivery", "digestHighlights"]) ||
       (value.snapshotId !== undefined && !uuid(value.snapshotId))) return null;
-  const { draft, highlights, livePath, powerpointBase64 } = value;
-  if (!object(draft) || !keys(draft, ["projectId", "asOf", "schedule", "updateFreshness", "project", "approvalState", "reportingPeriod"]) ||
+  const { draft, highlights, livePath, powerpointBase64, digestHighlights } = value;
+  if (!object(draft) || !keys(draft, ["projectId", "asOf", "schedule", "updateFreshness", "project", "approvalState", "reportingPeriod"], ["digest"]) ||
       livePath !== `/?project=${projectId}` || typeof powerpointBase64 !== "string" || powerpointBase64.length > 160000 ||
       powerpointBase64.length % 4 !== 0 ||
       !/^UEsDB[A-Za-z0-9+/]+={0,2}$/u.test(powerpointBase64) ||
       !dense(highlights, 1, 4) || !highlights.every((line) => label(line, 400))) return null;
-  const { approvalState, project, reportingPeriod, ...facts } = draft;
+  const { approvalState, project, reportingPeriod, digest, ...facts } = draft;
   if (!object(project) || !keys(project, ["code", "name"]) ||
       ![project.code, project.name].every((value) =>
         typeof value === "string" && value.length <= 160 && label(value, 640))) return null;
   const answer = decodeProjectLeadershipAnswer({ ...facts, state: "ANSWERED", cause: "UNKNOWN" }, projectId);
   if (answer?.state !== "ANSWERED" || approvalState !== "DRAFT" || reportingPeriod !== answer.asOf.slice(0, 7)) return null;
+  if (digest !== undefined) {
+    if (!object(digest) || !keys(digest, ["previousReport", "decisions", "moreDecisions"]) ||
+        !dense(digestHighlights, 2, 8) ||
+        !digestHighlights.every((line) => typeof line === "string" && line.length <= 400 && label(line, 1600)) ||
+        typeof digest.moreDecisions !== "boolean" || !dense(digest.decisions, 0, 3) ||
+        !digest.decisions.every((decision) => object(decision) && keys(decision, ["key", "title"]) &&
+          typeof decision.key === "string" && decision.key.length <= 48 && label(decision.key, 192) &&
+          typeof decision.title === "string" && decision.title.length <= 160 && label(decision.title, 640))) return null;
+    const previous = digest.previousReport;
+    if (previous !== null && (!object(previous) || !keys(previous, ["snapshotId", "asOf", "schedule", "freshnessState"]) ||
+        !uuid(previous.snapshotId) || previous.snapshotId === value.snapshotId || !instant(previous.asOf) ||
+        Date.parse(previous.asOf) > Date.parse(answer.asOf) ||
+        (previous.schedule !== null && !decodeAtlasSchedule(previous.schedule)) ||
+        ![null, "CURRENT", "STALE"].some((state) => state === previous.freshnessState))) return null;
+  } else if (digestHighlights !== undefined) return null;
   const approval = value.approval;
   if (approval !== undefined) {
     if (!value.snapshotId || !object(approval) || !keys(approval, ["requestId", "requestedAt", "state", "decidedAt"]) ||

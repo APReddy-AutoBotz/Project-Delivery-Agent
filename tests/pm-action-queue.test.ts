@@ -70,6 +70,14 @@ describe("EXEC-026 PM queue composition", () => {
       key: approvalId, priority: "HIGH", category: "APPROVAL" });
     expect(decodePmQueue(JSON.parse(JSON.stringify(queue)))).toEqual(queue);
     expect(() => decodePmQueue({ ...queue, rankPolicyRevision: "pm-review-order@1" })).toThrow("Invalid action queue presentation");
+    const pendingProjectReport = { snapshotId: id(101), requestId: id(102), requestedAt: "2026-10-21T11:00:00.000Z" };
+    const combined = buildPmActionQueue([observationWithApproval, { ...observation(2), pendingProjectReport }]);
+    expect(combined.coverage.approvals).toBe("ATLAS_AND_PROJECT_REPORTS");
+    expect(combined.items.filter(({ category }) => category === "APPROVAL")).toEqual([queue.items[0],
+      { projectId: id(2), facet: "PROJECT_REPORT_APPROVAL", index: null, key: pendingProjectReport.requestId,
+        priority: "HIGH", category: "APPROVAL" }]);
+    expect(decodePmQueue(JSON.parse(JSON.stringify(combined)))).toEqual(combined);
+    expect(() => decodePmQueue({ ...combined, coverage: queue.coverage })).toThrow("Invalid action queue presentation");
   });
   it("does not accept fabricated pointers or ranking", () => {
     const result = buildPmActionQueue([observation(1, { update: true })]);

@@ -14,6 +14,14 @@ the displayed draft. A save retry during the same month reuses the
 latest matching fact set. The snapshot ID and original generation time appear
 in each channel.
 
+Use the requesting leader's most recent readable delivered report for a
+selected-project comparison. Freeze its canonical schedule dates and freshness state, and
+the current open canonical decisions with the new report. Recheck both reports'
+evidence for each viewer before opening or sharing the digest. Render that context
+in the project view, leadership email preview and editable PowerPoint. Show
+when a comparison is unavailable, and link the preview to the authenticated
+project. Older saved snapshots retain their original content.
+
 Access to a saved draft requires the current project leadership grant and the
 same author. Recheck the exact saved freshness assessment and its sources on
 every read. If the historical proof is unavailable, withhold the snapshot.

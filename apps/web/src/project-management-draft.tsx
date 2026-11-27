@@ -22,6 +22,10 @@ function DraftSummary({ report }: { report: ProjectManagementDraftOutput }) {
     {report.approval?.decidedAt && <p>Decision recorded {report.approval.decidedAt} (UTC)</p>}
     {report.delivery && <p>Delivered in-app at {report.delivery.deliveredAt} (UTC). Receipt {report.delivery.id}</p>}
     <ul>{report.highlights.map((highlight) => <li key={highlight}>{highlight}</li>)}</ul>
+    {report.digestHighlights && <>
+      <h3>Changes and open decisions</h3>
+      <ul>{report.digestHighlights.map((highlight) => <li key={highlight}>{highlight}</li>)}</ul>
+    </>}
   </>;
 }
 

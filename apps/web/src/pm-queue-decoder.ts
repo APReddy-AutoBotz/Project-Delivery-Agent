@@ -133,6 +133,13 @@ export function decodePmQueue(value: unknown): PmActionQueue {
       expected.push({ projectId, facet: "ATLAS_APPROVAL", index: null, key: identifier(approval.approvalId),
         priority: "HIGH", category: "APPROVAL" });
     }
+    if (project.pendingProjectReport !== undefined) {
+      const report = object(project.pendingProjectReport);
+      identifier(report.snapshotId);
+      instant(report.requestedAt);
+      expected.push({ projectId, facet: "PROJECT_REPORT_APPROVAL", index: null, key: identifier(report.requestId),
+        priority: "HIGH", category: "APPROVAL" });
+    }
     const schedule = object(project.schedule), update = object(project.update);
     const blocker = decodeBlockerAge(project.blockerAge, projectId, "project_manager");
     if (rankBlockers && blocker.items.length) {
@@ -192,16 +199,19 @@ export function decodePmQueue(value: unknown): PmActionQueue {
       }
     } else if (update.availability !== "UNCONFIGURED") fail();
   }
-  const hasApproval = expected.some(({ facet }) => facet === "ATLAS_APPROVAL");
+  const atlas = expected.some(({ facet }) => facet === "ATLAS_APPROVAL");
+  const reports = expected.some(({ facet }) => facet === "PROJECT_REPORT_APPROVAL");
+  const approvals = atlas ? (reports ? "ATLAS_AND_PROJECT_REPORTS" : "ATLAS_DEMO_ONLY") : (reports ? "PROJECT_REPORTS" : "UNAVAILABLE");
   if ((rankBlockers ? !expected.some(({ facet }) => facet === "BLOCKER_AGE") :
-    queue.rankPolicyRevision !== (hasApproval ? "pm-review-order@2" : "pm-review-order@1")) ||
-      coverage.approvals !== (hasApproval ? "ATLAS_DEMO_ONLY" : "UNAVAILABLE")) fail();
+    queue.rankPolicyRevision !== (approvals === "UNAVAILABLE" ? "pm-review-order@1" : "pm-review-order@2")) ||
+      coverage.approvals !== approvals) fail();
   expected.sort(comparePointers);
   const actual = array(queue.items, 500);
   if (actual.length + uncountedBlockers > 500) fail();
   if (actual.length !== expected.length) fail();
   for (const [index, value] of actual.entries()) {
-    const item = object(value), projectId = identifier(item.projectId), facet = oneOf(item.facet, ["SCHEDULE", "UPDATE", "ATLAS_APPROVAL", "BLOCKER_AGE"] as const);
+    const item = object(value), projectId = identifier(item.projectId), facet = oneOf(item.facet,
+      ["SCHEDULE", "UPDATE", "ATLAS_APPROVAL", "PROJECT_REPORT_APPROVAL", "BLOCKER_AGE"] as const);
     const priority = oneOf(item.priority, priorities), category = oneOf(item.category, categories), key = string(item.key);
     if (facet === "SCHEDULE") integer(item.index);
     else if (item.index !== null) fail();

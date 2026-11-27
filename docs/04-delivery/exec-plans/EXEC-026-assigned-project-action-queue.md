@@ -28,6 +28,12 @@ preserves the shared locks and membership checks of the general queue.
 The item reserves no approval, and the review screen checks access and expiry
 again. Show the demo coverage on the queue while there is a visible item.
 
+Each assigned project can also show its latest readable pending report approval.
+Read the existing report queue inside the assigned-project transaction. Rank
+the request with the current approval priority and link to the project review.
+Project and saved report evidence grants still apply. Use the original comment
+approval surface for the synthetic Atlas project.
+
 ## Authorization, consistency and bounds under review
 
 The endpoint accepts no project IDs or actor/evidence/time inputs. The server

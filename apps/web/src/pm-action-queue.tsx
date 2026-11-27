@@ -16,6 +16,12 @@ import { createPreviewRequestFactory } from "./pm-preview-request.js";
 // An unknown local cleanup conservatively keeps the page's slot occupied.
 const queueReads = new ManagedReadRegistry(1);
 const previewReads = new ManagedReadRegistry(2);
+const approvalCoverageText = {
+  UNAVAILABLE: " Approvals and other categories are unavailable.",
+  ATLAS_DEMO_ONLY: " Includes the pending Atlas demo approval. Other categories are unavailable.",
+  PROJECT_REPORTS: " Includes pending project report approvals.",
+  ATLAS_AND_PROJECT_REPORTS: " Includes pending project report approvals and the Atlas demo approval.",
+};
 
 // EXEC-026: a bounded observation of assigned projects, not a complete queue.
 export function PmActionQueuePanel({ scope, subject, request, openProject, openRequest, previewInvalidate, isCurrentPreviewSession }: {
@@ -108,8 +114,7 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
         <span className="eyebrow">ASSIGNED PROJECTS</span>
         <h2 id="pm-action-queue-heading">Action suggestions</h2>
         <p className="muted">Schedule, update information and source-authorized blocker-age review.
-          {queue?.coverage.approvals === "ATLAS_DEMO_ONLY" ? " Includes the pending Atlas demo approval. Other categories are unavailable."
-            : " Approvals and other categories are unavailable."}
+          {approvalCoverageText[queue?.coverage.approvals ?? "UNAVAILABLE"]}
           Schedule suggestions do not assess source authority. Each observation has its own evaluation time; access and data can change.</p>
       </div>
       <Button className="secondary" onClick={() => {
@@ -129,9 +134,10 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
           const schedule = pointer.facet === "SCHEDULE" ? project.schedule.items[pointer.index] : undefined;
           const update = pointer.facet === "UPDATE" && project.update.availability === "AVAILABLE" ? project.update : undefined;
           const atlasApproval = pointer.facet === "ATLAS_APPROVAL" ? project.pendingAtlasApproval : undefined;
+          const report = pointer.facet === "PROJECT_REPORT_APPROVAL" ? project.pendingProjectReport : undefined;
           const blockerAge = pointer.facet === "BLOCKER_AGE" ? project.blockerAge : undefined;
           const item = schedule ?? update?.suggestion;
-          if (!item && !atlasApproval && !blockerAge) return null;
+          if (!item && !atlasApproval && !report && !blockerAge) return null;
           return <article key={`${pointer.projectId}:${pointer.facet}:${pointer.key}`} className="rounded-lg border border-slate-200 p-4 space-y-2">
             <h3>{project.name} · {pointer.priority} · {pointer.category.replaceAll("_", " ")}</h3>
             {item && <>
@@ -140,6 +146,7 @@ export function PmActionQueuePanel({ scope, subject, request, openProject, openR
               <p><strong>Expected outcome:</strong> {item.expectedOutcome}</p>
             </>}
             {atlasApproval && <p>Review the pending comment for {atlasApproval.target}. The decision expires at {atlasApproval.expiresAt}.</p>}
+            {report && <p>Saved report {report.snapshotId} awaits your approval. Requested at {report.requestedAt} (UTC).</p>}
             {blockerAge && <BlockerAgeObservation facet={blockerAge} />}
             {schedule && <>
               <p className="muted">Schedule evaluated at {project.schedule.asOf}; rule {schedule.triggeringRule.key}@{schedule.triggeringRule.revision}.</p>

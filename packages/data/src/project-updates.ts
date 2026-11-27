@@ -2838,8 +2838,26 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       select: { code: true, name: true },
     });
     const facts = await this.currentProjectLeadershipFacts(tx, leader, projectId);
+    const prior = await this.latestDeliveredProjectReport(tx, leader, projectId, new Date(facts.asOf)).catch((error: unknown) => {
+      if (error instanceof ProjectUpdateError && error.code === "DENIED") return null;
+      throw error;
+    });
+    const previousReport = prior && prior.draft.asOf <= facts.asOf ? this.reportComparisonFacts(prior) : null;
+    const decisions = await tx.raidItem.findMany({
+      where: { customerId: leader.customerId, projectId, kind: "DECISION", state: { in: ["OPEN", "IN_PROGRESS"] },
+        project: { sealed: true } },
+      orderBy: { key: "asc" }, select: { key: true, title: true }, take: 4,
+    });
+    const visibleDecisions = decisions.slice(0, 3).map(({ key, title }) => ({
+      key, title: title.replace(/[\p{Cc}\p{Surrogate}]/gu, " ").trim() || "Title unavailable",
+    }));
     return projectManagementDraftSchema.parse({ ...facts, project,
-      approvalState: "DRAFT", reportingPeriod: facts.asOf.slice(0, 7) });
+      approvalState: "DRAFT", reportingPeriod: facts.asOf.slice(0, 7),
+      digest: { previousReport, decisions: visibleDecisions, moreDecisions: decisions.length > 3 } });
+  }
+
+  private reportComparisonFacts({ snapshotId, draft }: ProjectManagementSnapshot) {
+    return { snapshotId, asOf: draft.asOf, schedule: draft.schedule, freshnessState: draft.updateFreshness?.state ?? null };
   }
 
   async projectManagementDraft(actorValue: Actor, projectValue: string) {
@@ -2878,11 +2896,22 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       throw new ProjectUpdateError("DENIED");
   }
 
+  private async authorizeSavedReportInputs(tx: Tx, current: Actor, author: string, draft: ProjectManagementDraft) {
+    const { projectId, updateFreshness, digest } = draft;
+    if (updateFreshness) await this.authorizeSavedReportFreshness(tx, current, projectId, updateFreshness);
+    const comparison = digest?.previousReport;
+    if (comparison) {
+      const previous = await this.savedProjectManagementSnapshot(tx, current.customerId, projectId, author, comparison.snapshotId);
+      if (!previous || hash(this.reportComparisonFacts(previous)) !== hash(comparison)) throw new ProjectUpdateError("DENIED");
+      if (previous.draft.updateFreshness)
+        await this.authorizeSavedReportFreshness(tx, current, projectId, previous.draft.updateFreshness);
+    }
+  }
+
   private async readableProjectReport(tx: Tx, current: Actor, projectId: string, author: string, snapshotId?: string) {
     const saved = await this.savedProjectManagementSnapshot(tx, current.customerId, projectId, author, snapshotId);
     if (!saved) throw new ProjectUpdateError("DENIED");
-    if (saved.draft.updateFreshness)
-      await this.authorizeSavedReportFreshness(tx, current, projectId, saved.draft.updateFreshness);
+    await this.authorizeSavedReportInputs(tx, current, author, saved.draft);
     return saved;
   }
 
@@ -2900,7 +2929,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return { ...storedProjectReportRequest.parse(saved.detail), requestId: saved.id, author: saved.actor, requestedAt: iso(saved.occurredAt) };
   }
 
-  private async projectReportQueue(tx: Tx, manager: Actor, projectId: string) {
+  private async projectReportQueue(tx: Tx, manager: Actor, projectId: string, pendingOnly = false) {
     const saved = await tx.$queryRaw<ProjectReportRequestRow[]>`
       SELECT r.id,r.detail,r.actor,r."occurredAt"
       FROM public."AuditEvent" r
@@ -2918,6 +2947,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       ) e ON true
       WHERE r."customerId"=${manager.customerId}::uuid AND r.event=${projectReportRequestedEvent}
         AND r.detail->>'projectId'=${projectId} AND r.detail->>'approver'=${manager.subject}
+        AND (NOT ${pendingOnly}::boolean OR d."decidedAt" IS NULL)
       ORDER BY CASE WHEN d."decidedAt" IS NULL THEN 0 WHEN d.decision='APPROVED' AND e."deliveredAt" IS NULL THEN 1 ELSE 2 END,
         COALESCE(e."deliveredAt",d."decidedAt",r."occurredAt") DESC,r.id DESC`;
     return saved.map((row) => this.reportSubmissionFromRow(row));
@@ -2977,9 +3007,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       event, correlationId, detail, occurredAt }, select: { id: true } });
   }
 
-  private async latestDeliveredProjectReport(tx: Tx, leader: Actor, projectId: string) {
+  private async latestDeliveredProjectReport(tx: Tx, leader: Actor, projectId: string, asOf?: Date) {
     const receipts = await tx.auditEvent.findMany({
       where: { customerId: leader.customerId, event: projectReportDeliveredEvent,
+        ...(asOf && { occurredAt: { lte: asOf } }),
         AND: [{ detail: { path: ["projectId"], equals: projectId } },
           { detail: { path: ["recipient"], equals: leader.subject } }] },
       orderBy: [{ occurredAt: "desc" }, { id: "desc" }], select: { id: true, detail: true },
@@ -3018,7 +3049,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return this.transaction(async (tx) => {
       await this.authorize(tx, leader, projectId, false);
       await this.lockProjectCommand(tx, "project-report", [leader.customerId, projectId, leader.subject]);
-      const draft = await this.currentProjectManagementDraft(tx, leader, projectId);
+      const current = await this.currentProjectManagementDraft(tx, leader, projectId);
+      const { digest, ...legacyDraft } = current;
+      const draft = expected.digest === undefined ? legacyDraft : { ...legacyDraft, digest };
       if (hash({ ...expected, asOf: draft.asOf }) !== hash(draft)) throw new ProjectUpdateError("CONFLICT");
       const previous = await this.savedProjectManagementSnapshot(tx, leader.customerId, projectId, leader.subject);
       if (previous && hash({ ...previous.draft, asOf: draft.asOf }) === hash(draft))
@@ -3041,9 +3074,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (current.approval) return current;
       const approver = await this.assignedProjectManager(tx, leader.customerId, projectId);
       if (!approver || approver === leader.subject) throw new ProjectUpdateError("CONFLICT");
-      if (snapshot.draft.updateFreshness)
-        await this.authorizeSavedReportFreshness(tx, { ...leader, subject: approver, roles: ["project_manager"] },
-          projectId, snapshot.draft.updateFreshness);
+      await this.authorizeSavedReportInputs(tx, { ...leader, subject: approver, roles: ["project_manager"] }, leader.subject, snapshot.draft);
       const now = await this.now(tx), requestedAt = iso(now);
       if (requestedAt < snapshot.draft.asOf) throw new ProjectUpdateError("UNAVAILABLE");
       const { id } = await this.recordProjectAuditEvent(tx, leader, projectReportRequestedEvent, correlationId,
@@ -3058,10 +3089,28 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       throw new ProjectUpdateError("DENIED");
   }
 
+  async pendingProjectReportInTransaction(tx: Tx, actor: Actor, projectId: string, projectCode: string) {
+    if (this.atlasDemoEnabled && projectCode === atlasApprovalProjectCode) return null;
+    const manager = this.reportingActor(actor, "project_manager");
+    await this.authorizeReportManager(tx, manager, projectId);
+    for (const request of await this.projectReportQueue(tx, manager, projectId, true)) {
+      try {
+        const saved = await this.readableProjectReport(tx, manager, projectId, request.author, request.snapshotId);
+        if (request.requestedAt < saved.draft.asOf) throw new ProjectUpdateError("UNAVAILABLE");
+        const { approval } = await this.projectReportDecisionState(tx, manager.customerId, request);
+        if (approval.state === "PENDING")
+          return { snapshotId: saved.snapshotId, requestId: request.requestId, requestedAt: request.requestedAt };
+      } catch (error) {
+        if (!(error instanceof ProjectUpdateError) || error.code !== "DENIED") throw error;
+      }
+    }
+    return null;
+  }
+
   private async authorizeProjectReportRecipient(tx: Tx, manager: Actor, request: ProjectReportSubmission, draft: ProjectManagementDraft) {
     const recipient: Actor = { customerId: manager.customerId, subject: request.author, roles: ["leadership"] };
     await this.authorize(tx, recipient, draft.projectId, false);
-    if (draft.updateFreshness) await this.authorizeSavedReportFreshness(tx, recipient, draft.projectId, draft.updateFreshness);
+    await this.authorizeSavedReportInputs(tx, recipient, request.author, draft);
     return recipient;
   }
 
