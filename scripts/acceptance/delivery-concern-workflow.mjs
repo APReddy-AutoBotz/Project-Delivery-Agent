@@ -4,9 +4,17 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { canonicalFixture } from "./canonical-projects.mjs";
 
-export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openProject, screenshot }) {
+export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openProject, screenshot, configurationVariant }) {
   const fixture = canonicalFixture(portfolioId);
   fixture.name = "Synthetic delivery concern " + randomUUID().slice(0, 8);
+  if (configurationVariant) {
+    fixture.sourceMappings = fixture.sourceMappings.map((mapping) => ({
+      ...mapping, sourceSystem: configurationVariant.sourceSystem,
+      externalId: configurationVariant.mappingPrefix + mapping.externalId,
+    }));
+    fixture.responsibilities = fixture.responsibilities.map((assignment) => assignment.role === "PROJECT_MANAGER"
+      ? { ...assignment, subject: configurationVariant.reportApprover } : assignment);
+  }
   fixture.raidItems = fixture.raidItems.map((entry, index) => ({
     ...entry, state: index < 2 ? "OPEN" : "COMPLETE",
   }));
@@ -17,6 +25,14 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
   const canonical = await api(project + "/canonical");
   expect(canonical.status()).toBe(200);
   const configuration = await canonical.json();
+  if (configurationVariant) {
+    expect(configuration.sourceMappings).toHaveLength(fixture.sourceMappings.length);
+    for (const mapping of fixture.sourceMappings) {
+      expect(configuration.sourceMappings).toContainEqual(expect.objectContaining({
+        sourceSystem: mapping.sourceSystem, externalId: mapping.externalId, targetType: mapping.targetType,
+      }));
+    }
+  }
   const milestone = configuration.milestones[0];
   const blockers = configuration.raidItems.filter((item) => item.state === "OPEN");
   expect(blockers).toHaveLength(2);
@@ -66,20 +82,45 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
 
   const updateType = "project.forecast";
   const update = await addFact(updateType, { type: "text", value: "Synthetic forecast update" });
-  const freshnessBoundary = performance.now() + 1100;
-  expect((await api(project + "/project-update-policy", "POST", {
+  const freshnessSeconds = configurationVariant?.freshnessSeconds ?? 1;
+  const freshnessBoundary = performance.now() + freshnessSeconds * 1000 + 100;
+  const escalationDays = configurationVariant?.escalationDays ?? 0;
+  const escalationSubject = escalationDays
+    ? fixture.responsibilities.find(({ role }) => role === "PROJECT_MANAGER").subject : null;
+  if (configurationVariant) {
+    for (const [subject, role] of [[configurationVariant.reportApprover, "project_manager"],
+      [configurationVariant.reportAuthor, "leadership"]]) {
+      expect((await api("/access-grants", "POST", {
+        subject, scopeType: "project", scopeId: projectId, role,
+      })).status()).toBe(204);
+    }
+  }
+  const updatePolicyPath = project + "/project-update-policy";
+  const updatePolicy = {
     expectedRevision: 0,
-    freshnessWindowSeconds: 1,
+    freshnessWindowSeconds: freshnessSeconds,
     timeZone: "UTC",
-    requiredFacts: [{ factType: updateType, label: "Current forecast" }],
+    requiredFacts: [{ factType: updateType, label: configurationVariant?.forecastLabel ?? "Current forecast" }],
     responsibleSubject: "synthetic-owner-4",
     scheduledScanEnabled: false,
-    reminderBusinessDayOffsets: [],
-    escalationAfterBusinessDays: 0,
-    escalationRecipientSubject: null,
+    reminderBusinessDayOffsets: escalationDays ? [1] : [],
+    escalationAfterBusinessDays: escalationDays,
+    escalationRecipientSubject: escalationSubject,
     quietHoursStartLocal: null,
     quietHoursEndLocal: null,
-  })).status()).toBe(200);
+  };
+  if (configurationVariant) {
+    const invalid = await api(updatePolicyPath, "POST", { ...updatePolicy, timeZone: "Invalid/Customer-Time" });
+    expect(invalid.status()).toBe(400);
+  }
+  const savedUpdatePolicy = await api(updatePolicyPath, "POST", updatePolicy);
+  expect(savedUpdatePolicy.status()).toBe(200);
+  const confirmedUpdatePolicy = await savedUpdatePolicy.json();
+  expect(confirmedUpdatePolicy).toMatchObject({
+    revision: 1, freshnessWindowSeconds: freshnessSeconds, requiredFacts: updatePolicy.requiredFacts,
+    reminderBusinessDayOffsets: updatePolicy.reminderBusinessDayOffsets, escalationAfterBusinessDays: escalationDays,
+    escalationRecipientSubject: escalationSubject,
+  });
   await addFact("project.open_blocker_inventory_complete", { type: "boolean", value: true });
   for (const blocker of blockers) {
     await addFact(`raid_item.${blocker.id}.blocks_delivery`, { type: "boolean", value: true });
@@ -91,6 +132,9 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
   const targetField = policyRegion.getByLabel("Critical delivery targets (JSON)");
   await expect(targetField).toHaveValue("null");
   await targetField.fill(JSON.stringify(criticalTargets));
+  const overdueDays = configurationVariant?.overdueDays ?? 1;
+  if (configurationVariant)
+    await policyRegion.getByLabel("Default overdue threshold (local calendar days)").fill(String(overdueDays));
   const policyPath = project + "/schedule-health-policy";
   const savedPolicy = page.waitForResponse((response) =>
     response.url().endsWith(policyPath) && response.request().method() === "POST",
@@ -100,7 +144,8 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
   expect(policyResponse.status()).toBe(200);
   const policy = await policyResponse.json();
   expect(policy.criticalTargets).toEqual(criticalTargets);
-  await expect.poll(() => performance.now(), { timeout: 2500 }).toBeGreaterThan(freshnessBoundary);
+  expect(policy.defaultMinimumOverdueDays).toBe(overdueDays);
+  await expect.poll(() => performance.now(), { timeout: freshnessSeconds * 1000 + 1500 }).toBeGreaterThan(freshnessBoundary);
 
   const assessmentPath = project + "/health-assessments";
   const saved = page.waitForResponse((response) =>
@@ -146,7 +191,7 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
   }
   expect(concern.objectiveSignals).toContainEqual(expect.objectContaining({
     kind: "OVERDUE_MILESTONE", state: "ACTIVE", targetSource: expect.objectContaining({ recordId: milestone.id }),
-    rule: expect.objectContaining({ parameters: expect.arrayContaining([{ name: "minimumOverdueDays", value: 1 }]) }),
+    rule: expect.objectContaining({ parameters: expect.arrayContaining([{ name: "minimumOverdueDays", value: overdueDays }]) }),
     sourceFacts: expect.arrayContaining([expect.objectContaining({ field: "selectedDueDate", value: fixture.milestones[0]?.dates.forecastEnd })]),
   }));
   expect(concern.objectiveSignals).toContainEqual(expect.objectContaining({
@@ -203,6 +248,10 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
     ruleRevision: assessment.ruleRevision,
     envelopeHash: assessment.envelopeHash,
     criticalTargetsPolicyRevision: policy.revision,
+    ...(configurationVariant && { configuration: {
+      sourceSystem: configurationVariant.sourceSystem, mappingPrefix: configurationVariant.mappingPrefix,
+      forecastLabel: confirmedUpdatePolicy.requiredFacts[0].label, freshnessSeconds, escalationDays, overdueDays,
+    } }),
   };
 }
 

@@ -12,7 +12,7 @@ import {
   verifyScalarProjectWithdrawal,
 } from "./scalar-reconciliation-workflow.mjs";
 import { Pool, secret } from "./common.mjs";
-import { createDatabase, DatabaseIngestionRepository } from "../../packages/data/dist/index.js";
+import { createDatabase, DatabaseIngestionRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
 import { randomUUID } from "node:crypto";
 import { verifyScalarCommandRaces } from "./scalar-reconciliation-races.mjs";
 import { verifyScalarAccessRaces } from "./scalar-access-races.mjs";
@@ -135,6 +135,16 @@ const csvComparisonTables=["IngestionCsvHead","IngestionCsvContext"];
 const scheduleHealthPolicyTables = ["ScheduleHealthPolicyRevision"];
 const profile = env.PDAA_CUSTOMER_PROFILE;
 assert(["bundled", "external"].includes(profile));
+const reportApprovers = { bundled: "synthetic-delivery-report-pm", external: "synthetic-programme-report-pm" };
+const configurationVariant = {
+  ...(profile === "bundled"
+    ? { sourceSystem: "Delivery tracker", mappingPrefix: "delivery-", forecastLabel: "Forecast update",
+      freshnessSeconds: 1, escalationDays: 0, overdueDays: 1 }
+    : { sourceSystem: "Programme tracker", mappingPrefix: "programme-", forecastLabel: "Finish outlook",
+      freshnessSeconds: 2, escalationDays: 3, overdueDays: 4 }),
+  reportApprover: reportApprovers[profile],
+  reportAuthor: "synthetic-configuration-report-leader",
+};
 assert.equal(env.PDAA_ACCEPTANCE, "customer-composition");
 assert.equal(env.NODE_ENV, "production");
 assert.equal(env.DEPLOYMENT_MODE, "customer");
@@ -204,6 +214,29 @@ async function projection(pool) {
       await pool.query(`SELECT * FROM "${table}" t ORDER BY ${csvComparisonTables.includes(table) ? 'to_jsonb(t)::text COLLATE "C"' : '1'}`)
     ).rows;
   return JSON.parse(JSON.stringify(result));
+}
+
+async function verifyConfiguredReportRouting(projectId) {
+  const runtime = createDatabase(loadDatabaseConfig({
+    ...env, PDAA_DB_USER: "pdaa_api", PDAA_DB_PASSWORD_FILE: "/run/secrets/api-password",
+  }).database);
+  try {
+    const reports = new DatabaseProjectUpdateRepository(runtime);
+    const leader = { customerId: env.CUSTOMER_ID, subject: configurationVariant.reportAuthor, roles: ["leadership"] };
+    const manager = { customerId: env.CUSTOMER_ID, subject: configurationVariant.reportApprover, roles: ["project_manager"] };
+    const draft = await reports.projectManagementDraft(leader, projectId);
+    const saved = await reports.saveProjectManagementSnapshot(leader, projectId, draft, randomUUID());
+    const submitted = await reports.requestProjectReportApproval(leader, projectId, saved.snapshotId, randomUUID());
+    const review = await reports.projectReportForManager(manager, projectId, saved.snapshotId);
+    assert.equal(review.snapshotId, saved.snapshotId);
+    assert.equal(review.approval.state, "PENDING");
+    assert.equal(review.approval.requestId, submitted.approval.requestId);
+    const other = reportApprovers[profile === "bundled" ? "external" : "bundled"];
+    await assert.rejects(reports.projectReportForManager({ ...manager, subject: other }, projectId, saved.snapshotId), { code: "DENIED" });
+    return { approver: manager.subject, snapshotId: saved.snapshotId, requestId: review.approval.requestId };
+  } finally {
+    await runtime.$disconnect();
+  }
 }
 // Complete immutable/canonical controls; exclude only unrelated live worker clocks.
 async function csvCanonicalSnapshot(pool) {
@@ -492,6 +525,7 @@ async function browserCheck(afterUpgrade) {
         const receipt = await exerciseDeliveryConcernWorkflow({
           portfolioId: "20000000-0000-4000-8000-000000000003",
           screenshot: `${output}/golden-002-delivery-concern.png`,
+          configurationVariant,
           async api(path, method = "GET", data) {
             const response = await pmo.context.request.fetch(base + "/api" + path, {
               method,
@@ -511,6 +545,9 @@ async function browserCheck(afterUpgrade) {
         save("golden-002-delivery-concern", {
           ...receipt, storageHash: await deliveryConcernStorageHash(db, env.CUSTOMER_ID, receipt),
           status: "passed", restoreVerified: false,
+        });
+        save("customer-configuration-variant", {
+          ...receipt.configuration, report: await verifyConfiguredReportRouting(receipt.projectId),
         });
       } finally {
         if (pmoBrowser) await closeCustomerBrowserSession(pmoBrowser, base);
@@ -689,7 +726,7 @@ try {
     } finally { await csvRuntime.$disconnect(); }
     await browserCheck(false);
     const state = await projection(db);
-    assert.equal(state.AccessGrant.length, 4);
+    assert.equal(state.AccessGrant.length, 6);
     assert(state.AuditEvent.length > 0);
     const fixture = await seedProjectFactHistory(
       db,
