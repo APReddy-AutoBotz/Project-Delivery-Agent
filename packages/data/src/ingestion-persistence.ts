@@ -2434,22 +2434,26 @@ export class DatabaseIngestionRepository implements IngestionRepository {
     });
   }
 
-  async readReceipt(actorInputValue: Actor, input: { sourceId: string; receiptId: string }) {
+  async readReceipt(actorInputValue: Actor, input: { sourceId: string; receiptId: string },
+    existing?: { transaction: Tx; projectId: string }) {
     const actor = parseActor(actorInputValue);
     const request = parseIngestion(ingestionReceiptReadSchema, input);
     const sourceId = uuid(request.sourceId);
     const receiptId = uuid(request.receiptId);
     return this.run(actor, "receipt_read", "ingestion.receipt.read", "PERSISTENCE_FAILED", async () => {
-      const header = await this.db.$queryRaw<{ configRevision: number; kind: string }[]>`
+      const reader = existing?.transaction ?? this.db;
+      const header = await reader.$queryRaw<{ configRevision: number; kind: string }[]>`
         SELECT "configRevision",kind FROM public."IngestionOperationReceipt"
         WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND id=${receiptId}::uuid AND kind NOT IN ('XLSX_PREVIEW','XLSX_REVIEWED_IMPORT')`;
       if (!header[0]) throw new IngestionPersistenceError("DENIED");
-      const originalScope = await this.db.$queryRaw<{ projectId: string }[]>`
+      const originalScope = await reader.$queryRaw<{ projectId: string }[]>`
         SELECT "projectId" FROM public."IngestionConfigurationProject"
         WHERE "customerId"=${actor.customerId}::uuid AND "sourceId"=${sourceId}::uuid AND "configRevision"=${header[0].configRevision}
         ORDER BY "projectId"`;
       const originalProjectIds = originalScope.map((row) => row.projectId);
-      return this.db.$transaction(async (tx) => {
+      if (existing && (originalProjectIds.length !== 1 || originalProjectIds[0] !== existing.projectId))
+        throw new IngestionPersistenceError("DENIED");
+      const read = async (tx: Tx) => {
         await authorizeIngestionProjects(tx, actor, originalProjectIds, "read");
         const source = await this.currentSource(tx, actor.customerId, sourceId, "SHARE");
         const config = await this.currentConfiguration(tx, source);
@@ -2522,8 +2526,42 @@ export class DatabaseIngestionRepository implements IngestionRepository {
             };
           }),
         });
-      }, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
+      };
+      return existing ? read(existing.transaction)
+        : this.db.$transaction(read, { isolationLevel: "ReadCommitted", maxWait: 5000, timeout: 30000 });
     });
+  }
+
+  // The caller holds the exact project gate before composing a receipt into evidence.
+  async readReviewedCsvRow(tx: Tx, actor: Actor, input: {
+    projectId: string; origin: string; sheet: string; rowKey: string; receiptId?: string; sourceId?: string;
+  }) {
+    const { projectId, origin, sheet, rowKey } = input;
+    const recordKey = csvIdentityKey(sheet, rowKey);
+    const recordType = csvType(sheet);
+    const rows = await tx.$queryRaw<{ sourceId: string; receiptId: string; availableUntil: Date }[]>`
+      SELECT r."sourceId", r.id AS "receiptId",
+        v."receivedAt"+make_interval(hours=>p."retentionHours") AS "availableUntil"
+      FROM public."IngestionOperationReceipt" r
+      JOIN public."IngestionSource" s ON (s."customerId",s.id)=(r."customerId",r."sourceId")
+      JOIN public."IngestionRowOutcome" o ON (o."customerId",o."sourceId",o."receiptId")=(r."customerId",r."sourceId",r.id)
+      JOIN public."IngestionSourceRevision" v ON (v."customerId",v."sourceId",v."recordId",v.id)=
+        (o."customerId",o."sourceId",o."recordId",o."sourceRevisionId")
+      JOIN public."IngestionRetentionPolicy" p ON p."customerId"=r."customerId"
+      WHERE r."customerId"=${actor.customerId}::uuid AND r.kind='CSV_REVIEWED_IMPORT'
+        AND s."sourceType"='csv' AND s.origin=${origin} AND o."projectId"=${projectId}::uuid
+        AND o."recordKey"=${recordKey} AND o.state='ACCEPTED'
+        AND (${input.sourceId ?? null}::uuid IS NULL OR r."sourceId"=${input.sourceId ?? null}::uuid)
+        AND (${input.receiptId ?? null}::uuid IS NULL OR r.id=${input.receiptId ?? null}::uuid)
+      ORDER BY r.id LIMIT 2`;
+    if (rows.length !== 1) return null;
+    const { sourceId, receiptId, availableUntil } = rows[0]!;
+    const result = await this.readReceipt(actor, { sourceId, receiptId }, { transaction: tx, projectId });
+    const accepted = result.outcomes.filter((row) => row.projectId === projectId && row.state === "ACCEPTED" &&
+      row.identity?.[0] === recordType && row.identity[1] === recordKey);
+    if (result.receipt.kind !== "CSV_REVIEWED_IMPORT" || accepted.length !== 1 || !accepted[0]?.proposals)
+      return null;
+    return { sourceId, receiptId, availableUntil, reviewedAt: result.receipt.createdAt, proposals: accepted[0].proposals };
   }
 
   private async authorizeSystemAdministrator(tx: Tx, actor: Actor) {

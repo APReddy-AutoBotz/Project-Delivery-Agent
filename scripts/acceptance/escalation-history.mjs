@@ -4,7 +4,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseHealthAssessmentRepository, DatabaseIngestionRepository, DatabaseProjectFactRepository,
   DatabaseAuthorityRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
-import { atlasApprovalProjectCode, atlasIntegrationMilestoneKey, atlasJiraBlockerKey,
+import { atlasApprovalProjectCode, atlasIntegrationMilestoneKey, atlasJiraBlockerKey, atlasSpreadsheetOrigin, atlasSpreadsheetRow,
   renderProjectUpdateCapture } from "../../packages/domain/dist/index.js";
 import { canonicalFixture } from "./canonical-projects.mjs";
 import { CredentialVault } from "../../packages/platform/dist/index.js";
@@ -84,6 +84,11 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
         sourceSystem: "Jira", instanceKey: "atlas-demo", externalType: "issue", externalId: jiraIssue.key,
         externalRevision: jiraIssue.fields.updated, url: jiraOrigin + "/browse/" + jiraIssue.key,
         targetType: "RAID_ITEM", targetKey: jiraIssue.key,
+      });
+      canonical.sourceMappings.push({
+        sourceSystem: "Portfolio CSV", instanceKey: "atlas-demo", externalType: "spreadsheet:Portfolio",
+        externalId: atlasSpreadsheetRow, externalRevision: null, url: atlasSpreadsheetOrigin + "/atlas-portfolio.csv",
+        targetType: "PROJECT", targetKey: null,
       });
     }
     canonical.responsibilities = canonical.responsibilities.map((entry) =>

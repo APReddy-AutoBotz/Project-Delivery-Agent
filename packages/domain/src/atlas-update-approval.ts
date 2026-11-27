@@ -7,6 +7,8 @@ import { projectReportApprovalRequestSchema, projectReportDecisionSchema, projec
 export const atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
 export const atlasIntegrationMilestoneKey = "INTEGRATION-TESTING";
 export const atlasJiraBlockerKey = "ATLAS-248";
+export const atlasSpreadsheetOrigin = "https://atlas-spreadsheet.example.test";
+export const atlasSpreadsheetRow = "ATLAS-DELIVERY";
 export const atlasCommentTemplate = "atlas-comment@1";
 export const atlasAccessStatusSchema = z.enum(["ACCESS_PENDING", "ACCESS_RESTORED"]);
 export const atlasSuggestionStatusSchema = z.enum(["ACCESS_PENDING", "ACCESS_RESTORED", "NEEDS_CLARIFICATION"]);
@@ -79,10 +81,17 @@ export const atlasApprovalViewSchema = z.strictObject({
 });
 export type AtlasApprovalView = z.infer<typeof atlasApprovalViewSchema>;
 
+export const atlasScheduleCitationSchema = z.strictObject({
+  sourceId: z.uuid(),
+  receiptId: z.uuid(),
+  reviewedAt: z.iso.datetime(),
+  availableUntil: z.iso.datetime(),
+});
 export const atlasLeadershipFactsSchema = z.strictObject({
   projectId: z.uuid(),
   asOf: z.iso.datetime(),
   schedule: atlasScheduleSchema.nullable(),
+  scheduleCitation: atlasScheduleCitationSchema.optional(),
   ownerReply: z.strictObject({
     responseId: z.uuid(),
     receivedAt: z.iso.datetime(),

@@ -471,6 +471,8 @@ const atlasApprovalFixture = {
 const atlasLeadershipFixture = {
   projectId: project.id, asOf: "2026-10-01T12:03:00.000Z",
   schedule: { revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 },
+  scheduleCitation: { sourceId: project.id, receiptId: project.id,
+    reviewedAt: "2026-10-01T12:00:00.000Z", availableUntil: "2026-10-02T12:00:00.000Z" },
   ownerReply: { responseId: project.id, receivedAt: "2026-10-01T12:01:00.000Z",
     availableUntil: "2026-10-02T12:00:00.000Z", accessStatus: "ACCESS_PENDING" as const },
   receipt: { id: project.id, approvalId: project.id, target: "ATLAS-248" as const,
