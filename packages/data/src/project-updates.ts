@@ -2434,26 +2434,31 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     });
   }
 
-  private async pendingAtlasDelayClarification(tx: Tx, current: Actor, projectId: string, audience: "pm" | "leadership") {
-    const approved = await this.loadAtlasApproval(tx, current, projectId, audience);
+  private async atlasDelayClarificationState(tx: Tx, current: Actor, projectId: string, schedule: AtlasSchedule, audience: "pm" | "leadership") {
     const configuration = this.captureConfiguration(current.customerId);
     if (!configuration || !await this.captureGate(tx, current.customerId, configuration)) return null;
-    const schedule = await this.atlasSchedule(tx, current.customerId, projectId);
-    if (!schedule || (schedule.movementDays ?? 0) <= 0) return null;
-    if (approved?.view.receipt && (await this.atlasDelayReview(tx, current.customerId, projectId,
-      approved.view, approved.captureIssuanceEpoch, schedule))?.assessment) return null;
     const pm = (await this.loadPolicy(tx, current.customerId, projectId))?.escalationRecipientSubject;
     if (!pm || (audience === "pm" && pm !== current.subject) ||
         !await this.recipientAuthorized(tx, current.customerId, projectId, pm, "PROJECT_MANAGER"))
       return null;
     const saved = await this.findAtlasDelayClarification(tx, current.customerId, projectId, pm, schedule.revision, configuration.issuanceEpoch);
-    if (saved && await tx.auditEvent.findFirst({
+    const closed = saved && await tx.auditEvent.findFirst({
       where: { customerId: current.customerId, actor: pm, event: atlasDelayConfirmedEvent,
         detail: { path: ["clarificationId"], equals: saved.id } },
       select: { id: true },
-    })) return null;
-    return { pm, schedule, clarification: saved
+    });
+    return { pm, schedule, closed: Boolean(closed), clarification: saved
       ? atlasDelayClarificationSchema.parse({ id: saved.id, requestedAt: iso(saved.occurredAt), schedule }) : null };
+  }
+
+  private async pendingAtlasDelayClarification(tx: Tx, current: Actor, projectId: string, audience: "pm" | "leadership") {
+    const approved = await this.loadAtlasApproval(tx, current, projectId, audience);
+    const schedule = await this.atlasSchedule(tx, current.customerId, projectId);
+    if (!schedule || (schedule.movementDays ?? 0) <= 0) return null;
+    if (approved?.view.receipt && (await this.atlasDelayReview(tx, current.customerId, projectId,
+      approved.view, approved.captureIssuanceEpoch, schedule))?.assessment) return null;
+    const state = await this.atlasDelayClarificationState(tx, current, projectId, schedule, audience);
+    return state?.closed ? null : state;
   }
 
   async atlasDelayClarification(actorValue: Actor, projectValue: string) {
@@ -2634,6 +2639,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (priorId && !prior) throw new ProjectUpdateError("DENIED");
       if (prior) await this.authorizeAtlasReportOrigin(tx, current, prior, "leadership");
       const updateFreshness = await this.atlasUpdateFreshness(tx, current, projectId);
+      const clarification = !answer.delayAssessment && answer.schedule && (answer.schedule.movementDays ?? 0) > 0
+        ? await this.atlasDelayClarificationState(tx, current, projectId, answer.schedule, "leadership") : null;
+      const delayClarificationState = !clarification ? undefined
+        : clarification.closed ? "RESOLVED" : clarification.clarification ? "REQUESTED" : "AVAILABLE";
       const assessedAt = await this.now(tx);
       const blocker = answer.schedule ? await this.atlasJiraBlocker(tx, current, projectId, assessedAt) : null;
       const asOf = iso(assessedAt);
@@ -2642,7 +2651,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if ((answer.ownerReply && answer.ownerReply.availableUntil <= asOf) ||
           (prior && (prior.facts.ownerReply.availableUntil <= asOf || prior.facts.asOf > asOf)))
         throw new ProjectUpdateError("DENIED");
-      return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness,
+      return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness, delayClarificationState,
         integrationStart: milestone?.plannedStart && milestone.actualStart && milestone.actualStart > milestone.plannedStart
           ? { milestoneId: milestone.id, planned: iso(milestone.plannedStart).slice(0, 10),
             actual: iso(milestone.actualStart).slice(0, 10) } : null,

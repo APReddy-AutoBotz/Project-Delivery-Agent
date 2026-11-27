@@ -211,7 +211,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const unknown = await request.get(answerPath, { headers: leaderHeaders });
   expect(unknown.status()).toBe(200);
   const unknownFacts = await unknown.json();
-  expect(unknownFacts).toMatchObject({ delayAssessment: null, receipt });
+  expect(unknownFacts).toMatchObject({ delayAssessment: null, receipt, delayClarificationState: "AVAILABLE" });
   const delayClarificationPath = projectPath + "/atlas-delay-clarification";
   const clarificationCommand = { scheduleRevision: unknownFacts.schedule.revision };
   expect((await request.post(delayClarificationPath, { headers: managerHeaders, data: clarificationCommand })).status()).toBe(404);
@@ -499,7 +499,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const pending = await request.get(answerPath, { headers: leaderHeaders });
   expect(pending.status()).toBe(200);
   const pendingAnswer = await pending.json();
-  expect(pendingAnswer).toMatchObject({ ownerReply: null, receipt: null });
+  expect(pendingAnswer).toMatchObject({ ownerReply: null, receipt: null, delayClarificationState: "RESOLVED" });
   expect(pendingAnswer.updateFreshness).not.toHaveProperty("activeClarification");
   const afterReplacement = await request.get(delayClarificationPath, { headers: managerHeaders });
   expect(afterReplacement.status()).toBe(200);
@@ -631,6 +631,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(access.getByRole("cell", { name: "Pending" })).toBeVisible();
   await expect(access.getByRole("cell", { name: "Restored" })).toBeVisible();
   await expect(changes).toContainText(snapshot.id);
+  await answer.getByText("Draft a question for the assigned PM", { exact: true }).click();
+  await expect(answer).toContainText("The request for this schedule has been answered.");
+  await expect(answer.getByRole("button", { name: "Ask the assigned PM", includeHidden: true })).toHaveCount(0);
 
   await leaderAccess(false);
   expect((await request.get(answerPath, { headers: leaderHeaders })).status()).toBe(404);

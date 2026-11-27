@@ -177,9 +177,11 @@ function decodeAtlasLeadershipFacts(value: unknown, projectId: string): AtlasLea
 
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
-  const { integrationStart, jiraBlocker, pmEscalation, priorSnapshot, updateFreshness, ...facts } = value;
+  const { integrationStart, jiraBlocker, pmEscalation, priorSnapshot, updateFreshness, delayClarificationState, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer) return null;
+  if (delayClarificationState !== undefined && (!answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 || answer.delayAssessment ||
+      typeof delayClarificationState !== "string" || !["AVAILABLE", "REQUESTED", "RESOLVED"].includes(delayClarificationState))) return null;
   if (updateFreshness !== null && updateFreshness !== undefined && (!object(updateFreshness) ||
       !keys(updateFreshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "openObligation"], ["activeClarification"]) ||
       (updateFreshness.state !== "CURRENT" && updateFreshness.state !== "STALE") ||

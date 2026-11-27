@@ -101,6 +101,7 @@ export const atlasLeadershipFactsSchema = z.strictObject({
 });
 export type AtlasLeadershipFacts = z.infer<typeof atlasLeadershipFactsSchema>;
 export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
+  delayClarificationState: z.enum(["AVAILABLE", "REQUESTED", "RESOLVED"]).optional(),
   updateFreshness: projectUpdateAssessmentViewSchema.shape.freshness.pick({
     state: true, assessedAt: true, sourceDate: true, sourceDateField: true,
   }).extend({

@@ -39826,6 +39826,14 @@
                       ],
                       "additionalProperties": false
                     },
+                    "delayClarificationState": {
+                      "type": "string",
+                      "enum": [
+                        "AVAILABLE",
+                        "REQUESTED",
+                        "RESOLVED"
+                      ]
+                    },
                     "updateFreshness": {
                       "nullable": true,
                       "type": "object",

@@ -37,7 +37,9 @@ owner reply cannot reopen it on the same schedule. An old schedule or closed
 capture gate also removes the request from the current panel. Audit access
 follows the existing access rules. This in-app request stays in Atlas. Verify
 the draft with sparse Jira evidence, a successful submission and replay, access
-denial, and removal after the PM confirms a cause.
+denial, and removal after the PM confirms a cause. The authorized answer uses
+the same eligibility check to keep the draft readable after resolution without
+offering another submission.
 
 Use the saved Atlas browser fixture to verify a change after a later owner
 reply and comment, plus access denial. Verify that the answer identifies the

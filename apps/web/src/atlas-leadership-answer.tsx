@@ -149,9 +149,12 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
       {!assessment && schedule && days !== null && days > 0 && <details>
         <summary>Draft a question for the assigned PM</summary>
         <p>{atlasDelayClarificationQuestion(schedule)}</p>
-        {askedPmForSchedule ? <Message>Clarification added to the assigned PM’s Atlas project panel.</Message>
-          : <Button className="secondary" disabled={askPm.isPending || !isCurrent()}
+        {(askedPmForSchedule || answer.delayClarificationState === "REQUESTED") &&
+          <Message>Clarification added to the assigned PM’s Atlas project panel.</Message>}
+        {!askedPmForSchedule && answer.delayClarificationState === "AVAILABLE" &&
+          <Button className="secondary" disabled={askPm.isPending || !isCurrent()}
             onClick={() => askPm.mutate({ scheduleRevision: schedule.revision, scope, asOf: answer.asOf })}>Ask the assigned PM</Button>}
+        {answer.delayClarificationState === "RESOLVED" && <p>The request for this schedule has been answered.</p>}
         {askPm.isError && currentClarification && <Message error>Could not request clarification. Refresh the answer and try again.</Message>}
       </details>}
       {prior?.facts.ownerReply && Date.parse(prior.facts.ownerReply.availableUntil) > Date.now() &&
