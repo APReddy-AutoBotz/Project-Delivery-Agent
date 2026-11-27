@@ -741,9 +741,14 @@ stories:
   - FR-RPT-010
   acceptance_criteria:
   - AC-RPT-001
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/240
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/243
+  implementation_evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: STORY-034
   epic: EPIC-10
   title: Implement audit and action-receipt search

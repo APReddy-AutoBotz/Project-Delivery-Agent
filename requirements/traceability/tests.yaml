@@ -189,12 +189,13 @@ tests:
   - .github/workflows/foundation-validation.yml
 - id: E2E-ADV-002
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-ADV-002
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: The PM action queue ranks pending approvals, stale updates and critical interventions for assigned projects.
-  evidence: []
+  evidence:
+  - tests/escalation-browser/atlas-approval.spec.ts
 - id: E2E-APP-001
   release: R1
   status: planned
@@ -1434,12 +1435,17 @@ tests:
   evidence: []
 - id: SEC-RPT-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-RPT-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: A user sees only action-queue items from authorized projects.
-  evidence: []
+  evidence:
+  - tests/pm-action-queue.integration.test.ts
+  - tests/pm-action-queue-api.test.ts
+  - tests/e2e/pm-action-queue.spec.ts
+  - tests/escalation-browser/atlas-approval.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: SEC-SECRET-001
   release: R1
   status: implemented

@@ -225,6 +225,16 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     projectId: fixture.projectId, facet: "BLOCKER_AGE", index: null, key: "blocker-age", priority: "MEDIUM", category: "BLOCKER_REVIEW",
   });
   expect((await request.get(queuePath, { headers: leaderHeaders })).status()).toBe(404);
+  const rankedQueue = page.getByRole("region", { name: "Action suggestions" });
+  const rankedUpdates = rankedQueue.getByRole("heading", { level: 3 }).filter({
+    hasText: /^Atlas · Delivery approval · (CRITICAL · RECONCILIATION|HIGH · APPROVAL|MEDIUM · UPDATE FOLLOW UP)$/u,
+  });
+  await expect(rankedUpdates).toHaveText([
+    "Atlas · Delivery approval · CRITICAL · RECONCILIATION",
+    "Atlas · Delivery approval · HIGH · APPROVAL",
+    "Atlas · Delivery approval · MEDIUM · UPDATE FOLLOW UP",
+  ]);
+  await expect(rankedQueue.getByText(/^Freshness: STALE;/u)).toBeVisible();
   const blockerReview = page.getByRole("article").filter({
     has: page.getByRole("heading", { name: "Atlas · Delivery approval · MEDIUM · BLOCKER REVIEW" }),
   });
