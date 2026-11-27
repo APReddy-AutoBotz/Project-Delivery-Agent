@@ -2,10 +2,10 @@
 
 Status: In Progress
 Owner: Implementation controller
-Requirement IDs: FR-EVD-005, FR-UPD-007, FR-UPD-008, FR-UPD-010, FR-ESC-006, NFR-AI-001, NFR-REL-002, NFR-SEC-001
+Requirement IDs: FR-EVD-005, FR-UPD-007, FR-UPD-008, FR-UPD-009, FR-UPD-010, FR-ESC-006, NFR-AI-001, NFR-REL-002, NFR-SEC-001
 GitHub issues: [#9](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9), [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10)
 Target release: R1
-Last updated: 2026-11-26
+Last updated: 2026-11-27
 
 ## Objective
 
@@ -20,6 +20,11 @@ person, and an exact calendar date when relevant. This increment uses a
 reviewer action and the in-app invitation, with no external notification.
 When the captured request needs only a forecast among the supported facts,
 reuse the same review and invitation to ask for the exact forecast date.
+For a reply covering both fields, apply a clarification to the selected fact.
+The reviewer can confirm an independent fact from the same reply. The owner
+sees one focused prompt for the pending fields through the active invitation.
+If confirmation satisfies one fact and cadence replaces the invitation, the
+replacement asks the same focused question for the supported fact still due.
 
 ## In scope
 
@@ -86,6 +91,12 @@ Clarification records only the request, latest response and issuance epoch
 in the existing audit ledger. A newer owner reply returns the item to manual
 review. The question is built into the application, and asking it leaves the
 existing follow-up schedule in place.
+Reuse the status and forecast event types to identify the selected fact. The
+request accepts an optional selector. When it is omitted, the existing
+status-first selection applies. No response or stored event shape changes.
+Build the replacement request's question from its current required facts
+and the existing question templates. The capture still checks the new
+recipient's current source access. The old invitation remains invalid.
 
 ## Security and privacy impact
 
@@ -119,6 +130,10 @@ reviewer-private fact.
 Check that a stale revision in a combined status and forecast confirmation
 rolls back both statements, and that a successful pair creates two attributable
 receipts and satisfies the pending reminders when both sources qualify.
+Use the existing engagement suite to prove an unclear status can stay open
+while the reviewer confirms an explicit forecast from the same retained reply.
+Verify both a reviewer-private statement and a source-qualified forecast that
+creates a replacement invitation.
 Run the required hosted checks on the exact candidate.
 
 ## Rollback and recovery
