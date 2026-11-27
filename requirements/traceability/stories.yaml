@@ -577,7 +577,7 @@ stories:
   - AC-ADV-001
   - AC-ADV-005
   - AC-ADV-004
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11
 - id: STORY-026

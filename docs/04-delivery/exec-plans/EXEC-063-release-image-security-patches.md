@@ -1,6 +1,6 @@
 # EXEC-063: Patch the packaged database and web images
 
-Status: In Progress
+Status: Merged and verified
 Requirement IDs: NFR-SEC-010, AC-MNT-004 and TR-DEP-001.
 GitHub issue: [#5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5).
 Target release: R0 and R1
@@ -42,3 +42,18 @@ change takes effect after the reviewed images pass the required hosted checks.
 The release review still covers inventory, licensing, findings, distributed
 layers and signing. Keep the prior reviewed pins available for recovery and
 record any exposures they would restore.
+
+### Merged verification
+
+PR #241 merged as `b1e0a0d50f3beb9a9f3d1002e074bcdf181f3ffd`. The actual main
+run passed the packaged customer profiles and collected the SBOM and scanner
+evidence for tree `12f5382cf45d429111c096679f7073c35161f861`. The reviewed bundle
+has SHA-256 `2b1af25c449e6c8b5919e7ea35aa8ba5e43ffd9ea563617e74b9400b472979e7`.
+[Main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46004447287) ·
+[Main Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46004447304) ·
+[Distribution evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46004447287/artifacts/15202279938)
+
+In the updated components, the scan comparison removed 10 distinct Critical
+and 31 distinct High findings. Nine High findings remain in those components.
+Customer release review still requires inventory, licenses and notices,
+vulnerability dispositions, distributed layer review and trusted signing.
