@@ -606,9 +606,15 @@ stories:
   - AC-ADV-002
   - AC-ADV-003
   - AC-RPT-003
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/243
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/247
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/261
+  implementation_evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: STORY-027
   epic: EPIC-08
   title: Implement authorized Q&A scope

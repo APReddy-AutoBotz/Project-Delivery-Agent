@@ -7,14 +7,15 @@ Updated: 2026-11-27
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
-| R1      |                      15 |                     33 |      45.5% |
-| Total   |                      18 |                     38 |      47.4% |
+| R1      |                      16 |                     33 |      48.5% |
+| Total   |                      19 |                     38 |      50.0% |
 
 These counts reflect the accepted-story registry, including the
 [STORY-031 snapshot record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#versioned-report-software-acceptance),
 the [STORY-032 PowerPoint record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#selected-project-powerpoint-software-acceptance),
 the [STORY-033 email digest record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#selected-project-email-digest-software-acceptance),
 the [STORY-025 recommendation record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#pm-queue-ordering-and-recommendation-framework-acceptance),
+the [STORY-026 role-specific action queue record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#role-specific-action-queue-acceptance),
 the [STORY-021 clarification record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#reply-clarification-and-confirmation-acceptance),
 the [STORY-027 leadership scope record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#leadership-project-and-time-scope-acceptance)
 and the [STORY-029 delay explanation record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#leadership-delay-explanation-acceptance).
