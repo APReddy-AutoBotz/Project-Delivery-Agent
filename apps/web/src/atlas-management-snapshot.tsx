@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AtlasManagementOutput, AtlasManagementPreview } from "@pdaa/domain";
+import type { AtlasManagementPreview } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
+import { downloadManagementPowerPoint } from "./management-download.js";
 import { decodeAtlasDistributedReport, decodeAtlasDistributionReceipt, decodeAtlasManagementOutput,
   decodeAtlasManagementPreview, decodeAtlasReportReview } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
@@ -9,16 +10,6 @@ import type { RequestFn } from "./request-types.js";
 const approvalLabels = { DRAFT: "Draft", PENDING: "Awaiting PM approval", APPROVED: "Final · Approved", REJECTED: "Rejected" };
 const available = (report: AtlasManagementPreview | null | undefined) =>
   Boolean(report && Date.parse(report.snapshot.ownerReply.availableUntil) > Date.now());
-
-function downloadAtlasPowerPoint(file: AtlasManagementOutput) {
-  const bytes = Uint8Array.from(atob(file.powerpointBase64), (char) => char.charCodeAt(0));
-  const href = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }));
-  const link = document.createElement("a");
-  link.href = href;
-  link.download = `atlas-${file.snapshot.id}.pptx`;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(href), 1000);
-}
 
 function useReportExpiry(expiry: string | undefined, refresh: () => unknown) {
   useEffect(() => {
@@ -88,7 +79,7 @@ export function AtlasManagementSnapshot({ projectId, scope, request, isCurrent, 
       if (!isCurrent()) return;
       if (!current.isSuccess || !file || file.snapshot.id !== expectedId || !available(file))
         throw new Error("The displayed Atlas report is no longer available");
-      downloadAtlasPowerPoint(file);
+      downloadManagementPowerPoint(file.powerpointBase64, `atlas-${file.snapshot.id}.pptx`);
     } catch {
       if (isCurrent()) setDownloadError(true);
     } finally {
@@ -213,7 +204,7 @@ export function AtlasReportInbox({ projectId, scope, request, isCurrent }: {
       if (!isCurrent()) return;
       if (!result.isSuccess || file?.distribution.id !== expectedReceiptId || !available(file))
         throw new Error("The distributed Atlas report is unavailable");
-      downloadAtlasPowerPoint(file);
+      downloadManagementPowerPoint(file.powerpointBase64, `atlas-${file.snapshot.id}.pptx`);
     } catch {
       if (isCurrent()) setDownloadError(true);
     } finally {

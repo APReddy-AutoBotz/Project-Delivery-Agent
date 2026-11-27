@@ -11,17 +11,20 @@ export type ProjectLeadershipSchedule = z.infer<typeof projectLeadershipSchedule
 
 export const projectLeadershipQuestionSchema = z.strictObject({ question: z.string().trim().min(1).max(256) });
 
+export const projectLeadershipFactsSchema = z.strictObject({
+  projectId: z.uuid(),
+  asOf: z.iso.datetime(),
+  schedule: projectLeadershipScheduleSchema.nullable(),
+  updateFreshness: projectUpdateAssessmentViewSchema.shape.freshness.pick({
+    state: true, assessedAt: true, sourceDate: true, sourceDateField: true,
+  }).extend({ assessmentId: z.uuid(), openObligation: z.boolean() }).nullable(),
+});
+
 export const projectLeadershipAnswerSchema = z.discriminatedUnion("state", [
   z.strictObject({ state: z.literal("CLARIFY") }),
-  z.strictObject({
+  projectLeadershipFactsSchema.extend({
     state: z.literal("ANSWERED"),
-    projectId: z.uuid(),
-    asOf: z.iso.datetime(),
-    schedule: projectLeadershipScheduleSchema.nullable(),
     cause: z.literal("UNKNOWN"),
-    updateFreshness: projectUpdateAssessmentViewSchema.shape.freshness.pick({
-      state: true, assessedAt: true, sourceDate: true, sourceDateField: true,
-    }).extend({ assessmentId: z.uuid(), openObligation: z.boolean() }).nullable(),
   }),
 ]);
 export type ProjectLeadershipAnswer = z.infer<typeof projectLeadershipAnswerSchema>;

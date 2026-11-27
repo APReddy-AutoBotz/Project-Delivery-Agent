@@ -13,7 +13,7 @@ import {
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { IdentityService } from "@pdaa/platform";
 import { z } from "zod";
-import { atlasManagementPreview, renderAtlasManagementSnapshot } from "./atlas-management-snapshot.js";
+import { atlasManagementPreview, renderAtlasManagementSnapshot, renderProjectManagementDraft } from "./atlas-management-snapshot.js";
 import {
   atlasManagementOutputSchema,
   atlasReportDecisionSchema,
@@ -64,6 +64,7 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async requestAtlasDelayClarification() { throw new ProjectUpdateError("DENIED"); },
   async atlasLeadershipAnswer() { throw new ProjectUpdateError("DENIED"); },
   async projectLeadershipAnswer() { throw new ProjectUpdateError("DENIED"); },
+  async projectManagementDraft() { throw new ProjectUpdateError("DENIED"); },
   async atlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async createAtlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async requestAtlasReportApproval() { throw new ProjectUpdateError("DENIED"); },
@@ -163,6 +164,14 @@ export class ProjectUpdateController {
   async projectLeadershipAnswer(@Req() req: Request, @Param("id") rawId: string, @Body() question: unknown) {
     const actor = await this.actor(req);
     return this.run(() => this.repository.projectLeadershipAnswer(actor, this.projectId(rawId), question));
+  }
+
+  @Get("management-draft")
+  async projectManagementDraft(@Req() req: Request, @Param("id") rawId: string) {
+    const actor = await this.actor(req);
+    const draft = await this.run(() => this.repository.projectManagementDraft(actor, this.projectId(rawId)));
+    try { return await renderProjectManagementDraft(draft); }
+    catch { throw new HttpException("", 503); }
   }
 
   @Get("atlas-delay-clarification")

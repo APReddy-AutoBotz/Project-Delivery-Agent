@@ -1,4 +1,4 @@
-import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasDelayClarification, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectLeadershipAnswer, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasDelayClarification, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectLeadershipAnswer, ProjectManagementDraftOutput, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -263,6 +263,23 @@ export function decodeAtlasManagementOutput(value: unknown, projectId: string): 
       !/^UEsDB[A-Za-z0-9+/]+={0,2}$/u.test(powerpointBase64)) return null;
   const report = decodeAtlasManagementPreview(preview, projectId);
   return report ? { ...report, livePath, powerpointBase64 } : null;
+}
+
+export function decodeProjectManagementDraft(value: unknown, projectId: string): ProjectManagementDraftOutput | null {
+  if (!object(value) || !keys(value, ["draft", "highlights", "livePath", "powerpointBase64"])) return null;
+  const { draft, highlights, livePath, powerpointBase64 } = value;
+  if (!object(draft) || !keys(draft, ["projectId", "asOf", "schedule", "updateFreshness", "project", "approvalState", "reportingPeriod"]) ||
+      livePath !== `/?project=${projectId}` || typeof powerpointBase64 !== "string" || powerpointBase64.length > 160000 ||
+      powerpointBase64.length % 4 !== 0 ||
+      !/^UEsDB[A-Za-z0-9+/]+={0,2}$/u.test(powerpointBase64) ||
+      !dense(highlights, 1, 4) || !highlights.every((line) => label(line, 400))) return null;
+  const { approvalState, project, reportingPeriod, ...facts } = draft;
+  if (!object(project) || !keys(project, ["code", "name"]) ||
+      ![project.code, project.name].every((value) =>
+        typeof value === "string" && value.length <= 160 && label(value, 640))) return null;
+  const answer = decodeProjectLeadershipAnswer({ ...facts, state: "ANSWERED", cause: "UNKNOWN" }, projectId);
+  if (answer?.state !== "ANSWERED" || approvalState !== "DRAFT" || reportingPeriod !== answer.asOf.slice(0, 7)) return null;
+  return value as ProjectManagementDraftOutput;
 }
 
 export function decodeAtlasDistributionReceipt(value: unknown): AtlasReportDistributionReceipt | null {
