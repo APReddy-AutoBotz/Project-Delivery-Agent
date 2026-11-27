@@ -41,12 +41,14 @@ tests:
   evidence: []
 - id: AI-QA-003
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-QA-003
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: An inferred conclusion is explicitly labelled and is not presented as SYSTEM_VERIFIED or HUMAN_CONFIRMED.
-  evidence: []
+  evidence:
+  - tests/escalation-browser/atlas-approval.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: AI-SAFE-004
   release: R1
   status: implemented
