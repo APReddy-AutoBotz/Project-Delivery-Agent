@@ -1,4 +1,4 @@
-import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasDelayClarification, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectLeadershipAnswer, ProjectManagementDraftOutput, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectDelayCauseConfirmation, ProjectDelayCauseEvidence, ProjectDelayClarification, ProjectDelayClarificationReview, ProjectLeadershipAnswer, ProjectManagementDraftOutput, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -129,6 +129,16 @@ export function decodeProjectLeadershipAnswer(value: unknown, projectId: string)
   const required = ["state", "projectId", ...leadershipFactKeys];
   if (value.state === "ANSWERED" && value.cause === "UNKNOWN" && keys(value, [...required, "cause"]))
     return value as ProjectLeadershipAnswer;
+  const delay = value.delayCause;
+  if (value.state === "ANSWERED" && value.cause === "HUMAN_CONFIRMED" && keys(value, [...required, "cause", "delayCause"]) &&
+      object(delay) && keys(delay, ["evidence", "confirmation"])) {
+    const evidence = decodeProjectDelayCauseEvidence(delay.evidence);
+    const confirmation = decodeProjectDelayCauseConfirmation(delay.confirmation);
+    const schedule = decodeAtlasSchedule(value.schedule);
+    return evidence && confirmation && evidence.versionId === confirmation.versionId &&
+      (schedule?.movementDays ?? 0) > 0 && Date.parse(evidence.observedAt) <= Date.parse(confirmation.confirmedAt) &&
+      Date.parse(confirmation.confirmedAt) <= Date.parse(value.asOf) ? value as ProjectLeadershipAnswer : null;
+  }
   const prior = value.priorSnapshot;
   if (value.state !== "COMPARISON" || !keys(value, [...required, "priorSnapshot"]) || !object(prior) ||
       !keys(prior, ["id", ...leadershipFactKeys]) || !uuid(prior.id) || !validProjectLeadershipFacts(prior) ||
@@ -136,12 +146,40 @@ export function decodeProjectLeadershipAnswer(value: unknown, projectId: string)
   return value as ProjectLeadershipAnswer;
 }
 
-export function decodeAtlasDelayClarification(value: unknown): AtlasDelayClarification | null {
+export function decodeProjectDelayClarification(value: unknown): ProjectDelayClarification | null {
   if (!object(value) || !keys(value, ["id", "requestedAt", "schedule"]) || !uuid(value.id) || !instant(value.requestedAt))
     return null;
   const schedule = decodeAtlasSchedule(value.schedule);
-  return schedule && (schedule.movementDays ?? 0) > 0
+  return schedule?.baseline && schedule.forecast && (schedule.movementDays ?? 0) > 0 &&
+    schedule.movementDays === (Date.parse(schedule.forecast) - Date.parse(schedule.baseline)) / 86400000
     ? { id: value.id, requestedAt: value.requestedAt, schedule } : null;
+}
+export const decodeAtlasDelayClarification = decodeProjectDelayClarification;
+
+function decodeProjectDelayCauseEvidence(value: unknown): ProjectDelayCauseEvidence | null {
+  if (!object(value) || !keys(value, ["factId", "versionId", "evidenceId", "observedAt", "value"]) ||
+      !uuid(value.factId) || !uuid(value.versionId) || !uuid(value.evidenceId) || !instant(value.observedAt) ||
+      typeof value.value !== "string" || value.value.length > 500 || !value.value.trim() || /[\0\p{Surrogate}]/u.test(value.value)) return null;
+  return value as ProjectDelayCauseEvidence;
+}
+
+export function decodeProjectDelayCauseConfirmation(value: unknown): ProjectDelayCauseConfirmation | null {
+  if (!object(value) || !keys(value, ["id", "clarificationId", "versionId", "confirmedAt"]) || !uuid(value.id) ||
+      !uuid(value.clarificationId) || !uuid(value.versionId) || !instant(value.confirmedAt)) return null;
+  return value as ProjectDelayCauseConfirmation;
+}
+
+export function decodeProjectDelayClarificationReview(value: unknown): ProjectDelayClarificationReview | null {
+  if (!object(value)) return null;
+  const { causeEvidence: rawEvidence, confirmation: rawConfirmation, ...request } = value;
+  const clarification = decodeProjectDelayClarification(request);
+  const causeEvidence = decodeProjectDelayCauseEvidence(rawEvidence);
+  const confirmation = decodeProjectDelayCauseConfirmation(rawConfirmation);
+  if (!clarification || (rawEvidence !== null && !causeEvidence) || (rawConfirmation !== null && !confirmation) ||
+      (confirmation && (confirmation.clarificationId !== clarification.id || confirmation.versionId !== causeEvidence?.versionId ||
+        Date.parse(confirmation.confirmedAt) < Date.parse(clarification.requestedAt) ||
+        Date.parse(confirmation.confirmedAt) < Date.parse(causeEvidence.observedAt)))) return null;
+  return { ...clarification, causeEvidence, confirmation };
 }
 
 export function decodeAtlasDelayAssessment(value: unknown): AtlasDelayAssessment | null {

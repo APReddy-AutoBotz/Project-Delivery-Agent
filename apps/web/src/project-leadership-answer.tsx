@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { ProjectLeadershipAnswer as Answer, ProjectLeadershipFacts } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
+import { RequestProjectDelayClarification } from "./project-delay-clarification.js";
 import { decodeProjectLeadershipAnswer } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
 
@@ -65,6 +66,7 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
   const freshness = answer?.updateFreshness;
   const scheduleEvidence = `project-answer-schedule-${projectId}`;
   const updateEvidence = `project-answer-update-${projectId}`;
+  const causeEvidence = `project-answer-cause-${projectId}`;
 
   return <section className="panel" aria-label="Project leadership answer">
     <h2>Ask about this project</h2>
@@ -99,7 +101,13 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
         : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`}
         {schedule && <> <a href={`#${scheduleEvidence}`}>Schedule evidence</a></>}
       </p>
-      {days !== null && days > 0 && <p>The cause of the delay is unknown.</p>}
+      {answer.cause === "HUMAN_CONFIRMED" && <p className="update-plain-text">PM-confirmed delay cause · {answer.delayCause.evidence.value} <a href={`#${causeEvidence}`}>
+        Cause evidence</a></p>}
+      {answer.cause === "UNKNOWN" && schedule && days !== null && days > 0 && <>
+        <p>The cause of the delay is unknown.</p>
+        <RequestProjectDelayClarification key={JSON.stringify([scope, schedule.revision])}
+          projectId={projectId} schedule={schedule} request={request} isCurrent={isCurrent} />
+      </>}
       {freshness && <p>The latest saved assessment found the project {freshness.state.toLowerCase()} under its update policy.
         {freshness.openObligation && " A project update remains due."} <a href={`#${updateEvidence}`}>Update evidence</a>
       </p>}
@@ -109,6 +117,9 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
           Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.</li>}
         {freshness && <li id={updateEvidence} tabIndex={-1}>Assessment {freshness.assessmentId} at {freshness.assessedAt}.
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? " Latest verified update" : " Project created"} at {freshness.sourceDate}.</li>}
+        {answer.cause === "HUMAN_CONFIRMED" && <li id={causeEvidence} tabIndex={-1}>
+          Evidence {answer.delayCause.evidence.evidenceId}. PM confirmation {answer.delayCause.confirmation.id} at {answer.delayCause.confirmation.confirmedAt}.
+        </li>}
       </ul>}
     </div>}
   </section>;

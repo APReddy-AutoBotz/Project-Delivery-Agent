@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { text as readStreamText } from "node:stream/consumers";
 import yauzl from "yauzl";
-import { createDatabase, DatabaseCanonicalProjectRepository, DatabaseProjectFactRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
+import { createDatabase, DatabaseAuthorityRepository, DatabaseCanonicalProjectRepository, DatabaseProjectFactRepository,
+  DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
 import { canonicalFixture } from "../../scripts/acceptance/canonical-projects.mjs";
 
 async function firstSlide(file: string | Buffer) {
@@ -356,6 +357,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(resolvedClarification.status()).toBe(200);
   expect(await resolvedClarification.json()).toBeNull();
   expect((await request.post(delayClarificationPath, { headers: leaderHeaders, data: clarificationCommand })).status()).toBe(409);
+  const genericAtlasDelayPath = projectPath + "/delay-clarification";
+  expect((await request.get(genericAtlasDelayPath, { headers: managerHeaders })).status()).toBe(404);
+  expect((await request.post(genericAtlasDelayPath, { headers: leaderHeaders, data: clarificationCommand })).status()).toBe(404);
   const delayReplay = await request.post(delayPath, { headers: managerHeaders, data: delayCommand });
   expect(delayReplay.status()).toBe(200);
   const assessment = await delayReplay.json();
@@ -722,6 +726,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect((await request.get(comparePath, { headers: leaderHeaders })).status()).toBe(200);
 
   let allowedProjectId: string;
+  let delayEvidence: { sourceId: string; sourceAccessRevision: number; id: string; evidenceId: string };
+  const causeText = "The test environment was unavailable during integration.";
+  const causeFactType = "project.delay_cause";
+  const causeReaders = ["pm-atlas", "leader-atlas"];
   const scopePolicy = { expectedRevision: 0, freshnessWindowSeconds: 7 * 86400,
     timeZone: "UTC", requiredFacts: [{ factType: "project.status", label: "Current status" }],
     responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false };
@@ -746,6 +754,24 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
       const removed = await tx.accessGrant.deleteMany({ where: { ...grant, scopeId: fixture.projectId } });
       expect(removed.count).toBe(1);
     });
+    const recordedAt = new Date().toISOString();
+    const facts = new DatabaseProjectFactRepository(scopeDb);
+    const manager = { customerId: fixture.customerId, subject: "pm-atlas", roles: ["project_manager"] };
+    const { entry } = await facts.appendHumanStatement(manager, {
+      projectId: allowedProjectId, factType: causeFactType, expectedRevision: 0, idempotencyKey: randomUUID(),
+      effectiveAt: recordedAt, value: { type: "text", value: causeText }, originalStatement: causeText,
+    }, { correlationId: randomUUID() });
+    const access = await facts.setSourceAccess(fixture.admin, {
+      projectId: allowedProjectId, sourceId: entry.sourceId, expectedRevision: entry.sourceAccessRevision,
+      state: "AVAILABLE", readers: causeReaders,
+    }, { correlationId: randomUUID() });
+    delayEvidence = { ...entry, sourceAccessRevision: access.revision };
+    await new DatabaseAuthorityRepository(scopeDb).appendPolicy(fixture.admin, {
+      projectId: allowedProjectId, factType: causeFactType, expectedRevision: 0, idempotencyKey: randomUUID(),
+      effectiveAt: recordedAt, definition: { tiers: [{ selectors: [{ sourceType: "human_statement",
+        instanceId: entry.sourceId, requiredApproval: "NOT_REQUIRED", validity: { basis: "observedAt", durationMs: 86400_000 } }] }],
+        conflictBehavior: "REQUEST_RECONCILIATION" },
+    }, { correlationId: randomUUID() });
   } finally { await scopeDb.$disconnect(); }
   const visibleProjects = await request.get("/api/projects", { headers: leaderHeaders });
   expect(visibleProjects.status()).toBe(200);
@@ -779,6 +805,27 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(projectAnswer).toContainText("Baseline 2026-06-30. Forecast 2026-07-15.");
   await expect(projectAnswer).toContainText("The latest saved assessment found the project current under its update policy.");
   await expect(projectAnswer.getByRole("link", { name: "Update evidence" })).toHaveAttribute("href", `#project-answer-update-${allowedProjectId}`);
+  const projectDelayPath = `/api/projects/${allowedProjectId}/delay-clarification`;
+  const emptyDelayReview = await request.get(projectDelayPath, { headers: managerHeaders });
+  expect(emptyDelayReview.status()).toBe(200);
+  expect(await emptyDelayReview.json()).toBeNull();
+  await projectAnswer.getByText("Draft a question for the assigned PM", { exact: true }).click();
+  const questionText = "What caused the forecast finish date to move from 2026-06-30 to 2026-07-15? Please link the evidence that confirms the cause.";
+  await expect(projectAnswer).toContainText(questionText);
+  const savedDelayRequest = page.waitForResponse((response) => response.url().endsWith(projectDelayPath));
+  await projectAnswer.getByRole("button", { name: "Ask the assigned PM" }).click();
+  const delayResponse = await savedDelayRequest;
+  expect(delayResponse.status()).toBe(200);
+  const delayRequest = await delayResponse.json();
+  await expect(projectAnswer).toContainText(`Delay evidence requested. Request ${delayRequest.id}.`);
+  const projectDelayCommand = { scheduleRevision: delayRequest.schedule.revision };
+  const replayedDelay = await request.post(projectDelayPath, { headers: leaderHeaders, data: projectDelayCommand });
+  expect(replayedDelay.status()).toBe(200);
+  expect(await replayedDelay.json()).toEqual(delayRequest);
+  expect((await request.post(projectDelayPath, { headers: leaderHeaders,
+    data: { scheduleRevision: projectDelayCommand.scheduleRevision + 1 } })).status()).toBe(409);
+  expect((await request.post(projectDelayPath, { headers: managerHeaders, data: projectDelayCommand })).status()).toBe(404);
+  expect((await request.get(projectDelayPath, { headers: leaderHeaders })).status()).toBe(404);
   const unsupported = "Compare this project with confidential Project Draco.";
   await projectAnswer.getByLabel("Project question").fill(unsupported);
   await projectAnswer.getByRole("button", { name: "Ask", exact: true }).click();
@@ -927,6 +974,26 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await page.goto("/");
   await page.getByRole("button", { name: /Project manager/ }).click();
   await page.getByRole("button", { name: /Second synthetic project/ }).click();
+  const projectDelayReview = page.getByRole("region", { name: "Project delay evidence request" });
+  await projectDelayReview.getByRole("button", { name: "Check delay requests" }).click();
+  await expect(projectDelayReview).toContainText(questionText);
+  await expect(projectDelayReview).toContainText(delayRequest.id);
+  await expect(projectDelayReview).toContainText(causeText);
+  await expect(projectDelayReview).toContainText(delayEvidence.evidenceId);
+  const confirmDelayPath = projectDelayPath + "/confirmation";
+  const causeCommand = { clarificationId: delayRequest.id, versionId: delayEvidence.id };
+  expect((await request.post(confirmDelayPath, { headers: leaderHeaders, data: causeCommand })).status()).toBe(404);
+  expect((await request.post(confirmDelayPath, { headers: managerHeaders,
+    data: { ...causeCommand, versionId: randomUUID() } })).status()).toBe(409);
+  const confirmedDelayReady = page.waitForResponse((response) => response.url().endsWith(confirmDelayPath));
+  await projectDelayReview.getByRole("button", { name: "Confirm this delay cause" }).click();
+  const confirmedDelay = await confirmedDelayReady;
+  expect(confirmedDelay.status()).toBe(200);
+  const causeConfirmation = await confirmedDelay.json();
+  await expect(projectDelayReview).toContainText(`Delay cause confirmed. Receipt ${causeConfirmation.id}.`);
+  const replayConfirmation = await request.post(confirmDelayPath, { headers: managerHeaders, data: causeCommand });
+  expect(replayConfirmation.status()).toBe(200);
+  expect(await replayConfirmation.json()).toEqual(causeConfirmation);
   const selectedProjectApproval = page.getByRole("region", { name: "Project report approval" });
   await selectedProjectApproval.getByRole("button", { name: "Check report approvals" }).click();
   await expect(selectedProjectApproval).toContainText(savedReport.snapshotId);
@@ -939,15 +1006,22 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     highlights: savedReport.highlights, approval: { requestId: pendingReport.approval.requestId, state: "APPROVED" } });
   const finalProjectSlide = await firstSlide(Buffer.from(finalProjectReport.powerpointBase64, "base64"));
   expect(finalProjectSlide).toContain("Final • Approved");
+  expect(finalProjectSlide).toContain(`Reporting month ${savedReport.draft.reportingPeriod} • Confidential`);
   expect(finalProjectSlide).toContain(savedReport.snapshotId);
   expect(finalProjectSlide).toContain(savedReport.draft.asOf);
 
   const recipientGrant = { customerId: fixture.customerId, subject: "leader-atlas",
     scopeType: "project", scopeId: allowedProjectId, role: "leadership" };
+  const managerGrant = { ...recipientGrant, subject: "pm-atlas", role: "project_manager" };
   const deliveryDb = createDatabase(target.toString());
   try {
     const revoked = await deliveryDb.accessGrant.deleteMany({ where: recipientGrant });
     expect(revoked.count).toBe(1);
+    const pmGrant = await deliveryDb.accessGrant.deleteMany({ where: managerGrant });
+    expect(pmGrant.count).toBe(1);
+    try {
+      expect((await request.get(projectDelayPath, { headers: managerHeaders })).status()).toBe(404);
+    } finally { await deliveryDb.accessGrant.create({ data: managerGrant }); }
     expect((await request.post(compareProjectPath, { headers: leaderHeaders, data: compareCommand })).status()).toBe(404);
     expect((await request.post(deliveryPath, { headers: managerHeaders, data: deliveryCommand })).status()).toBe(404);
   } finally {
@@ -984,6 +1058,23 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await page.goto("/");
   await page.getByRole("button", { name: /Leadership/ }).click();
   await page.getByRole("button", { name: /Second synthetic project/ }).click();
+  await projectAnswer.getByLabel("Project question").fill(genericQuestion.question);
+  await projectAnswer.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(projectAnswer).toContainText(`PM-confirmed delay cause · ${causeText}`);
+  const causeLink = projectAnswer.getByRole("link", { name: "Cause evidence" });
+  await expect(causeLink).toBeVisible();
+  const causeEvidenceHref = await causeLink.getAttribute("href");
+  await expect(projectAnswer.locator(causeEvidenceHref!)).toContainText(delayEvidence.evidenceId);
+  const evidenceDb = createDatabase(target.toString());
+  try {
+    await new DatabaseProjectFactRepository(evidenceDb).setSourceAccess(fixture.admin, {
+      projectId: allowedProjectId, sourceId: delayEvidence.sourceId, expectedRevision: delayEvidence.sourceAccessRevision,
+      state: "AVAILABLE", readers: ["pm-atlas"],
+    }, { correlationId: randomUUID() });
+  } finally { await evidenceDb.$disconnect(); }
+  await projectAnswer.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(projectAnswer).toContainText("The cause of the delay is unknown.");
+  await expect(projectAnswer).not.toContainText(delayEvidence.evidenceId);
   const inboxResponse = page.waitForResponse((response) => response.url().endsWith(draftPath + "?snapshotId=delivered"));
   await draftPanel.getByRole("button", { name: "Open delivered report" }).click();
   const deliveredInbox = await inboxResponse;
@@ -1000,6 +1091,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(deliveredDownload.suggestedFilename()).toBe(`project-${allowedProjectId}-${savedReport.snapshotId}-approved.pptx`);
   const deliveredSlide = await firstSlide((await deliveredDownload.path())!);
   expect(deliveredSlide).toContain("Final • Approved • Delivered in-app");
+  expect(deliveredSlide).toContain(`Reporting month ${savedReport.draft.reportingPeriod} • Confidential`);
   for (const highlight of deliveredOutput.highlights) {
     await expect(draftEmail).toContainText(highlight);
     expect(deliveredSlide).toContain(highlight);

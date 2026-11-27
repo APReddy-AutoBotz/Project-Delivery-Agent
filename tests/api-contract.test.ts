@@ -501,6 +501,7 @@ const projectReportDeliveredFixture = { ...projectReportApprovedFixture,
   delivery: { id: project.id, snapshotId: project.id, requestId: project.id, deliveredAt: "2026-10-21T11:03:00.000Z" } };
 const projectAnswerFixture = { projectId: project.id, asOf: "2026-10-21T11:00:00.000Z", updateFreshness: null,
   schedule: { revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 } };
+const projectDelayFixture = { id: project.id, requestedAt: projectAnswerFixture.asOf, schedule: projectAnswerFixture.schedule };
 const projectUpdateRepository: ProjectUpdateRepository = {
   projectLeadershipAnswer: vi.fn(async (_actor, _projectId, body) => {
     const priorSnapshotId = (body as { priorSnapshotId?: string }).priorSnapshotId;
@@ -508,6 +509,10 @@ const projectUpdateRepository: ProjectUpdateRepository = {
       priorSnapshot: { id: priorSnapshotId, asOf: "2026-10-20T11:00:00.000Z", schedule: null, updateFreshness: null } };
     return { ...projectAnswerFixture, state: "ANSWERED" as const, cause: "UNKNOWN" as const };
   }),
+  projectDelayClarification: vi.fn(async () => ({ ...projectDelayFixture, causeEvidence: null, confirmation: null })),
+  requestProjectDelayClarification: vi.fn(async () => projectDelayFixture),
+  confirmProjectDelayCause: vi.fn(async () => ({ id: project.id, clarificationId: project.id, versionId: project.id,
+    confirmedAt: projectAnswerFixture.asOf })),
   projectManagementDraft: vi.fn(async () => projectManagementDraftFixture),
   projectManagementSnapshot: vi.fn(async (_actor, _projectId, selector) =>
     selector === "delivered" ? projectReportDeliveredFixture : projectManagementSnapshotFixture),
@@ -819,6 +824,10 @@ it("CI-FND-001: every actual serialized success matches its published schema and
   await request(`/api/projects/${project.id}/leadership-answer`, 200, leader, "POST", { question: "Why is this project delayed?" });
   await request(`/api/projects/${project.id}/leadership-answer`, 200, leader, "POST",
     { question: "What changed since this snapshot?", priorSnapshotId: project.id });
+  await request(`/api/projects/${project.id}/delay-clarification`, 200, manager);
+  await request(`/api/projects/${project.id}/delay-clarification`, 200, leader, "POST", { scheduleRevision: 1 });
+  await request(`/api/projects/${project.id}/delay-clarification/confirmation`, 200, manager, "POST",
+    { clarificationId: project.id, versionId: project.id });
   await request(`/api/projects/${project.id}/management-draft`, 200, leader);
   await request(`/api/projects/${project.id}/management-draft?snapshotId=${project.id}`, 200, leader);
   await request(`/api/projects/${project.id}/management-draft?snapshotId=delivered`, 200, leader);
@@ -1129,7 +1138,7 @@ it("CI-FND-001: every actual serialized success matches its published schema and
       .map((method) => method + " " + path),
   );
   expect([...covered].sort()).toEqual(declared.sort());
-  expect(covered.size).toBe(102);
+  expect(covered.size).toBe(105);
   assertContractSnapshot(
     spec,
     JSON.parse(

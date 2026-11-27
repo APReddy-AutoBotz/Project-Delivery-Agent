@@ -76,7 +76,7 @@ export async function renderProjectManagementDraft(draft: ProjectManagementDraft
   }
   const powerpointBase64 = await renderManagementDeck({
     title: approval?.state === "APPROVED" ? "Project management report" : "Project management draft",
-    metadata: `${approvalLabels[approval?.state ?? "DRAFT"]}${delivery ? " • Delivered in-app" : ""} • Reporting month ${draft.reportingPeriod}`,
+    metadata: `${approvalLabels[approval?.state ?? "DRAFT"]}${delivery ? " • Delivered in-app" : ""} • Reporting month ${draft.reportingPeriod} • Confidential`,
     highlights,
     footer: `${draft.project.name} (${draft.project.code})\nProject ${draft.projectId}\n` +
       (snapshotId ? `Snapshot ${snapshotId}\n` : "") + `Generated ${draft.asOf} (UTC)`,

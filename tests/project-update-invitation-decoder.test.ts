@@ -1,7 +1,9 @@
 import { expect, it } from "vitest";
 import { projectUpdateClarificationQuestion, projectUpdateRecipientRequestViewSchema,
   projectUpdateResponseReceiptSchema } from "../packages/domain/src/project-update-capture.js";
-import { decodeInvitation, decodeInvitationReceipt, decodeProjectLeadershipAnswer } from "../apps/web/src/project-update-invitation-decoder.js";
+import { projectDelayClarificationReviewSchema, projectLeadershipAnswerSchema } from "../packages/domain/src/project-leadership-answer.js";
+import { decodeInvitation, decodeInvitationReceipt, decodeProjectDelayClarificationReview,
+  decodeProjectLeadershipAnswer } from "../apps/web/src/project-update-invitation-decoder.js";
 
 const id = "30000000-0000-4000-8000-000000000001", other = "40000000-0000-4000-8000-000000000001";
 const at = "2026-01-01T00:00:00.000Z", later = "2026-01-02T00:00:00.000Z";
@@ -19,6 +21,22 @@ it("validates both sets of scoped evidence in a leadership comparison", () => {
   expect(decodeProjectLeadershipAnswer({ ...comparison, priorSnapshot: { ...priorSnapshot, asOf: "2026-01-03T00:00:00.000Z" } }, id)).toBeNull();
   expect(decodeProjectLeadershipAnswer({ ...comparison, priorSnapshot: { ...priorSnapshot,
     schedule: { ...priorSnapshot.schedule, movementDays: 12 } } }, id)).toBeNull();
+});
+
+it("preserves supported multibyte and multiline delay evidence in both views", () => {
+  const schedule = { revision: 1, baseline: "2026-01-01", forecast: "2026-01-03", movementDays: 2 };
+  const confirmation = { id, clarificationId: id, versionId: other, confirmedAt: later };
+  for (const [value, readable] of [[`${"検".repeat(200)}\n設備の確認を待ちました。`, true],
+    ["検".repeat(501), false], ["Invalid\0text", false]] as const) {
+    const evidence = { factId: id, versionId: other, evidenceId: id, observedAt: at, value };
+    const review = { id, requestedAt: at, schedule, causeEvidence: evidence, confirmation };
+    const answer = { state: "ANSWERED", projectId: id, asOf: later, schedule, updateFreshness: null, cause: "HUMAN_CONFIRMED",
+      delayCause: { evidence, confirmation } };
+    expect(decodeProjectDelayClarificationReview(review)).toEqual(readable ? review : null);
+    expect(decodeProjectLeadershipAnswer(answer, id)).toEqual(readable ? answer : null);
+    expect(projectDelayClarificationReviewSchema.safeParse(review).success).toBe(readable);
+    expect(projectLeadershipAnswerSchema.safeParse(answer).success).toBe(readable);
+  }
 });
 
 it("matches representative invitation and receipt wire schemas", () => {

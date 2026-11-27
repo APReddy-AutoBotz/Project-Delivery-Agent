@@ -22,6 +22,9 @@ import {
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
   atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
   isCurrentProjectScheduleQuestion, isProjectSnapshotComparisonQuestion, projectLeadershipAnswerSchema, projectLeadershipQuestionSchema,
+  projectDelayClarificationCommandSchema, projectDelayClarificationSchema,
+  projectDelayCauseFactType, projectDelayCauseEvidenceSchema, projectDelayCauseCommandSchema,
+  projectDelayCauseConfirmationSchema, projectDelayClarificationReviewSchema,
   projectManagementDraftSchema, projectManagementSnapshotSchema,
   projectReportApprovalSchema, projectReportApprovalRequestSchema, projectReportDecisionSchema,
   projectReportVersionSchema, projectReportDeliverySchema,
@@ -90,6 +93,8 @@ const atlasManagementSnapshotEvent = "atlas_demo.management_snapshot.created";
 const atlasReportRequestedEvent = "atlas_demo.report_approval.requested";
 const atlasReportDecidedEvent = "atlas_demo.report_approval.decided";
 const atlasReportDistributedEvent = "atlas_demo.report.distributed";
+const projectDelayClarificationEvent = "project_delay.clarification_requested";
+const projectDelayCauseConfirmedEvent = "project_delay.cause_confirmed";
 const projectReportSavedEvent = "project_report.draft.saved";
 const projectReportRequestedEvent = "project_report.approval.requested";
 const projectReportDecidedEvent = "project_report.approval.decided";
@@ -2426,8 +2431,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           (review.assessment && review.assessment.confidence !== confidence))
         throw new ProjectUpdateError("CONFLICT");
       if (review.assessment) return review.assessment;
-      const clarification = await this.findAtlasDelayClarification(tx, current.customerId, projectId,
-        current.subject, scheduleRevision, captureIssuanceEpoch);
+      const clarification = await this.findDelayClarification(tx, current.customerId, projectId,
+        current.subject, scheduleRevision, atlasDelayClarificationEvent, captureIssuanceEpoch);
       const id = await this.engagementAudit(tx, current, projectId, correlationId, atlasDelayConfirmedEvent,
         { ...parsed.data, projectId, responseId: view.responseId, captureIssuanceEpoch, clarificationId: clarification?.id });
       const event = await tx.auditEvent.findUniqueOrThrow({ where: { id }, select: { occurredAt: true } });
@@ -2442,14 +2447,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return { ...actor, roles: ["leadership"] };
   }
 
-  private findAtlasDelayClarification(tx: Tx, customerId: string, projectId: string, pm: string,
-    scheduleRevision: number, issuanceEpoch: string) {
+  private findDelayClarification(tx: Tx, customerId: string, projectId: string, pm: string,
+    scheduleRevision: number, event: string, issuanceEpoch?: string) {
     return tx.auditEvent.findFirst({
-      where: { customerId, event: atlasDelayClarificationEvent, AND: [
+      where: { customerId, event, AND: [
         { detail: { path: ["projectId"], equals: projectId } },
         { detail: { path: ["scheduleRevision"], equals: scheduleRevision } },
         { detail: { path: ["recipient"], equals: pm } },
-        { detail: { path: ["captureIssuanceEpoch"], equals: issuanceEpoch } },
+        ...(issuanceEpoch ? [{ detail: { path: ["captureIssuanceEpoch"], equals: issuanceEpoch } }] : []),
       ] }, select: { id: true, occurredAt: true },
     });
   }
@@ -2461,7 +2466,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     if (!pm || (audience === "pm" && pm !== current.subject) ||
         !await this.recipientAuthorized(tx, current.customerId, projectId, pm, "PROJECT_MANAGER"))
       return null;
-    const saved = await this.findAtlasDelayClarification(tx, current.customerId, projectId, pm, schedule.revision, configuration.issuanceEpoch);
+    const saved = await this.findDelayClarification(tx, current.customerId, projectId, pm, schedule.revision,
+      atlasDelayClarificationEvent, configuration.issuanceEpoch);
     const closed = saved && await tx.auditEvent.findFirst({
       where: { customerId: current.customerId, actor: pm, event: atlasDelayConfirmedEvent,
         detail: { path: ["clarificationId"], equals: saved.id } },
@@ -2688,8 +2694,136 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (priorSnapshotId || !isCurrentProjectScheduleQuestion(parsed.data.question))
         return projectLeadershipAnswerSchema.parse({ state: "CLARIFY" });
       const facts = await this.currentProjectLeadershipFacts(tx, current, projectId);
+      const delayCause = facts.schedule && (facts.schedule.movementDays ?? 0) > 0 &&
+        await this.confirmedProjectDelayCause(tx, current, projectId, facts.schedule, new Date(facts.asOf));
+      if (delayCause) return projectLeadershipAnswerSchema.parse({ ...facts, state: "ANSWERED", cause: "HUMAN_CONFIRMED", delayCause });
       return projectLeadershipAnswerSchema.parse({ ...facts, state: "ANSWERED", cause: "UNKNOWN" });
     }, "ReadCommitted");
+  }
+
+  async projectDelayClarification(actorValue: Actor, projectValue: string) {
+    const manager = this.reportingActor(actorValue, "project_manager");
+    const projectId = parseProjectId(projectValue);
+    return this.transaction(async (tx) => {
+      await this.authorizeProjectDelayManager(tx, manager, projectId);
+      return this.projectDelayReview(tx, manager, projectId);
+    }, "ReadCommitted");
+  }
+
+  private async authorizeProjectDelayManager(tx: Tx, manager: Actor, projectId: string) {
+    await this.authorize(tx, manager, projectId, false);
+    await this.authorizeProjectDelayWorkflow(tx, manager.customerId, projectId);
+    if (await this.assignedProjectManager(tx, manager.customerId, projectId) !== manager.subject)
+      throw new ProjectUpdateError("DENIED");
+  }
+
+  private async projectDelayReview(tx: Tx, manager: Actor, projectId: string) {
+    const schedule = await this.canonicalProjectSchedule(tx, manager.customerId, projectId);
+    if (!schedule || (schedule.movementDays ?? 0) <= 0) return null;
+    const saved = await this.findDelayClarification(tx, manager.customerId, projectId, manager.subject, schedule.revision,
+      projectDelayClarificationEvent);
+    if (!saved) return null;
+    const causeEvidence = await this.currentProjectDelayCauseEvidence(tx, manager, projectId, await this.now(tx));
+    const confirmation = causeEvidence && await this.projectDelayCauseConfirmation(tx, manager.customerId, projectId,
+      manager.subject, saved.id, causeEvidence.versionId);
+    return projectDelayClarificationReviewSchema.parse({ id: saved.id, requestedAt: iso(saved.occurredAt), schedule,
+      causeEvidence, confirmation });
+  }
+
+  private async currentProjectDelayCauseEvidence(tx: Tx, viewer: Actor, projectId: string, asOf: Date) {
+    const fact = await tx.projectFact.findUnique({ where: { customerId_projectId_factType: {
+      customerId: viewer.customerId, projectId, factType: projectDelayCauseFactType,
+    } }, select: { id: true, factType: true, revision: true } });
+    if (!fact) return null;
+    const { result } = await this.authority.prepareAssessmentInTransaction(tx, viewer, { projectId, fact, asOf });
+    if (result.status !== "RESOLVED" || result.revalidationRequired || result.conflict !== "NONE" ||
+        result.resolvedValue?.type !== "text" || result.supportingVersionIds.length !== 1 || result.supportingEvidenceIds.length !== 1)
+      return null;
+    const source = result.versions.find((version) => version.id === result.supportingVersionIds[0]);
+    if (source?.visibility !== "available" || source.provenance !== "HUMAN_CONFIRMED" || source.assessment.freshness !== "CURRENT")
+      return null;
+    const evidence = projectDelayCauseEvidenceSchema.safeParse({ factId: fact.id, versionId: source.id,
+      evidenceId: result.supportingEvidenceIds[0], observedAt: source.observedAt, value: result.resolvedValue.value });
+    return evidence.success ? evidence.data : null;
+  }
+
+  private async projectDelayCauseConfirmation(tx: Tx, customerId: string, projectId: string, manager: string,
+    clarificationId: string, versionId: string) {
+    const recorded = await tx.auditEvent.findFirst({ where: { customerId, actor: manager, event: projectDelayCauseConfirmedEvent, AND: [
+      { detail: { path: ["projectId"], equals: projectId } },
+      { detail: { path: ["clarificationId"], equals: clarificationId } },
+      { detail: { path: ["versionId"], equals: versionId } },
+    ] }, select: { id: true, occurredAt: true } });
+    return recorded ? projectDelayCauseConfirmationSchema.parse({ id: recorded.id, clarificationId, versionId,
+      confirmedAt: iso(recorded.occurredAt) }) : null;
+  }
+
+  private async confirmedProjectDelayCause(tx: Tx, viewer: Actor, projectId: string, schedule: AtlasSchedule, asOf: Date) {
+    const evidence = await this.currentProjectDelayCauseEvidence(tx, viewer, projectId, asOf);
+    if (!evidence) return null;
+    const manager = await this.assignedProjectManager(tx, viewer.customerId, projectId);
+    if (!manager) return null;
+    const saved = await this.findDelayClarification(tx, viewer.customerId, projectId, manager, schedule.revision, projectDelayClarificationEvent);
+    const confirmation = saved && await this.projectDelayCauseConfirmation(tx, viewer.customerId, projectId, manager, saved.id, evidence.versionId);
+    return confirmation && confirmation.confirmedAt <= iso(asOf) ? { evidence, confirmation } : null;
+  }
+
+  async confirmProjectDelayCause(actorValue: Actor, projectValue: string, command: unknown, correlationValue: string) {
+    const manager = this.reportingActor(actorValue, "project_manager");
+    const projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    const parsed = projectDelayCauseCommandSchema.safeParse(command);
+    if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+    return this.transaction(async (tx) => {
+      await this.authorizeProjectDelayManager(tx, manager, projectId);
+      await this.lockProjectCommand(tx, "project-delay-clarification", [manager.customerId, projectId]);
+      const review = await this.projectDelayReview(tx, manager, projectId);
+      if (review?.id !== parsed.data.clarificationId || review.causeEvidence?.versionId !== parsed.data.versionId)
+        throw new ProjectUpdateError("CONFLICT");
+      if (review.confirmation) return review.confirmation;
+      const now = await this.now(tx);
+      const { id } = await this.recordProjectAuditEvent(tx, manager, projectDelayCauseConfirmedEvent, correlationId,
+        { projectId, ...parsed.data }, now);
+      return projectDelayCauseConfirmationSchema.parse({ id, ...parsed.data, confirmedAt: iso(now) });
+    }, "ReadCommitted");
+  }
+
+  async requestProjectDelayClarification(actorValue: Actor, projectValue: string, command: unknown, correlationValue: string) {
+    const leader = this.reportingActor(actorValue, "leadership");
+    const projectId = parseProjectId(projectValue);
+    const correlationId = parseCorrelation(correlationValue);
+    const parsed = projectDelayClarificationCommandSchema.safeParse(command);
+    if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
+    return this.transaction(async (tx) => {
+      await this.authorize(tx, leader, projectId, false);
+      await this.authorizeProjectDelayWorkflow(tx, leader.customerId, projectId);
+      const schedule = await this.canonicalProjectSchedule(tx, leader.customerId, projectId);
+      const recipient = await this.assignedProjectManager(tx, leader.customerId, projectId);
+      if (!schedule || schedule.revision !== parsed.data.scheduleRevision || (schedule.movementDays ?? 0) <= 0 ||
+          !recipient || recipient === leader.subject) throw new ProjectUpdateError("CONFLICT");
+      await this.lockProjectCommand(tx, "project-delay-clarification", [leader.customerId, projectId]);
+      const existing = await this.findDelayClarification(tx, leader.customerId, projectId, recipient, schedule.revision,
+        projectDelayClarificationEvent);
+      if (existing) return projectDelayClarificationSchema.parse({ id: existing.id, requestedAt: iso(existing.occurredAt), schedule });
+      const now = await this.now(tx);
+      const { id } = await this.recordProjectAuditEvent(tx, leader, projectDelayClarificationEvent, correlationId,
+        { projectId, recipient, scheduleRevision: schedule.revision }, now);
+      return projectDelayClarificationSchema.parse({ id, requestedAt: iso(now), schedule });
+    }, "ReadCommitted");
+  }
+
+  private async authorizeProjectDelayWorkflow(tx: Tx, customerId: string, projectId: string) {
+    if (this.atlasDemoEnabled && await tx.project.findFirst({
+      where: { id: projectId, customerId, code: atlasApprovalProjectCode }, select: { id: true },
+    })) throw new ProjectUpdateError("DENIED");
+  }
+
+  private async assignedProjectManager(tx: Tx, customerId: string, projectId: string) {
+    const assigned = await tx.projectResponsibility.findMany({ where: { customerId, projectId, role: "PROJECT_MANAGER" },
+      select: { subject: true }, take: 2 });
+    const subject = assigned[0]?.subject;
+    return assigned.length === 1 && subject && await this.recipientAuthorized(tx, customerId, projectId, subject, "PROJECT_MANAGER")
+      ? subject : null;
   }
 
   private reportingActor(actorValue: Actor, role: "leadership" | "project_manager"): Actor {
@@ -2832,12 +2966,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return this.projectReportView(tx, current.customerId, saved, request);
   }
 
-  private async projectReportLock(tx: Tx, identity: readonly string[]) {
+  private async lockProjectCommand(tx: Tx, namespace: "project-report" | "project-delay-clarification", identity: readonly string[]) {
     await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0)) IS NULL AS locked",
-      stringify(["project-report", ...identity]));
+      stringify([namespace, ...identity]));
   }
 
-  private async recordProjectReportEvent(tx: Tx, actor: Actor, event: string, correlationId: string,
+  private async recordProjectAuditEvent(tx: Tx, actor: Actor, event: string, correlationId: string,
     detail: Prisma.InputJsonObject, occurredAt: Date) {
     return tx.auditEvent.create({ data: { customerId: actor.customerId, actor: actor.subject,
       event, correlationId, detail, occurredAt }, select: { id: true } });
@@ -2883,13 +3017,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const correlationId = parseCorrelation(correlationValue);
     return this.transaction(async (tx) => {
       await this.authorize(tx, leader, projectId, false);
-      await this.projectReportLock(tx, [leader.customerId, projectId, leader.subject]);
+      await this.lockProjectCommand(tx, "project-report", [leader.customerId, projectId, leader.subject]);
       const draft = await this.currentProjectManagementDraft(tx, leader, projectId);
       if (hash({ ...expected, asOf: draft.asOf }) !== hash(draft)) throw new ProjectUpdateError("CONFLICT");
       const previous = await this.savedProjectManagementSnapshot(tx, leader.customerId, projectId, leader.subject);
       if (previous && hash({ ...previous.draft, asOf: draft.asOf }) === hash(draft))
         return this.projectReportWithApproval(tx, leader, previous);
-      const saved = await this.recordProjectReportEvent(tx, leader, projectReportSavedEvent, correlationId,
+      const saved = await this.recordProjectAuditEvent(tx, leader, projectReportSavedEvent, correlationId,
         { projectId, draft }, new Date(draft.asOf));
       return projectManagementSnapshotSchema.parse({ snapshotId: saved.id, draft });
     }, "ReadCommitted");
@@ -2901,22 +3035,18 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const correlationId = parseCorrelation(correlationValue);
     return this.transaction(async (tx) => {
       await this.authorize(tx, leader, projectId, false);
-      await this.projectReportLock(tx, ["approval", leader.customerId, projectId, snapshotId]);
+      await this.lockProjectCommand(tx, "project-report", ["approval", leader.customerId, projectId, snapshotId]);
       const snapshot = await this.readableProjectReport(tx, leader, projectId, leader.subject, snapshotId);
       const current = await this.projectReportWithApproval(tx, leader, snapshot);
       if (current.approval) return current;
-      const assigned = await tx.projectResponsibility.findMany({ where: { customerId: leader.customerId,
-        projectId, role: "PROJECT_MANAGER" }, select: { subject: true }, take: 2 });
-      const approver = assigned[0]?.subject;
-      if (assigned.length !== 1 || !approver || approver === leader.subject ||
-          !await this.recipientAuthorized(tx, leader.customerId, projectId, approver, "PROJECT_MANAGER"))
-        throw new ProjectUpdateError("CONFLICT");
+      const approver = await this.assignedProjectManager(tx, leader.customerId, projectId);
+      if (!approver || approver === leader.subject) throw new ProjectUpdateError("CONFLICT");
       if (snapshot.draft.updateFreshness)
         await this.authorizeSavedReportFreshness(tx, { ...leader, subject: approver, roles: ["project_manager"] },
           projectId, snapshot.draft.updateFreshness);
       const now = await this.now(tx), requestedAt = iso(now);
       if (requestedAt < snapshot.draft.asOf) throw new ProjectUpdateError("UNAVAILABLE");
-      const { id } = await this.recordProjectReportEvent(tx, leader, projectReportRequestedEvent, correlationId,
+      const { id } = await this.recordProjectAuditEvent(tx, leader, projectReportRequestedEvent, correlationId,
         { projectId, snapshotId, approver }, now);
       return { ...snapshot, approval: projectReportApprovalSchema.parse({ requestId: id, requestedAt, state: "PENDING", decidedAt: null }) };
     }, "ReadCommitted");
@@ -2969,7 +3099,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const { snapshotId, requestId, decision } = parsed.data;
     return this.transaction(async (tx) => {
       await this.authorizeReportManager(tx, manager, projectId);
-      await this.projectReportLock(tx, ["approval", manager.customerId, projectId, snapshotId]);
+      await this.lockProjectCommand(tx, "project-report", ["approval", manager.customerId, projectId, snapshotId]);
       const request = await this.projectReportSubmission(tx, manager.customerId, projectId, { snapshotId, approver: manager.subject });
       if (!request || request.requestId !== requestId) throw new ProjectUpdateError("CONFLICT");
       const saved = await this.readableProjectReport(tx, manager, projectId, request.author, snapshotId);
@@ -2980,7 +3110,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (prior.state !== "PENDING") throw new ProjectUpdateError("CONFLICT");
       const now = await this.now(tx), decidedAt = iso(now);
       if (decidedAt < prior.requestedAt) throw new ProjectUpdateError("UNAVAILABLE");
-      await this.recordProjectReportEvent(tx, manager, projectReportDecidedEvent, correlationId, { projectId, ...parsed.data }, now);
+      await this.recordProjectAuditEvent(tx, manager, projectReportDecidedEvent, correlationId, { projectId, ...parsed.data }, now);
       return { ...saved, approval: projectReportApprovalSchema.parse({ ...prior, state: decision, decidedAt }) };
     }, "ReadCommitted");
   }
@@ -2993,7 +3123,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const { snapshotId, requestId } = parsed.data;
     return this.transaction(async (tx) => {
       await this.authorizeReportManager(tx, manager, projectId);
-      await this.projectReportLock(tx, ["approval", manager.customerId, projectId, snapshotId]);
+      await this.lockProjectCommand(tx, "project-report", ["approval", manager.customerId, projectId, snapshotId]);
       const request = await this.projectReportSubmission(tx, manager.customerId, projectId, { snapshotId, approver: manager.subject });
       if (!request || request.requestId !== requestId) throw new ProjectUpdateError("CONFLICT");
       const saved = await this.readableProjectReport(tx, manager, projectId, request.author, snapshotId);
@@ -3005,7 +3135,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (report.delivery) return report;
       const now = await this.now(tx), deliveredAt = iso(now);
       if (deliveredAt < state.approval.decidedAt) throw new ProjectUpdateError("UNAVAILABLE");
-      const { id } = await this.recordProjectReportEvent(tx, manager, projectReportDeliveredEvent, correlationId,
+      const { id } = await this.recordProjectAuditEvent(tx, manager, projectReportDeliveredEvent, correlationId,
         { projectId, snapshotId, requestId, decisionId: state.decisionId, recipient: recipient.subject }, now);
       return { ...report, delivery: projectReportDeliverySchema.parse({ id, deliveredAt, snapshotId, requestId }) };
     }, "ReadCommitted");

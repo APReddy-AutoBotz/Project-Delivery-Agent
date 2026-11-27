@@ -12,6 +12,10 @@ opens report review from the project page and can approve or reject that exact
 version. The dashboard,
 email preview and editable PowerPoint display the resulting approval state.
 
+Mark selected-project PowerPoint snapshots Confidential because they carry
+project evidence protected by current access grants. Keep that classification
+when rendering an approved or delivered version.
+
 Reuse the report snapshot, existing decision shape and append-only audit
 records. Recheck the saved evidence and PM assignment at decision time.
 Repeated requests and matching decisions reuse their existing records.
