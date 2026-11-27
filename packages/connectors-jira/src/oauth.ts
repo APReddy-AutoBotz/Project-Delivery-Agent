@@ -146,3 +146,34 @@ export async function getJiraAccessibleResources(input: {
     return { cloudId: resource.id, url: resource.url, scopes: resource.scopes };
   });
 }
+
+const jiraProbeProjectSchema = z.object({ id: z.string() });
+
+export async function probeJiraCloudProject(input: {
+  cloudId: string;
+  projectId: string;
+  accessToken: string;
+  fetchImpl?: typeof fetch;
+}): Promise<void> {
+  const cloudId = z.uuid().parse(input.cloudId);
+  const projectId = z.string().regex(/^[1-9][0-9]{0,19}$/).parse(input.projectId);
+  const accessToken = z.string().min(1).max(8192).regex(/^[\x21-\x7e]+$/).parse(input.accessToken);
+  let response: Response;
+  try {
+    response = await (input.fetchImpl ?? fetch)(`https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${projectId}`, {
+      method: "GET",
+      headers: { authorization: `Bearer ${accessToken}`, accept: "application/json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(2500),
+    });
+  } catch {
+    throw new JiraOAuthError("TEMPORARILY_UNAVAILABLE");
+  }
+  if (!response.ok) {
+    void response.body?.cancel().catch(() => undefined);
+    throw statusError(response);
+  }
+  const project = jiraProbeProjectSchema.safeParse(await readJson(response, 65_536));
+  if (!project.success || project.data.id !== projectId)
+    throw new JiraOAuthError("INVALID_RESPONSE");
+}

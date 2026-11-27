@@ -27,9 +27,11 @@ import { createApp } from "./app.js";
 import { JiraRuntimeService } from "./jira-runtime.js";
 import { installConnectorRoutes } from "./connector-routes.js";
 import { createConfiguredXlsxDecoder } from "./xlsx-runtime.js";
+import { installForgeJiraStagingRoute, loadForgeJiraStagingBinding } from "./forge-jira-staging.js";
 installFatalHandlers("api");
 try {
   const config = loadConfig(process.env);
+  const forgeJiraStaging = loadForgeJiraStagingBinding(process.env.PDAA_FORGE_JIRA_STAGING_FILE);
   const db = createDatabase(config.database);
   const xlsxDecoder = createConfiguredXlsxDecoder(process.env.PDAA_XLSX_DECODER_MODE, config);
   const xlsxImportMode = process.env.PDAA_XLSX_BROWSER_IMPORT ?? "disabled";
@@ -59,7 +61,10 @@ try {
     new DatabaseAuthorityRepository(db),
     new DatabaseMilestoneReconciliationRepository(db),
     new DatabaseScalarReconciliationRepository(db),
-    (target) => installConnectorRoutes(target, config, connectorRuntime, new JiraRuntimeService(config, connectorRuntime, ingestion), projectUpdates),
+    (target) => {
+      installForgeJiraStagingRoute(target, forgeJiraStaging);
+      installConnectorRoutes(target, config, connectorRuntime, new JiraRuntimeService(config, connectorRuntime, ingestion), projectUpdates);
+    },
     ingestion,
     healthAssessment,
     projectUpdates,

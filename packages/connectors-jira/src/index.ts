@@ -1706,6 +1706,7 @@ export function createJiraOAuthCloudClient(options: {
 
 export {
   getJiraAccessibleResources,
+  probeJiraCloudProject,
   refreshJiraOAuthToken,
   JiraOAuthError,
 } from "./oauth.js";
