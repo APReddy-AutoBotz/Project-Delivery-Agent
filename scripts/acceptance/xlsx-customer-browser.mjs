@@ -310,6 +310,51 @@ async function goldenAnswer(leader, fixture, status) {
   return path;
 }
 
+async function noAiMonitoringAndReport(pmo, leader, project, projectId) {
+  const policy = await goldenApi(pmo, project + "/project-update-policy", 200, "POST", {
+    expectedRevision: 0,
+    freshnessWindowSeconds: 1,
+    timeZone: "UTC",
+    requiredFacts: [{ factType: "project.forecast", label: "Current forecast" }],
+    responsibleSubject: "pm-atlas",
+    scheduledScanEnabled: false,
+    reminderBusinessDayOffsets: [],
+    escalationAfterBusinessDays: 0,
+    escalationRecipientSubject: null,
+    quietHoursStartLocal: null,
+    quietHoursEndLocal: null,
+  });
+  assert.equal(policy.revision, 1);
+  const update = await goldenApi(pmo, project + "/project-update-assessments", 201, "POST", {});
+  assert.equal(update.project.id, projectId);
+  assert.equal(update.freshness.state, "STALE");
+  assert.equal(update.freshness.sourceDateField, "project.createdAt");
+  assert.equal(update.obligation.state, "OPEN");
+
+  const retention = "/api/admin/health-assessment-retention";
+  if (!(await goldenApi(pmo, retention))) {
+    await goldenApi(pmo, retention, 200, "POST", {
+      contentRetentionHours: 24, auditRetentionHours: 48, idempotencyRetentionHours: 72,
+    });
+  }
+  const healthPath = project + "/health-assessments";
+  const health = await goldenApi(pmo, healthPath, 201, "POST", { commandKey: randomUUID() });
+  assert.equal(health.projectId, projectId);
+  assert.equal(health.contentAvailable, true);
+  assert.equal(health.result.calculated.rule.key, "schedule-health");
+  const latest = await goldenApi(pmo, healthPath + "/latest");
+  assert.equal(latest.assessmentId, health.assessmentId);
+
+  const report = await goldenApi(leader, project + "/management-draft");
+  assert.equal(report.draft.projectId, projectId);
+  assert.equal(report.draft.updateFreshness.state, update.freshness.state);
+  assert.equal(report.draft.updateFreshness.assessedAt, update.assessedAt);
+  assert.equal(report.draft.updateFreshness.openObligation, true);
+  assert.equal(report.livePath, "/?project=" + projectId);
+  assert.match(report.powerpointBase64, /^UEsDB/u);
+  return { staleUpdateAssessedAt: update.assessedAt, healthAssessmentId: health.assessmentId, pptxRendered: true };
+}
+
 async function goldenReconciliation(fixture) {
   const project = "/api/projects/" + fixture.projectId;
   const checkPath = project + "/milestone-reconciliation-checks";
@@ -348,6 +393,7 @@ async function goldenReconciliation(fixture) {
   assert.equal(savedLink, `/?project=${fixture.projectId}&reconciliation=${requestId}`);
 
   const answer = await goldenAnswer(leader, fixture, 200);
+  const noAi = await noAiMonitoringAndReport(pmo, leader, project, fixture.projectId);
   const workbook = fixture.positions.find(({ type }) => type === "xlsx.row");
   await goldenHistory(leader, project, workbook, true);
   const leaderGrant = { subject: "leader-atlas", scopeType: "project", scopeId: fixture.projectId };
@@ -383,7 +429,7 @@ async function goldenReconciliation(fixture) {
   assert.deepEqual((await goldenApi(pm, copied)).assessment, checked.assessment);
   return {
     requestId, assessmentId: checked.assessment.assessmentId, checkId: checked.checkId,
-    reusedCheckId: reused.checkId, command, projectAndFactRevocations: true,
+    reusedCheckId: reused.checkId, command, projectAndFactRevocations: true, noAi,
   };
 }
 

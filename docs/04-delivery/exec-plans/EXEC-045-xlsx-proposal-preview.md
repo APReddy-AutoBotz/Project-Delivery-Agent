@@ -852,3 +852,16 @@ rollback, retention, clean/upgrade and recovery checks, plus a real browser
 upload-preview-save journey and stale-session suppression. Complete independent
 design/security and exact-candidate reviews, hosted checks, expected-head merge
 and actual post-merge verification before any acceptance decision.
+
+## No-AI operation in the packaged customer journey
+
+AC-DEP-004, BR-014 and NFR-REL-003 reuse the bundled and external database
+journeys. The harness checks that the packaged API has no reply interpreter
+configured. The existing scheduled Jira fixture uses the real read adapter
+with a synthetic transport and stores its observations alongside the reviewed
+Excel row. On the same project, the PMO records a stale update assessment and
+an open obligation, runs and reopens a health assessment, and leadership
+manually generates a PowerPoint draft that includes the saved freshness.
+The evidence is scoped to synthetic synchronization and provider-disabled
+operations. Customer endpoint switching and live Jira onboarding have separate
+acceptance criteria.
