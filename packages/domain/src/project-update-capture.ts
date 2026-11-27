@@ -334,8 +334,9 @@ export interface CapturedReplyInterpreter {
 
 export function readGroundedReplySuggestions(text: string, allowed: readonly CapturedUpdateFactType[], output: unknown) {
   const parsed = z.strictObject({ suggestions: capturedReplySuggestions }).safeParse(output);
+  const supported = extractExplicitCapturedFacts(text, true);
   if (!parsed.success || parsed.data.suggestions.some(({ factType, value }) =>
-    !allowed.includes(factType) || !text.includes(value))) return [];
+    !allowed.includes(factType) || supported[factType] !== value)) return [];
   return parsed.data.suggestions;
 }
 
@@ -344,11 +345,15 @@ export const projectUpdateStatusConfirmationSchema = z.strictObject({
   expectedRevision: captureFactRevision,
   status: capturedStatusValue,
 });
-export function extractExplicitCapturedFacts(text: string): Partial<Record<CapturedUpdateFactType, string>> {
+export function extractExplicitCapturedFacts(text: string, allowAffirmativePhrases = false): Partial<Record<CapturedUpdateFactType, string>> {
   const seen = new Set<CapturedUpdateFactType>();
   const values: Partial<Record<CapturedUpdateFactType, string>> = {};
   for (const line of text.split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/u)) {
-    const parts = /^(?:project\s+)?(status|forecast)\s*:\s*(.*)$/iu.exec(line.trim());
+    const labeled = /^(?:project\s+)?(status|forecast)\s*:\s*(.*)$/iu.exec(line.trim());
+    const affirmative = !labeled && allowAffirmativePhrases
+      ? /^(?:the\s+)?(?:project\s+)?(status|forecast(?:\s+finish(?:\s+date)?)?)\s+(?:is|remains)\s+(.*)$/iu.exec(line.trim())
+      : null;
+    const parts = labeled ?? affirmative;
     if (!parts) continue;
     const status = parts[1]!.toLowerCase() === "status";
     const factType = status ? "project.status" : "project.forecast";
@@ -357,7 +362,8 @@ export function extractExplicitCapturedFacts(text: string): Partial<Record<Captu
       continue;
     }
     seen.add(factType);
-    const value = (status ? capturedStatusValue : capturedForecastValue).safeParse(parts[2]);
+    const statement = affirmative && !status ? parts[2]?.replace(/\.$/u, "") : parts[2];
+    const value = (status ? capturedStatusValue : capturedForecastValue).safeParse(statement);
     if (value.success) values[factType] = value.data;
   }
   return values;

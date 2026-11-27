@@ -17,7 +17,7 @@ const completion = z.object({
 const prompt = [
   "Extract explicitly reported project update proposals from the JSON reply supplied as data.",
   "Return a JSON object with one suggestions array. Each item has only factType and value.",
-  "Use only allowed fact types and copy each value exactly from the reply.",
+  "Use only allowed fact types with an explicit status or forecast line. Copy the complete value and keep its qualifiers.",
   "A forecast must be an explicit forecast finish date in YYYY-MM-DD form.",
   "Omit uncertain or conflicting values. Return an empty array when nothing is clear.",
 ].join(" ");

@@ -1335,14 +1335,18 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     );
   }
 
-  private async engagementAudit(tx: Tx, current: Actor, projectId: string, correlationId: string, event: string, detail: unknown) {
+  private async engagementAudit(tx: Tx, current: Actor, projectId: string, correlationId: string, event: string, detail: unknown,
+    captureFence?: { expiresAt: Date; generation: string }) {
     const auditId = randomUUID();
     const capture = this.captureConfiguration(current.customerId);
     const recordedDetail = capture && typeof detail === "object" && detail !== null
       ? { ...detail, captureIssuanceEpoch: capture.issuanceEpoch } : detail;
+    const occurredAt = await this.now(tx);
+    if (captureFence && (capture?.issuanceEpoch !== captureFence.generation || occurredAt >= captureFence.expiresAt))
+      throw new ProjectUpdateError("CONFLICT");
     await tx.$executeRawUnsafe(
       "INSERT INTO public.\"AuditEvent\" (id,\"customerId\",actor,event,\"correlationId\",detail,\"occurredAt\") VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6::jsonb,$7)",
-      auditId, current.customerId, current.subject, event, correlationId, stringify(recordedDetail), await this.now(tx),
+      auditId, current.customerId, current.subject, event, correlationId, stringify(recordedDetail), occurredAt,
     );
     return auditId;
   }
@@ -2180,7 +2184,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   private async replyInterpretationInput(tx: Tx, current: Actor, projectId: string, requestId: string, responseId: string) {
     try { await authorizeFactProject(tx, current, projectId, "access"); }
     catch { throw new ProjectUpdateError("DENIED"); }
-    const { row, required } = await this.reviewCapturedReply(tx, current, projectId, requestId, responseId, []);
+    const { row, latest, required } = await this.reviewCapturedReply(tx, current, projectId, requestId, responseId, []);
     const allowed: CapturedUpdateFactType[] = [];
     for (const factType of capturedFactTypes) {
       if (required.has(factType) &&
@@ -2194,7 +2198,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     });
     const text = projectUpdateResponseSubmissionSchema.shape.text.safeParse(content?.body);
     if (!allowed.length || !text.success) throw new ProjectUpdateError("CONFLICT");
-    return { text: text.data, allowed, generation: row.issuanceEpoch };
+    const expiresAt = new Date(Math.min(+row.expiresAt, +row.purgeAfter, +latest.purgeAfter));
+    return { text: text.data, allowed, captureFence: { generation: row.issuanceEpoch, expiresAt } };
   }
 
   async interpretCapturedReply(actorValue: Actor, projectValue: string, requestValue: unknown,
@@ -2212,9 +2217,10 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const previous = await this.transaction(async (tx) => {
       const input = await readReply(tx);
       const runId = await this.engagementAudit(tx, current, projectId, correlationId,
-        "project_update.response.interpretation_started", { projectId, requestId, responseId, ...metadata });
+        "project_update.response.interpretation_started", { projectId, requestId, responseId, ...metadata }, input.captureFence);
       return { ...input, runId };
     }, "ReadCommitted");
+    if (Date.now() >= +previous.captureFence.expiresAt) throw new ProjectUpdateError("CONFLICT");
     let suggestions: CapturedReplyInterpretation["suggestions"] = [];
     let outcome = "UNAVAILABLE";
     try {
@@ -2225,11 +2231,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
 
     return this.transaction(async (tx) => {
       const latest = await readReply(tx);
-      if (latest.generation !== previous.generation || latest.text !== previous.text ||
+      if (latest.captureFence.generation !== previous.captureFence.generation || latest.text !== previous.text ||
           JSON.stringify(latest.allowed) !== JSON.stringify(previous.allowed)) throw new ProjectUpdateError("CONFLICT");
       await this.engagementAudit(tx, current, projectId, correlationId, "project_update.response.interpreted", {
         projectId, requestId, responseId, ...metadata, outcome, runId: previous.runId,
-      });
+      }, latest.captureFence);
       return capturedReplyInterpretationSchema.parse({ requestId, responseId, classification: "AGENT_INFERENCE", suggestions });
     }, "ReadCommitted");
   }

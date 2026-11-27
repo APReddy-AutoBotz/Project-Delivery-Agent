@@ -5,7 +5,7 @@ import { expect, it, vi } from "vitest";
 import { readGroundedReplySuggestions } from "../packages/domain/src/project-update-capture.js";
 import { loadCapturedReplyInterpreter } from "../packages/platform/src/reply-interpreter.js";
 
-const reply = "The integration environment is ready. Forecast finish remains 2026-12-08.";
+const reply = "Status: The integration environment is ready.\nForecast finish remains 2026-12-08.";
 const suggestions = [{ factType: "project.forecast", value: "2026-12-08" }] as const;
 
 it("validates the exact supported reply values before returning inference", () => {
@@ -17,6 +17,15 @@ it("validates the exact supported reply values before returning inference", () =
     { suggestions: [...suggestions, ...suggestions] },
     { suggestions, classification: "HUMAN_CONFIRMED" },
   ]) expect(readGroundedReplySuggestions(reply, allowed, output)).toEqual([]);
+  expect(readGroundedReplySuggestions("Status: Integration is not ready.", ["project.status"], {
+    suggestions: [{ factType: "project.status", value: "ready" }],
+  })).toEqual([]);
+  const completeStatus = [{ factType: "project.status", value: "Integration is not ready." }];
+  expect(readGroundedReplySuggestions("The project status is Integration is not ready.", ["project.status"], {
+    suggestions: completeStatus,
+  })).toEqual(completeStatus);
+  expect(readGroundedReplySuggestions("Forecast: 2026-12-08 is no longer expected.", allowed, { suggestions })).toEqual([]);
+  expect(readGroundedReplySuggestions(reply + "\nForecast: 2026-12-09", allowed, { suggestions })).toEqual([]);
 });
 
 it("binds the compatible provider to the operator-configured synthetic endpoint and bounded request", async () => {

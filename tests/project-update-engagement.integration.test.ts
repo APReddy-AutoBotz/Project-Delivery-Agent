@@ -252,7 +252,7 @@ it("AC-EVD-006 / AC-AI-002: interprets a scoped reply and confirms requested fac
   await f.capture.processEngagements(1);
   const ownerHistory = await f.capture.captureHistory(f.owner, projectId);
   if ([0, 6].includes(new Date().getUTCDay())) { expect(ownerHistory.entries).toEqual([]); return; }
-  const { requestId, recipientPath } = ownerHistory.entries[0]!;
+  const { requestId, recipientPath, expiresAt } = ownerHistory.entries[0]!;
   const reply = "Status: Integration is progressing.\nForecast: 2026-12-08";
   const response = await f.capture.submitResponse(f.owner, recipientPath!.split("/").at(-1)!, {
     text: reply, idempotencyKey: randomUUID(),
@@ -277,6 +277,25 @@ it("AC-EVD-006 / AC-AI-002: interprets a scoped reply and confirms requested fac
   await expect(reader.interpretCapturedReply(f.owner, projectId, command, randomUUID())).rejects.toMatchObject({ code: "DENIED" });
   expect(interpret).not.toHaveBeenCalled();
   expect((await reader.captureHistory(f.admin, projectId)).entries[0]?.interpretationAvailable).toBe(true);
+  const checkedAt = new Date(), expiry = new Date(expiresAt);
+  const auditClock = vi.spyOn(reader as unknown as { now(tx: unknown): Promise<Date> }, "now");
+  try {
+    const beforeDispatch = randomUUID();
+    auditClock.mockResolvedValueOnce(checkedAt).mockResolvedValueOnce(expiry);
+    await expect(reader.interpretCapturedReply(f.admin, projectId, command, beforeDispatch))
+      .rejects.toMatchObject({ code: "CONFLICT" });
+    expect(interpret).not.toHaveBeenCalled();
+    expect(await db.auditEvent.count({ where: { customerId, correlationId: beforeDispatch } })).toBe(0);
+
+    const beforeDisclosure = randomUUID();
+    auditClock.mockResolvedValueOnce(checkedAt).mockResolvedValueOnce(checkedAt)
+      .mockResolvedValueOnce(checkedAt).mockResolvedValueOnce(expiry);
+    await expect(reader.interpretCapturedReply(f.admin, projectId, command, beforeDisclosure))
+      .rejects.toMatchObject({ code: "CONFLICT" });
+    expect(interpret).toHaveBeenCalledTimes(1);
+    expect(await db.auditEvent.findMany({ where: { customerId, correlationId: beforeDisclosure }, select: { event: true } }))
+      .toEqual([{ event: "project_update.response.interpretation_started" }]);
+  } finally { auditClock.mockRestore(); }
   const correlationId = randomUUID();
   expect(await reader.interpretCapturedReply(f.admin, projectId, command, correlationId))
     .toEqual({ ...command, classification: "AGENT_INFERENCE", suggestions: proposed });
